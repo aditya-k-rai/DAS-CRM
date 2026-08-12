@@ -172,11 +172,28 @@ export function LeadFunnelDistribution() {
 
   const { currentUser, subscription }       = useAuth();
 
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+  const canAccessFunnel = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'MANAGER' || rawRole === 'OWNER';
+
   useEffect(() => {
     fetchGrabPool();
     fetchWhitelist();
     fetchAdminMasterView();
   }, []);
+
+  if (!canAccessFunnel) {
+    return (
+      <div className="crm-card border border-red-500/30 bg-red-500/10 p-8 rounded-3xl text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center font-bold mx-auto">
+          <Lock size={20} />
+        </div>
+        <h3 className="text-lg font-bold text-white">Access Restricted to Company Admins & Managers</h3>
+        <p className="text-xs text-muted max-w-md mx-auto">
+          The Lead Funnel & Distribution Engine contains global ingestion settings, batch quota configurations, and allocation controls reserved exclusively for Company Admins and Department Managers.
+        </p>
+      </div>
+    );
+  }
 
   const fetchGrabPool = async () => {
     try {
