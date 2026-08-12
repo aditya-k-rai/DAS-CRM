@@ -128,6 +128,37 @@ export class CompanyKeyService {
     });
   }
 
+  /** Get all company registration keys */
+  async getAllCompanyKeys() {
+    return this.prisma.companyRegistrationKey.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { id: true, name: true, email: true } } },
+    });
+  }
+
+  /** Get all user invite keys */
+  async getAllUserKeys() {
+    return this.prisma.userInviteKey.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Revoke/Block a company registration key */
+  async revokeCompanyKey(keyId: string) {
+    return this.prisma.companyRegistrationKey.update({
+      where: { id: keyId },
+      data: { status: KeyStatus.REVOKED },
+    });
+  }
+
+  /** Revoke/Block a user invite key */
+  async revokeUserKey(keyId: string) {
+    return this.prisma.userInviteKey.update({
+      where: { id: keyId },
+      data: { status: KeyStatus.REVOKED },
+    });
+  }
+
   // ── Private Helpers ───────────────────────────────────────────────────
 
   private buildCompanyKeyString(companyName: string): string {

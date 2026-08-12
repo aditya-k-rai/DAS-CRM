@@ -351,7 +351,13 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) throw new UnauthorizedException('Invalid credentials or user account blocked');
+
+    if (user.organization && user.organization.isActive === false) {
+      throw new ForbiddenException(
+        'Company workspace has been blocked by Super Admin. Please contact support.',
+      );
+    }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
@@ -373,6 +379,194 @@ export class AuthService {
       organization: user.organization,
       ...tokens,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SUPER ADMIN COMPANY & USER MANAGEMENT
+  // ═══════════════════════════════════════════════════════════
+
+  async getAllCompanies() {
+    const orgs = await this.prisma.organization.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        subscription: {
+          include: {
+            upgradeRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
+        users: { select: { id: true, email: true, isActive: true } },
+        leads: { select: { id: true, isConverted: true } },
+      },
+    });
+
+    const regKeys = await this.prisma.companyRegistrationKey.findMany();
+    const keyMap = new Map(regKeys.map((k) => [k.usedByOrganizationId, k.key]));
+
+    return orgs.map((org) => {
+      const totalLeads = org.leads.length;
+      const convertedLeads = org.leads.filter((l) => l.isConverted).length;
+      const activeUsers = org.users.filter((u) => u.isActive).length;
+
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        adminName: org.adminName || 'Admin',
+        adminEmail: org.adminEmail || (org.users[0]?.email ?? 'No Admin Email'),
+        phone: org.phone,
+        companyType: org.companyType,
+        sector: org.sector,
+        isActive: org.isActive !== false,
+        registrationKey: keyMap.get(org.id) || org.registrationKeyId || 'N/A',
+        createdAt: org.createdAt,
+        plan: org.subscription?.planTier ?? 'FREE_TRIAL',
+        seatsAllocated: org.subscription?.memberLimit ?? 6,
+        seatsUsed: activeUsers,
+        totalUsersCount: org.users.length,
+        totalLeads,
+        convertedLeads,
+        conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0,
+        subscription: org.subscription,
+      };
+    });
+  }
+
+  async getCompanyDetails(companyId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: companyId },
+      include: {
+        subscription: {
+          include: {
+            upgradeRequests: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
+        users: {
+          include: { role: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        leads: { select: { id: true, isConverted: true, createdAt: true } },
+        deals: { select: { id: true, value: true, status: true } },
+      },
+    });
+
+    if (!org) throw new BadRequestException('Company not found');
+
+    const regKeyRecord = await this.prisma.companyRegistrationKey.findFirst({
+      where: { usedByOrganizationId: org.id },
+    });
+
+    const userInviteKeys = await this.prisma.userInviteKey.findMany({
+      where: { organizationId: org.id },
+    });
+    const userKeyMap = new Map(userInviteKeys.map((k) => [k.usedByUserId, k.key]));
+
+    const totalLeads = org.leads.length;
+    const convertedLeads = org.leads.filter((l) => l.isConverted).length;
+    const totalDeals = org.deals.length;
+    const wonDeals = org.deals.filter((d) => d.status === 'WON').length;
+    const totalRevenue = org.deals
+      .filter((d) => d.status === 'WON')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0);
+
+    return {
+      organization: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        adminName: org.adminName,
+        adminEmail: org.adminEmail,
+        phone: org.phone,
+        city: org.city,
+        state: org.state,
+        gstNumber: org.gstNumber,
+        companyType: org.companyType,
+        sector: org.sector,
+        isActive: org.isActive !== false,
+        registrationKey: regKeyRecord?.key || org.registrationKeyId || 'N/A',
+        createdAt: org.createdAt,
+      },
+      subscription: org.subscription,
+      leadStats: {
+        totalLeads,
+        convertedLeads,
+        conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0,
+        totalDeals,
+        wonDeals,
+        totalRevenue,
+      },
+      employees: org.users.map((u) => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim(),
+        email: u.email,
+        role: u.role?.name || 'VIEWER',
+        isActive: u.isActive !== false,
+        lastLoginAt: u.lastLoginAt,
+        createdAt: u.createdAt,
+        keyUsed: u.inviteKeyUsed || userKeyMap.get(u.id) || 'DIRECT_REG',
+      })),
+    };
+  }
+
+  async toggleCompanyBlock(companyId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: companyId },
+    });
+    if (!org) throw new BadRequestException('Company not found');
+
+    const updated = await this.prisma.organization.update({
+      where: { id: companyId },
+      data: { isActive: !org.isActive },
+    });
+
+    return {
+      companyId: updated.id,
+      name: updated.name,
+      isActive: updated.isActive,
+      message: updated.isActive ? 'Company unblocked successfully' : 'Company blocked successfully',
+    };
+  }
+
+  async toggleUserBlock(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive: !user.isActive },
+    });
+
+    return {
+      userId: updated.id,
+      email: updated.email,
+      isActive: updated.isActive,
+      message: updated.isActive ? 'User unblocked successfully' : 'User blocked successfully',
+    };
+  }
+
+  async updateCompanySeats(companyId: string, memberLimit: number) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId: companyId },
+    });
+    if (!sub) throw new BadRequestException('Subscription not found');
+
+    const updated = await this.prisma.subscription.update({
+      where: { organizationId: companyId },
+      data: { memberLimit },
+    });
+
+    return {
+      companyId,
+      memberLimit: updated.memberLimit,
+      message: `Member limit updated to ${memberLimit} seats`,
+    };
+  }
+
+  async getPublicCompanies() {
+    return this.prisma.organization.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   async register(dto: RegisterDto) {

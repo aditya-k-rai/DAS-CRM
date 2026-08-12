@@ -1,18 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Shield, Key, Lock, Mail, Building2, UserCheck, ArrowRight,
-  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode
+  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check
 } from 'lucide-react';
 import { useAuth, UserRole, DEMO_USERS } from '@/context/AuthContext';
+
+interface PublicCompany {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 export function LoginGateway() {
   const [entryPoint, setEntryPoint] = useState<'workspace' | 'staff_key' | 'superadmin'>('workspace');
   
-  // Workspace Login State
+  // Workspace Login State with Company & Key Enforced
+  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([
+    { id: 'comp_1', name: 'Acme Sales Solutions', slug: 'acme-sales' },
+    { id: 'comp_2', name: 'Sunita Real Estate Ltd', slug: 'sunita-re' },
+    { id: 'comp_3', name: 'Lakshmi Auto Dealerships', slug: 'lakshmi-auto' },
+    { id: 'comp_4', name: 'TechCorp Enterprise', slug: 'techcorp-io' },
+  ]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('comp_1');
+  const [companyKeyInput, setCompanyKeyInput] = useState('ACME-KX-7421');
+
   const [email, setEmail] = useState('vikram.admin@acme.com');
   const [password, setPassword] = useState('password123');
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
@@ -37,8 +52,29 @@ export function LoginGateway() {
   const router = useRouter();
   const { switchRole, setAuthSession } = useAuth();
 
+  useEffect(() => {
+    fetchPublicCompanies();
+  }, []);
+
+  const fetchPublicCompanies = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) setPublicCompanies(data);
+      }
+    } catch (e) {
+      // Fallback
+    }
+  };
+
   // 1. Workspace Login Handler
   const handleWorkspaceLogin = async () => {
+    if (!companyKeyInput.trim()) {
+      setError('Please enter your Company Registration Key or User Key.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -59,13 +95,17 @@ export function LoginGateway() {
             email: data.user.email,
             role: (data.user.role?.name || selectedRole) as UserRole,
             avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : 'US',
-            companyId: data.organization?.id || 'comp_acme',
-            companyName: data.organization?.name || 'Acme Sales Solutions',
+            companyId: data.organization?.id || selectedCompanyId,
+            companyName: data.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Acme Sales Solutions',
           },
           data.accessToken
         );
         setLoading(false);
         router.push('/dashboard');
+        return;
+      } else if (res.status === 403) {
+        setError(data.message || 'Company workspace has been blocked by Super Admin.');
+        setLoading(false);
         return;
       }
     } catch (err) {
@@ -74,6 +114,7 @@ export function LoginGateway() {
 
     // Fallback demo mode
     setTimeout(() => {
+      const targetComp = publicCompanies.find(c => c.id === selectedCompanyId);
       switchRole(selectedRole);
       setLoading(false);
       router.push('/dashboard');
@@ -93,7 +134,7 @@ export function LoginGateway() {
       });
       const data = await res.json();
       setKeyInfo(data);
-      if (!data.valid) setError('Invalid or expired Staff Invite Key.');
+      if (!data.valid) setError('Invalid, blocked, or expired Staff Invite Key.');
     } catch (err) {
       setKeyInfo({ valid: true, assignedRole: 'SALES_EXEC' });
     } finally {
@@ -103,7 +144,7 @@ export function LoginGateway() {
 
   const handleStaffKeyRegister = async () => {
     if (!userKey || !staffEmail || !staffPassword || !staffName) {
-      setError('Please fill all required fields.');
+      setError('Please fill all required fields including valid User Key.');
       return;
     }
     setLoading(true);
@@ -173,7 +214,6 @@ export function LoginGateway() {
         setError(data.message || 'Access Denied: Email not recognized.');
       }
     } catch (err) {
-      // Fallback mode for demo
       setOtpSent(true);
       setSuccessMsg('OTP Code sent to adtyamighty@gmail.com (Demo Mode: Enter 123456)');
     } finally {
@@ -229,9 +269,9 @@ export function LoginGateway() {
             </div>
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-2">Select Login Option</h2>
+          <h2 className="text-xl font-bold text-white mb-2">Select Gateway Option</h2>
           <p className="text-xs text-muted mb-6 leading-relaxed">
-            Choose your login plane based on your account type and security access level.
+            Choose your authentication plane. Access requires valid Company Key and unblocked tenant status.
           </p>
 
           <div className="space-y-3">
@@ -246,7 +286,7 @@ export function LoginGateway() {
                 </div>
                 <div>
                   <p className="font-bold text-xs">Tenant Admin & Staff Login</p>
-                  <p className="text-[10px] text-muted">Email + Password Workspace Login</p>
+                  <p className="text-[10px] text-muted">Company Key & Email Workspace Login</p>
                 </div>
               </div>
             </div>
@@ -261,8 +301,8 @@ export function LoginGateway() {
                   <Key size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-xs">Staff User Key Access</p>
-                  <p className="text-[10px] text-muted">Redeem Invite Key (e.g. ACME-RX-4312)</p>
+                  <p className="font-bold text-xs">Staff User Key Registration</p>
+                  <p className="text-[10px] text-muted">Redeem Staff Invite Key (e.g. ACME-RX-4312)</p>
                 </div>
               </div>
             </div>
@@ -287,27 +327,27 @@ export function LoginGateway() {
 
         {/* Company Registration Quick CTA */}
         <div className="pt-5 border-t border-border/40 mt-6 text-xs text-muted">
-          <p className="text-muted text-[11px] mb-2">New Company? Register your workspace with a Company Key:</p>
+          <p className="text-muted text-[11px] mb-2">New Company? Activate workspace with Registration Key:</p>
           <Link
             href="/register"
             className="w-full py-2.5 px-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center gap-2 text-xs hover:bg-indigo-500/30 transition-all"
           >
-            <Building2 size={14} /> Register Company with Key →
+            <Building2 size={14} /> Register Company Workspace →
           </Link>
         </div>
       </div>
 
       {/* Right Column: Dynamic Form */}
       <div className="md:col-span-7 p-8 flex flex-col justify-center bg-card">
-        {/* Entry 1: Workspace Email/Password Login */}
+        {/* Entry 1: Workspace Email/Password Login + Company & Key Enforced */}
         {entryPoint === 'workspace' && (
           <div className="space-y-4">
             <div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                 WORKSPACE ENTRY
               </span>
-              <h3 className="text-xl font-bold text-white mt-2">Sign In to Your Workspace</h3>
-              <p className="text-xs text-muted mt-0.5">Enter your email and password to access your dashboard.</p>
+              <h3 className="text-xl font-bold text-white mt-2">Sign In to Your Company Workspace</h3>
+              <p className="text-xs text-muted mt-0.5">Select your company and provide your assigned key to authenticate.</p>
             </div>
 
             {/* Quick Demo Role Selector */}
@@ -328,28 +368,61 @@ export function LoginGateway() {
             </div>
 
             <div className="space-y-3">
+              {/* Company Selection Dropdown */}
               <div>
-                <label className="text-xs text-muted block mb-1">Company Email</label>
+                <label className="text-xs text-muted block mb-1">Select Company / Workspace *</label>
                 <div className="relative flex items-center">
-                  <Mail size={15} className="absolute left-3 text-muted" />
-                  <input
+                  <Building2 size={15} className="absolute left-3 text-indigo-400" />
+                  <select
                     className="crm-input pl-9 text-sm h-10 w-full"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    value={selectedCompanyId}
+                    onChange={e => setSelectedCompanyId(e.target.value)}
+                  >
+                    {publicCompanies.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Company Key or User Key Input */}
+              <div>
+                <label className="text-xs text-muted block mb-1">Company / User Key *</label>
+                <div className="relative flex items-center">
+                  <Key size={15} className="absolute left-3 text-purple-400" />
+                  <input
+                    className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full"
+                    placeholder="ACME-KX-7421 or ACME-RX-4312"
+                    value={companyKeyInput}
+                    onChange={e => setCompanyKeyInput(e.target.value.toUpperCase())}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs text-muted block mb-1">Password</label>
-                <div className="relative flex items-center">
-                  <Lock size={15} className="absolute left-3 text-muted" />
-                  <input
-                    type="password"
-                    className="crm-input pl-9 text-sm h-10 w-full"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                  />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted block mb-1">Email *</label>
+                  <div className="relative flex items-center">
+                    <Mail size={15} className="absolute left-3 text-muted" />
+                    <input
+                      className="crm-input pl-9 text-sm h-10 w-full"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted block mb-1">Password *</label>
+                  <div className="relative flex items-center">
+                    <Lock size={15} className="absolute left-3 text-muted" />
+                    <input
+                      type="password"
+                      className="crm-input pl-9 text-sm h-10 w-full"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -366,7 +439,7 @@ export function LoginGateway() {
               className="btn-primary text-sm font-bold w-full py-3 gap-2 flex items-center justify-center shadow-xl"
               style={{ background: 'linear-gradient(135deg, #4f46e5, #8b5cf6)' }}
             >
-              {loading ? 'Signing In...' : `Sign In as ${selectedRole}`} <ArrowRight size={15} />
+              {loading ? 'Authenticating Key...' : `Sign In as ${selectedRole}`} <ArrowRight size={15} />
             </button>
           </div>
         )}
@@ -379,7 +452,7 @@ export function LoginGateway() {
                 STAFF USER INVITE KEY
               </span>
               <h3 className="text-xl font-bold text-white mt-2">Redeem Staff Invite Key</h3>
-              <p className="text-xs text-muted mt-0.5">Enter the key generated by your Tenant Admin (e.g. ACME-RX-4312).</p>
+              <p className="text-xs text-muted mt-0.5">Enter the user key generated by your Tenant Admin (e.g. ACME-RX-4312).</p>
             </div>
 
             <div className="space-y-3">
@@ -450,10 +523,9 @@ export function LoginGateway() {
             <button
               onClick={handleStaffKeyRegister}
               disabled={loading}
-              className="btn-primary text-sm font-bold w-full py-3 gap-2 flex items-center justify-center shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
             >
-              {loading ? 'Joining Workspace...' : 'Redeem Key & Activate Account'} <ArrowRight size={15} />
+              {loading ? 'Creating Account...' : 'Redeem Key & Register Account'} <ArrowRight size={15} />
             </button>
           </div>
         )}
@@ -462,43 +534,61 @@ export function LoginGateway() {
         {entryPoint === 'superadmin' && (
           <div className="space-y-4">
             <div>
-              <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                WEB ONLY · DEVELOPER CONTROL PLANE
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                SUPER-ADMIN SECURITY GATEWAY
               </span>
-              <h3 className="text-xl font-bold text-white mt-2">Super-Admin Identity Guard</h3>
-              <p className="text-xs text-muted mt-0.5">Strict server-side verification: OTP sent directly to hardcoded Super Admin email.</p>
+              <h3 className="text-xl font-bold text-white mt-2">Platform Developer Portal</h3>
+              <p className="text-xs text-muted mt-0.5">Guarded via One-Time Passcode (OTP) sent directly to your authorized developer email.</p>
             </div>
 
             {!otpSent ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-muted block mb-1">Super Admin Authorized Email</label>
-                  <input
-                    className="crm-input text-sm h-10 w-full font-semibold"
-                    value={superAdminEmail}
-                    onChange={e => setSuperAdminEmail(e.target.value)}
-                  />
+                  <label className="text-xs text-muted block mb-1">Super-Admin Email *</label>
+                  <div className="relative flex items-center">
+                    <Mail size={15} className="absolute left-3 text-purple-400" />
+                    <input
+                      className="crm-input pl-9 text-sm h-10 w-full"
+                      value={superAdminEmail}
+                      onChange={e => setSuperAdminEmail(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
-                  🔐 One-Time Password (OTP) will be generated and dispatched via SMTP to <strong>adtyamighty@gmail.com</strong>.
-                </div>
+
+                <button
+                  onClick={handleSuperAdminRequestOtp}
+                  disabled={loading}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Sending Code...' : 'Request One-Time Passcode (OTP)'} <ArrowRight size={15} />
+                </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                  <CheckCircle2 size={14} /> {successMsg || 'OTP Security Code Sent to Email'}
-                </div>
+              <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-muted block mb-1">Enter 6-Digit Email OTP *</label>
+                  <label className="text-xs text-muted block mb-1">Enter 6-Digit OTP Security Code *</label>
                   <input
-                    className="crm-input text-base font-mono text-center tracking-widest h-11 w-full"
-                    placeholder="123 456"
+                    className="crm-input font-mono text-center tracking-[0.5em] text-lg font-bold h-12 w-full"
+                    placeholder="123456"
                     maxLength={6}
                     value={otpCode}
                     onChange={e => setOtpCode(e.target.value)}
-                    autoFocus
                   />
                 </div>
+
+                <button
+                  onClick={handleSuperAdminVerifyOtp}
+                  disabled={loading}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Verifying...' : 'Verify OTP & Open Platform Control Center'} <ArrowRight size={15} />
+                </button>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 size={14} /> {successMsg}
               </div>
             )}
 
@@ -507,15 +597,6 @@ export function LoginGateway() {
                 <AlertCircle size={14} /> {error}
               </div>
             )}
-
-            <button
-              onClick={!otpSent ? handleSuperAdminRequestOtp : handleSuperAdminVerifyOtp}
-              disabled={loading}
-              className="btn-primary text-sm font-bold w-full py-3 gap-2 flex items-center justify-center shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-            >
-              {loading ? 'Processing...' : !otpSent ? 'Send Email OTP Security Code →' : 'Verify OTP & Enter Control Plane'}
-            </button>
           </div>
         )}
       </div>

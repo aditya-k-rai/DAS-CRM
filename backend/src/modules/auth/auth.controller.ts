@@ -1,6 +1,8 @@
 import {
   Controller,
   Post,
+  Patch,
+  Param,
   Body,
   UseGuards,
   Get,
@@ -208,5 +210,70 @@ export class AuthController {
       assignedRole: body.assignedRole,
       validityDays: body.validityDays,
     });
+  }
+
+  // ── Public Active Companies List ────────────────────────────
+
+  @Get('public-companies')
+  @ApiOperation({ summary: 'Get list of active companies for login selection' })
+  getPublicCompanies() {
+    return this.authService.getPublicCompanies();
+  }
+
+  // ── Super Admin Company & User Management ───────────────────
+
+  @Get('super-admin/companies')
+  @ApiOperation({ summary: '[Super Admin] Get all client companies with stats' })
+  getAllCompanies() {
+    return this.authService.getAllCompanies();
+  }
+
+  @Get('super-admin/companies/:id')
+  @ApiOperation({ summary: '[Super Admin] Get full in-depth company details' })
+  getCompanyDetails(@Param('id') id: string) {
+    return this.authService.getCompanyDetails(id);
+  }
+
+  @Patch('super-admin/companies/:id/block')
+  @ApiOperation({ summary: '[Super Admin] Toggle block/unblock for a company' })
+  toggleCompanyBlock(@Param('id') id: string) {
+    return this.authService.toggleCompanyBlock(id);
+  }
+
+  @Patch('super-admin/companies/:id/seats')
+  @ApiOperation({ summary: '[Super Admin] Update seat limit for a company' })
+  updateCompanySeats(
+    @Param('id') id: string,
+    @Body('memberLimit') memberLimit: number,
+  ) {
+    return this.authService.updateCompanySeats(id, memberLimit);
+  }
+
+  @Patch('super-admin/users/:userId/block')
+  @ApiOperation({ summary: '[Super Admin] Toggle block/unblock for a user' })
+  toggleUserBlock(@Param('userId') userId: string) {
+    return this.authService.toggleUserBlock(userId);
+  }
+
+  // ── Super Admin Key Management ──────────────────────────────
+
+  @Get('super-admin/keys')
+  @ApiOperation({ summary: '[Super Admin] Get all company & staff keys' })
+  async getAllKeys() {
+    const companyKeys = await this.companyKeyService.getAllCompanyKeys();
+    const userKeys = await this.companyKeyService.getAllUserKeys();
+    return { companyKeys, userKeys };
+  }
+
+  @Patch('super-admin/keys/company/:keyId/revoke')
+  @ApiOperation({ summary: '[Super Admin] Revoke/block a company key' })
+  revokeCompanyKey(@Param('keyId') keyId: string) {
+    return this.companyKeyService.revokeCompanyKey(keyId);
+  }
+
+  @Patch('super-admin/keys/user/:keyId/revoke')
+  @ApiOperation({ summary: '[Super Admin] Revoke/block a staff key' })
+  revokeUserKey(@Param('keyId') keyId: string) {
+    return this.companyKeyService.revokeUserKey(keyId);
   }
 }

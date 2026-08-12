@@ -153,6 +153,7 @@ model Organization {
   companyType     String?   // Private Ltd, LLP, Proprietorship, etc.
   sector          String?   // Real Estate, Auto, Tech, etc.
   registrationKeyId String? // Reference to the CompanyRegistrationKey used
+  isActive        Boolean  @default(true)
   settings        Json     @default("{}")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -260,6 +261,7 @@ model User {
   roleId         String?
   teamId         String?
   isActive       Boolean   @default(true)
+  inviteKeyUsed  String?
   mfaEnabled     Boolean   @default(false)
   mfaSecret      String?
   lastLoginAt    DateTime?
