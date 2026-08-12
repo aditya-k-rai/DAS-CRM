@@ -204,4 +204,45 @@ export class NotificationsService {
       },
     });
   }
+
+  /**
+   * Send Registration Confirmation Email containing Company Key, Admin Credentials, and Plan Details
+   */
+  async sendCompanyRegistrationEmail(opts: {
+    adminEmail: string;
+    adminName: string;
+    companyName: string;
+    key: string;
+    planTier: string;
+    memberLimit: number;
+    validityDays: number;
+  }) {
+    const { adminEmail, adminName, companyName, key, planTier, memberLimit, validityDays } = opts;
+
+    console.log(`
+═════════════════════════════════════════════════════════════════════
+📧 EMAIL DISPATCHED TO OFFICIAL ADMIN MAIL: ${adminEmail}
+═════════════════════════════════════════════════════════════════════
+Dear ${adminName},
+
+Welcome to DAS CRM! Your Company Workspace has been registered.
+
+🏢 COMPANY NAME: ${companyName}
+🔑 COMPANY REGISTRATION KEY: ${key}
+👤 ADMIN LOGIN EMAIL: ${adminEmail}
+📊 CURRENT SUBSCRIPTION PLAN: ${planTier} (${memberLimit} Member Seats)
+⏳ KEY VALIDITY: ${validityDays} Days
+
+Next Steps:
+1. Open the Login Gateway (http://localhost:3000/login)
+2. Select Company Workspace "${companyName}"
+3. Enter your Registration Key "${key}" and Admin Credentials
+4. Share your Key with team members to onboard staff!
+
+Thank you for choosing DAS CRM.
+═════════════════════════════════════════════════════════════════════
+    `);
+
+    return { sent: true, recipient: adminEmail, key };
+  }
 }

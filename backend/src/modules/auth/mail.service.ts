@@ -170,4 +170,54 @@ export class MailService {
       console.warn('[MailService] Could not send Plan Upgrade email:', err);
     }
   }
+
+  async sendCompanyRegistrationEmail(opts: {
+    adminEmail: string;
+    adminName: string;
+    companyName: string;
+    key: string;
+    planTier: string;
+    memberLimit: number;
+    validityDays: number;
+  }): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: `"DAS CRM Registration" <${process.env.SMTP_FROM || 'noreply@dascrm.app'}>`,
+        to: opts.adminEmail,
+        subject: `🔑 Welcome to DAS CRM — Your Registration Key & Workspace Credentials`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px; background: #ffffff;">
+            <h2 style="color: #6366f1; margin-top: 0;">🏢 Company Workspace Registered</h2>
+            <p>Dear <strong>${opts.adminName}</strong>,</p>
+            <p>Your company workspace <strong>${opts.companyName}</strong> has been registered successfully in DAS CRM.</p>
+            
+            <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; margin: 20px 0; border-radius: 8px;">
+              <p style="margin: 4px 0; font-size: 14px; color: #374151;">🔑 <strong>Company Registration Key:</strong></p>
+              <p style="font-size: 24px; font-weight: 900; color: #4f46e5; margin: 4px 0; letter-spacing: 2px;">${opts.key}</p>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+              <tr style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 8px 0; color: #6b7280;">Admin Email ID:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #111827;">${opts.adminEmail}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 8px 0; color: #6b7280;">Subscription Plan:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #10b981;">${opts.planTier} (${opts.memberLimit} Seats Quota)</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Key Validity:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #f59e0b;">${opts.validityDays} Days</td>
+              </tr>
+            </table>
+
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" style="display: inline-block; margin-top: 16px; padding: 14px 28px; background: #4f46e5; color: white; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; width: 100%; box-sizing: border-box;">
+              Proceed to Workspace Login →
+            </a>
+          </div>`,
+      });
+    } catch (err) {
+      console.warn('[MailService] Could not send Company Registration email:', err);
+    }
+  }
 }

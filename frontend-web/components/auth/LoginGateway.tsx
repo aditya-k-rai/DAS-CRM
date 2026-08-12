@@ -83,10 +83,20 @@ export function LoginGateway() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          key: companyKeyInput.trim(),
+          organizationId: selectedCompanyId,
+        }),
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || 'Login failed. Please verify your company workspace selection and registration key.');
+        setLoading(false);
+        return;
+      }
       if (res.ok && data.accessToken) {
         setAuthSession(
           {

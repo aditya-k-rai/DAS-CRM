@@ -93,7 +93,7 @@ export class AuthService {
   // ═══════════════════════════════════════════════════════════
 
   async registerCompanyWithKey(dto: {
-    registrationKey: string;
+    registrationKey?: string;
     companyName: string;
     adminName: string;
     adminEmail: string;
@@ -105,13 +105,19 @@ export class AuthService {
     companyType?: string;
     sector?: string;
   }) {
-    const keyRecord = await this.companyKeyService.validateCompanyKey(
-      dto.registrationKey,
-    );
+    let keyRecord = dto.registrationKey
+      ? await this.companyKeyService.validateCompanyKey(dto.registrationKey)
+      : null;
+
     if (!keyRecord) {
-      throw new BadRequestException(
-        'Invalid, expired, or already used registration key',
-      );
+      // Auto-generate Company Registration Key
+      keyRecord = await this.companyKeyService.generateCompanyKey({
+        companyName: dto.companyName,
+        planTier: 'FREE_TRIAL',
+        memberLimit: 6,
+        validityDays: 7,
+        superAdminId: 'system',
+      });
     }
 
     const existing = await this.prisma.user.findFirst({
@@ -151,7 +157,7 @@ export class AuthService {
       await tx.subscription.create({
         data: {
           organizationId: org.id,
-          planTier: 'FREE_TRIAL',
+          planTier: keyRecord.planTier,
           memberLimit: keyRecord.memberLimit,
           trialExpiresAt,
           whatsAppEnabled: false,
@@ -266,6 +272,17 @@ export class AuthService {
       result.org.id,
     );
 
+    // Send Confirmation Email with Key & Credentials
+    await this.mailService.sendCompanyRegistrationEmail({
+      adminEmail: dto.adminEmail,
+      adminName: dto.adminName,
+      companyName: dto.companyName,
+      key: keyRecord.key,
+      planTier: keyRecord.planTier,
+      memberLimit: keyRecord.memberLimit,
+      validityDays: keyRecord.validityDays,
+    });
+
     const tokens = await this.generateTokens(
       result.user.id,
       result.org.id,
@@ -274,6 +291,14 @@ export class AuthService {
     await this.saveRefreshToken(result.user.id, tokens.refreshToken);
 
     return {
+      success: true,
+      message: `Company registered successfully! Your Registration Key and Login Credentials have been sent to ${dto.adminEmail}`,
+      registrationKey: keyRecord.key,
+      companyName: dto.companyName,
+      adminEmail: dto.adminEmail,
+      planTier: keyRecord.planTier,
+      memberLimit: keyRecord.memberLimit,
+      validityDays: keyRecord.validityDays,
       user: this.sanitizeUser(result.user),
       organization: result.org,
       ...tokens,
@@ -353,14 +378,52 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('Invalid credentials or user account blocked');
 
-    if (user.organization && user.organization.isActive === false) {
+    // 1. Password Verification
+    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('Invalid credentials');
+
+    // 2. Company Workspace Double-Check
+    if (dto.organizationId && user.organizationId && user.organizationId !== dto.organizationId) {
       throw new ForbiddenException(
-        'Company workspace has been blocked by Super Admin. Please contact support.',
+        'Selected company workspace does not match this user account. Please select your registered company.',
       );
     }
 
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (user.organization && user.organization.isActive === false) {
+      throw new ForbiddenException(
+        'Company workspace has been blocked/deactivated by Super Admin. Please contact support.',
+      );
+    }
+
+    // 3. Key Validity & Active Status Verification
+    const keyToValidate = dto.key || user.inviteKeyUsed;
+    if (keyToValidate) {
+      // Check Company Registration Key
+      const companyKey = await this.prisma.companyRegistrationKey.findUnique({
+        where: { key: keyToValidate },
+      });
+
+      if (companyKey) {
+        if (companyKey.status === 'REVOKED' || companyKey.expiresAt < new Date()) {
+          throw new ForbiddenException(
+            'Company registration key is invalid, revoked, or expired. Please contact Super Admin.',
+          );
+        }
+      } else {
+        // Check User Invite Key
+        const userKey = await this.prisma.userInviteKey.findUnique({
+          where: { key: keyToValidate },
+        });
+
+        if (userKey) {
+          if (userKey.status === 'REVOKED' || userKey.expiresAt < new Date()) {
+            throw new ForbiddenException(
+              'User invite key is invalid, revoked, or expired. Please contact your Tenant Admin.',
+            );
+          }
+        }
+      }
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
