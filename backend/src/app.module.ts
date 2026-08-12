@@ -22,6 +22,9 @@ import { TemplatesModule } from './modules/templates/templates.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { ImportsModule } from './modules/imports/imports.module';
+import { RoleTransitionModule } from './modules/role-transition/role-transition.module';
+import { BillingModule } from './modules/billing/billing.module';
+
 
 @Module({
   imports: [
@@ -50,6 +53,8 @@ import { ImportsModule } from './modules/imports/imports.module';
     NotificationsModule,
     AuditLogsModule,
     ImportsModule,
+    RoleTransitionModule,
+    BillingModule,
   ],
 })
 export class AppModule {}

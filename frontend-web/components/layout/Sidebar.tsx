@@ -74,6 +74,7 @@ const navigation: NavGroup[] = [
     group: 'ADMINISTRATION',
     roles: ['ADMIN'],
     items: [
+      { label: 'Plan & Billing', href: '/billing', icon: DollarSign, roles: ['ADMIN'] },
       { label: 'Team Leaders & Managers', href: '/admin/team-leaders', icon: Shield, roles: ['ADMIN'] },
       { label: 'Workflow Setup', href: '/admin/workflow', icon: Zap, roles: ['ADMIN'] },
       { label: 'Custom Fields', href: '/admin/custom-fields', icon: ClipboardList, roles: ['ADMIN'] },

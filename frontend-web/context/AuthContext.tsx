@@ -3,8 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
-
-export type PlanType = 'FREE_TRIAL' | 'BASIC' | 'PRO' | 'PRO_MAX';
+export type PlanType = 'FREE_TRIAL' | 'STARTER' | 'BASIC' | 'PRO' | 'PRO_50' | 'PRO_MAX' | 'ENTERPRISE';
 
 export interface CompanySubscription {
   id: string;
@@ -14,10 +13,10 @@ export interface CompanySubscription {
   isExpired: boolean;
   userSeatsAllocated: number;
   userSeatsUsed: number;
-  hasTeamLeaders: boolean; // Toggle Scenario A (With TL) vs Scenario B (Without TL)
+  hasTeamLeaders: boolean;
   features: {
-    whatsApp: boolean;
-    emailAutomation: boolean;
+    whatsApp: boolean; // HARD-BLOCKED during FREE_TRIAL
+    emailAutomation: boolean; // HARD-BLOCKED during FREE_TRIAL
     aiLeadScoring: boolean;
     customSalaryBuilder: boolean;
     exportCSV: boolean;
@@ -36,18 +35,27 @@ export interface UserProfile {
   teamLeaderId?: string;
 }
 
+export interface RoleTransitionLock {
+  id: string;
+  oldRole: string;
+  newRole: string;
+  initiatedAt: string;
+  expiresAt: string;
+  hoursRemaining: number;
+}
+
 export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_acme',
   companyName: 'Acme Sales Solutions',
   planType: 'FREE_TRIAL',
-  trialDaysLeft: 18,
+  trialDaysLeft: 14,
   isExpired: false,
-  userSeatsAllocated: 10,
-  userSeatsUsed: 7,
-  hasTeamLeaders: true, // Default to Scenario A
+  userSeatsAllocated: 6, // Starter default seat quota (excluding Admin)
+  userSeatsUsed: 4,
+  hasTeamLeaders: true,
   features: {
-    whatsApp: false,
-    emailAutomation: false,
+    whatsApp: false, // Hard-blocked on FREE_TRIAL
+    emailAutomation: false, // Hard-blocked on FREE_TRIAL
     aiLeadScoring: true,
     customSalaryBuilder: true,
     exportCSV: true,
@@ -58,7 +66,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   SUPER_ADMIN: {
     id: 'usr_super',
     name: 'Super Administrative',
-    email: 'admin@platform.com',
+    email: 'adtyamighty@gmail.com',
     role: 'SUPER_ADMIN',
     avatar: 'SA',
     companyId: 'platform_system',
@@ -117,33 +125,75 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
 interface AuthContextType {
   currentUser: UserProfile;
   subscription: CompanySubscription;
+  token: string | null;
+  roleTransitionLock: RoleTransitionLock | null;
+  isLocked: boolean;
   switchRole: (role: UserRole) => void;
   updateSubscription: (sub: Partial<CompanySubscription>) => void;
   toggleScenario: (hasTL: boolean) => void;
   canEdit: () => boolean;
   canAccessFeature: (feat: keyof CompanySubscription['features']) => boolean;
   isSeatExceeded: boolean;
+  setAuthSession: (user: UserProfile, token: string, sub?: CompanySubscription) => void;
+  logout: () => void;
+  setRoleLockState: (lock: RoleTransitionLock | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser]   = useState<UserProfile>(DEMO_USERS.SUPER_ADMIN);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('nexcrm_user');
+      if (stored) {
+        try { return JSON.parse(stored); } catch (e) {}
+      }
+      const role = (localStorage.getItem('nexcrm_active_role') as UserRole) || 'SUPER_ADMIN';
+      return DEMO_USERS[role] || DEMO_USERS.SUPER_ADMIN;
+    }
+    return DEMO_USERS.SUPER_ADMIN;
+  });
+
   const [subscription, setSubscription] = useState<CompanySubscription>(MOCK_COMPANY_SUB);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('nexcrm_token');
+    return null;
+  });
+
+  const [roleTransitionLock, setRoleTransitionLock] = useState<RoleTransitionLock | null>(null);
+
+  useEffect(() => {
+    // Sync features when plan changes
+    if (subscription.planType === 'FREE_TRIAL') {
+      setSubscription(prev => ({
+        ...prev,
+        features: { ...prev.features, whatsApp: false, emailAutomation: false },
+      }));
+    }
+  }, [subscription.planType]);
 
   const switchRole = (role: UserRole) => {
     if (DEMO_USERS[role]) {
       setCurrentUser(DEMO_USERS[role]);
       localStorage.setItem('nexcrm_active_role', role);
+      localStorage.setItem('nexcrm_user', JSON.stringify(DEMO_USERS[role]));
     }
   };
 
   const updateSubscription = (patch: Partial<CompanySubscription>) => {
-    setSubscription(prev => ({
-      ...prev,
-      ...patch,
-      features: { ...prev.features, ...(patch.features || {}) },
-    }));
+    setSubscription(prev => {
+      const updated = {
+        ...prev,
+        ...patch,
+        features: { ...prev.features, ...(patch.features || {}) },
+      };
+      // Always enforce HARD BLOCK on Free Trial for WhatsApp and Email Automation
+      if (updated.planType === 'FREE_TRIAL') {
+        updated.features.whatsApp = false;
+        updated.features.emailAutomation = false;
+      }
+      return updated;
+    });
   };
 
   const toggleScenario = (hasTL: boolean) => {
@@ -152,28 +202,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canEdit = (): boolean => {
     if (currentUser.role === 'SUPER_ADMIN') return true;
+    if (roleTransitionLock) return false; // Lock out edits during 24hr transition
     if (subscription.isExpired) return false;
     return true;
   };
 
   const canAccessFeature = (feat: keyof CompanySubscription['features']): boolean => {
     if (currentUser.role === 'SUPER_ADMIN') return true;
+    // Hard block WhatsApp and Email Automation on FREE_TRIAL
+    if (subscription.planType === 'FREE_TRIAL' && (feat === 'whatsApp' || feat === 'emailAutomation')) {
+      return false;
+    }
     return !!subscription.features[feat];
   };
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
+  const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription) => {
+    setCurrentUser(user);
+    setToken(newTok);
+    if (sub) setSubscription(sub);
+    localStorage.setItem('nexcrm_user', JSON.stringify(user));
+    localStorage.setItem('nexcrm_token', newTok);
+    localStorage.setItem('nexcrm_active_role', user.role);
+  };
+
+  const logout = () => {
+    setToken(null);
+    setCurrentUser(DEMO_USERS.SUPER_ADMIN);
+    setRoleTransitionLock(null);
+    localStorage.removeItem('nexcrm_user');
+    localStorage.removeItem('nexcrm_token');
+    localStorage.removeItem('nexcrm_active_role');
+  };
+
+  const setRoleLockState = (lock: RoleTransitionLock | null) => {
+    setRoleTransitionLock(lock);
+  };
+
   return (
-    <AuthContext.Provider value={{
-      currentUser,
-      subscription,
-      switchRole,
-      updateSubscription,
-      toggleScenario,
-      canEdit,
-      canAccessFeature,
-      isSeatExceeded,
-    }}>
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        subscription,
+        token,
+        roleTransitionLock,
+        isLocked: !!roleTransitionLock,
+        switchRole,
+        updateSubscription,
+        toggleScenario,
+        canEdit,
+        canAccessFeature,
+        isSeatExceeded,
+        setAuthSession,
+        logout,
+        setRoleLockState,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -185,12 +270,18 @@ export function useAuth() {
     return {
       currentUser: DEMO_USERS.SUPER_ADMIN,
       subscription: MOCK_COMPANY_SUB,
+      token: null,
+      roleTransitionLock: null,
+      isLocked: false,
       switchRole: () => {},
       updateSubscription: () => {},
       toggleScenario: () => {},
       canEdit: () => true,
       canAccessFeature: () => true,
       isSeatExceeded: false,
+      setAuthSession: () => {},
+      logout: () => {},
+      setRoleLockState: () => {},
     };
   }
   return ctx;

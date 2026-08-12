@@ -19,10 +19,33 @@ datasource db {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum PlanTier {
-  BASIC
+  FREE_TRIAL
+  STARTER
   PRO
   PRO_50
   PRO_MAX
+  ENTERPRISE
+}
+
+enum KeyStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum RoleTransitionStatus {
+  PENDING
+  ACCEPTED
+  REVERTED
+  EXPIRED
+}
+
+enum PlanUpgradeStatus {
+  PENDING_PAYMENT
+  PENDING_SUPER_ADMIN_APPROVAL
+  APPROVED
+  REJECTED
 }
 
 enum UserRole {
@@ -95,6 +118,8 @@ enum NotificationType {
   MEETING_REMINDER
   IMPORT_COMPLETE
   AUTOMATION_FIRED
+  ROLE_TRANSITION
+  PLAN_UPGRADE
   SYSTEM
 }
 
@@ -111,16 +136,26 @@ enum AutomationTrigger {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  logoUrl     String?
-  website     String?
-  industry    String?
-  templateId  String?
-  settings    Json     @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  logoUrl         String?
+  website         String?
+  industry        String?
+  templateId      String?
+  // --- Company Registration Fields ---
+  adminName       String?
+  adminEmail      String?
+  phone           String?
+  city            String?
+  state           String?
+  gstNumber       String?
+  companyType     String?   // Private Ltd, LLP, Proprietorship, etc.
+  sector          String?   // Real Estate, Auto, Tech, etc.
+  registrationKeyId String? // Reference to the CompanyRegistrationKey used
+  settings        Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
   subscription          Subscription?
@@ -160,17 +195,27 @@ model Organization {
 }
 
 model Subscription {
-  id             String    @id @default(cuid())
-  organizationId String    @unique
-  planTier       PlanTier  @default(BASIC)
-  memberLimit    Int       @default(5)
-  startsAt       DateTime  @default(now())
-  expiresAt      DateTime?
-  isActive       Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  organizationId      String    @unique
+  planTier            PlanTier  @default(FREE_TRIAL)
+  memberLimit         Int       @default(0)  // 0 = unlimited (Enterprise), set per plan
+  // Free Trial Tracking
+  trialStartsAt       DateTime  @default(now())
+  trialExpiresAt      DateTime?
+  isTrialActive       Boolean   @default(true)
+  // Paid Plan Tracking
+  startsAt            DateTime?
+  expiresAt           DateTime?
+  isActive            Boolean   @default(true)
+  // Feature Gates (HARD-BLOCKED on FREE_TRIAL)
+  whatsAppEnabled     Boolean   @default(false)
+  emailMarketingEnabled Boolean @default(false)
+  aiEnabled           Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  upgradeRequests PlanUpgradeRequest[]
 
   @@map("subscriptions")
 }
@@ -1094,4 +1139,169 @@ model SalaryRecord {
   @@index([organizationId, month, year])
   @@map("salary_records")
 }
+
+// ─────────────────────────────────────────────────────────────
+// SUPER ADMIN CONTROL PLANE
+// ─────────────────────────────────────────────────────────────
+
+model SuperAdmin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  generatedKeys    CompanyRegistrationKey[]
+  approvedUpgrades PlanUpgradeRequest[]     @relation("ApprovedBy")
+  otpRecords       SuperAdminOtp[]
+
+  @@map("super_admins")
+}
+
+model SuperAdminOtp {
+  id           String    @id @default(cuid())
+  superAdminId String
+  otpHash      String    // bcrypt hash of the 6-digit OTP
+  expiresAt    DateTime
+  usedAt       DateTime?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+
+  superAdmin SuperAdmin @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+
+  @@map("super_admin_otps")
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPANY REGISTRATION KEY SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+model CompanyRegistrationKey {
+  id                    String    @id @default(cuid())
+  key                   String    @unique  // Format: ACME-KX-7421
+  qrCodeDataUrl         String    // Base64 encoded QR code PNG
+  createdBySuperAdminId String
+  // Plan entitlement embedded in the key
+  planTier              PlanTier  @default(FREE_TRIAL)
+  memberLimit           Int       @default(6)   // seats for initial plan
+  validityDays          Int       @default(7)   // 7 / 15 / 30 days
+  whatsAppEnabled       Boolean   @default(false)
+  emailMarketingEnabled Boolean   @default(false)
+  aiEnabled             Boolean   @default(false)
+  // State
+  status                KeyStatus @default(ACTIVE)
+  usedByOrganizationId  String?   @unique
+  expiresAt             DateTime
+  usedAt                DateTime?
+  createdAt             DateTime  @default(now())
+
+  createdBy SuperAdmin @relation(fields: [createdBySuperAdminId], references: [id])
+
+  @@map("company_registration_keys")
+}
+
+// ─────────────────────────────────────────────────────────────
+// USER INVITE KEY SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+model UserInviteKey {
+  id             String    @id @default(cuid())
+  key            String    @unique  // Format: [ORG_INITIALS]-[XX]-[4321]
+  organizationId String
+  assignedRole   UserRole  @default(SALES)  // The role this key grants
+  validityDays   Int       @default(7)
+  status         KeyStatus @default(ACTIVE)
+  usedByUserId   String?   @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("user_invite_keys")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 24-HOUR ROLE TRANSITION LOCK SYSTEM
+// ─────────────────────────────────────────────────────────────
+
+model RoleTransition {
+  id             String               @id @default(cuid())
+  organizationId String
+  userId         String
+  oldRole        UserRole
+  newRole        UserRole
+  initiatedByAdminId String           // Admin who initiated the change
+  status         RoleTransitionStatus @default(PENDING)
+  initiatedAt    DateTime             @default(now())
+  expiresAt      DateTime             // 24 hours after initiation
+  acceptedAt     DateTime?
+  revertedAt     DateTime?
+  // Email notification tracking
+  userNotifiedAt    DateTime?
+  adminNotifiedAt   DateTime?
+
+  activityExportLog ActivityExportLog?
+
+  @@index([userId, status])
+  @@map("role_transitions")
+}
+
+model ActivityExportLog {
+  id               String   @id @default(cuid())
+  roleTransitionId String   @unique
+  userId           String
+  organizationId   String
+  // Storage
+  storagePath      String   // Path in Supabase Storage / S3
+  downloadUrl      String   // Presigned URL
+  downloadExpiresAt DateTime // 7 days from generation
+  // Email delivery
+  sentToUserEmail    Boolean @default(false)
+  sentToAdminEmail   Boolean @default(false)
+  sentAt             DateTime?
+  // Metadata
+  activitiesCount  Int      @default(0)
+  generatedAt      DateTime @default(now())
+
+  roleTransition RoleTransition @relation(fields: [roleTransitionId], references: [id], onDelete: Cascade)
+
+  @@map("activity_export_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLAN UPGRADE REQUEST & BILLING
+// ─────────────────────────────────────────────────────────────
+
+model PlanUpgradeRequest {
+  id                    String            @id @default(cuid())
+  subscriptionId        String
+  organizationId        String
+  // Requested Plan Details
+  requestedPlan         PlanTier
+  requestedMemberLimit  Int
+  addOnSeats            Int               @default(0)
+  // Razorpay Payment
+  razorpayOrderId       String?
+  razorpayPaymentId     String?
+  razorpaySignature     String?
+  paymentVerified       Boolean           @default(false)
+  amountPaise           Int               @default(0) // amount in paise (INR)
+  currency              String            @default("INR")
+  // Status Flow
+  status                PlanUpgradeStatus @default(PENDING_PAYMENT)
+  // Super Admin Review
+  reviewedBySuperAdminId String?
+  reviewedAt            DateTime?
+  rejectionReason       String?
+  // Timestamps
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  reviewedBy   SuperAdmin?  @relation("ApprovedBy", fields: [reviewedBySuperAdminId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("plan_upgrade_requests")
+}
+
 
