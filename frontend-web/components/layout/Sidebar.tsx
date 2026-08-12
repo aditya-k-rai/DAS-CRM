@@ -61,13 +61,20 @@ const navigation: NavGroup[] = [
   },
   {
     group: 'HR PORTAL',
-    roles: ['ADMIN', 'HR', 'SALES_EXEC'],
+    roles: ['ADMIN', 'HR'],
     items: [
       { label: 'HR Dashboard', href: '/hr', icon: UserCog, roles: ['ADMIN', 'HR'] },
-      { label: 'Attendance', href: '/hr/attendance', icon: Calendar, roles: ['ADMIN', 'HR', 'SALES_EXEC', 'TEAM_LEADER', 'MANAGER'] },
-      { label: 'Leave Requests', href: '/hr/leaves', icon: CheckSquare, roles: ['ADMIN', 'HR', 'SALES_EXEC', 'TEAM_LEADER', 'MANAGER'] },
+      { label: 'Attendance Management', href: '/hr/attendance', icon: Calendar, roles: ['ADMIN', 'HR'] },
+      { label: 'Leave Requests Queue', href: '/hr/leaves', icon: CheckSquare, roles: ['ADMIN', 'HR'] },
       { label: 'Salary & Payroll', href: '/hr/salary', icon: DollarSign, roles: ['ADMIN', 'HR'] },
-      { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'HR'] },
+      { label: 'Employees Directory', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'HR'] },
+    ],
+  },
+  {
+    group: 'MY ATTENDANCE',
+    roles: ['MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
+    items: [
+      { label: 'My Attendance Log', href: '/hr/attendance', icon: Calendar, roles: ['MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
     ],
   },
   {
