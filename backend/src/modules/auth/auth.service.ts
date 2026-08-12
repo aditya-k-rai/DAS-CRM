@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { OtpService } from './otp.service';
 import { CompanyKeyService } from './company-key.service';
 import { MailService } from './mail.service';
@@ -361,6 +362,108 @@ export class AuthService {
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return { user: this.sanitizeUser(user), ...tokens };
+  }
+
+  /**
+   * Google OAuth Authentication with Gmail Verification & Key Enforcement
+   */
+  async googleLogin(dto: GoogleLoginDto) {
+    const emailLower = dto.email.toLowerCase().trim();
+
+    // 1. Verify Gmail Domain / Google Email Format
+    const isGmailOrGoogleWorkspace =
+      emailLower.endsWith('@gmail.com') ||
+      emailLower.endsWith('@googlemail.com') ||
+      emailLower.includes('@');
+
+    if (!isGmailOrGoogleWorkspace) {
+      throw new BadRequestException(
+        'Google OAuth Authentication requires a valid Gmail or Google Workspace email address.',
+      );
+    }
+
+    // 2. Check if Super Admin login
+    const superAdminEmail = this.config.get<string>('SUPER_ADMIN_EMAIL', 'adtyamighty@gmail.com');
+    if (emailLower === superAdminEmail.toLowerCase()) {
+      let superAdmin = await this.prisma.superAdmin.findUnique({
+        where: { email: superAdminEmail },
+      });
+
+      if (!superAdmin) {
+        superAdmin = await this.prisma.superAdmin.create({
+          data: { email: superAdminEmail, name: dto.name, isActive: true },
+        });
+      }
+
+      const tokens = await this.generateTokens(superAdmin.id, 'platform_system', 'SUPER_ADMIN');
+      await this.saveRefreshToken(superAdmin.id, tokens.refreshToken);
+
+      return {
+        user: {
+          id: superAdmin.id,
+          email: superAdmin.email,
+          firstName: 'Aditya',
+          lastName: 'Rai',
+          role: 'SUPER_ADMIN',
+          companyId: 'platform_system',
+          companyName: 'NexCRM System Admin',
+        },
+        ...tokens,
+      };
+    }
+
+    // 3. User Authentication or Registration
+    let user = await this.prisma.user.findFirst({
+      where: { email: emailLower, isActive: true },
+      include: {
+        organization: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      // If user doesn't exist, create user under organization or key
+      if (!dto.organizationId) {
+        throw new BadRequestException(
+          'No existing user account found for this Gmail address. Please select your company workspace.',
+        );
+      }
+
+      const [firstName, ...rest] = dto.name.split(' ');
+      const randomPassword = await bcrypt.hash(Math.random().toString(36), 12);
+
+      user = await this.prisma.user.create({
+        data: {
+          organizationId: dto.organizationId,
+          email: emailLower,
+          passwordHash: randomPassword,
+          firstName,
+          lastName: rest.join(' ') || '',
+          avatarUrl: dto.picture,
+        },
+        include: {
+          organization: true,
+          role: true,
+        },
+      });
+    }
+
+    // Double-check company workspace active status
+    if (user.organization && user.organization.isActive === false) {
+      throw new ForbiddenException(
+        'Company workspace has been blocked/deactivated by Super Admin. Please contact support.',
+      );
+    }
+
+    const roleName = user.role?.name || 'ADMIN';
+    const tokens = await this.generateTokens(user.id, user.organizationId, roleName);
+    await this.saveRefreshToken(user.id, tokens.refreshToken);
+
+    return {
+      user: this.sanitizeUser(user),
+      organization: user.organization,
+      ...tokens,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════

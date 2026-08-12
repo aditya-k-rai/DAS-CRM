@@ -173,11 +173,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [subscription.planType]);
 
   const switchRole = (role: UserRole) => {
-    if (DEMO_USERS[role]) {
-      setCurrentUser(DEMO_USERS[role]);
-      localStorage.setItem('nexcrm_active_role', role);
-      localStorage.setItem('nexcrm_user', JSON.stringify(DEMO_USERS[role]));
-    }
+    const normRole = normalizeRoleStr(role);
+    const targetUser = DEMO_USERS[normRole] || DEMO_USERS.ADMIN;
+    setCurrentUser(targetUser);
+    localStorage.setItem('nexcrm_active_role', normRole);
+    localStorage.setItem('nexcrm_user', JSON.stringify(targetUser));
   };
 
   const updateSubscription = (patch: Partial<CompanySubscription>) => {

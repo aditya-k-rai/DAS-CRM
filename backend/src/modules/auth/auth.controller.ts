@@ -21,6 +21,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CompanyKeyService } from './company-key.service';
 import { PlanTier, UserRole } from '@prisma/client';
 
+import { GoogleLoginDto } from './dto/google-login.dto';
+
 @ApiTags('Auth')
 @Controller('api/v1/auth')
 export class AuthController {
@@ -44,6 +46,13 @@ export class AuthController {
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Authenticate with Google OAuth & Gmail verification' })
+  googleLogin(@Body() dto: GoogleLoginDto) {
+    return this.authService.googleLogin(dto);
   }
 
   @Post('refresh')

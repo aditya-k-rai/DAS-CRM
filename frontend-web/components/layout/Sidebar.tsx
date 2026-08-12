@@ -95,7 +95,8 @@ const navigation: NavGroup[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentUser, subscription, canEdit, isSeatExceeded } = useAuth();
+  const { currentUser, subscription, canEdit, isSeatExceeded, switchRole } = useAuth();
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
 
@@ -143,19 +144,55 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* User Role Badge */}
-      <div className="px-3 mb-3">
-        <div
-          className="w-full flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold"
+      {/* Interactive Role Perspective Switcher Dropdown */}
+      <div className="px-3 mb-3 relative">
+        <button
+          onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
+          className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border text-xs font-bold transition-all hover:bg-brand/20"
           style={{
-            background: 'rgba(99,102,241,0.12)',
-            borderColor: 'rgba(99,102,241,0.3)',
+            background: 'rgba(99,102,241,0.15)',
+            borderColor: 'rgba(99,102,241,0.4)',
             color: 'rgb(129,140,248)',
           }}
         >
-          <Shield size={14} />
-          <span>ROLE: {currentUser.role}</span>
-        </div>
+          <div className="flex items-center gap-2">
+            <Shield size={14} className="text-brand-400" />
+            <span>ROLE: {currentNormalizedRole}</span>
+          </div>
+          <ChevronDown size={14} className={`transition-transform ${roleDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {roleDropdownOpen && (
+          <div className="absolute left-3 right-3 top-11 z-50 p-2 rounded-2xl bg-card border border-brand/40 shadow-2xl space-y-1 animate-scale-in">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted px-2 py-1">
+              Switch Workspace Perspective
+            </p>
+            {[
+              { role: 'SUPER_ADMIN' as UserRole, label: '👑 Super Admin Portal' },
+              { role: 'ADMIN' as UserRole, label: '🏢 Tenant Admin Dashboard' },
+              { role: 'MANAGER' as UserRole, label: '👔 Department Manager' },
+              { role: 'TEAM_LEADER' as UserRole, label: '🛡️ Team Leader Unit' },
+              { role: 'HR' as UserRole, label: '📋 HR & Payroll' },
+              { role: 'SALES_EXEC' as UserRole, label: '💼 Sales Exec (Employee)' },
+            ].map((item) => (
+              <button
+                key={item.role}
+                onClick={() => {
+                  switchRole(item.role);
+                  setRoleDropdownOpen(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between ${
+                  currentNormalizedRole === item.role
+                    ? 'bg-brand/25 text-brand-300 border border-brand/40'
+                    : 'text-muted hover:text-white hover:bg-background'
+                }`}
+              >
+                <span>{item.label}</span>
+                {currentNormalizedRole === item.role && <span className="text-emerald-400 text-[10px]">ACTIVE</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
