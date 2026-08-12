@@ -5,33 +5,52 @@ export class CreateLeadDto {
   @IsString()
   firstName: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   lastName?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsEmail()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   phone?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   statusId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   ownerId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   sourceId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   companyId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsObject()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
   customFields?: Record<string, any>;
 
-  @ApiPropertyOptional() @IsOptional()
+  @ApiPropertyOptional()
+  @IsOptional()
   tags?: string[];
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   notes?: string;
 }

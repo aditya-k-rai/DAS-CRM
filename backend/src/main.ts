@@ -6,7 +6,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log', 'debug'] });
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug'],
+  });
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3001);
 
@@ -41,7 +43,10 @@ async function bootstrap() {
 
   await app.listen(port);
   Logger.log(`🚀 CRM Backend running on http://localhost:${port}`, 'Bootstrap');
-  Logger.log(`📚 Swagger docs at http://localhost:${port}/api/docs`, 'Bootstrap');
+  Logger.log(
+    `📚 Swagger docs at http://localhost:${port}/api/docs`,
+    'Bootstrap',
+  );
 }
 
 bootstrap();

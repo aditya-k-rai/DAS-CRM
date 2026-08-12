@@ -2,18 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type NotificationChannel = 'IN_APP' | 'EMAIL' | 'PUSH' | 'WHATSAPP';
-export type NotificationEvent   =
-  | 'LEAD_ASSIGNED'    | 'LEAD_STATUS_CHANGED' | 'LEAD_SCORE_THRESHOLD'
-  | 'TASK_ASSIGNED'    | 'TASK_OVERDUE'
-  | 'DEAL_STAGE_MOVED' | 'DEAL_WON'             | 'DEAL_LOST'
-  | 'LEAVE_APPROVED'   | 'LEAVE_REJECTED'
-  | 'SALARY_GENERATED' | 'AUTOMATION_TRIGGERED' | 'MENTION';
+export type NotificationEvent =
+  | 'LEAD_ASSIGNED'
+  | 'LEAD_STATUS_CHANGED'
+  | 'LEAD_SCORE_THRESHOLD'
+  | 'TASK_ASSIGNED'
+  | 'TASK_OVERDUE'
+  | 'DEAL_STAGE_MOVED'
+  | 'DEAL_WON'
+  | 'DEAL_LOST'
+  | 'LEAVE_APPROVED'
+  | 'LEAVE_REJECTED'
+  | 'SALARY_GENERATED'
+  | 'AUTOMATION_TRIGGERED'
+  | 'MENTION';
 
 @Injectable()
 export class NotificationsService {
-  constructor(
-    private prisma: PrismaService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /** Send a notification to one or more users */
   async send(opts: {
@@ -26,9 +32,10 @@ export class NotificationsService {
     channels?: NotificationChannel[];
     metadata?: Record<string, any>;
   }) {
-    const { organizationId, recipientIds, title, body, linkUrl, metadata } = opts;
+    const { organizationId, recipientIds, title, body, linkUrl, metadata } =
+      opts;
 
-    const records = recipientIds.map(userId => ({
+    const records = recipientIds.map((userId) => ({
       organizationId,
       userId,
       type: 'SYSTEM' as const,
@@ -44,16 +51,23 @@ export class NotificationsService {
   }
 
   /** Get all notifications for a user */
-  async getUserNotifications(organizationId: string, userId: string, opts: { unreadOnly?: boolean; page?: number; limit?: number }) {
+  async getUserNotifications(
+    organizationId: string,
+    userId: string,
+    opts: { unreadOnly?: boolean; page?: number; limit?: number },
+  ) {
     const { unreadOnly, page = 1, limit = 30 } = opts;
     const where: any = {
-      organizationId, userId,
+      organizationId,
+      userId,
       ...(unreadOnly && { isRead: false }),
     };
 
     const [total, unreadCount, items] = await Promise.all([
       this.prisma.notification.count({ where: { organizationId, userId } }),
-      this.prisma.notification.count({ where: { organizationId, userId, isRead: false } }),
+      this.prisma.notification.count({
+        where: { organizationId, userId, isRead: false },
+      }),
       this.prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -83,17 +97,33 @@ export class NotificationsService {
   }
 
   /** Notify all users in an org with a specific role */
-  async notifyByRole(organizationId: string, roleFilter: string[], opts: Omit<Parameters<typeof this.send>[0], 'recipientIds' | 'organizationId'>) {
+  async notifyByRole(
+    organizationId: string,
+    roleFilter: string[],
+    opts: Omit<
+      Parameters<typeof this.send>[0],
+      'recipientIds' | 'organizationId'
+    >,
+  ) {
     const users = await this.prisma.user.findMany({
       where: { organizationId, role: { name: { in: roleFilter } } },
       select: { id: true },
     });
     if (!users.length) return { sent: 0 };
-    return this.send({ organizationId, recipientIds: users.map(u => u.id), ...opts });
+    return this.send({
+      organizationId,
+      recipientIds: users.map((u) => u.id),
+      ...opts,
+    });
   }
 
   /** Helper: fire LEAD_ASSIGNED notification */
-  async notifyLeadAssigned(organizationId: string, assigneeId: string, leadName: string, leadId: string) {
+  async notifyLeadAssigned(
+    organizationId: string,
+    assigneeId: string,
+    leadName: string,
+    leadId: string,
+  ) {
     return this.send({
       organizationId,
       recipientIds: [assigneeId],

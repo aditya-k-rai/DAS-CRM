@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -8,9 +12,15 @@ export class TeamsService {
   /**
    * Tenant Admin Exclusive: Create Team Leader (TL)
    */
-  async createTeamLeader(organizationId: string, currentUserRole: string, data: { name: string; email: string; managerId: string }) {
+  async createTeamLeader(
+    organizationId: string,
+    currentUserRole: string,
+    data: { name: string; email: string; managerId: string },
+  ) {
     if (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('ONLY Tenant Admin is authorized to create Team Leaders');
+      throw new ForbiddenException(
+        'ONLY Tenant Admin is authorized to create Team Leaders',
+      );
     }
 
     // Verify target manager belongs to organization
@@ -18,7 +28,9 @@ export class TeamsService {
       where: { id: data.managerId, organizationId },
     });
     if (!manager) {
-      throw new NotFoundException('Specified Manager not found in tenant company');
+      throw new NotFoundException(
+        'Specified Manager not found in tenant company',
+      );
     }
 
     return this.prisma.team.create({
@@ -35,10 +47,12 @@ export class TeamsService {
   async assignEmployeeHierarchy(
     organizationId: string,
     currentUserRole: string,
-    dto: { employeeId: string; managerId?: string; teamLeaderId?: string }
+    dto: { employeeId: string; managerId?: string; teamLeaderId?: string },
   ) {
     if (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('ONLY Tenant Admin is authorized to assign or move employees under Managers/TLs');
+      throw new ForbiddenException(
+        'ONLY Tenant Admin is authorized to assign or move employees under Managers/TLs',
+      );
     }
 
     const employee = await this.prisma.user.findFirst({

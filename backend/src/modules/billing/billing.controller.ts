@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { BillingService } from './billing.service';
@@ -18,7 +26,9 @@ export class BillingController {
   }
 
   @Post('create-order')
-  @ApiOperation({ summary: 'Create a Razorpay order for plan upgrade (Web only)' })
+  @ApiOperation({
+    summary: 'Create a Razorpay order for plan upgrade (Web only)',
+  })
   async createOrder(
     @Body() body: { requestedPlan: PlanTier; addOnSeats?: number },
     @Req() req: any,
@@ -31,7 +41,9 @@ export class BillingController {
   }
 
   @Post('verify-payment')
-  @ApiOperation({ summary: 'Verify Razorpay payment and submit upgrade request' })
+  @ApiOperation({
+    summary: 'Verify Razorpay payment and submit upgrade request',
+  })
   async verifyPayment(
     @Body()
     body: {
@@ -70,6 +82,10 @@ export class BillingController {
     @Body() body: { reason: string },
     @Req() req: any,
   ) {
-    return this.billingService.rejectPlanUpgrade(requestId, req.user.sub, body.reason);
+    return this.billingService.rejectPlanUpgrade(
+      requestId,
+      req.user.sub,
+      body.reason,
+    );
   }
 }

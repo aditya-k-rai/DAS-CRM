@@ -25,7 +25,6 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { RoleTransitionModule } from './modules/role-transition/role-transition.module';
 import { BillingModule } from './modules/billing/billing.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),

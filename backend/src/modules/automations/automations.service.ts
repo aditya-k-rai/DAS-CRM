@@ -3,8 +3,20 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AutomationTrigger } from '@prisma/client';
 
-export type TriggerType = 'LEAD_CREATED' | 'LEAD_STATUS_CHANGED' | 'DEAL_STAGE_CHANGED' | 'TASK_OVERDUE' | 'SCHEDULED';
-export type ActionType  = 'SEND_EMAIL' | 'CREATE_TASK' | 'ASSIGN_LEAD' | 'SEND_NOTIFICATION' | 'CHANGE_STATUS' | 'ADD_TAG' | 'WEBHOOK';
+export type TriggerType =
+  | 'LEAD_CREATED'
+  | 'LEAD_STATUS_CHANGED'
+  | 'DEAL_STAGE_CHANGED'
+  | 'TASK_OVERDUE'
+  | 'SCHEDULED';
+export type ActionType =
+  | 'SEND_EMAIL'
+  | 'CREATE_TASK'
+  | 'ASSIGN_LEAD'
+  | 'SEND_NOTIFICATION'
+  | 'CHANGE_STATUS'
+  | 'ADD_TAG'
+  | 'WEBHOOK';
 
 @Injectable()
 export class AutomationsService {
@@ -20,20 +32,26 @@ export class AutomationsService {
     });
   }
 
-  async create(organizationId: string, dto: {
-    name: string;
-    trigger: TriggerType;
-    condition?: string;
-    actions: ActionType[];
-    actionConfig?: Record<string, any>;
-  }) {
+  async create(
+    organizationId: string,
+    dto: {
+      name: string;
+      trigger: TriggerType;
+      condition?: string;
+      actions: ActionType[];
+      actionConfig?: Record<string, any>;
+    },
+  ) {
     return this.prisma.automation.create({
       data: {
         organizationId,
         name: dto.name,
-        trigger: dto.trigger as AutomationTrigger,
+        trigger: dto.trigger,
         conditions: dto.condition ? [dto.condition] : [],
-        actions: dto.actions.map(a => ({ type: a, config: dto.actionConfig ?? {} })),
+        actions: dto.actions.map((a) => ({
+          type: a,
+          config: dto.actionConfig ?? {},
+        })),
         isActive: true,
         executionCount: 0,
       },
@@ -41,7 +59,9 @@ export class AutomationsService {
   }
 
   async toggleActive(organizationId: string, id: string) {
-    const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
+    const rule = await this.prisma.automation.findFirst({
+      where: { id, organizationId },
+    });
     if (!rule) throw new NotFoundException('Automation rule not found');
 
     return this.prisma.automation.update({
@@ -51,7 +71,9 @@ export class AutomationsService {
   }
 
   async delete(organizationId: string, id: string) {
-    const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
+    const rule = await this.prisma.automation.findFirst({
+      where: { id, organizationId },
+    });
     if (!rule) throw new NotFoundException('Automation rule not found');
 
     await this.prisma.automation.delete({ where: { id } });
@@ -59,9 +81,17 @@ export class AutomationsService {
   }
 
   /** Trigger execution engine called by event listeners */
-  async handleEvent(organizationId: string, trigger: TriggerType, payload: Record<string, any>) {
+  async handleEvent(
+    organizationId: string,
+    trigger: TriggerType,
+    payload: Record<string, any>,
+  ) {
     const rules = await this.prisma.automation.findMany({
-      where: { organizationId, trigger: trigger as AutomationTrigger, isActive: true },
+      where: {
+        organizationId,
+        trigger: trigger,
+        isActive: true,
+      },
     });
 
     for (const rule of rules) {
@@ -71,8 +101,14 @@ export class AutomationsService {
         // Execute actions defined in rule
         for (const act of actionsList) {
           const actionType = typeof act === 'string' ? act : act.type;
-          const actionConfig = typeof act === 'object' && act.config ? act.config : {};
-          await this.executeAction(organizationId, actionType, actionConfig, payload);
+          const actionConfig =
+            typeof act === 'object' && act.config ? act.config : {};
+          await this.executeAction(
+            organizationId,
+            actionType,
+            actionConfig,
+            payload,
+          );
         }
 
         // Update run stats
@@ -89,7 +125,12 @@ export class AutomationsService {
     }
   }
 
-  private async executeAction(organizationId: string, action: ActionType, config: Record<string, any>, payload: Record<string, any>) {
+  private async executeAction(
+    organizationId: string,
+    action: ActionType,
+    config: Record<string, any>,
+    payload: Record<string, any>,
+  ) {
     switch (action) {
       case 'SEND_NOTIFICATION':
         if (payload.assigneeId || payload.userId) {
@@ -98,7 +139,8 @@ export class AutomationsService {
             recipientIds: [payload.assigneeId || payload.userId],
             event: 'AUTOMATION_TRIGGERED',
             title: config.title || 'Automation Notification',
-            body: config.body || `Triggered by ${payload.name || 'system event'}`,
+            body:
+              config.body || `Triggered by ${payload.name || 'system event'}`,
           });
         }
         break;
@@ -108,7 +150,8 @@ export class AutomationsService {
           await this.prisma.task.create({
             data: {
               organizationId,
-              title: config.taskTitle || `Follow up with ${payload.name || 'lead'}`,
+              title:
+                config.taskTitle || `Follow up with ${payload.name || 'lead'}`,
               leadId: payload.leadId || payload.id,
               assigneeId: payload.assigneeId || payload.ownerId,
               dueAt: new Date(Date.now() + (config.dueDays || 1) * 86400000),

@@ -11,13 +11,14 @@ import * as crypto from 'crypto';
 import Razorpay from 'razorpay';
 
 // Plan configuration: memberLimit (user quota, admin NOT counted), price in paise
-const PLAN_CONFIG: Record<string, { memberLimit: number; pricePaise: number }> = {
-  STARTER: { memberLimit: 6, pricePaise: 199900 },    // ₹1,999/mo
-  PRO: { memberLimit: 20, pricePaise: 499900 },        // ₹4,999/mo
-  PRO_50: { memberLimit: 50, pricePaise: 999900 },     // ₹9,999/mo
-  PRO_MAX: { memberLimit: 0, pricePaise: 1999900 },    // ₹19,999/mo (unlimited)
-  ENTERPRISE: { memberLimit: 0, pricePaise: 0 },       // Custom negotiated
-};
+const PLAN_CONFIG: Record<string, { memberLimit: number; pricePaise: number }> =
+  {
+    STARTER: { memberLimit: 6, pricePaise: 199900 }, // ₹1,999/mo
+    PRO: { memberLimit: 20, pricePaise: 499900 }, // ₹4,999/mo
+    PRO_50: { memberLimit: 50, pricePaise: 999900 }, // ₹9,999/mo
+    PRO_MAX: { memberLimit: 0, pricePaise: 1999900 }, // ₹19,999/mo (unlimited)
+    ENTERPRISE: { memberLimit: 0, pricePaise: 0 }, // Custom negotiated
+  };
 
 @Injectable()
 export class BillingService {
@@ -31,7 +32,8 @@ export class BillingService {
   private getRazorpay(): Razorpay {
     if (!this.razorpay) {
       const key_id = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
-      const key_secret = process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
+      const key_secret =
+        process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
       this.razorpay = new Razorpay({ key_id, key_secret });
     }
     return this.razorpay;
@@ -75,7 +77,8 @@ export class BillingService {
     }
 
     const amountPaise = planConfig.pricePaise;
-    if (amountPaise === 0) throw new BadRequestException('Contact support for Enterprise pricing');
+    if (amountPaise === 0)
+      throw new BadRequestException('Contact support for Enterprise pricing');
 
     const order = await this.getRazorpay().orders.create({
       amount: amountPaise,
@@ -113,7 +116,9 @@ export class BillingService {
       .digest('hex');
 
     if (expectedSignature !== dto.razorpaySignature) {
-      throw new BadRequestException('Payment verification failed: invalid signature');
+      throw new BadRequestException(
+        'Payment verification failed: invalid signature',
+      );
     }
 
     const subscription = await this.prisma.subscription.findUnique({
@@ -155,7 +160,8 @@ export class BillingService {
 
     return {
       upgradeRequest,
-      message: 'Payment verified. Your upgrade request is pending Super Admin approval.',
+      message:
+        'Payment verified. Your upgrade request is pending Super Admin approval.',
     };
   }
 
@@ -212,7 +218,11 @@ export class BillingService {
   /**
    * Super Admin rejects an upgrade request
    */
-  async rejectPlanUpgrade(requestId: string, superAdminId: string, reason: string) {
+  async rejectPlanUpgrade(
+    requestId: string,
+    superAdminId: string,
+    reason: string,
+  ) {
     const request = await this.prisma.planUpgradeRequest.findUnique({
       where: { id: requestId },
     });

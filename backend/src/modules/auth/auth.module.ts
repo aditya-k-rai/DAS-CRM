@@ -18,12 +18,21 @@ import { MailService } from './mail.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m') as any },
+        signOptions: {
+          expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m') as any,
+        },
       }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy, OtpService, CompanyKeyService, MailService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    LocalStrategy,
+    OtpService,
+    CompanyKeyService,
+    MailService,
+  ],
   exports: [AuthService, JwtModule, MailService, CompanyKeyService, OtpService],
 })
 export class AuthModule {}

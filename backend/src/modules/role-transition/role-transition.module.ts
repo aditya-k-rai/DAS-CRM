@@ -9,7 +9,11 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [RoleTransitionController],
-  providers: [RoleTransitionService, ActivityExportService, RoleTransitionGuard],
+  providers: [
+    RoleTransitionService,
+    ActivityExportService,
+    RoleTransitionGuard,
+  ],
   exports: [RoleTransitionService, RoleTransitionGuard],
 })
 export class RoleTransitionModule {}

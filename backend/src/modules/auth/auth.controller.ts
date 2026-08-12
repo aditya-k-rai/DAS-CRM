@@ -37,7 +37,9 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email + password (Tenant Admin & Staff)' })
+  @ApiOperation({
+    summary: 'Login with email + password (Tenant Admin & Staff)',
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -71,7 +73,9 @@ export class AuthController {
 
   @Post('super-admin/request-otp')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '[Super Admin] Step 1: Send OTP to super admin email' })
+  @ApiOperation({
+    summary: '[Super Admin] Step 1: Send OTP to super admin email',
+  })
   superAdminRequestOtp(@Body('email') email: string, @Ip() ip: string) {
     return this.authService.superAdminRequestOtp(email, ip);
   }
@@ -86,7 +90,10 @@ export class AuthController {
   // ── Company Registration Key ───────────────────────────────
 
   @Post('company-register')
-  @ApiOperation({ summary: 'Register a new company workspace using a Company Registration Key' })
+  @ApiOperation({
+    summary:
+      'Register a new company workspace using a Company Registration Key',
+  })
   registerCompanyWithKey(
     @Body()
     body: {
@@ -108,7 +115,9 @@ export class AuthController {
 
   @Post('validate-company-key')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate a Company Registration Key (preview plan info)' })
+  @ApiOperation({
+    summary: 'Validate a Company Registration Key (preview plan info)',
+  })
   async validateCompanyKey(@Body('key') key: string) {
     const record = await this.companyKeyService.validateCompanyKey(key);
     if (!record) return { valid: false };
@@ -159,7 +168,9 @@ export class AuthController {
   @Post('generate-company-key')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[Super Admin] Generate a Company Registration Key' })
+  @ApiOperation({
+    summary: '[Super Admin] Generate a Company Registration Key',
+  })
   generateCompanyKey(
     @Body()
     body: {

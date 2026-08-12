@@ -62,9 +62,7 @@ export class CompanyKeyService {
   async generateUserKey(opts: GenerateUserKeyOptions) {
     const key = this.buildUserKeyString(opts.organizationName);
     const validityDays = opts.validityDays ?? 7;
-    const expiresAt = new Date(
-      Date.now() + validityDays * 24 * 60 * 60 * 1000,
-    );
+    const expiresAt = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
 
     const record = await this.prisma.userInviteKey.create({
       data: {
@@ -159,8 +157,9 @@ export class CompanyKeyService {
 
   private randomAlpha(length: number): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // skip confusing chars O,I
-    return Array.from({ length }, () =>
-      chars[Math.floor(Math.random() * chars.length)],
+    return Array.from(
+      { length },
+      () => chars[Math.floor(Math.random() * chars.length)],
     ).join('');
   }
 

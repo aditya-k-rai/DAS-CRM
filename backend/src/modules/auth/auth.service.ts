@@ -32,13 +32,18 @@ export class AuthService {
 
   /** Step 1: Validate email, send OTP to adtyamighty@gmail.com */
   async superAdminRequestOtp(email: string, ipAddress?: string) {
-    const allowedEmail = this.config.get<string>('SUPER_ADMIN_EMAIL', 'adtyamighty@gmail.com');
+    const allowedEmail = this.config.get<string>(
+      'SUPER_ADMIN_EMAIL',
+      'adtyamighty@gmail.com',
+    );
 
     if (email.toLowerCase() !== allowedEmail.toLowerCase()) {
       throw new ForbiddenException('Access denied: unauthorized email address');
     }
 
-    let superAdmin = await this.prisma.superAdmin.findUnique({ where: { email } });
+    let superAdmin = await this.prisma.superAdmin.findUnique({
+      where: { email },
+    });
     if (!superAdmin) {
       superAdmin = await this.prisma.superAdmin.create({
         data: { email, name: 'Super Admin' },
@@ -59,8 +64,11 @@ export class AuthService {
 
   /** Step 2: Verify OTP → issue Super Admin JWT */
   async superAdminVerifyOtp(email: string, otp: string) {
-    const superAdmin = await this.prisma.superAdmin.findUnique({ where: { email } });
-    if (!superAdmin || !superAdmin.isActive) throw new ForbiddenException('Access denied');
+    const superAdmin = await this.prisma.superAdmin.findUnique({
+      where: { email },
+    });
+    if (!superAdmin || !superAdmin.isActive)
+      throw new ForbiddenException('Access denied');
 
     const valid = await this.otpService.verifyOtp(superAdmin.id, otp);
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
@@ -72,7 +80,11 @@ export class AuthService {
 
     return {
       accessToken,
-      superAdmin: { id: superAdmin.id, email: superAdmin.email, name: superAdmin.name },
+      superAdmin: {
+        id: superAdmin.id,
+        email: superAdmin.email,
+        name: superAdmin.name,
+      },
     };
   }
 
@@ -93,12 +105,18 @@ export class AuthService {
     companyType?: string;
     sector?: string;
   }) {
-    const keyRecord = await this.companyKeyService.validateCompanyKey(dto.registrationKey);
+    const keyRecord = await this.companyKeyService.validateCompanyKey(
+      dto.registrationKey,
+    );
     if (!keyRecord) {
-      throw new BadRequestException('Invalid, expired, or already used registration key');
+      throw new BadRequestException(
+        'Invalid, expired, or already used registration key',
+      );
     }
 
-    const existing = await this.prisma.user.findFirst({ where: { email: dto.adminEmail } });
+    const existing = await this.prisma.user.findFirst({
+      where: { email: dto.adminEmail },
+    });
     if (existing) throw new ConflictException('Email already in use');
 
     const slug =
@@ -143,11 +161,32 @@ export class AuthService {
       });
 
       const adminRole = await tx.role.create({
-        data: { organizationId: org.id, name: 'ADMIN', isSystem: true, recordScope: 'ALL' },
+        data: {
+          organizationId: org.id,
+          name: 'ADMIN',
+          isSystem: true,
+          recordScope: 'ALL',
+        },
       });
 
-      const statusDefs = ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
-      const statusColors = ['#6366f1', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#22c55e', '#ef4444'];
+      const statusDefs = [
+        'New',
+        'Contacted',
+        'Qualified',
+        'Proposal',
+        'Negotiation',
+        'Won',
+        'Lost',
+      ];
+      const statusColors = [
+        '#6366f1',
+        '#f59e0b',
+        '#3b82f6',
+        '#8b5cf6',
+        '#ec4899',
+        '#22c55e',
+        '#ef4444',
+      ];
       await tx.leadStatus.createMany({
         data: statusDefs.map((name, i) => ({
           organizationId: org.id,
@@ -161,15 +200,49 @@ export class AuthService {
       });
 
       const pipeline = await tx.pipeline.create({
-        data: { organizationId: org.id, name: 'Sales Pipeline', isDefault: true },
+        data: {
+          organizationId: org.id,
+          name: 'Sales Pipeline',
+          isDefault: true,
+        },
       });
       await tx.stage.createMany({
         data: [
-          { pipelineId: pipeline.id, name: 'Prospecting', order: 0, probability: 10, color: '#6366f1' },
-          { pipelineId: pipeline.id, name: 'Qualification', order: 1, probability: 25, color: '#f59e0b' },
-          { pipelineId: pipeline.id, name: 'Proposal', order: 2, probability: 50, color: '#3b82f6' },
-          { pipelineId: pipeline.id, name: 'Negotiation', order: 3, probability: 75, color: '#8b5cf6' },
-          { pipelineId: pipeline.id, name: 'Closed Won', order: 4, probability: 100, color: '#22c55e' },
+          {
+            pipelineId: pipeline.id,
+            name: 'Prospecting',
+            order: 0,
+            probability: 10,
+            color: '#6366f1',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Qualification',
+            order: 1,
+            probability: 25,
+            color: '#f59e0b',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Proposal',
+            order: 2,
+            probability: 50,
+            color: '#3b82f6',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Negotiation',
+            order: 3,
+            probability: 75,
+            color: '#8b5cf6',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Closed Won',
+            order: 4,
+            probability: 100,
+            color: '#22c55e',
+          },
         ],
       });
 
@@ -188,12 +261,23 @@ export class AuthService {
       return { org, user, adminRole };
     });
 
-    await this.companyKeyService.markCompanyKeyUsed(keyRecord.id, result.org.id);
+    await this.companyKeyService.markCompanyKeyUsed(
+      keyRecord.id,
+      result.org.id,
+    );
 
-    const tokens = await this.generateTokens(result.user.id, result.org.id, 'ADMIN');
+    const tokens = await this.generateTokens(
+      result.user.id,
+      result.org.id,
+      'ADMIN',
+    );
     await this.saveRefreshToken(result.user.id, tokens.refreshToken);
 
-    return { user: this.sanitizeUser(result.user), organization: result.org, ...tokens };
+    return {
+      user: this.sanitizeUser(result.user),
+      organization: result.org,
+      ...tokens,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -209,18 +293,24 @@ export class AuthService {
   }) {
     const keyRecord = await this.companyKeyService.validateUserKey(dto.userKey);
     if (!keyRecord) {
-      throw new BadRequestException('Invalid, expired, or already used user invite key');
+      throw new BadRequestException(
+        'Invalid, expired, or already used user invite key',
+      );
     }
 
     const existing = await this.prisma.user.findFirst({
       where: { organizationId: keyRecord.organizationId, email: dto.email },
     });
-    if (existing) throw new ConflictException('Email already registered in this workspace');
+    if (existing)
+      throw new ConflictException('Email already registered in this workspace');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const roleRecord = await this.prisma.role.findFirst({
-      where: { organizationId: keyRecord.organizationId, name: keyRecord.assignedRole },
+      where: {
+        organizationId: keyRecord.organizationId,
+        name: keyRecord.assignedRole,
+      },
     });
 
     const [firstName, ...rest] = dto.name.split(' ');
@@ -238,7 +328,11 @@ export class AuthService {
 
     await this.companyKeyService.markUserKeyUsed(keyRecord.id, user.id);
 
-    const tokens = await this.generateTokens(user.id, keyRecord.organizationId, keyRecord.assignedRole);
+    const tokens = await this.generateTokens(
+      user.id,
+      keyRecord.organizationId,
+      keyRecord.assignedRole,
+    );
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return { user: this.sanitizeUser(user), ...tokens };
@@ -251,7 +345,10 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email, isActive: true },
-      include: { organization: true, role: { include: { permissions: { include: { permission: true } } } } },
+      include: {
+        organization: true,
+        role: { include: { permissions: { include: { permission: true } } } },
+      },
     });
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -259,16 +356,29 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
-    const tokens = await this.generateTokens(user.id, user.organizationId, user.role?.name ?? 'VIEWER');
+    const tokens = await this.generateTokens(
+      user.id,
+      user.organizationId,
+      user.role?.name ?? 'VIEWER',
+    );
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
-    return { user: this.sanitizeUser(user), organization: user.organization, ...tokens };
+    return {
+      user: this.sanitizeUser(user),
+      organization: user.organization,
+      ...tokens,
+    };
   }
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findFirst({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findFirst({
+      where: { email: dto.email },
+    });
     if (existing) throw new ConflictException('Email already in use');
 
     const slug =
@@ -292,28 +402,88 @@ export class AuthService {
       });
 
       const ownerRole = await tx.role.create({
-        data: { organizationId: org.id, name: 'ADMIN', isSystem: true, recordScope: 'ALL' },
+        data: {
+          organizationId: org.id,
+          name: 'ADMIN',
+          isSystem: true,
+          recordScope: 'ALL',
+        },
       });
 
-      const statusDefs = ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
-      const statusColors = ['#6366f1', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#22c55e', '#ef4444'];
+      const statusDefs = [
+        'New',
+        'Contacted',
+        'Qualified',
+        'Proposal',
+        'Negotiation',
+        'Won',
+        'Lost',
+      ];
+      const statusColors = [
+        '#6366f1',
+        '#f59e0b',
+        '#3b82f6',
+        '#8b5cf6',
+        '#ec4899',
+        '#22c55e',
+        '#ef4444',
+      ];
       await tx.leadStatus.createMany({
         data: statusDefs.map((name, i) => ({
-          organizationId: org.id, name, color: statusColors[i], order: i,
-          isDefault: i === 0, isWon: name === 'Won', isLost: name === 'Lost',
+          organizationId: org.id,
+          name,
+          color: statusColors[i],
+          order: i,
+          isDefault: i === 0,
+          isWon: name === 'Won',
+          isLost: name === 'Lost',
         })),
       });
 
       const pipeline = await tx.pipeline.create({
-        data: { organizationId: org.id, name: 'Sales Pipeline', isDefault: true },
+        data: {
+          organizationId: org.id,
+          name: 'Sales Pipeline',
+          isDefault: true,
+        },
       });
       await tx.stage.createMany({
         data: [
-          { pipelineId: pipeline.id, name: 'Prospecting', order: 0, probability: 10, color: '#6366f1' },
-          { pipelineId: pipeline.id, name: 'Qualification', order: 1, probability: 25, color: '#f59e0b' },
-          { pipelineId: pipeline.id, name: 'Proposal', order: 2, probability: 50, color: '#3b82f6' },
-          { pipelineId: pipeline.id, name: 'Negotiation', order: 3, probability: 75, color: '#8b5cf6' },
-          { pipelineId: pipeline.id, name: 'Closed Won', order: 4, probability: 100, color: '#22c55e' },
+          {
+            pipelineId: pipeline.id,
+            name: 'Prospecting',
+            order: 0,
+            probability: 10,
+            color: '#6366f1',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Qualification',
+            order: 1,
+            probability: 25,
+            color: '#f59e0b',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Proposal',
+            order: 2,
+            probability: 50,
+            color: '#3b82f6',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Negotiation',
+            order: 3,
+            probability: 75,
+            color: '#8b5cf6',
+          },
+          {
+            pipelineId: pipeline.id,
+            name: 'Closed Won',
+            order: 4,
+            probability: 100,
+            color: '#22c55e',
+          },
         ],
       });
 
@@ -331,24 +501,42 @@ export class AuthService {
       return { org, user, ownerRole };
     });
 
-    const tokens = await this.generateTokens(result.user.id, result.org.id, result.ownerRole.name);
+    const tokens = await this.generateTokens(
+      result.user.id,
+      result.org.id,
+      result.ownerRole.name,
+    );
     await this.saveRefreshToken(result.user.id, tokens.refreshToken);
 
-    return { user: this.sanitizeUser(result.user), organization: result.org, ...tokens };
+    return {
+      user: this.sanitizeUser(result.user),
+      organization: result.org,
+      ...tokens,
+    };
   }
 
   async refreshToken(token: string) {
-    const stored = await this.prisma.refreshToken.findUnique({ where: { token } });
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { token },
+    });
     if (!stored || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: stored.userId }, include: { role: true } });
-    if (!user || !user.isActive) throw new UnauthorizedException('User not found');
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+      include: { role: true },
+    });
+    if (!user || !user.isActive)
+      throw new UnauthorizedException('User not found');
 
     await this.prisma.refreshToken.delete({ where: { token } });
 
-    const tokens = await this.generateTokens(user.id, user.organizationId, user.role?.name ?? 'VIEWER');
+    const tokens = await this.generateTokens(
+      user.id,
+      user.organizationId,
+      user.role?.name ?? 'VIEWER',
+    );
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
@@ -358,7 +546,11 @@ export class AuthService {
     await this.prisma.refreshToken.deleteMany({ where: { userId, token } });
   }
 
-  private async generateTokens(userId: string, organizationId: string, role: string) {
+  private async generateTokens(
+    userId: string,
+    organizationId: string,
+    role: string,
+  ) {
     const payload = { sub: userId, org_id: organizationId, role };
 
     const accessToken = this.jwt.sign(payload, {
@@ -376,7 +568,9 @@ export class AuthService {
   private async saveRefreshToken(userId: string, token: string) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
-    await this.prisma.refreshToken.create({ data: { userId, token, expiresAt } });
+    await this.prisma.refreshToken.create({
+      data: { userId, token, expiresAt },
+    });
   }
 
   private sanitizeUser(user: any) {

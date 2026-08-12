@@ -26,7 +26,10 @@ export class RoleTransitionGuard implements CanActivate {
     if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return true;
 
     // Skip if explicitly bypassed (e.g. for accept/revert endpoints)
-    const skip = this.reflector.get<boolean>(SKIP_LOCK_CHECK, context.getHandler());
+    const skip = this.reflector.get<boolean>(
+      SKIP_LOCK_CHECK,
+      context.getHandler(),
+    );
     if (skip) return true;
 
     const userId = req.user?.sub;

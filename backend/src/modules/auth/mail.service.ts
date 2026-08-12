@@ -36,7 +36,10 @@ export class MailService {
           </div>`,
       });
     } catch (err) {
-      console.warn('[MailService] Could not send Super Admin OTP email (check SMTP credentials):', err);
+      console.warn(
+        '[MailService] Could not send Super Admin OTP email (check SMTP credentials):',
+        err,
+      );
     }
   }
 
@@ -48,7 +51,9 @@ export class MailService {
     expiresAt: Date,
   ): Promise<void> {
     try {
-      const expiryStr = expiresAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      const expiryStr = expiresAt.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+      });
       await this.transporter.sendMail({
         from: `"NexCRM" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
         to: userEmail,
@@ -83,7 +88,10 @@ export class MailService {
   ): Promise<void> {
     try {
       const emoji = action === 'ACCEPTED' ? '✅' : '↩️';
-      const label = action === 'ACCEPTED' ? 'accepted their new role' : 'had their role reverted by Admin';
+      const label =
+        action === 'ACCEPTED'
+          ? 'accepted their new role'
+          : 'had their role reverted by Admin';
       await this.transporter.sendMail({
         from: `"NexCRM" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
         to: adminEmail,
@@ -100,7 +108,10 @@ export class MailService {
           </div>`,
       });
     } catch (err) {
-      console.warn('[MailService] Could not send Admin Role Transition email:', err);
+      console.warn(
+        '[MailService] Could not send Admin Role Transition email:',
+        err,
+      );
     }
   }
 

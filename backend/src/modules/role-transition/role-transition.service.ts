@@ -37,7 +37,9 @@ export class RoleTransitionService {
       where: { userId: dto.userId, status: 'PENDING' },
     });
     if (existing) {
-      throw new BadRequestException('User already has an active role transition in progress');
+      throw new BadRequestException(
+        'User already has an active role transition in progress',
+      );
     }
 
     const oldRole = (user.role?.name ?? 'VIEWER') as UserRole;
@@ -98,7 +100,9 @@ export class RoleTransitionService {
       where: { userId, status: 'PENDING' },
     });
     if (!transition) {
-      throw new NotFoundException('No active role transition found for this user');
+      throw new NotFoundException(
+        'No active role transition found for this user',
+      );
     }
     if (transition.expiresAt < new Date()) {
       await this.prisma.roleTransition.update({
@@ -115,7 +119,10 @@ export class RoleTransitionService {
 
     // Find the new role record
     const newRoleRecord = await this.prisma.role.findFirst({
-      where: { organizationId: transition.organizationId, name: transition.newRole },
+      where: {
+        organizationId: transition.organizationId,
+        name: transition.newRole,
+      },
     });
 
     // Export old activity log PDF
@@ -176,7 +183,10 @@ export class RoleTransitionService {
       }),
     ]);
 
-    return { message: 'New role accepted. Your account is now fully active.', newRole: transition.newRole };
+    return {
+      message: 'New role accepted. Your account is now fully active.',
+      newRole: transition.newRole,
+    };
   }
 
   /**
@@ -188,21 +198,30 @@ export class RoleTransitionService {
     });
     if (!transition) throw new NotFoundException('Role transition not found');
     if (transition.initiatedByAdminId !== adminId) {
-      throw new ForbiddenException('Only the initiating admin can revert this transition');
+      throw new ForbiddenException(
+        'Only the initiating admin can revert this transition',
+      );
     }
     if (transition.status !== 'PENDING') {
       throw new BadRequestException('Can only revert a PENDING transition');
     }
     if (transition.expiresAt < new Date()) {
-      throw new BadRequestException('Revert window has expired (24 hours exceeded)');
+      throw new BadRequestException(
+        'Revert window has expired (24 hours exceeded)',
+      );
     }
 
     // Restore old role
     const oldRoleRecord = await this.prisma.role.findFirst({
-      where: { organizationId: transition.organizationId, name: transition.oldRole },
+      where: {
+        organizationId: transition.organizationId,
+        name: transition.oldRole,
+      },
     });
 
-    const user = await this.prisma.user.findUnique({ where: { id: transition.userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: transition.userId },
+    });
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -217,7 +236,9 @@ export class RoleTransitionService {
 
     // Notify admin
     if (user) {
-      const adminUser = await this.prisma.user.findUnique({ where: { id: adminId } });
+      const adminUser = await this.prisma.user.findUnique({
+        where: { id: adminId },
+      });
       if (adminUser) {
         await this.mailService.sendRoleTransitionAdminNotification(
           adminUser.email,
@@ -229,7 +250,9 @@ export class RoleTransitionService {
       }
     }
 
-    return { message: 'Role transition reverted. User restored to original role.' };
+    return {
+      message: 'Role transition reverted. User restored to original role.',
+    };
   }
 
   /**

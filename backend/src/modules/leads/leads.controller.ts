@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { LeadsService } from './leads.service';
@@ -34,7 +47,11 @@ export class LeadsController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update lead' })
-  update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateLeadDto) {
+  update(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateLeadDto,
+  ) {
     return this.leadsService.update(user.organizationId, user.id, id, dto);
   }
 
@@ -46,7 +63,13 @@ export class LeadsController {
     @Body('statusId') statusId: string,
     @Body('notes') notes?: string,
   ) {
-    return this.leadsService.changeStatus(user.organizationId, user.id, id, statusId, notes);
+    return this.leadsService.changeStatus(
+      user.organizationId,
+      user.id,
+      id,
+      statusId,
+      notes,
+    );
   }
 
   @Get(':id/timeline')
