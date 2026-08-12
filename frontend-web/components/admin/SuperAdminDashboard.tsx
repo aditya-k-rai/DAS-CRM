@@ -234,11 +234,16 @@ export function SuperAdminDashboard() {
       // Fallback
     }
 
-    // Client-side fallback generation
-    const initials = genCompanyName.split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 4);
-    const alpha = 'KX';
+    // Client-side fallback generation using Company First Word
+    const firstWord = genCompanyName
+      .trim()
+      .split(/\s+/)[0]
+      ?.replace(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase() || 'COMPANY';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const alpha = Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const digits = Math.floor(1000 + Math.random() * 9000).toString();
-    const key = `${initials}-${alpha}-${digits}`;
+    const key = `${firstWord}-${alpha}-${digits}`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${key}`;
 
     setGeneratedKey(key);

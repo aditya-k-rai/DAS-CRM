@@ -162,28 +162,30 @@ export class CompanyKeyService {
   // ── Private Helpers ───────────────────────────────────────────────────
 
   private buildCompanyKeyString(companyName: string): string {
-    // Extract initials (up to 4 chars) from company name
-    const initials = companyName
-      .split(/\s+/)
-      .map((w) => w[0]?.toUpperCase() ?? '')
-      .join('')
-      .slice(0, 4);
+    // Extract full first word from company name (uppercase, alphanumeric)
+    const firstWord =
+      companyName
+        .trim()
+        .split(/\s+/)[0]
+        ?.replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase() || 'COMPANY';
 
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
-    return `${initials}-${alpha}-${digits}`;
+    return `${firstWord}-${alpha}-${digits}`;
   }
 
   private buildUserKeyString(orgName: string): string {
-    const initials = orgName
-      .split(/\s+/)
-      .map((w) => w[0]?.toUpperCase() ?? '')
-      .join('')
-      .slice(0, 3);
+    const firstWord =
+      orgName
+        .trim()
+        .split(/\s+/)[0]
+        ?.replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase() || 'ORG';
 
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
-    return `${initials}-${alpha}-${digits}`;
+    return `${firstWord}-${alpha}-${digits}`;
   }
 
   private randomAlpha(length: number): string {
