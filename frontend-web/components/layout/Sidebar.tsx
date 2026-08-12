@@ -14,81 +14,97 @@ import { cn } from '@/lib/utils';
 import { useAuth, UserRole, DEMO_USERS } from '@/context/AuthContext';
 import { useState } from 'react';
 
-const ROLE_NAV_GROUPS: Record<UserRole, string[]> = {
-  SUPER_ADMIN: ['SUPER ADMIN', 'MAIN', 'WORK', 'HR PORTAL', 'ADMIN', 'SYSTEM'],
-  ADMIN:       ['MAIN', 'WORK', 'HR PORTAL', 'ADMIN', 'SYSTEM'],
-  HR:          ['MAIN', 'WORK', 'HR PORTAL', 'SYSTEM'],
-  MANAGER:     ['MAIN', 'WORK', 'SYSTEM'],
-  TEAM_LEADER: ['MAIN', 'WORK', 'SYSTEM'],
-  SALES_EXEC:  ['MAIN', 'WORK', 'SYSTEM'],
-};
+interface NavItem {
+  label: string;
+  href: string;
+  icon: any;
+  roles?: UserRole[];
+}
 
-const navigation = [
+interface NavGroup {
+  group: string;
+  roles?: UserRole[];
+  items: NavItem[];
+}
+
+const navigation: NavGroup[] = [
   {
     group: 'SUPER ADMIN',
+    roles: ['SUPER_ADMIN'],
     items: [
-      { label: 'Administrative Portal', href: '/admin/super', icon: Crown },
+      { label: 'Administrative Portal', href: '/admin/super', icon: Crown, roles: ['SUPER_ADMIN'] },
     ],
   },
   {
     group: 'MAIN',
+    roles: ['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'Leads', href: '/leads', icon: Target },
-      { label: 'Contacts', href: '/contacts', icon: Users },
-      { label: 'Companies', href: '/companies', icon: Building2 },
-      { label: 'Deals', href: '/deals', icon: Briefcase },
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Contacts', href: '/contacts', icon: Users, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Companies', href: '/companies', icon: Building2, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+      { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
     ],
   },
   {
     group: 'WORK',
+    roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
     items: [
-      { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-      { label: 'Quotations', href: '/quotes', icon: FileText },
-      { label: 'Products', href: '/products', icon: Package },
-      { label: 'Communications', href: '/comms', icon: MessageSquare },
-      { label: 'Email Templates', href: '/emails', icon: Mail },
-      { label: 'Goals & Targets', href: '/goals', icon: TrendingUp },
-      { label: 'Reports', href: '/reports', icon: BarChart3 },
+      { label: 'Tasks', href: '/tasks', icon: CheckSquare, roles: ['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Quotations', href: '/quotes', icon: FileText, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Products', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+      { label: 'Communications', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
+      { label: 'Email Templates', href: '/emails', icon: Mail, roles: ['ADMIN', 'MANAGER'] },
+      { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+      { label: 'Reports', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
     ],
   },
   {
     group: 'HR PORTAL',
+    roles: ['ADMIN', 'HR', 'SALES_EXEC'],
     items: [
-      { label: 'HR Dashboard', href: '/hr', icon: UserCog },
-      { label: 'Attendance', href: '/hr/attendance', icon: Calendar },
-      { label: 'Leave Requests', href: '/hr/leaves', icon: CheckSquare },
-      { label: 'Salary & Payroll', href: '/hr/salary', icon: DollarSign },
-      { label: 'Employees', href: '/hr/employees', icon: Users },
+      { label: 'HR Dashboard', href: '/hr', icon: UserCog, roles: ['ADMIN', 'HR'] },
+      { label: 'Attendance', href: '/hr/attendance', icon: Calendar, roles: ['ADMIN', 'HR', 'SALES_EXEC', 'TEAM_LEADER', 'MANAGER'] },
+      { label: 'Leave Requests', href: '/hr/leaves', icon: CheckSquare, roles: ['ADMIN', 'HR', 'SALES_EXEC', 'TEAM_LEADER', 'MANAGER'] },
+      { label: 'Salary & Payroll', href: '/hr/salary', icon: DollarSign, roles: ['ADMIN', 'HR'] },
+      { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'HR'] },
     ],
   },
   {
-    group: 'ADMIN',
+    group: 'ADMINISTRATION',
+    roles: ['ADMIN'],
     items: [
-      { label: 'Team Leaders & Managers', href: '/admin/team-leaders', icon: Shield },
-      { label: 'Workflow Setup', href: '/admin/workflow', icon: Zap },
-      { label: 'Custom Fields', href: '/admin/custom-fields', icon: ClipboardList },
-      { label: 'Automations', href: '/automations', icon: Zap },
-      { label: 'Imports', href: '/imports', icon: Database },
-      { label: 'Audit Logs', href: '/admin/audit-logs', icon: Lock },
+      { label: 'Team Leaders & Managers', href: '/admin/team-leaders', icon: Shield, roles: ['ADMIN'] },
+      { label: 'Workflow Setup', href: '/admin/workflow', icon: Zap, roles: ['ADMIN'] },
+      { label: 'Custom Fields', href: '/admin/custom-fields', icon: ClipboardList, roles: ['ADMIN'] },
+      { label: 'Automations', href: '/automations', icon: Zap, roles: ['ADMIN'] },
+      { label: 'Imports', href: '/imports', icon: Database, roles: ['ADMIN'] },
+      { label: 'Audit Logs', href: '/admin/audit-logs', icon: Lock, roles: ['ADMIN'] },
     ],
   },
   {
     group: 'SYSTEM',
+    roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
     items: [
-      { label: 'Settings', href: '/settings', icon: Settings },
-      { label: 'Help', href: '/help', icon: HelpCircle },
+      { label: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+      { label: 'Help', href: '/help', icon: HelpCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
     ],
   },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentUser, subscription, switchRole, toggleScenario, canEdit, isSeatExceeded } = useAuth();
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const { currentUser, subscription, canEdit, isSeatExceeded } = useAuth();
 
-  const allowedGroups = ROLE_NAV_GROUPS[currentUser.role] || ROLE_NAV_GROUPS.ADMIN;
-  const filteredNav = navigation.filter(g => allowedGroups.includes(g.group));
+  const userRole = currentUser.role;
+
+  const filteredNav = navigation
+    .filter(group => !group.roles || group.roles.includes(userRole))
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => !item.roles || item.roles.includes(userRole)),
+    }))
+    .filter(group => group.items.length > 0);
 
   const isViewOnly = !canEdit();
 
