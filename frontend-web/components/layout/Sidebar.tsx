@@ -105,97 +105,19 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Structure Scenario Indicator Badge */}
-      <div className="px-3 mb-2">
-        <button
-          onClick={() => toggleScenario(!subscription.hasTeamLeaders)}
-          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all"
-          style={{
-            background: subscription.hasTeamLeaders ? 'rgba(99,102,241,0.12)' : 'rgba(34,197,94,0.12)',
-            borderColor: subscription.hasTeamLeaders ? 'rgba(99,102,241,0.3)' : 'rgba(34,197,94,0.3)',
-            color: subscription.hasTeamLeaders ? 'rgb(129,140,248)' : 'rgb(34,197,94)',
-          }}
-          title="Click to toggle between Scenario A (With TL) and Scenario B (Without TL)"
-        >
-          <div className="flex items-center gap-1.5">
-            <Layers size={12} />
-            <span>{subscription.hasTeamLeaders ? 'SCENARIO A: WITH TL' : 'SCENARIO B: WITHOUT TL'}</span>
-          </div>
-          <span className="underline text-[9px]">Toggle</span>
-        </button>
-      </div>
-
-      {/* Subscription Plan Status Banners */}
-      <div className="px-3 mb-2 space-y-1.5">
-        {subscription.planType === 'FREE_TRIAL' && !subscription.isExpired && (
-          <div className="px-3 py-2 rounded-xl border text-[11px] font-semibold bg-amber-500/10 border-amber-500/30 text-amber-300">
-            <div className="flex items-center justify-between font-bold mb-0.5">
-              <span>30-Day Free Trial</span>
-              <span>{subscription.trialDaysLeft}d left</span>
-            </div>
-            <p className="text-[10px] text-amber-400/80 leading-tight">WhatsApp & Email locked in trial.</p>
-          </div>
-        )}
-
-        {isViewOnly && (
-          <div className="px-3 py-2 rounded-xl border text-[11px] font-bold bg-red-500/15 border-red-500/40 text-red-400 flex items-center gap-2">
-            <LockKeyhole size={14} className="flex-shrink-0" />
-            <div>
-              <p className="leading-tight">View-Only Mode Active</p>
-              <p className="text-[10px] font-normal text-red-300">30-Day Trial Expired. Upgrade plan.</p>
-            </div>
-          </div>
-        )}
-
-        {isSeatExceeded && (
-          <div className="px-3 py-2 rounded-xl border text-[11px] font-bold bg-red-500/15 border-red-500/40 text-red-400 flex items-center gap-2">
-            <AlertTriangle size={14} className="flex-shrink-0" />
-            <div>
-              <p className="leading-tight">Seat Limit Exceeded</p>
-              <p className="text-[10px] font-normal text-red-300">
-                {subscription.userSeatsUsed} / {subscription.userSeatsAllocated} seats used. Upgrade Plan.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Role Switcher dropdown */}
-      <div className="px-3 mb-3 relative">
-        <button
-          onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all"
+      {/* User Role Badge */}
+      <div className="px-3 mb-3">
+        <div
+          className="w-full flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold"
           style={{
             background: 'rgba(99,102,241,0.12)',
             borderColor: 'rgba(99,102,241,0.3)',
             color: 'rgb(129,140,248)',
           }}
         >
-          <div className="flex items-center gap-2">
-            <Shield size={13} />
-            <span>ROLE: {currentUser.role}</span>
-          </div>
-          <ChevronDown size={13} className={`transition-transform ${roleMenuOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {roleMenuOpen && (
-          <div
-            className="absolute left-3 right-3 top-10 z-50 rounded-xl shadow-2xl border p-1 space-y-1 animate-scale-in"
-            style={{ background: 'rgb(var(--card))', borderColor: 'rgb(var(--border))' }}
-          >
-            <p className="text-[10px] font-bold text-muted uppercase tracking-wider px-2 py-1">Switch Role View</p>
-            {(['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map(role => (
-              <button
-                key={role}
-                onClick={() => { switchRole(role); setRoleMenuOpen(false); }}
-                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all ${currentUser.role === role ? 'bg-brand/20 text-brand-400 font-bold' : 'text-muted hover:text-white hover:bg-muted/20'}`}
-              >
-                <span>{role}</span>
-                {currentUser.role === role && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-        )}
+          <Shield size={14} />
+          <span>ROLE: {currentUser.role}</span>
+        </div>
       </div>
 
       {/* Nav */}
