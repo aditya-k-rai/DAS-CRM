@@ -127,7 +127,7 @@ export default function RegisterCompanyPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !adminName || !adminEmail || !adminPassword || !phone) {
+    if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber) {
       setError('Please fill all required fields (*)');
       return;
     }
@@ -424,13 +424,14 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">GST Number (Optional)</label>
+                  <label className="text-xs text-muted block mb-1">GST Number *</label>
                   <input
                     type="text"
-                    placeholder="27AAAAA0000A1Z5"
-                    className="crm-input text-sm font-mono"
+                    required
+                    placeholder="e.g. 27AAAAA0000A1Z5"
+                    className="crm-input text-sm font-mono font-bold uppercase text-indigo-300"
                     value={gstNumber}
-                    onChange={(e) => setGstNumber(e.target.value)}
+                    onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
                   />
                 </div>
 
