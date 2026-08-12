@@ -1,36 +1,43 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ActivityType } from '@prisma/client';
 
 @Injectable()
 export class ActivitiesService {
   constructor(private prisma: PrismaService) {}
 
   async log(organizationId: string, userId: string, dto: {
-    activityType: 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'WHATSAPP' | 'SMS' | 'VISIT';
+    activityType: 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | 'STATUS_CHANGE' | 'IMPORT' | 'SYSTEM';
     leadId?: string;
     contactId?: string;
     dealId?: string;
     subject?: string;
     notes: string;
     durationMin?: number;
-    outcome?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+    outcome?: string;
     nextAction?: string;
     nextActionDate?: Date;
   }) {
+    const typeEnum = (Object.values(ActivityType).includes(dto.activityType as any) 
+      ? dto.activityType 
+      : 'NOTE') as ActivityType;
+
     return this.prisma.activity.create({
       data: {
         organizationId,
         userId,
-        activityType:   dto.activityType,
-        leadId:         dto.leadId,
-        contactId:      dto.contactId,
-        dealId:         dto.dealId,
-        subject:        dto.subject,
-        notes:          dto.notes,
-        durationMin:    dto.durationMin,
-        outcome:        dto.outcome,
-        nextAction:     dto.nextAction,
-        nextActionDate: dto.nextActionDate,
+        type: typeEnum,
+        leadId: dto.leadId,
+        contactId: dto.contactId,
+        dealId: dto.dealId,
+        description: dto.notes,
+        metadata: {
+          subject: dto.subject,
+          durationMin: dto.durationMin,
+          outcome: dto.outcome,
+          nextAction: dto.nextAction,
+          nextActionDate: dto.nextActionDate,
+        },
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -79,7 +86,7 @@ export class ActivitiesService {
     });
 
     const byType = activities.reduce((acc, a) => {
-      acc[a.activityType] = (acc[a.activityType] ?? 0) + 1;
+      acc[a.type] = (acc[a.type] ?? 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 

@@ -25,7 +25,7 @@ let CompaniesService = class CompaniesService {
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
-                    { domain: { contains: search, mode: 'insensitive' } },
+                    { website: { contains: search, mode: 'insensitive' } },
                     { city: { contains: search, mode: 'insensitive' } },
                 ],
             }),
@@ -71,10 +71,9 @@ let CompaniesService = class CompaniesService {
                 industry: dto.industry,
                 city: dto.city,
                 country: dto.country ?? 'India',
-                domain: dto.domain,
+                website: dto.website ?? dto.domain,
                 phone: dto.phone,
-                employeeCount: dto.employeeCount,
-                notes: dto.notes,
+                notes: dto.notes ? { create: { organizationId, content: dto.notes } } : undefined,
                 customFields: dto.customFields ?? {},
             },
         });

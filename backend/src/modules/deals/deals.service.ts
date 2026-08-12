@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DealStatus } from '@prisma/client';
 
 @Injectable()
 export class DealsService {
@@ -28,11 +29,10 @@ export class DealsService {
       organizationId,
       ...(pipelineId && { pipelineId }),
       ...(stageId && { stageId }),
-      ...(assignedTo && { assignedToId: assignedTo }),
+      ...(assignedTo && { ownerId: assignedTo }),
       ...(search && {
         OR: [
           { title: { contains: search, mode: 'insensitive' } },
-          { contact: { firstName: { contains: search, mode: 'insensitive' } } },
         ],
       }),
     };
@@ -42,10 +42,11 @@ export class DealsService {
       this.prisma.deal.findMany({
         where,
         include: {
-          stage:      { select: { id: true, name: true, probability: true } },
-          pipeline:   { select: { id: true, name: true } },
-          contact:    { select: { id: true, firstName: true, lastName: true } },
-          assignedTo: { select: { id: true, firstName: true, lastName: true } },
+          stage:     { select: { id: true, name: true, probability: true } },
+          pipeline:  { select: { id: true, name: true } },
+          owner:     { select: { id: true, firstName: true, lastName: true } },
+          company:   { select: { id: true, name: true } },
+          lead:      { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * limit,
@@ -57,22 +58,22 @@ export class DealsService {
   }
 
   async createDeal(organizationId: string, dto: {
-    title: string; pipelineId: string; stageId: string; contactId?: string;
-    assignedToId?: string; value?: number; expectedCloseDate?: Date;
-    probability?: number; notes?: string;
+    title: string; pipelineId?: string; stageId?: string; leadId?: string; companyId?: string;
+    assignedToId?: string; ownerId?: string; value?: number; expectedCloseDate?: Date; expectedCloseAt?: Date;
+    notes?: string;
   }) {
     return this.prisma.deal.create({
       data: {
         organizationId,
-        title:             dto.title,
-        pipelineId:        dto.pipelineId,
-        stageId:           dto.stageId,
-        contactId:         dto.contactId,
-        assignedToId:      dto.assignedToId,
-        value:             dto.value ?? 0,
-        probability:       dto.probability ?? 20,
-        expectedCloseDate: dto.expectedCloseDate,
-        notes:             dto.notes,
+        title:           dto.title,
+        pipelineId:      dto.pipelineId,
+        stageId:         dto.stageId,
+        leadId:          dto.leadId,
+        companyId:       dto.companyId,
+        ownerId:         dto.ownerId ?? dto.assignedToId,
+        value:           dto.value ?? 0,
+        expectedCloseAt: dto.expectedCloseAt ?? dto.expectedCloseDate,
+        notes:           dto.notes ? { create: { organizationId, content: dto.notes } } : undefined,
       },
       include: { stage: true, pipeline: true },
     });
@@ -82,16 +83,18 @@ export class DealsService {
     const deal = await this.prisma.deal.findFirst({ where: { id: dealId, organizationId } });
     if (!deal) throw new NotFoundException('Deal not found');
 
-    const stage = await this.prisma.pipelineStage.findFirst({ where: { id: stageId } });
+    const stage = await this.prisma.stage.findFirst({ where: { id: stageId } });
     if (!stage) throw new NotFoundException('Stage not found');
+
+    const isWon = stage.name.toLowerCase().includes('won');
+    const isLost = stage.name.toLowerCase().includes('lost');
 
     return this.prisma.deal.update({
       where: { id: dealId },
       data: {
         stageId,
-        probability: stage.probability,
-        wonAt:  stage.isWon  ? new Date() : null,
-        lostAt: stage.isLost ? new Date() : null,
+        status: isWon ? DealStatus.WON : isLost ? DealStatus.LOST : DealStatus.OPEN,
+        closedAt: (isWon || isLost) ? new Date() : null,
       },
     });
   }
@@ -111,19 +114,20 @@ export class DealsService {
 
   async getForecast(organizationId: string) {
     const deals = await this.prisma.deal.findMany({
-      where: { organizationId, wonAt: null, lostAt: null },
+      where: { organizationId, status: DealStatus.OPEN },
       include: { stage: true },
     });
 
     const totalPipeline = deals.reduce((s, d) => s + Number(d.value), 0);
-    const weightedValue = deals.reduce((s, d) => s + (Number(d.value) * (d.probability / 100)), 0);
+    const weightedValue = deals.reduce((s, d) => s + (Number(d.value) * ((d.stage?.probability ?? 0) / 100)), 0);
 
     const byStage = deals.reduce((acc, d) => {
       const key = d.stage?.name ?? 'Unknown';
+      const prob = d.stage?.probability ?? 0;
       if (!acc[key]) acc[key] = { count: 0, value: 0, weighted: 0 };
       acc[key].count++;
       acc[key].value += Number(d.value);
-      acc[key].weighted += Number(d.value) * (d.probability / 100);
+      acc[key].weighted += Number(d.value) * (prob / 100);
       return acc;
     }, {} as Record<string, any>);
 

@@ -74,9 +74,9 @@ export class AttendanceService {
   }
 
   async getTeamAttendance(organizationId: string, teamLeaderId: string, month?: number, year?: number) {
-    // Get all team members under this team leader
+    // Get all team members in the organization
     const members = await this.prisma.user.findMany({
-      where: { organizationId, teamLeaderId },
+      where: { organizationId },
       select: { id: true, firstName: true, lastName: true },
     });
     const memberIds = members.map((m) => m.id);

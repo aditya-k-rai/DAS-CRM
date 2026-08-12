@@ -20,15 +20,15 @@ export declare class QuotationsService {
         } & {
             number: string;
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
             notes: string | null;
-            currency: string;
-            organizationId: string;
-            title: string | null;
             status: import("@prisma/client").$Enums.QuotationStatus;
             leadId: string | null;
             dealId: string | null;
+            title: string | null;
+            currency: string;
             validUntil: Date | null;
             subtotal: import("@prisma/client/runtime/library").Decimal;
             taxTotal: import("@prisma/client/runtime/library").Decimal;
@@ -42,23 +42,23 @@ export declare class QuotationsService {
     findOne(organizationId: string, id: string): Promise<{
         lead: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            notes: string | null;
             organizationId: string;
             email: string | null;
             firstName: string;
             lastName: string | null;
             teamId: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            notes: string | null;
             tags: string[];
-            phone: string | null;
             statusId: string | null;
             ownerId: string | null;
             sourceId: string | null;
-            companyId: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
+            phone: string | null;
             createdById: string | null;
+            companyId: string | null;
             score: number;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
             isConverted: boolean;
             convertedAt: Date | null;
             lastActivityAt: Date | null;
@@ -66,12 +66,12 @@ export declare class QuotationsService {
         items: ({
             product: {
                 id: string;
-                name: string;
+                organizationId: string;
+                isActive: boolean;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
+                name: string;
                 description: string | null;
-                isActive: boolean;
                 taxRate: import("@prisma/client/runtime/library").Decimal;
                 price: import("@prisma/client/runtime/library").Decimal;
                 unit: string;
@@ -92,15 +92,15 @@ export declare class QuotationsService {
     } & {
         number: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
         notes: string | null;
-        currency: string;
-        organizationId: string;
-        title: string | null;
         status: import("@prisma/client").$Enums.QuotationStatus;
         leadId: string | null;
         dealId: string | null;
+        title: string | null;
+        currency: string;
         validUntil: Date | null;
         subtotal: import("@prisma/client/runtime/library").Decimal;
         taxTotal: import("@prisma/client/runtime/library").Decimal;
@@ -144,15 +144,15 @@ export declare class QuotationsService {
     } & {
         number: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
         notes: string | null;
-        currency: string;
-        organizationId: string;
-        title: string | null;
         status: import("@prisma/client").$Enums.QuotationStatus;
         leadId: string | null;
         dealId: string | null;
+        title: string | null;
+        currency: string;
         validUntil: Date | null;
         subtotal: import("@prisma/client/runtime/library").Decimal;
         taxTotal: import("@prisma/client/runtime/library").Decimal;
@@ -165,15 +165,15 @@ export declare class QuotationsService {
     updateStatus(organizationId: string, id: string, status: any): Promise<{
         number: string;
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
         notes: string | null;
-        currency: string;
-        organizationId: string;
-        title: string | null;
         status: import("@prisma/client").$Enums.QuotationStatus;
         leadId: string | null;
         dealId: string | null;
+        title: string | null;
+        currency: string;
         validUntil: Date | null;
         subtotal: import("@prisma/client/runtime/library").Decimal;
         taxTotal: import("@prisma/client/runtime/library").Decimal;

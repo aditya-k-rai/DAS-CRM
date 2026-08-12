@@ -1,10 +1,10 @@
 import { PrismaService } from '../../prisma/prisma.service';
-export type EntityType = 'LEAD' | 'CONTACT' | 'COMPANY' | 'DEAL';
-export type FieldType = 'TEXT' | 'NUMBER' | 'DROPDOWN' | 'DATE' | 'CHECKBOX' | 'URL' | 'PHONE' | 'TEXTAREA';
+export type EntityType = 'LEAD' | 'CONTACT' | 'COMPANY' | 'DEAL' | 'lead' | 'contact' | 'company' | 'deal';
+export type FieldType = 'TEXT' | 'NUMBER' | 'DROPDOWN' | 'MULTI_SELECT' | 'DATE' | 'CHECKBOX' | 'URL' | 'EMAIL' | 'PHONE' | 'TEXTAREA';
 export declare class CustomFieldsService {
     private prisma;
     constructor(prisma: PrismaService);
-    findAll(organizationId: string, entityType?: EntityType): Promise<{
+    findAll(organizationId: string, entityType?: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -19,7 +19,7 @@ export declare class CustomFieldsService {
         isRequired: boolean;
     }[]>;
     create(organizationId: string, dto: {
-        entityType: EntityType;
+        entityType: string;
         fieldName: string;
         fieldLabel: string;
         fieldType: FieldType;
@@ -42,11 +42,10 @@ export declare class CustomFieldsService {
         isRequired: boolean;
     }>;
     update(organizationId: string, id: string, dto: Partial<{
+        label: string;
         fieldLabel: string;
         isRequired: boolean;
-        isVisible: boolean;
         options: string[];
-        placeholder: string;
         order: number;
     }>): Promise<{
         id: string;
@@ -65,5 +64,5 @@ export declare class CustomFieldsService {
     delete(organizationId: string, id: string): Promise<{
         success: boolean;
     }>;
-    validateCustomFields(organizationId: string, entityType: EntityType, values: Record<string, any>): Promise<boolean>;
+    validateCustomFields(organizationId: string, entityType: string, values: Record<string, any>): Promise<boolean>;
 }

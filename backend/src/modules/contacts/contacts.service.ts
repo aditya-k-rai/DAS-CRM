@@ -24,7 +24,6 @@ export class ContactsService {
         where,
         include: {
           company: { select: { id: true, name: true } },
-          leads:   { select: { id: true, status: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -40,8 +39,8 @@ export class ContactsService {
       where: { id, organizationId },
       include: {
         company: true,
-        leads:   { orderBy: { createdAt: 'desc' } },
-        deals:   { include: { pipeline: true } },
+        notes:   { orderBy: { createdAt: 'desc' } },
+        activities: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
     });
     if (!contact) throw new NotFoundException('Contact not found');
@@ -49,8 +48,8 @@ export class ContactsService {
   }
 
   async create(organizationId: string, dto: {
-    firstName: string; lastName: string; email?: string; phone?: string;
-    companyId?: string; designation?: string; notes?: string;
+    firstName: string; lastName?: string; email?: string; phone?: string;
+    companyId?: string; designation?: string; jobTitle?: string; notes?: string;
     customFields?: Record<string, any>;
   }) {
     return this.prisma.contact.create({
@@ -61,8 +60,8 @@ export class ContactsService {
         email:     dto.email,
         phone:     dto.phone,
         companyId: dto.companyId,
-        designation: dto.designation,
-        notes:       dto.notes,
+        jobTitle:  dto.jobTitle ?? dto.designation,
+        notes:     dto.notes ? { create: { organizationId, content: dto.notes } } : undefined,
         customFields: dto.customFields ?? {},
       },
     });
@@ -70,7 +69,7 @@ export class ContactsService {
 
   async update(organizationId: string, id: string, dto: Partial<{
     firstName: string; lastName: string; email: string; phone: string;
-    companyId: string; designation: string; notes: string; customFields: Record<string, any>;
+    companyId: string; jobTitle: string; notes: string; customFields: Record<string, any>;
   }>) {
     const contact = await this.prisma.contact.findFirst({ where: { id, organizationId } });
     if (!contact) throw new NotFoundException('Contact not found');

@@ -7,10 +7,10 @@ export declare class DealsService {
             id: string;
             name: string;
             createdAt: Date;
-            color: string;
             order: number;
-            pipelineId: string;
             probability: number;
+            color: string;
+            pipelineId: string;
         }[];
     } & {
         id: string;
@@ -31,49 +31,93 @@ export declare class DealsService {
         total: number;
         page: number;
         limit: number;
-        items: {
+        items: ({
+            pipeline: {
+                id: string;
+                name: string;
+            } | null;
+            stage: {
+                id: string;
+                name: string;
+                probability: number;
+            } | null;
+            lead: {
+                id: string;
+                firstName: string;
+                lastName: string | null;
+            } | null;
+            company: {
+                id: string;
+                name: string;
+            } | null;
+            owner: {
+                id: string;
+                firstName: string;
+                lastName: string;
+            } | null;
+        } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
             currency: string;
             organizationId: string;
+            pipelineId: string | null;
+            leadId: string | null;
+            companyId: string | null;
+            status: import("@prisma/client").$Enums.DealStatus;
             title: string;
             ownerId: string | null;
-            companyId: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
-            status: import("@prisma/client").$Enums.DealStatus;
-            leadId: string | null;
             value: import("@prisma/client/runtime/library").Decimal;
-            pipelineId: string | null;
             stageId: string | null;
             expectedCloseAt: Date | null;
             closedAt: Date | null;
-        }[];
+        })[];
     }>;
     createDeal(organizationId: string, dto: {
         title: string;
-        pipelineId: string;
-        stageId: string;
-        contactId?: string;
+        pipelineId?: string;
+        stageId?: string;
+        leadId?: string;
+        companyId?: string;
         assignedToId?: string;
+        ownerId?: string;
         value?: number;
         expectedCloseDate?: Date;
-        probability?: number;
+        expectedCloseAt?: Date;
         notes?: string;
     }): Promise<{
+        pipeline: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            organizationId: string;
+            isDefault: boolean;
+        } | null;
+        stage: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            order: number;
+            probability: number;
+            color: string;
+            pipelineId: string;
+        } | null;
+    } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
         currency: string;
         organizationId: string;
+        pipelineId: string | null;
+        leadId: string | null;
+        companyId: string | null;
+        status: import("@prisma/client").$Enums.DealStatus;
         title: string;
         ownerId: string | null;
-        companyId: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
-        status: import("@prisma/client").$Enums.DealStatus;
-        leadId: string | null;
         value: import("@prisma/client/runtime/library").Decimal;
-        pipelineId: string | null;
         stageId: string | null;
         expectedCloseAt: Date | null;
         closedAt: Date | null;
@@ -84,14 +128,14 @@ export declare class DealsService {
         updatedAt: Date;
         currency: string;
         organizationId: string;
+        pipelineId: string | null;
+        leadId: string | null;
+        companyId: string | null;
+        status: import("@prisma/client").$Enums.DealStatus;
         title: string;
         ownerId: string | null;
-        companyId: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
-        status: import("@prisma/client").$Enums.DealStatus;
-        leadId: string | null;
         value: import("@prisma/client/runtime/library").Decimal;
-        pipelineId: string | null;
         stageId: string | null;
         expectedCloseAt: Date | null;
         closedAt: Date | null;
@@ -102,14 +146,14 @@ export declare class DealsService {
         updatedAt: Date;
         currency: string;
         organizationId: string;
+        pipelineId: string | null;
+        leadId: string | null;
+        companyId: string | null;
+        status: import("@prisma/client").$Enums.DealStatus;
         title: string;
         ownerId: string | null;
-        companyId: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
-        status: import("@prisma/client").$Enums.DealStatus;
-        leadId: string | null;
         value: import("@prisma/client/runtime/library").Decimal;
-        pipelineId: string | null;
         stageId: string | null;
         expectedCloseAt: Date | null;
         closedAt: Date | null;

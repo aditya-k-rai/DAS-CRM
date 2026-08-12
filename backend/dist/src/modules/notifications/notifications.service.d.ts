@@ -26,15 +26,15 @@ export declare class NotificationsService {
         page: number;
         limit: number;
         items: {
-            organizationId: string;
-            userId: string;
-            isRead: boolean;
             id: string;
+            organizationId: string;
+            createdAt: Date;
+            data: import("@prisma/client/runtime/library").JsonValue;
+            userId: string;
             type: import("@prisma/client").$Enums.NotificationType;
             title: string;
             body: string | null;
-            data: import("@prisma/client/runtime/library").JsonValue;
-            createdAt: Date;
+            isRead: boolean;
         }[];
     }>;
     markRead(organizationId: string, userId: string, ids: string[]): Promise<{

@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const client_1 = require("@prisma/client");
-const bcrypt = __importStar(require("bcrypt"));
+const bcrypt = __importStar(require("bcryptjs"));
 const prisma = new client_1.PrismaClient();
 async function main() {
     console.log('🌱 Starting NexCRM Database Seeding...');
@@ -44,31 +44,30 @@ async function main() {
         create: {
             name: 'Acme Sales Solutions',
             slug: 'acme-sales',
-            currency: 'INR',
-            timezone: 'Asia/Kolkata',
+            settings: { currency: 'INR', timezone: 'Asia/Kolkata' },
         },
     });
     console.log(`✅ Organization created: ${org.name} (${org.id})`);
     const rolesData = [
-        { name: 'OWNER', description: 'Full workspace owner access' },
-        { name: 'ADMIN', description: 'Admin access (workflow, custom fields, team leaders)' },
-        { name: 'HR', description: 'HR Portal access (attendance, leaves, salary/payroll)' },
-        { name: 'TEAM_LEADER', description: 'Team leader (distributes leads, manages rep team)' },
-        { name: 'SALES_EXEC', description: 'Sales representative (manages assigned leads)' },
+        { name: 'OWNER' },
+        { name: 'ADMIN' },
+        { name: 'HR' },
+        { name: 'TEAM_LEADER' },
+        { name: 'SALES' },
     ];
     const roles = {};
     for (const r of rolesData) {
         const role = await prisma.role.upsert({
             where: { organizationId_name: { organizationId: org.id, name: r.name } },
             update: {},
-            create: { organizationId: org.id, name: r.name, description: r.description },
+            create: { organizationId: org.id, name: r.name },
         });
         roles[r.name] = role.id;
     }
     console.log('✅ Roles created:', Object.keys(roles));
     const passwordHash = await bcrypt.hash('Password123!', 10);
     const adminUser = await prisma.user.upsert({
-        where: { email: 'admin@acme.com' },
+        where: { organizationId_email: { organizationId: org.id, email: 'admin@acme.com' } },
         update: {},
         create: {
             organizationId: org.id,
@@ -80,7 +79,7 @@ async function main() {
         },
     });
     const hrUser = await prisma.user.upsert({
-        where: { email: 'hr@acme.com' },
+        where: { organizationId_email: { organizationId: org.id, email: 'hr@acme.com' } },
         update: {},
         create: {
             organizationId: org.id,
@@ -92,7 +91,7 @@ async function main() {
         },
     });
     const tlUser = await prisma.user.upsert({
-        where: { email: 'tl@acme.com' },
+        where: { organizationId_email: { organizationId: org.id, email: 'tl@acme.com' } },
         update: {},
         create: {
             organizationId: org.id,
@@ -104,7 +103,7 @@ async function main() {
         },
     });
     const repUser = await prisma.user.upsert({
-        where: { email: 'rep@acme.com' },
+        where: { organizationId_email: { organizationId: org.id, email: 'rep@acme.com' } },
         update: {},
         create: {
             organizationId: org.id,
@@ -112,16 +111,14 @@ async function main() {
             passwordHash,
             firstName: 'Rajesh',
             lastName: 'Kumar',
-            roleId: roles['SALES_EXEC'],
-            teamLeaderId: tlUser.id,
+            roleId: roles['SALES'],
         },
     });
     console.log('✅ Users seeded: Admin, HR, Team Leader, Sales Exec');
     const pipeline = await prisma.pipeline.upsert({
-        where: { id: 'default-pipeline' },
+        where: { organizationId_name: { organizationId: org.id, name: 'Standard Sales Pipeline' } },
         update: {},
         create: {
-            id: 'default-pipeline',
             organizationId: org.id,
             name: 'Standard Sales Pipeline',
             isDefault: true,
@@ -132,18 +129,16 @@ async function main() {
         { name: 'Qualification', order: 2, probability: 30 },
         { name: 'Proposal', order: 3, probability: 60 },
         { name: 'Negotiation', order: 4, probability: 80 },
-        { name: 'Closed Won', order: 5, probability: 100, isWon: true },
-        { name: 'Closed Lost', order: 6, probability: 0, isLost: true },
+        { name: 'Closed Won', order: 5, probability: 100 },
+        { name: 'Closed Lost', order: 6, probability: 0 },
     ];
     for (const st of stagesData) {
-        await prisma.pipelineStage.create({
+        await prisma.stage.create({
             data: {
                 pipelineId: pipeline.id,
                 name: st.name,
                 order: st.order,
                 probability: st.probability,
-                isWon: st.isWon ?? false,
-                isLost: st.isLost ?? false,
             },
         });
     }

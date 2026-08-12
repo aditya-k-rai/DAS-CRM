@@ -22,10 +22,10 @@ export declare class CompaniesService {
                     updatedAt: Date;
                     organizationId: string;
                     isDefault: boolean;
-                    isLost: boolean;
-                    isWon: boolean;
-                    color: string;
                     order: number;
+                    color: string;
+                    isWon: boolean;
+                    isLost: boolean;
                     requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
                 } | null;
             }[];
@@ -46,12 +46,12 @@ export declare class CompaniesService {
             updatedAt: Date;
             organizationId: string;
             email: string | null;
-            phone: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
-            address: string | null;
             city: string | null;
+            phone: string | null;
+            address: string | null;
             state: string | null;
             country: string | null;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
         }[];
     }>;
     findOne(organizationId: string, id: string): Promise<{
@@ -66,13 +66,13 @@ export declare class CompaniesService {
             lastName: string | null;
             teamId: string | null;
             tags: string[];
-            phone: string | null;
-            statusId: string | null;
-            ownerId: string | null;
-            sourceId: string | null;
             companyId: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
             createdById: string | null;
+            ownerId: string | null;
+            phone: string | null;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
+            statusId: string | null;
+            sourceId: string | null;
             score: number;
             isConverted: boolean;
             convertedAt: Date | null;
@@ -86,8 +86,8 @@ export declare class CompaniesService {
             email: string | null;
             firstName: string;
             lastName: string | null;
-            phone: string | null;
             companyId: string | null;
+            phone: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
             jobTitle: string | null;
         }[];
@@ -96,10 +96,10 @@ export declare class CompaniesService {
                 id: string;
                 name: string;
                 createdAt: Date;
-                color: string;
                 order: number;
-                pipelineId: string;
                 probability: number;
+                color: string;
+                pipelineId: string;
             } | null;
         } & {
             id: string;
@@ -107,14 +107,14 @@ export declare class CompaniesService {
             updatedAt: Date;
             currency: string;
             organizationId: string;
+            pipelineId: string | null;
+            leadId: string | null;
+            companyId: string | null;
+            status: import("@prisma/client").$Enums.DealStatus;
             title: string;
             ownerId: string | null;
-            companyId: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
-            status: import("@prisma/client").$Enums.DealStatus;
-            leadId: string | null;
             value: import("@prisma/client/runtime/library").Decimal;
-            pipelineId: string | null;
             stageId: string | null;
             expectedCloseAt: Date | null;
             closedAt: Date | null;
@@ -128,12 +128,12 @@ export declare class CompaniesService {
         updatedAt: Date;
         organizationId: string;
         email: string | null;
-        phone: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
-        address: string | null;
         city: string | null;
+        phone: string | null;
+        address: string | null;
         state: string | null;
         country: string | null;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
     }>;
     create(organizationId: string, dto: {
         name: string;
@@ -141,6 +141,7 @@ export declare class CompaniesService {
         city?: string;
         country?: string;
         domain?: string;
+        website?: string;
         phone?: string;
         employeeCount?: number;
         notes?: string;
@@ -154,12 +155,12 @@ export declare class CompaniesService {
         updatedAt: Date;
         organizationId: string;
         email: string | null;
-        phone: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
-        address: string | null;
         city: string | null;
+        phone: string | null;
+        address: string | null;
         state: string | null;
         country: string | null;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
     }>;
     update(organizationId: string, id: string, dto: Partial<{
         name: string;
@@ -180,12 +181,12 @@ export declare class CompaniesService {
         updatedAt: Date;
         organizationId: string;
         email: string | null;
-        phone: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
-        address: string | null;
         city: string | null;
+        phone: string | null;
+        address: string | null;
         state: string | null;
         country: string | null;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
     }>;
     delete(organizationId: string, id: string): Promise<{
         success: boolean;

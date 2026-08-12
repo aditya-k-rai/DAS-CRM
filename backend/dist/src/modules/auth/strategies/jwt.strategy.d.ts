@@ -11,16 +11,24 @@ export declare class JwtStrategy extends JwtStrategy_base {
     }): Promise<({
         organization: {
             id: string;
-            slug: string;
+            createdAt: Date;
+            updatedAt: Date;
             name: string;
+            slug: string;
             logoUrl: string | null;
             website: string | null;
             industry: string | null;
             templateId: string | null;
             settings: import("@prisma/client/runtime/library").JsonValue;
+        };
+        team: {
+            id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-        };
+            name: string;
+            description: string | null;
+        } | null;
         role: ({
             permissions: ({
                 permission: {
@@ -35,25 +43,15 @@ export declare class JwtStrategy extends JwtStrategy_base {
             })[];
         } & {
             id: string;
-            name: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
+            name: string;
             isSystem: boolean;
             recordScope: import("@prisma/client").$Enums.RecordScope;
         }) | null;
-        team: {
-            id: string;
-            name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            description: string | null;
-        } | null;
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         organizationId: string;
         email: string;
         passwordHash: string;
@@ -66,6 +64,8 @@ export declare class JwtStrategy extends JwtStrategy_base {
         mfaEnabled: boolean;
         mfaSecret: string | null;
         lastLoginAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
     }) | null>;
 }
 export {};

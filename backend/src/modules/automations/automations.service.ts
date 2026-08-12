@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { AutomationTrigger } from '@prisma/client';
 
-export type TriggerType = 'LEAD_CREATED' | 'LEAD_STATUS_CHANGED' | 'LEAD_SCORE_ABOVE' | 'DEAL_STAGE_CHANGED' | 'TASK_OVERDUE' | 'NO_ACTIVITY';
+export type TriggerType = 'LEAD_CREATED' | 'LEAD_STATUS_CHANGED' | 'DEAL_STAGE_CHANGED' | 'TASK_OVERDUE' | 'SCHEDULED';
 export type ActionType  = 'SEND_EMAIL' | 'CREATE_TASK' | 'ASSIGN_LEAD' | 'SEND_NOTIFICATION' | 'CHANGE_STATUS' | 'ADD_TAG' | 'WEBHOOK';
 
 @Injectable()
@@ -12,11 +11,10 @@ export class AutomationsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
-    @InjectQueue('notifications') private queue: Queue,
   ) {}
 
   async findAll(organizationId: string) {
-    return this.prisma.automationRule.findMany({
+    return this.prisma.automation.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -29,56 +27,59 @@ export class AutomationsService {
     actions: ActionType[];
     actionConfig?: Record<string, any>;
   }) {
-    return this.prisma.automationRule.create({
+    return this.prisma.automation.create({
       data: {
         organizationId,
-        name:         dto.name,
-        trigger:      dto.trigger,
-        condition:    dto.condition,
-        actions:      dto.actions,
-        actionConfig: dto.actionConfig ?? {},
-        isActive:     true,
-        runsCount:    0,
+        name: dto.name,
+        trigger: dto.trigger as AutomationTrigger,
+        conditions: dto.condition ? [dto.condition] : [],
+        actions: dto.actions.map(a => ({ type: a, config: dto.actionConfig ?? {} })),
+        isActive: true,
+        executionCount: 0,
       },
     });
   }
 
   async toggleActive(organizationId: string, id: string) {
-    const rule = await this.prisma.automationRule.findFirst({ where: { id, organizationId } });
+    const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
     if (!rule) throw new NotFoundException('Automation rule not found');
 
-    return this.prisma.automationRule.update({
+    return this.prisma.automation.update({
       where: { id },
       data: { isActive: !rule.isActive },
     });
   }
 
   async delete(organizationId: string, id: string) {
-    const rule = await this.prisma.automationRule.findFirst({ where: { id, organizationId } });
+    const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
     if (!rule) throw new NotFoundException('Automation rule not found');
 
-    await this.prisma.automationRule.delete({ where: { id } });
+    await this.prisma.automation.delete({ where: { id } });
     return { success: true };
   }
 
   /** Trigger execution engine called by event listeners */
   async handleEvent(organizationId: string, trigger: TriggerType, payload: Record<string, any>) {
-    const rules = await this.prisma.automationRule.findMany({
-      where: { organizationId, trigger, isActive: true },
+    const rules = await this.prisma.automation.findMany({
+      where: { organizationId, trigger: trigger as AutomationTrigger, isActive: true },
     });
 
     for (const rule of rules) {
       try {
+        const actionsList = (rule.actions as any[]) ?? [];
+
         // Execute actions defined in rule
-        for (const action of rule.actions as ActionType[]) {
-          await this.executeAction(organizationId, action, rule.actionConfig as Record<string, any>, payload);
+        for (const act of actionsList) {
+          const actionType = typeof act === 'string' ? act : act.type;
+          const actionConfig = typeof act === 'object' && act.config ? act.config : {};
+          await this.executeAction(organizationId, actionType, actionConfig, payload);
         }
 
         // Update run stats
-        await this.prisma.automationRule.update({
+        await this.prisma.automation.update({
           where: { id: rule.id },
           data: {
-            runsCount: { increment: 1 },
+            executionCount: { increment: 1 },
             lastRunAt: new Date(),
           },
         });
@@ -110,8 +111,7 @@ export class AutomationsService {
               title: config.taskTitle || `Follow up with ${payload.name || 'lead'}`,
               leadId: payload.leadId || payload.id,
               assigneeId: payload.assigneeId || payload.ownerId,
-              dueDate: new Date(Date.now() + (config.dueDays || 1) * 86400000),
-              priority: 'HIGH',
+              dueAt: new Date(Date.now() + (config.dueDays || 1) * 86400000),
             },
           });
         }
@@ -119,7 +119,15 @@ export class AutomationsService {
 
       case 'WEBHOOK':
         if (config.webhookUrl) {
-          await this.queue.add('send-webhook', { url: config.webhookUrl, payload }, { attempts: 3 });
+          try {
+            await fetch(config.webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          } catch (e) {
+            console.error('Webhook dispatch failed:', e);
+          }
         }
         break;
     }

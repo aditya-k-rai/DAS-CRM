@@ -9,11 +9,11 @@ export declare class AttendanceService {
         notes: string | null;
         organizationId: string;
         userId: string;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         checkIn: Date | null;
         checkOut: Date | null;
         workingHours: import("@prisma/client/runtime/library").Decimal;
+        status: import("@prisma/client").$Enums.AttendanceStatus;
         isManualEntry: boolean;
         markedById: string | null;
     }>;
@@ -24,11 +24,11 @@ export declare class AttendanceService {
         notes: string | null;
         organizationId: string;
         userId: string;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         checkIn: Date | null;
         checkOut: Date | null;
         workingHours: import("@prisma/client/runtime/library").Decimal;
+        status: import("@prisma/client").$Enums.AttendanceStatus;
         isManualEntry: boolean;
         markedById: string | null;
     }>;
@@ -39,31 +39,19 @@ export declare class AttendanceService {
         notes: string | null;
         organizationId: string;
         userId: string;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         checkIn: Date | null;
         checkOut: Date | null;
         workingHours: import("@prisma/client/runtime/library").Decimal;
+        status: import("@prisma/client").$Enums.AttendanceStatus;
         isManualEntry: boolean;
         markedById: string | null;
     }[]>;
     getTeamAttendance(organizationId: string, teamLeaderId: string, month?: number, year?: number): Promise<{
         members: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            email: string;
-            passwordHash: string;
             firstName: string;
             lastName: string;
-            avatarUrl: string | null;
-            roleId: string | null;
-            teamId: string | null;
-            isActive: boolean;
-            mfaEnabled: boolean;
-            mfaSecret: string | null;
-            lastLoginAt: Date | null;
         }[];
         attendance: ({
             user: {
@@ -78,11 +66,11 @@ export declare class AttendanceService {
             notes: string | null;
             organizationId: string;
             userId: string;
-            status: import("@prisma/client").$Enums.AttendanceStatus;
             date: Date;
             checkIn: Date | null;
             checkOut: Date | null;
             workingHours: import("@prisma/client/runtime/library").Decimal;
+            status: import("@prisma/client").$Enums.AttendanceStatus;
             isManualEntry: boolean;
             markedById: string | null;
         })[];
@@ -101,11 +89,11 @@ export declare class AttendanceService {
         notes: string | null;
         organizationId: string;
         userId: string;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         checkIn: Date | null;
         checkOut: Date | null;
         workingHours: import("@prisma/client/runtime/library").Decimal;
+        status: import("@prisma/client").$Enums.AttendanceStatus;
         isManualEntry: boolean;
         markedById: string | null;
     })[]>;
@@ -123,11 +111,11 @@ export declare class AttendanceService {
         notes: string | null;
         organizationId: string;
         userId: string;
-        status: import("@prisma/client").$Enums.AttendanceStatus;
         date: Date;
         checkIn: Date | null;
         checkOut: Date | null;
         workingHours: import("@prisma/client/runtime/library").Decimal;
+        status: import("@prisma/client").$Enums.AttendanceStatus;
         isManualEntry: boolean;
         markedById: string | null;
     }>;
@@ -147,11 +135,11 @@ export declare class AttendanceService {
             notes: string | null;
             organizationId: string;
             userId: string;
-            status: import("@prisma/client").$Enums.AttendanceStatus;
             date: Date;
             checkIn: Date | null;
             checkOut: Date | null;
             workingHours: import("@prisma/client/runtime/library").Decimal;
+            status: import("@prisma/client").$Enums.AttendanceStatus;
             isManualEntry: boolean;
             markedById: string | null;
         }[];
@@ -162,9 +150,9 @@ export declare class AttendanceService {
         updatedAt: Date;
         organizationId: string;
         userId: string;
-        designation: string | null;
         employeeCode: string;
         department: string | null;
+        designation: string | null;
         dateOfJoining: Date;
         baseSalary: import("@prisma/client/runtime/library").Decimal;
         salaryConfigId: string | null;

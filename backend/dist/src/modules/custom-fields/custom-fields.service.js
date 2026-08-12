@@ -18,34 +18,37 @@ let CustomFieldsService = class CustomFieldsService {
         this.prisma = prisma;
     }
     async findAll(organizationId, entityType) {
+        const entity = entityType ? entityType.toLowerCase() : undefined;
         return this.prisma.customFieldDefinition.findMany({
             where: {
                 organizationId,
-                ...(entityType && { entityType }),
+                ...(entity && { entity }),
             },
             orderBy: { order: 'asc' },
         });
     }
     async create(organizationId, dto) {
+        const entity = dto.entityType.toLowerCase();
+        const key = dto.fieldName;
+        const label = dto.fieldLabel;
+        const fieldTypeEnum = (dto.fieldType === 'TEXTAREA' ? 'TEXT' : dto.fieldType);
         const existing = await this.prisma.customFieldDefinition.findFirst({
-            where: { organizationId, entityType: dto.entityType, fieldName: dto.fieldName },
+            where: { organizationId, entity, key },
         });
         if (existing)
-            throw new common_1.BadRequestException(`Field '${dto.fieldName}' already exists for ${dto.entityType}`);
+            throw new common_1.BadRequestException(`Field '${key}' already exists for ${entity}`);
         const count = await this.prisma.customFieldDefinition.count({
-            where: { organizationId, entityType: dto.entityType },
+            where: { organizationId, entity },
         });
         return this.prisma.customFieldDefinition.create({
             data: {
                 organizationId,
-                entityType: dto.entityType,
-                fieldName: dto.fieldName,
-                fieldLabel: dto.fieldLabel,
-                fieldType: dto.fieldType,
+                entity,
+                key,
+                label,
+                fieldType: fieldTypeEnum,
                 isRequired: dto.isRequired ?? false,
-                isVisible: dto.isVisible ?? true,
                 options: dto.options ?? [],
-                placeholder: dto.placeholder,
                 order: count + 1,
             },
         });
@@ -56,7 +59,12 @@ let CustomFieldsService = class CustomFieldsService {
             throw new common_1.NotFoundException('Custom field not found');
         return this.prisma.customFieldDefinition.update({
             where: { id },
-            data: dto,
+            data: {
+                ...(dto.label || dto.fieldLabel ? { label: dto.label ?? dto.fieldLabel } : {}),
+                ...(dto.isRequired !== undefined ? { isRequired: dto.isRequired } : {}),
+                ...(dto.options ? { options: dto.options } : {}),
+                ...(dto.order !== undefined ? { order: dto.order } : {}),
+            },
         });
     }
     async delete(organizationId, id) {
@@ -69,13 +77,14 @@ let CustomFieldsService = class CustomFieldsService {
     async validateCustomFields(organizationId, entityType, values) {
         const defs = await this.findAll(organizationId, entityType);
         for (const def of defs) {
-            const val = values[def.fieldName];
+            const val = values[def.key];
             if (def.isRequired && (val === undefined || val === null || val === '')) {
-                throw new common_1.BadRequestException(`Custom field '${def.fieldLabel}' is required.`);
+                throw new common_1.BadRequestException(`Custom field '${def.label}' is required.`);
             }
-            if (val !== undefined && val !== null && def.fieldType === 'DROPDOWN' && def.options.length > 0) {
-                if (!def.options.includes(val)) {
-                    throw new common_1.BadRequestException(`Invalid option '${val}' for field '${def.fieldLabel}'.`);
+            const opts = Array.isArray(def.options) ? def.options : [];
+            if (val !== undefined && val !== null && def.fieldType === 'DROPDOWN' && opts.length > 0) {
+                if (!opts.includes(val)) {
+                    throw new common_1.BadRequestException(`Invalid option '${val}' for field '${def.label}'.`);
                 }
             }
         }

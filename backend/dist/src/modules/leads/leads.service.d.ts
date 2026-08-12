@@ -7,25 +7,25 @@ export declare class LeadsService {
     constructor(prisma: PrismaService);
     findAll(organizationId: string, query: LeadQueryDto): Promise<{
         data: ({
-            _count: {
-                activities: number;
-                tasks: number;
-            };
             company: {
                 id: string;
                 name: string;
             } | null;
+            _count: {
+                activities: number;
+                tasks: number;
+            };
             status: {
                 id: string;
-                name: string;
+                organizationId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
+                name: string;
                 isDefault: boolean;
-                isLost: boolean;
-                isWon: boolean;
                 color: string;
                 order: number;
+                isWon: boolean;
+                isLost: boolean;
                 requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
             } | null;
             owner: {
@@ -36,30 +36,30 @@ export declare class LeadsService {
             } | null;
             source: {
                 id: string;
-                name: string;
-                createdAt: Date;
                 organizationId: string;
                 isActive: boolean;
+                createdAt: Date;
+                name: string;
             } | null;
         } & {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            notes: string | null;
             organizationId: string;
             email: string | null;
             firstName: string;
             lastName: string | null;
             teamId: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            notes: string | null;
             tags: string[];
-            phone: string | null;
             statusId: string | null;
             ownerId: string | null;
             sourceId: string | null;
-            companyId: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
+            phone: string | null;
             createdById: string | null;
+            companyId: string | null;
             score: number;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
             isConverted: boolean;
             convertedAt: Date | null;
             lastActivityAt: Date | null;
@@ -72,42 +72,30 @@ export declare class LeadsService {
         };
     }>;
     findOne(organizationId: string, id: string): Promise<{
-        deals: ({
-            pipeline: {
-                id: string;
-                name: string;
-                createdAt: Date;
-                updatedAt: Date;
-                organizationId: string;
-                isDefault: boolean;
-            } | null;
-            stage: {
-                id: string;
-                name: string;
-                createdAt: Date;
-                color: string;
-                order: number;
-                pipelineId: string;
-                probability: number;
-            } | null;
-        } & {
+        team: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            currency: string;
+            name: string;
+            description: string | null;
+        } | null;
+        company: {
+            id: string;
             organizationId: string;
-            title: string;
-            ownerId: string | null;
-            companyId: string | null;
+            email: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
+            website: string | null;
+            industry: string | null;
+            phone: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
-            status: import("@prisma/client").$Enums.DealStatus;
-            leadId: string | null;
-            value: import("@prisma/client/runtime/library").Decimal;
-            pipelineId: string | null;
-            stageId: string | null;
-            expectedCloseAt: Date | null;
-            closedAt: Date | null;
-        })[];
+            address: string | null;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+        } | null;
         activities: ({
             user: {
                 id: string;
@@ -117,12 +105,12 @@ export declare class LeadsService {
             } | null;
         } & {
             id: string;
-            createdAt: Date;
             organizationId: string;
-            description: string | null;
-            type: import("@prisma/client").$Enums.ActivityType;
+            createdAt: Date;
             userId: string | null;
+            description: string | null;
             companyId: string | null;
+            type: import("@prisma/client").$Enums.ActivityType;
             metadata: import("@prisma/client/runtime/library").JsonValue;
             leadId: string | null;
             contactId: string | null;
@@ -130,29 +118,65 @@ export declare class LeadsService {
         })[];
         tasks: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             description: string | null;
-            title: string;
             createdById: string | null;
             dueAt: Date | null;
             leadId: string | null;
             contactId: string | null;
             dealId: string | null;
-            assigneeId: string | null;
+            title: string;
             isCompleted: boolean;
+            assigneeId: string | null;
             completedAt: Date | null;
         }[];
-        meetings: {
+        deals: ({
+            pipeline: {
+                id: string;
+                organizationId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                isDefault: boolean;
+            } | null;
+            stage: {
+                id: string;
+                createdAt: Date;
+                name: string;
+                color: string;
+                order: number;
+                pipelineId: string;
+                probability: number;
+            } | null;
+        } & {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
-            description: string | null;
+            ownerId: string | null;
+            companyId: string | null;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
+            status: import("@prisma/client").$Enums.DealStatus;
+            leadId: string | null;
             title: string;
+            value: import("@prisma/client/runtime/library").Decimal;
+            currency: string;
+            pipelineId: string | null;
+            stageId: string | null;
+            expectedCloseAt: Date | null;
+            closedAt: Date | null;
+        })[];
+        meetings: {
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
             startAt: Date;
             leadId: string | null;
+            title: string;
             endAt: Date | null;
             location: string | null;
             attendees: import("@prisma/client/runtime/library").JsonValue;
@@ -160,15 +184,15 @@ export declare class LeadsService {
         quotations: {
             number: string;
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
             notes: string | null;
-            currency: string;
-            organizationId: string;
-            title: string | null;
             status: import("@prisma/client").$Enums.QuotationStatus;
             leadId: string | null;
             dealId: string | null;
+            title: string | null;
+            currency: string;
             validUntil: Date | null;
             subtotal: import("@prisma/client/runtime/library").Decimal;
             taxTotal: import("@prisma/client/runtime/library").Decimal;
@@ -178,41 +202,17 @@ export declare class LeadsService {
             isLocked: boolean;
             version: number;
         }[];
-        team: {
-            id: string;
-            name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            description: string | null;
-        } | null;
-        company: {
-            id: string;
-            name: string;
-            website: string | null;
-            industry: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            email: string | null;
-            phone: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
-            address: string | null;
-            city: string | null;
-            state: string | null;
-            country: string | null;
-        } | null;
         status: {
             id: string;
-            name: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
+            name: string;
             isDefault: boolean;
-            isLost: boolean;
-            isWon: boolean;
             color: string;
             order: number;
+            isWon: boolean;
+            isLost: boolean;
             requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
         } | null;
         owner: {
@@ -223,18 +223,18 @@ export declare class LeadsService {
         } | null;
         source: {
             id: string;
-            name: string;
-            createdAt: Date;
             organizationId: string;
             isActive: boolean;
+            createdAt: Date;
+            name: string;
         } | null;
         noteEntries: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
-            companyId: string | null;
             createdById: string | null;
+            companyId: string | null;
             leadId: string | null;
             contactId: string | null;
             dealId: string | null;
@@ -243,15 +243,15 @@ export declare class LeadsService {
         statusHistory: ({
             status: {
                 id: string;
-                name: string;
+                organizationId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
+                name: string;
                 isDefault: boolean;
-                isLost: boolean;
-                isWon: boolean;
                 color: string;
                 order: number;
+                isWon: boolean;
+                isLost: boolean;
                 requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
             };
         } & {
@@ -264,23 +264,23 @@ export declare class LeadsService {
         })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        notes: string | null;
         organizationId: string;
         email: string | null;
         firstName: string;
         lastName: string | null;
         teamId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        notes: string | null;
         tags: string[];
-        phone: string | null;
         statusId: string | null;
         ownerId: string | null;
         sourceId: string | null;
-        companyId: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
+        phone: string | null;
         createdById: string | null;
+        companyId: string | null;
         score: number;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
         isConverted: boolean;
         convertedAt: Date | null;
         lastActivityAt: Date | null;
@@ -288,15 +288,15 @@ export declare class LeadsService {
     create(organizationId: string, createdById: string, dto: CreateLeadDto): Promise<{
         status: {
             id: string;
-            name: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
+            name: string;
             isDefault: boolean;
-            isLost: boolean;
-            isWon: boolean;
             color: string;
             order: number;
+            isWon: boolean;
+            isLost: boolean;
             requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
         } | null;
         owner: {
@@ -306,87 +306,75 @@ export declare class LeadsService {
         } | null;
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        notes: string | null;
         organizationId: string;
         email: string | null;
         firstName: string;
         lastName: string | null;
         teamId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        notes: string | null;
         tags: string[];
-        phone: string | null;
         statusId: string | null;
         ownerId: string | null;
         sourceId: string | null;
-        companyId: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
+        phone: string | null;
         createdById: string | null;
+        companyId: string | null;
         score: number;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
         isConverted: boolean;
         convertedAt: Date | null;
         lastActivityAt: Date | null;
     }>;
     update(organizationId: string, userId: string, id: string, dto: UpdateLeadDto): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        notes: string | null;
         organizationId: string;
         email: string | null;
         firstName: string;
         lastName: string | null;
         teamId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        notes: string | null;
         tags: string[];
-        phone: string | null;
         statusId: string | null;
         ownerId: string | null;
         sourceId: string | null;
-        companyId: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
+        phone: string | null;
         createdById: string | null;
+        companyId: string | null;
         score: number;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
         isConverted: boolean;
         convertedAt: Date | null;
         lastActivityAt: Date | null;
     }>;
     changeStatus(organizationId: string, userId: string, id: string, statusId: string, notes?: string): Promise<{
-        deals: ({
-            pipeline: {
-                id: string;
-                name: string;
-                createdAt: Date;
-                updatedAt: Date;
-                organizationId: string;
-                isDefault: boolean;
-            } | null;
-            stage: {
-                id: string;
-                name: string;
-                createdAt: Date;
-                color: string;
-                order: number;
-                pipelineId: string;
-                probability: number;
-            } | null;
-        } & {
+        team: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            currency: string;
+            name: string;
+            description: string | null;
+        } | null;
+        company: {
+            id: string;
             organizationId: string;
-            title: string;
-            ownerId: string | null;
-            companyId: string | null;
+            email: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            name: string;
+            website: string | null;
+            industry: string | null;
+            phone: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
-            status: import("@prisma/client").$Enums.DealStatus;
-            leadId: string | null;
-            value: import("@prisma/client/runtime/library").Decimal;
-            pipelineId: string | null;
-            stageId: string | null;
-            expectedCloseAt: Date | null;
-            closedAt: Date | null;
-        })[];
+            address: string | null;
+            city: string | null;
+            state: string | null;
+            country: string | null;
+        } | null;
         activities: ({
             user: {
                 id: string;
@@ -396,12 +384,12 @@ export declare class LeadsService {
             } | null;
         } & {
             id: string;
-            createdAt: Date;
             organizationId: string;
-            description: string | null;
-            type: import("@prisma/client").$Enums.ActivityType;
+            createdAt: Date;
             userId: string | null;
+            description: string | null;
             companyId: string | null;
+            type: import("@prisma/client").$Enums.ActivityType;
             metadata: import("@prisma/client/runtime/library").JsonValue;
             leadId: string | null;
             contactId: string | null;
@@ -409,29 +397,65 @@ export declare class LeadsService {
         })[];
         tasks: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             description: string | null;
-            title: string;
             createdById: string | null;
             dueAt: Date | null;
             leadId: string | null;
             contactId: string | null;
             dealId: string | null;
-            assigneeId: string | null;
+            title: string;
             isCompleted: boolean;
+            assigneeId: string | null;
             completedAt: Date | null;
         }[];
-        meetings: {
+        deals: ({
+            pipeline: {
+                id: string;
+                organizationId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                name: string;
+                isDefault: boolean;
+            } | null;
+            stage: {
+                id: string;
+                createdAt: Date;
+                name: string;
+                color: string;
+                order: number;
+                pipelineId: string;
+                probability: number;
+            } | null;
+        } & {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
-            description: string | null;
+            ownerId: string | null;
+            companyId: string | null;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
+            status: import("@prisma/client").$Enums.DealStatus;
+            leadId: string | null;
             title: string;
+            value: import("@prisma/client/runtime/library").Decimal;
+            currency: string;
+            pipelineId: string | null;
+            stageId: string | null;
+            expectedCloseAt: Date | null;
+            closedAt: Date | null;
+        })[];
+        meetings: {
+            id: string;
+            organizationId: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
             startAt: Date;
             leadId: string | null;
+            title: string;
             endAt: Date | null;
             location: string | null;
             attendees: import("@prisma/client/runtime/library").JsonValue;
@@ -439,15 +463,15 @@ export declare class LeadsService {
         quotations: {
             number: string;
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
             notes: string | null;
-            currency: string;
-            organizationId: string;
-            title: string | null;
             status: import("@prisma/client").$Enums.QuotationStatus;
             leadId: string | null;
             dealId: string | null;
+            title: string | null;
+            currency: string;
             validUntil: Date | null;
             subtotal: import("@prisma/client/runtime/library").Decimal;
             taxTotal: import("@prisma/client/runtime/library").Decimal;
@@ -457,41 +481,17 @@ export declare class LeadsService {
             isLocked: boolean;
             version: number;
         }[];
-        team: {
-            id: string;
-            name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            description: string | null;
-        } | null;
-        company: {
-            id: string;
-            name: string;
-            website: string | null;
-            industry: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-            organizationId: string;
-            email: string | null;
-            phone: string | null;
-            customFields: import("@prisma/client/runtime/library").JsonValue;
-            address: string | null;
-            city: string | null;
-            state: string | null;
-            country: string | null;
-        } | null;
         status: {
             id: string;
-            name: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
+            name: string;
             isDefault: boolean;
-            isLost: boolean;
-            isWon: boolean;
             color: string;
             order: number;
+            isWon: boolean;
+            isLost: boolean;
             requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
         } | null;
         owner: {
@@ -502,18 +502,18 @@ export declare class LeadsService {
         } | null;
         source: {
             id: string;
-            name: string;
-            createdAt: Date;
             organizationId: string;
             isActive: boolean;
+            createdAt: Date;
+            name: string;
         } | null;
         noteEntries: {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
-            companyId: string | null;
             createdById: string | null;
+            companyId: string | null;
             leadId: string | null;
             contactId: string | null;
             dealId: string | null;
@@ -522,15 +522,15 @@ export declare class LeadsService {
         statusHistory: ({
             status: {
                 id: string;
-                name: string;
+                organizationId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
+                name: string;
                 isDefault: boolean;
-                isLost: boolean;
-                isWon: boolean;
                 color: string;
                 order: number;
+                isWon: boolean;
+                isLost: boolean;
                 requiredFields: import("@prisma/client/runtime/library").JsonValue | null;
             };
         } & {
@@ -543,23 +543,23 @@ export declare class LeadsService {
         })[];
     } & {
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        notes: string | null;
         organizationId: string;
         email: string | null;
         firstName: string;
         lastName: string | null;
         teamId: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        notes: string | null;
         tags: string[];
-        phone: string | null;
         statusId: string | null;
         ownerId: string | null;
         sourceId: string | null;
-        companyId: string | null;
-        customFields: import("@prisma/client/runtime/library").JsonValue;
+        phone: string | null;
         createdById: string | null;
+        companyId: string | null;
         score: number;
+        customFields: import("@prisma/client/runtime/library").JsonValue;
         isConverted: boolean;
         convertedAt: Date | null;
         lastActivityAt: Date | null;
@@ -576,12 +576,12 @@ export declare class LeadsService {
         } | null;
     } & {
         id: string;
-        createdAt: Date;
         organizationId: string;
-        description: string | null;
-        type: import("@prisma/client").$Enums.ActivityType;
+        createdAt: Date;
         userId: string | null;
+        description: string | null;
         companyId: string | null;
+        type: import("@prisma/client").$Enums.ActivityType;
         metadata: import("@prisma/client/runtime/library").JsonValue;
         leadId: string | null;
         contactId: string | null;

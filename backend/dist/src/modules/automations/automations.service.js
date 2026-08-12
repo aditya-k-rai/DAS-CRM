@@ -8,75 +8,69 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-};
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AutomationsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const notifications_service_1 = require("../notifications/notifications.service");
-const bullmq_1 = require("@nestjs/bullmq");
-const bullmq_2 = require("bullmq");
 let AutomationsService = class AutomationsService {
     prisma;
     notificationsService;
-    queue;
-    constructor(prisma, notificationsService, queue) {
+    constructor(prisma, notificationsService) {
         this.prisma = prisma;
         this.notificationsService = notificationsService;
-        this.queue = queue;
     }
     async findAll(organizationId) {
-        return this.prisma.automationRule.findMany({
+        return this.prisma.automation.findMany({
             where: { organizationId },
             orderBy: { createdAt: 'desc' },
         });
     }
     async create(organizationId, dto) {
-        return this.prisma.automationRule.create({
+        return this.prisma.automation.create({
             data: {
                 organizationId,
                 name: dto.name,
                 trigger: dto.trigger,
-                condition: dto.condition,
-                actions: dto.actions,
-                actionConfig: dto.actionConfig ?? {},
+                conditions: dto.condition ? [dto.condition] : [],
+                actions: dto.actions.map(a => ({ type: a, config: dto.actionConfig ?? {} })),
                 isActive: true,
-                runsCount: 0,
+                executionCount: 0,
             },
         });
     }
     async toggleActive(organizationId, id) {
-        const rule = await this.prisma.automationRule.findFirst({ where: { id, organizationId } });
+        const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
         if (!rule)
             throw new common_1.NotFoundException('Automation rule not found');
-        return this.prisma.automationRule.update({
+        return this.prisma.automation.update({
             where: { id },
             data: { isActive: !rule.isActive },
         });
     }
     async delete(organizationId, id) {
-        const rule = await this.prisma.automationRule.findFirst({ where: { id, organizationId } });
+        const rule = await this.prisma.automation.findFirst({ where: { id, organizationId } });
         if (!rule)
             throw new common_1.NotFoundException('Automation rule not found');
-        await this.prisma.automationRule.delete({ where: { id } });
+        await this.prisma.automation.delete({ where: { id } });
         return { success: true };
     }
     async handleEvent(organizationId, trigger, payload) {
-        const rules = await this.prisma.automationRule.findMany({
-            where: { organizationId, trigger, isActive: true },
+        const rules = await this.prisma.automation.findMany({
+            where: { organizationId, trigger: trigger, isActive: true },
         });
         for (const rule of rules) {
             try {
-                for (const action of rule.actions) {
-                    await this.executeAction(organizationId, action, rule.actionConfig, payload);
+                const actionsList = rule.actions ?? [];
+                for (const act of actionsList) {
+                    const actionType = typeof act === 'string' ? act : act.type;
+                    const actionConfig = typeof act === 'object' && act.config ? act.config : {};
+                    await this.executeAction(organizationId, actionType, actionConfig, payload);
                 }
-                await this.prisma.automationRule.update({
+                await this.prisma.automation.update({
                     where: { id: rule.id },
                     data: {
-                        runsCount: { increment: 1 },
+                        executionCount: { increment: 1 },
                         lastRunAt: new Date(),
                     },
                 });
@@ -107,15 +101,23 @@ let AutomationsService = class AutomationsService {
                             title: config.taskTitle || `Follow up with ${payload.name || 'lead'}`,
                             leadId: payload.leadId || payload.id,
                             assigneeId: payload.assigneeId || payload.ownerId,
-                            dueDate: new Date(Date.now() + (config.dueDays || 1) * 86400000),
-                            priority: 'HIGH',
+                            dueAt: new Date(Date.now() + (config.dueDays || 1) * 86400000),
                         },
                     });
                 }
                 break;
             case 'WEBHOOK':
                 if (config.webhookUrl) {
-                    await this.queue.add('send-webhook', { url: config.webhookUrl, payload }, { attempts: 3 });
+                    try {
+                        await fetch(config.webhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload),
+                        });
+                    }
+                    catch (e) {
+                        console.error('Webhook dispatch failed:', e);
+                    }
                 }
                 break;
         }
@@ -124,8 +126,7 @@ let AutomationsService = class AutomationsService {
 exports.AutomationsService = AutomationsService;
 exports.AutomationsService = AutomationsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(2, (0, bullmq_1.InjectQueue)('notifications')),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        notifications_service_1.NotificationsService, typeof (_a = typeof bullmq_2.Queue !== "undefined" && bullmq_2.Queue) === "function" ? _a : Object])
+        notifications_service_1.NotificationsService])
 ], AutomationsService);
 //# sourceMappingURL=automations.service.js.map

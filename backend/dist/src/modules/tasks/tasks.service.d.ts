@@ -26,18 +26,18 @@ export declare class TasksService {
             } | null;
         } & {
             id: string;
+            organizationId: string;
             createdAt: Date;
             updatedAt: Date;
-            organizationId: string;
             description: string | null;
-            title: string;
             createdById: string | null;
             dueAt: Date | null;
             leadId: string | null;
             contactId: string | null;
             dealId: string | null;
-            assigneeId: string | null;
+            title: string;
             isCompleted: boolean;
+            assigneeId: string | null;
             completedAt: Date | null;
         })[];
     }>;
@@ -64,50 +64,50 @@ export declare class TasksService {
         } | null;
     } & {
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         description: string | null;
-        title: string;
         createdById: string | null;
         dueAt: Date | null;
         leadId: string | null;
         contactId: string | null;
         dealId: string | null;
-        assigneeId: string | null;
+        title: string;
         isCompleted: boolean;
+        assigneeId: string | null;
         completedAt: Date | null;
     }>;
     complete(organizationId: string, id: string, userId: string): Promise<{
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         description: string | null;
-        title: string;
         createdById: string | null;
         dueAt: Date | null;
         leadId: string | null;
         contactId: string | null;
         dealId: string | null;
-        assigneeId: string | null;
+        title: string;
         isCompleted: boolean;
+        assigneeId: string | null;
         completedAt: Date | null;
     }>;
     update(organizationId: string, id: string, dto: any): Promise<{
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         description: string | null;
-        title: string;
         createdById: string | null;
         dueAt: Date | null;
         leadId: string | null;
         contactId: string | null;
         dealId: string | null;
-        assigneeId: string | null;
+        title: string;
         isCompleted: boolean;
+        assigneeId: string | null;
         completedAt: Date | null;
     }>;
     delete(organizationId: string, id: string): Promise<{
@@ -122,18 +122,18 @@ export declare class TasksService {
         } | null;
     } & {
         id: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
         description: string | null;
-        title: string;
         createdById: string | null;
         dueAt: Date | null;
         leadId: string | null;
         contactId: string | null;
         dealId: string | null;
-        assigneeId: string | null;
+        title: string;
         isCompleted: boolean;
+        assigneeId: string | null;
         completedAt: Date | null;
     })[]>;
 }

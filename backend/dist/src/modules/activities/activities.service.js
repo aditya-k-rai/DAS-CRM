@@ -12,26 +12,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ActivitiesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const client_1 = require("@prisma/client");
 let ActivitiesService = class ActivitiesService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
     async log(organizationId, userId, dto) {
+        const typeEnum = (Object.values(client_1.ActivityType).includes(dto.activityType)
+            ? dto.activityType
+            : 'NOTE');
         return this.prisma.activity.create({
             data: {
                 organizationId,
                 userId,
-                activityType: dto.activityType,
+                type: typeEnum,
                 leadId: dto.leadId,
                 contactId: dto.contactId,
                 dealId: dto.dealId,
-                subject: dto.subject,
-                notes: dto.notes,
-                durationMin: dto.durationMin,
-                outcome: dto.outcome,
-                nextAction: dto.nextAction,
-                nextActionDate: dto.nextActionDate,
+                description: dto.notes,
+                metadata: {
+                    subject: dto.subject,
+                    durationMin: dto.durationMin,
+                    outcome: dto.outcome,
+                    nextAction: dto.nextAction,
+                    nextActionDate: dto.nextActionDate,
+                },
             },
             include: {
                 user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -68,7 +74,7 @@ let ActivitiesService = class ActivitiesService {
             orderBy: { createdAt: 'desc' },
         });
         const byType = activities.reduce((acc, a) => {
-            acc[a.activityType] = (acc[a.activityType] ?? 0) + 1;
+            acc[a.type] = (acc[a.type] ?? 0) + 1;
             return acc;
         }, {});
         return { activities, byType, total: activities.length };

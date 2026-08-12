@@ -10,7 +10,12 @@ export declare class ContactsService {
         total: number;
         page: number;
         limit: number;
-        items: {
+        items: ({
+            company: {
+                id: string;
+                name: string;
+            } | null;
+        } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
@@ -18,13 +23,55 @@ export declare class ContactsService {
             email: string | null;
             firstName: string;
             lastName: string | null;
-            phone: string | null;
             companyId: string | null;
+            phone: string | null;
             customFields: import("@prisma/client/runtime/library").JsonValue;
             jobTitle: string | null;
-        }[];
+        })[];
     }>;
     findOne(organizationId: string, id: string): Promise<{
+        activities: {
+            id: string;
+            createdAt: Date;
+            organizationId: string;
+            type: import("@prisma/client").$Enums.ActivityType;
+            description: string | null;
+            metadata: import("@prisma/client/runtime/library").JsonValue;
+            userId: string | null;
+            leadId: string | null;
+            contactId: string | null;
+            companyId: string | null;
+            dealId: string | null;
+        }[];
+        notes: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            organizationId: string;
+            leadId: string | null;
+            contactId: string | null;
+            companyId: string | null;
+            dealId: string | null;
+            createdById: string | null;
+            content: string;
+        }[];
+        company: {
+            id: string;
+            name: string;
+            website: string | null;
+            industry: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            organizationId: string;
+            email: string | null;
+            city: string | null;
+            phone: string | null;
+            address: string | null;
+            state: string | null;
+            country: string | null;
+            customFields: import("@prisma/client/runtime/library").JsonValue;
+        } | null;
+    } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -32,18 +79,19 @@ export declare class ContactsService {
         email: string | null;
         firstName: string;
         lastName: string | null;
-        phone: string | null;
         companyId: string | null;
+        phone: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
         jobTitle: string | null;
     }>;
     create(organizationId: string, dto: {
         firstName: string;
-        lastName: string;
+        lastName?: string;
         email?: string;
         phone?: string;
         companyId?: string;
         designation?: string;
+        jobTitle?: string;
         notes?: string;
         customFields?: Record<string, any>;
     }): Promise<{
@@ -54,8 +102,8 @@ export declare class ContactsService {
         email: string | null;
         firstName: string;
         lastName: string | null;
-        phone: string | null;
         companyId: string | null;
+        phone: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
         jobTitle: string | null;
     }>;
@@ -65,7 +113,7 @@ export declare class ContactsService {
         email: string;
         phone: string;
         companyId: string;
-        designation: string;
+        jobTitle: string;
         notes: string;
         customFields: Record<string, any>;
     }>): Promise<{
@@ -76,8 +124,8 @@ export declare class ContactsService {
         email: string | null;
         firstName: string;
         lastName: string | null;
-        phone: string | null;
         companyId: string | null;
+        phone: string | null;
         customFields: import("@prisma/client/runtime/library").JsonValue;
         jobTitle: string | null;
     }>;

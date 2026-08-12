@@ -35,7 +35,6 @@ let ContactsService = class ContactsService {
                 where,
                 include: {
                     company: { select: { id: true, name: true } },
-                    leads: { select: { id: true, status: true } },
                 },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
@@ -49,8 +48,8 @@ let ContactsService = class ContactsService {
             where: { id, organizationId },
             include: {
                 company: true,
-                leads: { orderBy: { createdAt: 'desc' } },
-                deals: { include: { pipeline: true } },
+                notes: { orderBy: { createdAt: 'desc' } },
+                activities: { orderBy: { createdAt: 'desc' }, take: 10 },
             },
         });
         if (!contact)
@@ -66,8 +65,8 @@ let ContactsService = class ContactsService {
                 email: dto.email,
                 phone: dto.phone,
                 companyId: dto.companyId,
-                designation: dto.designation,
-                notes: dto.notes,
+                jobTitle: dto.jobTitle ?? dto.designation,
+                notes: dto.notes ? { create: { organizationId, content: dto.notes } } : undefined,
                 customFields: dto.customFields ?? {},
             },
         });

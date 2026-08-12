@@ -12,9 +12,9 @@ export class CompaniesService {
       ...(industry && { industry }),
       ...(search && {
         OR: [
-          { name:   { contains: search, mode: 'insensitive' } },
-          { domain: { contains: search, mode: 'insensitive' } },
-          { city:   { contains: search, mode: 'insensitive' } },
+          { name:    { contains: search, mode: 'insensitive' } },
+          { website: { contains: search, mode: 'insensitive' } },
+          { city:    { contains: search, mode: 'insensitive' } },
         ],
       }),
     };
@@ -58,21 +58,20 @@ export class CompaniesService {
 
   async create(organizationId: string, dto: {
     name: string; industry?: string; city?: string; country?: string;
-    domain?: string; phone?: string; employeeCount?: number; notes?: string;
+    domain?: string; website?: string; phone?: string; employeeCount?: number; notes?: string;
     customFields?: Record<string, any>;
   }) {
     return this.prisma.company.create({
       data: {
         organizationId,
-        name:          dto.name,
-        industry:      dto.industry,
-        city:          dto.city,
-        country:       dto.country ?? 'India',
-        domain:        dto.domain,
-        phone:         dto.phone,
-        employeeCount: dto.employeeCount,
-        notes:         dto.notes,
-        customFields:  dto.customFields ?? {},
+        name:         dto.name,
+        industry:     dto.industry,
+        city:         dto.city,
+        country:      dto.country ?? 'India',
+        website:      dto.website ?? dto.domain,
+        phone:        dto.phone,
+        notes:        dto.notes ? { create: { organizationId, content: dto.notes } } : undefined,
+        customFields: dto.customFields ?? {},
       },
     });
   }

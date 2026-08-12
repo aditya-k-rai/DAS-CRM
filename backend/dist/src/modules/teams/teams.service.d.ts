@@ -8,10 +8,10 @@ export declare class TeamsService {
         managerId: string;
     }): Promise<{
         id: string;
-        name: string;
+        organizationId: string;
         createdAt: Date;
         updatedAt: Date;
-        organizationId: string;
+        name: string;
         description: string | null;
     }>;
     assignEmployeeHierarchy(organizationId: string, currentUserRole: string, dto: {
@@ -31,16 +31,16 @@ export declare class TeamsService {
         organizationId: string;
         totalUsers: number;
         users: {
-            id: string;
             role: {
                 id: string;
-                name: string;
+                organizationId: string;
                 createdAt: Date;
                 updatedAt: Date;
-                organizationId: string;
+                name: string;
                 isSystem: boolean;
                 recordScope: import("@prisma/client").$Enums.RecordScope;
             } | null;
+            id: string;
             email: string;
             firstName: string;
             lastName: string;
