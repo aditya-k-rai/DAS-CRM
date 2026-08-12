@@ -406,24 +406,7 @@ export function LoginGateway() {
               <p className="text-xs text-muted mt-0.5">Select your company and provide your assigned key to authenticate.</p>
             </div>
 
-            {/* Quick Demo Role Selector */}
-            <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">Quick Demo Perspective</label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => { setSelectedRole(r); setEmail(DEMO_USERS[r].email); }}
-                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${selectedRole === r ? 'bg-indigo-500/25 border-indigo-500 text-indigo-300' : 'bg-background border-border text-muted hover:text-white'}`}
-                  >
-                    {r.replace('_', ' ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2">
               {/* Company Selection Dropdown */}
               <div>
                 <label className="text-xs text-muted block mb-1">Select Company / Workspace *</label>
