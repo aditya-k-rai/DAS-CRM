@@ -21,16 +21,20 @@ const PLAN_CONFIG: Record<string, { memberLimit: number; pricePaise: number }> =
 
 @Injectable()
 export class BillingService {
-  private razorpay: Razorpay;
+  private razorpay: Razorpay | null = null;
 
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
-  ) {
-    this.razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID || '',
-      key_secret: process.env.RAZORPAY_KEY_SECRET || '',
-    });
+  ) {}
+
+  private getRazorpay(): Razorpay {
+    if (!this.razorpay) {
+      const key_id = process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder';
+      const key_secret = process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret';
+      this.razorpay = new Razorpay({ key_id, key_secret });
+    }
+    return this.razorpay;
   }
 
   /**
@@ -73,7 +77,7 @@ export class BillingService {
     const amountPaise = planConfig.pricePaise;
     if (amountPaise === 0) throw new BadRequestException('Contact support for Enterprise pricing');
 
-    const order = await this.razorpay.orders.create({
+    const order = await this.getRazorpay().orders.create({
       amount: amountPaise,
       currency: 'INR',
       notes: {
