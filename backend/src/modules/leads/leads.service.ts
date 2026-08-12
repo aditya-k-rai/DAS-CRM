@@ -333,6 +333,56 @@ export class LeadsService {
     };
   }
 
+  /** Admin Master Audit View — Detailed tracking for all pool leads (Allocated User, Status, Last Updated, Latest Update Details) */
+  async getAdminPoolMasterView(organizationId: string) {
+    const leads = await this.prisma.lead.findMany({
+      where: { organizationId },
+      include: {
+        owner: { select: { id: true, firstName: true, lastName: true, email: true, role: { select: { name: true } } } },
+        status: { select: { id: true, name: true, color: true } },
+        source: { select: { id: true, name: true } },
+        activities: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+
+    return leads.map((l, index) => {
+      const latestAct = l.activities[0];
+      let latestUpdateText = 'Lead Ingested';
+      if (latestAct) {
+        const userName = latestAct.user ? `${latestAct.user.firstName || ''} ${latestAct.user.lastName || ''}`.trim() : 'System';
+        latestUpdateText = `${latestAct.description} (${userName})`;
+      }
+
+      return {
+        id: l.id,
+        serialNo: `POOL-2026-${(1000 + index).toString()}`,
+        leadName: `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Anonymous Lead',
+        email: l.email || 'N/A',
+        phone: l.phone || 'N/A',
+        source: l.source?.name ?? 'Web Queue',
+        statusName: l.status?.name ?? 'New Lead',
+        statusColor: l.status?.color ?? '#6366f1',
+        isAllocated: !!l.ownerId,
+        allocatedUser: l.owner
+          ? {
+              id: l.owner.id,
+              name: `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim(),
+              email: l.owner.email,
+              role: l.owner.role?.name || 'STAFF',
+            }
+          : null,
+        lastUpdatedAt: l.lastActivityAt || l.updatedAt || l.createdAt,
+        latestUpdateDetails: latestUpdateText,
+      };
+    });
+  }
+
   /** Model 2: Dynamic "Grab" Pool — Rep claims lead from queue */
   async grabLeadFromPool(organizationId: string, userId: string, leadId: string) {
     const lead = await this.prisma.lead.findFirst({

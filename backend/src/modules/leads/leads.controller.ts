@@ -93,6 +93,12 @@ export class LeadsController {
     return this.leadsService.getAcquirePoolWhitelist(user.organizationId);
   }
 
+  @Get('distribution/admin-master-view')
+  @ApiOperation({ summary: 'Admin Master Audit View — All pool leads with Allocated User, Status, Last Updated & Activity' })
+  getAdminPoolMasterView(@CurrentUser() user: any) {
+    return this.leadsService.getAdminPoolMasterView(user.organizationId);
+  }
+
   @Get('distribution/open-pool')
   @ApiOperation({ summary: '[Model 2] Get unassigned leads with anonymized serial # (Admin Access Guarded)' })
   getOpenGrabPool(@CurrentUser() user: any) {

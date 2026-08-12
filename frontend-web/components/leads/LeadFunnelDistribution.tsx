@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Target, Zap, Sliders, Shield, Users, ArrowRight, CheckCircle2,
   Lock, Eye, EyeOff, RefreshCw, Layers, Phone, MessageSquare, Mail, Globe, Share2, FileSpreadsheet, UserCheck,
-  Bell, AlertCircle, Ban, UserPlus
+  Bell, AlertCircle, Ban, UserPlus, Clock, History, FileText
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -50,6 +50,94 @@ const INITIAL_POOL: UnclaimedLeadPoolItem[] = [
   { id: '5', serialNo: 'POOL-2026-0895', source: 'LinkedIn Leads',  receivedAt: '15 mins ago', status: 'UNCLAIMED' },
 ];
 
+interface AdminMasterPoolItem {
+  id: string;
+  serialNo: string;
+  leadName: string;
+  email: string;
+  phone: string;
+  source: string;
+  statusName: string;
+  statusColor: string;
+  isAllocated: boolean;
+  allocatedUser?: { id?: string; name: string; email: string; role: string } | null;
+  lastUpdatedAt: string;
+  latestUpdateDetails: string;
+}
+
+const INITIAL_ADMIN_MASTER_LEADS: AdminMasterPoolItem[] = [
+  {
+    id: '1',
+    serialNo: 'POOL-2026-0891',
+    leadName: 'Ananya Sharma',
+    email: 'ananya.s@gmail.com',
+    phone: '+91 98765 43210',
+    source: 'Facebook Ads',
+    statusName: 'New Lead',
+    statusColor: '#6366f1',
+    isAllocated: false,
+    allocatedUser: null,
+    lastUpdatedAt: '2 mins ago',
+    latestUpdateDetails: 'Lead Ingested via Facebook Ads Webhook',
+  },
+  {
+    id: '2',
+    serialNo: 'POOL-2026-0892',
+    leadName: 'Rohan Deshmukh',
+    email: 'rohan.d@corp.in',
+    phone: '+91 91234 56789',
+    source: 'Google Ads',
+    statusName: 'Contacted',
+    statusColor: '#3b82f6',
+    isAllocated: true,
+    allocatedUser: { name: 'Rajesh Mehta', email: 'rajesh.mgr@company.com', role: 'MANAGER' },
+    lastUpdatedAt: '5 mins ago',
+    latestUpdateDetails: 'Status changed to Contacted by Rajesh Mehta (Intro call completed)',
+  },
+  {
+    id: '3',
+    serialNo: 'POOL-2026-0893',
+    leadName: 'Kavita Verma',
+    email: 'kavita@techsol.com',
+    phone: '+91 99887 76655',
+    source: 'WhatsApp Webhook',
+    statusName: 'Qualified',
+    statusColor: '#f59e0b',
+    isAllocated: true,
+    allocatedUser: { name: 'Neha Joshi', email: 'neha.mgr@company.com', role: 'MANAGER' },
+    lastUpdatedAt: '12 mins ago',
+    latestUpdateDetails: 'Requirement budget verified > ₹50,000/mo by Neha Joshi',
+  },
+  {
+    id: '4',
+    serialNo: 'POOL-2026-0894',
+    leadName: 'Siddharth Rao',
+    email: 'siddharth@innovate.in',
+    phone: '+91 97654 32109',
+    source: 'Instagram Ads',
+    statusName: 'Proposal Sent',
+    statusColor: '#8b5cf6',
+    isAllocated: true,
+    allocatedUser: { name: 'Amit Shah', email: 'amit.tl@company.com', role: 'TEAM_LEADER' },
+    lastUpdatedAt: '25 mins ago',
+    latestUpdateDetails: 'Quotation #Q-9041 sent via Email by Amit Shah',
+  },
+  {
+    id: '5',
+    serialNo: 'POOL-2026-0895',
+    leadName: 'Pooja Nair',
+    email: 'pooja.nair@enterprise.com',
+    phone: '+91 94321 87654',
+    source: 'LinkedIn Leads',
+    statusName: 'Closed Won',
+    statusColor: '#22c55e',
+    isAllocated: true,
+    allocatedUser: { name: 'Priya Sharma', email: 'priya.rep@company.com', role: 'SALES_EXEC' },
+    lastUpdatedAt: '1 hour ago',
+    latestUpdateDetails: 'Deal #D-8821 closed won ₹2,40,000 by Priya Sharma',
+  },
+];
+
 interface EligibleManager {
   id: string;
   name: string;
@@ -60,10 +148,12 @@ interface EligibleManager {
 
 export function LeadFunnelDistribution() {
   const [distMode, setDistMode]             = useState<DistMode>('SPEED_CLAIM');
+  const [poolSubTab, setPoolSubTab]         = useState<'CLAIM_QUEUE' | 'ADMIN_MASTER_AUDIT'>('ADMIN_MASTER_AUDIT');
   const [managerARange, setManagerA]       = useState('1 - 100');
   const [managerBRange, setManagerB]       = useState('101 - 200');
   const [directManager, setDirectManager]   = useState('Rajesh Mehta (Manager A)');
   const [pool, setPool]                     = useState<UnclaimedLeadPoolItem[]>(INITIAL_POOL);
+  const [adminMasterLeads, setAdminMasterLeads] = useState<AdminMasterPoolItem[]>(INITIAL_ADMIN_MASTER_LEADS);
   const [acquiredNotice, setAcquiredNotice] = useState<string | null>(null);
   const [pushNotificationAlert, setPushNotificationAlert] = useState<string | null>(
     '⚡ INSTANT PUSH NOTIFICATION (Web & Mobile FCM): New Lead Available in Acquire Pool (#POOL-2026-0891)'
@@ -85,6 +175,7 @@ export function LeadFunnelDistribution() {
   useEffect(() => {
     fetchGrabPool();
     fetchWhitelist();
+    fetchAdminMasterView();
   }, []);
 
   const fetchGrabPool = async () => {
@@ -96,6 +187,18 @@ export function LeadFunnelDistribution() {
         const data = await res.json();
         if (data.isWhitelisted !== undefined) setIsWhitelistedUser(data.isWhitelisted);
         if (Array.isArray(data.leads) && data.leads.length > 0) setPool(data.leads);
+      }
+    } catch (e) {}
+  };
+
+  const fetchAdminMasterView = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/admin-master-view`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) setAdminMasterLeads(data);
       }
     } catch (e) {}
   };
@@ -296,71 +399,173 @@ export function LeadFunnelDistribution() {
 
         {/* Model 2 Config */}
         {distMode === 'SPEED_CLAIM' && (
-          <div className="space-y-3">
-            {!isWhitelistedUser ? (
-              <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-center space-y-2">
-                <Lock size={32} className="mx-auto text-red-400" />
-                <h4 className="font-bold text-sm text-red-300">Admin Access Guard — Not Whitelisted</h4>
-                <p className="text-xs text-muted max-w-md mx-auto">
-                  Your account is currently not on the Admin Eligibility Whitelist for the Acquire Pool. Contact your Tenant Admin to grant you claim access.
-                </p>
+          <div className="space-y-4">
+            {/* Pool View Selector: Blind Claim Queue vs Admin Master Audit Table */}
+            <div className="flex items-center justify-between flex-wrap gap-2 bg-background p-2 rounded-xl border border-border">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPoolSubTab('ADMIN_MASTER_AUDIT')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    poolSubTab === 'ADMIN_MASTER_AUDIT'
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      : 'bg-muted text-muted-foreground hover:text-white'
+                  }`}
+                >
+                  <FileText size={13} /> Admin Master Audit View (All Pool Leads + Allocation + Last Updated)
+                </button>
+                <button
+                  onClick={() => setPoolSubTab('CLAIM_QUEUE')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    poolSubTab === 'CLAIM_QUEUE'
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                      : 'bg-muted text-muted-foreground hover:text-white'
+                  }`}
+                >
+                  <Lock size={13} /> Managers' Blind Claim Queue (Anonymized Serial #)
+                </button>
               </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                      <Lock size={15} className="text-purple-400" /> Anonymized Serial # Pool (Authorized Managers Queue)
-                    </h4>
-                    <p className="text-xs text-muted">Viewable ONLY by Admin-authorized Managers. Contact details hidden until acquired.</p>
-                  </div>
-                  {acquiredNotice && (
-                    <span className="text-xs px-3 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-scale-in">
-                      {acquiredNotice}
-                    </span>
-                  )}
+
+              {acquiredNotice && (
+                <span className="text-xs px-3 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-scale-in">
+                  {acquiredNotice}
+                </span>
+              )}
+            </div>
+
+            {/* TAB 1: ADMIN MASTER AUDIT TABLE */}
+            {poolSubTab === 'ADMIN_MASTER_AUDIT' && (
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                    <Shield size={16} className="text-purple-400" /> Admin Master Lead Tracking & Pool Audit Directory
+                  </h4>
+                  <p className="text-xs text-muted">Complete visibility into allocated users, lead statuses, last activity timestamps, and latest updates across all pool leads.</p>
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-border">
                   <table className="crm-table">
                     <thead>
                       <tr>
-                        <th>Anonymized Serial Number</th>
-                        <th>Ingestion Channel</th>
-                        <th>Received Timestamp</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <th>Serial # & Lead Name</th>
+                        <th>Source Channel</th>
+                        <th>Allocated User / Owner</th>
+                        <th>Lead Status</th>
+                        <th>When Last Updated</th>
+                        <th>What Was Updated (Latest Activity)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pool.map(item => (
-                        <tr key={item.id} className={item.status === 'ACQUIRED' ? 'opacity-40 bg-muted/10' : ''}>
+                      {adminMasterLeads.map(item => (
+                        <tr key={item.id} className="hover:bg-muted/10">
                           <td>
-                            <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded border border-indigo-500/20">
-                              {item.serialNo}
-                            </span>
-                          </td>
-                          <td><span className="text-xs font-semibold">{item.source}</span></td>
-                          <td><span className="text-xs text-muted">{item.receivedAt}</span></td>
-                          <td>
-                            <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${item.status === 'UNCLAIMED' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                              {item.status === 'UNCLAIMED' ? '● Unclaimed (Open Pool)' : `✓ Acquired by ${item.acquiredBy}`}
-                            </span>
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-[11px] font-bold text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded border border-indigo-500/20">
+                                {item.serialNo}
+                              </span>
+                              <p className="font-bold text-xs text-white mt-1">{item.leadName}</p>
+                              <p className="text-[11px] text-muted">{item.email}</p>
+                            </div>
                           </td>
                           <td>
-                            {item.status === 'UNCLAIMED' ? (
-                              <button onClick={() => handleClaimLead(item.id)} className="btn-primary text-xs py-1 px-3">
-                                Acquire Lead →
-                              </button>
+                            <span className="text-xs font-semibold">{item.source}</span>
+                          </td>
+                          <td>
+                            {item.isAllocated && item.allocatedUser ? (
+                              <div className="space-y-0.5">
+                                <span className="text-xs font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full inline-block border border-emerald-500/20">
+                                  ✓ {item.allocatedUser.name}
+                                </span>
+                                <p className="text-[10px] text-muted">{item.allocatedUser.role} • {item.allocatedUser.email}</p>
+                              </div>
                             ) : (
-                              <span className="text-xs text-muted italic">Vanished from queue</span>
+                              <span className="text-xs font-bold text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full inline-block border border-amber-500/20">
+                                ● Unassigned (In Pool Queue)
+                              </span>
                             )}
+                          </td>
+                          <td>
+                            <span
+                              className="text-xs px-2.5 py-0.5 rounded-full font-bold text-white border"
+                              style={{ backgroundColor: `${item.statusColor}25`, borderColor: `${item.statusColor}50` }}
+                            >
+                              ● {item.statusName}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1 text-xs text-muted">
+                              <Clock size={12} className="text-indigo-400" />
+                              <span>{item.lastUpdatedAt}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <History size={13} className="text-purple-400 flex-shrink-0" />
+                              <span className="text-xs text-white font-medium italic truncate max-w-xs">
+                                "{item.latestUpdateDetails}"
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* TAB 2: MANAGERS' BLIND CLAIM QUEUE */}
+            {poolSubTab === 'CLAIM_QUEUE' && (
+              <>
+                {!isWhitelistedUser ? (
+                  <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-center space-y-2">
+                    <Lock size={32} className="mx-auto text-red-400" />
+                    <h4 className="font-bold text-sm text-red-300">Admin Access Guard — Not Whitelisted</h4>
+                    <p className="text-xs text-muted max-w-md mx-auto">
+                      Your account is currently not on the Admin Eligibility Whitelist for the Acquire Pool. Contact your Tenant Admin to grant you claim access.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border">
+                    <table className="crm-table">
+                      <thead>
+                        <tr>
+                          <th>Anonymized Serial Number</th>
+                          <th>Ingestion Channel</th>
+                          <th>Received Timestamp</th>
+                          <th>Status</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pool.map(item => (
+                          <tr key={item.id} className={item.status === 'ACQUIRED' ? 'opacity-40 bg-muted/10' : ''}>
+                            <td>
+                              <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded border border-indigo-500/20">
+                                {item.serialNo}
+                              </span>
+                            </td>
+                            <td><span className="text-xs font-semibold">{item.source}</span></td>
+                            <td><span className="text-xs text-muted">{item.receivedAt}</span></td>
+                            <td>
+                              <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${item.status === 'UNCLAIMED' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                {item.status === 'UNCLAIMED' ? '● Unclaimed (Open Pool)' : `✓ Acquired by ${item.acquiredBy}`}
+                              </span>
+                            </td>
+                            <td>
+                              {item.status === 'UNCLAIMED' ? (
+                                <button onClick={() => handleClaimLead(item.id)} className="btn-primary text-xs py-1 px-3">
+                                  Acquire Lead →
+                                </button>
+                              ) : (
+                                <span className="text-xs text-muted italic">Vanished from queue</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </>
             )}
           </div>
