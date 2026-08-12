@@ -27,7 +27,18 @@ const TEMPLATES = [
   },
 ];
 
-const DEFAULT_COMPONENT = {
+interface Component {
+  id: string;
+  name: string;
+  type: 'EARNING' | 'DEDUCTION' | string;
+  calcType: 'fixed' | 'percentage' | string;
+  value: number;
+  on: string | null;
+  isMandatory: boolean;
+  description: string;
+}
+
+const DEFAULT_COMPONENT: Omit<Component, 'id'> = {
   name: '',
   type: 'EARNING',
   calcType: 'fixed',
@@ -36,8 +47,6 @@ const DEFAULT_COMPONENT = {
   isMandatory: false,
   description: '',
 };
-
-type Component = typeof DEFAULT_COMPONENT & { id: string };
 
 export function SalaryConfigBuilder() {
   const [configName, setConfigName] = useState('');
