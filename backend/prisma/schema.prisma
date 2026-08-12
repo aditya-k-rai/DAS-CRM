@@ -1,0 +1,1086 @@
+﻿// ============================================================
+// FINAL BUSINESS CRM â€” Multi-Tenant SaaS Schema
+// Strategy: Shared DB, organization_id on every tenant table
+// Custom Fields: JSONB on main entity tables
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ENUMS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+enum PlanTier {
+  BASIC
+  PRO
+  PRO_50
+  PRO_MAX
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  HR
+  TEAM_LEADER
+  SALES
+  MARKETING
+  SUPPORT
+  FINANCE
+  VIEWER
+}
+
+enum RecordScope {
+  OWN
+  TEAM
+  ALL
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  NOTE
+  MEETING
+  TASK
+  STATUS_CHANGE
+  IMPORT
+  SYSTEM
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+  MULTI_SELECT
+  CHECKBOX
+  URL
+  EMAIL
+  PHONE
+}
+
+enum NotificationType {
+  LEAD_ASSIGNED
+  TASK_DUE
+  DEAL_WON
+  DEAL_LOST
+  MEETING_REMINDER
+  IMPORT_COMPLETE
+  AUTOMATION_FIRED
+  SYSTEM
+}
+
+enum AutomationTrigger {
+  LEAD_CREATED
+  LEAD_STATUS_CHANGED
+  DEAL_STAGE_CHANGED
+  TASK_OVERDUE
+  SCHEDULED
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ORGANIZATION & TENANCY
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  website     String?
+  industry    String?
+  templateId  String?
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  subscription          Subscription?
+  users                 User[]
+  teams                 Team[]
+  roles                 Role[]
+  organizationFeatures  OrganizationFeature[]
+  customFieldDefs       CustomFieldDefinition[]
+  leadSources           LeadSource[]
+  leadStatuses          LeadStatus[]
+  leads                 Lead[]
+  contacts              Contact[]
+  companies             Company[]
+  pipelines             Pipeline[]
+  deals                 Deal[]
+  activities            Activity[]
+  tasks                 Task[]
+  meetings              Meeting[]
+  notes                 Note[]
+  products              Product[]
+  quotations            Quotation[]
+  imports               Import[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  automations           Automation[]
+  emailCampaigns        EmailCampaign[]
+  usageCounters         UsageCounter[]
+
+  @@map("organizations")
+}
+
+model Subscription {
+  id             String    @id @default(cuid())
+  organizationId String    @unique
+  planTier       PlanTier  @default(BASIC)
+  memberLimit    Int       @default(5)
+  startsAt       DateTime  @default(now())
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model PlanEntitlement {
+  id         String   @id @default(cuid())
+  planTier   PlanTier
+  featureKey String
+  enabled    Boolean  @default(false)
+  limit      Int?
+
+  @@unique([planTier, featureKey])
+  @@map("plan_entitlements")
+}
+
+model UsageCounter {
+  id             String   @id @default(cuid())
+  organizationId String
+  metricKey      String
+  value          Int      @default(0)
+  resetAt        DateTime?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, metricKey])
+  @@map("usage_counters")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// USERS, TEAMS & RBAC
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  passwordHash   String
+  firstName      String
+  lastName       String
+  avatarUrl      String?
+  roleId         String?
+  teamId         String?
+  isActive       Boolean   @default(true)
+  mfaEnabled     Boolean   @default(false)
+  mfaSecret      String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            Role?         @relation(fields: [roleId], references: [id])
+  team            Team?         @relation(fields: [teamId], references: [id])
+  refreshTokens   RefreshToken[]
+  assignedLeads   Lead[]        @relation("LeadOwner")
+  createdLeads    Lead[]        @relation("LeadCreator")
+  assignedDeals   Deal[]
+  activities      Activity[]
+  tasks           Task[]        @relation("TaskAssignee")
+  createdTasks    Task[]        @relation("TaskCreator")
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@unique([organizationId, email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Team {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users        User[]
+  leads        Lead[]       @relation("LeadTeam")
+
+  @@unique([organizationId, name])
+  @@map("teams")
+}
+
+model Role {
+  id             String      @id @default(cuid())
+  organizationId String
+  name           String
+  isSystem       Boolean     @default(false)
+  recordScope    RecordScope @default(OWN)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users        User[]
+  permissions  RolePermission[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  resource    String // leads, contacts, deals, etc.
+  action      String // view, create, edit, delete, import, export, assign, approve, configure
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model OrganizationFeature {
+  id             String  @id @default(cuid())
+  organizationId String
+  featureKey     String
+  enabled        Boolean @default(false)
+  config         Json    @default("{}")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, featureKey])
+  @@map("organization_features")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// INDUSTRY TEMPLATES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model IndustryTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  industry    String
+  description String?
+  config      Json     // statuses, fields, pipelines, dashboards
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("industry_templates")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CUSTOM FIELDS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model CustomFieldDefinition {
+  id             String          @id @default(cuid())
+  organizationId String
+  entity         String          // lead, contact, company, deal
+  key            String
+  label          String
+  fieldType      CustomFieldType
+  options        Json?           // for DROPDOWN and MULTI_SELECT
+  isRequired     Boolean         @default(false)
+  isSystem       Boolean         @default(false)
+  order          Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entity, key])
+  @@map("custom_field_definitions")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// LEAD MANAGEMENT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model LeadSource {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  @@unique([organizationId, name])
+  @@map("lead_sources")
+}
+
+model LeadStatus {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String   @default("#6366f1")
+  order          Int      @default(0)
+  isDefault      Boolean  @default(false)
+  isWon          Boolean  @default(false)
+  isLost         Boolean  @default(false)
+  requiredFields Json?    // fields required when transitioning to this status
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  statusHistory LeadStatusHistory[]
+
+  @@unique([organizationId, name])
+  @@map("lead_statuses")
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  statusId       String?
+  ownerId        String?
+  teamId         String?
+  createdById    String?
+  sourceId       String?
+  companyId      String?
+  score          Int      @default(0)
+  customFields   Json     @default("{}")
+  tags           String[] @default([])
+  isConverted    Boolean  @default(false)
+  convertedAt    DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastActivityAt DateTime?
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status        LeadStatus?  @relation(fields: [statusId], references: [id])
+  owner         User?        @relation("LeadOwner", fields: [ownerId], references: [id])
+  team          Team?        @relation("LeadTeam", fields: [teamId], references: [id])
+  createdBy     User?        @relation("LeadCreator", fields: [createdById], references: [id])
+  source        LeadSource?  @relation(fields: [sourceId], references: [id])
+  company       Company?     @relation(fields: [companyId], references: [id])
+  activities    Activity[]
+  tasks         Task[]
+  meetings      Meeting[]
+  noteEntries   Note[]
+  deals         Deal[]
+  quotations    Quotation[]
+  statusHistory LeadStatusHistory[]
+
+  @@index([organizationId, statusId])
+  @@index([organizationId, ownerId])
+  @@index([organizationId, createdAt])
+  @@map("leads")
+}
+
+model LeadStatusHistory {
+  id           String   @id @default(cuid())
+  leadId       String
+  statusId     String
+  changedById  String?
+  changedAt    DateTime @default(now())
+  notes        String?
+
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status    LeadStatus @relation(fields: [statusId], references: [id])
+
+  @@map("lead_status_history")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// CONTACTS & COMPANIES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Contact {
+  id             String   @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  jobTitle       String?
+  companyId      String?
+  customFields   Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?     @relation(fields: [companyId], references: [id])
+  activities   Activity[]
+  notes        Note[]
+
+  @@index([organizationId])
+  @@map("contacts")
+}
+
+model Company {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  industry       String?
+  website        String?
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  state          String?
+  country        String?
+  customFields   Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contacts     Contact[]
+  leads        Lead[]
+  deals        Deal[]
+  activities   Activity[]
+  notes        Note[]
+
+  @@index([organizationId])
+  @@map("companies")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// DEALS & PIPELINES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Pipeline {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stages       Stage[]
+  deals        Deal[]
+
+  @@unique([organizationId, name])
+  @@map("pipelines")
+}
+
+model Stage {
+  id         String   @id @default(cuid())
+  pipelineId String
+  name       String
+  order      Int      @default(0)
+  probability Int     @default(0)  // 0-100%
+  color      String   @default("#6366f1")
+  createdAt  DateTime @default(now())
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@map("stages")
+}
+
+model Deal {
+  id             String     @id @default(cuid())
+  organizationId String
+  title          String
+  value          Decimal    @default(0)
+  currency       String     @default("INR")
+  pipelineId     String?
+  stageId        String?
+  ownerId        String?
+  leadId         String?
+  companyId      String?
+  status         DealStatus @default(OPEN)
+  expectedCloseAt DateTime?
+  closedAt       DateTime?
+  customFields   Json       @default("{}")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pipeline     Pipeline?    @relation(fields: [pipelineId], references: [id])
+  stage        Stage?       @relation(fields: [stageId], references: [id])
+  owner        User?        @relation(fields: [ownerId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  company      Company?     @relation(fields: [companyId], references: [id])
+  activities   Activity[]
+  quotations   Quotation[]
+  notes        Note[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, stageId])
+  @@map("deals")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ACTIVITIES, TASKS, MEETINGS & NOTES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Activity {
+  id             String       @id @default(cuid())
+  organizationId String
+  type           ActivityType
+  userId         String?
+  leadId         String?
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  description    String?
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  contact      Contact?     @relation(fields: [contactId], references: [id])
+  company      Company?     @relation(fields: [companyId], references: [id])
+  deal         Deal?        @relation(fields: [dealId], references: [id])
+
+  @@index([organizationId, leadId])
+  @@index([organizationId, createdAt])
+  @@map("activities")
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?
+  dueAt          DateTime?
+  assigneeId     String?
+  createdById    String?
+  leadId         String?
+  contactId      String?
+  dealId         String?
+  isCompleted    Boolean  @default(false)
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy    User?        @relation("TaskCreator", fields: [createdById], references: [id])
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+
+  @@index([organizationId, assigneeId, isCompleted])
+  @@map("tasks")
+}
+
+model Meeting {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?
+  startAt        DateTime
+  endAt          DateTime?
+  location       String?
+  leadId         String?
+  attendees      Json     @default("[]") // array of user IDs
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+
+  @@index([organizationId, startAt])
+  @@map("meetings")
+}
+
+model Note {
+  id             String   @id @default(cuid())
+  organizationId String
+  content        String
+  leadId         String?
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id])
+  contact      Contact?     @relation(fields: [contactId], references: [id])
+  company      Company?     @relation(fields: [companyId], references: [id])
+  deal         Deal?        @relation(fields: [dealId], references: [id])
+
+  @@map("notes")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// PRODUCTS & QUOTATIONS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Product {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  price          Decimal  @default(0)
+  unit           String   @default("unit")
+  taxRate        Decimal  @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quotationItems QuotationItem[]
+
+  @@map("products")
+}
+
+model Quotation {
+  id             String          @id @default(cuid())
+  organizationId String
+  number         String
+  title          String?
+  leadId         String?
+  dealId         String?
+  status         QuotationStatus @default(DRAFT)
+  validUntil     DateTime?
+  notes          String?
+  subtotal       Decimal         @default(0)
+  taxTotal       Decimal         @default(0)
+  discountTotal  Decimal         @default(0)
+  grandTotal     Decimal         @default(0)
+  currency       String          @default("INR")
+  pdfUrl         String?
+  isLocked       Boolean         @default(false)
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?           @relation(fields: [leadId], references: [id])
+  deal         Deal?           @relation(fields: [dealId], references: [id])
+  items        QuotationItem[]
+
+  @@unique([organizationId, number])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String  @id @default(cuid())
+  quotationId String
+  productId   String?
+  name        String
+  description String?
+  quantity    Decimal @default(1)
+  unitPrice   Decimal @default(0)
+  taxRate     Decimal @default(0)
+  discount    Decimal @default(0)
+  total       Decimal @default(0)
+  order       Int     @default(0)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product?  @relation(fields: [productId], references: [id])
+
+  @@map("quotation_items")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// IMPORTS
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Import {
+  id             String       @id @default(cuid())
+  organizationId String
+  filename       String
+  entity         String       @default("lead")
+  status         ImportStatus @default(PENDING)
+  totalRows      Int          @default(0)
+  processedRows  Int          @default(0)
+  successRows    Int          @default(0)
+  errorRows      Int          @default(0)
+  mapping        Json         @default("{}")
+  duplicateMode  String       @default("SKIP") // SKIP, UPDATE, CREATE_NEW, REVIEW
+  report         Json?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("imports")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// NOTIFICATIONS & AUDIT
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  body           String?
+  isRead         Boolean          @default(false)
+  data           Json             @default("{}")
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT, etc.
+  entity         String   // lead, contact, deal, etc.
+  entityId       String?
+  before         Json?
+  after          Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, entity, entityId])
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// AUTOMATION (Optional Module)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model Automation {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  isActive       Boolean           @default(false)
+  trigger        AutomationTrigger
+  conditions     Json              @default("[]")
+  actions        Json              @default("[]")
+  executionCount Int               @default(0)
+  lastRunAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executionLogs  AutomationLog[]
+
+  @@map("automations")
+}
+
+model AutomationLog {
+  id           String   @id @default(cuid())
+  automationId String
+  status       String   // SUCCESS, FAILED, SKIPPED
+  trigger      Json
+  result       Json?
+  error        String?
+  executedAt   DateTime @default(now())
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@map("automation_logs")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// EMAIL MARKETING (Optional Module)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model EmailCampaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  subject        String
+  htmlContent    String?
+  status         String   @default("DRAFT")
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int      @default(0)
+  openCount      Int      @default(0)
+  clickCount     Int      @default(0)
+  bounceCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("email_campaigns")
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// HR MODULE â€” EMPLOYEE PROFILES
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+model EmployeeProfile {
+  id               String   @id @default(cuid())
+  organizationId   String
+  userId           String   @unique
+  employeeCode     String
+  department       String?
+  designation      String?
+  dateOfJoining    DateTime
+  baseSalary       Decimal  @default(0)
+  salaryConfigId   String?
+  canSelfCheckIn   Boolean  @default(false)
+  bankAccountNo    String?
+  bankName         String?
+  ifscCode         String?
+  panNumber        String?
+  uanNumber        String?
+  emergencyContact Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salaryConfig   SalaryConfig? @relation(fields: [salaryConfigId], references: [id])
+  attendance     EmployeeAttendance[]
+  salaryRecords  SalaryRecord[]
+  leaveBalances  LeaveBalance[]
+
+  @@unique([organizationId, employeeCode])
+  @@map("employee_profiles")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  ON_LEAVE
+  HOLIDAY
+  WORK_FROM_HOME
+  LATE
+}
+
+model EmployeeAttendance {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  date           DateTime         @db.Date
+  checkIn        DateTime?
+  checkOut       DateTime?
+  workingHours   Decimal          @default(0)
+  status         AttendanceStatus @default(ABSENT)
+  isManualEntry  Boolean          @default(false)
+  markedById     String?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User            @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  employeeProfile EmployeeProfile @relation(fields: [userId], references: [userId])
+
+  @@unique([organizationId, userId, date])
+  @@index([organizationId, date])
+  @@map("employee_attendance")
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  CASUAL
+  UNPAID
+  COMPENSATORY
+  MATERNITY
+  PATERNITY
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeavePolicy {
+  id              String    @id @default(cuid())
+  organizationId  String
+  name            String
+  leaveType       LeaveType
+  daysAllowed     Decimal
+  carryForward    Boolean   @default(false)
+  maxCarryForward Decimal?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leaveBalances LeaveBalance[]
+
+  @@unique([organizationId, leaveType, name])
+  @@map("leave_policies")
+}
+
+model LeaveBalance {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  profileId      String
+  policyId       String
+  year           Int
+  allocated      Decimal   @default(0)
+  used           Decimal   @default(0)
+  pending        Decimal   @default(0)
+  remaining      Decimal   @default(0)
+  updatedAt      DateTime  @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User            @relation("LeaveBalanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  employeeProfile EmployeeProfile @relation(fields: [profileId], references: [id])
+  policy          LeavePolicy     @relation(fields: [policyId], references: [id])
+
+  @@unique([userId, policyId, year])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id             String             @id @default(cuid())
+  organizationId String
+  userId         String
+  leaveType      LeaveType
+  startDate      DateTime           @db.Date
+  endDate        DateTime           @db.Date
+  totalDays      Decimal
+  reason         String?
+  status         LeaveRequestStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectionNote  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("LeaveRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, status])
+  @@map("leave_requests")
+}
+
+enum SalaryRecordStatus {
+  DRAFT
+  GENERATED
+  APPROVED
+  PAID
+}
+
+model SalaryConfig {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  name                  String
+  description           String?
+  isTemplate            Boolean  @default(false)
+  templateKey           String?
+  isDefault             Boolean  @default(false)
+  components            Json     @default("[]")
+  workingDaysPerMonth   Int      @default(26)
+  overtimeRatePerHour   Decimal  @default(0)
+  includeLeaveDeduction Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employeeProfiles EmployeeProfile[]
+  salaryRecords    SalaryRecord[]
+
+  @@unique([organizationId, name])
+  @@map("salary_configs")
+}
+
+model SalaryRecord {
+  id             String             @id @default(cuid())
+  organizationId String
+  userId         String
+  profileId      String
+  configId       String
+  month          Int
+  year           Int
+  baseSalary     Decimal
+  earnings       Json               @default("[]")
+  deductions     Json               @default("[]")
+  grossSalary    Decimal            @default(0)
+  netSalary      Decimal            @default(0)
+  presentDays    Int                @default(0)
+  absentDays     Int                @default(0)
+  leaveDays      Int                @default(0)
+  overtimeHours  Decimal            @default(0)
+  status         SalaryRecordStatus @default(DRAFT)
+  approvedById   String?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  payslipUrl     String?
+  notes          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User            @relation("SalaryUser", fields: [userId], references: [id], onDelete: Cascade)
+  employeeProfile EmployeeProfile @relation(fields: [profileId], references: [id])
+  config          SalaryConfig    @relation(fields: [configId], references: [id])
+
+  @@unique([organizationId, userId, month, year])
+  @@index([organizationId, month, year])
+  @@map("salary_records")
+}
+

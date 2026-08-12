@@ -1,0 +1,90 @@
+name: NexCRM CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Test & Build Frontend Web (Vercel Integration)
+  build-frontend:
+    name: Build & Test Frontend Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install Dependencies
+        run: cd frontend-web && npm ci
+
+      - name: Build Next.js Web App
+        run: cd frontend-web && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PRODUCTION_API_URL || 'https://nexcrm-backend.onrender.com' }}
+
+  # Job 2: Test & Build Backend API (Render Integration)
+  build-backend:
+    name: Build & Test Backend API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        run: cd backend && npm ci
+
+      - name: Generate Prisma Client
+        run: cd backend && npx prisma generate
+
+      - name: Build NestJS API
+        run: cd backend && npm run build
+
+      - name: Trigger Render Deploy Hook (Production)
+        if: github.ref == 'refs/heads/main' && secrets.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+  # Job 3: Build Android APK (Expo React Native)
+  build-android:
+    name: Build Android Mobile APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: android/package-lock.json
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install Mobile Dependencies
+        run: cd android && npm ci
+
+      - name: Build Android Preview APK
+        if: secrets.EXPO_TOKEN != ''
+        run: cd android && eas build --platform android --profile preview --non-interactive
