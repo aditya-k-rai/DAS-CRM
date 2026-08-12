@@ -84,4 +84,66 @@ export class LeadsController {
   remove(@CurrentUser() user: any, @Param('id') id: string) {
     return this.leadsService.remove(user.organizationId, id);
   }
+
+  // ── Lead Distribution Engine (3 Allocation Models + Manager Control) ──
+
+  @Get('distribution/whitelist')
+  @ApiOperation({ summary: 'Get Whitelisted Managers eligible for Acquire Pool' })
+  getAcquirePoolWhitelist(@CurrentUser() user: any) {
+    return this.leadsService.getAcquirePoolWhitelist(user.organizationId);
+  }
+
+  @Get('distribution/open-pool')
+  @ApiOperation({ summary: '[Model 2] Get unassigned leads with anonymized serial # (Admin Access Guarded)' })
+  getOpenGrabPool(@CurrentUser() user: any) {
+    return this.leadsService.getOpenGrabPool(user.organizationId, user.id);
+  }
+
+  @Post('distribution/grab-lead/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[Model 2] Dynamic Grab Flow — Rep claims lead from open pool' })
+  grabLeadFromPool(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.leadsService.grabLeadFromPool(
+      user.organizationId,
+      user.id,
+      id,
+    );
+  }
+
+  @Post('distribution/batch-quota')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[Model 1] Custom Batch Quota Allocation' })
+  customBatchQuotaAllocation(
+    @CurrentUser() user: any,
+    @Body() dto: { allocations: { managerId: string; limit: number }[] },
+  ) {
+    return this.leadsService.customBatchQuotaAllocation(
+      user.organizationId,
+      dto,
+    );
+  }
+
+  @Post('distribution/direct-funnel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[Model 3] Direct Admin Funnel Targeting to Manager' })
+  directAdminFunnel(
+    @CurrentUser() user: any,
+    @Body() dto: { leadIds: string[]; targetManagerId: string },
+  ) {
+    return this.leadsService.directAdminFunnel(user.organizationId, dto);
+  }
+
+  @Post('distribution/manager-allocate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Manager Downstream Allocation Control (TL / Staff)' })
+  managerDownstreamAllocate(
+    @CurrentUser() user: any,
+    @Body() dto: { leadIds: string[]; targetUserId: string },
+  ) {
+    return this.leadsService.managerDownstreamAllocate(
+      user.organizationId,
+      user.id,
+      dto,
+    );
+  }
 }

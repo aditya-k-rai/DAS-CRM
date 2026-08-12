@@ -157,4 +157,51 @@ export class NotificationsService {
 
     return { notified: overdue.length };
   }
+
+  /**
+   * Admin Access Guard & Push Dispatcher:
+   * Dispatches Web Push + Mobile App Push (FCM / Expo) to Whitelisted Managers
+   * when a new lead enters the Acquire Pool queue.
+   */
+  async notifyNewAcquirePoolLead(opts: {
+    organizationId: string;
+    serialNo: string;
+    leadId: string;
+    sourceName?: string;
+    whitelistedUserIds?: string[];
+  }) {
+    const { organizationId, serialNo, leadId, sourceName, whitelistedUserIds } = opts;
+
+    let recipientIds = whitelistedUserIds ?? [];
+
+    if (!recipientIds.length) {
+      const managers = await this.prisma.user.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          role: { name: { in: ['ADMIN', 'MANAGER', 'OWNER'] } },
+        },
+        select: { id: true },
+      });
+      recipientIds = managers.map((u) => u.id);
+    }
+
+    if (!recipientIds.length) return { sent: 0 };
+
+    return this.send({
+      organizationId,
+      recipientIds,
+      event: 'AUTOMATION_TRIGGERED',
+      title: '⚡ New Lead in Acquire Pool',
+      body: `New Lead Available in Acquire Pool (#${serialNo}) via ${sourceName || 'Web Queue'}`,
+      linkUrl: `/leads?tab=funnel`,
+      channels: ['IN_APP', 'PUSH'],
+      metadata: {
+        action: 'ACQUIRE_POOL',
+        leadId,
+        serialNo,
+        pushChannels: ['WEB_WEBSOCKET', 'FCM_EXPO_MOBILE'],
+      },
+    });
+  }
 }
