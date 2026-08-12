@@ -148,6 +148,13 @@ model Organization {
   automations           Automation[]
   emailCampaigns        EmailCampaign[]
   usageCounters         UsageCounter[]
+  employeeProfiles      EmployeeProfile[]
+  employeeAttendances   EmployeeAttendance[]
+  leavePolicies         LeavePolicy[]
+  leaveBalances         LeaveBalance[]
+  leaveRequests         LeaveRequest[]
+  salaryConfigs         SalaryConfig[]
+  salaryRecords         SalaryRecord[]
 
   @@map("organizations")
 }
@@ -226,6 +233,11 @@ model User {
   createdTasks    Task[]        @relation("TaskCreator")
   notifications   Notification[]
   auditLogs       AuditLog[]
+  employeeProfile EmployeeProfile?
+  attendance      EmployeeAttendance[] @relation("AttendanceUser")
+  leaveBalances   LeaveBalance[]       @relation("LeaveBalanceUser")
+  leaveRequests   LeaveRequest[]       @relation("LeaveRequestUser")
+  salaryRecords   SalaryRecord[]       @relation("SalaryUser")
 
   @@unique([organizationId, email])
   @@map("users")
@@ -893,12 +905,11 @@ model EmployeeProfile {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  salaryConfig   SalaryConfig? @relation(fields: [salaryConfigId], references: [id])
-  attendance     EmployeeAttendance[]
-  salaryRecords  SalaryRecord[]
-  leaveBalances  LeaveBalance[]
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salaryConfig  SalaryConfig? @relation(fields: [salaryConfigId], references: [id])
+  salaryRecords SalaryRecord[]
+  leaveBalances LeaveBalance[]
 
   @@unique([organizationId, employeeCode])
   @@map("employee_profiles")
@@ -929,9 +940,8 @@ model EmployeeAttendance {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user            User            @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
-  employeeProfile EmployeeProfile @relation(fields: [userId], references: [userId])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId, date])
   @@index([organizationId, date])
