@@ -1,0 +1,49 @@
+import { PrismaService } from '../../prisma/prisma.service';
+export declare class TeamsService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    createTeamLeader(organizationId: string, currentUserRole: string, data: {
+        name: string;
+        email: string;
+        managerId: string;
+    }): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        organizationId: string;
+        description: string | null;
+    }>;
+    assignEmployeeHierarchy(organizationId: string, currentUserRole: string, dto: {
+        employeeId: string;
+        managerId?: string;
+        teamLeaderId?: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+        hierarchy: {
+            employeeId: string;
+            managerId: string | null;
+            teamLeaderId: string | null;
+        };
+    }>;
+    getHierarchy(organizationId: string): Promise<{
+        organizationId: string;
+        totalUsers: number;
+        users: {
+            id: string;
+            role: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                organizationId: string;
+                isSystem: boolean;
+                recordScope: import("@prisma/client").$Enums.RecordScope;
+            } | null;
+            email: string;
+            firstName: string;
+            lastName: string;
+        }[];
+    }>;
+}

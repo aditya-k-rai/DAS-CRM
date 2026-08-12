@@ -6,29 +6,26 @@ export class ExportsService {
   constructor(private prisma: PrismaService) {}
 
   /** Exports leads to CSV formatted string */
-  async exportLeadsCSV(organizationId: string, status?: string): Promise<string> {
+  async exportLeadsCSV(organizationId: string): Promise<string> {
     const leads = await this.prisma.lead.findMany({
       where: {
         organizationId,
-        ...(status && { status }),
       },
       include: {
-        assignedTo: { select: { firstName: true, lastName: true } },
+        owner: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const headers = ['Lead ID', 'Name', 'Email', 'Phone', 'Company', 'Status', 'Score', 'Value (INR)', 'Assigned Rep', 'Created Date'];
+    const headers = ['Lead ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Score', 'Assigned Rep', 'Created Date'];
     const rows = leads.map(l => [
       l.id,
-      `"${l.name.replace(/"/g, '""')}"`,
+      `"${(l.firstName || '').replace(/"/g, '""')}"`,
+      `"${(l.lastName || '').replace(/"/g, '""')}"`,
       l.email || '',
       l.phone || '',
-      `"${(l.company || '').replace(/"/g, '""')}"`,
-      l.status,
       l.score || 0,
-      l.value || 0,
-      `"${l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : 'Unassigned'}"`,
+      `"${l.owner ? `${l.owner.firstName} ${l.owner.lastName}` : 'Unassigned'}"`,
       l.createdAt.toISOString().split('T')[0],
     ]);
 
@@ -36,8 +33,8 @@ export class ExportsService {
   }
 
   /** Exports HR Attendance report to CSV */
-  async exportAttendanceCSV(organizationId: string, month: string): Promise<string> {
-    const attendance = await this.prisma.attendanceRecord.findMany({
+  async exportAttendanceCSV(organizationId: string): Promise<string> {
+    const attendance = await this.prisma.employeeAttendance.findMany({
       where: { organizationId },
       include: { user: { select: { firstName: true, lastName: true, email: true } } },
       orderBy: { date: 'desc' },
@@ -45,8 +42,8 @@ export class ExportsService {
 
     const headers = ['Employee Email', 'Employee Name', 'Date', 'Check In', 'Check Out', 'Total Hours', 'Status'];
     const rows = attendance.map(a => [
-      a.user.email,
-      `"${a.user.firstName} ${a.user.lastName}"`,
+      a.user?.email || '',
+      `"${a.user?.firstName || ''} ${a.user?.lastName || ''}"`,
       a.date.toISOString().split('T')[0],
       a.checkIn ? a.checkIn.toLocaleTimeString() : '',
       a.checkOut ? a.checkOut.toLocaleTimeString() : '',
@@ -58,20 +55,19 @@ export class ExportsService {
   }
 
   /** Exports Payroll Salary Records to CSV */
-  async exportPayrollCSV(organizationId: string, month: string): Promise<string> {
+  async exportPayrollCSV(organizationId: string, monthNum: number): Promise<string> {
     const records = await this.prisma.salaryRecord.findMany({
-      where: { organizationId, month },
+      where: { organizationId, month: monthNum },
       include: { user: { select: { firstName: true, lastName: true, email: true } } },
     });
 
-    const headers = ['Employee Email', 'Employee Name', 'Month', 'Gross Salary', 'Net Salary', 'Total Deductions', 'Status'];
+    const headers = ['Employee Email', 'Employee Name', 'Month', 'Gross Salary', 'Net Salary', 'Status'];
     const rows = records.map(r => [
-      r.user.email,
-      `"${r.user.firstName} ${r.user.lastName}"`,
+      r.user?.email || '',
+      `"${r.user?.firstName || ''} ${r.user?.lastName || ''}"`,
       r.month,
       r.grossSalary,
       r.netSalary,
-      r.totalDeduction,
       r.status,
     ]);
 

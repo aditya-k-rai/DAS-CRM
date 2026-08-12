@@ -8,14 +8,14 @@ export class TeamsService {
   /**
    * Tenant Admin Exclusive: Create Team Leader (TL)
    */
-  async createTeamLeader(tenantId: string, currentUserRole: string, data: { name: string; email: string; managerId: string }) {
+  async createTeamLeader(organizationId: string, currentUserRole: string, data: { name: string; email: string; managerId: string }) {
     if (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
       throw new ForbiddenException('ONLY Tenant Admin is authorized to create Team Leaders');
     }
 
-    // Verify target manager belongs to tenant
+    // Verify target manager belongs to organization
     const manager = await this.prisma.user.findFirst({
-      where: { id: data.managerId, tenantId },
+      where: { id: data.managerId, organizationId },
     });
     if (!manager) {
       throw new NotFoundException('Specified Manager not found in tenant company');
@@ -24,8 +24,7 @@ export class TeamsService {
     return this.prisma.team.create({
       data: {
         name: `${data.name}'s Sales Unit`,
-        tenantId,
-        leaderId: data.managerId,
+        organizationId,
       },
     });
   }
@@ -34,7 +33,7 @@ export class TeamsService {
    * Tenant Admin Exclusive: Assign or Move Employee under a Manager or Team Leader
    */
   async assignEmployeeHierarchy(
-    tenantId: string,
+    organizationId: string,
     currentUserRole: string,
     dto: { employeeId: string; managerId?: string; teamLeaderId?: string }
   ) {
@@ -43,7 +42,7 @@ export class TeamsService {
     }
 
     const employee = await this.prisma.user.findFirst({
-      where: { id: dto.employeeId, tenantId },
+      where: { id: dto.employeeId, organizationId },
     });
     if (!employee) {
       throw new NotFoundException('Employee not found in tenant company');
@@ -52,7 +51,7 @@ export class TeamsService {
     // Update hierarchy references
     return {
       success: true,
-      message: `Employee ${employee.name || employee.id} assigned successfully by Tenant Admin`,
+      message: `Employee ${employee.firstName || employee.id} assigned successfully by Tenant Admin`,
       hierarchy: {
         employeeId: dto.employeeId,
         managerId: dto.managerId || null,
@@ -64,19 +63,20 @@ export class TeamsService {
   /**
    * Get Company Organizational Hierarchy
    */
-  async getHierarchy(tenantId: string) {
+  async getHierarchy(organizationId: string) {
     const users = await this.prisma.user.findMany({
-      where: { tenantId },
+      where: { organizationId },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         role: true,
       },
     });
 
     return {
-      tenantId,
+      organizationId,
       totalUsers: users.length,
       users,
     };

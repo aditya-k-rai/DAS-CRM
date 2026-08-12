@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type FunnelModel = 'CUSTOM_BATCH' | 'DYNAMIC_GRAB' | 'DIRECT_ADMIN';
@@ -11,12 +11,12 @@ export class LeadFunnelService {
    * Model 1: Custom Batch Quota Allocation
    * Allocates leads by index range (e.g. 1-100 to Manager A, 101-200 to Manager B)
    */
-  async allocateBatchQuota(tenantId: string, managerId: string, startRange: number, endRange: number) {
+  async allocateBatchQuota(organizationId: string, managerId: string, startRange: number, endRange: number) {
     const limit = Math.max(1, endRange - startRange + 1);
     const skip = Math.max(0, startRange - 1);
 
     const unassignedLeads = await this.prisma.lead.findMany({
-      where: { tenantId, assignedToId: null },
+      where: { organizationId, ownerId: null },
       orderBy: { createdAt: 'asc' },
       skip,
       take: limit,
@@ -30,8 +30,8 @@ export class LeadFunnelService {
     const leadIds = unassignedLeads.map(l => l.id);
 
     await this.prisma.lead.updateMany({
-      where: { id: { in: leadIds }, tenantId },
-      data: { assignedToId: managerId },
+      where: { id: { in: leadIds }, organizationId },
+      data: { ownerId: managerId },
     });
 
     return {
@@ -45,32 +45,31 @@ export class LeadFunnelService {
    * Model 2: Dynamic "Grab" Flow (Atomic "Claim & Vanish" with Prisma Transaction)
    * Prevents race conditions. As soon as user claims, lead is acquired and vanishes for others.
    */
-  async claimDynamicLead(tenantId: string, userId: string, leadId: string) {
+  async claimDynamicLead(organizationId: string, userId: string, leadId: string) {
     return this.prisma.$transaction(async (tx) => {
       const lead = await tx.lead.findUnique({
         where: { id: leadId },
-        select: { id: true, tenantId: true, assignedToId: true, leadNumber: true },
+        select: { id: true, organizationId: true, ownerId: true },
       });
 
-      if (!lead || lead.tenantId !== tenantId) {
+      if (!lead || lead.organizationId !== organizationId) {
         throw new NotFoundException('Lead not found in tenant pool');
       }
 
-      if (lead.assignedToId !== null) {
+      if (lead.ownerId !== null) {
         throw new BadRequestException('Lead has already been claimed and vanished from open pool');
       }
 
       const updated = await tx.lead.update({
         where: { id: leadId },
         data: {
-          assignedToId: userId,
-          status: 'QUALIFIED',
+          ownerId: userId,
         },
       });
 
       return {
         success: true,
-        message: `Lead ${lead.leadNumber || lead.id} acquired successfully. Vanished from open pool.`,
+        message: `Lead ${lead.id} acquired successfully. Vanished from open pool.`,
         lead: updated,
       };
     });
@@ -80,13 +79,13 @@ export class LeadFunnelService {
    * Model 3: Direct Admin Funneling
    * Manual targeting by Tenant Admin to a designated Manager
    */
-  async directAdminFunnel(tenantId: string, leadIds: string[], managerId: string) {
+  async directAdminFunnel(organizationId: string, leadIds: string[], managerId: string) {
     const res = await this.prisma.lead.updateMany({
       where: {
         id: { in: leadIds },
-        tenantId,
+        organizationId,
       },
-      data: { assignedToId: managerId },
+      data: { ownerId: managerId },
     });
 
     return {

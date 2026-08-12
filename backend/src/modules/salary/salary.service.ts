@@ -133,7 +133,7 @@ export class SalaryService {
       },
     });
 
-    const results = [];
+    const results: any[] = [];
 
     for (const profile of profiles) {
       if (!profile.salaryConfig) continue;

@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 
 export type NotificationChannel = 'IN_APP' | 'EMAIL' | 'PUSH' | 'WHATSAPP';
 export type NotificationEvent   =
@@ -15,7 +13,6 @@ export type NotificationEvent   =
 export class NotificationsService {
   constructor(
     private prisma: PrismaService,
-    @InjectQueue('notifications') private notifQueue: Queue,
   ) {}
 
   /** Send a notification to one or more users */
@@ -29,34 +26,19 @@ export class NotificationsService {
     channels?: NotificationChannel[];
     metadata?: Record<string, any>;
   }) {
-    const { organizationId, recipientIds, event, title, body, linkUrl, channels = ['IN_APP'], metadata } = opts;
+    const { organizationId, recipientIds, title, body, linkUrl, metadata } = opts;
 
     const records = recipientIds.map(userId => ({
       organizationId,
       userId,
-      event,
+      type: 'SYSTEM' as const,
       title,
       body,
-      linkUrl,
-      metadata: metadata ?? {},
+      data: { ...(metadata ?? {}), linkUrl },
       isRead: false,
     }));
 
-    // Bulk insert all in-app notifications
     await this.prisma.notification.createMany({ data: records });
-
-    // Queue channel-specific deliveries
-    for (const userId of recipientIds) {
-      if (channels.includes('EMAIL')) {
-        await this.notifQueue.add('send-email', { organizationId, userId, event, title, body }, { attempts: 3, backoff: { type: 'exponential', delay: 2000 } });
-      }
-      if (channels.includes('PUSH')) {
-        await this.notifQueue.add('send-push', { organizationId, userId, event, title, body }, { attempts: 2 });
-      }
-      if (channels.includes('WHATSAPP')) {
-        await this.notifQueue.add('send-whatsapp', { organizationId, userId, event, title, body }, { attempts: 2 });
-      }
-    }
 
     return { sent: recipientIds.length };
   }
@@ -87,7 +69,7 @@ export class NotificationsService {
   async markRead(organizationId: string, userId: string, ids: string[]) {
     await this.prisma.notification.updateMany({
       where: { organizationId, userId, id: { in: ids } },
-      data: { isRead: true, readAt: new Date() },
+      data: { isRead: true },
     });
     return { success: true };
   }
@@ -95,7 +77,7 @@ export class NotificationsService {
   async markAllRead(organizationId: string, userId: string) {
     await this.prisma.notification.updateMany({
       where: { organizationId, userId, isRead: false },
-      data: { isRead: true, readAt: new Date() },
+      data: { isRead: true },
     });
     return { success: true };
   }
@@ -126,7 +108,7 @@ export class NotificationsService {
   /** Helper: fire TASK_OVERDUE notifications */
   async notifyOverdueTasks(organizationId: string) {
     const overdue = await this.prisma.task.findMany({
-      where: { organizationId, completedAt: null, dueDate: { lt: new Date() }, overdueNotifiedAt: null },
+      where: { organizationId, isCompleted: false, dueAt: { lt: new Date() } },
       include: { assignee: { select: { id: true } } },
     });
 
@@ -137,17 +119,9 @@ export class NotificationsService {
         recipientIds: [task.assigneeId],
         event: 'TASK_OVERDUE',
         title: `Task Overdue: ${task.title}`,
-        body: `This task was due ${task.dueDate?.toLocaleDateString('en-IN')}. Please complete it or reschedule.`,
+        body: `This task was due ${task.dueAt?.toLocaleDateString('en-IN')}. Please complete it or reschedule.`,
         linkUrl: `/tasks/${task.id}`,
         channels: ['IN_APP', 'PUSH'],
-      });
-    }
-
-    // Mark them so we don't fire again
-    if (overdue.length) {
-      await this.prisma.task.updateMany({
-        where: { id: { in: overdue.map(t => t.id) } },
-        data: { overdueNotifiedAt: new Date() },
       });
     }
 

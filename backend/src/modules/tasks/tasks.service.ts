@@ -19,15 +19,13 @@ export class TasksService {
       organizationId,
       ...(assignedToMe && { assigneeId: userId }),
       ...(status === 'OVERDUE'
-        ? { completedAt: null, dueDate: { lt: now } }
+        ? { isCompleted: false, dueAt: { lt: now } }
         : status === 'COMPLETED'
-        ? { completedAt: { not: null } }
-        : status === 'IN_PROGRESS'
-        ? { completedAt: null, startedAt: { not: null } }
+        ? { isCompleted: true }
         : status === 'PENDING'
-        ? { completedAt: null, startedAt: null }
+        ? { isCompleted: false }
         : {}),
-      ...(dueDate && { dueDate: { gte: new Date(dueDate.setHours(0, 0, 0)), lte: new Date(dueDate.setHours(23, 59, 59)) } }),
+      ...(dueDate && { dueAt: { gte: new Date(dueDate.setHours(0, 0, 0)), lte: new Date(dueDate.setHours(23, 59, 59)) } }),
     };
 
     const [total, items] = await Promise.all([
@@ -36,9 +34,9 @@ export class TasksService {
         where,
         include: {
           assignee: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
-          lead:     { select: { id: true, name: true } },
+          lead:     { select: { id: true, firstName: true, lastName: true } },
         },
-        orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
+        orderBy: [{ dueAt: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -51,32 +49,28 @@ export class TasksService {
     title: string;
     description?: string;
     dueDate?: Date;
-    priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    priority?: string;
     taskType?: string;
     assigneeId?: string;
     leadId?: string;
     contactId?: string;
     dealId?: string;
-    reminderAt?: Date;
   }) {
     return this.prisma.task.create({
       data: {
         organizationId,
-        creatorId,
+        createdById: creatorId,
         title:       dto.title,
         description: dto.description,
-        dueDate:     dto.dueDate,
-        priority:    dto.priority ?? 'MEDIUM',
-        taskType:    dto.taskType ?? 'FOLLOW_UP',
+        dueAt:       dto.dueDate,
         assigneeId:  dto.assigneeId ?? creatorId,
         leadId:      dto.leadId,
         contactId:   dto.contactId,
         dealId:      dto.dealId,
-        reminderAt:  dto.reminderAt,
       },
       include: {
         assignee: { select: { id: true, firstName: true, lastName: true } },
-        lead:     { select: { id: true, name: true } },
+        lead:     { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -86,7 +80,7 @@ export class TasksService {
     if (!task) throw new NotFoundException('Task not found');
     return this.prisma.task.update({
       where: { id },
-      data: { completedAt: new Date(), completedById: userId },
+      data: { isCompleted: true, completedAt: new Date() },
     });
   }
 
@@ -105,7 +99,7 @@ export class TasksService {
 
   async getOverdueCount(organizationId: string) {
     return this.prisma.task.count({
-      where: { organizationId, completedAt: null, dueDate: { lt: new Date() } },
+      where: { organizationId, isCompleted: false, dueAt: { lt: new Date() } },
     });
   }
 
@@ -114,9 +108,9 @@ export class TasksService {
     const start = new Date(today.setHours(0, 0, 0, 0));
     const end   = new Date(today.setHours(23, 59, 59, 999));
     return this.prisma.task.findMany({
-      where: { organizationId, assigneeId: userId, dueDate: { gte: start, lte: end } },
-      include: { lead: { select: { id: true, name: true } } },
-      orderBy: { priority: 'desc' },
+      where: { organizationId, assigneeId: userId, dueAt: { gte: start, lte: end } },
+      include: { lead: { select: { id: true, firstName: true, lastName: true } } },
+      orderBy: { dueAt: 'asc' },
     });
   }
 }
