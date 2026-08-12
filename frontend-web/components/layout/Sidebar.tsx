@@ -97,13 +97,34 @@ export function Sidebar() {
   const pathname = usePathname();
   const { currentUser, subscription, canEdit, isSeatExceeded } = useAuth();
 
-  const userRole = currentUser.role;
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+
+  const normalizeRole = (r?: string): string => {
+    const norm = (r || '').toString().trim().toUpperCase();
+    if (norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP') return 'SALES_EXEC';
+    if (norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
+    if (norm === 'OWNER' || norm === 'TENANT_ADMIN' || norm === 'COMPANY_ADMIN') return 'ADMIN';
+    if (norm === 'SUPERADMIN' || norm === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
+    if (norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
+    if (norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
+    return norm;
+  };
+
+  const currentNormalizedRole = normalizeRole(rawRole);
 
   const filteredNav = navigation
-    .filter(group => !group.roles || group.roles.includes(userRole))
+    .filter(group => {
+      if (!group.roles) return true;
+      const normalizedGroupRoles = group.roles.map(r => normalizeRole(r));
+      return normalizedGroupRoles.includes(currentNormalizedRole);
+    })
     .map(group => ({
       ...group,
-      items: group.items.filter(item => !item.roles || item.roles.includes(userRole)),
+      items: group.items.filter(item => {
+        if (!item.roles) return true;
+        const normalizedItemRoles = item.roles.map(r => normalizeRole(r));
+        return normalizedItemRoles.includes(currentNormalizedRole);
+      }),
     }))
     .filter(group => group.items.length > 0);
 

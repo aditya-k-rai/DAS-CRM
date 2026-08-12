@@ -10,21 +10,33 @@ import { EmployeeRoleDashboard } from './EmployeeRoleDashboard';
 
 export function RoleDashboardRouter() {
   const { currentUser } = useAuth();
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
 
-  switch (currentUser.role) {
-    case 'SUPER_ADMIN':
-      return <SuperAdminDashboard />;
-    case 'ADMIN':
-      return <TenantAdminDashboard />;
-    case 'HR':
-      return <HRRoleDashboard />;
-    case 'MANAGER':
-      return <ManagerRoleDashboard />;
-    case 'TEAM_LEADER':
-      return <TeamLeaderRoleDashboard />;
-    case 'SALES_EXEC':
-      return <EmployeeRoleDashboard />;
-    default:
-      return <TenantAdminDashboard />;
+  // Normalize role string and match against role dashboard implementations
+  if (rawRole === 'SUPER_ADMIN' || rawRole === 'SYSTEM_ADMIN' || rawRole === 'SUPERADMIN') {
+    return <SuperAdminDashboard />;
   }
+
+  if (rawRole === 'ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'OWNER' || rawRole === 'COMPANY_ADMIN') {
+    return <TenantAdminDashboard />;
+  }
+
+  if (rawRole === 'HR' || rawRole === 'HR_MANAGER' || rawRole === 'HUMAN_RESOURCES') {
+    return <HRRoleDashboard />;
+  }
+
+  if (rawRole === 'MANAGER' || rawRole === 'DEPT_MANAGER' || rawRole === 'SALES_MANAGER') {
+    return <ManagerRoleDashboard />;
+  }
+
+  if (rawRole === 'TEAM_LEADER' || rawRole === 'TL' || rawRole === 'LEAD') {
+    return <TeamLeaderRoleDashboard />;
+  }
+
+  if (rawRole === 'SALES_EXEC' || rawRole === 'EMPLOYEE' || rawRole === 'STAFF' || rawRole === 'REP' || rawRole === 'EXECUTIVE' || rawRole === 'SALES_REP') {
+    return <EmployeeRoleDashboard />;
+  }
+
+  // Fallback
+  return <TenantAdminDashboard />;
 }

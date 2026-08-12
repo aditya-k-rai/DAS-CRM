@@ -218,13 +218,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
+  const normalizeRoleStr = (r?: string): UserRole => {
+    const norm = (r || '').toString().trim().toUpperCase();
+    if (norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP') return 'SALES_EXEC';
+    if (norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
+    if (norm === 'OWNER' || norm === 'TENANT_ADMIN' || norm === 'COMPANY_ADMIN') return 'ADMIN';
+    if (norm === 'SUPERADMIN' || norm === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
+    if (norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
+    if (norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
+    return (norm as UserRole) || 'ADMIN';
+  };
+
   const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription) => {
-    setCurrentUser(user);
+    const normalizedUser = {
+      ...user,
+      role: normalizeRoleStr(user.role),
+    };
+    setCurrentUser(normalizedUser);
     setToken(newTok);
     if (sub) setSubscription(sub);
-    localStorage.setItem('nexcrm_user', JSON.stringify(user));
+    localStorage.setItem('nexcrm_user', JSON.stringify(normalizedUser));
     localStorage.setItem('nexcrm_token', newTok);
-    localStorage.setItem('nexcrm_active_role', user.role);
+    localStorage.setItem('nexcrm_active_role', normalizedUser.role);
   };
 
   const logout = () => {
