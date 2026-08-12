@@ -4,9 +4,59 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, Layers
+  Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, Layers, MapPin, Search, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+
+// Offline Pincode Dictionary for Instant Auto-Fill Fallback
+const PINCODE_DICTIONARY: Record<string, { city: string; state: string }> = {
+  '400001': { city: 'Mumbai', state: 'Maharashtra' },
+  '400051': { city: 'Bandra Mumbai', state: 'Maharashtra' },
+  '400099': { city: 'Mumbai International Airport', state: 'Maharashtra' },
+  '411001': { city: 'Pune', state: 'Maharashtra' },
+  '110001': { city: 'New Delhi', state: 'Delhi' },
+  '110020': { city: 'South Delhi', state: 'Delhi' },
+  '201301': { city: 'Noida', state: 'Uttar Pradesh' },
+  '122001': { city: 'Gurugram', state: 'Haryana' },
+  '560001': { city: 'Bengaluru', state: 'Karnataka' },
+  '560034': { city: 'Koramangala Bengaluru', state: 'Karnataka' },
+  '500001': { city: 'Hyderabad', state: 'Telangana' },
+  '600001': { city: 'Chennai', state: 'Tamil Nadu' },
+  '700001': { city: 'Kolkata', state: 'West Bengal' },
+  '380001': { city: 'Ahmedabad', state: 'Gujarat' },
+  '302001': { city: 'Jaipur', state: 'Rajasthan' },
+  '226001': { city: 'Lucknow', state: 'Uttar Pradesh' },
+  '160017': { city: 'Chandigarh', state: 'Punjab' },
+  '452001': { city: 'Indore', state: 'Madhya Pradesh' },
+  '751001': { city: 'Bhubaneswar', state: 'Odisha' },
+  '800001': { city: 'Patna', state: 'Bihar' },
+  '781001': { city: 'Guwahati', state: 'Assam' },
+};
+
+const INDUSTRY_SECTORS = [
+  'Technology & SaaS',
+  'Real Estate & Construction',
+  'Automobile & Dealerships',
+  'Financial Services & Banking',
+  'Healthcare & Pharmaceuticals',
+  'Retail & E-Commerce',
+  'Education & EdTech',
+  'Manufacturing & Industrial',
+  'Media, Advertising & PR',
+  'Logistics & Supply Chain',
+  'Hospitality & Tourism',
+  'Energy, Solar & Utilities',
+  'Professional Services & Consulting',
+  'FMCG & Consumer Goods',
+  'Telecommunications',
+  'Insurance & Broking',
+  'Textile & Apparel',
+  'Agriculture & AgriTech',
+  'Food & Beverage (F&B)',
+  'Legal & Corporate Compliance',
+  'Non-Profit & NGO',
+  'Other / Custom Sector',
+];
 
 export default function RegisterCompanyPage() {
   const [companyName, setCompanyName]         = useState('');
@@ -14,6 +64,7 @@ export default function RegisterCompanyPage() {
   const [adminEmail, setAdminEmail]           = useState('');
   const [adminPassword, setAdminPassword]     = useState('');
   const [phone, setPhone]                     = useState('');
+  const [pincode, setPincode]                 = useState('');
   const [city, setCity]                       = useState('');
   const [state, setState]                     = useState('');
   const [gstNumber, setGstNumber]             = useState('');
@@ -21,12 +72,58 @@ export default function RegisterCompanyPage() {
   const [sector, setSector]                   = useState('Technology & SaaS');
   const [selectedPlan, setSelectedPlan]       = useState<'FREE_TRIAL' | 'GROWTH' | 'ENTERPRISE'>('FREE_TRIAL');
 
+  const [pincodeLoading, setPincodeLoading]   = useState(false);
+  const [pincodeSuccessMsg, setPincodeSuccessMsg] = useState<string | null>(null);
+
   const [error, setError]                     = useState<string | null>(null);
   const [loading, setLoading]                 = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState<any>(null);
 
   const router = useRouter();
   const { setAuthSession } = useAuth();
+
+  // Pincode Lookup & Auto-Sync Engine (City & State)
+  const handlePincodeChange = async (val: string) => {
+    const cleanedPin = val.replace(/[^0-9]/g, '').slice(0, 6);
+    setPincode(cleanedPin);
+    setPincodeSuccessMsg(null);
+
+    if (cleanedPin.length === 6) {
+      setPincodeLoading(true);
+
+      // Check Offline Dictionary First for Instant Sync
+      if (PINCODE_DICTIONARY[cleanedPin]) {
+        const info = PINCODE_DICTIONARY[cleanedPin];
+        setCity(info.city);
+        setState(info.state);
+        setPincodeSuccessMsg(`✓ Auto-synced City: ${info.city}, State: ${info.state}`);
+        setPincodeLoading(false);
+        return;
+      }
+
+      // Query Live Indian Postal Pincode API
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${cleanedPin}`);
+        const data = await res.json();
+
+        if (Array.isArray(data) && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+          const po = data[0].PostOffice[0];
+          const fetchedCity = po.District || po.Block || po.Name;
+          const fetchedState = po.State;
+
+          if (fetchedCity) setCity(fetchedCity);
+          if (fetchedState) setState(fetchedState);
+          setPincodeSuccessMsg(`✓ Auto-synced City: ${fetchedCity}, State: ${fetchedState}`);
+        } else {
+          setPincodeSuccessMsg('⚠️ Pincode checked. You can enter City and State manually.');
+        }
+      } catch (err) {
+        setPincodeSuccessMsg('⚠️ Offline Mode. You can enter City & State manually.');
+      } finally {
+        setPincodeLoading(false);
+      }
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +147,7 @@ export default function RegisterCompanyPage() {
           adminEmail,
           adminPassword,
           phone,
+          pincode,
           city,
           state,
           gstNumber,
@@ -279,24 +377,47 @@ export default function RegisterCompanyPage() {
                   />
                 </div>
 
+                {/* ── PINCODE FIELD (PLACED DIRECTLY AFTER PHONE NUMBER) ─────────── */}
                 <div>
-                  <label className="text-xs text-muted block mb-1">City *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-muted block">Pincode / ZIP Code (Auto Syncs City & State) *</label>
+                    {pincodeLoading && (
+                      <span className="text-[10px] text-brand-400 font-bold flex items-center gap-1">
+                        <RefreshCw size={10} className="animate-spin" /> Lookup...
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="e.g. 400001 or 110001"
+                    className="crm-input text-sm font-mono font-bold text-amber-300"
+                    value={pincode}
+                    onChange={(e) => handlePincodeChange(e.target.value)}
+                  />
+                  {pincodeSuccessMsg && (
+                    <p className="text-[10px] font-bold text-emerald-400 mt-1">{pincodeSuccessMsg}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted block mb-1">City (Auto-Synced & Editable) *</label>
                   <input
                     type="text"
                     required
                     placeholder="Mumbai"
-                    className="crm-input text-sm"
+                    className="crm-input text-sm font-medium"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">State</label>
+                  <label className="text-xs text-muted block mb-1">State (Auto-Synced & Editable) *</label>
                   <input
                     type="text"
                     placeholder="Maharashtra"
-                    className="crm-input text-sm"
+                    className="crm-input text-sm font-medium"
                     value={state}
                     onChange={(e) => setState(e.target.value)}
                   />
@@ -327,18 +448,19 @@ export default function RegisterCompanyPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs text-muted block mb-1">Industry Sector</label>
+                {/* ── EXPANDED INDUSTRY SECTOR SELECTOR (22 OPTIONS) ───────────────── */}
+                <div className="md:col-span-2">
+                  <label className="text-xs text-muted block mb-1">Industry Sector (22 Options) *</label>
                   <select
-                    className="crm-input text-sm font-bold"
+                    className="crm-input text-sm font-bold text-indigo-300"
                     value={sector}
                     onChange={(e) => setSector(e.target.value)}
                   >
-                    <option value="Technology & SaaS">Technology & SaaS</option>
-                    <option value="Real Estate & Construction">Real Estate & Construction</option>
-                    <option value="Automobile & Dealerships">Automobile & Dealerships</option>
-                    <option value="Financial Services">Financial Services</option>
-                    <option value="Healthcare & Retail">Healthcare & Retail</option>
+                    {INDUSTRY_SECTORS.map((s, idx) => (
+                      <option key={s} value={s}>
+                        {idx + 1}. {s}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
