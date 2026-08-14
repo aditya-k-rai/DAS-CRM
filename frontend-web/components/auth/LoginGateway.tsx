@@ -478,22 +478,6 @@ export function LoginGateway() {
                 </div>
               </div>
             </div>
-
-            {/* 3. Super Admin Control Plane Option */}
-            <div
-              onClick={() => { setEntryPoint('superadmin'); setError(null); setSuccessMsg(null); }}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${entryPoint === 'superadmin' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-card border-border text-muted hover:text-white'}`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center flex-shrink-0">
-                  <Shield size={16} />
-                </div>
-                <div>
-                  <p className="font-bold text-xs">Super-Admin Control Plane</p>
-                  <p className="text-[10px] text-muted">Web Only · Email OTP Guarded</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -753,75 +737,6 @@ export function LoginGateway() {
           </div>
         )}
 
-        {/* Entry 3: Super Admin Control Plane */}
-        {entryPoint === 'superadmin' && (
-          <div className="space-y-4">
-            <div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                SUPER-ADMIN SECURITY GATEWAY
-              </span>
-              <h3 className="text-xl font-bold text-white mt-2">Platform Developer Portal</h3>
-              <p className="text-xs text-muted mt-0.5">Guarded via One-Time Passcode (OTP) sent directly to your authorized developer email.</p>
-            </div>
-
-            {!otpSent ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted block mb-1">Super-Admin Email *</label>
-                  <div className="relative flex items-center">
-                    <Mail size={15} className="absolute left-3 text-purple-400" />
-                    <input
-                      className="crm-input pl-9 text-sm h-10 w-full"
-                      value={superAdminEmail}
-                      onChange={e => setSuperAdminEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSuperAdminRequestOtp}
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
-                >
-                  {loading ? 'Sending Code...' : 'Request One-Time Passcode (OTP)'} <ArrowRight size={15} />
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted block mb-1">Enter 6-Digit OTP Security Code *</label>
-                  <input
-                    className="crm-input font-mono text-center tracking-[0.5em] text-lg font-bold h-12 w-full"
-                    placeholder="123456"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={e => setOtpCode(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  onClick={handleSuperAdminVerifyOtp}
-                  disabled={loading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
-                >
-                  {loading ? 'Verifying...' : 'Verify OTP & Open Platform Control Center'} <ArrowRight size={15} />
-                </button>
-              </div>
-            )}
-
-            {successMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 size={14} /> {successMsg}
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-                <AlertCircle size={14} /> {error}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Forgot Password OTP Modal */}

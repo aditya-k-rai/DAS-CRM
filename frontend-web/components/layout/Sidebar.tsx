@@ -29,13 +29,6 @@ interface NavGroup {
 
 const navigation: NavGroup[] = [
   {
-    group: 'SUPER ADMIN',
-    roles: ['SUPER_ADMIN'],
-    items: [
-      { label: 'Administrative Portal', href: '/admin/super', icon: Crown, roles: ['SUPER_ADMIN'] },
-    ],
-  },
-  {
     group: 'MAIN',
     roles: ['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
     items: [
