@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { SuperAdminDashboard } from '@/components/admin/SuperAdminDashboard';
 import { TenantAdminDashboard } from './TenantAdminDashboard';
@@ -10,17 +12,32 @@ import { EmployeeRoleDashboard } from './EmployeeRoleDashboard';
 
 export function RoleDashboardRouter() {
   const { currentUser } = useAuth();
+  const router = useRouter();
+
+  const resolvedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
 
   // Security Check: SuperAdminDashboard is ONLY rendered if user email is explicitly adtyamighty@gmail.com with SUPER_ADMIN role
   const isGenuineSuperAdmin =
     currentUser?.role === 'SUPER_ADMIN' &&
     currentUser?.email?.toLowerCase() === 'adtyamighty@gmail.com';
 
+  useEffect(() => {
+    if (isGenuineSuperAdmin) return;
+
+    if (resolvedRole === 'HR') {
+      router.replace('/hr');
+    } else if (resolvedRole === 'MANAGER') {
+      router.replace('/dashboard/manager');
+    } else if (resolvedRole === 'TEAM_LEADER') {
+      router.replace('/dashboard/team-leader');
+    } else if (resolvedRole === 'SALES_EXEC') {
+      router.replace('/dashboard/sales');
+    }
+  }, [resolvedRole, isGenuineSuperAdmin, router]);
+
   if (isGenuineSuperAdmin) {
     return <SuperAdminDashboard />;
   }
-
-  const resolvedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
 
   // 1. HR & Payroll Dashboard
   if (resolvedRole === 'HR') {
@@ -43,10 +60,5 @@ export function RoleDashboardRouter() {
   }
 
   // 5. Tenant / Company Admin Dashboard (Default)
-  if (resolvedRole === 'ADMIN') {
-    return <TenantAdminDashboard />;
-  }
-
-  // Safe Fallback for any workspace user
   return <TenantAdminDashboard />;
 }

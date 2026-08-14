@@ -72,25 +72,11 @@ interface WhatsAppDailyLog {
   activeChats: number;
 }
 
-const INITIAL_COMPANIES: CompanyRecord[] = [
-  { id: 'comp_1', name: 'Acme Sales Solutions', adminName: 'Vikram Singh', adminEmail: 'vikram.admin@acme.com', registrationKey: 'ACME-KX-7421', plan: 'FREE_TRIAL', trialDaysLeft: 14, isExpired: false, seatsAllocated: 6, seatsUsed: 4, totalUsersCount: 4, totalLeads: 142, convertedLeads: 38, conversionRate: 27, isActive: true, createdAt: '2026-08-01', expiryDate: '2026-08-28', whatsappUsed: 36747, whatsappLimit: 54454 },
-  { id: 'comp_2', name: 'Sunita Real Estate Ltd', adminName: 'Sunita Sharma', adminEmail: 'sunita@sunitare.in', registrationKey: 'SUNI-KX-8812', plan: 'PRO', trialDaysLeft: 0, isExpired: false, seatsAllocated: 20, seatsUsed: 14, totalUsersCount: 14, totalLeads: 450, convertedLeads: 112, conversionRate: 25, isActive: true, createdAt: '2026-07-15', expiryDate: '2026-09-15', whatsappUsed: 34234, whatsappLimit: 425245 },
-  { id: 'comp_3', name: 'Lakshmi Auto Dealerships', adminName: 'Ramesh Patel', adminEmail: 'ramesh@lakshmiauto.com', registrationKey: 'LAKS-KX-3301', plan: 'STARTER', trialDaysLeft: 0, isExpired: false, seatsAllocated: 6, seatsUsed: 5, totalUsersCount: 5, totalLeads: 88, convertedLeads: 19, conversionRate: 22, isActive: true, createdAt: '2026-08-05', expiryDate: '2026-09-05', whatsappUsed: 12450, whatsappLimit: 25000 },
-  { id: 'comp_4', name: 'TechCorp Enterprise', adminName: 'Kavita Nair', adminEmail: 'kavita@techcorp.io', registrationKey: 'TECH-KX-9941', plan: 'PRO_MAX', trialDaysLeft: 0, isExpired: false, seatsAllocated: 100, seatsUsed: 62, totalUsersCount: 62, totalLeads: 1240, convertedLeads: 420, conversionRate: 34, isActive: true, createdAt: '2026-06-10', expiryDate: '2027-06-10', whatsappUsed: 189200, whatsappLimit: 500000 },
-];
+const INITIAL_COMPANIES: CompanyRecord[] = [];
 
-const INITIAL_KEYS: KeyRecord[] = [
-  { id: 'key_1', key: 'ACME-KX-7421', companyName: 'Acme Sales Solutions', planTier: 'FREE_TRIAL', memberLimit: 6, validityDays: 14, status: 'USED', expiresAt: '2026-08-28', createdAt: '2026-08-01' },
-  { id: 'key_2', key: 'SUNI-KX-8812', companyName: 'Sunita Real Estate Ltd', planTier: 'PRO', memberLimit: 20, validityDays: 30, status: 'USED', expiresAt: '2026-09-15', createdAt: '2026-07-15' },
-  { id: 'key_3', key: 'LAKS-KX-3301', companyName: 'Lakshmi Auto Dealerships', planTier: 'STARTER', memberLimit: 6, validityDays: 30, status: 'USED', expiresAt: '2026-09-05', createdAt: '2026-08-05' },
-  { id: 'key_4', key: 'TECH-KX-9941', companyName: 'TechCorp Enterprise', planTier: 'PRO_MAX', memberLimit: 100, validityDays: 365, status: 'USED', expiresAt: '2027-06-10', createdAt: '2026-06-10' },
-  { id: 'key_5', key: 'GLOB-KX-4109', companyName: 'Global Logistics Corp', planTier: 'PRO', memberLimit: 25, validityDays: 30, status: 'ACTIVE', expiresAt: '2026-09-20', createdAt: '2026-08-14' },
-];
+const INITIAL_KEYS: KeyRecord[] = [];
 
-const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [
-  { id: 'upg_1', companyName: 'Acme Sales Solutions', requestedPlan: 'PRO Plan', amountInr: 4999, razorpayOrderId: 'order_Nx7K92M', status: 'PENDING_APPROVAL', requestedAt: 'Today at 14:32' },
-  { id: 'upg_2', companyName: 'Lakshmi Auto Dealerships', requestedPlan: 'Pro 50 Plan', amountInr: 9999, razorpayOrderId: 'order_Lk882A', status: 'PENDING_APPROVAL', requestedAt: 'Yesterday' },
-];
+const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [];
 
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(INITIAL_COMPANIES);

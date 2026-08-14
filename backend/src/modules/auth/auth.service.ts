@@ -330,6 +330,16 @@ export class AuthService {
       );
     }
 
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { organizationId: keyRecord.organizationId },
+    });
+
+    if (subscription && subscription.userSeatsUsed >= subscription.memberLimit) {
+      throw new BadRequestException(
+        `Member seat limit reached for your company plan (${subscription.memberLimit} seats max). Please contact your Tenant Admin to upgrade your plan.`,
+      );
+    }
+
     const existing = await this.prisma.user.findFirst({
       where: { organizationId: keyRecord.organizationId, email: dto.email },
     });
