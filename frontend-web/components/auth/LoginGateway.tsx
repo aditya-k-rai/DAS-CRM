@@ -7,7 +7,7 @@ import {
   Shield, Key, Lock, Mail, Building2, UserCheck, ArrowRight,
   Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check
 } from 'lucide-react';
-import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
+import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail, validateEmailRoleMatch } from '@/context/AuthContext';
 
 interface PublicCompany {
   id: string;
@@ -91,6 +91,15 @@ export function LoginGateway() {
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
       setError('Please enter your Company Registration Key or User Key.');
+      return;
+    }
+
+    // Role vs Email validation check
+    const matchCheck = validateEmailRoleMatch(email, selectedRole);
+    if (!matchCheck.valid && matchCheck.expectedRole) {
+      setError(
+        `Wrong credential or role mismatch: The account "${email}" is assigned to role "${matchCheck.expectedRole.replace('_', ' ')}", not "${selectedRole.replace('_', ' ')}". Please check your email, password, and selected role.`
+      );
       return;
     }
 

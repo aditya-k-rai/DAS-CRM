@@ -12,7 +12,7 @@ export default function HRPage() {
   const [activeTab, setActiveTab] = useState<'attendance' | 'call_audit'>('attendance');
 
   return (
-    <RoleGuard allowedRoles={['HR', 'ADMIN', 'SUPER_ADMIN']}>
+    <RoleGuard allowedRoles={['HR']} fallbackTitle="HR Portal & Employee Audits is restricted exclusively to HR personnel.">
       <div className="flex-1 flex flex-col min-h-0">
         <Topbar
           title="HR Portal & Employee Audits"

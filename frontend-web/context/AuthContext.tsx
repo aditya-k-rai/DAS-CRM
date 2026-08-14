@@ -179,6 +179,16 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   return null;
 }
 
+export function validateEmailRoleMatch(email?: string | null, selectedRole?: UserRole): { valid: boolean; expectedRole?: UserRole } {
+  if (!email || !selectedRole) return { valid: true };
+  const expected = inferRoleFromEmail(email);
+  if (!expected) return { valid: true };
+  return {
+    valid: normalizeRoleStr(expected) === normalizeRoleStr(selectedRole),
+    expectedRole: expected,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     if (typeof window !== 'undefined') {
