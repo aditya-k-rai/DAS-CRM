@@ -17,7 +17,7 @@ import { PipelinesService } from './pipelines.service';
 @ApiTags('Pipelines')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
-@Controller('api/v1/pipelines')
+@Controller('pipelines')
 export class PipelinesController {
   constructor(private readonly pipelinesService: PipelinesService) {}
 

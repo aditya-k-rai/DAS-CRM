@@ -5,7 +5,7 @@ import { KeyStatus, PlanTier } from '@prisma/client';
 
 export interface GenerateCompanyKeyOptions {
   companyName: string;
-  superAdminId: string;
+  superAdminId?: string;
   planTier: PlanTier;
   memberLimit: number;
   validityDays: number;
@@ -39,11 +39,25 @@ export class CompanyKeyService {
       Date.now() + opts.validityDays * 24 * 60 * 60 * 1000,
     );
 
+    let superAdmin = await this.prisma.superAdmin.findFirst({
+      where: { email: 'adtyamighty@gmail.com' },
+    });
+    if (!superAdmin) {
+      superAdmin = await this.prisma.superAdmin.create({
+        data: {
+          email: 'adtyamighty@gmail.com',
+          name: 'Aditya Rai (Super Admin)',
+          isActive: true,
+        },
+      });
+    }
+    const adminId = opts.superAdminId || superAdmin.id;
+
     const record = await this.prisma.companyRegistrationKey.create({
       data: {
         key,
         qrCodeDataUrl,
-        createdBySuperAdminId: opts.superAdminId,
+        createdBySuperAdminId: opts.superAdminId || superAdmin?.id || null,
         planTier: opts.planTier,
         memberLimit: opts.memberLimit,
         validityDays: opts.validityDays,

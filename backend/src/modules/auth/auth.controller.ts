@@ -24,7 +24,7 @@ import { PlanTier, UserRole } from '@prisma/client';
 import { GoogleLoginDto } from './dto/google-login.dto';
 
 @ApiTags('Auth')
-@Controller('api/v1/auth')
+@Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,

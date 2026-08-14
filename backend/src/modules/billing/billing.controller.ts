@@ -15,7 +15,7 @@ import { PlanTier } from '@prisma/client';
 @ApiTags('Billing')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
-@Controller('api/v1/billing')
+@Controller('billing')
 export class BillingController {
   constructor(private billingService: BillingService) {}
 

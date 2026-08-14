@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,8 @@ import { MailService } from './mail.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -117,7 +120,6 @@ export class AuthService {
         planTier: 'FREE_TRIAL',
         memberLimit: 6,
         validityDays: 7,
-        superAdminId: 'system',
       });
     }
 
@@ -273,16 +275,20 @@ export class AuthService {
       result.org.id,
     );
 
-    // Send Confirmation Email with Key & Credentials
-    await this.mailService.sendCompanyRegistrationEmail({
-      adminEmail: dto.adminEmail,
-      adminName: dto.adminName,
-      companyName: dto.companyName,
-      key: keyRecord.key,
-      planTier: keyRecord.planTier,
-      memberLimit: keyRecord.memberLimit,
-      validityDays: keyRecord.validityDays,
-    });
+    // Send Confirmation Email with Key & Credentials (safely caught if SMTP unconfigured)
+    try {
+      await this.mailService.sendCompanyRegistrationEmail({
+        adminEmail: dto.adminEmail,
+        adminName: dto.adminName,
+        companyName: dto.companyName,
+        key: keyRecord.key,
+        planTier: keyRecord.planTier,
+        memberLimit: keyRecord.memberLimit,
+        validityDays: keyRecord.validityDays,
+      });
+    } catch (mailErr) {
+      this.logger.warn(`SMTP Mail Dispatch Notice: Registration confirmation email could not be sent to ${dto.adminEmail}: ${mailErr?.message}`);
+    }
 
     const tokens = await this.generateTokens(
       result.user.id,

@@ -17,7 +17,7 @@ import { RecordScope } from '@prisma/client';
 @ApiTags('Roles & RBAC')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
-@Controller('api/v1/roles')
+@Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

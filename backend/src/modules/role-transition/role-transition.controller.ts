@@ -17,7 +17,7 @@ import { UserRole } from '@prisma/client';
 @ApiTags('Role Transition')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
-@Controller('api/v1/role-transition')
+@Controller('role-transition')
 export class RoleTransitionController {
   constructor(private roleTransitionService: RoleTransitionService) {}
 
