@@ -146,12 +146,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('nexcrm_user');
       if (stored) {
-        try { return JSON.parse(stored); } catch (e) {}
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.role) {
+            // Security Check: Sanitize unauthorized SUPER_ADMIN role if email is not adtyamighty@gmail.com
+            if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
+              parsed.role = 'ADMIN';
+            }
+            return parsed;
+          }
+        } catch (e) {}
       }
-      const role = (localStorage.getItem('nexcrm_active_role') as UserRole) || 'SUPER_ADMIN';
-      return DEMO_USERS[role] || DEMO_USERS.SUPER_ADMIN;
+      const role = (localStorage.getItem('nexcrm_active_role') as UserRole) || 'ADMIN';
+      const safeRole = (role === 'SUPER_ADMIN' ? 'ADMIN' : role) as UserRole;
+      return DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
     }
-    return DEMO_USERS.SUPER_ADMIN;
+    return DEMO_USERS.ADMIN;
   });
 
   const [subscription, setSubscription] = useState<CompanySubscription>(MOCK_COMPANY_SUB);
