@@ -330,11 +330,15 @@ export class AuthService {
       );
     }
 
+    const currentUsersCount = await this.prisma.user.count({
+      where: { organizationId: keyRecord.organizationId, isActive: true },
+    });
+
     const subscription = await this.prisma.subscription.findUnique({
       where: { organizationId: keyRecord.organizationId },
     });
 
-    if (subscription && subscription.userSeatsUsed >= subscription.memberLimit) {
+    if (subscription && currentUsersCount >= subscription.memberLimit) {
       throw new BadRequestException(
         `Member seat limit reached for your company plan (${subscription.memberLimit} seats max). Please contact your Tenant Admin to upgrade your plan.`,
       );
@@ -1044,5 +1048,63 @@ export class AuthService {
         role: { include: { permissions: { include: { permission: true } } } },
       },
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // FORGOT PASSWORD / PASSWORD RESET FLOW
+  // ═══════════════════════════════════════════════════════════
+
+  private resetOtps = new Map<string, { otp: string; expiresAt: number }>();
+
+  async requestPasswordReset(email: string) {
+    const emailLower = email.toLowerCase().trim();
+    const user = await this.prisma.user.findFirst({
+      where: { email: emailLower },
+    });
+
+    if (!user) {
+      return {
+        message: `If an account with ${email} exists, a 6-digit password reset OTP code has been sent.`,
+      };
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    this.resetOtps.set(emailLower, { otp, expiresAt });
+
+    await this.mailService.sendPasswordResetOtp(emailLower, otp);
+
+    return {
+      message: `Password reset OTP has been sent to ${emailLower}. Valid for 15 minutes.`,
+    };
+  }
+
+  async resetPassword(dto: { email: string; otp: string; newPassword: string }) {
+    const emailLower = dto.email.toLowerCase().trim();
+    const record = this.resetOtps.get(emailLower);
+
+    if (!record || record.otp !== dto.otp.trim() || Date.now() > record.expiresAt) {
+      throw new BadRequestException('Invalid or expired password reset OTP code.');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { email: emailLower },
+    });
+    if (!user) throw new BadRequestException('User account not found.');
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    this.resetOtps.delete(emailLower);
+
+    return {
+      success: true,
+      message: 'Password reset successfully! You can now log in with your new password.',
+    };
   }
 }

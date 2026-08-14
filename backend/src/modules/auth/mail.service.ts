@@ -36,10 +36,31 @@ export class MailService {
           </div>`,
       });
     } catch (err) {
-      console.warn(
-        '[MailService] Could not send Super Admin OTP email (check SMTP credentials):',
-        err,
-      );
+      console.warn('[MailService] Could not send Super Admin OTP email:', err);
+    }
+  }
+
+  async sendPasswordResetOtp(email: string, otp: string): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: `"NexCRM Security" <${process.env.SMTP_FROM || 'dynamicadvancesolution@gmail.com'}>`,
+        to: email,
+        subject: '🔑 NexCRM — Password Reset OTP Code',
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+            <h2 style="color: #6366f1; margin: 0 0 16px;">Password Reset Request</h2>
+            <p style="color: #374151;">We received a request to reset your NexCRM account password.</p>
+            <p style="color: #374151;">Use the following 6-digit OTP code to verify your identity and set a new password:</p>
+            <div style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #4f46e5; background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+              ${otp}
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">This OTP is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
+            <hr style="border-color: #e5e7eb; margin: 20px 0;" />
+            <p style="color: #9ca3af; font-size: 12px;">Sent automatically by NexCRM Account Security System.</p>
+          </div>`,
+      });
+    } catch (err) {
+      console.warn('[MailService] Could not send Password Reset OTP email:', err);
     }
   }
 

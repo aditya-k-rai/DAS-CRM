@@ -45,6 +45,16 @@ export function LoginGateway() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
 
+  // Forgot Password State
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState<'email' | 'otp'>('email');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<string | null>(null);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -347,6 +357,75 @@ export function LoginGateway() {
     }, 800);
   };
 
+  // 4. Forgot Password Handlers
+  const handleRequestResetOtp = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError(null);
+    setForgotMsg(null);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setForgotStep('otp');
+        setForgotMsg(data.message || `6-digit reset OTP sent to ${forgotEmail}`);
+      } else {
+        setForgotError(data.message || 'Failed to send password reset email.');
+      }
+    } catch (err) {
+      setForgotError('Network error. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (forgotOtp.length < 6 || !newPassword.trim()) {
+      setForgotError('Please enter a valid 6-digit OTP and new password.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError(null);
+    setForgotMsg(null);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          otp: forgotOtp.trim(),
+          newPassword: newPassword.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setForgotMsg(data.message || 'Password reset successfully! You can now log in.');
+        setTimeout(() => {
+          setForgotModalOpen(false);
+          setPassword(newPassword.trim());
+          setEmail(forgotEmail.trim());
+        }, 1500);
+      } else {
+        setForgotError(data.message || 'Invalid or expired OTP code.');
+      }
+    } catch (err) {
+      setForgotError('Network error. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 rounded-3xl border overflow-hidden shadow-2xl" style={{ borderColor: 'rgb(var(--border))', background: 'rgb(var(--card))' }}>
       {/* Left Column: Entry Mode Selector */}
@@ -533,6 +612,21 @@ export function LoginGateway() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                     />
+                  </div>
+                  <div className="flex justify-end mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotModalOpen(true);
+                        setForgotEmail(email);
+                        setForgotStep('email');
+                        setForgotError(null);
+                        setForgotMsg(null);
+                      }}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium underline"
+                    >
+                      Forgot Password?
+                    </button>
                   </div>
                 </div>
               </div>
@@ -729,6 +823,92 @@ export function LoginGateway() {
           </div>
         )}
       </div>
+
+      {/* Forgot Password OTP Modal */}
+      {forgotModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="crm-card max-w-md w-full p-6 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl relative">
+            <button
+              type="button"
+              onClick={() => setForgotModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold"
+            >
+              ✕
+            </button>
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+              <Key size={18} className="text-indigo-400" /> Reset Account Password
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Enter your registered email address to receive a 6-digit verification code via Gmail SMTP.
+            </p>
+
+            {forgotError && (
+              <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs mb-3 flex items-center gap-2">
+                <AlertCircle size={14} /> {forgotError}
+              </div>
+            )}
+
+            {forgotMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs mb-3 flex items-center gap-2">
+                <CheckCircle2 size={14} /> {forgotMsg}
+              </div>
+            )}
+
+            {forgotStep === 'email' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">Registered Email Address *</label>
+                  <input
+                    className="crm-input text-sm h-10 w-full"
+                    placeholder="e.g. user@company.com"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRequestResetOtp}
+                  disabled={forgotLoading || !forgotEmail.trim()}
+                  className="btn-primary text-sm font-bold w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg"
+                >
+                  {forgotLoading ? 'Sending Reset Code...' : 'Send 6-Digit Reset Code →'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">6-Digit Reset OTP Code *</label>
+                  <input
+                    className="crm-input text-center text-lg font-bold tracking-widest font-mono h-11 w-full"
+                    placeholder="123456"
+                    maxLength={6}
+                    value={forgotOtp}
+                    onChange={e => setForgotOtp(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-300 block mb-1">New Secure Password *</label>
+                  <input
+                    type="password"
+                    className="crm-input text-sm h-10 w-full"
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={forgotLoading || forgotOtp.length < 6 || !newPassword.trim()}
+                  className="btn-primary text-sm font-bold w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg"
+                >
+                  {forgotLoading ? 'Resetting Password...' : 'Verify OTP & Reset Password ✓'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
