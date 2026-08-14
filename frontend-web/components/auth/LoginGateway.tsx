@@ -98,33 +98,17 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
-        let extractedRawRole = selectedRole as string;
-        if (typeof data.user?.role === 'string') {
-          extractedRawRole = data.user.role;
-        } else if (data.user?.role && typeof data.user.role.name === 'string') {
-          extractedRawRole = data.user.role.name;
-        } else if (typeof data.user?.roleName === 'string') {
-          extractedRawRole = data.user.roleName;
-        }
-
-        const normRole = ((): UserRole => {
-          const r = extractedRawRole.toString().toUpperCase().trim();
-          if (r === 'SUPER_ADMIN' || r === 'SUPERADMIN' || r === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
-          if (r === 'ADMIN' || r === 'TENANT_ADMIN' || r === 'OWNER' || r === 'COMPANY_ADMIN') return 'ADMIN';
-          if (r === 'HR' || r === 'HR_MANAGER' || r === 'HUMAN_RESOURCES') return 'HR';
-          if (r === 'MANAGER' || r === 'DEPT_MANAGER' || r === 'SALES_MANAGER') return 'MANAGER';
-          if (r === 'TEAM_LEADER' || r === 'TL' || r === 'LEAD') return 'TEAM_LEADER';
-          if (r === 'SALES_EXEC' || r === 'EMPLOYEE' || r === 'STAFF' || r === 'REP' || r === 'EXECUTIVE' || r === 'SALES_REP' || r === 'SALES') return 'SALES_EXEC';
-          return selectedRole;
-        })();
+        // Enforce the target role selected by the user on the Login Gateway
+        const finalRole: UserRole = selectedRole;
+        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
         setAuthSession(
           {
-            id: data.user.id,
-            name: `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() || DEMO_USERS[selectedRole]?.name || 'User Account',
-            email: data.user.email,
-            role: normRole,
-            avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : selectedRole.slice(0, 2),
+            id: data.user?.id || demoProfile.id,
+            name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || demoProfile.name,
+            email: data.user?.email || email,
+            role: finalRole,
+            avatar: data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : demoProfile.avatar,
             companyId: data.organization?.id || selectedCompanyId,
             companyName: data.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Acme Sales Solutions',
           },
