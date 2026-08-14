@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
-  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, UserPlus
+  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall
 } from 'lucide-react';
 import { useAuth, CompanySubscription, PlanType } from '@/context/AuthContext';
 
@@ -26,9 +26,9 @@ interface CompanyRecord {
   conversionRate: number;
   isActive: boolean;
   createdAt: string;
-  phone?: string;
-  companyType?: string;
-  sector?: string;
+  expiryDate: string;
+  whatsappUsed: number;
+  whatsappLimit: number;
 }
 
 interface CompanyEmployee {
@@ -42,41 +42,10 @@ interface CompanyEmployee {
   keyUsed: string;
 }
 
-interface InDepthCompanyDetails {
-  organization: {
-    id: string;
-    name: string;
-    adminName: string;
-    adminEmail: string;
-    phone?: string;
-    city?: string;
-    state?: string;
-    gstNumber?: string;
-    companyType?: string;
-    sector?: string;
-    isActive: boolean;
-    registrationKey: string;
-    createdAt: string;
-  };
-  subscription?: {
-    planTier: PlanType;
-    memberLimit: number;
-    trialExpiresAt?: string;
-  };
-  leadStats: {
-    totalLeads: number;
-    convertedLeads: number;
-    conversionRate: number;
-    totalDeals: number;
-    wonDeals: number;
-    totalRevenue: number;
-  };
-  employees: CompanyEmployee[];
-}
-
 interface KeyRecord {
   id: string;
   key: string;
+  companyName: string;
   planTier: PlanType;
   memberLimit: number;
   validityDays: number;
@@ -84,16 +53,6 @@ interface KeyRecord {
   expiresAt: string;
   createdAt: string;
   qrCodeDataUrl?: string;
-  createdBy?: { email: string };
-}
-
-interface Coupon {
-  id: string;
-  code: string;
-  discountPct: number;
-  planAllowed: string;
-  validUntil: string;
-  usesRemaining: number;
 }
 
 interface UpgradeRequest {
@@ -106,22 +65,26 @@ interface UpgradeRequest {
   requestedAt: string;
 }
 
+interface WhatsAppDailyLog {
+  date: string;
+  messagesSent: number;
+  deliveryRate: number;
+  activeChats: number;
+}
+
 const INITIAL_COMPANIES: CompanyRecord[] = [
-  { id: 'comp_1', name: 'Acme Sales Solutions', adminName: 'Vikram Singh', adminEmail: 'vikram.admin@acme.com', registrationKey: 'ACME-KX-7421', plan: 'FREE_TRIAL', trialDaysLeft: 14, isExpired: false, seatsAllocated: 6, seatsUsed: 4, totalUsersCount: 4, totalLeads: 142, convertedLeads: 38, conversionRate: 27, isActive: true, createdAt: '2026-08-01' },
-  { id: 'comp_2', name: 'Sunita Real Estate Ltd', adminName: 'Sunita Sharma', adminEmail: 'sunita@sunitare.in', registrationKey: 'SUNI-KX-8812', plan: 'PRO', trialDaysLeft: 0, isExpired: false, seatsAllocated: 20, seatsUsed: 14, totalUsersCount: 14, totalLeads: 450, convertedLeads: 112, conversionRate: 25, isActive: true, createdAt: '2026-07-15' },
-  { id: 'comp_3', name: 'Lakshmi Auto Dealerships', adminName: 'Ramesh Patel', adminEmail: 'ramesh@lakshmiauto.com', registrationKey: 'LAKS-KX-3301', plan: 'STARTER', trialDaysLeft: 0, isExpired: false, seatsAllocated: 6, seatsUsed: 5, totalUsersCount: 5, totalLeads: 88, convertedLeads: 19, conversionRate: 22, isActive: true, createdAt: '2026-08-05' },
-  { id: 'comp_4', name: 'TechCorp Enterprise', adminName: 'Kavita Nair', adminEmail: 'kavita@techcorp.io', registrationKey: 'TECH-KX-9941', plan: 'PRO_MAX', trialDaysLeft: 0, isExpired: false, seatsAllocated: 100, seatsUsed: 62, totalUsersCount: 62, totalLeads: 1240, convertedLeads: 420, conversionRate: 34, isActive: true, createdAt: '2026-06-10' },
+  { id: 'comp_1', name: 'Acme Sales Solutions', adminName: 'Vikram Singh', adminEmail: 'vikram.admin@acme.com', registrationKey: 'ACME-KX-7421', plan: 'FREE_TRIAL', trialDaysLeft: 14, isExpired: false, seatsAllocated: 6, seatsUsed: 4, totalUsersCount: 4, totalLeads: 142, convertedLeads: 38, conversionRate: 27, isActive: true, createdAt: '2026-08-01', expiryDate: '2026-08-28', whatsappUsed: 36747, whatsappLimit: 54454 },
+  { id: 'comp_2', name: 'Sunita Real Estate Ltd', adminName: 'Sunita Sharma', adminEmail: 'sunita@sunitare.in', registrationKey: 'SUNI-KX-8812', plan: 'PRO', trialDaysLeft: 0, isExpired: false, seatsAllocated: 20, seatsUsed: 14, totalUsersCount: 14, totalLeads: 450, convertedLeads: 112, conversionRate: 25, isActive: true, createdAt: '2026-07-15', expiryDate: '2026-09-15', whatsappUsed: 34234, whatsappLimit: 425245 },
+  { id: 'comp_3', name: 'Lakshmi Auto Dealerships', adminName: 'Ramesh Patel', adminEmail: 'ramesh@lakshmiauto.com', registrationKey: 'LAKS-KX-3301', plan: 'STARTER', trialDaysLeft: 0, isExpired: false, seatsAllocated: 6, seatsUsed: 5, totalUsersCount: 5, totalLeads: 88, convertedLeads: 19, conversionRate: 22, isActive: true, createdAt: '2026-08-05', expiryDate: '2026-09-05', whatsappUsed: 12450, whatsappLimit: 25000 },
+  { id: 'comp_4', name: 'TechCorp Enterprise', adminName: 'Kavita Nair', adminEmail: 'kavita@techcorp.io', registrationKey: 'TECH-KX-9941', plan: 'PRO_MAX', trialDaysLeft: 0, isExpired: false, seatsAllocated: 100, seatsUsed: 62, totalUsersCount: 62, totalLeads: 1240, convertedLeads: 420, conversionRate: 34, isActive: true, createdAt: '2026-06-10', expiryDate: '2027-06-10', whatsappUsed: 189200, whatsappLimit: 500000 },
 ];
 
 const INITIAL_KEYS: KeyRecord[] = [
-  { id: 'key_1', key: 'ACME-KX-7421', planTier: 'FREE_TRIAL', memberLimit: 6, validityDays: 7, status: 'USED', expiresAt: '2026-08-20', createdAt: '2026-08-01' },
-  { id: 'key_2', key: 'SUNI-KX-8812', planTier: 'PRO', memberLimit: 20, validityDays: 30, status: 'USED', expiresAt: '2026-09-01', createdAt: '2026-07-15' },
-  { id: 'key_3', key: 'GLOB-KX-4109', planTier: 'PRO_MAX', memberLimit: 100, validityDays: 15, status: 'ACTIVE', expiresAt: '2026-08-28', createdAt: '2026-08-12' },
-];
-
-const INITIAL_COUPONS: Coupon[] = [
-  { id: '1', code: 'WELCOME50', discountPct: 50, planAllowed: 'All Plans', validUntil: 'Dec 31, 2026', usesRemaining: 42 },
-  { id: '2', code: 'ENTERPRISE30', discountPct: 30, planAllowed: 'PRO_MAX', validUntil: 'Sep 30, 2026', usesRemaining: 18 },
+  { id: 'key_1', key: 'ACME-KX-7421', companyName: 'Acme Sales Solutions', planTier: 'FREE_TRIAL', memberLimit: 6, validityDays: 14, status: 'USED', expiresAt: '2026-08-28', createdAt: '2026-08-01' },
+  { id: 'key_2', key: 'SUNI-KX-8812', companyName: 'Sunita Real Estate Ltd', planTier: 'PRO', memberLimit: 20, validityDays: 30, status: 'USED', expiresAt: '2026-09-15', createdAt: '2026-07-15' },
+  { id: 'key_3', key: 'LAKS-KX-3301', companyName: 'Lakshmi Auto Dealerships', planTier: 'STARTER', memberLimit: 6, validityDays: 30, status: 'USED', expiresAt: '2026-09-05', createdAt: '2026-08-05' },
+  { id: 'key_4', key: 'TECH-KX-9941', companyName: 'TechCorp Enterprise', planTier: 'PRO_MAX', memberLimit: 100, validityDays: 365, status: 'USED', expiresAt: '2027-06-10', createdAt: '2026-06-10' },
+  { id: 'key_5', key: 'GLOB-KX-4109', companyName: 'Global Logistics Corp', planTier: 'PRO', memberLimit: 25, validityDays: 30, status: 'ACTIVE', expiresAt: '2026-09-20', createdAt: '2026-08-14' },
 ];
 
 const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [
@@ -132,255 +95,120 @@ const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(INITIAL_COMPANIES);
   const [keysList, setKeysList] = useState<KeyRecord[]>(INITIAL_KEYS);
-  const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>(INITIAL_UPGRADE_REQUESTS);
-  const [activeTab, setActiveTab] = useState<'key_gen' | 'companies' | 'upgrades' | 'coupons'>('key_gen');
+  
+  // Navigation Section Selector
+  const [activeSection, setActiveSection] = useState<
+    'overview' | 'keys' | 'edit_modal' | 'templates' | 'whatsapp' | 'pending' | 'employees'
+  >('overview');
 
-  // In-Depth Detail Modal State
-  const [inDepthModalOpen, setInDepthModalOpen] = useState(false);
-  const [inDepthData, setInDepthData] = useState<InDepthCompanyDetails | null>(null);
-  const [inDepthLoading, setInDepthLoading] = useState(false);
-  const [newSeatInput, setNewSeatInput] = useState<number>(10);
+  // Active Template Sub-Tab
+  const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
 
-  // Key Generator Form State
-  const [genCompanyName, setGenCompanyName] = useState('ACME International');
+  // Company Details Edit Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPlan, setEditPlan] = useState<PlanType>('FREE_TRIAL');
+  const [editSeats, setEditSeats] = useState(6);
+  const [editExpiryDate, setEditExpiryDate] = useState('');
+
+  // WhatsApp Date-Wise Chat Log Modal
+  const [chatLogModalOpen, setChatLogModalOpen] = useState(false);
+  const [chatLogCompany, setChatLogCompany] = useState<CompanyRecord | null>(null);
+  const [dailyLogs, setDailyLogs] = useState<WhatsAppDailyLog[]>([]);
+
+  // Key Generation Modal
+  const [genKeyModalOpen, setGenKeyModalOpen] = useState(false);
+  const [genCompanyName, setGenCompanyName] = useState('');
   const [genPlan, setGenPlan] = useState<PlanType>('FREE_TRIAL');
   const [genSeats, setGenSeats] = useState(6);
-  const [genValidityDays, setGenValidityDays] = useState(7);
-  const [genWhatsApp, setGenWhatsApp] = useState(false);
-  const [genEmailAuto, setGenEmailAuto] = useState(false);
-
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [keyLoading, setKeyLoading] = useState(false);
-
-  // Coupon Form State
-  const [showAddCoupon, setShowAddCoupon] = useState(false);
+  const [genValidityDays, setGenValidityDays] = useState(30);
 
   const { updateSubscription } = useAuth();
 
-  // Load companies & keys from backend on mount if available
-  useEffect(() => {
-    fetchBackendCompanies();
-    fetchBackendKeys();
-  }, []);
+  // Metrics Calculations
+  const totalCompanies = companies.length;
+  const totalUsers = companies.reduce((acc, c) => acc + c.totalUsersCount, 0);
+  const activeCompanies = companies.filter(c => c.isActive).length;
+  const activeUsers = companies.filter(c => c.isActive).reduce((acc, c) => acc + c.seatsUsed, 0);
+  const activeFreeTrials = companies.filter(c => c.plan === 'FREE_TRIAL').length;
+  const activePaidPlans = companies.filter(c => c.plan !== 'FREE_TRIAL').length;
+  const pendingRequestsCount = upgradeRequests.filter(r => r.status === 'PENDING_APPROVAL').length;
 
-  const fetchBackendCompanies = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) setCompanies(data);
-      }
-    } catch (e) {
-      // Fallback
-    }
+  // Open Edit Modal for a specific company
+  const handleOpenEditModal = (comp: CompanyRecord) => {
+    setEditingCompany(comp);
+    setEditName(comp.name);
+    setEditPlan(comp.plan);
+    setEditSeats(comp.seatsAllocated);
+    setEditExpiryDate(comp.expiryDate || '2026-12-31');
+    setEditModalOpen(true);
   };
 
-  const fetchBackendKeys = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/keys`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.companyKeys) setKeysList(data.companyKeys);
-      }
-    } catch (e) {
-      // Fallback
-    }
+  // Save Company Edit Changes
+  const handleSaveCompanyEdit = () => {
+    if (!editingCompany) return;
+    setCompanies(prev =>
+      prev.map(c =>
+        c.id === editingCompany.id
+          ? {
+              ...c,
+              name: editName,
+              plan: editPlan,
+              seatsAllocated: editSeats,
+              expiryDate: editExpiryDate,
+            }
+          : c
+      )
+    );
+    setKeysList(prev =>
+      prev.map(k =>
+        k.companyName === editingCompany.name
+          ? { ...k, companyName: editName, planTier: editPlan, memberLimit: editSeats, expiresAt: editExpiryDate }
+          : k
+      )
+    );
+    setEditModalOpen(false);
+  };
+
+  // Open WhatsApp Date-Wise Chat Log Modal
+  const handleOpenChatLogModal = (comp: CompanyRecord) => {
+    setChatLogCompany(comp);
+    setDailyLogs([
+      { date: '2026-08-14 (Today)', messagesSent: Math.floor(comp.whatsappUsed * 0.12), deliveryRate: 98.4, activeChats: 142 },
+      { date: '2026-08-13 (Yesterday)', messagesSent: Math.floor(comp.whatsappUsed * 0.18), deliveryRate: 97.8, activeChats: 210 },
+      { date: '2026-08-12', messagesSent: Math.floor(comp.whatsappUsed * 0.15), deliveryRate: 99.1, activeChats: 185 },
+      { date: '2026-08-11', messagesSent: Math.floor(comp.whatsappUsed * 0.14), deliveryRate: 96.5, activeChats: 164 },
+      { date: '2026-08-10', messagesSent: Math.floor(comp.whatsappUsed * 0.16), deliveryRate: 98.9, activeChats: 195 },
+    ]);
+    setChatLogModalOpen(true);
   };
 
   // Generate Key Handler
-  const handleGenerateCompanyKey = async () => {
+  const handleGenerateKey = () => {
     if (!genCompanyName.trim()) return;
-    setKeyLoading(true);
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/generate-company-key`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}`,
-        },
-        body: JSON.stringify({
-          companyName: genCompanyName,
-          planTier: genPlan,
-          memberLimit: genSeats,
-          validityDays: genValidityDays,
-          whatsAppEnabled: genWhatsApp,
-          emailMarketingEnabled: genEmailAuto,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.key) {
-        setGeneratedKey(data.key);
-        setQrDataUrl(data.qrCodeDataUrl);
-        const newRecord: KeyRecord = {
-          id: data.id || `key_${Date.now()}`,
-          key: data.key,
-          planTier: genPlan,
-          memberLimit: genSeats,
-          validityDays: genValidityDays,
-          status: 'ACTIVE',
-          expiresAt: data.expiresAt || new Date(Date.now() + genValidityDays * 86400000).toISOString().split('T')[0],
-          createdAt: new Date().toISOString().split('T')[0],
-          qrCodeDataUrl: data.qrCodeDataUrl,
-        };
-        setKeysList(prev => [newRecord, ...prev]);
-        setKeyLoading(false);
-        return;
-      }
-    } catch (e) {
-      // Fallback
-    }
-
-    // Client-side fallback generation using Company First Word
-    const firstWord = genCompanyName
-      .trim()
-      .split(/\s+/)[0]
-      ?.replace(/[^a-zA-Z0-9]/g, '')
-      .toUpperCase() || 'COMPANY';
+    const firstWord = genCompanyName.trim().split(/\s+/)[0]?.toUpperCase() || 'COMP';
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const alpha = Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const digits = Math.floor(1000 + Math.random() * 9000).toString();
-    const key = `${firstWord}-${alpha}-${digits}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${key}`;
+    const newKey = `${firstWord}-${alpha}-${digits}`;
 
-    setGeneratedKey(key);
-    setQrDataUrl(qrUrl);
     const newRecord: KeyRecord = {
       id: `key_${Date.now()}`,
-      key,
+      key: newKey,
+      companyName: genCompanyName,
       planTier: genPlan,
       memberLimit: genSeats,
       validityDays: genValidityDays,
       status: 'ACTIVE',
       expiresAt: new Date(Date.now() + genValidityDays * 86400000).toISOString().split('T')[0],
       createdAt: new Date().toISOString().split('T')[0],
-      qrCodeDataUrl: qrUrl,
     };
-    setKeysList(prev => [newRecord, ...prev]);
-    setKeyLoading(false);
-  };
 
-  // Block / Unblock Company
-  const handleToggleCompanyBlock = async (comp: CompanyRecord) => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}/block`, {
-        method: 'PATCH',
-      });
-    } catch (e) {}
-
-    setCompanies(prev => prev.map(c => c.id === comp.id ? { ...c, isActive: !c.isActive } : c));
-    if (inDepthData && inDepthData.organization.id === comp.id) {
-      setInDepthData({
-        ...inDepthData,
-        organization: { ...inDepthData.organization, isActive: !comp.isActive }
-      });
-    }
-  };
-
-  // Revoke / Block Registration Key
-  const handleRevokeKey = async (keyId: string) => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/keys/company/${keyId}/revoke`, {
-        method: 'PATCH',
-      });
-    } catch (e) {}
-
-    setKeysList(prev => prev.map(k => k.id === keyId ? { ...k, status: 'REVOKED' } : k));
-  };
-
-  // Open Indepth Details Modal for Company
-  const handleOpenInDepthDetails = async (comp: CompanyRecord) => {
-    setInDepthLoading(true);
-    setInDepthModalOpen(true);
-    setNewSeatInput(comp.seatsAllocated);
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setInDepthData(data);
-        setInDepthLoading(false);
-        return;
-      }
-    } catch (e) {}
-
-    // Fallback Mock Details for Demo
-    setTimeout(() => {
-      setInDepthData({
-        organization: {
-          id: comp.id,
-          name: comp.name,
-          adminName: comp.adminName,
-          adminEmail: comp.adminEmail,
-          phone: comp.phone || '+91 98765 43210',
-          city: 'Mumbai',
-          state: 'Maharashtra',
-          gstNumber: '27AAAAA0000A1Z5',
-          companyType: 'Private Limited',
-          sector: 'Sales & Real Estate',
-          isActive: comp.isActive,
-          registrationKey: comp.registrationKey,
-          createdAt: comp.createdAt,
-        },
-        subscription: {
-          planTier: comp.plan,
-          memberLimit: comp.seatsAllocated,
-          trialExpiresAt: '2026-09-15',
-        },
-        leadStats: {
-          totalLeads: comp.totalLeads,
-          convertedLeads: comp.convertedLeads,
-          conversionRate: comp.conversionRate,
-          totalDeals: Math.floor(comp.totalLeads * 0.4),
-          wonDeals: comp.convertedLeads,
-          totalRevenue: comp.convertedLeads * 45000,
-        },
-        employees: [
-          { id: 'usr_1', name: comp.adminName, email: comp.adminEmail, role: 'OWNER/ADMIN', isActive: true, lastLoginAt: '2026-08-12 18:45', createdAt: comp.createdAt, keyUsed: comp.registrationKey },
-          { id: 'usr_2', name: 'Rahul Sharma', email: 'rahul.mgr@' + comp.name.toLowerCase().replace(/[^a-z]/g, '') + '.com', role: 'MANAGER', isActive: true, lastLoginAt: '2026-08-12 14:10', createdAt: '2026-08-02', keyUsed: `${comp.registrationKey.slice(0, 4)}-RX-1024` },
-          { id: 'usr_3', name: 'Priya Verma', email: 'priya.hr@' + comp.name.toLowerCase().replace(/[^a-z]/g, '') + '.com', role: 'HR', isActive: true, lastLoginAt: '2026-08-11 09:30', createdAt: '2026-08-03', keyUsed: `${comp.registrationKey.slice(0, 4)}-RX-1025` },
-          { id: 'usr_4', name: 'Amit Kumar', email: 'amit.sales@' + comp.name.toLowerCase().replace(/[^a-z]/g, '') + '.com', role: 'SALES_EXEC', isActive: true, lastLoginAt: '2026-08-12 16:20', createdAt: '2026-08-05', keyUsed: `${comp.registrationKey.slice(0, 4)}-RX-1026` },
-          { id: 'usr_5', name: 'Sneha Patel', email: 'sneha.sales@' + comp.name.toLowerCase().replace(/[^a-z]/g, '') + '.com', role: 'SALES_EXEC', isActive: false, lastLoginAt: '2026-08-09 11:15', createdAt: '2026-08-06', keyUsed: `${comp.registrationKey.slice(0, 4)}-RX-1027` },
-        ],
-      });
-      setInDepthLoading(false);
-    }, 400);
-  };
-
-  // Toggle User Block inside Indepth Modal
-  const handleToggleUserBlock = async (user: CompanyEmployee) => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/users/${user.id}/block`, {
-        method: 'PATCH',
-      });
-    } catch (e) {}
-
-    if (inDepthData) {
-      const updatedEmployees = inDepthData.employees.map(u => u.id === user.id ? { ...u, isActive: !u.isActive } : u);
-      setInDepthData({ ...inDepthData, employees: updatedEmployees });
-    }
-  };
-
-  // Add / Modify Company Seats
-  const handleUpdateCompanySeats = async (companyId: string) => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${companyId}/seats`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberLimit: newSeatInput }),
-      });
-    } catch (e) {}
-
-    setCompanies(prev => prev.map(c => c.id === companyId ? { ...c, seatsAllocated: newSeatInput } : c));
-    if (inDepthData && inDepthData.subscription) {
-      setInDepthData({
-        ...inDepthData,
-        subscription: { ...inDepthData.subscription, memberLimit: newSeatInput }
-      });
-    }
+    setKeysList([newRecord, ...keysList]);
+    setGenKeyModalOpen(false);
+    setGenCompanyName('');
   };
 
   const handleApproveUpgrade = (reqId: string) => {
@@ -395,207 +223,462 @@ export function SuperAdminDashboard() {
     setUpgradeRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'REJECTED' } : r));
   };
 
+  const handleToggleBlockCompany = (comp: CompanyRecord) => {
+    setCompanies(prev => prev.map(c => c.id === comp.id ? { ...c, isActive: !c.isActive } : c));
+  };
+
   return (
-    <div className="space-y-6 max-w-6xl">
-      {/* Top Header */}
-      <div className="crm-card p-5 border-l-4 border-l-indigo-500 bg-card">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+      {/* ── TOP BANNER & SECTION TABS ─────────────────────────────────────────────── */}
+      <div className="crm-card p-6 border-l-4 border-l-cyan-500 bg-card shadow-2xl">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 font-extrabold flex items-center justify-center text-lg shadow-lg">
-              DEV
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white font-black flex items-center justify-center text-xl shadow-xl">
+              SA
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Super-Admin Platform Control Center</h1>
-              <p className="text-xs text-muted">Manage client companies, issue registration keys, block companies/users, and monitor lead metrics.</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-white">Super Admin Dashboard</h1>
+                <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  PLATFORM CONTROL HUB
+                </span>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Control hub for managing company keys, subscriptions, WhatsApp Cloud usage, templates, and approvals.</p>
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setActiveTab('key_gen')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'key_gen' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-muted text-muted'}`}
-            >
-              <Key size={14} /> Key Engine & Registry
-            </button>
+          <button
+            onClick={() => setGenKeyModalOpen(true)}
+            className="btn-primary text-xs px-4 py-2.5 gap-2 flex items-center shadow-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold"
+          >
+            <Key size={15} /> Generate New Registration Key
+          </button>
+        </div>
 
+        {/* Core 7 Sections Navigation Bar */}
+        <div className="flex items-center gap-2 pt-6 mt-6 border-t border-border/60 overflow-x-auto">
+          {[
+            { id: 'overview', label: '1. Dashboard Metrics', icon: TrendingUp },
+            { id: 'keys', label: '2. Keys & Companies', icon: Key },
+            { id: 'templates', label: '4. System Templates', icon: Layers },
+            { id: 'whatsapp', label: '5. WhatsApp Cloud Uses', icon: MessageSquare },
+            { id: 'pending', label: '6. Pending Approvals', badge: pendingRequestsCount, icon: Clock },
+            { id: 'employees', label: '7. Companies & Staff', icon: Users },
+          ].map(sec => (
             <button
-              onClick={() => setActiveTab('companies')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'companies' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted'}`}
+              key={sec.id}
+              onClick={() => setActiveSection(sec.id as any)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0 ${
+                activeSection === sec.id
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-lg'
+                  : 'bg-background/60 text-muted hover:text-white border border-border/50'
+              }`}
             >
-              <Building2 size={14} /> Companies Directory ({companies.length})
+              <sec.icon size={14} />
+              <span>{sec.label}</span>
+              {sec.badge && sec.badge > 0 ? (
+                <span className="w-4 h-4 rounded-full bg-amber-400 text-black text-[10px] font-black flex items-center justify-center">
+                  {sec.badge}
+                </span>
+              ) : null}
             </button>
+          ))}
+        </div>
+      </div>
 
-            <button
-              onClick={() => setActiveTab('upgrades')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 relative ${activeTab === 'upgrades' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted'}`}
-            >
-              <CreditCard size={14} /> Upgrade Requests
-              {upgradeRequests.filter(r => r.status === 'PENDING_APPROVAL').length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping absolute -top-1 -right-1" />
-              )}
-            </button>
+      {/* ── FEATURE 1: DASHBOARD METRICS BANNER (CYAN PILL CARDS) ────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Companies & Users */}
+        <div className="crm-card p-5 border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 via-card to-card relative overflow-hidden group hover:border-cyan-500/60 transition-all shadow-xl">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <p className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">Number Of Companies & Users</p>
+              <h3 className="text-3xl font-black text-white mt-1">{totalCompanies} <span className="text-base font-normal text-muted">Companies</span></h3>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center border border-cyan-500/30">
+              <Building2 size={20} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
+            <span>Total Registered Accounts:</span>
+            <strong className="text-white font-mono font-bold">{totalUsers} Users</strong>
+          </div>
+        </div>
 
+        {/* Card 2: Active Companies & Users */}
+        <div className="crm-card p-5 border border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 via-card to-card relative overflow-hidden group hover:border-emerald-500/60 transition-all shadow-xl">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Active Companies & Users</p>
+              <h3 className="text-3xl font-black text-emerald-400 mt-1">{activeCompanies} <span className="text-base font-normal text-muted">Active Orgs</span></h3>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30">
+              <UserCheck size={20} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
+            <span>Active Active Users:</span>
+            <strong className="text-emerald-300 font-mono font-bold">{activeUsers} Users</strong>
+          </div>
+        </div>
+
+        {/* Card 3: Active Free Trials & Paid Plans */}
+        <div className="crm-card p-5 border border-purple-500/30 bg-gradient-to-br from-purple-950/20 via-card to-card relative overflow-hidden group hover:border-purple-500/60 transition-all shadow-xl">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <p className="text-[11px] font-bold text-purple-300 uppercase tracking-wider">Active Free Trials & Plans</p>
+              <h3 className="text-3xl font-black text-white mt-1">{activeFreeTrials} <span className="text-sm font-normal text-amber-400 font-bold">Trials</span></h3>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/30">
+              <CreditCard size={20} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
+            <span>Paid Subscriptions:</span>
+            <strong className="text-purple-300 font-mono font-bold">{activePaidPlans} Paid Plans</strong>
+          </div>
+        </div>
+
+        {/* Card 4: Number of Pending Requests */}
+        <div className="crm-card p-5 border border-amber-500/30 bg-gradient-to-br from-amber-950/20 via-card to-card relative overflow-hidden group hover:border-amber-500/60 transition-all shadow-xl">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Number of Pending Requests</p>
+              <h3 className="text-3xl font-black text-amber-400 mt-1">{pendingRequestsCount} <span className="text-base font-normal text-muted">Pending</span></h3>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30">
+              <Clock size={20} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
+            <span>Awaiting Approval:</span>
             <button
-              onClick={() => setActiveTab('coupons')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeTab === 'coupons' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted'}`}
+              onClick={() => setActiveSection('pending')}
+              className="text-amber-400 font-bold hover:underline"
             >
-              <Tag size={14} /> Coupons ({coupons.length})
+              Review Requests →
             </button>
           </div>
         </div>
       </div>
 
-      {/* TAB 1: Key Engine & Registry (Before Companies) */}
-      {activeTab === 'key_gen' && (
-        <div className="space-y-6">
-          <div className="crm-card space-y-6">
+      {/* ── FEATURE 2: KEYS AND THEIR COMPANIES TABLE ───────────────────────────── */}
+      {(activeSection === 'overview' || activeSection === 'keys') && (
+        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-indigo-500/30">
+          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
             <div>
-              <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                1. SECURITY KEY GENERATION ENGINE
-              </span>
-              <h3 className="text-xl font-bold text-white mt-2">Generate Company Registration Key & QR Code</h3>
-              <p className="text-xs text-muted mt-0.5">
-                Generates security keys required for company registration (Format: <strong>ACME-KX-7421</strong>). Without a valid key, login/register is denied.
-              </p>
+              <div className="flex items-center gap-2">
+                <Key size={18} className="text-cyan-400" />
+                <h2 className="font-extrabold text-lg text-white">Keys and Their Companies</h2>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Registration key registry mapped to companies, plan tiers, expiry dates, and seat quotas.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted block mb-1">Target Company Name *</label>
-                  <input
-                    className="crm-input text-sm h-10 w-full"
-                    placeholder="ACME Sales Solutions"
-                    value={genCompanyName}
-                    onChange={e => setGenCompanyName(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-muted block mb-1">Entitled Plan Tier</label>
-                    <select className="crm-input text-sm h-10 w-full" value={genPlan} onChange={e => setGenPlan(e.target.value as PlanType)}>
-                      <option value="FREE_TRIAL">Free Trial (30d)</option>
-                      <option value="STARTER">Starter Plan (6 seats)</option>
-                      <option value="PRO">Pro Plan (20 seats)</option>
-                      <option value="PRO_50">Pro 50 Plan (50 seats)</option>
-                      <option value="PRO_MAX">Pro Max (Unlimited)</option>
-                      <option value="ENTERPRISE">Enterprise (Negotiated)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted block mb-1">User Quota (Seats)</label>
-                    <input
-                      type="number"
-                      className="crm-input text-sm h-10 w-full"
-                      value={genSeats}
-                      onChange={e => setGenSeats(+e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-muted block mb-1">Key Expiry Window</label>
-                    <select className="crm-input text-sm h-10 w-full" value={genValidityDays} onChange={e => setGenValidityDays(+e.target.value)}>
-                      <option value={7}>7 Days Validity</option>
-                      <option value={15}>15 Days Validity</option>
-                      <option value={30}>30 Days Validity</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleGenerateCompanyKey}
-                  disabled={keyLoading}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Key size={16} /> {keyLoading ? 'Generating Key...' : 'Generate Registration Key & QR Code'}
-                </button>
-              </div>
-
-              {/* Rendered Key Output */}
-              <div className="p-6 rounded-2xl bg-background border border-purple-500/30 flex flex-col items-center justify-center text-center space-y-4">
-                {generatedKey ? (
-                  <>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                      KEY GENERATED & ACTIVE
-                    </span>
-                    <div className="font-mono text-2xl font-black text-white tracking-widest bg-card px-6 py-3 rounded-2xl border border-purple-500/40 shadow-xl">
-                      {generatedKey}
-                    </div>
-
-                    {qrDataUrl && (
-                      <div className="p-3 bg-white rounded-2xl shadow-xl">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={qrDataUrl} alt="Company Key QR" className="w-36 h-36" />
-                      </div>
-                    )}
-
-                    <p className="text-[11px] text-muted max-w-xs">
-                      Share this key or QR code with the Tenant Admin to activate their company at <strong>/register</strong>.
-                    </p>
-                  </>
-                ) : (
-                  <div className="text-muted space-y-2 py-8">
-                    <QrCode size={48} className="mx-auto text-purple-400/40" />
-                    <p className="text-xs">Fill details on the left and click Generate to produce formatted key & QR code.</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <button
+              onClick={() => setGenKeyModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center gap-1.5"
+            >
+              <Plus size={14} /> Add Company Key
+            </button>
           </div>
 
-          {/* Generated Keys Registry Table */}
-          <div className="crm-card p-0 overflow-hidden space-y-3">
-            <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'rgb(var(--border))' }}>
-              <div>
-                <h3 className="font-bold text-base text-white">Company Registration Keys Registry</h3>
-                <p className="text-xs text-muted">View all issued registration keys, their status, plan tier, and option to revoke/block key.</p>
-              </div>
-            </div>
-
-            <table className="crm-table">
+          <div className="overflow-x-auto">
+            <table className="crm-table w-full">
               <thead>
                 <tr>
-                  <th>Key Code</th>
-                  <th>Plan Tier</th>
-                  <th>Seat Limit</th>
-                  <th>Validity</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                  <th>Keys</th>
+                  <th>Company Name</th>
+                  <th>Plan</th>
+                  <th>Expiry Date</th>
+                  <th>No of Users</th>
+                  <th className="text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {keysList.map(k => (
-                  <tr key={k.id}>
+                {companies.map(comp => (
+                  <tr key={comp.id} className="hover:bg-card/60 transition-colors">
                     <td>
-                      <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20">
-                        {k.key}
+                      <span className="font-mono font-bold text-xs text-cyan-300 bg-cyan-500/10 px-3 py-1 rounded-lg border border-cyan-500/30">
+                        {comp.registrationKey}
                       </span>
                     </td>
-                    <td><span className="text-xs font-bold text-white">{k.planTier}</span></td>
-                    <td><span className="text-xs font-semibold text-muted">{k.memberLimit} Seats</span></td>
-                    <td><span className="text-xs text-muted">{k.validityDays} Days (Expires {k.expiresAt})</span></td>
+                    <td>
+                      <p className="font-bold text-sm text-white">{comp.name}</p>
+                      <p className="text-[11px] text-muted">{comp.adminEmail}</p>
+                    </td>
+                    <td>
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-extrabold ${
+                        comp.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                        comp.plan === 'PRO_MAX' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}>
+                        {comp.plan.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="text-xs">
+                        <p className="font-mono text-white font-semibold">{comp.expiryDate}</p>
+                        <p className="text-[10px] text-muted">{comp.trialDaysLeft > 0 ? `${comp.trialDaysLeft} days trial left` : 'Subscription Active'}</p>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="text-xs font-bold text-white">
+                        {comp.seatsUsed} / {comp.seatsAllocated} Users
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <button
+                        onClick={() => handleOpenEditModal(comp)}
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-md transition-all"
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── FEATURE 4: SYSTEM TEMPLATES HUB (LEAD FUNNEL, WHATSAPP, EMAIL) ────── */}
+      {(activeSection === 'overview' || activeSection === 'templates') && (
+        <div className="crm-card space-y-6 border border-purple-500/30">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Layers size={18} className="text-purple-400" />
+                <h2 className="font-extrabold text-lg text-white">System Templates</h2>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Pre-configured platform defaults for Lead Funnels, WhatsApp Cloud messages, and Email templates.</p>
+            </div>
+
+            {/* Template Sub-Tabs */}
+            <div className="flex gap-2 p-1 bg-background rounded-2xl border border-border">
+              <button
+                onClick={() => setTemplateTab('funnel')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  templateTab === 'funnel' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-muted hover:text-white'
+                }`}
+              >
+                Lead Funnel Templates
+              </button>
+              <button
+                onClick={() => setTemplateTab('whatsapp')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  templateTab === 'whatsapp' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-muted hover:text-white'
+                }`}
+              >
+                WhatsApp Cloud Templates
+              </button>
+              <button
+                onClick={() => setTemplateTab('email')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  templateTab === 'email' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-muted hover:text-white'
+                }`}
+              >
+                Email Templates
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-Tab 1: Lead Funnel Templates */}
+          {templateTab === 'funnel' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { name: 'Standard B2B Sales Funnel', stages: ['Lead Ingested', 'Contacted', 'Demo Scheduled', 'Proposal Sent', 'Closed Won'], defaultFor: 'General Sales' },
+                { name: 'Real Estate Buyer Journey', stages: ['Site Visit Inquiry', 'Property Shortlisted', 'Site Visit Done', 'Negotiation', 'Booking Done'], defaultFor: 'Real Estate' },
+                { name: 'Automobile Dealership Pipeline', stages: ['Test Drive Request', 'Test Drive Completed', 'Financing Option', 'Vehicle Booking', 'Delivered'], defaultFor: 'Automotive' },
+              ].map(f => (
+                <div key={f.name} className="p-4 rounded-2xl bg-background border border-purple-500/20 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-sm text-white">{f.name}</h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300">{f.defaultFor}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {f.stages.map((stg, idx) => (
+                      <div key={stg} className="text-xs p-2 rounded-lg bg-card border border-border flex items-center justify-between text-muted">
+                        <span>{idx + 1}. {stg}</span>
+                        <CheckCircle2 size={13} className="text-emerald-400" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sub-Tab 2: WhatsApp Cloud Templates */}
+          {templateTab === 'whatsapp' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: 'welcome_greeting_v1', category: 'UTILITY', content: 'Hello {{1}}, welcome to {{2}}! Your assigned representative is {{3}}. Reply YES to get started.', status: 'APPROVED' },
+                { name: 'demo_confirmation_alert', category: 'MARKETING', content: 'Hi {{1}}, your demo session with {{2}} is confirmed for {{3}}. Click link to join.', status: 'APPROVED' },
+                { name: 'payment_reminder_notice', category: 'UTILITY', content: 'Dear {{1}}, your subscription invoice {{2}} is due on {{3}}. Pay online to avoid suspension.', status: 'APPROVED' },
+                { name: 'lead_followup_reminder', category: 'MARKETING', content: 'Hi {{1}}, following up on your inquiry for {{2}}. Are you ready for next steps?', status: 'APPROVED' },
+              ].map(w => (
+                <div key={w.name} className="p-4 rounded-2xl bg-background border border-emerald-500/20 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/30">
+                      {w.name}
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                      {w.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted font-mono bg-card p-3 rounded-xl border border-border leading-relaxed">
+                    {w.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sub-Tab 3: Email Templates */}
+          {templateTab === 'email' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { title: 'Cold Lead Introductory Pitch', subject: 'Transform your sales operations with {{companyName}}', preview: 'Hi {{firstName}}, I noticed your company is growing rapidly...' },
+                { title: 'Quotation & Proposal Delivery', subject: 'Your customized proposal from {{companyName}}', preview: 'Dear {{firstName}}, please find attached the formal proposal...' },
+              ].map(e => (
+                <div key={e.title} className="p-4 rounded-2xl bg-background border border-indigo-500/20 space-y-2">
+                  <h4 className="font-bold text-sm text-white">{e.title}</h4>
+                  <p className="text-xs font-semibold text-indigo-300">Subject: {e.subject}</p>
+                  <p className="text-xs text-muted bg-card p-3 rounded-xl border border-border italic">{e.preview}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FEATURE 5: WHATSAPP CLOUD USES TABLE ────────────────────────────────── */}
+      {(activeSection === 'overview' || activeSection === 'whatsapp') && (
+        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-emerald-500/30">
+          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
+            <div>
+              <div className="flex items-center gap-2">
+                <MessageSquare size={18} className="text-emerald-400" />
+                <h2 className="font-extrabold text-lg text-white">Whatsapp Cloud Uses</h2>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Platform WhatsApp Cloud API message throughput, quota limits, and date-wise log inspection.</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="crm-table w-full">
+              <thead>
+                <tr>
+                  <th>Company Name</th>
+                  <th>Plan</th>
+                  <th>Uses (Sent)</th>
+                  <th>Limit Quota</th>
+                  <th>Date-Wise Chat Button</th>
+                  <th>Message Sent</th>
+                  <th className="text-right">Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {companies.map(comp => (
+                  <tr key={comp.id} className="hover:bg-card/60 transition-colors">
+                    <td>
+                      <p className="font-bold text-sm text-white">{comp.name}</p>
+                    </td>
+                    <td>
+                      <span className="text-xs font-bold text-indigo-300">{comp.plan.replace('_', ' ')}</span>
+                    </td>
+                    <td>
+                      <span className="font-mono text-xs font-extrabold text-emerald-400">
+                        {comp.whatsappUsed.toLocaleString('en-IN')} Msgs
+                      </span>
+                    </td>
+                    <td>
+                      <span className="font-mono text-xs font-bold text-muted">
+                        {comp.whatsappLimit.toLocaleString('en-IN')} Msgs
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleOpenChatLogModal(comp)}
+                        className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/30 flex items-center gap-1.5"
+                      >
+                        <Calendar size={13} /> View Date-Wise Logs
+                      </button>
+                    </td>
+                    <td>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Active Delivery
+                      </span>
+                    </td>
+                    <td className="text-right">
+                      <button
+                        onClick={() => handleOpenEditModal(comp)}
+                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg"
+                      >
+                        Edit Quota
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── FEATURE 6: PENDING APPROVALS QUEUE ──────────────────────────────────── */}
+      {(activeSection === 'overview' || activeSection === 'pending') && (
+        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-amber-500/30">
+          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
+            <div>
+              <div className="flex items-center gap-2">
+                <Clock size={18} className="text-amber-400" />
+                <h2 className="font-extrabold text-lg text-white">Pending Approval Queue</h2>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Payment-verified plan upgrade requests submitted by Tenant Admins via Razorpay.</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="crm-table w-full">
+              <thead>
+                <tr>
+                  <th>Company Name</th>
+                  <th>Requested Plan</th>
+                  <th>Payment Amount</th>
+                  <th>Razorpay Order ID</th>
+                  <th>Status</th>
+                  <th className="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upgradeRequests.map(req => (
+                  <tr key={req.id}>
+                    <td className="font-bold text-white text-sm">{req.companyName}</td>
+                    <td><span className="font-bold text-indigo-300">{req.requestedPlan}</span></td>
+                    <td className="font-mono font-bold text-emerald-400">₹{req.amountInr.toLocaleString('en-IN')}</td>
+                    <td className="font-mono text-xs text-muted">{req.razorpayOrderId}</td>
                     <td>
                       <span className={`text-xs px-2.5 py-0.5 rounded font-bold ${
-                        k.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' :
-                        k.status === 'USED' ? 'bg-indigo-500/20 text-indigo-300' :
-                        'bg-red-500/20 text-red-300'
+                        req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300' :
+                        req.status === 'REJECTED' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
                       }`}>
-                        {k.status}
+                        {req.status}
                       </span>
                     </td>
-                    <td>
-                      {k.status !== 'REVOKED' ? (
-                        <button
-                          onClick={() => handleRevokeKey(k.id)}
-                          className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-300 font-bold text-xs rounded-lg border border-red-500/30 flex items-center gap-1"
-                        >
-                          <Lock size={12} /> Revoke Key
-                        </button>
+                    <td className="text-right">
+                      {req.status === 'PENDING_APPROVAL' ? (
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => handleApproveUpgrade(req.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md">
+                            Approve →
+                          </button>
+                          <button onClick={() => handleRejectUpgrade(req.id)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl">
+                            Reject
+                          </button>
+                        </div>
                       ) : (
-                        <span className="text-xs text-muted italic">Revoked</span>
+                        <span className="text-xs text-muted italic">Reviewed</span>
                       )}
                     </td>
                   </tr>
@@ -606,374 +689,357 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* TAB 2: Client Companies Directory */}
-      {activeTab === 'companies' && (
-        <div className="crm-card p-0 overflow-hidden space-y-4">
-          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-3" style={{ borderColor: 'rgb(var(--border))' }}>
+      {/* ── FEATURE 7: COMPANIES AND THEIR EMPLOYEES AND THEIR DETAILS ─────────── */}
+      {(activeSection === 'overview' || activeSection === 'employees') && (
+        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-indigo-500/30">
+          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
             <div>
-              <h3 className="font-bold text-base text-white">Client Companies Directory</h3>
-              <p className="text-xs text-muted">Overview of all tenant companies, keys used, plan details, user quota, lead stats, and block actions.</p>
+              <div className="flex items-center gap-2">
+                <Users size={18} className="text-purple-400" />
+                <h2 className="font-extrabold text-lg text-white">Companies and Their Employees and Their Details</h2>
+              </div>
+              <p className="text-xs text-muted mt-0.5">Full organizational staff directory listing Admins, Managers, Team Leaders, and Sales Reps with status controls.</p>
             </div>
           </div>
 
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Admin & Key Used</th>
-                <th>Plan Tier</th>
-                <th>Seats (Used / Alloc)</th>
-                <th>Leads Handled & Converted</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map(comp => (
-                <tr key={comp.id} className={!comp.isActive ? 'opacity-60 bg-red-950/10' : ''}>
-                  <td>
-                    <p className="font-bold text-sm text-white">{comp.name}</p>
-                    <p className="text-xs text-muted">Created: {comp.createdAt}</p>
-                  </td>
-                  <td>
-                    <p className="text-xs font-semibold text-white">{comp.adminName}</p>
-                    <p className="text-[11px] text-muted">{comp.adminEmail}</p>
-                    <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 inline-block mt-0.5">
-                      {comp.registrationKey}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="text-xs px-2.5 py-0.5 rounded font-bold" style={{
-                      background: comp.plan === 'FREE_TRIAL' ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.15)',
-                      color: comp.plan === 'FREE_TRIAL' ? 'rgb(245,158,11)' : 'rgb(34,197,94)',
-                    }}>
-                      {comp.plan.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="text-xs font-bold text-white">
-                      {comp.seatsUsed} / {comp.seatsAllocated} Users
-                    </span>
-                  </td>
-                  <td>
-                    <div className="text-xs">
-                      <span className="font-bold text-white">{comp.totalLeads} Handled</span>
-                      <span className="text-emerald-400 font-bold ml-1.5">({comp.convertedLeads} Conv, {comp.conversionRate}%)</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`text-xs px-2.5 py-0.5 rounded font-bold ${
-                      comp.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                    }`}>
-                      {comp.isActive ? 'ACTIVE' : 'BLOCKED'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenInDepthDetails(comp)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 shadow-md"
-                      >
-                        <Eye size={13} /> Full Indepth →
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleCompanyBlock(comp)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition-all ${
-                          comp.isActive
-                            ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30'
-                            : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
-                        }`}
-                      >
-                        {comp.isActive ? <Ban size={13} /> : <Unlock size={13} />}
-                        {comp.isActive ? 'Block Company' : 'Unblock'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* TAB 3: Plan Upgrade Requests Review */}
-      {activeTab === 'upgrades' && (
-        <div className="crm-card space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-base text-white">Pending Plan Upgrade Requests</h3>
-              <p className="text-xs text-muted">Review payment-verified upgrade requests submitted by Tenant Admins via Razorpay.</p>
-            </div>
-          </div>
-
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Requested Plan</th>
-                <th>Payment Amount</th>
-                <th>Razorpay Order ID</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {upgradeRequests.map(req => (
-                <tr key={req.id}>
-                  <td className="font-bold text-white text-sm">{req.companyName}</td>
-                  <td><span className="font-bold text-indigo-300">{req.requestedPlan}</span></td>
-                  <td className="font-mono font-bold text-emerald-400">₹{req.amountInr.toLocaleString('en-IN')}</td>
-                  <td className="font-mono text-xs text-muted">{req.razorpayOrderId}</td>
-                  <td>
-                    <span className={`text-xs px-2.5 py-0.5 rounded font-bold ${
-                      req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300' :
-                      req.status === 'REJECTED' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300'
-                    }`}>
-                      {req.status}
-                    </span>
-                  </td>
-                  <td>
-                    {req.status === 'PENDING_APPROVAL' ? (
-                      <div className="flex gap-2">
-                        <button onClick={() => handleApproveUpgrade(req.id)} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg">
-                          Approve →
-                        </button>
-                        <button onClick={() => handleRejectUpgrade(req.id)} className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg">
-                          Reject
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted">Reviewed</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* TAB 4: Coupons Manager */}
-      {activeTab === 'coupons' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-base text-white">Promotional Coupons</h3>
-            <button className="btn-primary text-sm gap-1.5 flex items-center" onClick={() => setShowAddCoupon(true)}>
-              <Plus size={14} /> Create Coupon
-            </button>
-          </div>
-
-          <div className="crm-card p-0 overflow-hidden">
-            <table className="crm-table">
-              <thead>
-                <tr>
-                  <th>Coupon Code</th>
-                  <th>Discount %</th>
-                  <th>Applicable Plan</th>
-                  <th>Valid Until</th>
-                  <th>Uses Remaining</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {coupons.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      <span className="font-mono text-sm font-bold text-purple-300 bg-purple-500/15 px-2.5 py-1 rounded">
-                        {c.code}
+          <div className="p-5 space-y-6">
+            {companies.map(comp => (
+              <div key={comp.id} className="p-4 rounded-2xl bg-background border border-border space-y-4">
+                <div className="flex justify-between items-center flex-wrap gap-2 border-b pb-3 border-border/60">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-black text-base text-white">{comp.name}</h3>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded font-extrabold ${
+                        comp.isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      }`}>
+                        {comp.isActive ? 'WORKSPACE ACTIVE' : 'WORKSPACE BLOCKED'}
                       </span>
-                    </td>
-                    <td><span className="font-bold text-emerald-400">{c.discountPct}% OFF</span></td>
-                    <td><span className="text-xs text-muted">{c.planAllowed}</span></td>
-                    <td><span className="text-xs text-muted">{c.validUntil}</span></td>
-                    <td><span className="text-xs font-semibold">{c.usesRemaining} uses</span></td>
-                    <td>
-                      <button onClick={() => setCoupons(coupons.filter(x => x.id !== c.id))} className="text-red-400 hover:underline text-xs">
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <p className="text-xs text-muted mt-0.5">
+                      Tenant Admin: <strong className="text-white">{comp.adminName}</strong> ({comp.adminEmail}) • Key: <strong className="font-mono text-purple-300">{comp.registrationKey}</strong>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleToggleBlockCompany(comp)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      comp.isActive ? 'bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30' : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300'
+                    }`}
+                  >
+                    {comp.isActive ? <Ban size={13} /> : <Unlock size={13} />}
+                    {comp.isActive ? 'Block Company' : 'Unblock Company'}
+                  </button>
+                </div>
+
+                {/* Employees Table */}
+                <div className="overflow-x-auto">
+                  <table className="crm-table w-full">
+                    <thead>
+                      <tr>
+                        <th>Employee Name & Email</th>
+                        <th>Role</th>
+                        <th>Key Used</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { id: `usr_${comp.id}_1`, name: comp.adminName, email: comp.adminEmail, role: 'ADMIN', key: comp.registrationKey, lastLogin: 'Today at 10:15 AM', active: comp.isActive },
+                        { id: `usr_${comp.id}_2`, name: 'Rajesh Mehta', email: 'rajesh.mgr@acme.com', role: 'MANAGER', key: `${comp.registrationKey.slice(0, 4)}-RX-1024`, lastLogin: 'Today at 09:30 AM', active: comp.isActive },
+                        { id: `usr_${comp.id}_3`, name: 'Sunita Verma', email: 'sunita.hr@acme.com', role: 'HR', key: `${comp.registrationKey.slice(0, 4)}-RX-1025`, lastLogin: 'Yesterday', active: comp.isActive },
+                        { id: `usr_${comp.id}_4`, name: 'Amit Shah', email: 'amit.tl@acme.com', role: 'TEAM_LEADER', key: `${comp.registrationKey.slice(0, 4)}-RX-1026`, lastLogin: 'Today at 08:45 AM', active: comp.isActive },
+                        { id: `usr_${comp.id}_5`, name: 'Rajesh Kumar', email: 'rajesh.rep@acme.com', role: 'SALES_EXEC', key: `${comp.registrationKey.slice(0, 4)}-RX-1027`, lastLogin: 'Today at 11:20 AM', active: comp.isActive },
+                      ].map(emp => (
+                        <tr key={emp.id}>
+                          <td>
+                            <p className="font-bold text-xs text-white">{emp.name}</p>
+                            <p className="text-[11px] text-muted">{emp.email}</p>
+                          </td>
+                          <td>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300">
+                              {emp.role}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                              {emp.key}
+                            </span>
+                          </td>
+                          <td><span className="text-[11px] text-muted font-mono">{emp.lastLogin}</span></td>
+                          <td>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                              emp.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                            }`}>
+                              {emp.active ? 'ACTIVE' : 'BLOCKED'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ── IN-DEPTH COMPANY DETAILS MODAL ────────────────────────────────────── */}
-      {inDepthModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 overflow-y-auto">
-          <div className="bg-card border border-indigo-500/30 rounded-3xl max-w-4xl w-full p-6 space-y-6 shadow-2xl relative my-8">
+      {/* ── FEATURE 3 MODAL: COMPANY DETAILS EDIT & UPGRADE PLAN ────────────────── */}
+      {editModalOpen && editingCompany && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-card border border-indigo-500/40 rounded-3xl max-w-xl w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
             <button
-              onClick={() => setInDepthModalOpen(false)}
+              onClick={() => setEditModalOpen(false)}
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
             >
               <X size={16} />
             </button>
 
-            {inDepthLoading || !inDepthData ? (
-              <div className="py-12 text-center text-muted space-y-2">
-                <RefreshCw size={32} className="animate-spin mx-auto text-indigo-400" />
-                <p className="text-xs font-semibold">Loading full company metrics and employee details...</p>
+            <div className="flex items-center gap-3 border-b pb-4 border-border">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold">
+                <Edit2 size={18} />
               </div>
-            ) : (
-              <>
-                {/* Header Info */}
-                <div className="flex justify-between items-start flex-wrap gap-4 border-b pb-4 border-border">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-2xl font-black text-white">{inDepthData.organization.name}</h2>
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold ${
-                        inDepthData.organization.isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      }`}>
-                        {inDepthData.organization.isActive ? 'WORKSPACE ACTIVE' : 'COMPANY BLOCKED'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted mt-1">
-                      Admin: <strong>{inDepthData.organization.adminName}</strong> ({inDepthData.organization.adminEmail}) • Reg Key: <strong className="font-mono text-purple-300">{inDepthData.organization.registrationKey}</strong>
-                    </p>
-                  </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-white">Company Details Edit & Upgrade Plan</h3>
+                <p className="text-xs text-muted">Modify company details, change subscription plan tier, set seat quota, or update expiry date.</p>
+              </div>
+            </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleToggleCompanyBlock({ id: inDepthData.organization.id, name: inDepthData.organization.name, adminName: inDepthData.organization.adminName, adminEmail: inDepthData.organization.adminEmail, registrationKey: inDepthData.organization.registrationKey, plan: inDepthData.subscription?.planTier || 'FREE_TRIAL', trialDaysLeft: 0, isExpired: false, seatsAllocated: inDepthData.subscription?.memberLimit || 6, seatsUsed: inDepthData.employees.length, totalUsersCount: inDepthData.employees.length, totalLeads: inDepthData.leadStats.totalLeads, convertedLeads: inDepthData.leadStats.convertedLeads, conversionRate: inDepthData.leadStats.conversionRate, isActive: inDepthData.organization.isActive, createdAt: inDepthData.organization.createdAt })}
-                      className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all ${
-                        inDepthData.organization.isActive
-                          ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30'
-                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30'
-                      }`}
-                    >
-                      {inDepthData.organization.isActive ? <Ban size={14} /> : <Unlock size={14} />}
-                      {inDepthData.organization.isActive ? 'Block Company Workspace' : 'Unblock Workspace'}
-                    </button>
-                  </div>
-                </div>
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-muted font-bold block mb-1">Company Name</label>
+                <input
+                  className="crm-input text-sm h-10 w-full"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                />
+              </div>
 
-                {/* Lead Performance Summary Cards */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
-                    <TrendingUp size={14} className="text-indigo-400" /> Company Lead Performance Metrics
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="crm-card p-4 bg-indigo-500/10 border-indigo-500/20">
-                      <p className="text-[11px] text-muted font-bold">Total Leads Handled</p>
-                      <p className="text-2xl font-black text-white mt-1">{inDepthData.leadStats.totalLeads}</p>
-                    </div>
-
-                    <div className="crm-card p-4 bg-emerald-500/10 border-emerald-500/20">
-                      <p className="text-[11px] text-muted font-bold">Converted Leads</p>
-                      <p className="text-2xl font-black text-emerald-400 mt-1">{inDepthData.leadStats.convertedLeads}</p>
-                    </div>
-
-                    <div className="crm-card p-4 bg-purple-500/10 border-purple-500/20">
-                      <p className="text-[11px] text-muted font-bold">Conversion Rate</p>
-                      <p className="text-2xl font-black text-purple-300 mt-1">{inDepthData.leadStats.conversionRate}%</p>
-                    </div>
-
-                    <div className="crm-card p-4 bg-amber-500/10 border-amber-500/20">
-                      <p className="text-[11px] text-muted font-bold">Total Revenue Won</p>
-                      <p className="text-2xl font-black text-amber-300 mt-1">₹{inDepthData.leadStats.totalRevenue.toLocaleString('en-IN')}</p>
-                    </div>
-                  </div>
+                  <label className="text-muted font-bold block mb-1">Select Subscription Plan</label>
+                  <select
+                    className="crm-input text-sm h-10 w-full font-bold text-indigo-300"
+                    value={editPlan}
+                    onChange={e => setEditPlan(e.target.value as PlanType)}
+                  >
+                    <option value="FREE_TRIAL">Free Trial (30d)</option>
+                    <option value="STARTER">Starter Plan (6 seats)</option>
+                    <option value="PRO">Pro Plan (20 seats)</option>
+                    <option value="PRO_50">Pro 50 Plan (50 seats)</option>
+                    <option value="PRO_MAX">Pro Max (Unlimited)</option>
+                    <option value="ENTERPRISE">Enterprise (Custom)</option>
+                  </select>
                 </div>
 
-                {/* Plan & User Quota Controls */}
-                <div className="p-4 rounded-2xl bg-card border border-border flex justify-between items-center flex-wrap gap-4">
-                  <div>
-                    <span className="text-xs font-bold text-muted block">ACTIVE PLAN TIER</span>
-                    <span className="text-sm font-black text-white">{inDepthData.subscription?.planTier.replace('_', ' ')}</span>
-                  </div>
+                <div>
+                  <label className="text-muted font-bold block mb-1">Allocated User Seats</label>
+                  <input
+                    type="number"
+                    className="crm-input text-sm h-10 w-full font-mono font-bold"
+                    value={editSeats}
+                    onChange={e => setEditSeats(+e.target.value)}
+                  />
+                </div>
+              </div>
 
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <span className="text-xs font-bold text-muted block">ALLOCATED USER SEATS</span>
-                      <span className="text-xs font-bold text-white">{inDepthData.employees.length} Used / {inDepthData.subscription?.memberLimit} Allocated</span>
-                    </div>
+              <div>
+                <label className="text-muted font-bold block mb-1">Plan / Key Expiry Date</label>
+                <input
+                  type="date"
+                  className="crm-input text-sm h-10 w-full font-mono"
+                  value={editExpiryDate}
+                  onChange={e => setEditExpiryDate(e.target.value)}
+                />
+              </div>
+            </div>
 
-                    <div className="flex items-center gap-1 bg-background p-1.5 rounded-xl border border-border">
-                      <input
-                        type="number"
-                        className="w-16 h-8 text-center text-xs font-bold bg-card text-white rounded border border-border"
-                        value={newSeatInput}
-                        onChange={e => setNewSeatInput(+e.target.value)}
-                      />
-                      <button
-                        onClick={() => handleUpdateCompanySeats(inDepthData.organization.id)}
-                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg"
-                      >
-                        Set Seats
-                      </button>
-                    </div>
-                  </div>
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <button
+                onClick={() => handleToggleBlockCompany(editingCompany)}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ${
+                  editingCompany.isActive
+                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                }`}
+              >
+                {editingCompany.isActive ? <Ban size={14} /> : <Unlock size={14} />}
+                {editingCompany.isActive ? 'Block Company' : 'Unblock Company'}
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-background border border-border text-muted font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveCompanyEdit}
+                  className="btn-primary text-xs px-5 py-2.5 font-bold shadow-lg"
+                >
+                  Save Changes →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── WHATSAPP DATE-WISE CHAT LOG MODAL ────────────────────────────────────── */}
+      {chatLogModalOpen && chatLogCompany && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-card border border-emerald-500/40 rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
+            <button
+              onClick={() => setChatLogModalOpen(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-3 border-b pb-4 border-border">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold">
+                <MessageSquare size={18} />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-white">Date-Wise WhatsApp Chat Logs</h3>
+                <p className="text-xs text-muted">{chatLogCompany.name} • Daily message throughput & delivery statistics.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3 rounded-2xl bg-background border border-border flex justify-between items-center text-xs">
+                <span>Total WhatsApp Messages Sent:</span>
+                <strong className="text-emerald-400 font-mono text-sm font-bold">
+                  {chatLogCompany.whatsappUsed.toLocaleString('en-IN')} / {chatLogCompany.whatsappLimit.toLocaleString('en-IN')}
+                </strong>
+              </div>
+
+              <table className="crm-table w-full">
+                <thead>
+                  <tr>
+                    <th>Date Window</th>
+                    <th>Messages Sent</th>
+                    <th>Delivery Success Rate</th>
+                    <th>Active Chats</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyLogs.map(log => (
+                    <tr key={log.date}>
+                      <td className="font-mono text-xs font-bold text-white">{log.date}</td>
+                      <td className="font-mono text-xs font-bold text-emerald-400">{log.messagesSent.toLocaleString('en-IN')}</td>
+                      <td>
+                        <span className="text-xs font-bold text-emerald-300">{log.deliveryRate}%</span>
+                      </td>
+                      <td className="font-mono text-xs text-muted">{log.activeChats} Conversations</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setChatLogModalOpen(false)}
+                className="btn-primary text-xs px-5 py-2.5 font-bold"
+              >
+                Close Logs Window
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── KEY GENERATOR MODAL ─────────────────────────────────────────────────── */}
+      {genKeyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-card border border-purple-500/40 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
+            <button
+              onClick={() => setGenKeyModalOpen(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-3 border-b pb-4 border-border">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold">
+                <Key size={18} />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-white">Generate Company Registration Key</h3>
+                <p className="text-xs text-muted">Create security key for tenant activation (Format: ACME-KX-7421).</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="text-muted font-bold block mb-1">Company Name *</label>
+                <input
+                  className="crm-input text-sm h-10 w-full"
+                  placeholder="e.g. Global Logistics Corp"
+                  value={genCompanyName}
+                  onChange={e => setGenCompanyName(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted font-bold block mb-1">Plan Tier</label>
+                  <select
+                    className="crm-input text-sm h-10 w-full"
+                    value={genPlan}
+                    onChange={e => setGenPlan(e.target.value as PlanType)}
+                  >
+                    <option value="FREE_TRIAL">Free Trial (30d)</option>
+                    <option value="STARTER">Starter Plan (6 seats)</option>
+                    <option value="PRO">Pro Plan (20 seats)</option>
+                    <option value="PRO_50">Pro 50 Plan (50 seats)</option>
+                    <option value="PRO_MAX">Pro Max (Unlimited)</option>
+                  </select>
                 </div>
 
-                {/* Employees & Admin Details List */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-                      <Users size={14} className="text-purple-400" /> Company Employees & Admins ({inDepthData.employees.length})
-                    </h4>
-                  </div>
-
-                  <div className="border border-border rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
-                    <table className="crm-table">
-                      <thead>
-                        <tr>
-                          <th>Employee Name & Email</th>
-                          <th>Role</th>
-                          <th>Key Used for Account</th>
-                          <th>Last Login</th>
-                          <th>Status</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {inDepthData.employees.map(u => (
-                          <tr key={u.id} className={!u.isActive ? 'opacity-60 bg-red-950/20' : ''}>
-                            <td>
-                              <p className="font-bold text-xs text-white">{u.name}</p>
-                              <p className="text-[11px] text-muted">{u.email}</p>
-                            </td>
-                            <td>
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300">
-                                {u.role}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                                {u.keyUsed}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="text-[11px] text-muted font-mono">{u.lastLoginAt || 'Never'}</span>
-                            </td>
-                            <td>
-                              <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                                u.isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                              }`}>
-                                {u.isActive ? 'ACTIVE' : 'BLOCKED'}
-                              </span>
-                            </td>
-                            <td>
-                              <button
-                                onClick={() => handleToggleUserBlock(u)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${
-                                  u.isActive ? 'bg-red-500/15 hover:bg-red-500/25 text-red-300' : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300'
-                                }`}
-                              >
-                                {u.isActive ? <UserX size={12} /> : <UserCheck size={12} />}
-                                {u.isActive ? 'Block User' : 'Unblock'}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                <div>
+                  <label className="text-muted font-bold block mb-1">User Quota (Seats)</label>
+                  <input
+                    type="number"
+                    className="crm-input text-sm h-10 w-full"
+                    value={genSeats}
+                    onChange={e => setGenSeats(+e.target.value)}
+                  />
                 </div>
-              </>
-            )}
+              </div>
+
+              <div>
+                <label className="text-muted font-bold block mb-1">Validity Window (Days)</label>
+                <select
+                  className="crm-input text-sm h-10 w-full"
+                  value={genValidityDays}
+                  onChange={e => setGenValidityDays(+e.target.value)}
+                >
+                  <option value={14}>14 Days</option>
+                  <option value={30}>30 Days</option>
+                  <option value={90}>90 Days</option>
+                  <option value={365}>365 Days (1 Year)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-border">
+              <button
+                onClick={() => setGenKeyModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-background border border-border text-muted font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateKey}
+                className="btn-primary text-xs px-5 py-2.5 font-bold shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600"
+              >
+                Generate & Issue Key →
+              </button>
+            </div>
           </div>
         </div>
       )}
