@@ -98,13 +98,24 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
+        const rawRoleName = (data.user?.role?.name || data.user?.role || selectedRole).toString();
+        const normRole = ((): UserRole => {
+          const r = rawRoleName.toUpperCase().trim();
+          if (r === 'SUPER_ADMIN' || r === 'SUPERADMIN') return 'SUPER_ADMIN';
+          if (r === 'ADMIN' || r === 'TENANT_ADMIN' || r === 'OWNER') return 'ADMIN';
+          if (r === 'HR' || r === 'HR_MANAGER') return 'HR';
+          if (r === 'MANAGER' || r === 'DEPT_MANAGER') return 'MANAGER';
+          if (r === 'TEAM_LEADER' || r === 'TL') return 'TEAM_LEADER';
+          return 'SALES_EXEC';
+        })();
+
         setAuthSession(
           {
             id: data.user.id,
-            name: `${data.user.firstName} ${data.user.lastName}`,
+            name: `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() || DEMO_USERS[selectedRole]?.name || 'User Account',
             email: data.user.email,
-            role: (data.user.role?.name || selectedRole) as UserRole,
-            avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : 'US',
+            role: normRole,
+            avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : selectedRole.slice(0, 2),
             companyId: data.organization?.id || selectedCompanyId,
             companyName: data.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Acme Sales Solutions',
           },
@@ -114,22 +125,17 @@ export function LoginGateway() {
         router.push('/dashboard');
         return;
       } else {
-        // Fallback to selected perspective mode if login credentials mismatch
         switchRole(selectedRole);
         setLoading(false);
         router.push('/dashboard');
         return;
       }
     } catch (err) {
-      console.warn('Backend login unavailable, falling back to client mode:', err);
-    }
-
-    // Fallback demo mode
-    setTimeout(() => {
+      console.warn('Backend login unavailable, activating selected role mode:', err);
       switchRole(selectedRole);
       setLoading(false);
       router.push('/dashboard');
-    }, 400);
+    }
   };
 
   // Google OAuth Handler
