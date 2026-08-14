@@ -406,6 +406,36 @@ export function LoginGateway() {
               <p className="text-xs text-muted mt-0.5">Select your company and provide your assigned key to authenticate.</p>
             </div>
 
+            {/* Target Role / Perspective Selector */}
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">
+                Select Login Role / Perspective *
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole(r);
+                      if (r === 'ADMIN') setEmail('vikram.admin@acme.com');
+                      if (r === 'HR') setEmail('hr.manager@acme.com');
+                      if (r === 'MANAGER') setEmail('rajesh.mgr@acme.com');
+                      if (r === 'TEAM_LEADER') setEmail('amit.tl@acme.com');
+                      if (r === 'SALES_EXEC') setEmail('rajesh.rep@acme.com');
+                    }}
+                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${
+                      selectedRole === r
+                        ? 'bg-indigo-500/25 border-indigo-500 text-indigo-300 shadow-md'
+                        : 'bg-background border-border text-muted hover:text-white'
+                    }`}
+                  >
+                    {r.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-3 pt-2">
               {/* Company Selection Dropdown */}
               <div>

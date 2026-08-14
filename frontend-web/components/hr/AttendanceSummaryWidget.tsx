@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Clock, Minus, Home, Sun, Lock, Calendar, User, Shield, X, ExternalLink, Building2, Phone, Mail, DollarSign, MessageSquare, Target } from 'lucide-react';
+import {
+  CheckCircle2, XCircle, Clock, Minus, Home, Sun, Lock, Calendar, User, Shield, X,
+  ExternalLink, Building2, Phone, Mail, DollarSign, MessageSquare, Target, ChevronLeft, ChevronRight, Layers
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 interface UserPersonalActivityLog {
@@ -38,137 +41,84 @@ const EMPLOYEES = [
   { id: '8', name: 'Deepak Joshi', role: 'Support', tl: 'Neha Joshi', checkIn: '08:55', checkOut: null, status: 'PRESENT' },
 ];
 
-const MY_PERSONAL_ATTENDANCE: UserPersonalActivityLog[] = [
-  {
-    date: 'Today (Aug 13)',
-    checkIn: '09:05 AM',
-    checkOut: 'Working...',
-    hours: '7.5 hrs',
-    status: 'PRESENT',
-    hasQualifiedLead: true,
-    hasVisitNegotiation: true,
-    totalLeadsHandled: 28,
-    callsCount: 18,
-    msgsCount: 10,
-    leadActivities: [
-      {
-        type: 'QUALIFIED',
-        leadName: 'Ananya Sharma',
-        email: 'ananya.s@techcorp.in',
-        phone: '+91 98765 43210',
-        company: 'TechCorp Pvt Ltd',
-        volume: '₹3,50,000',
+// 20-Day Window Generator: Generates 60 Days of realistic Personal Attendance & Lead Activity Logs (3 Pages x 20 Days)
+const generate60DaysAttendanceLogs = (): UserPersonalActivityLog[] => {
+  const logs: UserPersonalActivityLog[] = [];
+  const startDate = new Date(2026, 7, 13); // Aug 13, 2026
+
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() - i);
+
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const dateFormatted = i === 0
+      ? 'Today (Aug 13)'
+      : d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+
+    const hasQualified = !isWeekend && (i % 2 === 0 || i % 5 === 0);
+    const hasVisit = !isWeekend && (i % 3 === 0 || i % 7 === 0);
+
+    const totalLeads = isWeekend ? 0 : 20 + ((i * 7) % 15);
+    const calls = isWeekend ? 0 : Math.floor(totalLeads * 0.65);
+    const msgs = isWeekend ? 0 : totalLeads - calls;
+
+    const status = isWeekend
+      ? 'WORK_FROM_HOME'
+      : i % 8 === 0
+      ? 'LATE'
+      : i % 14 === 0
+      ? 'ON_LEAVE'
+      : 'PRESENT';
+
+    const checkIn = isWeekend ? '—' : status === 'LATE' ? '09:35 AM' : '09:02 AM';
+    const checkOut = isWeekend ? '—' : i === 0 ? 'Working...' : '06:15 PM';
+    const hours = isWeekend ? '0.0 hrs' : '9.0 hrs';
+
+    const leadActivities = [];
+    if (hasQualified) {
+      leadActivities.push({
+        type: 'QUALIFIED' as const,
+        leadName: `Lead ${i + 1} - ${['Ananya Sharma', 'Rohan Mehta', 'Vikramaditya Rao', 'Sunita Real Estate', 'TechCorp Ltd'][i % 5]}`,
+        email: `lead${i + 1}@company.com`,
+        phone: `+91 98${10000000 + i * 3541}`,
+        company: ['TechCorp Pvt Ltd', 'Apex Infrastructure', 'Solar Solutions', 'Construkt Builders', 'Lakshmi Auto'][i % 5],
+        volume: `₹${(2 + (i % 9) * 1.2).toFixed(1)}L`,
         time: '11:20 AM',
         summary: 'Lead BANT requirement verified & qualified by logged-in rep.',
-      },
-      {
-        type: 'VISIT_NEGOTIATION',
-        leadName: 'Rohan Deshmukh',
-        email: 'rohan.d@apex.co.in',
-        phone: '+91 91234 56789',
-        company: 'Apex Infrastructure',
-        volume: '₹8,20,000',
-        time: '02:45 PM',
-        summary: 'On-site commercial demo conducted & contract pricing negotiated.',
-      },
-    ],
-  },
-  {
-    date: 'Aug 12, 2026',
-    checkIn: '09:01 AM',
-    checkOut: '06:15 PM',
-    hours: '9.2 hrs',
-    status: 'PRESENT',
-    hasQualifiedLead: true,
-    hasVisitNegotiation: false,
-    totalLeadsHandled: 32,
-    callsCount: 22,
-    msgsCount: 10,
-    leadActivities: [
-      {
-        type: 'QUALIFIED',
-        leadName: 'Vikramaditya Rao',
-        email: 'v.rao@solarsolutions.in',
-        phone: '+91 99887 66554',
-        company: 'Solar Solutions Tech',
-        volume: '₹4,80,000',
-        time: '03:15 PM',
-        summary: 'Qualified enterprise account with 25 user license scope.',
-      },
-    ],
-  },
-  {
-    date: 'Aug 11, 2026',
-    checkIn: '09:28 AM',
-    checkOut: '06:30 PM',
-    hours: '9.0 hrs',
-    status: 'LATE',
-    hasQualifiedLead: false,
-    hasVisitNegotiation: true,
-    totalLeadsHandled: 24,
-    callsCount: 15,
-    msgsCount: 9,
-    leadActivities: [
-      {
-        type: 'VISIT_NEGOTIATION',
-        leadName: 'Kavita Nair',
-        email: 'kavita@construkt.com',
-        phone: '+91 97654 32109',
-        company: 'Construkt Builders',
-        volume: '₹12,50,000',
-        time: '04:30 PM',
-        summary: 'In-person site visit & discount terms negotiation.',
-      },
-    ],
-  },
-  {
-    date: 'Aug 10, 2026',
-    checkIn: '09:00 AM',
-    checkOut: '06:00 PM',
-    hours: '9.0 hrs',
-    status: 'PRESENT',
-    hasQualifiedLead: true,
-    hasVisitNegotiation: true,
-    totalLeadsHandled: 30,
-    callsCount: 20,
-    msgsCount: 10,
-    leadActivities: [
-      {
-        type: 'QUALIFIED',
-        leadName: 'Deepak Joshi',
-        email: 'd.joshi@fmcgglobal.com',
-        phone: '+91 94321 87654',
-        company: 'FMCG Global Network',
-        volume: '₹2,90,000',
-        time: '10:45 AM',
-        summary: 'Requirement discovery completed & budget approved.',
-      },
-      {
-        type: 'VISIT_NEGOTIATION',
-        leadName: 'Deepak Joshi',
-        email: 'd.joshi@fmcgglobal.com',
-        phone: '+91 94321 87654',
-        company: 'FMCG Global Network',
-        volume: '₹2,90,000',
-        time: '04:00 PM',
-        summary: 'Final proposal review meeting & price closing negotiation.',
-      },
-    ],
-  },
-  {
-    date: 'Aug 09, 2026',
-    checkIn: '09:10 AM',
-    checkOut: '06:00 PM',
-    hours: '8.8 hrs',
-    status: 'WORK_FROM_HOME',
-    hasQualifiedLead: false,
-    hasVisitNegotiation: false,
-    totalLeadsHandled: 15,
-    callsCount: 8,
-    msgsCount: 7,
-    leadActivities: [],
-  },
-];
+      });
+    }
+    if (hasVisit) {
+      leadActivities.push({
+        type: 'VISIT_NEGOTIATION' as const,
+        leadName: `Lead ${i + 10} - ${['Pooja Nair', 'Kavita Verma', 'Siddharth Rao', 'AdAgency Pro', 'Grand Palace'][i % 5]}`,
+        email: `visit${i + 1}@enterprise.com`,
+        phone: `+91 91${20000000 + i * 4123}`,
+        company: ['Grand Palace Hotel', 'AdAgency Pro', 'FMCG Global Network', 'SpeedCars Ltd', 'Innovate Tech'][i % 5],
+        volume: `₹${(5 + (i % 7) * 2.1).toFixed(1)}L`,
+        time: '03:45 PM',
+        summary: 'In-person site visit conducted & discount terms negotiated.',
+      });
+    }
+
+    logs.push({
+      date: dateFormatted,
+      checkIn,
+      checkOut,
+      hours,
+      status,
+      hasQualifiedLead: hasQualified,
+      hasVisitNegotiation: hasVisit,
+      totalLeadsHandled: totalLeads,
+      callsCount: calls,
+      msgsCount: msgs,
+      leadActivities,
+    });
+  }
+
+  return logs;
+};
+
+const FULL_60_DAYS_LOGS = generate60DaysAttendanceLogs();
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   PRESENT:       { label: 'Present',       color: 'rgb(34,197,94)',  bg: 'rgba(34,197,94,0.12)',   icon: CheckCircle2 },
@@ -186,11 +136,22 @@ export function AttendanceSummaryWidget() {
   const [filter, setFilter] = useState('ALL');
   const [selectedLogModal, setSelectedLogModal] = useState<UserPersonalActivityLog | null>(null);
 
+  // 20-Day Window Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isEmployeeMode = rawRole === 'SALES_EXEC' || rawRole === 'EMPLOYEE' || rawRole === 'STAFF' || rawRole === 'REP';
 
   // ── READ-ONLY PERSONAL ATTENDANCE MODE FOR SALES EXECUTIVE ────────────────
   if (isEmployeeMode) {
+    const totalPages = Math.ceil(FULL_60_DAYS_LOGS.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const currentLogsSlice = FULL_60_DAYS_LOGS.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    const startDateStr = currentLogsSlice[0]?.date || '';
+    const endDateStr = currentLogsSlice[currentLogsSlice.length - 1]?.date || '';
+
     return (
       <div className="space-y-6">
         {/* Personal Attendance Header Card */}
@@ -204,7 +165,7 @@ export function AttendanceSummaryWidget() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-extrabold text-lg text-white">My Attendance Log</h3>
                   <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    READ-ONLY MODE
+                    READ-ONLY MODE (20 DAYS / WINDOW)
                   </span>
                 </div>
                 <p className="text-xs text-muted">
@@ -215,7 +176,7 @@ export function AttendanceSummaryWidget() {
 
             <div className="flex items-center gap-2 text-xs text-muted bg-muted/20 px-3 py-1.5 rounded-xl border border-border">
               <Lock size={13} className="text-amber-400" />
-              <span>Attendance records are locked & verified by HR</span>
+              <span>Attendance records locked & verified by HR</span>
             </div>
           </div>
 
@@ -261,6 +222,35 @@ export function AttendanceSummaryWidget() {
             </div>
           </div>
 
+          {/* ── 20 DAYS WINDOW & DATE RANGE HEADER BANNER ──────────────────────── */}
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-background/90 px-4 py-3 border-b border-border text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-brand-400 bg-brand/20 px-2.5 py-1 rounded-lg border border-brand/30">
+                WINDOW PAGE {currentPage} OF {totalPages}
+              </span>
+              <span className="font-bold text-white">
+                📅 Date Range: <strong className="text-amber-300 font-mono">{startDateStr}</strong> to <strong className="text-amber-300 font-mono">{endDateStr}</strong> ({currentLogsSlice.length} Days)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 disabled:opacity-40"
+              >
+                <ChevronLeft size={14} /> Previous 20 Days
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1 disabled:opacity-40"
+              >
+                Next 20 Days <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="crm-table">
               <thead>
@@ -274,7 +264,7 @@ export function AttendanceSummaryWidget() {
                 </tr>
               </thead>
               <tbody>
-                {MY_PERSONAL_ATTENDANCE.map((row) => {
+                {currentLogsSlice.map((row) => {
                   const cfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.PRESENT;
                   const Icon = cfg.icon;
                   const hasActivities = row.leadActivities && row.leadActivities.length > 0;
@@ -309,7 +299,6 @@ export function AttendanceSummaryWidget() {
                       <td className="font-mono text-xs font-semibold text-muted">{row.checkOut}</td>
                       <td className="font-mono text-xs font-bold text-brand-300">{row.hours}</td>
 
-                      {/* ── NEW COLUMN: LEADS HANDLED (CALLS / MESSAGES) ──────────────── */}
                       <td className="text-xs">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-white bg-brand/20 px-2 py-0.5 rounded border border-brand/30 font-mono">
@@ -335,6 +324,46 @@ export function AttendanceSummaryWidget() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* ── 20 DAYS WINDOW FOOTER NAVIGATION & PAGE CONTROL ────────────────── */}
+          <div className="p-4 border-t border-border flex items-center justify-between flex-wrap gap-3 bg-background text-xs">
+            <div className="text-muted">
+              Showing <strong className="text-white">{startIndex + 1}–{startIndex + currentLogsSlice.length}</strong> of <strong className="text-white">{FULL_60_DAYS_LOGS.length}</strong> Total Attendance Logs
+              <span className="ml-2 font-mono text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20 font-bold">
+                [{startDateStr} — {endDateStr}]
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1 disabled:opacity-40"
+              >
+                <ChevronLeft size={14} /> Previous 20 Days
+              </button>
+
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    onClick={() => setCurrentPage(pg)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${currentPage === pg ? 'bg-brand text-white border-brand shadow' : 'bg-card border-border text-muted hover:text-white'}`}
+                  >
+                    Page {pg} (20 Days)
+                  </button>
+                ))}
+              </div>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1 disabled:opacity-40"
+              >
+                Next 20 Days <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
 
