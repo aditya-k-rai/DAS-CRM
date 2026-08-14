@@ -218,15 +218,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
-  const normalizeRoleStr = (r?: string): UserRole => {
-    const norm = (r || '').toString().trim().toUpperCase();
-    if (norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP') return 'SALES_EXEC';
-    if (norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
-    if (norm === 'OWNER' || norm === 'TENANT_ADMIN' || norm === 'COMPANY_ADMIN') return 'ADMIN';
-    if (norm === 'SUPERADMIN' || norm === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
-    if (norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
-    if (norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
-    return (norm as UserRole) || 'ADMIN';
+  const normalizeRoleStr = (r?: any): UserRole => {
+    if (!r) return 'ADMIN';
+    let str = '';
+    if (typeof r === 'string') {
+      str = r;
+    } else if (typeof r === 'object' && r !== null) {
+      str = typeof r.name === 'string' ? r.name : typeof r.role === 'string' ? r.role : String(r);
+    } else {
+      str = String(r);
+    }
+
+    const norm = str.trim().toUpperCase();
+    if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN') return 'SUPER_ADMIN';
+    if (norm === 'ADMIN' || norm === 'TENANT_ADMIN' || norm === 'OWNER' || norm === 'COMPANY_ADMIN') return 'ADMIN';
+    if (norm === 'HR' || norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
+    if (norm === 'MANAGER' || norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
+    if (norm === 'TEAM_LEADER' || norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
+    if (norm === 'SALES_EXEC' || norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP' || norm === 'SALES') return 'SALES_EXEC';
+
+    if (norm === 'SUPER_ADMIN' || norm === 'ADMIN' || norm === 'HR' || norm === 'MANAGER' || norm === 'TEAM_LEADER' || norm === 'SALES_EXEC') {
+      return norm as UserRole;
+    }
+
+    return 'ADMIN';
   };
 
   const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription) => {

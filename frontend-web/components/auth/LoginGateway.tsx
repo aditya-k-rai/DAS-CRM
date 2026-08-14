@@ -98,15 +98,24 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
-        const rawRoleName = (data.user?.role?.name || data.user?.role || selectedRole).toString();
+        let extractedRawRole = selectedRole as string;
+        if (typeof data.user?.role === 'string') {
+          extractedRawRole = data.user.role;
+        } else if (data.user?.role && typeof data.user.role.name === 'string') {
+          extractedRawRole = data.user.role.name;
+        } else if (typeof data.user?.roleName === 'string') {
+          extractedRawRole = data.user.roleName;
+        }
+
         const normRole = ((): UserRole => {
-          const r = rawRoleName.toUpperCase().trim();
-          if (r === 'SUPER_ADMIN' || r === 'SUPERADMIN') return 'SUPER_ADMIN';
-          if (r === 'ADMIN' || r === 'TENANT_ADMIN' || r === 'OWNER') return 'ADMIN';
-          if (r === 'HR' || r === 'HR_MANAGER') return 'HR';
-          if (r === 'MANAGER' || r === 'DEPT_MANAGER') return 'MANAGER';
-          if (r === 'TEAM_LEADER' || r === 'TL') return 'TEAM_LEADER';
-          return 'SALES_EXEC';
+          const r = extractedRawRole.toString().toUpperCase().trim();
+          if (r === 'SUPER_ADMIN' || r === 'SUPERADMIN' || r === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
+          if (r === 'ADMIN' || r === 'TENANT_ADMIN' || r === 'OWNER' || r === 'COMPANY_ADMIN') return 'ADMIN';
+          if (r === 'HR' || r === 'HR_MANAGER' || r === 'HUMAN_RESOURCES') return 'HR';
+          if (r === 'MANAGER' || r === 'DEPT_MANAGER' || r === 'SALES_MANAGER') return 'MANAGER';
+          if (r === 'TEAM_LEADER' || r === 'TL' || r === 'LEAD') return 'TEAM_LEADER';
+          if (r === 'SALES_EXEC' || r === 'EMPLOYEE' || r === 'STAFF' || r === 'REP' || r === 'EXECUTIVE' || r === 'SALES_REP' || r === 'SALES') return 'SALES_EXEC';
+          return selectedRole;
         })();
 
         setAuthSession(
