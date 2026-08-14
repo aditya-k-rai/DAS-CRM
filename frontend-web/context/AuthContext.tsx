@@ -212,8 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         const roleStr = localStorage.getItem('nexcrm_active_role');
         const safeRole = normalizeRoleStr(roleStr);
-        const targetRole = (safeRole === 'SUPER_ADMIN' ? 'ADMIN' : safeRole) as UserRole;
-        setCurrentUser(DEMO_USERS[targetRole] || DEMO_USERS.ADMIN);
+        setCurrentUser(DEMO_USERS[safeRole] || DEMO_USERS.ADMIN);
       }
 
       const tok = localStorage.getItem('nexcrm_token');

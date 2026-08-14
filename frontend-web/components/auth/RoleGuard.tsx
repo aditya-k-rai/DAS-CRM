@@ -11,7 +11,7 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ allowedRoles, children, fallbackTitle }: RoleGuardProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, switchRole } = useAuth();
   const userRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
   const isAllowed = allowedRoles.includes(userRole);
 
@@ -57,10 +57,21 @@ export function RoleGuard({ allowedRoles, children, fallbackTitle }: RoleGuardPr
             <strong className="text-rose-300 font-mono uppercase font-extrabold">{userRole}</strong>
           </div>
         </div>
-        <div className="pt-2">
-          <Link href={returnHref} className="btn-primary text-xs px-5 py-2.5 inline-flex items-center gap-2">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href={returnHref} className="btn-secondary text-xs px-5 py-2.5 inline-flex items-center gap-2">
             <Lock size={13} /> Return to My Assigned Dashboard ({userRole})
           </Link>
+          {allowedRoles.includes('SUPER_ADMIN') && (
+            <button
+              onClick={() => {
+                switchRole('SUPER_ADMIN');
+                window.location.href = '/admin/super';
+              }}
+              className="btn-primary text-xs px-5 py-2.5 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg"
+            >
+              👑 Switch to Super Admin (adtyamighty@gmail.com)
+            </button>
+          )}
         </div>
       </div>
     );
