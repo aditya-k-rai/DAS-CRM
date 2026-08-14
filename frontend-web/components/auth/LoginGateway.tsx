@@ -68,6 +68,25 @@ export function LoginGateway() {
     }
   };
 
+  const getPostLoginRedirectRoute = (role: UserRole): string => {
+    switch (role) {
+      case 'ADMIN':
+        return '/dashboard';
+      case 'HR':
+        return '/hr';
+      case 'MANAGER':
+        return '/dashboard/manager';
+      case 'TEAM_LEADER':
+        return '/dashboard/team-leader';
+      case 'SALES_EXEC':
+        return '/dashboard/sales';
+      case 'SUPER_ADMIN':
+        return '/admin/super';
+      default:
+        return '/dashboard';
+    }
+  };
+
   // 1. Workspace Login Handler
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
@@ -102,6 +121,7 @@ export function LoginGateway() {
         const finalRole: UserRole = selectedRole;
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
+        const redirectUrl = getPostLoginRedirectRoute(finalRole);
         setAuthSession(
           {
             id: data.user?.id || demoProfile.id,
@@ -115,19 +135,19 @@ export function LoginGateway() {
           data.accessToken
         );
         setLoading(false);
-        router.push('/dashboard');
+        router.push(redirectUrl);
         return;
       } else {
         switchRole(selectedRole);
         setLoading(false);
-        router.push('/dashboard');
+        router.push(getPostLoginRedirectRoute(selectedRole));
         return;
       }
     } catch (err) {
       console.warn('Backend login unavailable, activating selected role mode:', err);
       switchRole(selectedRole);
       setLoading(false);
-      router.push('/dashboard');
+      router.push(getPostLoginRedirectRoute(selectedRole));
     }
   };
 

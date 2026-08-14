@@ -173,9 +173,19 @@ export function Sidebar() {
               {group.group}
             </p>
             {group.items.map((item) => {
-              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+              let targetHref = item.href;
+              if (item.label === 'Dashboard' || item.href === '/dashboard') {
+                if (currentNormalizedRole === 'HR') targetHref = '/hr';
+                else if (currentNormalizedRole === 'MANAGER') targetHref = '/dashboard/manager';
+                else if (currentNormalizedRole === 'TEAM_LEADER') targetHref = '/dashboard/team-leader';
+                else if (currentNormalizedRole === 'SALES_EXEC') targetHref = '/dashboard/sales';
+                else if (currentNormalizedRole === 'SUPER_ADMIN') targetHref = '/admin/super';
+                else targetHref = '/dashboard';
+              }
+
+              const isActive = pathname === targetHref || pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
               return (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} href={targetHref}>
                   <div className={cn('sidebar-item', isActive && 'active')}>
                     <item.icon size={17} />
                     <span>{item.label}</span>
