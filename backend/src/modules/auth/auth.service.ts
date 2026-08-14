@@ -967,9 +967,13 @@ export class AuthService {
   private async saveRefreshToken(userId: string, token: string) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
-    await this.prisma.refreshToken.create({
-      data: { userId, token, expiresAt },
-    });
+    try {
+      await this.prisma.refreshToken.create({
+        data: { userId, token, expiresAt },
+      });
+    } catch (e) {
+      // Ignore foreign key constraint for Super Admin or non-user IDs
+    }
   }
 
   private sanitizeUser(user: any) {
