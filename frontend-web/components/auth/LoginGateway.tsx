@@ -7,7 +7,7 @@ import {
   Shield, Key, Lock, Mail, Building2, UserCheck, ArrowRight,
   Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check
 } from 'lucide-react';
-import { useAuth, UserRole, DEMO_USERS } from '@/context/AuthContext';
+import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 
 interface PublicCompany {
   id: string;
@@ -117,8 +117,9 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
-        // Enforce the target role selected by the user on the Login Gateway
-        const finalRole: UserRole = selectedRole;
+        // Resolve target role from backend user role object, email heuristic, or UI selector
+        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
         const redirectUrl = getPostLoginRedirectRoute(finalRole);
@@ -138,16 +139,18 @@ export function LoginGateway() {
         router.push(redirectUrl);
         return;
       } else {
-        switchRole(selectedRole);
+        const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
+        switchRole(finalRole);
         setLoading(false);
-        router.push(getPostLoginRedirectRoute(selectedRole));
+        router.push(getPostLoginRedirectRoute(finalRole));
         return;
       }
     } catch (err) {
       console.warn('Backend login unavailable, activating selected role mode:', err);
-      switchRole(selectedRole);
+      const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
+      switchRole(finalRole);
       setLoading(false);
-      router.push(getPostLoginRedirectRoute(selectedRole));
+      router.push(getPostLoginRedirectRoute(finalRole));
     }
   };
 
@@ -170,12 +173,14 @@ export function LoginGateway() {
 
       const data = await res.json();
       if (res.ok && data.accessToken) {
+        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
+        const finalRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
         setAuthSession(
           {
             id: data.user.id,
             name: `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() || 'Google User',
             email: data.user.email,
-            role: (data.user.role?.name || selectedRole) as UserRole,
+            role: finalRole,
             avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : 'GU',
             companyId: data.organization?.id || selectedCompanyId,
             companyName: data.organization?.name || 'Acme Sales Solutions',
@@ -183,16 +188,17 @@ export function LoginGateway() {
           data.accessToken
         );
         setLoading(false);
-        router.push('/dashboard');
+        router.push(getPostLoginRedirectRoute(finalRole));
         return;
       } else {
         setError(data.message || 'Google OAuth authentication failed. Please ensure you are using a valid Gmail email ID.');
         setLoading(false);
       }
     } catch (err) {
-      switchRole(selectedRole);
+      const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
+      switchRole(finalRole);
       setLoading(false);
-      router.push('/dashboard');
+      router.push(getPostLoginRedirectRoute(finalRole));
     }
   };
 
@@ -225,6 +231,8 @@ export function LoginGateway() {
     setLoading(true);
     setError(null);
 
+    const assignedRole = normalizeRoleStr(keyInfo?.assignedRole || inferRoleFromEmail(staffEmail) || 'SALES_EXEC');
+
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/staff-register`, {
         method: 'POST',
@@ -244,7 +252,7 @@ export function LoginGateway() {
             id: data.user.id,
             name: staffName,
             email: staffEmail,
-            role: (keyInfo?.assignedRole || 'SALES_EXEC') as UserRole,
+            role: assignedRole,
             avatar: staffName.slice(0, 2).toUpperCase(),
             companyId: 'comp_acme',
             companyName: 'Acme Sales Solutions',
@@ -252,7 +260,7 @@ export function LoginGateway() {
           data.accessToken
         );
         setLoading(false);
-        router.push('/dashboard');
+        router.push(getPostLoginRedirectRoute(assignedRole));
         return;
       }
     } catch (err) {
@@ -260,9 +268,9 @@ export function LoginGateway() {
     }
 
     setTimeout(() => {
-      switchRole('SALES_EXEC');
+      switchRole(assignedRole);
       setLoading(false);
-      router.push('/dashboard');
+      router.push(getPostLoginRedirectRoute(assignedRole));
     }, 800);
   };
 
@@ -438,7 +446,7 @@ export function LoginGateway() {
                     onClick={() => {
                       setSelectedRole(r);
                       if (r === 'ADMIN') setEmail('vikram.admin@acme.com');
-                      if (r === 'HR') setEmail('hr.manager@acme.com');
+                      if (r === 'HR') setEmail('sunita.hr@acme.com');
                       if (r === 'MANAGER') setEmail('rajesh.mgr@acme.com');
                       if (r === 'TEAM_LEADER') setEmail('amit.tl@acme.com');
                       if (r === 'SALES_EXEC') setEmail('rajesh.rep@acme.com');
@@ -495,7 +503,12 @@ export function LoginGateway() {
                     <input
                       className="crm-input pl-9 text-sm h-10 w-full"
                       value={email}
-                      onChange={e => setEmail(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setEmail(val);
+                        const inferred = inferRoleFromEmail(val);
+                        if (inferred) setSelectedRole(inferred);
+                      }}
                     />
                   </div>
                 </div>

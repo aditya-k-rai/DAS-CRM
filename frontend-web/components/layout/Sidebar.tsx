@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, Briefcase, Target,
   CheckSquare, FileText, BarChart3, Settings,
@@ -11,7 +11,7 @@ import {
   AlertTriangle, LockKeyhole, Crown, Layers
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth, UserRole, DEMO_USERS } from '@/context/AuthContext';
+import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { useState } from 'react';
 
 interface NavItem {
@@ -102,34 +102,22 @@ const navigation: NavGroup[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentUser, subscription, canEdit, isSeatExceeded } = useAuth();
+  const router = useRouter();
+  const { currentUser, subscription, canEdit, isSeatExceeded, logout } = useAuth();
 
-  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
-
-  const normalizeRole = (r?: string): string => {
-    const norm = (r || '').toString().trim().toUpperCase();
-    if (norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP') return 'SALES_EXEC';
-    if (norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
-    if (norm === 'OWNER' || norm === 'TENANT_ADMIN' || norm === 'COMPANY_ADMIN') return 'ADMIN';
-    if (norm === 'SUPERADMIN' || norm === 'SYSTEM_ADMIN') return 'SUPER_ADMIN';
-    if (norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
-    if (norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
-    return norm;
-  };
-
-  const currentNormalizedRole = normalizeRole(rawRole);
+  const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
 
   const filteredNav = navigation
     .filter(group => {
       if (!group.roles) return true;
-      const normalizedGroupRoles = group.roles.map(r => normalizeRole(r));
+      const normalizedGroupRoles = group.roles.map(r => normalizeRoleStr(r));
       return normalizedGroupRoles.includes(currentNormalizedRole);
     })
     .map(group => ({
       ...group,
       items: group.items.filter(item => {
         if (!item.roles) return true;
-        const normalizedItemRoles = item.roles.map(r => normalizeRole(r));
+        const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
         return normalizedItemRoles.includes(currentNormalizedRole);
       }),
     }))
@@ -197,16 +185,27 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User section */}
-      <div className="border-t mx-2 mb-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
-        <div className="sidebar-item mt-2 justify-between">
+      {/* User section with Logout */}
+      <div className="border-t mx-2 mb-2 pt-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
+        <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card transition-colors">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="avatar w-8 h-8 text-xs flex-shrink-0">{currentUser.avatar}</div>
+            <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold">{currentUser.avatar}</div>
             <div className="min-w-0">
-              <p className="text-sm font-medium truncate" style={{ color: 'rgb(var(--sidebar-text-active))' }}>{currentUser.name}</p>
-              <p className="text-xs truncate" style={{ color: 'rgb(var(--sidebar-text))' }}>{currentUser.email}</p>
+              <p className="text-xs font-bold truncate" style={{ color: 'rgb(var(--sidebar-text-active))' }}>{currentUser.name}</p>
+              <p className="text-[10px] truncate text-muted" style={{ color: 'rgb(var(--sidebar-text))' }}>{currentUser.email}</p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              router.push('/login');
+            }}
+            title="Sign Out / Switch Workspace"
+            className="p-1.5 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-all flex-shrink-0"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

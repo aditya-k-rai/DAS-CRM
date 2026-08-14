@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { SuperAdminDashboard } from '@/components/admin/SuperAdminDashboard';
 import { TenantAdminDashboard } from './TenantAdminDashboard';
 import { HRRoleDashboard } from './HRRoleDashboard';
@@ -20,31 +20,31 @@ export function RoleDashboardRouter() {
     return <SuperAdminDashboard />;
   }
 
-  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+  const resolvedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
 
-  // 1. Tenant / Company Admin Dashboard
-  if (rawRole === 'ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'OWNER' || rawRole === 'COMPANY_ADMIN') {
-    return <TenantAdminDashboard />;
-  }
-
-  // 2. HR & Payroll Dashboard
-  if (rawRole === 'HR' || rawRole === 'HR_MANAGER' || rawRole === 'HUMAN_RESOURCES') {
+  // 1. HR & Payroll Dashboard
+  if (resolvedRole === 'HR') {
     return <HRRoleDashboard />;
   }
 
-  // 3. Department Manager Dashboard
-  if (rawRole === 'MANAGER' || rawRole === 'DEPT_MANAGER' || rawRole === 'SALES_MANAGER') {
+  // 2. Department Manager Dashboard
+  if (resolvedRole === 'MANAGER') {
     return <ManagerRoleDashboard />;
   }
 
-  // 4. Team Leader Dashboard
-  if (rawRole === 'TEAM_LEADER' || rawRole === 'TL' || rawRole === 'LEAD') {
+  // 3. Team Leader Dashboard
+  if (resolvedRole === 'TEAM_LEADER') {
     return <TeamLeaderRoleDashboard />;
   }
 
-  // 5. Sales Executive / Employee Dashboard
-  if (rawRole === 'SALES_EXEC' || rawRole === 'EMPLOYEE' || rawRole === 'STAFF' || rawRole === 'REP' || rawRole === 'EXECUTIVE' || rawRole === 'SALES_REP' || rawRole === 'SALES') {
+  // 4. Sales Executive / Employee Dashboard
+  if (resolvedRole === 'SALES_EXEC') {
     return <EmployeeRoleDashboard />;
+  }
+
+  // 5. Tenant / Company Admin Dashboard (Default)
+  if (resolvedRole === 'ADMIN') {
+    return <TenantAdminDashboard />;
   }
 
   // Safe Fallback for any workspace user

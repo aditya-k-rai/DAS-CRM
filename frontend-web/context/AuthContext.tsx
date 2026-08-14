@@ -141,6 +141,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export function normalizeRoleStr(r?: any): UserRole {
+  if (!r) return 'ADMIN';
+  let str = '';
+  if (typeof r === 'string') {
+    str = r;
+  } else if (typeof r === 'object' && r !== null) {
+    str = typeof r.name === 'string' ? r.name : typeof r.role === 'string' ? r.role : String(r);
+  } else {
+    str = String(r);
+  }
+
+  const norm = str.trim().toUpperCase();
+  if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN') return 'SUPER_ADMIN';
+  if (norm === 'ADMIN' || norm === 'TENANT_ADMIN' || norm === 'OWNER' || norm === 'COMPANY_ADMIN') return 'ADMIN';
+  if (norm === 'HR' || norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES' || norm === 'HR_ADMIN' || norm === 'HR_EXEC') return 'HR';
+  if (norm === 'MANAGER' || norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
+  if (norm === 'TEAM_LEADER' || norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
+  if (norm === 'SALES_EXEC' || norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP' || norm === 'SALES' || norm === 'USER' || norm === 'VIEWER') return 'SALES_EXEC';
+
+  if (norm === 'SUPER_ADMIN' || norm === 'ADMIN' || norm === 'HR' || norm === 'MANAGER' || norm === 'TEAM_LEADER' || norm === 'SALES_EXEC') {
+    return norm as UserRole;
+  }
+
+  return 'ADMIN';
+}
+
+export function inferRoleFromEmail(email?: string | null): UserRole | null {
+  if (!email) return null;
+  const em = email.toLowerCase().trim();
+  if (em === 'adtyamighty@gmail.com') return 'SUPER_ADMIN';
+  if (em.includes('sunita.hr') || em.includes('hr.manager') || em.includes('hr@') || em.includes('.hr@') || em.startsWith('hr.')) return 'HR';
+  if (em.includes('rajesh.mgr') || em.includes('manager@') || em.includes('.mgr@') || em.startsWith('mgr.') || em.includes('.manager@')) return 'MANAGER';
+  if (em.includes('amit.tl') || em.includes('lead@') || em.includes('.tl@') || em.startsWith('tl.') || em.includes('teamleader@')) return 'TEAM_LEADER';
+  if (em.includes('rajesh.rep') || em.includes('sales@') || em.includes('.rep@') || em.includes('exec@') || em.includes('employee@') || em.startsWith('rep.')) return 'SALES_EXEC';
+  if (em.includes('vikram.admin') || em.includes('admin@') || em.includes('owner@')) return 'ADMIN';
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     if (typeof window !== 'undefined') {
@@ -148,7 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          if (parsed && parsed.role) {
+          if (parsed && (parsed.role || parsed.email)) {
+            const resolvedRole = normalizeRoleStr(parsed.role || inferRoleFromEmail(parsed.email));
+            parsed.role = resolvedRole;
             // Security Check: Sanitize unauthorized SUPER_ADMIN role if email is not adtyamighty@gmail.com
             if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
               parsed.role = 'ADMIN';
@@ -157,9 +197,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (e) {}
       }
-      const role = (localStorage.getItem('nexcrm_active_role') as UserRole) || 'ADMIN';
-      const safeRole = (role === 'SUPER_ADMIN' ? 'ADMIN' : role) as UserRole;
-      return DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
+      const roleStr = localStorage.getItem('nexcrm_active_role');
+      const safeRole = normalizeRoleStr(roleStr);
+      const targetRole = (safeRole === 'SUPER_ADMIN' ? 'ADMIN' : safeRole) as UserRole;
+      return DEMO_USERS[targetRole] || DEMO_USERS.ADMIN;
     }
     return DEMO_USERS.ADMIN;
   });
@@ -228,36 +269,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
-  const normalizeRoleStr = (r?: any): UserRole => {
-    if (!r) return 'ADMIN';
-    let str = '';
-    if (typeof r === 'string') {
-      str = r;
-    } else if (typeof r === 'object' && r !== null) {
-      str = typeof r.name === 'string' ? r.name : typeof r.role === 'string' ? r.role : String(r);
-    } else {
-      str = String(r);
-    }
-
-    const norm = str.trim().toUpperCase();
-    if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN') return 'SUPER_ADMIN';
-    if (norm === 'ADMIN' || norm === 'TENANT_ADMIN' || norm === 'OWNER' || norm === 'COMPANY_ADMIN') return 'ADMIN';
-    if (norm === 'HR' || norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES') return 'HR';
-    if (norm === 'MANAGER' || norm === 'DEPT_MANAGER' || norm === 'SALES_MANAGER') return 'MANAGER';
-    if (norm === 'TEAM_LEADER' || norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
-    if (norm === 'SALES_EXEC' || norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP' || norm === 'SALES') return 'SALES_EXEC';
-
-    if (norm === 'SUPER_ADMIN' || norm === 'ADMIN' || norm === 'HR' || norm === 'MANAGER' || norm === 'TEAM_LEADER' || norm === 'SALES_EXEC') {
-      return norm as UserRole;
-    }
-
-    return 'ADMIN';
-  };
-
   const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription) => {
     const normalizedUser = {
       ...user,
-      role: normalizeRoleStr(user.role),
+      role: normalizeRoleStr(user.role || inferRoleFromEmail(user.email)),
     };
     setCurrentUser(normalizedUser);
     setToken(newTok);
@@ -269,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setToken(null);
-    setCurrentUser(DEMO_USERS.SUPER_ADMIN);
+    setCurrentUser(DEMO_USERS.ADMIN);
     setRoleTransitionLock(null);
     localStorage.removeItem('nexcrm_user');
     localStorage.removeItem('nexcrm_token');
