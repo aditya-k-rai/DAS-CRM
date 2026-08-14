@@ -126,9 +126,10 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
-        // Resolve target role from backend user role object, email heuristic, or UI selector
+        // Resolve target role from email pattern first, then backend user role object, then UI selector
+        const inferred = inferRoleFromEmail(email);
         const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
+        const finalRole: UserRole = normalizeRoleStr(inferred || backendRoleName || selectedRole);
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
         const redirectUrl = getPostLoginRedirectRoute(finalRole);

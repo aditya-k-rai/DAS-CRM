@@ -235,8 +235,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normRole = normalizeRoleStr(role);
     const targetUser = DEMO_USERS[normRole] || DEMO_USERS.ADMIN;
     setCurrentUser(targetUser);
+    setToken('demo_active_token');
     localStorage.setItem('nexcrm_active_role', normRole);
     localStorage.setItem('nexcrm_user', JSON.stringify(targetUser));
+    localStorage.setItem('nexcrm_token', 'demo_active_token');
   };
 
   const updateSubscription = (patch: Partial<CompanySubscription>) => {

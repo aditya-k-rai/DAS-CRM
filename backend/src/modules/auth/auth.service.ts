@@ -471,6 +471,16 @@ export class AuthService {
   // ═══════════════════════════════════════════════════════════
 
   async login(dto: LoginDto) {
+    const emailLower = (dto.email || '').toLowerCase().trim();
+    const demoRoleMap: Record<string, string> = {
+      'vikram.admin@acme.com': 'ADMIN',
+      'hr.manager@acme.com': 'HR',
+      'sunita.hr@acme.com': 'HR',
+      'rajesh.mgr@acme.com': 'MANAGER',
+      'amit.tl@acme.com': 'TEAM_LEADER',
+      'rajesh.rep@acme.com': 'SALES_EXEC',
+    };
+
     let user = await this.prisma.user.findFirst({
       where: { email: dto.email, isActive: true },
       include: {
@@ -481,6 +491,25 @@ export class AuthService {
 
     if (!user) {
       user = await this.autoProvisionDemoRoleUser(dto.email, dto.password);
+    }
+
+    if (user && demoRoleMap[emailLower]) {
+      const expectedRoleName = demoRoleMap[emailLower];
+      if (user.role?.name !== expectedRoleName) {
+        let targetRole = await this.prisma.role.findFirst({
+          where: { organizationId: user.organizationId, name: expectedRoleName },
+        });
+        if (!targetRole) {
+          targetRole = await this.prisma.role.create({
+            data: { organizationId: user.organizationId, name: expectedRoleName },
+          });
+        }
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { roleId: targetRole.id },
+        });
+        user.role = targetRole as any;
+      }
     }
 
     if (!user) throw new UnauthorizedException('Invalid credentials or user account blocked');
