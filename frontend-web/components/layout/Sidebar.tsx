@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NavItem {
   label: string;
@@ -104,8 +104,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, subscription, canEdit, isSeatExceeded, logout } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
-  const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const currentNormalizedRole = mounted
+    ? normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email))
+    : 'ADMIN';
 
   const filteredNav = navigation
     .filter(group => {
