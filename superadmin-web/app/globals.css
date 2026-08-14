@@ -1,51 +1,192 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────
+   CRM Design System — Shared Dashboard UI & Typography
+   Matches Frontend-Web Brand Palette & Glassmorphism
+   ───────────────────────────────────── */
+
 :root {
-  --background: #090d16;
-  --foreground: #f8fafc;
-  --card: #0f172a;
-  --border: #1e293b;
+  --background: 11 13 23;
+  --foreground: 248 250 252;
+  --card: 17 19 31;
+  --card-foreground: 248 250 252;
+  --popover: 17 19 31;
+  --popover-foreground: 248 250 252;
+  --primary: 99 102 241;
+  --primary-foreground: 255 255 255;
+  --secondary: 30 33 48;
+  --secondary-foreground: 203 213 225;
+  --muted: 30 33 48;
+  --muted-foreground: 100 116 139;
+  --accent: 30 33 48;
+  --accent-foreground: 248 250 252;
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+  --border: 30 41 59;
+  --input: 30 33 48;
+  --ring: 99 102 241;
+  --radius: 0.5rem;
+
+  --sidebar-bg: 9 11 20;
+  --sidebar-border: 20 24 40;
+  --sidebar-item-hover: 17 20 34;
+  --sidebar-item-active: 26 27 75;
+  --sidebar-text: 148 163 184;
+  --sidebar-text-active: 248 250 252;
+  --sidebar-width: 260px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  border-color: rgb(var(--border));
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
   margin: 0;
   padding: 0;
 }
 
-.crm-card {
-  background-color: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 1rem;
+::selection {
+  background: rgba(99, 102, 241, 0.4);
 }
 
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgb(var(--sidebar-bg)); }
+::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted-foreground)); }
+
+/* ── Cards ── */
+.crm-card {
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.crm-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.1), 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Input ── */
 .crm-input {
-  background-color: #1e293b;
-  border: 1px solid #334155;
-  color: #f8fafc;
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.15s;
   outline: none;
+  background: rgb(var(--input));
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--foreground));
 }
 
 .crm-input:focus {
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+  border-color: rgb(99 102 241);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+.crm-input::placeholder {
+  color: rgb(var(--muted-foreground));
+}
+
+/* ── Buttons ── */
 .btn-primary {
-  background: linear-gradient(135deg, #0891b2, #06b6d4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  background: rgb(79 70 229);
   color: white;
-  border-radius: 0.75rem;
-  font-weight: 700;
-  transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
+  background: rgb(67 56 202);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
   transform: translateY(-1px);
 }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  cursor: pointer;
+  user-select: none;
+  background: rgb(var(--secondary));
+  color: rgb(var(--secondary-foreground));
+  border: 1px solid rgb(var(--border));
+}
+
+.btn-secondary:hover {
+  background: rgb(var(--accent));
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* ── Table ── */
+.crm-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
+.crm-table thead tr { border-bottom: 1px solid rgb(var(--border)); }
+.crm-table thead th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(var(--muted-foreground));
+}
+.crm-table tbody tr {
+  border-bottom: 1px solid rgba(30, 41, 59, 0.5);
+  transition: background 0.1s;
+}
+.crm-table tbody tr:hover { background: rgba(30, 33, 48, 0.5); }
+.crm-table tbody td { padding: 0.875rem 1rem; }
+
+/* ── Glassmorphism ── */
+.glass-panel {
+  background: rgba(17, 19, 31, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgb(var(--border));
+  border-radius: 16px;
+}
+
+/* ── Gradient Text ── */
+.gradient-text {
+  background: linear-gradient(135deg, rgb(129 140 248), rgb(167 139 250));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in { animation: fade-in 0.3s ease forwards; }
