@@ -13,7 +13,7 @@ interface RoleGuardProps {
 export function RoleGuard({ allowedRoles, children, fallbackTitle }: RoleGuardProps) {
   const { currentUser } = useAuth();
   const userRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email));
-  const isAllowed = allowedRoles.includes(userRole);
+  const isAllowed = allowedRoles.includes(userRole) || userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
 
   const getDashboardRoute = (role: UserRole): string => {
     switch (role) {

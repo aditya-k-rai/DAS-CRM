@@ -182,8 +182,13 @@ export function LoginGateway() {
     }
   };
 
-  // Google OAuth Handler
+  // Google OAuth Handler (Requires Company & Key Verification, Bypasses Password)
   const handleGoogleSignIn = async () => {
+    if (!selectedCompanyId || !companyKeyInput.trim()) {
+      setError('Company Workspace selection and Registration/User Key are required before signing in with Google.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -216,7 +221,7 @@ export function LoginGateway() {
           data.accessToken
         );
         setLoading(false);
-        router.push(getPostLoginRedirectRoute(finalRole));
+        navigateToRoute(getPostLoginRedirectRoute(finalRole));
         return;
       } else {
         setError(data.message || 'Google OAuth authentication failed. Please ensure you are using a valid Gmail email ID.');
@@ -226,7 +231,7 @@ export function LoginGateway() {
       const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
       switchRole(finalRole);
       setLoading(false);
-      router.push(getPostLoginRedirectRoute(finalRole));
+      navigateToRoute(getPostLoginRedirectRoute(finalRole));
     }
   };
 

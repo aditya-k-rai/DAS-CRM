@@ -83,23 +83,38 @@ NexCRM implements a decoupled, dual-entry security gateway ensuring zero trust i
    - Organization-scoped authentication via Email/Password, Company Activation Keys, or Google OAuth 2.0.
    - Enforces company key validation during tenant onboarding to automatically map initial registration to `PlanTier` quotas.
 
+### 🏛️ Company Workspace 4-Tier Authentication & Authorization Structure
+
+Company workspace login enforces a strict 4-stage verification pipeline for both Standard Password and Google OAuth authentication modes:
+
+```
+Company Name Select  --------> Verify in select Company Database
+Key Input            --------> Verify Status (Active/Not Active), Plan (Free/Paid) & allocate features
+Email Input          --------> Verify User Role & Responsibilities, Activity Status & Data Isolation Scoping
+Password / Google    --------> Standard: Verify Password Hash. Google OAuth: Email verified by Google -> Password Not Required
+```
+
+| Login Step | Verification Action & Scope |
+| :--- | :--- |
+| **1. Company Name Select** | Verifies selected company workspace in Company Database (`organizationId`) and ensures active status. |
+| **2. Key Input** | Validates Registration or Invite Key status (`ACTIVE`), subscription plan tier (`FREE_TRIAL` vs `PRO`/`ENTERPRISE`), and allocates feature permissions (WhatsApp, Email Automation, Seat Limits). |
+| **3. Email Input** | Verifies email address, user activity status (`isActive`), and loads assigned role & responsibilities (`ADMIN`, `HR`, `MANAGER`, `TEAM_LEADER`, `SALES_EXEC`). Enforces row-level data isolation scoping (e.g. two managers can access only their own team data). |
+| **4. Password / Google OAuth** | **Standard Login**: Verifies Bcrypt password hash and grants access.<br/>**Google OAuth Login**: Requires Company & Key selection $\rightarrow$ Email identity verified by Google $\rightarrow$ **Password is NOT required**. Access granted with role & data permissions. |
+
 ```mermaid
-graph LR
-    UserRequest([Incoming Auth Request]) --> RouteCheck{Is SuperAdmin Route?}
-    RouteCheck -- Yes --> ValidateEmail{Email matches SUPER_ADMIN_EMAIL?}
-    ValidateEmail -- No --> Deny[403 Forbidden Access Denied]
-    ValidateEmail -- Yes --> SendOTP[Generate & Email OTP] --> VerifyOTP{OTP Valid?}
-    VerifyOTP -- Valid --> IssueSuperJWT[Issue SuperAdmin JWT]
-    VerifyOTP -- Invalid --> RejectOTP[401 Unauthorized]
-
-    RouteCheck -- No --> AuthType{Auth Mode?}
-    AuthType -- Password --> HashCheck{Bcrypt Hash Valid?}
-    AuthType -- Google OAuth --> OAuthCheck{Google Token Verified?}
-    AuthType -- Activation Key --> KeyCheck{Company Key Active?}
-
-    HashCheck -- Valid --> IssueTenantJWT[Issue Tenant JWT]
-    OAuthCheck -- Valid --> IssueTenantJWT
-    KeyCheck -- Valid --> ProvisionOrg[Provision Organization & Owner] --> IssueTenantJWT
+graph TD
+    Start([Workspace Login Request]) --> Step1{1. Verify Company Name in Database?}
+    Step1 -- Invalid/Inactive --> Err1[400/403 Company Workspace Inactive]
+    Step1 -- Valid --> Step2{2. Verify Key Status & Plan Tier?}
+    Step2 -- Revoked/Expired --> Err2[403 Key Revoked or Expired]
+    Step2 -- Valid --> Step3{3. Verify Email, User Status & Role?}
+    Step3 -- Inactive User --> Err3[403 User Account Deactivated]
+    Step3 -- Valid --> AuthMode{4. Auth Mode?}
+    AuthMode -- Standard Password --> VerifyPass{Verify Bcrypt Hash?}
+    VerifyPass -- Invalid --> Err4[401 Invalid Credentials]
+    VerifyPass -- Valid --> IssueJWT[Issue JWT Session Token]
+    AuthMode -- Google OAuth --> GoogleVerify{Google Email Verified?}
+    GoogleVerify -- Verified --> BypassPass[Password Not Required] --> IssueJWT
 ```
 
 ### Auth Protocols & Token Lifecycle

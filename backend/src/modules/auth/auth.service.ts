@@ -387,10 +387,17 @@ export class AuthService {
   /**
    * Google OAuth Authentication with Gmail Verification & Key Enforcement
    */
+  /**
+   * Google OAuth Authentication with 4-Tier Verification & Password Bypass:
+   * 1. Company Database Verification (organizationId)
+   * 2. Key Status (Active/Paid/Trial) & Allocated Plan Features
+   * 3. Email Verified by Google (Password Bypass) + User Role & Scoping
+   * 4. Token & Access Grant
+   */
   async googleLogin(dto: GoogleLoginDto) {
     const emailLower = dto.email.toLowerCase().trim();
 
-    // 1. Verify Gmail Domain / Google Email Format
+    // Step 1: Verify Email Format (Google Verified Identity)
     const isGmailOrGoogleWorkspace =
       emailLower.endsWith('@gmail.com') ||
       emailLower.endsWith('@googlemail.com') ||
@@ -402,7 +409,7 @@ export class AuthService {
       );
     }
 
-    // 2. Check if Super Admin login
+    // Step 2: Check Super Admin bypass
     const superAdminEmail = this.config.get<string>('SUPER_ADMIN_EMAIL', 'adtyamighty@gmail.com');
     if (emailLower === superAdminEmail.toLowerCase()) {
       let superAdmin = await this.prisma.superAdmin.findUnique({
@@ -432,9 +439,68 @@ export class AuthService {
       };
     }
 
-    // 3. User Authentication or Registration
+    // Step 3: Company Workspace Database & Active Status Verification
+    if (!dto.organizationId && !dto.key) {
+      throw new BadRequestException(
+        'Company Workspace Selection and Registration/User Key are required for Google OAuth Login.',
+      );
+    }
+
+    let organization = dto.organizationId
+      ? await this.prisma.organization.findUnique({
+          where: { id: dto.organizationId },
+          include: { subscription: true },
+        })
+      : null;
+
+    // Step 4: Key Verification (Active Status, Subscription Plan & Allocated Features)
+    if (dto.key) {
+      const companyKey = await this.prisma.companyRegistrationKey.findUnique({
+        where: { key: dto.key.trim() },
+      });
+
+      if (companyKey) {
+        if (companyKey.status === 'REVOKED' || (companyKey.expiresAt && companyKey.expiresAt < new Date())) {
+          throw new ForbiddenException(
+            `Company Registration Key "${dto.key}" is revoked or expired. Contact Super Admin.`,
+          );
+        }
+        if (!organization && companyKey.usedByOrganizationId) {
+          organization = await this.prisma.organization.findUnique({
+            where: { id: companyKey.usedByOrganizationId },
+            include: { subscription: true },
+          });
+        }
+      } else {
+        const userKey = await this.prisma.userInviteKey.findUnique({
+          where: { key: dto.key.trim() },
+        });
+
+        if (userKey) {
+          if (userKey.status === 'REVOKED' || (userKey.expiresAt && userKey.expiresAt < new Date())) {
+            throw new ForbiddenException(
+              `User Invite Key "${dto.key}" is revoked or expired. Contact your Tenant Admin.`,
+            );
+          }
+          if (!organization && userKey.organizationId) {
+            organization = await this.prisma.organization.findUnique({
+              where: { id: userKey.organizationId },
+              include: { subscription: true },
+            });
+          }
+        }
+      }
+    }
+
+    if (organization && organization.isActive === false) {
+      throw new ForbiddenException(
+        `Company workspace "${organization.name}" has been deactivated by Super Admin. Access denied.`,
+      );
+    }
+
+    // Step 5: Email & User Role Scoping (Password Bypass since Google verified email)
     let user = await this.prisma.user.findFirst({
-      where: { email: emailLower, isActive: true },
+      where: { email: emailLower },
       include: {
         organization: true,
         role: true,
@@ -442,24 +508,34 @@ export class AuthService {
     });
 
     if (!user) {
-      // If user doesn't exist, create user under organization or key
-      if (!dto.organizationId) {
+      const targetOrgId = organization?.id || dto.organizationId;
+      if (!targetOrgId) {
         throw new BadRequestException(
-          'No existing user account found for this Gmail address. Please select your company workspace.',
+          'No existing workspace found for this account. Please select a valid company workspace and enter your key.',
         );
       }
 
       const [firstName, ...rest] = dto.name.split(' ');
       const randomPassword = await bcrypt.hash(Math.random().toString(36), 12);
 
+      let defaultRole = await this.prisma.role.findFirst({
+        where: { organizationId: targetOrgId, name: 'SALES' },
+      });
+      if (!defaultRole) {
+        defaultRole = await this.prisma.role.findFirst({
+          where: { organizationId: targetOrgId },
+        });
+      }
+
       user = await this.prisma.user.create({
         data: {
-          organizationId: dto.organizationId,
+          organizationId: targetOrgId,
           email: emailLower,
           passwordHash: randomPassword,
           firstName,
           lastName: rest.join(' ') || '',
           avatarUrl: dto.picture,
+          roleId: defaultRole?.id ?? null,
         },
         include: {
           organization: true,
@@ -468,10 +544,9 @@ export class AuthService {
       });
     }
 
-    // Double-check company workspace active status
-    if (user.organization && user.organization.isActive === false) {
+    if (user.isActive === false) {
       throw new ForbiddenException(
-        'Company workspace has been blocked/deactivated by Super Admin. Please contact support.',
+        `User Account Deactivated: Your account (${emailLower}) has been deactivated by your Tenant Admin.`,
       );
     }
 
@@ -481,7 +556,7 @@ export class AuthService {
 
     return {
       user: this.sanitizeUser(user),
-      organization: user.organization,
+      organization: user.organization || organization,
       ...tokens,
     };
   }

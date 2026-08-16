@@ -190,9 +190,37 @@ export function validateEmailRoleMatch(email?: string | null, selectedRole?: Use
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(DEMO_USERS.ADMIN);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('nexcrm_user');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed && (parsed.role || parsed.email)) {
+            parsed.role = normalizeRoleStr(parsed.role || inferRoleFromEmail(parsed.email));
+            if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
+              parsed.role = 'ADMIN';
+            }
+            return parsed;
+          }
+        } catch (e) {}
+      }
+      const roleStr = localStorage.getItem('nexcrm_active_role');
+      if (roleStr) {
+        const safeRole = normalizeRoleStr(roleStr);
+        return DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
+      }
+    }
+    return DEMO_USERS.ADMIN;
+  });
+
   const [subscription, setSubscription] = useState<CompanySubscription>(MOCK_COMPANY_SUB);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nexcrm_token');
+    }
+    return null;
+  });
   const [roleTransitionLock, setRoleTransitionLock] = useState<RoleTransitionLock | null>(null);
 
   useEffect(() => {
