@@ -23,8 +23,9 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
     if (!user) throw new ForbiddenException('Not authenticated');
 
-    // OWNER has all permissions
-    if (user.role?.name === 'OWNER') return true;
+    // OWNER, ADMIN, and SUPER_ADMIN have all permissions
+    const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+    if (roleName === 'OWNER' || roleName === 'ADMIN' || roleName === 'SUPER_ADMIN') return true;
 
     const userPermissions: string[] =
       user.role?.permissions?.map(

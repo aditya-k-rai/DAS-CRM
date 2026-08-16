@@ -17,7 +17,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; org_id: string; role: string }) {
+  async validate(payload: { sub: string; org_id?: string; role?: string }) {
+    if (payload.role === 'SUPER_ADMIN') {
+      const superAdmin = await this.prisma.superAdmin.findUnique({
+        where: { id: payload.sub },
+      });
+      if (superAdmin && superAdmin.isActive) {
+        return {
+          id: superAdmin.id,
+          email: superAdmin.email,
+          name: superAdmin.name,
+          role: { name: 'SUPER_ADMIN', permissions: [] },
+          organizationId: 'platform_system',
+          isActive: true,
+        };
+      }
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -27,6 +43,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
     if (!user || !user.isActive) return null;
-    return user; // Attached to request.user
+    return user;
   }
 }

@@ -91,9 +91,17 @@ export function LoginGateway() {
       case 'SALES_EXEC':
         return '/dashboard/sales';
       case 'SUPER_ADMIN':
-        return '/admin/super';
+        return process.env.NEXT_PUBLIC_SUPER_ADMIN_URL || 'http://localhost:3002';
       default:
         return '/dashboard';
+    }
+  };
+
+  const navigateToRoute = (targetRoute: string) => {
+    if (targetRoute.startsWith('http://') || targetRoute.startsWith('https://')) {
+      window.location.href = targetRoute;
+    } else {
+      router.push(targetRoute);
     }
   };
 
@@ -156,13 +164,13 @@ export function LoginGateway() {
           data.accessToken
         );
         setLoading(false);
-        router.push(redirectUrl);
+        navigateToRoute(redirectUrl);
         return;
       } else {
         const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
         switchRole(finalRole);
         setLoading(false);
-        router.push(getPostLoginRedirectRoute(finalRole));
+        navigateToRoute(getPostLoginRedirectRoute(finalRole));
         return;
       }
     } catch (err) {
@@ -170,7 +178,7 @@ export function LoginGateway() {
       const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
       switchRole(finalRole);
       setLoading(false);
-      router.push(getPostLoginRedirectRoute(finalRole));
+      navigateToRoute(getPostLoginRedirectRoute(finalRole));
     }
   };
 

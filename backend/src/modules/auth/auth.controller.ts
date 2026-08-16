@@ -210,7 +210,7 @@ export class AuthController {
   ) {
     return this.companyKeyService.generateCompanyKey({
       ...body,
-      superAdminId: req.user.sub,
+      superAdminId: req.user?.sub || req.user?.id,
     });
   }
 
@@ -228,7 +228,7 @@ export class AuthController {
     @Req() req: any,
   ) {
     return this.companyKeyService.generateUserKey({
-      organizationId: req.user.org_id,
+      organizationId: req.user?.org_id || req.user?.organizationId,
       organizationName: body.organizationName,
       assignedRole: body.assignedRole,
       validityDays: body.validityDays,
