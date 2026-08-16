@@ -152,4 +152,32 @@ export class LeadsController {
       dto,
     );
   }
+
+  // ── Google Sheets Sync & Ingestion History Endpoints ──
+
+  @Post('google-sheets/sync')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Google Sheets Real-Time Sync & Ingestion Webhook' })
+  syncGoogleSheets(
+    @CurrentUser() user: any,
+    @Body() dto: { spreadsheetUrl: string; sheetName: string; startRow: string; cellMapping: any; leads: any[] },
+  ) {
+    return this.leadsService.syncGoogleSheets(user.organizationId, user.id, dto);
+  }
+
+  @Post('import-file')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Import Leads from CSV / Excel file' })
+  importFileLeads(
+    @CurrentUser() user: any,
+    @Body() dto: { fileName: string; fileSize?: string; leads: any[] },
+  ) {
+    return this.leadsService.importFileLeads(user.organizationId, user.id, dto);
+  }
+
+  @Get('ingestion-history')
+  @ApiOperation({ summary: 'Get Lead Ingestion & Integration History Audit Logs' })
+  getIngestionHistory(@CurrentUser() user: any) {
+    return this.leadsService.getIngestionHistory(user.organizationId);
+  }
 }
