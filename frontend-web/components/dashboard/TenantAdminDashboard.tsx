@@ -548,20 +548,103 @@ export function TenantAdminDashboard() {
         {/* CONNECTED INTEGRATION CHANNELS PIPELINE */}
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
           {[
-            { name: 'Facebook Ads', status: 'Active Hook', count: '1,240 Ingested', color: 'from-blue-600/20 to-blue-900/10 border-blue-500/30' },
-            { name: 'Google Ads', status: 'Auto-Sync', count: '650 Ingested', color: 'from-red-600/20 to-red-900/10 border-red-500/30' },
-            { name: 'Google Sheets', status: 'Live Range A2:F', count: '1,890 Syncing', color: 'from-emerald-600/25 to-teal-900/20 border-emerald-500/40' },
-            { name: 'WhatsApp Web', status: 'Connected', count: '410 Ingested', color: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30' },
-            { name: 'Website Form', status: 'Webhook Live', count: '230 Ingested', color: 'from-purple-600/20 to-purple-900/10 border-purple-500/30' },
-            { name: 'Zapier API', status: 'Key Active', count: '890 Ingested', color: 'from-amber-600/20 to-amber-900/10 border-amber-500/30' },
+            {
+              name: 'Google Sheets',
+              status: 'Live Range A2:F',
+              count: `${leadsList.filter(l => l.source === 'Google Sheets Sync').length + 1890} Syncing`,
+              lastFetch: 'Just now (Most Recent)',
+              sentToday: true,
+              speed: 'FAST', // Most recent data fetch -> FAST GREEN BLINK
+              color: 'from-emerald-600/25 to-teal-900/20 border-emerald-500/50 shadow-emerald-500/10 shadow-lg',
+            },
+            {
+              name: 'Facebook Ads',
+              status: 'Active Hook',
+              count: '1,240 Ingested',
+              lastFetch: '18 mins ago',
+              sentToday: true,
+              speed: 'SLOW', // Sent today earlier -> SLOW GREEN BLINK
+              color: 'from-blue-600/20 to-blue-900/10 border-blue-500/30',
+            },
+            {
+              name: 'WhatsApp Web',
+              status: 'Connected',
+              count: '410 Ingested',
+              lastFetch: '1.5 hrs ago',
+              sentToday: true,
+              speed: 'SLOW', // Sent today earlier -> SLOW GREEN BLINK
+              color: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30',
+            },
+            {
+              name: 'Google Ads',
+              status: 'Auto-Sync',
+              count: '650 Ingested',
+              lastFetch: '4 hrs ago',
+              sentToday: true,
+              speed: 'SLOW', // Sent today earlier -> SLOW GREEN BLINK
+              color: 'from-red-600/20 to-red-900/10 border-red-500/30',
+            },
+            {
+              name: 'Website Form',
+              status: 'Webhook Live',
+              count: '230 Ingested',
+              lastFetch: 'Yesterday (No data today)',
+              sentToday: false,
+              speed: 'NONE', // NOT sent today -> NO BLINK (Static dot)
+              color: 'from-purple-600/20 to-purple-900/10 border-purple-500/30',
+            },
+            {
+              name: 'Zapier API',
+              status: 'Key Active',
+              count: '890 Ingested',
+              lastFetch: '3 days ago',
+              sentToday: false,
+              speed: 'NONE', // NOT sent today -> NO BLINK (Static dot)
+              color: 'from-amber-600/20 to-amber-900/10 border-amber-500/30',
+            },
           ].map(ch => (
-            <div key={ch.name} className={`p-3 rounded-2xl border bg-gradient-to-b ${ch.color} space-y-1`}>
+            <div key={ch.name} className={`p-3 rounded-2xl border bg-gradient-to-b ${ch.color} space-y-1.5 transition-all`}>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-white">{ch.name}</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="font-bold text-white tracking-tight">{ch.name}</span>
+
+                {/* DYNAMIC GREEN BLINK INDICATOR LOGIC */}
+                {ch.sentToday ? (
+                  ch.speed === 'FAST' ? (
+                    // FAST GREEN BLINK (Most recent data fetch today)
+                    <div className="flex items-center gap-1">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-90" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                      </span>
+                    </div>
+                  ) : (
+                    // SLOW GREEN BLINK (Data sent today, but earlier)
+                    <div className="flex items-center gap-1">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                      </span>
+                    </div>
+                  )
+                ) : (
+                  // NO BLINK (No data sent today -> Static neutral dot)
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-600 border border-slate-500/50" />
+                )}
               </div>
-              <p className="text-[10px] text-muted font-semibold">{ch.status}</p>
+
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted font-semibold">{ch.status}</p>
+                {ch.sentToday && (
+                  <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded font-mono ${ch.speed === 'FAST' ? 'bg-emerald-500/30 text-emerald-300 animate-pulse' : 'bg-slate-800 text-slate-400'}`}>
+                    {ch.speed === 'FAST' ? '⚡ FAST BLINK' : '⏳ SLOW'}
+                  </span>
+                )}
+              </div>
+
               <p className="text-xs font-black text-cyan-300">{ch.count}</p>
+              <p className="text-[9px] font-mono text-slate-400 pt-0.5 border-t border-white/5">
+                Last: <span className={ch.sentToday ? 'text-emerald-300 font-bold' : 'text-slate-500'}>{ch.lastFetch}</span>
+              </p>
             </div>
           ))}
         </div>
