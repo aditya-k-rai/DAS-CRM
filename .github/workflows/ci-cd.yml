@@ -56,7 +56,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && secrets.RENDER_DEPLOY_HOOK_URL != ''
         run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
 
-  # Job 3: Build Android APK (Expo React Native)
+  # Job 3: Build Android APK (Gradle & React Native)
   build-android:
     name: Build Android Mobile APK
     runs-on: ubuntu-latest
@@ -76,15 +76,18 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Expo CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install Mobile Dependencies
         run: cd android && npm ci
 
-      - name: Build Android Preview APK
-        if: secrets.EXPO_TOKEN != ''
-        run: cd android && eas build --platform android --profile preview --non-interactive
+      - name: Build APK via Gradle
+        run: |
+          cd android/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/android/app/build/outputs/apk/release/*.apk
+
