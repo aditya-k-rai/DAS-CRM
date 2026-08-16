@@ -130,10 +130,10 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 mb-1">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-          <span className="text-white font-bold text-sm">N</span>
+          <span className="text-white font-bold text-sm">D</span>
         </div>
         <div>
-          <span className="text-white font-bold text-base tracking-tight">NexCRM</span>
+          <span className="text-white font-bold text-base tracking-tight">DAS CRM</span>
           <p className="text-xs text-muted font-medium">{subscription.companyName}</p>
         </div>
       </div>

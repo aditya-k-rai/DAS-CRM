@@ -149,6 +149,27 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     whatsappLimit: 54454,
   },
   {
+    id: 'comp_sunita',
+    name: 'Sunita Real Estate Ltd',
+    adminName: 'Sunita Sharma',
+    adminEmail: 'sunita.admin@sunitarealty.com',
+    registrationKey: 'SUN-KX-9012',
+    plan: 'FREE_TRIAL',
+    trialDaysLeft: 0,
+    isExpired: true,
+    seatsAllocated: 5,
+    seatsUsed: 3,
+    totalUsersCount: 3,
+    totalLeads: 48,
+    convertedLeads: 8,
+    conversionRate: 16.6,
+    isActive: true,
+    createdAt: '2026-07-01',
+    expiryDate: '2026-08-01',
+    whatsappUsed: 12400,
+    whatsappLimit: 50000,
+  },
+  {
     id: 'comp_apex',
     name: 'Apex Global Industries',
     adminName: 'Sanjay Kumar',
@@ -196,6 +217,17 @@ const MOCK_DEMO_KEYS: KeyRecord[] = [
   },
   {
     id: 'key_3',
+    key: 'SUN-KX-9012',
+    companyName: 'Sunita Real Estate Ltd',
+    planTier: 'FREE_TRIAL',
+    memberLimit: 5,
+    validityDays: 30,
+    status: 'EXPIRED',
+    expiresAt: '2026-08-01',
+    createdAt: '2026-07-01',
+  },
+  {
+    id: 'key_4',
     key: 'APEX-MX-9021',
     companyName: 'Apex Global Industries',
     planTier: 'PRO_MAX',
@@ -218,6 +250,9 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
   comp_nexus: [
     { id: 'usr_aditya', name: 'Aditya Rai', email: 'dynamicadvancesolution@gmail.com', role: 'ADMIN', isActive: true, createdAt: '2026-08-14', keyUsed: 'NEXUS-AT-6396', lastLoginAt: '2026-08-14' },
   ],
+  comp_sunita: [
+    { id: 'usr_sunita', name: 'Sunita Sharma', email: 'sunita.admin@sunitarealty.com', role: 'ADMIN', isActive: true, createdAt: '2026-07-01', keyUsed: 'SUN-KX-9012', lastLoginAt: '2026-07-28' },
+  ],
   comp_apex: [
     { id: 'usr_sanjay', name: 'Sanjay Kumar', email: 'sanjay@apex.com', role: 'ADMIN', isActive: true, createdAt: '2026-02-01', keyUsed: 'APEX-MX-9021', lastLoginAt: '2026-08-10' },
   ],
@@ -229,7 +264,7 @@ export function SuperAdminDashboard() {
   const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>([]);
   const [templates, setTemplates] = useState<SystemTemplate[]>(INITIAL_TEMPLATES);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'keys' | 'edit_company' | 'templates' | 'whatsapp' | 'pending' | 'employees'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'keys' | 'edit_company' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired'>('overview');
   const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
 
   // Modals state
@@ -304,6 +339,11 @@ export function SuperAdminDashboard() {
 
   const handleSaveCompanyEdit = async () => {
     if (!editingCompany) return;
+    const isNowExpired = editExpiryDate ? new Date(editExpiryDate) < new Date() : false;
+    const daysLeft = editExpiryDate
+      ? Math.max(0, Math.ceil((new Date(editExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
     setCompanies(prev => prev.map(c => c.id === editingCompany.id ? {
       ...c,
       name: editName,
@@ -311,8 +351,23 @@ export function SuperAdminDashboard() {
       seatsAllocated: editSeats,
       expiryDate: editExpiryDate,
       isActive: editIsActive,
+      isExpired: isNowExpired,
+      trialDaysLeft: daysLeft,
     } : c));
     setEditModalOpen(false);
+  };
+
+  const handleExtendCompanyExpiry = (companyId: string, daysToExtend: number = 30) => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + daysToExtend);
+    const newExpiryStr = futureDate.toISOString().split('T')[0];
+
+    setCompanies(prev => prev.map(c => c.id === companyId ? {
+      ...c,
+      expiryDate: newExpiryStr,
+      isExpired: false,
+      trialDaysLeft: daysToExtend,
+    } : c));
   };
 
   const handleGenerateCompanyKey = async () => {
@@ -389,6 +444,7 @@ export function SuperAdminDashboard() {
   const activeCompanies = companies.filter(c => c.isActive).length;
   const activeFreeTrials = companies.filter(c => c.plan === 'FREE_TRIAL').length;
   const activePaidPlans = companies.filter(c => c.plan !== 'FREE_TRIAL').length;
+  const expiredCompanies = companies.filter(c => c.isExpired || (c.expiryDate && new Date(c.expiryDate) < new Date()));
 
   return (
     <div className="space-y-6 animate-fade-in p-6 max-w-7xl mx-auto pb-16">
@@ -462,12 +518,15 @@ export function SuperAdminDashboard() {
             </div>
           </div>
 
-          {/* Card 4: Number of Pending Requests */}
-          <div className="p-4 rounded-3xl bg-purple-500/15 border border-purple-500/40 text-center shadow-lg hover:scale-[1.02] transition-transform">
-            <span className="text-[11px] font-bold text-purple-300 uppercase tracking-wider block">Number of Pending Requests</span>
+          {/* Card 4: Plan Expired Companies */}
+          <div
+            onClick={() => setActiveTab('expired')}
+            className="p-4 rounded-3xl bg-red-500/15 border border-red-500/40 text-center shadow-lg hover:scale-[1.02] transition-transform cursor-pointer"
+          >
+            <span className="text-[11px] font-bold text-red-300 uppercase tracking-wider block">Plan Expired Companies</span>
             <div className="mt-2 flex items-center justify-center gap-2">
-              <span className="text-2xl font-black text-purple-300">{upgradeRequests.length}</span>
-              <span className="text-xs text-slate-400">Upgrade Approvals</span>
+              <span className="text-2xl font-black text-red-400">{expiredCompanies.length}</span>
+              <span className="text-xs text-slate-400">Expired Plans</span>
             </div>
           </div>
         </div>
@@ -477,6 +536,9 @@ export function SuperAdminDashboard() {
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
         <button onClick={() => setActiveTab('overview')} className={`px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${activeTab === 'overview' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}>
           🔑 Keys & Their Companies Table
+        </button>
+        <button onClick={() => setActiveTab('expired')} className={`px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${activeTab === 'expired' ? 'bg-red-500/20 border-red-500 text-red-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}>
+          ⚠️ Plan Expired Companies ({expiredCompanies.length})
         </button>
         <button onClick={() => setActiveTab('templates')} className={`px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${activeTab === 'templates' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'}`}>
           📑 System Templates Hub
@@ -491,6 +553,82 @@ export function SuperAdminDashboard() {
           👥 Companies & Their Employees
         </button>
       </div>
+
+      {/* ⚠️ EXPIRED COMPANIES SECTION */}
+      {activeTab === 'expired' && (
+        <div className="crm-card p-5 border-red-500/30 bg-slate-900/90 space-y-4 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <AlertCircle size={18} className="text-red-400" /> Plan Expired Companies List
+              </h3>
+              <p className="text-xs text-slate-400">Companies whose subscription plan or free trial expiry date has elapsed</p>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-300 border border-red-500/40">
+              {expiredCompanies.length} Expired Tenants
+            </span>
+          </div>
+
+          {expiredCompanies.length === 0 ? (
+            <div className="p-8 text-center border border-slate-800 rounded-2xl bg-slate-950/50 space-y-2">
+              <CheckCircle2 size={32} className="mx-auto text-emerald-400" />
+              <p className="text-sm font-bold text-white">No Expired Companies</p>
+              <p className="text-xs text-slate-400">All registered tenant companies have active subscriptions and valid plan expiry dates.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-red-500/20">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-red-500/20">
+                  <tr>
+                    <th className="p-3.5">Company Name</th>
+                    <th className="p-3.5">Key</th>
+                    <th className="p-3.5">Plan Tier</th>
+                    <th className="p-3.5">Expiry Date</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {expiredCompanies.map(c => (
+                    <tr key={c.id} className="hover:bg-red-500/5 transition-colors">
+                      <td className="p-3.5">
+                        <p className="font-extrabold text-white">{c.name}</p>
+                        <p className="text-[10px] text-slate-400">{c.adminEmail}</p>
+                      </td>
+                      <td className="p-3.5 font-mono text-cyan-400 font-bold">{c.registrationKey}</td>
+                      <td className="p-3.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 border border-amber-500/30 text-amber-300">
+                          {c.plan}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono text-red-400 font-bold">{c.expiryDate}</td>
+                      <td className="p-3.5">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/20 border border-red-500/40 text-red-400 flex items-center gap-1 w-max">
+                          <AlertCircle size={11} /> PLAN EXPIRED
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right space-x-2">
+                        <button
+                          onClick={() => handleExtendCompanyExpiry(c.id, 30)}
+                          className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/40 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
+                        >
+                          <RefreshCw size={12} /> Extend Expiry (+30 Days)
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(c)}
+                          className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-600/40 rounded-xl font-bold text-xs inline-flex items-center gap-1"
+                        >
+                          <Edit2 size={12} /> Edit Date
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 🔑 SECTION 2: KEYS AND THEIR COMPANIES TABLE (Matching Wireframe Section 2) */}
       {(activeTab === 'overview' || activeTab === 'keys') && (
@@ -517,24 +655,39 @@ export function SuperAdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {companies.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-900/50 transition-colors">
-                    <td className="p-3.5 font-mono text-cyan-400 font-bold">{c.registrationKey}</td>
-                    <td className="p-3.5 font-extrabold text-white">{c.name}</td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${c.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300'}`}>
-                        {c.plan}
-                      </span>
-                    </td>
-                    <td className="p-3.5 font-mono text-slate-400">{c.expiryDate}</td>
-                    <td className="p-3.5 font-mono font-bold text-emerald-400">{c.seatsUsed} Users ({c.seatsAllocated} Allocated)</td>
-                    <td className="p-3.5 text-right">
-                      <button onClick={() => handleOpenEditModal(c)} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-600/40 rounded-xl font-bold text-xs inline-flex items-center gap-1">
-                        <Edit2 size={12} /> Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {companies.map(c => {
+                  const isCompExpired = c.isExpired || (c.expiryDate && new Date(c.expiryDate) < new Date());
+                  return (
+                    <tr key={c.id} className={`transition-colors ${isCompExpired ? 'bg-red-500/10 hover:bg-red-500/15' : 'hover:bg-slate-900/50'}`}>
+                      <td className="p-3.5 font-mono text-cyan-400 font-bold">{c.registrationKey}</td>
+                      <td className="p-3.5">
+                        <p className="font-extrabold text-white">{c.name}</p>
+                        {isCompExpired && (
+                          <span className="text-[9px] font-black text-red-400 uppercase tracking-wider block">⚠️ PLAN EXPIRED</span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${isCompExpired ? 'bg-red-500/20 border-red-500/40 text-red-300' : c.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300'}`}>
+                          {c.plan} {isCompExpired ? '(EXPIRED)' : ''}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono text-slate-400">
+                        <span className={isCompExpired ? 'text-red-400 font-bold' : ''}>{c.expiryDate}</span>
+                      </td>
+                      <td className="p-3.5 font-mono font-bold text-emerald-400">{c.seatsUsed} Users ({c.seatsAllocated} Allocated)</td>
+                      <td className="p-3.5 text-right space-x-1.5">
+                        {isCompExpired && (
+                          <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/40 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                            <RefreshCw size={11} /> +30 Days
+                          </button>
+                        )}
+                        <button onClick={() => handleOpenEditModal(c)} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-600/40 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                          <Edit2 size={12} /> Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

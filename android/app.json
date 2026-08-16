@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "NexCRM Mobile",
-    "slug": "nexcrm-android",
+    "name": "DAS CRM Mobile",
+    "slug": "dascrm-android",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -19,7 +19,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#060810"
       },
-      "package": "com.nexcrm.app",
+      "package": "com.dascrm.app",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

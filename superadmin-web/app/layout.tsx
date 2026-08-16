@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Super Admin Administrative Portal | NexCRM System Admin',
-  description: 'Super Admin System Overlord Portal for NexCRM Multi-Tenant Platform Management.',
+  title: 'Super Admin Administrative Portal | DAS CRM System Admin',
+  description: 'Super Admin System Overlord Portal for DAS CRM Multi-Tenant Platform Management.',
 };
 
 export default function RootLayout({

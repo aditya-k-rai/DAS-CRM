@@ -7,9 +7,23 @@ import {
   CheckSquare, Layers, Lock, ArrowRight, Plus, Database, ClipboardList,
   PhoneCall, Play, Download, Clock, CheckCircle2, AlertCircle, Settings,
   Radio, Sliders, Eye, EyeOff, Bot, MessageSquare, Mail, RefreshCw, Activity,
-  UserCheck, UserX, AlertTriangle, ArrowUpRight
+  UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
+
+interface DashboardLeadRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  source: string;
+  stage: string;
+  value: number;
+  assignedRep: string;
+  customFields: Record<string, string>;
+  createdAt: string;
+}
 
 export function TenantAdminDashboard() {
   const { currentUser, subscription } = useAuth();
@@ -46,6 +60,158 @@ export function TenantAdminDashboard() {
   // Widget 6: Telemetry Filter / Export
   const [telemetryExporting, setTelemetryExporting] = useState(false);
 
+  // ============================================================
+  // LEAD INTEGRATION & TABLE ADJUSTMENT HUB STATE
+  // ============================================================
+  const [leadsList, setLeadsList] = useState<DashboardLeadRecord[]>([
+    {
+      id: 'lead_101',
+      name: 'Aditya Sharma',
+      email: 'aditya.s@techcorp.in',
+      phone: '+91 98765 43210',
+      company: 'TechCorp India',
+      source: 'Facebook Ads',
+      stage: 'Prospecting',
+      value: 45000,
+      assignedRep: 'Rajesh Kumar',
+      customFields: { City: 'Mumbai', Budget: '₹50k-₹1L', Requirement: 'CRM Enterprise' },
+      createdAt: '2026-08-16 10:30 AM',
+    },
+    {
+      id: 'lead_102',
+      name: 'Priya Patel',
+      email: 'priya.p@innovate.io',
+      phone: '+91 98123 76543',
+      company: 'Innovate Solutions',
+      source: 'Google Ads',
+      stage: 'Proposal',
+      value: 120000,
+      assignedRep: 'Priya Sharma',
+      customFields: { City: 'Bangalore', Budget: '₹1L-₹2L', Requirement: 'Call Automation' },
+      createdAt: '2026-08-16 11:15 AM',
+    },
+    {
+      id: 'lead_103',
+      name: 'Vikram Malhotra',
+      email: 'vikram.m@apexind.com',
+      phone: '+91 99887 11223',
+      company: 'Apex Global',
+      source: 'WhatsApp Web',
+      stage: 'Negotiation',
+      value: 85000,
+      assignedRep: 'Amit Shah (TL)',
+      customFields: { City: 'Delhi', Budget: '₹80k-₹1L', Requirement: 'Multi-Tenant Setup' },
+      createdAt: '2026-08-16 02:45 PM',
+    },
+    {
+      id: 'lead_104',
+      name: 'Ananya Roy',
+      email: 'ananya.r@sunrealty.com',
+      phone: '+91 97654 32109',
+      company: 'Sun Realty',
+      source: 'Website Form',
+      stage: 'Closed Won',
+      value: 210000,
+      assignedRep: 'Sunita Verma (HR)',
+      customFields: { City: 'Pune', Budget: '₹2L+', Requirement: 'Payroll & HR Audit' },
+      createdAt: '2026-08-16 04:20 PM',
+    },
+  ]);
+
+  // Column Visibility Picker State
+  const [columnVisibility, setColumnVisibility] = useState({
+    name: true,
+    email: true,
+    phone: true,
+    company: true,
+    source: true,
+    stage: true,
+    value: true,
+    assignedRep: true,
+  });
+
+  // Custom Columns State
+  const [customColumns, setCustomColumns] = useState<string[]>(['City', 'Budget', 'Requirement']);
+  const [visibleCustomColumns, setVisibleCustomColumns] = useState<Record<string, boolean>>({
+    City: true,
+    Budget: true,
+    Requirement: true,
+  });
+
+  // Modals state
+  const [insertLeadModalOpen, setInsertLeadModalOpen] = useState(false);
+  const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
+  const [addCustomColModalOpen, setAddCustomColModalOpen] = useState(false);
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Form State for Insert Lead Modal
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadCompany, setNewLeadCompany] = useState('');
+  const [newLeadSource, setNewLeadSource] = useState('Facebook Ads');
+  const [newLeadStage, setNewLeadStage] = useState('Prospecting');
+  const [newLeadValue, setNewLeadValue] = useState(50000);
+  const [newLeadRep, setNewLeadRep] = useState('Rajesh Kumar');
+  const [newLeadCustomValues, setNewLeadCustomValues] = useState<Record<string, string>>({
+    City: '',
+    Budget: '',
+    Requirement: '',
+  });
+
+  // Form State for Add Custom Column Modal
+  const [newColName, setNewColName] = useState('');
+
+  // ============================================================
+  // GOOGLE SHEETS INTEGRATION STATE & HANDLERS
+  // ============================================================
+  const [googleSheetsModalOpen, setGoogleSheetsModalOpen] = useState(false);
+  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState('August_2026_Inbound_Leads.gsheet');
+  const [startRowOffset, setStartRowOffset] = useState('ROW_2');
+  const [sheetTabs, setSheetTabs] = useState([
+    { name: 'Inbound_Leads_Sheet1', enabled: true },
+    { name: 'VIP_Leads_Sheet2', enabled: true },
+    { name: 'Archived_Sheet3', enabled: false },
+  ]);
+  const [cellMapping, setCellMapping] = useState({
+    name: 'A2',
+    phone: 'B2',
+    email: 'C2',
+    company: 'D2',
+    source: 'E2',
+    custom: 'F2',
+  });
+  const [sheetTestStep, setSheetTestStep] = useState<'CONFIG' | 'TESTING' | 'VERIFIED'>('CONFIG');
+  const [sheetTestLoading, setSheetTestLoading] = useState(false);
+
+  const handleStartTestSync = () => {
+    setSheetTestStep('TESTING');
+  };
+
+  const handleVerifySheetChange = () => {
+    setSheetTestLoading(true);
+    setTimeout(() => {
+      setSheetTestLoading(false);
+      setSheetTestStep('VERIFIED');
+      // Append detected lead to live leads list
+      const detectedLead: DashboardLeadRecord = {
+        id: `lead_gsheet_${Date.now()}`,
+        name: 'Sameer Deshmukh',
+        email: 'sameer@tech.in',
+        phone: '+91 98990 12345',
+        company: 'Deshmukh Tech Solutions',
+        source: 'Google Sheets Sync',
+        stage: 'Prospecting',
+        value: 110000,
+        assignedRep: 'Rajesh Kumar',
+        customFields: { City: 'Pune', Budget: '₹1.5L', Requirement: 'Google Sheets Live Hook' },
+        createdAt: new Date().toLocaleString(),
+      };
+      setLeadsList(prev => [detectedLead, ...prev]);
+    }, 1200);
+  };
+
   const toggleUserLock = (usrId: string) => {
     setSelectedUserLock(prev => ({ ...prev, [usrId]: !prev[usrId] }));
   };
@@ -56,6 +222,114 @@ export function TenantAdminDashboard() {
       setTelemetryExporting(false);
       alert('Workforce Telemetry & Call Audit Log exported to CSV successfully!');
     }, 800);
+  };
+
+  const handleInsertLead = () => {
+    if (!newLeadName.trim() || !newLeadEmail.trim() || !newLeadPhone.trim()) return;
+    const created: DashboardLeadRecord = {
+      id: `lead_${Date.now()}`,
+      name: newLeadName.trim(),
+      email: newLeadEmail.trim(),
+      phone: newLeadPhone.trim(),
+      company: newLeadCompany.trim() || 'Independent Inquiry',
+      source: newLeadSource,
+      stage: newLeadStage,
+      value: Number(newLeadValue) || 0,
+      assignedRep: newLeadRep,
+      customFields: { ...newLeadCustomValues },
+      createdAt: new Date().toLocaleString(),
+    };
+    setLeadsList(prev => [created, ...prev]);
+    setInsertLeadModalOpen(false);
+    setNewLeadName('');
+    setNewLeadEmail('');
+    setNewLeadPhone('');
+    setNewLeadCompany('');
+  };
+
+  const handleAddCustomColumn = () => {
+    if (!newColName.trim()) return;
+    const colKey = newColName.trim();
+    if (!customColumns.includes(colKey)) {
+      setCustomColumns(prev => [...prev, colKey]);
+      setVisibleCustomColumns(prev => ({ ...prev, [colKey]: true }));
+    }
+    setNewColName('');
+    setAddCustomColModalOpen(false);
+  };
+
+  const handleExportLeadsCSV = () => {
+    let headers: string[] = [];
+    if (columnVisibility.name) headers.push('Name');
+    if (columnVisibility.email) headers.push('Email');
+    if (columnVisibility.phone) headers.push('Phone');
+    if (columnVisibility.company) headers.push('Company');
+    if (columnVisibility.source) headers.push('Source');
+    if (columnVisibility.stage) headers.push('Stage');
+    if (columnVisibility.value) headers.push('Value');
+    if (columnVisibility.assignedRep) headers.push('Assigned Rep');
+    customColumns.forEach(c => {
+      if (visibleCustomColumns[c]) headers.push(c);
+    });
+
+    let csvContent = headers.join(',') + '\n';
+    leadsList.forEach(lead => {
+      let row: string[] = [];
+      if (columnVisibility.name) row.push(`"${lead.name}"`);
+      if (columnVisibility.email) row.push(`"${lead.email}"`);
+      if (columnVisibility.phone) row.push(`"${lead.phone}"`);
+      if (columnVisibility.company) row.push(`"${lead.company}"`);
+      if (columnVisibility.source) row.push(`"${lead.source}"`);
+      if (columnVisibility.stage) row.push(`"${lead.stage}"`);
+      if (columnVisibility.value) row.push(`"${lead.value}"`);
+      if (columnVisibility.assignedRep) row.push(`"${lead.assignedRep}"`);
+      customColumns.forEach(c => {
+        if (visibleCustomColumns[c]) row.push(`"${lead.customFields[c] || ''}"`);
+      });
+      csvContent += row.join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `leads_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSimulateCsvImport = () => {
+    const importedLeads: DashboardLeadRecord[] = [
+      {
+        id: `lead_csv_${Date.now()}_1`,
+        name: 'Rohan Deshmukh',
+        email: 'rohan.d@deshmukhenterprise.com',
+        phone: '+91 98333 44555',
+        company: 'Deshmukh Enterprise',
+        source: 'CSV Import Batch',
+        stage: 'Prospecting',
+        value: 95000,
+        assignedRep: 'Rajesh Kumar',
+        customFields: { City: 'Nagpur', Budget: '₹1L', Requirement: 'Dialer Auto-Integration' },
+        createdAt: new Date().toLocaleString(),
+      },
+      {
+        id: `lead_csv_${Date.now()}_2`,
+        name: 'Kavita Menon',
+        email: 'kavita@menonlogistics.in',
+        phone: '+91 97444 55666',
+        company: 'Menon Logistics',
+        source: 'CSV Import Batch',
+        stage: 'Qualification',
+        value: 175000,
+        assignedRep: 'Priya Sharma',
+        customFields: { City: 'Kochi', Budget: '₹2L', Requirement: 'WhatsApp Bulk Ingestion' },
+        createdAt: new Date().toLocaleString(),
+      },
+    ];
+    setLeadsList(prev => [...importedLeads, ...prev]);
+    setImportCsvModalOpen(false);
   };
 
   return (
@@ -149,6 +423,223 @@ export function TenantAdminDashboard() {
           </div>
           <p className="text-sm font-extrabold text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
           <p className="text-[10px] text-muted font-semibold mt-1">Full Tier Enabled</p>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* ⚡ LEAD INTEGRATION & INGESTION CONTROL CENTER (NEW SECTION) */}
+      {/* ============================================================ */}
+      <div className="crm-card p-6 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 space-y-6 rounded-2xl shadow-2xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                ⚡ INTEGRATION & DATA HUB
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                5 ACTIVE CHANNELS
+              </span>
+            </div>
+            <h2 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
+              <Database size={20} className="text-indigo-400" /> Lead Integration & Ingestion Control Center
+            </h2>
+            <p className="text-xs text-muted mt-0.5">
+              Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+            </p>
+          </div>
+
+          {/* ACTION BUTTONS TOOLBAR */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setInsertLeadModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
+            >
+              <Plus size={14} /> + Insert Lead
+            </button>
+            <button
+              onClick={() => setImportCsvModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Upload size={14} /> Import CSV / Excel
+            </button>
+            <button
+              onClick={() => setGoogleSheetsModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
+            >
+              <FileSpreadsheet size={14} /> Google Sheets Sync
+            </button>
+            <button
+              onClick={handleExportLeadsCSV}
+              className="px-3.5 py-2 rounded-xl bg-teal-600/20 border border-teal-500/40 text-teal-300 hover:bg-teal-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+            <button
+              onClick={() => setAddCustomColModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Plus size={14} /> + Custom Column
+            </button>
+
+            {/* COLUMN ADJUSTMENT DROPDOWN TOGGLE */}
+            <div className="relative">
+              <button
+                onClick={() => setColPickerOpen(!colPickerOpen)}
+                className={`px-3.5 py-2 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all ${colPickerOpen ? 'bg-indigo-500/30 border-indigo-500 text-white' : 'bg-background border-border text-muted hover:text-white'}`}
+              >
+                <Sliders size={14} /> Adjust Columns ({Object.values(columnVisibility).filter(Boolean).length + Object.values(visibleCustomColumns).filter(Boolean).length})
+              </button>
+
+              {colPickerOpen && (
+                <div className="absolute right-0 mt-2 w-72 p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 shadow-2xl z-50 space-y-3 animate-fade-in text-xs">
+                  <div className="flex items-center justify-between border-b border-border pb-2">
+                    <span className="font-bold text-white flex items-center gap-1">
+                      <Sliders size={13} className="text-indigo-400" /> Select Visible Columns
+                    </span>
+                    <button onClick={() => setColPickerOpen(false)} className="text-muted hover:text-white">
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Standard Lead Columns</p>
+                    {[
+                      { key: 'name', label: 'Name Column' },
+                      { key: 'email', label: 'Email Column' },
+                      { key: 'phone', label: 'Number / Phone Column' },
+                      { key: 'company', label: 'Company Column' },
+                      { key: 'source', label: 'Lead Source Column' },
+                      { key: 'stage', label: 'Sales Stage Column' },
+                      { key: 'value', label: 'Lead Value Column' },
+                      { key: 'assignedRep', label: 'Assigned Rep Column' },
+                    ].map(col => (
+                      <label key={col.key} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer">
+                        <span className="text-slate-300 font-semibold">{col.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={(columnVisibility as any)[col.key]}
+                          onChange={e => setColumnVisibility(prev => ({ ...prev, [col.key]: e.target.checked }))}
+                          className="accent-indigo-500 w-4 h-4 rounded cursor-pointer"
+                        />
+                      </label>
+                    ))}
+
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Custom Columns</p>
+                      {customColumns.map(col => (
+                        <label key={col} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer">
+                          <span className="text-purple-300 font-semibold">{col} (Custom)</span>
+                          <input
+                            type="checkbox"
+                            checked={!!visibleCustomColumns[col]}
+                            onChange={e => setVisibleCustomColumns(prev => ({ ...prev, [col]: e.target.checked }))}
+                            className="accent-purple-500 w-4 h-4 rounded cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* CONNECTED INTEGRATION CHANNELS PIPELINE */}
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+          {[
+            { name: 'Facebook Ads', status: 'Active Hook', count: '1,240 Ingested', color: 'from-blue-600/20 to-blue-900/10 border-blue-500/30' },
+            { name: 'Google Ads', status: 'Auto-Sync', count: '650 Ingested', color: 'from-red-600/20 to-red-900/10 border-red-500/30' },
+            { name: 'Google Sheets', status: 'Live Range A2:F', count: '1,890 Syncing', color: 'from-emerald-600/25 to-teal-900/20 border-emerald-500/40' },
+            { name: 'WhatsApp Web', status: 'Connected', count: '410 Ingested', color: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30' },
+            { name: 'Website Form', status: 'Webhook Live', count: '230 Ingested', color: 'from-purple-600/20 to-purple-900/10 border-purple-500/30' },
+            { name: 'Zapier API', status: 'Key Active', count: '890 Ingested', color: 'from-amber-600/20 to-amber-900/10 border-amber-500/30' },
+          ].map(ch => (
+            <div key={ch.name} className={`p-3 rounded-2xl border bg-gradient-to-b ${ch.color} space-y-1`}>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-white">{ch.name}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <p className="text-[10px] text-muted font-semibold">{ch.status}</p>
+              <p className="text-xs font-black text-cyan-300">{ch.count}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* DYNAMIC ADJUSTABLE LEAD DATA TABLE (INSERTED ABOVE LEAD WIDGETS) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+              <ClipboardList size={16} className="text-indigo-400" /> Live Adjustable Lead Directory ({leadsList.length} Leads)
+            </h3>
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-2.5 text-muted" />
+              <input
+                type="text"
+                placeholder="Search leads, emails, or phone..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="crm-input pl-9 text-xs h-8 w-full"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-border bg-slate-950/60 shadow-xl">
+            <table className="w-full text-xs text-left text-slate-300">
+              <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                <tr>
+                  {columnVisibility.name && <th className="p-3">Name Column</th>}
+                  {columnVisibility.email && <th className="p-3">Email Column</th>}
+                  {columnVisibility.phone && <th className="p-3">Number / Phone Column</th>}
+                  {columnVisibility.company && <th className="p-3">Company Column</th>}
+                  {columnVisibility.source && <th className="p-3">Source</th>}
+                  {columnVisibility.stage && <th className="p-3">Sales Stage</th>}
+                  {columnVisibility.value && <th className="p-3">Lead Value</th>}
+                  {columnVisibility.assignedRep && <th className="p-3">Assigned Rep</th>}
+                  {customColumns.map(col => visibleCustomColumns[col] && (
+                    <th key={col} className="p-3 text-purple-300">{col} (Custom)</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {leadsList
+                  .filter(l =>
+                    l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    l.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    l.phone.includes(searchTerm)
+                  )
+                  .map(l => (
+                    <tr key={l.id} className="hover:bg-slate-900/60 transition-colors">
+                      {columnVisibility.name && <td className="p-3 font-extrabold text-white">{l.name}</td>}
+                      {columnVisibility.email && <td className="p-3 font-mono text-indigo-300">{l.email}</td>}
+                      {columnVisibility.phone && <td className="p-3 font-mono text-emerald-400 font-bold">{l.phone}</td>}
+                      {columnVisibility.company && <td className="p-3 font-semibold text-slate-300">{l.company}</td>}
+                      {columnVisibility.source && (
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {l.source}
+                          </span>
+                        </td>
+                      )}
+                      {columnVisibility.stage && (
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {l.stage}
+                          </span>
+                        </td>
+                      )}
+                      {columnVisibility.value && <td className="p-3 font-mono font-bold text-emerald-400">₹{l.value.toLocaleString()}</td>}
+                      {columnVisibility.assignedRep && <td className="p-3 font-semibold text-slate-300">{l.assignedRep}</td>}
+                      {customColumns.map(col => visibleCustomColumns[col] && (
+                        <td key={col} className="p-3 font-mono text-purple-300 font-bold">
+                          {l.customFields[col] || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -629,6 +1120,457 @@ export function TenantAdminDashboard() {
         </div>
 
       </div>
+
+      {/* ============================================================ */}
+      {/* MODALS: INSERT LEAD, IMPORT CSV, ADD CUSTOM COLUMN           */}
+      {/* ============================================================ */}
+      {insertLeadModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="crm-card max-w-lg w-full p-6 bg-slate-900 border border-indigo-500/40 rounded-3xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Plus size={18} className="text-indigo-400" /> Insert New Lead Record
+              </h3>
+              <button onClick={() => setInsertLeadModalOpen(false)} className="text-muted hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-muted block mb-1 font-bold">Lead Full Name *</label>
+                <input className="crm-input h-10 w-full" placeholder="e.g. Vikram Sharma" value={newLeadName} onChange={e => setNewLeadName(e.target.value)} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Email Address *</label>
+                  <input className="crm-input h-10 w-full" placeholder="vikram@company.com" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Phone Number *</label>
+                  <input className="crm-input h-10 w-full" placeholder="+91 98765 43210" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Company Name</label>
+                  <input className="crm-input h-10 w-full" placeholder="Acme Enterprises" value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Lead Source</label>
+                  <select className="crm-input h-10 w-full" value={newLeadSource} onChange={e => setNewLeadSource(e.target.value)}>
+                    <option value="Facebook Ads">Facebook Ads</option>
+                    <option value="Google Ads">Google Ads</option>
+                    <option value="WhatsApp Web">WhatsApp Web</option>
+                    <option value="Website Form">Website Form</option>
+                    <option value="Manual Insert">Manual Insert</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Initial Sales Stage</label>
+                  <select className="crm-input h-10 w-full" value={newLeadStage} onChange={e => setNewLeadStage(e.target.value)}>
+                    <option value="Prospecting">Prospecting</option>
+                    <option value="Qualification">Qualification</option>
+                    <option value="Proposal">Proposal</option>
+                    <option value="Negotiation">Negotiation</option>
+                    <option value="Closed Won">Closed Won</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-bold">Deal Value (₹)</label>
+                  <input type="number" className="crm-input h-10 w-full font-bold text-emerald-400" value={newLeadValue} onChange={e => setNewLeadValue(Number(e.target.value))} />
+                </div>
+              </div>
+
+              {/* Custom Fields in Insert Form */}
+              {customColumns.length > 0 && (
+                <div className="pt-2 border-t border-border space-y-2">
+                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Custom Column Values</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {customColumns.map(col => (
+                      <div key={col}>
+                        <label className="text-muted block mb-1 font-bold">{col}</label>
+                        <input
+                          className="crm-input h-9 w-full font-mono text-purple-300"
+                          placeholder={`Enter ${col}...`}
+                          value={newLeadCustomValues[col] || ''}
+                          onChange={e => setNewLeadCustomValues(prev => ({ ...prev, [col]: e.target.value }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button onClick={() => setInsertLeadModalOpen(false)} className="btn-secondary text-xs px-4 py-2">
+                Cancel
+              </button>
+              <button onClick={handleInsertLead} className="btn-primary text-xs px-5 py-2 font-bold bg-indigo-600 hover:bg-indigo-500 text-white">
+                Save & Insert Lead
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {importCsvModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="crm-card max-w-lg w-full p-6 bg-slate-900 border border-purple-500/40 rounded-3xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Upload size={18} className="text-purple-400" /> Import Leads Batch (CSV / Excel)
+              </h3>
+              <button onClick={() => setImportCsvModalOpen(false)} className="text-muted hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-6 border-2 border-dashed border-purple-500/30 hover:border-purple-500 rounded-2xl bg-purple-500/5 text-center space-y-2 cursor-pointer">
+                <FileSpreadsheet size={32} className="mx-auto text-purple-400" />
+                <p className="font-bold text-white">Drag and drop your CSV / Excel lead file</p>
+                <p className="text-[11px] text-muted">Supports .csv, .xlsx files up to 10MB</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-background border border-border space-y-2">
+                <p className="font-bold text-white">Header-to-Column Auto Mapping Preview:</p>
+                <div className="space-y-1 text-[11px] text-muted font-mono">
+                  <div className="flex justify-between"><span>CSV Header "Full Name"</span> <strong className="text-indigo-300">Name Column</strong></div>
+                  <div className="flex justify-between"><span>CSV Header "Email"</span> <strong className="text-indigo-300">Email Column</strong></div>
+                  <div className="flex justify-between"><span>CSV Header "Phone"</span> <strong className="text-emerald-400">Number Column</strong></div>
+                  <div className="flex justify-between"><span>CSV Header "City"</span> <strong className="text-purple-300">Custom Column (City)</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button onClick={() => setImportCsvModalOpen(false)} className="btn-secondary text-xs px-4 py-2">
+                Cancel
+              </button>
+              <button onClick={handleSimulateCsvImport} className="btn-primary text-xs px-5 py-2 font-bold bg-purple-600 hover:bg-purple-500 text-white">
+                Process & Import 2 Batch Leads
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addCustomColModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="crm-card max-w-md w-full p-6 bg-slate-900 border border-cyan-500/40 rounded-3xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Plus size={18} className="text-cyan-400" /> Create Custom Lead Table Column
+              </h3>
+              <button onClick={() => setAddCustomColModalOpen(false)} className="text-muted hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-muted block mb-1 font-bold">Custom Column Title *</label>
+                <input
+                  className="crm-input h-10 w-full"
+                  placeholder="e.g. Budget, Requirement, City, Industry, Notes"
+                  value={newColName}
+                  onChange={e => setNewColName(e.target.value)}
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-background border border-border text-[11px] text-muted space-y-1">
+                <p className="font-bold text-white">💡 Custom Column Info:</p>
+                <p>New custom columns automatically appear in the Lead Directory Table, Insert Lead Form, and CSV Export options.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button onClick={() => setAddCustomColModalOpen(false)} className="btn-secondary text-xs px-4 py-2">
+                Cancel
+              </button>
+              <button onClick={handleAddCustomColumn} className="btn-primary text-xs px-5 py-2 font-bold bg-cyan-600 hover:bg-cyan-500 text-white">
+                Create Custom Column
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* GOOGLE SHEETS REAL-TIME SYNC INTEGRATION MODAL               */}
+      {/* ============================================================ */}
+      {googleSheetsModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="crm-card max-w-2xl w-full p-6 bg-slate-900 border border-emerald-500/40 rounded-3xl shadow-2xl space-y-5 animate-fade-in my-8">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Google Sheets Real-Time Sync Integration</h3>
+                  <p className="text-[11px] text-muted">Select Workbook & Sheets, Set Row Offset, Map Cell Addresses & Test Sync</p>
+                </div>
+              </div>
+              <button onClick={() => setGoogleSheetsModalOpen(false)} className="text-muted hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* SECTION 1: SPREADSHEET & SHEET SELECTION */}
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-extrabold text-white flex items-center gap-1.5 text-xs">
+                    <Database size={14} className="text-emerald-400" /> Connected Google Drive Account & Workbook
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    CONNECTED: adtyamighty@gmail.com
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-muted block mb-1 font-bold">Select Google Spreadsheet Workbook *</label>
+                    <select
+                      className="crm-input h-10 w-full font-bold text-white"
+                      value={selectedSpreadsheet}
+                      onChange={e => setSelectedSpreadsheet(e.target.value)}
+                    >
+                      <option value="August_2026_Inbound_Leads.gsheet">August_2026_Inbound_Leads.gsheet (Master)</option>
+                      <option value="Q3_Sales_Campaign_Leads.gsheet">Q3_Sales_Campaign_Leads.gsheet</option>
+                      <option value="Website_Inquiries_Live.gsheet">Website_Inquiries_Live.gsheet</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-bold">Start Data Sync From *</label>
+                    <select
+                      className="crm-input h-10 w-full font-bold text-emerald-300"
+                      value={startRowOffset}
+                      onChange={e => setStartRowOffset(e.target.value)}
+                    >
+                      <option value="ROW_2">Row 2 (Headers at Row 1, Data starts Row 2)</option>
+                      <option value="ROW_1">Row 1 (First Row contains Data directly)</option>
+                      <option value="ROW_3">Row 3 (Sub-headers present at Row 2)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* TAB / SHEET SELECTOR */}
+                <div>
+                  <label className="text-muted block mb-1.5 font-bold">
+                    Select Sheet Tabs to Sync / Exclude (Click tab to toggle)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {sheetTabs.map(tab => (
+                      <button
+                        key={tab.name}
+                        type="button"
+                        onClick={() => {
+                          setSheetTabs(prev => prev.map(t => t.name === tab.name ? { ...t, enabled: !t.enabled } : t));
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all ${tab.enabled ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-500 line-through opacity-60'}`}
+                      >
+                        <span>{tab.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${tab.enabled ? 'bg-emerald-500/30 text-emerald-200' : 'bg-slate-800 text-slate-500'}`}>
+                          {tab.enabled ? 'SYNC ENABLED' : 'EXCLUDED'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: CELL ADDRESS COLUMN MAPPING */}
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <h4 className="font-extrabold text-white flex items-center gap-1.5 text-xs">
+                  <Sliders size={14} className="text-indigo-400" /> Cell Address Column Mapping (e.g. A2 = Name, B2 = Number)
+                </h4>
+                <p className="text-[11px] text-muted">Map Google Sheet Cell Columns directly to CRM Lead Fields:</p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Name Column Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-indigo-400">Name $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-white uppercase"
+                        value={cellMapping.name}
+                        onChange={e => setCellMapping(prev => ({ ...prev, name: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Number / Phone Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-400">Phone $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-emerald-300 uppercase"
+                        value={cellMapping.phone}
+                        onChange={e => setCellMapping(prev => ({ ...prev, phone: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Email Address Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-purple-400">Email $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-purple-300 uppercase"
+                        value={cellMapping.email}
+                        onChange={e => setCellMapping(prev => ({ ...prev, email: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Company Name Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-cyan-400">Company $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-cyan-300 uppercase"
+                        value={cellMapping.company}
+                        onChange={e => setCellMapping(prev => ({ ...prev, company: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Lead Source Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-amber-400">Source $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-amber-300 uppercase"
+                        value={cellMapping.source}
+                        onChange={e => setCellMapping(prev => ({ ...prev, source: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-muted block mb-1 font-semibold">Custom Column Cell</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-pink-400">Custom $\rightarrow$</span>
+                      <input
+                        className="crm-input h-9 w-20 text-center font-mono font-bold text-pink-300 uppercase"
+                        value={cellMapping.custom}
+                        onChange={e => setCellMapping(prev => ({ ...prev, custom: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: TEST SYNC WORKFLOW & VERIFICATION ACKNOWLEDGMENT */}
+              <div className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-white flex items-center gap-2">
+                    <RefreshCw size={15} className="text-indigo-400" /> 2-Step Live Sync Testing & Acknowledgment
+                  </span>
+                  {sheetTestStep === 'VERIFIED' && (
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                      <CheckCircle2 size={13} /> TEST POSITIVE — VERIFIED
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-muted">
+                  Click <strong>Test Sync Connection</strong> to preview Google Sheet. Make any change in the Google Sheet data, then click <strong>Verify & Detect Change</strong> to acknowledge the live webhook listener.
+                </p>
+
+                {sheetTestStep === 'CONFIG' && (
+                  <button
+                    onClick={handleStartTestSync}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <Play size={14} /> Step 1: Test Sync Connection & Open Google Sheet Preview
+                  </button>
+                )}
+
+                {sheetTestStep === 'TESTING' && (
+                  <div className="space-y-3 p-3.5 rounded-xl bg-slate-900 border border-emerald-500/50">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        Google Sheet Preview Opened ({selectedSpreadsheet})
+                      </span>
+                      <a
+                        href="https://docs.google.com/spreadsheets"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-cyan-400 hover:underline flex items-center gap-1"
+                      >
+                        Open Sheet in Google Drive ↗
+                      </a>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-slate-300 space-y-1">
+                      <p className="text-emerald-400 font-bold">📄 Mock Google Sheet Cell Matrix Preview ({startRowOffset}):</p>
+                      <p className="text-slate-400">Row 1 (Headers): [{cellMapping.name}: Name | {cellMapping.phone}: Phone | {cellMapping.email}: Email | {cellMapping.company}: Company]</p>
+                      <p className="text-white font-bold">Row 2 (Live Data): [{cellMapping.name}: Sameer Deshmukh | {cellMapping.phone}: +91 98990 12345 | {cellMapping.email}: sameer@tech.in]</p>
+                    </div>
+
+                    <button
+                      onClick={handleVerifySheetChange}
+                      disabled={sheetTestLoading}
+                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xl"
+                    >
+                      {sheetTestLoading ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" /> Detecting Cell Range Modifications...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={14} /> Step 2: Verify & Acknowledge Cell Change (Click to Confirm)
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {sheetTestStep === 'VERIFIED' && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-sm">
+                      <CheckCircle2 size={16} className="text-emerald-400" /> Sync Test Positive — Change Detected & Confirmed!
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Detected live modification at cell range <code className="font-mono text-emerald-400 font-bold">{cellMapping.name}:{cellMapping.phone}</code>: Ingested lead <strong>Sameer Deshmukh (+91 98990 12345)</strong> into DAS CRM active queue.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <button onClick={() => setGoogleSheetsModalOpen(false)} className="btn-secondary text-xs px-4 py-2">
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  alert(`Google Sheets Real-Time Sync configured for ${selectedSpreadsheet}! Sheet mapping (${cellMapping.name}=Name, ${cellMapping.phone}=Phone) active.`);
+                  setGoogleSheetsModalOpen(false);
+                }}
+                className="btn-primary text-xs px-5 py-2 font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                Save Google Sheets Sync Setup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

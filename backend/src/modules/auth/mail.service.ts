@@ -20,12 +20,12 @@ export class MailService {
   async sendSuperAdminOtp(email: string, otp: string): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: `"NexCRM Security" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
+        from: `"DAS CRM Security" <${process.env.SMTP_FROM || 'noreply@dascrm.app'}>`,
         to: email,
-        subject: '🔐 NexCRM Super Admin — One-Time Password',
+        subject: '🔐 DAS CRM Super Admin — One-Time Password',
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px;">
-            <h2 style="color: #6366f1; margin: 0 0 16px;">NexCRM Super Admin Authentication</h2>
+            <h2 style="color: #6366f1; margin: 0 0 16px;">DAS CRM Super Admin Authentication</h2>
             <p style="color: #374151;">Your One-Time Password (OTP) for Super Admin login:</p>
             <div style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #111827; background: #f9fafb; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
               ${otp}

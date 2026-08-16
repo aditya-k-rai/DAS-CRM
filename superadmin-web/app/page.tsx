@@ -82,7 +82,7 @@ export default function SuperAdminPortalPage() {
               <Crown size={20} />
             </div>
             <div>
-              <h1 className="text-sm font-black text-white uppercase tracking-wider">NexCRM Super Admin</h1>
+              <h1 className="text-sm font-black text-white uppercase tracking-wider">DAS CRM Super Admin</h1>
               <span className="text-[10px] text-cyan-400 font-mono">ADTYAMIGHTY@GMAIL.COM</span>
             </div>
           </div>

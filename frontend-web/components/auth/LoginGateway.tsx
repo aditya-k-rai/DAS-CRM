@@ -446,10 +446,10 @@ export function LoginGateway() {
         <div>
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-white text-lg shadow-xl" style={{ background: 'linear-gradient(135deg, #4f46e5, #8b5cf6)' }}>
-              N
+              D
             </div>
             <div>
-              <span className="text-white font-bold text-lg">NexCRM Platform</span>
+              <span className="text-white font-bold text-lg">DAS CRM Platform</span>
               <p className="text-xs text-muted">Multi-Tenant Gateway</p>
             </div>
           </div>

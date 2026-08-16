@@ -6,7 +6,7 @@ import { AuthProvider } from '@/context/AuthContext';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: { default: 'NexCRM', template: '%s | NexCRM' },
+  title: { default: 'DAS CRM', template: '%s | DAS CRM' },
   description: 'The enterprise-grade multi-tenant CRM for modern sales teams',
   keywords: ['CRM', 'Sales', 'Leads', 'Pipeline', 'Enterprise'],
 };

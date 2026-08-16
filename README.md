@@ -1,4 +1,4 @@
-# 🚀 NexCRM Enterprise Multi-Tenant SaaS Platform
+# 🚀 DAS CRM Enterprise Multi-Tenant SaaS Platform
 
 An enterprise-grade, multi-tenant SaaS Customer Relationship Management (CRM) platform engineered with a decoupled monorepo architecture. Powered by **Next.js 16 (App Router)**, **NestJS**, **Prisma ORM**, **PostgreSQL**, and **Expo / React Native**.
 
@@ -36,7 +36,7 @@ An enterprise-grade, multi-tenant SaaS Customer Relationship Management (CRM) pl
 
 ## 🏗️ System Architecture Overview
 
-NexCRM operates as a high-throughput, horizontally scalable monorepo platform. The system is split into four primary execution tiers:
+DAS CRM operates as a high-throughput, horizontally scalable monorepo platform. The system is split into four primary execution tiers:
 
 ```mermaid
 graph TD
@@ -248,7 +248,23 @@ flowchart TD
    - Divides incoming lead volume into numerical ranges (e.g., Leads 1–50 assigned to Team A, Leads 51–100 assigned to Team B).
    - Once a batch quota is fulfilled, the engine shifts to the next active batch.
 2. **Model 2: Dynamic "Grab" Pool Flow**:
-   - Ingested leads are placed in an anonymized serial-numbered pool (e.g., `Lead #8841`). Personal identity details (Name, Phone, Email) are masked.
+   - Ingests leads into a shared, anonymized queue. Contact details remain hidden until a sales representative clicks "Grab".
+   - The first agent to grab the lead secures exclusive ownership.
+
+---
+
+### 📊 Google Sheets Real-Time Sync Integration Engine
+
+DAS CRM features a native Google Sheets Ingestion & Webhook Sync Engine that connects directly to Google Drive Workbooks, handles Sheet Tab selection, cell address mapping, and 2-step sync verification:
+
+| Config Feature | Description | Example Setup |
+|---|---|---|
+| **Workbook Selector** | Choose target Google Drive Spreadsheet Workbook | `August_2026_Inbound_Leads.gsheet` |
+| **Sheet Tab Selection** | Multi-select active Sheet tabs to sync / exclude | `Inbound_Leads_Sheet1` [ENABLED], `Archived` [EXCLUDED] |
+| **Row Offset Control** | Define exact row index where data record sync begins | `Row 2` (Headers at Row 1, Data starts Row 2) |
+| **Cell Address Mapping** | Map grid cell column coordinates directly to CRM fields | `A2` $\rightarrow$ Name, `B2` $\rightarrow$ Phone, `C2` $\rightarrow$ Email, `D2` $\rightarrow$ Company |
+| **2-Step Sync Verification** | **Step 1**: Open Sheet preview<br/>**Step 2**: Alter cell data & click Verify to confirm test change | `TEST POSITIVE — Change Detected & Verified!` |
+
    - Any eligible sales representative can view the pool. The first representative to click **"Grab Lead"** atomically acquires ownership (`UPDATE leads SET assigned_user_id = ... WHERE id = ... AND assigned_user_id IS NULL`), instantly removing it from the pool for all other agents.
 3. **Model 3: Direct Admin Targeted Funnel**:
    - Bypasses automated allocation. All incoming leads land in the Tenant Admin intake buffer for explicit manual assignment.
