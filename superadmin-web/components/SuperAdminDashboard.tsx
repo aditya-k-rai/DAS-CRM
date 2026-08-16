@@ -919,7 +919,7 @@ export function SuperAdminDashboard() {
       {/* 🛠️ SECTION 3 MODAL: COMPANY DETAILS EDIT & UPGRADE PLAN (Matching Wireframe Section 3) */}
       {editModalOpen && editingCompany && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="crm-card max-w-lg w-full p-6 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl relative space-y-4">
+          <div className="crm-card max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl relative space-y-4">
             <button onClick={() => setEditModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold">✕</button>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Edit2 size={18} className="text-cyan-400" /> Company Details Edit & Upgrade Plan
@@ -929,7 +929,7 @@ export function SuperAdminDashboard() {
                 <label className="text-xs text-slate-400 block mb-1">Company Name *</label>
                 <input className="crm-input w-full text-sm" value={editName} onChange={e => setEditName(e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Plan Tier</label>
                   <select className="crm-input w-full text-sm" value={editPlan} onChange={e => setEditPlan(e.target.value as PlanType)}>
@@ -967,7 +967,7 @@ export function SuperAdminDashboard() {
       {/* Date-Wise Chat Log Modal */}
       {chatLogModalOpen && chatLogCompany && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="crm-card max-w-xl w-full p-6 bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-2xl relative space-y-4">
+          <div className="crm-card max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 bg-slate-900 border border-indigo-500/30 rounded-2xl shadow-2xl relative space-y-4">
             <button onClick={() => setChatLogModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold">✕</button>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Calendar size={18} className="text-indigo-400" /> Date Wise Chat Logs for {chatLogCompany.name}
@@ -1004,7 +1004,7 @@ export function SuperAdminDashboard() {
       {/* Key Generation Modal */}
       {genKeyModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="crm-card max-w-md w-full p-6 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl relative space-y-4">
+          <div className="crm-card max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl relative space-y-4">
             <button onClick={() => setGenKeyModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold">✕</button>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Key size={18} className="text-cyan-400" /> Generate Company Registration Key
@@ -1014,7 +1014,7 @@ export function SuperAdminDashboard() {
                 <label className="text-xs text-slate-400 block mb-1">Company Name *</label>
                 <input className="crm-input w-full text-sm" placeholder="e.g. Company B" value={genCompanyName} onChange={e => setGenCompanyName(e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">Plan Tier</label>
                   <select className="crm-input w-full text-sm" value={genPlan} onChange={e => setGenPlan(e.target.value as PlanType)}>

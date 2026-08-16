@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Menu } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
+import { useSidebar } from '@/context/SidebarContext';
 
 interface TopbarProps {
   title: string;
@@ -12,16 +13,35 @@ interface TopbarProps {
 
 export function Topbar({ title, actions }: TopbarProps) {
   const [cmdOpen, setCmdOpen] = useState(false);
+  const { toggleMobile } = useSidebar();
 
   return (
     <>
-      <header className="topbar">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+      <header className="topbar flex-wrap gap-2 px-3 sm:px-6 py-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleMobile}
+            className="lg:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-muted hover:text-white hover:bg-slate-800 transition-colors"
+            title="Toggle Navigation Menu"
+          >
+            <Menu size={18} />
+          </button>
+          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Search Trigger */}
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap">
+          {/* Mobile Search Button */}
+          <button
+            type="button"
+            onClick={() => setCmdOpen(true)}
+            className="md:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-muted hover:text-white transition-colors"
+            title="Search (⌘K)"
+          >
+            <Search size={16} />
+          </button>
+
+          {/* Desktop Search Trigger */}
           <div
             onClick={() => setCmdOpen(true)}
             className="relative hidden md:flex items-center cursor-pointer group"
@@ -29,7 +49,7 @@ export function Topbar({ title, actions }: TopbarProps) {
             <Search size={15} className="absolute left-3 text-muted group-hover:text-white transition-colors" style={{ color: 'rgb(var(--muted-foreground))' }} />
             <input
               readOnly
-              className="crm-input pl-9 w-64 text-sm h-9 cursor-pointer"
+              className="crm-input pl-9 w-48 lg:w-64 text-xs sm:text-sm h-9 cursor-pointer"
               placeholder="Search leads, contacts... (⌘K)"
             />
             <kbd className="absolute right-3 text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: 'rgb(var(--border))', color: 'rgb(var(--muted-foreground))' }}>
@@ -40,7 +60,7 @@ export function Topbar({ title, actions }: TopbarProps) {
           {/* Page Actions */}
           {actions}
 
-          {/* Notification Center (live dropdown) */}
+          {/* Notification Center */}
           <NotificationCenter />
         </div>
       </header>

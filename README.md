@@ -634,4 +634,38 @@ The monorepo includes automated GitHub Actions integration configured in [`.gith
 
 ---
 
+## 📱 Multi-Device Responsiveness Architecture
+
+DAS CRM and SuperAdmin Control Plane apps are engineered with full responsiveness across 7 device viewport tiers, preserving all colors, aesthetic styles, dark themes, and typography.
+
+### Responsive Breakpoints Matrix
+
+| Device Category | Viewport Width | Suggested Breakpoint | Applied Layout Behavior |
+| :--- | :---: | :---: | :--- |
+| 📱 **Small phones** | 320–374 px | `< 576px` | 1-column KPI grid cards, mobile hamburger menu header toggle, slide-in overlay drawer navigation with backdrop, full-bleed scrollable data tables, modal dialog auto-fit with max-height scrolling (`max-h-[90vh]`). |
+| 📱 **Large phones** | 375–767 px | `576–767px` | 2-column KPI grids, wrapped action toolbars, responsive search trigger. |
+| 📱 **Tablets** | 768–1023 px | `768–1023px` | 2-to-3 column grids, touch-friendly drawer navigation. |
+| 💻 **Small laptops** | 1024–1279 px | `1024–1279px` | Fixed `260px` sidebar layout (`lg:ml-[260px]`), 3-to-4 column KPI grids, inline desktop search bar. |
+| 💻 **Laptops** | 1280–1439 px | `1280–1439px` | 4-to-6 column KPI grids, expanded multi-column tables. |
+| 🖥️ **Desktop** | 1440–1919 px | `1440–1919px` | Multi-column telemetry dashboard layout. |
+| 🖥️ **Large desktop** | 1920px+ | `1920px+` | Centered layout container scaling (`2xl:max-w-[1920px]`). |
+
+---
+
+## 📄 Binary Excel Ingestion & Email Sanitization Engine
+
+The client-side Excel Ingestion Engine in `TenantAdminDashboard` supports `.xlsx`, `.xls`, and `.csv` files:
+
+1. **Email Column Sanitization**:
+   - Empty/missing email cells or generic placeholder strings like `lead@organization.com` are converted to **`"No Email Provided"`**.
+   - Rendered in the Live Directory as a clean styled badge (`No Email Provided`) instead of leaving the Email column blank.
+
+2. **Data Matrix Telemetry Audit**:
+   - Dynamically calculates the exact count of Excel rows containing data and maximum columns with data.
+   - Post-import modal displays:
+     - **Excel Rows (With Data)**: e.g., `8 Rows`
+     - **Excel Columns (With Data)**: e.g., `8 Columns`
+
+---
+
 > Built with precision for high-scale enterprise CRM operations.

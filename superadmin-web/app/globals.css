@@ -190,3 +190,26 @@ body {
 }
 
 .animate-fade-in { animation: fade-in 0.3s ease forwards; }
+
+/* ─────────────────────────────────────
+   SUPER ADMIN RESPONSIVE BREAKPOINT SYSTEM
+   ───────────────────────────────────── */
+
+/* 📱 Small Phones (< 576px) */
+@media (max-width: 575px) {
+  .crm-card { padding: 0.875rem; }
+}
+
+/* 📱 Large Phones (576px – 767px) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .crm-card { padding: 1rem; }
+}
+
+/* 🖥️ Large Desktop (1920px+) */
+@media (min-width: 1920px) {
+  .superadmin-container {
+    max-width: 1920px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

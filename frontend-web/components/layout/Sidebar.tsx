@@ -93,10 +93,14 @@ const navigation: NavGroup[] = [
   },
 ];
 
+import { useSidebar } from '@/context/SidebarContext';
+import { X } from 'lucide-react';
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, subscription, canEdit, isSeatExceeded, logout } = useAuth();
+  const { mobileOpen, closeMobile } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -126,17 +130,31 @@ export function Sidebar() {
   const isViewOnly = !canEdit();
 
   return (
-    <aside className="sidebar">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 mb-1">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-          <span className="text-white font-bold text-sm">D</span>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          onClick={closeMobile}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+        />
+      )}
+
+      <aside className={cn('sidebar transition-transform duration-300 z-50', mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')}>
+        {/* Logo Header */}
+        <div className="flex items-center justify-between px-5 py-5 mb-1">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <span className="text-white font-bold text-sm">D</span>
+            </div>
+            <div>
+              <span className="text-white font-bold text-base tracking-tight">DAS CRM</span>
+              <p className="text-xs text-muted font-medium">{subscription.companyName}</p>
+            </div>
+          </div>
+          <button onClick={closeMobile} className="lg:hidden p-1 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-colors">
+            <X size={18} />
+          </button>
         </div>
-        <div>
-          <span className="text-white font-bold text-base tracking-tight">DAS CRM</span>
-          <p className="text-xs text-muted font-medium">{subscription.companyName}</p>
-        </div>
-      </div>
 
       {/* Authenticated User Role Badge (Read-Only) */}
       <div className="px-3 mb-3">
@@ -173,7 +191,7 @@ export function Sidebar() {
 
               const isActive = pathname === targetHref || pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
               return (
-                <Link key={item.href} href={targetHref}>
+                <Link key={item.href} href={targetHref} onClick={closeMobile}>
                   <div className={cn('sidebar-item', isActive && 'active')}>
                     <item.icon size={17} />
                     <span>{item.label}</span>
@@ -198,6 +216,7 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => {
+              closeMobile();
               logout();
               router.push('/login');
             }}
@@ -209,5 +228,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

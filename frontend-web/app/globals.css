@@ -491,3 +491,52 @@ body {
 .animate-fade-in   { animation: fade-in 0.3s ease forwards; }
 .animate-slide-in  { animation: slide-in-right 0.3s ease forwards; }
 .animate-scale-in  { animation: scale-in 0.2s ease forwards; }
+
+/* ─────────────────────────────────────
+   DEVICE RESPONSIVE BREAKPOINT SYSTEM
+   Preserving colors, styles, and typography
+   ───────────────────────────────────── */
+
+/* 📱 Small Phones (< 576px) */
+@media (max-width: 575px) {
+  .topbar { padding: 0.75rem 0.75rem; }
+  .crm-card { padding: 0.875rem; }
+  .stat-card { padding: 0.875rem; }
+  .metric-value { font-size: 1.5rem; }
+  .page-title { font-size: 1.25rem; }
+}
+
+/* 📱 Large Phones (576px – 767px) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .topbar { padding: 0.75rem 1rem; }
+  .crm-card { padding: 1rem; }
+}
+
+/* 📱 Tablets (768px – 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .crm-card { padding: 1.25rem; }
+}
+
+/* 💻 Small Laptops (1024px – 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .sidebar { width: 260px; }
+}
+
+/* 💻 Laptops (1280px – 1439px) */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  /* Standard Desktop Layout */
+}
+
+/* 🖥️ Desktop (1440px – 1919px) */
+@media (min-width: 1440px) and (max-width: 1919px) {
+  /* Ultra-wide Desktop Layout */
+}
+
+/* 🖥️ Large Desktop (1920px+) */
+@media (min-width: 1920px) {
+  .responsive-container {
+    max-width: 1920px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

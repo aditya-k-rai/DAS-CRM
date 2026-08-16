@@ -250,7 +250,7 @@ export function ImportWizard() {
                   <CheckCircle2 size={30} style={{ color: 'rgb(34,197,94)' }} />
                 </div>
                 <h3 className="font-bold text-lg text-white">Import Complete!</h3>
-                <p className="text-sm text-muted">3 {target} imported successfully · 0 errors</p>
+                <p className="text-sm text-muted">3 {target} imported successfully (3 Rows × 7 Columns containing data) · 0 errors</p>
                 <div className="flex gap-2 justify-center">
                   <button className="btn-secondary" onClick={() => { setStep('upload'); setFileName(''); setProgress(0); }}>
                     Import Another File

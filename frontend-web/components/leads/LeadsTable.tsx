@@ -61,7 +61,7 @@ export function LeadsTable() {
         </div>
 
         {/* Search row */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgb(var(--muted-foreground))' }} />
             <input
@@ -72,7 +72,7 @@ export function LeadsTable() {
             />
           </div>
           {selected.length > 0 && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
+            <div className="flex items-center gap-2 text-sm flex-wrap" style={{ color: 'rgb(var(--muted-foreground))' }}>
               <span className="font-medium" style={{ color: 'rgb(var(--brand-400))' }}>{selected.length} selected</span>
               <button className="btn-secondary text-xs py-1 px-3">Assign</button>
               <button className="btn-secondary text-xs py-1 px-3">Change Status</button>
