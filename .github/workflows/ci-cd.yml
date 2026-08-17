@@ -25,7 +25,7 @@ jobs:
       - name: Build Next.js Web App
         run: cd frontend-web && npm run build
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.PRODUCTION_API_URL || 'https://nexcrm-backend.onrender.com' }}
+          NEXT_PUBLIC_API_URL: 'https://nexcrm-backend.onrender.com'
 
   # Job 2: Build & Test SuperAdmin Web
   build-superadmin:
@@ -72,10 +72,6 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
           DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
 
-      - name: Trigger Render Deploy Hook (Production)
-        if: github.ref == 'refs/heads/main' && secrets.RENDER_DEPLOY_HOOK_URL != ''
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-
   # Job 4: Build Android Mobile APK (Gradle + React Native)
   build-android:
     name: Build Android Mobile APK
@@ -96,12 +92,6 @@ jobs:
 
       - name: Install Mobile Dependencies
         run: cd android && npm install --legacy-peer-deps
-
-      - name: Generate JS Bundle & Assets
-        run: |
-          cd android
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res || true
 
       - name: Build APK via Gradle
         run: |
