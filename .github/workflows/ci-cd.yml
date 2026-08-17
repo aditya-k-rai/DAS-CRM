@@ -110,3 +110,19 @@ jobs:
         with:
           name: app-release-apk
           path: android/android/app/build/outputs/apk/release/*.apk
+
+      - name: Publish Official GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: android/android/app/build/outputs/apk/release/*.apk
+          name: '${{ github.ref_name }} — Official Release'
+          body: |
+            ### 🚀 DAS CRM Mobile App Production Release (${{ github.ref_name }})
+            - **Mobile Stack**: Expo / React Native (Android Native Build)
+            - **Build Source**: Compiled via GitHub Actions Automated CI/CD
+            - **Installation**: Download `app-release.apk` below under **Assets** and install on your Android device.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -82,7 +82,10 @@ body {
 /* ── Input ── */
 .crm-input {
   width: 100%;
-  padding: 0.625rem 0.75rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  padding-right: 0.75rem;
+  padding-left: 0.75rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
   transition: all 0.15s;
@@ -91,6 +94,12 @@ body {
   border: 1px solid rgb(var(--border));
   color: rgb(var(--foreground));
 }
+
+.crm-input.pl-8, input.pl-8, select.pl-8 { padding-left: 2.25rem !important; }
+.crm-input.pl-9, input.pl-9, select.pl-9 { padding-left: 2.5rem !important; }
+.crm-input.pl-10, input.pl-10, select.pl-10 { padding-left: 2.75rem !important; }
+.crm-input.pl-11, input.pl-11, select.pl-11 { padding-left: 3rem !important; }
+.crm-input.pl-12, input.pl-12, select.pl-12 { padding-left: 3.25rem !important; }
 
 .crm-input:focus {
   border-color: rgb(99 102 241);
@@ -191,13 +200,38 @@ body {
 
 .animate-fade-in { animation: fade-in 0.3s ease forwards; }
 
-/* ─────────────────────────────────────
-   SUPER ADMIN RESPONSIVE BREAKPOINT SYSTEM
-   ───────────────────────────────────── */
+/* 📱 Smartphone Optimization & Touch Target System */
+button, a, input, select, .btn-primary, .btn-secondary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 
 /* 📱 Small Phones (< 576px) */
 @media (max-width: 575px) {
-  .crm-card { padding: 0.875rem; }
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  .crm-card { padding: 0.875rem; border-radius: 12px; }
+
+  .crm-input, select.crm-input {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .crm-card.max-w-md,
+  .crm-card.max-w-lg,
+  .crm-card.max-w-xl {
+    max-width: calc(100vw - 1.5rem) !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
 /* 📱 Large Phones (576px – 767px) */

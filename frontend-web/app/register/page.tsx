@@ -472,7 +472,7 @@ export default function RegisterCompanyPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-brand hover:bg-brand-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/25 disabled:opacity-50"
+                className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 disabled:opacity-50"
               >
                 {loading ? (
                   <>Registering Company & Dispatching Mail Key...</>
