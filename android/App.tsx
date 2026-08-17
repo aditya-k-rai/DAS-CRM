@@ -44,7 +44,7 @@ export default function App() {
         {activeTab === 'dashboard' && <DashboardScreen />}
         {activeTab === 'leads'     && <LeadsScreen onSelectLead={setSelectedLead} />}
         {activeTab === 'tasks'     && <TasksScreen />}
-        {activeTab === 'profile'   && <ProfileScreen />}
+        {activeTab === 'profile'   && <ProfileScreen onLogout={() => setToken(null)} />}
       </View>
 
       {/* Bottom Tab Bar */}
@@ -71,17 +71,14 @@ export default function App() {
   );
 }
 
-// ── Fallback DashboardScreen if separate file not found ──────────
-// The real one should be in src/screens/DashboardScreen.tsx
-
 const styles = StyleSheet.create({
   container:      { flex: 1, backgroundColor: '#060810' },
   content:        { flex: 1 },
-  tabBar:         { flexDirection: 'row', backgroundColor: '#0f1117', borderTopWidth: 1, borderColor: '#1e2333', paddingBottom: 4, paddingTop: 6 },
+  tabBar:         { flexDirection: 'row', backgroundColor: '#0f172a', borderTopWidth: 1, borderColor: '#1e293b', paddingBottom: 6, paddingTop: 8 },
   tabItem:        { flex: 1, alignItems: 'center', position: 'relative' },
-  tabIcon:        { width: 36, height: 28, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  tabIconActive:  { backgroundColor: 'rgba(79,70,229,0.15)' },
-  tabLabel:       { color: '#374151', fontSize: 10, fontWeight: '600', marginTop: 2 },
+  tabIcon:        { width: 38, height: 28, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
+  tabIconActive:  { backgroundColor: 'rgba(99, 102, 241, 0.2)' },
+  tabLabel:       { color: '#64748b', fontSize: 10, fontWeight: '700', marginTop: 2 },
   tabLabelActive: { color: '#818cf8' },
-  tabIndicator:   { position: 'absolute', bottom: -6, width: 20, height: 3, borderRadius: 2, backgroundColor: '#4f46e5' },
+  tabIndicator:   { position: 'absolute', bottom: -6, width: 20, height: 3, borderRadius: 2, backgroundColor: '#6366f1' },
 });
