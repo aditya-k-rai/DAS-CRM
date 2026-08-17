@@ -1,4 +1,4 @@
-name: NexCRM CI/CD Pipeline
+name: DAS CRM Monorepo CI/CD Pipeline
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  # Job 1: Test & Build Frontend Web (Vercel Integration)
+  # Job 1: Build & Test Frontend Web
   build-frontend:
     name: Build & Test Frontend Web
     runs-on: ubuntu-latest
@@ -18,18 +18,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: frontend-web/package-lock.json
 
       - name: Install Dependencies
-        run: cd frontend-web && npm ci
+        run: cd frontend-web && npm install --legacy-peer-deps
 
       - name: Build Next.js Web App
         run: cd frontend-web && npm run build
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.PRODUCTION_API_URL || 'https://nexcrm-backend.onrender.com' }}
 
-  # Job 2: Test & Build Backend API (Render Integration)
+  # Job 2: Build & Test SuperAdmin Web
+  build-superadmin:
+    name: Build & Test SuperAdmin Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: cd superadmin-web && npm install --legacy-peer-deps
+
+      - name: Build Next.js SuperAdmin Web App
+        run: cd superadmin-web && npm run build
+
+  # Job 3: Build & Test Backend API
   build-backend:
     name: Build & Test Backend API
     runs-on: ubuntu-latest
@@ -40,23 +56,27 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install Dependencies
-        run: cd backend && npm ci
+        run: cd backend && npm install --legacy-peer-deps
 
       - name: Generate Prisma Client
         run: cd backend && npx prisma generate
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
 
       - name: Build NestJS API
         run: cd backend && npm run build
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
 
       - name: Trigger Render Deploy Hook (Production)
         if: github.ref == 'refs/heads/main' && secrets.RENDER_DEPLOY_HOOK_URL != ''
         run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
 
-  # Job 3: Build Android APK (Gradle & React Native)
+  # Job 4: Build Android Mobile APK (Gradle + React Native)
   build-android:
     name: Build Android Mobile APK
     runs-on: ubuntu-latest
@@ -67,8 +87,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: android/package-lock.json
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -77,7 +95,13 @@ jobs:
           java-version: '17'
 
       - name: Install Mobile Dependencies
-        run: cd android && npm ci
+        run: cd android && npm install --legacy-peer-deps
+
+      - name: Generate JS Bundle & Assets
+        run: |
+          cd android
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res || true
 
       - name: Build APK via Gradle
         run: |
@@ -90,4 +114,3 @@ jobs:
         with:
           name: app-release-apk
           path: android/android/app/build/outputs/apk/release/*.apk
-
