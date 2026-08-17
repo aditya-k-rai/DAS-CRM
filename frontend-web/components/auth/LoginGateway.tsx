@@ -553,13 +553,14 @@ export function LoginGateway() {
             {/* Target Role / Perspective Selector */}
             <div>
               <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">
-                Select Login Role / Perspective *
+                Select Login Role / Perspective * {loading && <span className="text-indigo-400 font-normal">(Locked during authentication)</span>}
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                 {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map((r) => (
                   <button
                     key={r}
                     type="button"
+                    disabled={loading}
                     onClick={() => {
                       setSelectedRole(r);
                       if (r === 'ADMIN') setEmail('vikram.admin@acme.com');
@@ -569,6 +570,8 @@ export function LoginGateway() {
                       if (r === 'SALES_EXEC') setEmail('rajesh.rep@acme.com');
                     }}
                     className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${
+                      loading ? 'opacity-50 cursor-not-allowed' : ''
+                    } ${
                       selectedRole === r
                         ? 'bg-indigo-500/25 border-indigo-500 text-indigo-300 shadow-md'
                         : 'bg-background border-border text-muted hover:text-white'
@@ -580,14 +583,15 @@ export function LoginGateway() {
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className={`space-y-3 pt-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {/* Company Selection Dropdown */}
               <div>
                 <label className="text-xs text-muted block mb-1">Select Company / Workspace *</label>
                 <div className="relative flex items-center">
                   <Building2 size={15} className="absolute left-3 text-indigo-400" />
                   <select
-                    className="crm-input pl-9 text-sm h-10 w-full"
+                    disabled={loading}
+                    className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCompanyId}
                     onChange={e => setSelectedCompanyId(e.target.value)}
                   >
@@ -604,7 +608,8 @@ export function LoginGateway() {
                 <div className="relative flex items-center">
                   <Key size={15} className="absolute left-3 text-purple-400" />
                   <input
-                    className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full"
+                    disabled={loading}
+                    className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     placeholder="ACME-KX-7421"
                     maxLength={12}
                     autoCapitalize="characters"
@@ -623,7 +628,8 @@ export function LoginGateway() {
                   <div className="relative flex items-center">
                     <Mail size={15} className="absolute left-3 text-muted" />
                     <input
-                      className="crm-input pl-9 text-sm h-10 w-full"
+                      disabled={loading}
+                      className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                       value={email}
                       onChange={e => {
                         const val = e.target.value;
@@ -640,8 +646,9 @@ export function LoginGateway() {
                   <div className="relative flex items-center">
                     <Lock size={15} className="absolute left-3 text-muted" />
                     <input
+                      disabled={loading}
                       type="password"
-                      className="crm-input pl-9 text-sm h-10 w-full"
+                      className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                     />
@@ -649,6 +656,7 @@ export function LoginGateway() {
                   <div className="flex justify-end mt-1">
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => {
                         setForgotModalOpen(true);
                         setForgotEmail(email);
@@ -656,7 +664,7 @@ export function LoginGateway() {
                         setForgotError(null);
                         setForgotMsg(null);
                       }}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium underline"
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium underline disabled:opacity-40"
                     >
                       Forgot Password?
                     </button>

@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 
 interface LoginScreenProps {
-  onLogin: (token: string) => void;
+  onLogin: (token: string, role: UserRole) => void;
 }
 
 type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
@@ -113,7 +113,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     setError('');
     setTimeout(() => {
       setLoading(false);
-      onLogin('demo-jwt-token-mobile-12345');
+      onLogin('demo-jwt-token-mobile-12345', selectedRole);
     }, 600);
   };
 
@@ -202,11 +202,14 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
               {/* Role Selection Pills */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Select Login Role / Perspective *</Text>
-                <View style={styles.roleGrid}>
+                <Text style={styles.label}>
+                  Select Login Role / Perspective * {loading ? '(Locked during sign in...)' : ''}
+                </Text>
+                <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
                   {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map(r => (
                     <TouchableOpacity
                       key={r}
+                      disabled={loading}
                       style={[styles.rolePill, selectedRole === r && styles.rolePillActive]}
                       onPress={() => handleRoleSelect(r)}
                     >
@@ -222,7 +225,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Select Company / Workspace *</Text>
                 <TouchableOpacity
-                  style={styles.selectBox}
+                  disabled={loading}
+                  style={[styles.selectBox, loading && { opacity: 0.5 }]}
                   onPress={() => setCompanyModalOpen(true)}
                   activeOpacity={0.8}
                 >
@@ -238,7 +242,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔑</Text>
                   <TextInput
-                    style={[styles.input, styles.inputWithIcon, styles.monoInput]}
+                    editable={!loading}
+                    style={[styles.input, styles.inputWithIcon, styles.monoInput, loading && { opacity: 0.5 }]}
                     placeholder="ACME-KX-7421"
                     placeholderTextColor="#64748b"
                     value={companyKeyInput}
@@ -257,7 +262,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>✉️</Text>
                   <TextInput
-                    style={[styles.input, styles.inputWithIcon]}
+                    editable={!loading}
+                    style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
                     placeholder="user@organization.com"
                     placeholderTextColor="#64748b"
                     value={email}
@@ -273,7 +279,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔒</Text>
                   <TextInput
-                    style={[styles.input, styles.inputWithIcon]}
+                    editable={!loading}
+                    style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
                     placeholder="••••••••"
                     placeholderTextColor="#64748b"
                     value={password}
@@ -282,10 +289,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   />
                 </View>
                 <TouchableOpacity
+                  disabled={loading}
                   style={{ alignSelf: 'flex-end', marginTop: 6 }}
                   onPress={() => { setForgotModalOpen(true); setForgotEmail(email); setForgotStep('email'); }}
                 >
-                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                  <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>Forgot Password?</Text>
                 </TouchableOpacity>
               </View>
 
