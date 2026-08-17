@@ -1,0 +1,45 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  ext {
+    compileSdkVersion = 36
+    targetSdkVersion = 35
+    minSdkVersion = 24
+  }
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle:8.13.2')
+    classpath('com.facebook.react:react-native-gradle-plugin:0.86.2')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.20')
+    classpath('com.google.devtools.ksp:symbol-processing-gradle-plugin:2.1.20-1.0.31')
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+  tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
+
+allprojects {
+    tasks.configureEach {
+        if (name == 'generateStubPCH') {
+            enabled = false
+        }
+        if (name.contains('JavaWithJavac') && project.name != 'app') {
+            dependsOn.removeIf { it.toString().contains('generateCodegenArtifactsFromSchema') }
+        }
+    }
+}
