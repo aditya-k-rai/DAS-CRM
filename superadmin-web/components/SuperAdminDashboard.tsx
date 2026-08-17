@@ -451,12 +451,15 @@ export function SuperAdminDashboard() {
       {/* 👑 SECTION 1: DASHBOARD TOP KPI OVAL CARDS HEADER (Matching Wireframe) */}
       <div className="crm-card p-6 border-cyan-500/30 bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 relative overflow-hidden shadow-2xl rounded-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full">
-              👑 SUPER ADMIN SYSTEM OVERLORD
-            </span>
-            <h1 className="text-2xl font-black text-white mt-2">Super Admin Dashboard</h1>
-            <p className="text-xs text-slate-400">Multi-Tenant Platform Control & Management Center</p>
+          <div className="flex items-center gap-4">
+            <img src="/das-logo.png" alt="DAS CRM Logo" className="h-12 w-auto object-contain rounded-xl border border-cyan-500/30 shadow-lg" />
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full">
+                👑 SUPER ADMIN SYSTEM OVERLORD
+              </span>
+              <h1 className="text-2xl font-black text-white mt-2">Super Admin Dashboard</h1>
+              <p className="text-xs text-slate-400">Multi-Tenant Platform Control & Management Center</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={fetchBackendData} className="btn-primary text-xs px-4 py-2 flex items-center gap-2">

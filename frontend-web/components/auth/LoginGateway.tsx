@@ -478,9 +478,7 @@ export function LoginGateway() {
       <div className="md:col-span-5 p-8 flex flex-col justify-between relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))' }}>
         <div>
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-white text-lg shadow-xl" style={{ background: 'linear-gradient(135deg, #4f46e5, #8b5cf6)' }}>
-              D
-            </div>
+            <img src="/das-logo.png" alt="DAS CRM Logo" className="h-10 w-auto object-contain rounded-xl shadow-xl" />
             <div>
               <span className="text-white font-bold text-lg">DAS CRM Platform</span>
               <p className="text-xs text-muted">Multi-Tenant Gateway</p>
