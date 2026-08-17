@@ -15,6 +15,39 @@ interface PublicCompany {
   slug: string;
 }
 
+function formatCompanyKey(input: string): string {
+  const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  let part1 = '';
+  let part2 = '';
+  let part3 = '';
+
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+    if (part1.length < 4) {
+      if (/[A-Z]/.test(char)) part1 += char;
+    } else if (part2.length < 2) {
+      if (/[A-Z]/.test(char)) part2 += char;
+    } else if (part3.length < 4) {
+      if (/[0-9]/.test(char)) part3 += char;
+    }
+  }
+
+  let formatted = part1;
+  if (part1.length === 4) {
+    formatted += '-';
+    if (part2.length > 0) {
+      formatted += part2;
+      if (part2.length === 2) {
+        formatted += '-';
+        if (part3.length > 0) {
+          formatted += part3;
+        }
+      }
+    }
+  }
+  return formatted;
+}
+
 export function LoginGateway() {
   const [entryPoint, setEntryPoint] = useState<'workspace' | 'staff_key' | 'superadmin'>('workspace');
   
@@ -524,7 +557,7 @@ export function LoginGateway() {
               <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">
                 Select Login Role / Perspective *
               </label>
-              <div className="grid grid-cols-5 gap-1.5">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                 {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map((r) => (
                   <button
                     key={r}
@@ -569,19 +602,24 @@ export function LoginGateway() {
 
               {/* Company Key or User Key Input */}
               <div>
-                <label className="text-xs text-muted block mb-1">Company / User Key *</label>
+                <label className="text-xs text-muted block mb-1">Company / User Key (Format: ACME-KX-7421) *</label>
                 <div className="relative flex items-center">
                   <Key size={15} className="absolute left-3 text-purple-400" />
                   <input
                     className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full"
-                    placeholder="ACME-KX-7421 or ACME-RX-4312"
+                    placeholder="ACME-KX-7421"
+                    maxLength={12}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode={companyKeyInput.length >= 8 ? 'numeric' : 'text'}
                     value={companyKeyInput}
-                    onChange={e => setCompanyKeyInput(e.target.value.toUpperCase())}
+                    onChange={e => setCompanyKeyInput(formatCompanyKey(e.target.value))}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted block mb-1">Email *</label>
                   <div className="relative flex items-center">
@@ -677,13 +715,18 @@ export function LoginGateway() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-muted block mb-1">User Invite Key *</label>
+                <label className="text-xs text-muted block mb-1">User Invite Key (Format: ACME-RX-4312) *</label>
                 <div className="flex gap-2">
                   <input
-                    className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider"
+                    className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider pl-4"
                     placeholder="ACME-RX-4312"
+                    maxLength={12}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode={userKey.length >= 8 ? 'numeric' : 'text'}
                     value={userKey}
-                    onChange={e => setUserKey(e.target.value.toUpperCase())}
+                    onChange={e => setUserKey(formatCompanyKey(e.target.value))}
                   />
                   <button
                     type="button"
