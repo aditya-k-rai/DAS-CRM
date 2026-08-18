@@ -512,6 +512,28 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Responsive Table Wrapper */
+.responsive-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Smartphone Horizontal Kanban Scroll Container */
+.kanban-scroll-container {
+  display: flex;
+  overflow-x: auto;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.kanban-scroll-container > .kanban-column {
+  scroll-snap-align: start;
+}
+
 /* 📱 Small Phones (< 576px) */
 @media (max-width: 575px) {
   html, body {
@@ -588,3 +610,4 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
     margin-right: auto;
   }
 }
+

@@ -76,14 +76,14 @@ export function AutomationBuilder() {
       {/* Left: Existing automations list */}
       <div className="col-span-12 lg:col-span-7 space-y-4">
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { label: 'Active Automations', value: automations.filter(a=>a.isActive).length, color: 'rgb(34,197,94)' },
             { label: 'Total Runs (All Time)', value: automations.reduce((s,a)=>s+a.runsTotal,0), color: 'rgb(129,140,248)' },
             { label: 'Time Saved Est.', value: '14.2h', color: 'rgb(245,158,11)' },
           ].map(s => (
             <div key={s.label} className="crm-card py-3 px-4">
-              <p className="text-2xl font-extrabold" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-xl sm:text-2xl font-extrabold" style={{ color: s.color }}>{s.value}</p>
               <p className="text-xs text-muted mt-0.5">{s.label}</p>
             </div>
           ))}

@@ -423,7 +423,9 @@ const styles = StyleSheet.create({
   // Stats
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   statCard: {
-    width: '48%',
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 140,
     backgroundColor: '#0f172a',
     borderWidth: 1,
     borderRadius: 16,

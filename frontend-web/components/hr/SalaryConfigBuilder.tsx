@@ -272,49 +272,52 @@ function ComponentRow({ comp, onChange, onRemove }: { comp: any; onChange: any; 
 
   return (
     <div className="p-3 rounded-xl border transition-all" style={{ borderColor: 'rgb(var(--border))', background: bg }}>
-      <div className="grid grid-cols-12 gap-2 items-center">
-        <div className="col-span-1 flex items-center justify-center">
+      <div className="flex flex-col sm:grid sm:grid-cols-12 gap-2 items-stretch sm:items-center">
+        <div className="hidden sm:flex col-span-1 items-center justify-center">
           <GripVertical size={14} style={{ color: 'rgb(var(--muted-foreground))' }} className="cursor-grab" />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-4 flex items-center gap-2">
+          <GripVertical size={14} style={{ color: 'rgb(var(--muted-foreground))' }} className="sm:hidden cursor-grab flex-shrink-0" />
           <input
-            className="crm-input text-xs h-8"
+            className="crm-input text-xs h-8 flex-1"
             placeholder="Component name"
             value={comp.name}
             onChange={(e) => onChange(comp.id, 'name', e.target.value)}
           />
         </div>
-        <div className="col-span-2">
-          <select
-            className="crm-input text-xs h-8"
-            value={comp.calcType}
-            onChange={(e) => onChange(comp.id, 'calcType', e.target.value)}
-          >
-            <option value="fixed">Fixed (₹)</option>
-            <option value="percentage">% of</option>
-            <option value="formula">Formula</option>
-          </select>
-        </div>
-        <div className="col-span-2">
-          <input
-            className="crm-input text-xs h-8"
-            type="number"
-            placeholder={comp.calcType === 'percentage' ? '% value' : '₹ amount'}
-            value={comp.value}
-            onChange={(e) => onChange(comp.id, 'value', +e.target.value)}
-          />
-        </div>
-        {comp.calcType === 'percentage' && (
+        <div className="grid grid-cols-2 sm:contents gap-2">
           <div className="col-span-2">
-            <select className="crm-input text-xs h-8" value={comp.on ?? ''} onChange={(e) => onChange(comp.id, 'on', e.target.value)}>
-              <option value="">Base</option>
-              <option value="ctc">of CTC</option>
-              <option value="basic">of Basic</option>
-              <option value="gross">of Gross</option>
-              <option value="deal_value">of Deal Value</option>
+            <select
+              className="crm-input text-xs h-8"
+              value={comp.calcType}
+              onChange={(e) => onChange(comp.id, 'calcType', e.target.value)}
+            >
+              <option value="fixed">Fixed (₹)</option>
+              <option value="percentage">% of</option>
+              <option value="formula">Formula</option>
             </select>
           </div>
-        )}
+          <div className="col-span-2">
+            <input
+              className="crm-input text-xs h-8"
+              type="number"
+              placeholder={comp.calcType === 'percentage' ? '% value' : '₹ amount'}
+              value={comp.value}
+              onChange={(e) => onChange(comp.id, 'value', +e.target.value)}
+            />
+          </div>
+          {comp.calcType === 'percentage' && (
+            <div className="col-span-2">
+              <select className="crm-input text-xs h-8" value={comp.on ?? ''} onChange={(e) => onChange(comp.id, 'on', e.target.value)}>
+                <option value="">Base</option>
+                <option value="ctc">of CTC</option>
+                <option value="basic">of Basic</option>
+                <option value="gross">of Gross</option>
+                <option value="deal_value">of Deal Value</option>
+              </select>
+            </div>
+          )}
+        </div>
         <div className="col-span-1 flex items-center justify-end">
           <button onClick={() => onRemove(comp.id)} className="btn-ghost w-7 h-7 p-0 rounded-md flex items-center justify-center" style={{ color: 'rgb(239,68,68)' }}>
             <Trash2 size={13} />

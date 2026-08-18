@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
@@ -53,7 +54,12 @@ export default function LeadsScreen() {
         </View>
 
         {/* Filter Pills */}
-        <View style={styles.filterRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          style={{ flexGrow: 0, marginBottom: 14 }}
+        >
           {FILTERS.map(f => (
             <TouchableOpacity
               key={f}
@@ -63,7 +69,7 @@ export default function LeadsScreen() {
               <Text style={[styles.filterPillText, activeFilter === f && styles.filterPillTextActive]}>{f}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         {/* Lead List */}
         <FlatList

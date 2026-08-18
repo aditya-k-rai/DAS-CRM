@@ -45,6 +45,7 @@ export default function TasksScreen() {
           data={filteredTasks}
           keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
+          style={{ width: '100%', maxWidth: 600 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
@@ -80,10 +81,10 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#060810' },
-  content: { flex: 1, padding: 16 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#ffffff', marginBottom: 12 },
+  content: { flex: 1, padding: 16, alignItems: 'center' },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#ffffff', marginBottom: 12, width: '100%', maxWidth: 600 },
 
-  tabRow: { flexDirection: 'row', backgroundColor: '#0f172a', borderRadius: 12, padding: 4, marginBottom: 14, borderWidth: 1, borderColor: '#1e293b' },
+  tabRow: { width: '100%', maxWidth: 600, flexDirection: 'row', backgroundColor: '#0f172a', borderRadius: 12, padding: 4, marginBottom: 14, borderWidth: 1, borderColor: '#1e293b' },
   tabButton: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
   tabButtonActive: { backgroundColor: 'rgba(99, 102, 241, 0.25)' },
   tabText: { fontSize: 11, color: '#94a3b8', fontWeight: '700' },

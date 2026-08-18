@@ -76,14 +76,14 @@ export function DealsKanban() {
 
       {/* Pipeline summary bar */}
       <div className="crm-card p-4">
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {STAGES.map((stage) => {
             const total = stageTotal(stage.id);
             const count = (scopedDeals[stage.id] ?? []).length;
             return (
               <div key={stage.id} className="text-center">
                 <div className="h-1.5 rounded-full mb-2" style={{ background: stage.color }} />
-                <p className="text-xs font-medium" style={{ color: stage.color }}>{stage.name}</p>
+                <p className="text-xs font-medium truncate" style={{ color: stage.color }}>{stage.name}</p>
                 <p className="text-sm font-bold mt-0.5">₹{(total / 100000).toFixed(1)}L</p>
                 <p className="text-xs text-muted">{count} deal{count !== 1 ? 's' : ''}</p>
               </div>
@@ -93,7 +93,7 @@ export function DealsKanban() {
       </div>
 
       {/* Kanban board */}
-      <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: '500px' }}>
+      <div className="flex gap-4 overflow-x-auto pb-4 kanban-scroll-container" style={{ minHeight: '500px' }}>
         {STAGES.map((stage) => {
           const stageDeals = scopedDeals[stage.id] ?? [];
           return (

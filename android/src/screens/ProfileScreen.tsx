@@ -165,15 +165,19 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16 },
+  content: { padding: 16, alignItems: 'center' },
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#ffffff',
     marginBottom: 14,
+    width: '100%',
+    maxWidth: 600,
   },
 
   card: {
+    width: '100%',
+    maxWidth: 600,
     backgroundColor: '#0f172a',
     borderWidth: 1,
     borderColor: '#1e293b',
@@ -208,6 +212,8 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginBottom: 8,
     letterSpacing: 0.5,
+    width: '100%',
+    maxWidth: 600,
   },
   infoRow: {
     flexDirection: 'row',
@@ -226,6 +232,8 @@ const styles = StyleSheet.create({
   activeValue: { fontSize: 12, color: '#34d399', fontWeight: '700' },
 
   logoutButton: {
+    width: '100%',
+    maxWidth: 600,
     backgroundColor: 'rgba(239,68,68,0.15)',
     borderWidth: 1,
     borderColor: 'rgba(239,68,68,0.4)',

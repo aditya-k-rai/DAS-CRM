@@ -1016,11 +1016,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 20,
-    alignItems: 'stretch',
+    alignItems: 'center',
   },
 
   // Header
-  headerContainer: { alignItems: 'center', marginBottom: 20 },
+  headerContainer: { alignItems: 'center', marginBottom: 20, width: '100%', maxWidth: 560 },
   logoImage: { width: 68, height: 68, borderRadius: 16, marginBottom: 10 },
   badgeContainer: {
     backgroundColor: 'rgba(99,102,241,0.15)',
@@ -1042,6 +1042,8 @@ const styles = StyleSheet.create({
 
   // Gateway Panel
   gatewayPanel: {
+    width: '100%',
+    maxWidth: 560,
     backgroundColor: '#0f172a',
     borderRadius: 20,
     borderWidth: 1,
@@ -1102,6 +1104,8 @@ const styles = StyleSheet.create({
 
   // Form Card
   formCard: {
+    width: '100%',
+    maxWidth: 560,
     backgroundColor: '#0f172a',
     borderRadius: 20,
     borderWidth: 1,
