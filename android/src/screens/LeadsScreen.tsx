@@ -23,14 +23,29 @@ const MOCK_LEADS = [
   { id: '5', name: 'Priya Sharma', company: 'LogiTech Solutions', email: 'priya@logitech.com', phone: '+91 95444 33322', status: 'WON', value: '$35,000', source: 'Direct Import', priority: 'High' },
 ];
 
+import { useAuthStore } from '../store/authStore';
+import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
+
 const FILTERS = ['ALL', 'NEW LEAD', 'QUALIFIED', 'IN NEGOTIATION', 'WON'];
 
 export default function LeadsScreen() {
   const navigation = useNavigation<LeadsNavProp>();
+  const { token } = useAuthStore();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
 
-  const filteredLeads = MOCK_LEADS.filter(l => {
+  React.useEffect(() => {
+    let isMounted = true;
+    apiService.getLeads(token).then(data => {
+      if (isMounted && data) {
+        setLeadsList(data);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [token]);
+
+  const filteredLeads = leadsList.filter(l => {
     const matchesSearch = l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = activeFilter === 'ALL' || l.status === activeFilter;
     return matchesSearch && matchesFilter;

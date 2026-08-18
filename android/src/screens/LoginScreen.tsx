@@ -44,10 +44,7 @@ interface PublicCompany {
   name: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+import { API_BASE } from '../config/api';
 
 function formatCompanyKey(input: string): string {
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
