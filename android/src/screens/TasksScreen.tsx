@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const MOCK_TASKS = [
   { id: '1', title: 'Follow up on Acme Corp Quote', lead: 'Vikram Mehta', dueDate: 'Today, 4:00 PM', priority: 'HIGH', status: 'PENDING' },

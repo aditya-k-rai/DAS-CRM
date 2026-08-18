@@ -23,7 +23,8 @@ import { ActivityIndicator, View, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -124,6 +125,7 @@ function LeadsNavigator() {
 function AppNavigator() {
   const { currentUser, logout } = useAuthStore();
   const role: UserRole = normalizeRoleStr(currentUser?.role);
+  const insets = useSafeAreaInsets();
 
   // Roles that can see Leads tab (mirrors Sidebar items)
   const canSeeleads = ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'].includes(role);
@@ -138,9 +140,9 @@ function AppNavigator() {
           backgroundColor: '#0f172a',
           borderTopWidth: 1,
           borderTopColor: '#1e293b',
-          paddingBottom: 6,
-          paddingTop: 8,
-          height: 60,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          paddingTop: 6,
+          height: 54 + (insets.bottom > 0 ? insets.bottom : 8),
         },
         tabBarActiveTintColor: '#818cf8',
         tabBarInactiveTintColor: '#64748b',
@@ -246,6 +248,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar style="light" />
       <NavigationContainer theme={CRMTheme}>
         {token ? (
           // ── Authenticated: show role-filtered tab navigator ──────────
