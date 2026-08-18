@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building2, Briefcase, Target,
-  CheckSquare, FileText, BarChart3, Settings,
+  CheckSquare, FileText, BarChart3, Settings, User,
   Zap, Mail, Package, Database, HelpCircle,
   DollarSign, Calendar, Shield, UserCog, MessageSquare,
   TrendingUp, ClipboardList, Lock, LogOut, ChevronDown,
@@ -87,6 +87,7 @@ const navigation: NavGroup[] = [
     group: 'SYSTEM',
     roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'],
     items: [
+      { label: 'My Profile', href: '/profile', icon: User, roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
       { label: 'Settings', href: '/settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
       { label: 'Help', href: '/help', icon: HelpCircle, roles: ['SUPER_ADMIN', 'ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
     ],
@@ -204,13 +205,13 @@ export function Sidebar() {
       {/* User section with Logout */}
       <div className="border-t mx-2 mb-2 pt-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
         <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card transition-colors">
-          <div className="flex items-center gap-3 min-w-0">
+          <Link href="/profile" onClick={closeMobile} className="flex items-center gap-3 min-w-0 flex-1">
             <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold">{currentUser.avatar}</div>
             <div className="min-w-0">
-              <p className="text-xs font-bold truncate" style={{ color: 'rgb(var(--sidebar-text-active))' }}>{currentUser.name}</p>
+              <p className="text-xs font-bold truncate text-white hover:text-brand-400 transition-colors">{currentUser.name}</p>
               <p className="text-[10px] truncate text-muted" style={{ color: 'rgb(var(--sidebar-text))' }}>{currentUser.email}</p>
             </div>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={() => {
