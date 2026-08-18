@@ -30,7 +30,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   let lead = propLead;
   try {
     const route = useRoute<LeadDetailRouteProp>();
-    if (route?.params?.lead) lead = route.params.lead;
+    if (route?.params) {
+      const { leadId, leadName } = route.params;
+      if (leadId && !lead) {
+        lead = { id: leadId, name: leadName || 'Lead Detail' };
+      }
+    }
   } catch {
     // If not inside a LeadsStack navigator, use prop
   }
