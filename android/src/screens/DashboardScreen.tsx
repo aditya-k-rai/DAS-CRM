@@ -19,6 +19,7 @@ import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
 interface DashboardScreenProps {
   userRole?: UserRole;
   onNavigateToLeads?: () => void;
+  onNavigateToAttendance?: () => void;
 }
 
 export default function DashboardScreen({ userRole, onNavigateToLeads }: DashboardScreenProps) {

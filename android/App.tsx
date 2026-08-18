@@ -13,7 +13,6 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Linking,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -21,14 +20,19 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import { useAuthStore } from './src/store/authStore';
+import { useAuthStore, UserRole, normalizeRoleStr } from './src/store/authStore';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import HRDashboardScreen from './src/screens/HRDashboardScreen';
+import ManagerDashboardScreen from './src/screens/ManagerDashboardScreen';
+import TeamLeaderDashboardScreen from './src/screens/TeamLeaderDashboardScreen';
+import EmployeeDashboardScreen from './src/screens/EmployeeDashboardScreen';
 import LeadsScreen from './src/screens/LeadsScreen';
 import LeadDetailScreen from './src/screens/LeadDetailScreen';
 import EmployeesScreen from './src/screens/EmployeesScreen';
 import MoreControlsScreen from './src/screens/MoreControlsScreen';
-import HRDashboardScreen from './src/screens/HRDashboardScreen';
+import AttendanceScreen from './src/screens/AttendanceScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 
 export type LeadsStackParamList = {
@@ -51,6 +55,25 @@ const Tab = createBottomTabNavigator();
 function MainTabNavigator({ onOpenDrawer, onOpenProfile, navigation }: { onOpenDrawer: () => void; onOpenProfile: () => void; navigation: any }) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
+  const role: UserRole = normalizeRoleStr(currentUser.role);
+
+  // Render role-specific Home screen
+  const renderHomeRoleScreen = () => {
+    switch (role) {
+      case 'ADMIN':
+      case 'SUPER_ADMIN':
+        return <AdminDashboardScreen onNavigateToAttendance={() => navigation.navigate('Attendance')} />;
+      case 'HR':
+        return <HRDashboardScreen onNavigateToAttendance={() => navigation.navigate('Attendance')} />;
+      case 'MANAGER':
+        return <ManagerDashboardScreen onNavigateToAttendance={() => navigation.navigate('Attendance')} />;
+      case 'TEAM_LEADER':
+        return <TeamLeaderDashboardScreen onNavigateToAttendance={() => navigation.navigate('Attendance')} />;
+      case 'SALES_EXEC':
+      default:
+        return <EmployeeDashboardScreen onNavigateToAttendance={() => navigation.navigate('Attendance')} />;
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#060810' }}>
@@ -62,7 +85,7 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, navigation }: { onOpenD
 
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.topHeaderTitle}>{currentUser.companyName}</Text>
-          <Text style={styles.topHeaderRole}>ROLE: {currentUser.role.replace('_', ' ')}</Text>
+          <Text style={styles.topHeaderRole}>ROLE: {role.replace('_', ' ')}</Text>
         </View>
 
         <TouchableOpacity style={styles.profileHeaderBtn} onPress={onOpenProfile}>
@@ -93,7 +116,7 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, navigation }: { onOpenD
           name="Home"
           options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>🏠</Text>, tabBarLabel: 'Home' }}
         >
-          {() => <DashboardScreen onNavigateToLeads={() => navigation.navigate('Leads')} />}
+          {() => renderHomeRoleScreen()}
         </Tab.Screen>
 
         <Tab.Screen
@@ -116,7 +139,7 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, navigation }: { onOpenD
 
         <Tab.Screen
           name="Attendance"
-          component={HRDashboardScreen}
+          component={AttendanceScreen}
           options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>⏱️</Text>, tabBarLabel: 'Attendance' }}
         />
       </Tab.Navigator>

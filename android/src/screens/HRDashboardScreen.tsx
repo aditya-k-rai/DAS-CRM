@@ -53,7 +53,11 @@ const ATTENDANCE_TODAY = [
   { name: 'Priya Sharma', role: 'SALES EXEC', status: 'LATE', time: '10:14 AM' },
 ];
 
-export default function HRDashboardScreen() {
+interface ScreenProps {
+  onNavigateToAttendance?: () => void;
+}
+
+export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProps) {
   const { currentUser, subscription } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'leaves'>(
     'overview',
