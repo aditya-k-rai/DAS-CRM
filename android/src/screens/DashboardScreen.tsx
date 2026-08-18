@@ -8,11 +8,16 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
 
-type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+interface DashboardScreenProps {
+  userRole?: UserRole;
+}
 
-export default function DashboardScreen() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
+export default function DashboardScreen({ userRole }: DashboardScreenProps) {
+  const { currentUser, subscription } = useAuthStore();
+  // Prefer prop (passed from App.tsx) but fall back to store role
+  const selectedRole: UserRole = normalizeRoleStr(userRole || currentUser.role);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -28,30 +33,21 @@ export default function DashboardScreen() {
             />
             <View style={{ flex: 1 }}>
               <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>ACTIVE ROLE: {selectedRole.replace('_', ' ')}</Text>
+                <Text style={styles.roleBadgeText}>🔒 AUTHENTICATED ROLE: {selectedRole.replace('_', ' ')} (LOCKED)</Text>
               </View>
-              <Text style={styles.companyName}>Acme Sales Solutions</Text>
+              <Text style={styles.companyName}>{currentUser.companyName}</Text>
             </View>
             <View style={styles.planPill}>
-              <Text style={styles.planPillText}>PRO PLAN</Text>
+              <Text style={styles.planPillText}>{subscription.planType.replace('_', ' ')}</Text>
             </View>
           </View>
         </View>
 
-        {/* 🔀 Role Perspective Switcher Bar (Matching Web RoleDashboardRouter) */}
-        <Text style={styles.sectionTitle}>Dashboard Control & Perspective</Text>
-        <View style={styles.roleSwitchGrid}>
-          {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map(r => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.roleSwitchPill, selectedRole === r && styles.roleSwitchPillActive]}
-              onPress={() => setSelectedRole(r)}
-            >
-              <Text style={[styles.roleSwitchText, selectedRole === r && styles.roleSwitchTextActive]}>
-                {r.replace('_', ' ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* 🔒 Locked Session Security Banner */}
+        <View style={styles.sessionLockedBanner}>
+          <Text style={styles.sessionLockedText}>
+            🔒 Session Authenticated as <Text style={{ color: '#818cf8', fontWeight: '900' }}>{selectedRole.replace('_', ' ')}</Text>. Workspace controls strictly scoped to your role.
+          </Text>
         </View>
 
         {/* 🏢 1. TENANT ADMIN DASHBOARD */}
@@ -420,4 +416,14 @@ const styles = StyleSheet.create({
 
   dialButton: { backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   dialButtonText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
+
+  sessionLockedBanner: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 14,
+  },
+  sessionLockedText: { fontSize: 11, color: '#a5b4fc', fontWeight: '600', lineHeight: 16 },
 });

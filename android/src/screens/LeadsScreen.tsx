@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { LeadsStackParamList } from '../../App';
 
-interface LeadsScreenProps {
-  onSelectLead: (lead: any) => void;
-}
+type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
 const MOCK_LEADS = [
   { id: '1', name: 'Vikram Mehta', company: 'Acme Corp', email: 'vikram@acme.com', phone: '+91 98765 43210', status: 'IN NEGOTIATION', value: '$14,200', source: 'Google Sheets', priority: 'High' },
@@ -23,7 +24,8 @@ const MOCK_LEADS = [
 
 const FILTERS = ['ALL', 'NEW LEAD', 'QUALIFIED', 'IN NEGOTIATION', 'WON'];
 
-export default function LeadsScreen({ onSelectLead }: LeadsScreenProps) {
+export default function LeadsScreen() {
+  const navigation = useNavigation<LeadsNavProp>();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
 
@@ -71,7 +73,7 @@ export default function LeadsScreen({ onSelectLead }: LeadsScreenProps) {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => onSelectLead(item)}
+              onPress={() => navigation.navigate('LeadDetail', { lead: item })}
               activeOpacity={0.8}
             >
               <View style={styles.cardHeader}>
