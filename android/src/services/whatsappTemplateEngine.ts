@@ -51,52 +51,85 @@ export const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
   },
 ];
 
+export interface PriceTier {
+  minQty: number;
+  maxQty: number;
+  unitPrice: number;
+  label: string;
+}
+
 export interface ProductItem {
   id: string;
   name: string;
-  price: string;
+  minPrice: string;
+  maxPrice: string;
   category: string;
   description: string;
   features: string[];
   imageUrl: string;
+  priceTiers: PriceTier[];
 }
 
 export const CATALOG_PRODUCTS: ProductItem[] = [
   {
     id: 'prod_1',
     name: 'DAS CRM Enterprise Suite',
-    price: '₹4,999 / month',
+    minPrice: '₹2,999',
+    maxPrice: '₹4,999',
     category: 'CRM Software',
     description: 'Full sales automation, WhatsApp Cloud API, Email Marketing & AI Lead Scoring.',
     features: ['Unlimited Lead Ingestion', 'WhatsApp Cloud API (100K Quota)', 'Advanced AI Scoring', '24/7 SLA Support'],
     imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
+    priceTiers: [
+      { minQty: 1, maxQty: 9, unitPrice: 4999, label: 'Single License (Standard)' },
+      { minQty: 10, maxQty: 49, unitPrice: 3999, label: 'Team Pack (20% Volume Discount)' },
+      { minQty: 50, maxQty: 1000, unitPrice: 2999, label: 'Enterprise Bulk (40% Max Discount)' },
+    ],
   },
   {
     id: 'prod_2',
     name: 'AI Lead Scoring Engine Pro',
-    price: '₹2,499 / month',
+    minPrice: '₹1,499',
+    maxPrice: '₹2,499',
     category: 'AI Module',
     description: 'Predictive deal closure scoring, automatic follow-up reminders & intent analysis.',
     features: ['Real-time Lead Heatmaps', 'Smart Re-engagement Signals', 'Automated Multi-Channel Nudges'],
     imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80',
+    priceTiers: [
+      { minQty: 1, maxQty: 9, unitPrice: 2499, label: 'Standard Module' },
+      { minQty: 10, maxQty: 49, unitPrice: 1999, label: 'Mid-Market Band' },
+      { minQty: 50, maxQty: 1000, unitPrice: 1499, label: 'Bulk License Discount' },
+    ],
   },
   {
     id: 'prod_3',
     name: 'WhatsApp Cloud API Automation',
-    price: '₹1,999 / month',
+    minPrice: '₹1,199',
+    maxPrice: '₹1,999',
     category: 'Communications',
     description: 'Direct Meta WhatsApp Cloud API integration with verified green badge & bulk templates.',
     features: ['100,000 Messages / month', 'Interactive Buttons', 'Auto-responder Bot', 'Analytics Dashboard'],
     imageUrl: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80',
+    priceTiers: [
+      { minQty: 1, maxQty: 9, unitPrice: 1999, label: 'Starter API Quota' },
+      { minQty: 10, maxQty: 49, unitPrice: 1599, label: 'High Volume Sender' },
+      { minQty: 50, maxQty: 1000, unitPrice: 1199, label: 'Unlimited Broadcast Tier' },
+    ],
   },
   {
     id: 'prod_4',
     name: 'HR & Geo-Fence Attendance Hub',
-    price: '₹1,499 / month',
+    minPrice: '₹899',
+    maxPrice: '₹1,499',
     category: 'HR Management',
     description: 'GPS Geo-Fence verification, selfie punch anti-tamper & automated salary builder.',
     features: ['Server-Authoritative Time', 'Geo-Fence Radius Control', 'Selfie Anti-Spoofing', 'Payroll Generation'],
     imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+    priceTiers: [
+      { minQty: 1, maxQty: 9, unitPrice: 1499, label: 'Base Employee Count' },
+      { minQty: 10, maxQty: 49, unitPrice: 1199, label: 'Growing Workforce Tier' },
+      { minQty: 50, maxQty: 1000, unitPrice: 899, label: 'Large Workforce Scale' },
+    ],
   },
 ];
 
@@ -110,27 +143,43 @@ class WhatsAppTemplateEngine {
     return digits;
   }
 
-  /** Interpolate dynamic lead placeholders ({name}, {company}, {value}, {product}) */
+  /** Compute Tiered Price based on Quantity */
+  getTieredPrice(product: ProductItem, quantity: number): { unitPrice: number; totalPrice: number; tierLabel: string } {
+    const qty = Math.max(1, quantity);
+    const tier = product.priceTiers.find(t => qty >= t.minQty && qty <= t.maxQty) || product.priceTiers[product.priceTiers.length - 1];
+    const unitPrice = tier.unitPrice;
+    const totalPrice = unitPrice * qty;
+    return { unitPrice, totalPrice, tierLabel: tier.label };
+  }
+
+  /** Interpolate dynamic lead placeholders ({name}, {company}, {value}, {product}) with Quantity & Price Banding */
   interpolateTemplate(
     templateText: string,
     lead: { name: string; company?: string; value?: string },
-    product?: ProductItem
+    product?: ProductItem | null,
+    quantity: number = 1
   ): string {
     const leadName = lead.name || 'Valued Customer';
     const company = lead.company || 'your organization';
     const value = lead.value || 'your package';
 
-    let text = templateText
+    let text = (templateText || '')
       .replace(/\{name\}/gi, leadName)
       .replace(/\{LeadName\}/gi, leadName)
       .replace(/\{company\}/gi, company)
       .replace(/\{value\}/gi, value);
 
     if (product) {
+      const { unitPrice, totalPrice, tierLabel } = this.getTieredPrice(product, quantity);
+
       const productBlock =
-        `\n\n📦 *Featured Product Details:*` +
+        `\n\n📦 *Quotation & Product Details:*` +
         `\n• *Product:* ${product.name}` +
-        `\n• *Price:* ${product.price}` +
+        `\n• *Selected Quantity:* ${quantity} Units / Licenses` +
+        `\n• *Pricing Band:* ${product.minPrice} - ${product.maxPrice} per unit` +
+        `\n• *Applied Tier:* ${tierLabel}` +
+        `\n• *Effective Unit Price:* ₹${unitPrice.toLocaleString('en-IN')}` +
+        `\n• *Total Investment:* ₹${totalPrice.toLocaleString('en-IN')}` +
         `\n• *Overview:* ${product.description}` +
         `\n• *Key Features:* ${product.features.join(' | ')}` +
         `\n• *Product Image/Brochure:* ${product.imageUrl}`;
@@ -138,7 +187,9 @@ class WhatsAppTemplateEngine {
       text = text
         .replace(/\{product\}/gi, product.name)
         .replace(/\{productName\}/gi, product.name)
-        .replace(/\{productPrice\}/gi, product.price)
+        .replace(/\{productPrice\}/gi, `₹${unitPrice.toLocaleString('en-IN')}`)
+        .replace(/\{quantity\}/gi, String(quantity))
+        .replace(/\{totalPrice\}/gi, `₹${totalPrice.toLocaleString('en-IN')}`)
         .replace(/\{productDetails\}/gi, productBlock)
         .replace(/\{productImage\}/gi, product.imageUrl);
 
