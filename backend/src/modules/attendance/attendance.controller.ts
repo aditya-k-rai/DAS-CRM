@@ -11,14 +11,18 @@ export class AttendanceController {
   @Get('server-time')
   getServerTime() {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour12: true });
-    const dateStr = now.toISOString().split('T')[0];
+    const delhiTimeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+    const delhiDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    const fullDelhiStr = `${delhiDateStr} ${delhiTimeStr} IST (Delhi Server Time)`;
     return {
-      serverTime: `${dateStr} ${timeStr} (Server Authoritative Time)`,
+      serverTime: fullDelhiStr,
+      delhiTime: delhiTimeStr,
+      delhiDate: delhiDateStr,
+      timeZone: 'Asia/Kolkata (Delhi Time)',
       isoDate: now.toISOString(),
       timestampMs: now.getTime(),
-      formattedTime: timeStr,
-      formattedDate: dateStr,
+      formattedTime: delhiTimeStr,
+      formattedDate: delhiDateStr,
     };
   }
 }

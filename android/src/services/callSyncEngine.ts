@@ -10,6 +10,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking, Alert } from 'react-native';
+import { apiService } from './apiService';
 
 export interface CallTelemetryRecord {
   id: string;
@@ -68,10 +69,11 @@ class CallSyncEngine {
       Alert.alert('Phone Dialer', `Dialing ${cleaned} for lead ${leadName}...`);
     }
 
-    // Simulate / log call connection telemetry
+    // Simulate / log call connection telemetry with Server Delhi Time (Asia/Kolkata)
     const simulatedSeconds = Math.floor(Math.random() * 300 + 45); // 45s to 5m 45s
-    const nowIso = new Date().toISOString();
-    const todayStr = nowIso.split('T')[0];
+    const serverTimeData = await apiService.getServerTime();
+    const delhiTimeStr = serverTimeData.serverTime || new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    const delhiDateStr = serverTimeData.formattedDate || new Date().toISOString().split('T')[0];
 
     const record: CallTelemetryRecord = {
       id: 'call-' + Date.now(),
@@ -81,21 +83,21 @@ class CallSyncEngine {
       type: 'OUTGOING',
       connectionStatus: 'CONNECTED',
       durationSeconds: simulatedSeconds,
-      timestamp: nowIso,
-      dateStr: todayStr,
+      timestamp: delhiTimeStr,
+      dateStr: delhiDateStr,
     };
 
     // Save to Ephemeral 1-Day Storage
     await this.saveRawLog(record);
 
     const summary: LeadCallSummary = {
-      lastCalledAt: nowIso,
+      lastCalledAt: delhiTimeStr,
       connectionStatus: 'CONNECTED',
       lastDurationStr: this.formatDuration(simulatedSeconds),
       totalTalkTimeSeconds: simulatedSeconds,
       incomingCount: 0,
       outgoingCount: 1,
-      lastFollowupAt: nowIso,
+      lastFollowupAt: delhiTimeStr,
     };
 
     if (onTelemetryUpdated) {
