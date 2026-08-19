@@ -362,7 +362,12 @@ export default function TasksScreen({ route }: any) {
       <Modal visible={createProductModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📦 Add New Product Item</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={styles.modalTitle}>📦 Add New Product Item</Text>
+              <TouchableOpacity onPress={() => setCreateProductModal(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.label}>Product Name *</Text>
             <TextInput style={styles.input} placeholder="e.g. Enterprise License" placeholderTextColor="#64748b" value={prodName} onChangeText={setProdName} />
@@ -389,7 +394,12 @@ export default function TasksScreen({ route }: any) {
       <Modal visible={createQuoteModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📝 Generate New Quotation</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={styles.modalTitle}>📝 Generate New Quotation</Text>
+              <TouchableOpacity onPress={() => setCreateQuoteModal(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.label}>Client Name *</Text>
             <TextInput style={styles.input} placeholder="e.g. TechCorp Solutions" placeholderTextColor="#64748b" value={clientName} onChangeText={setClientName} />

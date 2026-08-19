@@ -541,7 +541,12 @@ export default function EmployeesScreen() {
       <Modal visible={handoverModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>💼 Departing Staff Lead &amp; Work Handover</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={styles.modalTitle}>💼 Departing Staff Lead &amp; Work Handover</Text>
+              <TouchableOpacity onPress={() => setHandoverModalOpen(false)} style={{ padding: 4 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSub}>
               Re-allocate all active leads, deal pipeline stages, and work status of a leaving staff member to another employee or manager.
             </Text>

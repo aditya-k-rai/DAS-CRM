@@ -524,7 +524,12 @@ export default function LeadsScreen() {
       <Modal visible={sheetModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🟢 Google Sheets Live 2-Way Sync</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <Text style={styles.modalTitle}>🟢 Google Sheets Live 2-Way Sync</Text>
+              <TouchableOpacity onPress={() => setSheetModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSub}>Enter your published Google Sheet URL to automatically ingest new leads in real-time.</Text>
 
             <Text style={styles.label}>Google Sheet Web URL *</Text>
@@ -561,7 +566,12 @@ export default function LeadsScreen() {
       <Modal visible={importModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>📥 CSV / Excel Lead Import</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <Text style={styles.modalTitle}>📥 CSV / Excel Lead Import</Text>
+              <TouchableOpacity onPress={() => setImportModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSub}>Select a file from device storage to bulk ingest leads into active workspace.</Text>
 
             {['Inbound_Leads_Aug2026.xlsx', 'Meta_Ads_Leads_Batch1.csv', 'Website_Inquiries_Export.csv'].map(fileName => (
@@ -590,7 +600,12 @@ export default function LeadsScreen() {
       <Modal visible={insertModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>+ Create New Lead</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <Text style={styles.modalTitle}>+ Create New Lead</Text>
+              <TouchableOpacity onPress={() => setInsertModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.modalSub}>Enter lead details to add directly to workspace collections.</Text>
 
             <Text style={styles.label}>Lead Full Name *</Text>

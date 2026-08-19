@@ -188,11 +188,24 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.screenTitle}>User Identity &amp; Profile</Text>
-          {onClose && (
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800' }}>✕</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={() => {
+              if (onClose) {
+                onClose();
+              } else {
+                try {
+                  const nav = require('@react-navigation/native');
+                  nav.useNavigation().goBack();
+                } catch {
+                  // Fallback dismiss
+                }
+              }
+            }}
+            style={styles.closeBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>✕ Close Profile</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── 1. IDENTITY CARD ──────────────────────────────────────────────── */}
@@ -378,7 +391,7 @@ const styles = StyleSheet.create({
 
   headerRow: { width: '100%', maxWidth: 500, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   screenTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
-  closeBtn: { padding: 4 },
+  closeBtn: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
 
   identityCard: {
     width: '100%',

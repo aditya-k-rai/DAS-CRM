@@ -20,7 +20,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -84,6 +84,9 @@ function RoleDashboardDispatcher(props: any) {
 }
 
 function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: any) {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 6);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#060810' }}>
       {/* Dynamic Header */}
@@ -107,10 +110,12 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarStyle: styles.tabBar,
+          tabBarStyle: [
+            styles.tabBar,
+            { height: 58 + bottomPadding, paddingBottom: bottomPadding + 2 }
+          ],
           tabBarActiveTintColor: '#818cf8',
           tabBarInactiveTintColor: '#64748b',
-          tabBarLabelStyle: { fontSize: 10, fontWeight: '700', marginBottom: 4 },
         }}
       >
         <Tab.Screen
@@ -121,27 +126,82 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
               onNavigateToAttendance={() => navProps.navigation.navigate('Attendance')}
             />
           )}
-          options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>🏠</Text>, tabBarLabel: 'Home' }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(129,140,248,0.25)', borderColor: '#818cf8' }]}>
+                <Text style={{ fontSize: 16 }}>🏠</Text>
+              </View>
+            ),
+            tabBarLabel: ({ focused }) => (
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#818cf8' : '#64748b' }}>
+                {focused ? 'Home ●' : 'Home'}
+              </Text>
+            ),
+          }}
         />
         <Tab.Screen
           name="Leads"
           component={LeadsStackNavigator}
-          options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>🎯</Text>, tabBarLabel: 'Leads' }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(56,189,248,0.25)', borderColor: '#38bdf8' }]}>
+                <Text style={{ fontSize: 16 }}>🎯</Text>
+              </View>
+            ),
+            tabBarLabel: ({ focused }) => (
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#38bdf8' : '#64748b' }}>
+                {focused ? 'Leads ●' : 'Leads'}
+              </Text>
+            ),
+          }}
         />
         <Tab.Screen
           name="Employees"
           component={EmployeesScreen}
-          options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>👥</Text>, tabBarLabel: 'Employees' }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(192,132,252,0.25)', borderColor: '#c084fc' }]}>
+                <Text style={{ fontSize: 16 }}>👥</Text>
+              </View>
+            ),
+            tabBarLabel: ({ focused }) => (
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#c084fc' : '#64748b' }}>
+                {focused ? 'Employees ●' : 'Employees'}
+              </Text>
+            ),
+          }}
         />
         <Tab.Screen
           name="More"
           component={TasksScreen}
-          options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>⚡</Text>, tabBarLabel: 'More' }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(251,191,36,0.25)', borderColor: '#fbbf24' }]}>
+                <Text style={{ fontSize: 16 }}>⚡</Text>
+              </View>
+            ),
+            tabBarLabel: ({ focused }) => (
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#fbbf24' : '#64748b' }}>
+                {focused ? 'More ●' : 'More'}
+              </Text>
+            ),
+          }}
         />
         <Tab.Screen
           name="Attendance"
           component={AttendanceScreen}
-          options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 16, color }}>⏱️</Text>, tabBarLabel: 'Attendance' }}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(52,211,153,0.25)', borderColor: '#34d399' }]}>
+                <Text style={{ fontSize: 16 }}>⏱️</Text>
+              </View>
+            ),
+            tabBarLabel: ({ focused }) => (
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#34d399' : '#64748b' }}>
+                {focused ? 'Attendance ●' : 'Attendance'}
+              </Text>
+            ),
+          }}
         />
       </Tab.Navigator>
     </View>
@@ -543,7 +603,8 @@ const styles = StyleSheet.create({
   profileBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' },
   profileBadgeText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
 
-  tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b', height: 56 },
+  tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b' },
+  tabIconBox: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 
   // Update Modal Styles
   updateModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },

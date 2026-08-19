@@ -60,6 +60,15 @@ export function Topbar({ title, actions }: TopbarProps) {
           {/* Page Actions */}
           {actions}
 
+          {/* Quick App Downloads Button */}
+          <a
+            href="/downloads"
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 transition-all"
+            title="Download Android & Mac Apps"
+          >
+            <span className="text-xs">📱 Apps</span>
+          </a>
+
           {/* Notification Center */}
           <NotificationCenter />
         </div>
