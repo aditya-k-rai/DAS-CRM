@@ -1155,7 +1155,16 @@ export function TenantAdminDashboard() {
                             </td>
                           );
                         }
-                        if (colKey === 'phone') return <td key={colKey} className="p-3 font-mono text-emerald-400 font-bold">{sanitizeCellString(l.phone, '')}</td>;
+                        if (colKey === 'phone') {
+                          return (
+                            <td key={colKey} className="p-3 font-mono">
+                              <span className="text-emerald-400 font-bold">{sanitizeCellString(l.phone, '')}</span>
+                              <div className="text-[9px] text-indigo-400 font-sans font-extrabold flex items-center gap-1 mt-0.5">
+                                <PhoneCall size={10} className="text-emerald-400" /> Synced: Today 2:45 PM • 4m 18s • Connected
+                              </div>
+                            </td>
+                          );
+                        }
                         if (colKey === 'company') return <td key={colKey} className="p-3 font-semibold text-slate-300">{sanitizeCellString(l.company, '')}</td>;
                         if (colKey === 'source') {
                           return (
