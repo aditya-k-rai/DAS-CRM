@@ -188,11 +188,18 @@ export function EmployeeListWidget() {
 
   const handleSaveReassignment = () => {
     if (!selectedEmp) return;
+
+    // Strict Hierarchy Validation Rules
+    if (selectedEmp.role === 'TEAM_LEADER' && selectedManager.includes('Sales Exec')) {
+      alert('⛔ Hierarchy Violation: A Team Leader (TL) can ONLY report to a Department Manager! Cannot assign a Sales Executive as TL supervisor.');
+      return;
+    }
+
     setEmployees(prev =>
       prev.map(e => (e.id === selectedEmp.id ? { ...e, assignedManager: selectedManager } : e))
     );
     setSelectedEmp({ ...selectedEmp, assignedManager: selectedManager });
-    alert(`Successfully re-assigned ${selectedEmp.name}'s supervisor to ${selectedManager}!`);
+    alert(`✅ Supervisor Hierarchy Updated: Re-assigned ${selectedEmp.name}'s supervisor to ${selectedManager}!`);
   };
 
   // Bulk Lead & Work Transfer Handler

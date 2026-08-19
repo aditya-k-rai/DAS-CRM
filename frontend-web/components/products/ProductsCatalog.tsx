@@ -1,131 +1,383 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2, FolderPlus, Layers, ShieldCheck, Check, Sparkles, X, CheckCircle2 } from 'lucide-react';
 
-const CATEGORIES = ['All', 'Software', 'Hardware', 'Services', 'Consulting', 'SaaS'];
+interface ProductItemWeb {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  subCategory: string;
+  price: number;
+  unit: string;
+  stock: number | null;
+  minOrderQty: number;
+  rating: number;
+  sold: number;
+  taxRate: number;
+  isActive: boolean;
+  coverImage: string;
+  overview: string;
+  specs: string[];
+  volumeDiscounts: { tier: string; minQty: number; discountPct: number; finalPrice: number }[];
+}
 
-const PRODUCTS = [
-  { id: '1', name: 'CRM Enterprise License',   sku: 'SW-001', category: 'Software',    price: 49999,  unit: 'per license/yr', stock: null,  rating: 4.8, sold: 142, taxRate: 18, isActive: true },
-  { id: '2', name: 'CRM Pro License (Monthly)', sku: 'SW-002', category: 'SaaS',        price: 4999,   unit: 'per month',      stock: null,  rating: 4.6, sold: 89,  taxRate: 18, isActive: true },
-  { id: '3', name: 'Android App Addon',         sku: 'SW-003', category: 'SaaS',        price: 1999,   unit: 'per month',      stock: null,  rating: 4.5, sold: 67,  taxRate: 18, isActive: true },
-  { id: '4', name: 'Implementation & Onboarding', sku: 'SV-001', category: 'Services', price: 15000,  unit: 'one-time',       stock: null,  rating: 4.9, sold: 98,  taxRate: 0,  isActive: true },
-  { id: '5', name: 'Data Migration Service',    sku: 'SV-002', category: 'Services',    price: 8000,   unit: 'per project',    stock: null,  rating: 4.7, sold: 43,  taxRate: 0,  isActive: true },
-  { id: '6', name: 'Training Workshop (Half-Day)', sku: 'CN-001', category: 'Consulting', price: 5000, unit: 'per session',    stock: null,  rating: 4.8, sold: 31,  taxRate: 0,  isActive: true },
+const INITIAL_PRODUCTS: ProductItemWeb[] = [
+  {
+    id: '1',
+    name: 'DAS CRM Enterprise Suite',
+    sku: 'DAS-ENT-001',
+    category: 'Software & Cloud',
+    subCategory: 'Enterprise Licenses',
+    price: 49999,
+    unit: 'per license/yr',
+    stock: 250,
+    minOrderQty: 1,
+    rating: 4.9,
+    sold: 142,
+    taxRate: 18,
+    isActive: true,
+    coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+    overview: 'Full-stack enterprise CRM solution featuring automated lead scoring, multi-level workforce hierarchy controls, real-time telemetry, and anti-tamper attendance verification.',
+    specs: ['Unlimited User Seats', 'AI Telemetry Engine Enabled', 'Server-Authoritative Time Sync', '24/7 Dedicated Account Manager'],
+    volumeDiscounts: [
+      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 49999 },
+      { tier: '10 - 49 Units', minQty: 10, discountPct: 15, finalPrice: 42499 },
+      { tier: '50+ Units', minQty: 50, discountPct: 30, finalPrice: 34999 },
+    ],
+  },
+  {
+    id: '2',
+    name: 'AI Lead Scoring Engine Pro',
+    sku: 'AI-LSE-002',
+    category: 'Software & Cloud',
+    subCategory: 'AI Add-ons',
+    price: 14999,
+    unit: 'per month',
+    stock: 500,
+    minOrderQty: 1,
+    rating: 4.8,
+    sold: 89,
+    taxRate: 18,
+    isActive: true,
+    coverImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
+    overview: 'Predictive machine learning engine that calculates real-time lead score (0-100) based on telemetry interactions, call frequency, and WhatsApp engagements.',
+    specs: ['Predictive Lead Conversion Model', 'Automated Hot Lead Alerts', 'Custom Scoring Rules Configurator'],
+    volumeDiscounts: [
+      { tier: '1 - 5 Units', minQty: 1, discountPct: 0, finalPrice: 14999 },
+      { tier: '6 - 20 Units', minQty: 6, discountPct: 10, finalPrice: 13499 },
+    ],
+  },
+  {
+    id: '3',
+    name: 'WhatsApp Automation Bot Engine',
+    sku: 'WA-BOT-003',
+    category: 'Automation & APIs',
+    subCategory: 'Messaging Gateways',
+    price: 8999,
+    unit: 'per month',
+    stock: 1000,
+    minOrderQty: 1,
+    rating: 4.7,
+    sold: 215,
+    taxRate: 18,
+    isActive: true,
+    coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80',
+    overview: 'Direct WhatsApp Cloud API integration with AI Humanize message generator, catalog sharing, and automated 15-day call date follow-up scheduling.',
+    specs: ['Official Meta Business API Connector', 'Interactive Template Builder', 'Automated Follow-up Scheduler'],
+    volumeDiscounts: [
+      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 8999 },
+      { tier: '10+ Units', minQty: 10, discountPct: 20, finalPrice: 7199 },
+    ],
+  },
+  {
+    id: '4',
+    name: 'Cloud Telemetry License',
+    sku: 'CLOUD-TEL-004',
+    category: 'Infrastructure',
+    subCategory: 'Cloud Storage',
+    price: 4999,
+    unit: 'per month',
+    stock: 750,
+    minOrderQty: 1,
+    rating: 4.6,
+    sold: 67,
+    taxRate: 18,
+    isActive: true,
+    coverImage: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80',
+    overview: 'High-availability secure storage for call audio recordings, selfie attendance verification images, and automated audit logs.',
+    specs: ['256-bit AES Encryption', 'Automatic 30-Day Backup Retention', 'SOC2 Compliant Cloud Vault'],
+    volumeDiscounts: [
+      { tier: '1 - 10 Units', minQty: 1, discountPct: 0, finalPrice: 4999 },
+    ],
+  },
 ];
 
 export function ProductsCatalog() {
-  const [category, setCategory] = useState('All');
-  const [search, setSearch]     = useState('');
-  const [showForm, setShowForm] = useState(false);
-
-  const filtered = PRODUCTS.filter(p => {
-    const matchCat = category === 'All' || p.category === category;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+  const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
+  const [categories, setCategories] = useState<string[]>(['All', 'Software & Cloud', 'Automation & APIs', 'Infrastructure', 'Services']);
+  const [subCategories, setSubCategories] = useState<Record<string, string[]>>({
+    'Software & Cloud': ['Enterprise Licenses', 'AI Add-ons', 'SaaS Subscriptions'],
+    'Automation & APIs': ['Messaging Gateways', 'Workflow Engines'],
+    'Infrastructure': ['Cloud Storage', 'Telemetry Nodes'],
+    'Services': ['Onboarding', 'Training'],
   });
+
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('All');
+  const [search, setSearch] = useState('');
+
+  // Inspector Modal State
+  const [inspectorProduct, setInspectorProduct] = useState<ProductItemWeb | null>(null);
+
+  // New Product Modal State
+  const [createProductOpen, setCreateProductOpen] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdSku, setNewProdSku] = useState('');
+  const [newProdCategory, setNewProdCategory] = useState('Software & Cloud');
+  const [newProdSubCategory, setNewProdSubCategory] = useState('Enterprise Licenses');
+  const [newProdPrice, setNewProdPrice] = useState('');
+  const [newProdStock, setNewProdStock] = useState('100');
+  const [newProdGst, setNewProdGst] = useState('18');
+
+  // New Category / Sub-Category Modal State
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [createSubCategoryOpen, setCreateSubCategoryOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newSubCatName, setNewSubCatName] = useState('');
+  const [parentCatForSub, setParentCatForSub] = useState('Software & Cloud');
+
+  const filtered = products.filter(p => {
+    const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const matchSubCat = selectedSubCategory === 'All' || p.subCategory === selectedSubCategory;
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSubCat && matchSearch;
+  });
+
+  const handleCreateProduct = () => {
+    if (!newProdName.trim() || !newProdSku.trim() || !newProdPrice) {
+      alert('Please fill out Product Name, SKU, and Price.');
+      return;
+    }
+
+    const priceNum = parseFloat(newProdPrice) || 0;
+    const newProd: ProductItemWeb = {
+      id: Date.now().toString(),
+      name: newProdName.trim(),
+      sku: newProdSku.trim().toUpperCase(),
+      category: newProdCategory,
+      subCategory: newProdSubCategory,
+      price: priceNum,
+      unit: 'per license',
+      stock: parseInt(newProdStock) || 100,
+      minOrderQty: 1,
+      rating: 5.0,
+      sold: 0,
+      taxRate: parseInt(newProdGst) || 18,
+      isActive: true,
+      coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+      overview: 'Newly created product item in DAS CRM Catalog.',
+      specs: ['Standard License', 'DAS CRM Certified'],
+      volumeDiscounts: [
+        { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: priceNum },
+        { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(priceNum * 0.85) },
+      ],
+    };
+
+    setProducts(prev => [newProd, ...prev]);
+    setCreateProductOpen(false);
+    setNewProdName('');
+    setNewProdSku('');
+    setNewProdPrice('');
+    alert(`✅ Product "${newProd.name}" added successfully to catalog!`);
+  };
+
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) return;
+    const trimmed = newCatName.trim();
+    if (!categories.includes(trimmed)) {
+      setCategories(prev => [...prev, trimmed]);
+      setSubCategories(prev => ({ ...prev, [trimmed]: [] }));
+    }
+    setCreateCategoryOpen(false);
+    setNewCatName('');
+    alert(`✅ Category "${trimmed}" added!`);
+  };
+
+  const handleAddSubCategory = () => {
+    if (!newSubCatName.trim()) return;
+    const trimmed = newSubCatName.trim();
+    setSubCategories(prev => {
+      const existing = prev[parentCatForSub] || [];
+      return { ...prev, [parentCatForSub]: [...existing, trimmed] };
+    });
+    setCreateSubCategoryOpen(false);
+    setNewSubCatName('');
+    alert(`✅ Sub-Category "${trimmed}" added under "${parentCatForSub}"!`);
+  };
 
   return (
     <div className="space-y-4">
-      {/* Summary Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Products', value: PRODUCTS.length, color: 'rgb(129,140,248)' },
-          { label: 'Active Products', value: PRODUCTS.filter(p=>p.isActive).length, color: 'rgb(34,197,94)' },
-          { label: 'Total Units Sold', value: PRODUCTS.reduce((s,p)=>s+p.sold,0), color: 'rgb(245,158,11)' },
-          { label: 'Catalog Revenue', value: '₹48.7L', color: 'rgb(167,139,250)' },
-        ].map(s => (
-          <div key={s.label} className="crm-card py-3">
-            <p className="text-xl font-extrabold" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-xs text-muted mt-0.5">{s.label}</p>
-          </div>
-        ))}
+      {/* Quick Action & Summary Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
+            <Package className="text-brand-400" size={22} />
+            <span>Product &amp; Catalog Management</span>
+          </h2>
+          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            {products.length} Products
+          </span>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setCreateCategoryOpen(true)}
+            className="btn-secondary text-xs gap-1.5 flex items-center"
+          >
+            <FolderPlus size={14} /> + Category
+          </button>
+
+          <button
+            onClick={() => setCreateSubCategoryOpen(true)}
+            className="btn-secondary text-xs gap-1.5 flex items-center"
+          >
+            <Layers size={14} /> + Sub-Category
+          </button>
+
+          <button
+            onClick={() => setCreateProductOpen(true)}
+            className="btn-primary text-xs gap-1.5 flex items-center shadow-lg shadow-brand/20"
+          >
+            <Plus size={14} /> Create Product
+          </button>
+        </div>
       </div>
 
+      {/* Main Catalog Card */}
       <div className="crm-card p-0 overflow-hidden">
-        {/* Toolbar */}
-        <div className="p-4 border-b space-y-3" style={{ borderColor: 'rgb(var(--border))' }}>
-          <div className="flex gap-1 flex-wrap">
-            {CATEGORIES.map(c => (
-              <button key={c} onClick={() => setCategory(c)}
-                className={`pill-tab text-xs py-1 px-3 ${category === c ? 'active' : ''}`}>{c}
+        {/* Category & Sub-Category Tree Filter Bar */}
+        <div className="p-4 border-b space-y-3 bg-slate-900/60" style={{ borderColor: 'rgb(var(--border))' }}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Category:</span>
+            {categories.map(c => (
+              <button
+                key={c}
+                onClick={() => {
+                  setSelectedCategory(c);
+                  setSelectedSubCategory('All');
+                }}
+                className={`pill-tab text-xs py-1 px-3 ${selectedCategory === c ? 'active' : ''}`}
+              >
+                {c}
               </button>
             ))}
           </div>
-          <div className="relative max-w-sm">
+
+          {/* Sub-Category Tree Bar */}
+          {selectedCategory !== 'All' && subCategories[selectedCategory] && (
+            <div className="flex items-center gap-2 flex-wrap pt-1 pl-4 border-l-2 border-indigo-500">
+              <span className="text-xs font-bold text-indigo-400">Sub-Category:</span>
+              <button
+                onClick={() => setSelectedSubCategory('All')}
+                className={`pill-tab text-xs py-0.5 px-2.5 ${selectedSubCategory === 'All' ? 'active' : ''}`}
+              >
+                All Sub-Categories
+              </button>
+              {subCategories[selectedCategory].map(sc => (
+                <button
+                  key={sc}
+                  onClick={() => setSelectedSubCategory(sc)}
+                  className={`pill-tab text-xs py-0.5 px-2.5 ${selectedSubCategory === sc ? 'active' : ''}`}
+                >
+                  {sc}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="relative max-w-sm pt-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input className="crm-input pl-9 h-9 text-sm" placeholder="Search products..." value={search} onChange={e=>setSearch(e.target.value)} />
+            <input
+              className="crm-input pl-9 h-9 text-sm"
+              placeholder="Search product name, SKU, or category..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Table */}
+        {/* Products Table */}
         <div className="overflow-x-auto">
           <table className="crm-table">
             <thead>
               <tr>
-                <th>Product Name</th>
-                <th>SKU</th>
-                <th>Category</th>
+                <th>Product Name &amp; SKU</th>
+                <th>Category / Sub-Category</th>
                 <th>Unit Price</th>
                 <th>Tax Rate</th>
-                <th>Units Sold</th>
+                <th>Stock Qty</th>
                 <th>Rating</th>
                 <th>Status</th>
-                <th></th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(p => (
-                <tr key={p.id}>
+                <tr key={p.id} className="hover:bg-slate-900/40 transition-colors">
                   <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(99,102,241,0.12)' }}>
-                        <Package size={16} style={{ color: 'rgb(129,140,248)' }} />
+                      <img src={p.coverImage} alt={p.name} className="w-10 h-10 rounded-xl object-cover border border-slate-800" />
+                      <div>
+                        <p className="font-bold text-sm text-white hover:text-indigo-400 cursor-pointer" onClick={() => setInspectorProduct(p)}>
+                          {p.name}
+                        </p>
+                        <span className="text-xs font-mono text-slate-400">SKU: {p.sku}</span>
                       </div>
-                      <p className="font-medium text-sm">{p.name}</p>
                     </div>
-                  </td>
-                  <td><span className="text-xs font-mono text-muted">{p.sku}</span></td>
-                  <td>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgb(var(--muted))', color: 'rgb(var(--muted-foreground))' }}>
-                      {p.category}
-                    </span>
                   </td>
                   <td>
                     <div>
-                      <span className="font-bold text-sm" style={{ color: 'rgb(var(--brand-400))' }}>
-                        ₹{p.price.toLocaleString('en-IN')}
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {p.category}
                       </span>
-                      <p className="text-xs text-muted">{p.unit}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{p.subCategory}</p>
                     </div>
                   </td>
                   <td>
-                    <span className="text-sm">{p.taxRate}% GST</span>
+                    <div>
+                      <span className="font-bold text-sm text-emerald-400">
+                        ₹{p.price.toLocaleString('en-IN')}
+                      </span>
+                      <p className="text-[11px] text-slate-400">{p.unit}</p>
+                    </div>
                   </td>
                   <td>
-                    <span className="text-sm font-semibold">{p.sold} units</span>
+                    <span className="text-xs font-bold text-slate-300">{p.taxRate}% GST</span>
+                  </td>
+                  <td>
+                    <span className="text-xs font-bold text-slate-200">{p.stock ? `${p.stock} units` : 'Unlimited'}</span>
                   </td>
                   <td>
                     <div className="flex items-center gap-1">
-                      <Star size={12} style={{ color: 'rgb(245,158,11)', fill: 'rgb(245,158,11)' }} />
-                      <span className="text-sm font-medium">{p.rating}</span>
+                      <Star size={12} className="text-amber-400 fill-amber-400" />
+                      <span className="text-xs font-bold text-white">{p.rating}</span>
                     </div>
                   </td>
                   <td>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                      style={{ background: 'rgba(34,197,94,0.12)', color: 'rgb(34,197,94)' }}>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                       Active
                     </span>
                   </td>
                   <td>
-                    <div className="flex gap-1">
-                      <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center">
-                        <Edit2 size={13} />
-                      </button>
-                      <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center" style={{ color: 'rgb(239,68,68)' }}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setInspectorProduct(p)}
+                      className="btn-secondary text-xs py-1 px-2.5 gap-1"
+                    >
+                      🔍 Inspect
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -133,6 +385,255 @@ export function ProductsCatalog() {
           </table>
         </div>
       </div>
+
+      {/* 🔍 FULL PRODUCT SPECIFICATION INSPECTOR MODAL */}
+      {inspectorProduct && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <img src={inspectorProduct.coverImage} alt={inspectorProduct.name} className="w-12 h-12 rounded-xl object-cover border border-slate-700" />
+                <div>
+                  <h3 className="text-lg font-extrabold text-white">{inspectorProduct.name}</h3>
+                  <p className="text-xs text-slate-400 font-mono">SKU: {inspectorProduct.sku} • {inspectorProduct.category}</p>
+                </div>
+              </div>
+              <button onClick={() => setInspectorProduct(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-800">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Overview & Pricing */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Unit Base Price</span>
+                <p className="text-2xl font-extrabold text-emerald-400">₹{inspectorProduct.price.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-slate-400">{inspectorProduct.unit} • {inspectorProduct.taxRate}% GST Tax Included</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inventory &amp; MOQ</span>
+                <p className="text-lg font-bold text-white">Stock: {inspectorProduct.stock ? `${inspectorProduct.stock} Available` : 'Digital Cloud License'}</p>
+                <p className="text-xs text-slate-400">Minimum Order Qty: {inspectorProduct.minOrderQty} unit</p>
+              </div>
+            </div>
+
+            {/* Product Overview */}
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Product Description &amp; Overview</h4>
+              <p className="text-xs text-slate-400 leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
+                {inspectorProduct.overview}
+              </p>
+            </div>
+
+            {/* Technical Specifications List */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Key Features &amp; Specifications</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {inspectorProduct.specs.map((spec, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-slate-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                    <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
+                    <span>{spec}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Volume Discount Tier Pricing Table */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">📊 Volume Discount Tier Pricing</h4>
+              <div className="border border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800">
+                    <tr>
+                      <th className="p-2.5">Quantity Tier</th>
+                      <th className="p-2.5">Discount %</th>
+                      <th className="p-2.5">Final Tier Price</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {inspectorProduct.volumeDiscounts.map((tier, idx) => (
+                      <tr key={idx} className="hover:bg-slate-950/40">
+                        <td className="p-2.5 font-bold text-white">{tier.tier}</td>
+                        <td className="p-2.5 text-amber-400 font-semibold">{tier.discountPct}% OFF</td>
+                        <td className="p-2.5 font-extrabold text-emerald-400">₹{tier.finalPrice.toLocaleString('en-IN')} / unit</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setInspectorProduct(null)} className="btn-primary text-xs px-5">Close Inspector</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE PRODUCT MODAL */}
+      {createProductOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+              <span>📦 Create New Product Item</span>
+            </h3>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">Product Name</label>
+                <input
+                  type="text"
+                  className="crm-input w-full"
+                  placeholder="e.g. DAS CRM Enterprise License"
+                  value={newProdName}
+                  onChange={e => setNewProdName(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">SKU Code</label>
+                  <input
+                    type="text"
+                    className="crm-input w-full uppercase font-mono"
+                    placeholder="e.g. DAS-ENT-005"
+                    value={newProdSku}
+                    onChange={e => setNewProdSku(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">Unit Price (₹)</label>
+                  <input
+                    type="number"
+                    className="crm-input w-full font-bold text-emerald-400"
+                    placeholder="49999"
+                    value={newProdPrice}
+                    onChange={e => setNewProdPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">Category</label>
+                  <select
+                    className="crm-input w-full"
+                    value={newProdCategory}
+                    onChange={e => setNewProdCategory(e.target.value)}
+                  >
+                    {categories.filter(c => c !== 'All').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">Sub-Category</label>
+                  <input
+                    type="text"
+                    className="crm-input w-full"
+                    placeholder="e.g. Enterprise Licenses"
+                    value={newProdSubCategory}
+                    onChange={e => setNewProdSubCategory(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">Stock Qty</label>
+                  <input
+                    type="number"
+                    className="crm-input w-full"
+                    value={newProdStock}
+                    onChange={e => setNewProdStock(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">GST Tax %</label>
+                  <select
+                    className="crm-input w-full"
+                    value={newProdGst}
+                    onChange={e => setNewProdGst(e.target.value)}
+                  >
+                    <option value="0">0% GST</option>
+                    <option value="5">5% GST</option>
+                    <option value="12">12% GST</option>
+                    <option value="18">18% GST</option>
+                    <option value="28">28% GST</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button onClick={() => setCreateProductOpen(false)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleCreateProduct} className="btn-primary text-xs">Save &amp; Add Product</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE CATEGORY MODAL */}
+      {createCategoryOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <span>📁 Add New Category</span>
+            </h3>
+            <input
+              type="text"
+              className="crm-input w-full text-xs font-semibold"
+              placeholder="e.g. Software & Cloud"
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setCreateCategoryOpen(false)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleAddCategory} className="btn-primary text-xs">Save Category</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE SUB-CATEGORY MODAL */}
+      {createSubCategoryOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <span>📂 Add Sub-Category</span>
+            </h3>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">Select Parent Category</label>
+                <select
+                  className="crm-input w-full"
+                  value={parentCatForSub}
+                  onChange={e => setParentCatForSub(e.target.value)}
+                >
+                  {categories.filter(c => c !== 'All').map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-bold">Sub-Category Name</label>
+                <input
+                  type="text"
+                  className="crm-input w-full font-semibold"
+                  placeholder="e.g. AI Add-ons"
+                  value={newSubCatName}
+                  onChange={e => setNewSubCatName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setCreateSubCategoryOpen(false)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleAddSubCategory} className="btn-primary text-xs">Save Sub-Category</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -204,7 +204,7 @@ export function Sidebar() {
       </nav>
 
       {/* User section with Logout */}
-      <div className="border-t mx-2 mb-2 pt-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
+      <div className="border-t mx-2 mb-2 pt-2 space-y-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
         <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card transition-colors">
           <Link href="/profile" onClick={closeMobile} className="flex items-center gap-3 min-w-0 flex-1">
             <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold">{currentUser.avatar}</div>
@@ -225,6 +225,19 @@ export function Sidebar() {
           >
             <LogOut size={16} />
           </button>
+        </div>
+
+        {/* 💻 Developer Credit Bar */}
+        <div className="px-2 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 flex items-center justify-between">
+          <a
+            href="https://github.com/aditya-k-rai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between w-full text-[11px] font-semibold text-slate-300 hover:text-indigo-400 transition-colors"
+          >
+            <span>💻 Dev: <strong className="text-white">Aditya Kumar Rai</strong></span>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">GitHub ↗</span>
+          </a>
         </div>
       </div>
     </aside>

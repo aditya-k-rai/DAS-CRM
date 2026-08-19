@@ -480,54 +480,126 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
           {/* ── POST-CALL CUT DISPOSITION MODAL ────────────────────────────────────── */}
           {showCallCutModal && (
-            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex justify-center items-center p-4">
-              <div className="bg-card border border-emerald-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-left">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded border border-emerald-500/30">
-                    AUTOMATIC POST-CALL DISPOSITION ENTRY
-                  </span>
-                  <h3 className="text-lg font-bold text-white mt-1">Call Ended — Select Disposition Outcome</h3>
-                  <p className="text-xs text-muted">Select the call response outcome to update lead status and auto-sync into Lead Center.</p>
-                </div>
+            <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                <h4 className="font-extrabold text-white text-base flex items-center gap-2">
+                  <span>📱 Post-Call Outcome &amp; Lead Status Update</span>
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Select outcome status for {lead.name} ({lead.phone}):
+                </p>
 
-                {/* Disposition Options */}
+                {/* Outcome Options Grid */}
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    'Not Responding',
-                    'Switch Off',
-                    'Busy',
-                    'Not Interested',
-                    'Will Talk Later',
-                    'Talked & Enter Response',
-                    'Other Requirements',
+                    { key: 'Talked & Enter Response', label: '🗣️ Talked (Call Completed)' },
+                    { key: 'Will Talk Later', label: '⏰ Will Call Later' },
+                    { key: 'Said Will Visit', label: '🤝 Said He Will Visit' },
+                    { key: 'Catalogue Shared', label: '📄 Catalogue Shared' },
+                    { key: 'Interested Product', label: '💡 Interested in Product' },
+                    { key: 'Not Responding', label: '📞 Not Responding' },
+                    { key: 'Busy', label: '⏳ Busy' },
+                    { key: 'Switch Off', label: '📴 Switched Off' },
                   ].map((opt) => (
                     <button
-                      key={opt}
-                      onClick={() => setSelectedCallDisposition(opt as DispositionOption)}
+                      key={opt.key}
+                      onClick={() => setSelectedCallDisposition(opt.key as any)}
                       className={`p-3 rounded-xl text-xs font-bold transition-all text-left border ${
-                        selectedCallDisposition === opt
+                        selectedCallDisposition === (opt.key as any)
                           ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md'
-                          : 'bg-background border-border text-muted hover:text-white'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
                       }`}
                     >
-                      {opt} {selectedCallDisposition === opt && '✓'}
+                      {opt.label} {selectedCallDisposition === (opt.key as any) && '✓'}
                     </button>
                   ))}
                 </div>
 
-                {/* Response / Requirements Text Input */}
-                {(selectedCallDisposition === 'Talked & Enter Response' || selectedCallDisposition === 'Other Requirements') && (
-                  <div>
-                    <label className="text-xs text-muted block mb-1">Enter Customer Response / Requirements Notes *</label>
-                    <textarea
-                      rows={3}
-                      className="crm-input text-xs"
-                      placeholder="e.g. Lead requested quotation for 50 licenses and pricing deck..."
-                      value={callResponseNotes}
-                      onChange={(e) => setCallResponseNotes(e.target.value)}
-                    />
+                {/* Conditional Sub-Selectors */}
+                {/* ⏰ WILL CALL LATER: 15-Day Date Grid & Time Slots */}
+                {selectedCallDisposition === ('Will Talk Later' as any) && (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+                    <label className="text-xs text-amber-400 font-bold block">📅 Select Callback Date (Next 15 Days):</label>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {Array.from({ length: 15 }, (_, i) => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + i);
+                        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                        return (
+                          <button
+                            key={i}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:border-amber-500 whitespace-nowrap"
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <label className="text-xs text-amber-400 font-bold block pt-1">⏰ Select Callback Time Slot:</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['09:30 AM', '11:00 AM', '02:00 PM', '04:30 PM', '06:00 PM'].map((slot) => (
+                        <span key={slot} className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer">
+                          {slot}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {/* 🤝 SAID WILL VISIT: Expected Visit Date Grid */}
+                {selectedCallDisposition === ('Said Will Visit' as any) && (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                    <label className="text-xs text-indigo-400 font-bold block">🏢 Expected Visit Date (Next 15 Days):</label>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                      {Array.from({ length: 15 }, (_, i) => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + i);
+                        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                        return (
+                          <button
+                            key={i}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:border-indigo-500 whitespace-nowrap"
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 💡 INTERESTED: Live Product Selection Box */}
+                {selectedCallDisposition === ('Interested Product' as any) && (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                    <label className="text-xs text-emerald-400 font-bold block">💡 Select Interested Catalog Product:</label>
+                    <div className="space-y-1.5">
+                      {[
+                        { name: 'DAS CRM Enterprise Suite', tier: '₹49,999 / yr' },
+                        { name: 'AI Lead Scoring Engine Pro', tier: '₹14,999 / mo' },
+                        { name: 'WhatsApp Automation Bot Engine', tier: '₹8,999 / mo' },
+                        { name: 'Cloud Telemetry License', tier: '₹4,999 / mo' },
+                      ].map((prod) => (
+                        <div key={prod.name} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer hover:border-emerald-500">
+                          <span className="text-xs font-bold text-white">{prod.name}</span>
+                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">{prod.tier}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Response Notes Box */}
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">📝 Custom Response &amp; Follow-up Notes:</label>
+                  <textarea
+                    rows={3}
+                    className="crm-input text-xs w-full"
+                    placeholder="Enter custom notes e.g. Client agreed to review demo with team tomorrow..."
+                    value={callResponseNotes}
+                    onChange={(e) => setCallResponseNotes(e.target.value)}
+                  />
+                </div>
 
                 <div className="flex justify-end gap-2 pt-2">
                   <button

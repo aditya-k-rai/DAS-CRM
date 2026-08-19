@@ -149,8 +149,13 @@ export default function UserProfilePage() {
         <div className="crm-card p-6 border-l-4 border-l-brand bg-card">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <div className="avatar w-16 h-16 text-xl font-bold bg-brand/20 text-brand-400 border border-brand/30">
-                {currentUser.avatar}
+              <div className="relative group cursor-pointer" title="Update Profile Picture (10-Day Lock Rule Applies)">
+                <div className="avatar w-16 h-16 text-xl font-bold bg-brand/20 text-brand-400 border border-brand/30 shadow-md">
+                  {currentUser.avatar}
+                </div>
+                <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[10px] text-white font-bold">📷 Edit</span>
+                </div>
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -160,6 +165,19 @@ export default function UserProfilePage() {
                   </span>
                 </div>
                 <p className="text-sm text-muted mt-1">{currentUser.email} • {currentUser.companyName}</p>
+
+                {/* Developer Credit Bar */}
+                <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-lg text-xs">
+                  <span className="text-slate-400 font-medium">💻 Lead Developer:</span>
+                  <a
+                    href="https://github.com/aditya-k-rai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-indigo-400 hover:underline flex items-center gap-1"
+                  >
+                    Aditya Kumar Rai <span className="text-[10px] bg-indigo-500/20 px-1 py-0.2 rounded">GitHub ↗</span>
+                  </a>
+                </div>
               </div>
             </div>
 
