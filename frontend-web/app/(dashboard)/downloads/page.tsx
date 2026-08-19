@@ -64,10 +64,14 @@ export default function DownloadsPage() {
   // Edit form state for Super Admin
   const [editVersion, setEditVersion] = useState('');
   const [editAndroidUrl, setEditAndroidUrl] = useState('');
+  const [editAndroidSize, setEditAndroidSize] = useState('24.8 MB');
   const [editMacUrl, setEditMacUrl] = useState('');
+  const [editMacSize, setEditMacSize] = useState('68.5 MB');
   const [editTitle, setEditTitle] = useState('');
   const [editMarkdown, setEditMarkdown] = useState('');
   const [downloadMsg, setDownloadMsg] = useState('');
+  const [apkUploadStatus, setApkUploadStatus] = useState('');
+  const [dmgUploadStatus, setDmgUploadStatus] = useState('');
 
   const currentRole = normalizeRoleStr(currentUser?.role);
   const canManageRelease = currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN';
@@ -86,9 +90,13 @@ export default function DownloadsPage() {
   const openEditor = () => {
     setEditVersion(release.version);
     setEditAndroidUrl(release.androidApkUrl);
+    setEditAndroidSize(release.androidSize);
     setEditMacUrl(release.macDmgUrl);
+    setEditMacSize(release.macSize);
     setEditTitle(release.readmeTitle);
     setEditMarkdown(release.readmeMarkdown);
+    setApkUploadStatus('');
+    setDmgUploadStatus('');
     setEditModalOpen(true);
   };
 
@@ -97,14 +105,16 @@ export default function DownloadsPage() {
       ...release,
       version: editVersion,
       androidApkUrl: editAndroidUrl,
+      androidSize: editAndroidSize,
       macDmgUrl: editMacUrl,
+      macSize: editMacSize,
       readmeTitle: editTitle,
       readmeMarkdown: editMarkdown,
     };
     setRelease(updated);
     localStorage.setItem('das_crm_release_info', JSON.stringify(updated));
     setEditModalOpen(false);
-    alert('✅ Release Readme & Download URLs updated successfully!');
+    alert('✅ Release Readme, APK & DMG Files updated successfully!');
   };
 
   const handleDownloadAndroid = () => {
@@ -292,24 +302,78 @@ export default function DownloadsPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Android APK Direct Download URL</label>
+              {/* 🤖 ANDROID APK FILE UPLOADER */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-emerald-400 font-extrabold flex items-center gap-1.5">
+                    <span>🤖 Upload New Android APK File (.apk)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">{editAndroidSize}</span>
+                </div>
                 <input
-                  type="text"
-                  value={editAndroidUrl}
-                  onChange={e => setEditAndroidUrl(e.target.value)}
-                  className="crm-input w-full text-xs font-mono bg-slate-950 text-emerald-400"
+                  type="file"
+                  accept=".apk"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const sizeMb = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                      const blobUrl = URL.createObjectURL(file);
+                      setEditAndroidUrl(blobUrl);
+                      setEditAndroidSize(sizeMb);
+                      setApkUploadStatus(`✅ Uploaded ${file.name} (${sizeMb})`);
+                    }
+                  }}
+                  className="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-extrabold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
                 />
+                {apkUploadStatus && (
+                  <p className="text-[11px] text-emerald-400 font-bold">{apkUploadStatus}</p>
+                )}
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold mb-0.5">Direct APK Download URL</label>
+                  <input
+                    type="text"
+                    value={editAndroidUrl}
+                    onChange={e => setEditAndroidUrl(e.target.value)}
+                    className="crm-input w-full text-xs font-mono bg-slate-900 text-emerald-400"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Mac DMG Direct Download URL</label>
+              {/* 🍏 MAC DMG FILE UPLOADER */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-sky-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sky-400 font-extrabold flex items-center gap-1.5">
+                    <span>🍏 Upload New Mac Desktop App File (.dmg, .zip)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">{editMacSize}</span>
+                </div>
                 <input
-                  type="text"
-                  value={editMacUrl}
-                  onChange={e => setEditMacUrl(e.target.value)}
-                  className="crm-input w-full text-xs font-mono bg-slate-950 text-sky-400"
+                  type="file"
+                  accept=".dmg,.zip,.pkg"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const sizeMb = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                      const blobUrl = URL.createObjectURL(file);
+                      setEditMacUrl(blobUrl);
+                      setEditMacSize(sizeMb);
+                      setDmgUploadStatus(`✅ Uploaded ${file.name} (${sizeMb})`);
+                    }
+                  }}
+                  className="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-extrabold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer"
                 />
+                {dmgUploadStatus && (
+                  <p className="text-[11px] text-sky-400 font-bold">{dmgUploadStatus}</p>
+                )}
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold mb-0.5">Direct DMG Download URL</label>
+                  <input
+                    type="text"
+                    value={editMacUrl}
+                    onChange={e => setEditMacUrl(e.target.value)}
+                    className="crm-input w-full text-xs font-mono bg-slate-900 text-sky-400"
+                  />
+                </div>
               </div>
 
               <div>
@@ -325,7 +389,7 @@ export default function DownloadsPage() {
               <div>
                 <label className="block text-slate-300 font-bold mb-1">Readme Markdown / Update Features Text</label>
                 <textarea
-                  rows={8}
+                  rows={6}
                   value={editMarkdown}
                   onChange={e => setEditMarkdown(e.target.value)}
                   className="crm-input w-full text-xs font-mono bg-slate-950 text-slate-200"
