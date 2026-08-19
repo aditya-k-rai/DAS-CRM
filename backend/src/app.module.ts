@@ -29,8 +29,13 @@ import { BillingModule } from './modules/billing/billing.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
-    BullModule.forRoot({
-      redis: { host: 'localhost', port: 6379 },
+    BullModule.forRootAsync({
+      useFactory: () => ({
+        redis: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        },
+      }),
     }),
     PrismaModule,
     AuthModule,

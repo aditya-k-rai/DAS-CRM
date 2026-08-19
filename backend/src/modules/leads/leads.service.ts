@@ -337,14 +337,26 @@ export class LeadsService {
   async getAdminPoolMasterView(organizationId: string) {
     const leads = await this.prisma.lead.findMany({
       where: { organizationId },
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        ownerId: true,
+        lastActivityAt: true,
+        updatedAt: true,
+        createdAt: true,
         owner: { select: { id: true, firstName: true, lastName: true, email: true, role: { select: { name: true } } } },
         status: { select: { id: true, name: true, color: true } },
         source: { select: { id: true, name: true } },
         activities: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          include: { user: { select: { firstName: true, lastName: true } } },
+          select: {
+            description: true,
+            user: { select: { firstName: true, lastName: true } },
+          },
         },
       },
       orderBy: { updatedAt: 'desc' },

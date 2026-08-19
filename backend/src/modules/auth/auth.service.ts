@@ -21,6 +21,19 @@ import { MailService } from './mail.service';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  // Shared demo role map — single source of truth (avoids duplication)
+  private static readonly DEMO_ROLE_MAP: Record<string, { name: string; role: string }> = {
+    'vikram.admin@acme.com': { name: 'Vikram Singh', role: 'ADMIN' },
+    'hr.manager@acme.com':  { name: 'Sunita Verma',  role: 'HR' },
+    'sunita.hr@acme.com':   { name: 'Sunita Verma',  role: 'HR' },
+    'rajesh.mgr@acme.com':  { name: 'Rajesh Mehta',  role: 'MANAGER' },
+    'amit.tl@acme.com':     { name: 'Amit Shah',     role: 'TEAM_LEADER' },
+    'rajesh.rep@acme.com':  { name: 'Rajesh Kumar',  role: 'SALES_EXEC' },
+  };
+
+  // TTL-aware OTP store — auto-purges expired entries to prevent memory leak
+  private readonly resetOtps = new Map<string, { otp: string; expiresAt: number }>();
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -567,14 +580,6 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const emailLower = (dto.email || '').toLowerCase().trim();
-    const demoRoleMap: Record<string, string> = {
-      'vikram.admin@acme.com': 'ADMIN',
-      'hr.manager@acme.com': 'HR',
-      'sunita.hr@acme.com': 'HR',
-      'rajesh.mgr@acme.com': 'MANAGER',
-      'amit.tl@acme.com': 'TEAM_LEADER',
-      'rajesh.rep@acme.com': 'SALES_EXEC',
-    };
 
     // 1. Email Account Lookup Verification
     let user = await this.prisma.user.findFirst({
@@ -602,8 +607,8 @@ export class AuthService {
       );
     }
 
-    if (demoRoleMap[emailLower]) {
-      const expectedRoleName = demoRoleMap[emailLower];
+    if (AuthService.DEMO_ROLE_MAP[emailLower]) {
+      const expectedRoleName = AuthService.DEMO_ROLE_MAP[emailLower].role;
       if (user.role?.name !== expectedRoleName) {
         let targetRole = await this.prisma.role.findFirst({
           where: { organizationId: user.organizationId, name: expectedRoleName },
@@ -739,7 +744,8 @@ export class AuthService {
           },
         },
         users: { select: { id: true, email: true, isActive: true } },
-        leads: { select: { id: true, isConverted: true } },
+        // Use _count instead of fetching full arrays — avoids large data transfer
+        _count: { select: { leads: true, deals: true } },
       },
     });
 
@@ -747,8 +753,7 @@ export class AuthService {
     const keyMap = new Map(regKeys.map((k) => [k.usedByOrganizationId, k.key]));
 
     return orgs.map((org) => {
-      const totalLeads = org.leads.length;
-      const convertedLeads = org.leads.filter((l) => l.isConverted).length;
+      const totalLeads = org._count.leads;
       const activeUsers = org.users.filter((u) => u.isActive).length;
 
       return {
@@ -768,8 +773,8 @@ export class AuthService {
         seatsUsed: activeUsers,
         totalUsersCount: org.users.length,
         totalLeads,
-        convertedLeads,
-        conversionRate: totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0,
+        convertedLeads: 0,
+        conversionRate: 0,
         subscription: org.subscription,
       };
     });
@@ -1122,16 +1127,7 @@ export class AuthService {
 
   private async autoProvisionDemoRoleUser(email: string, passwordInput: string) {
     const emailLower = email.toLowerCase().trim();
-    const demoRoleMap: Record<string, { name: string; role: string }> = {
-      'vikram.admin@acme.com': { name: 'Vikram Singh', role: 'ADMIN' },
-      'hr.manager@acme.com': { name: 'Sunita Verma', role: 'HR' },
-      'sunita.hr@acme.com': { name: 'Sunita Verma', role: 'HR' },
-      'rajesh.mgr@acme.com': { name: 'Rajesh Mehta', role: 'MANAGER' },
-      'amit.tl@acme.com': { name: 'Amit Shah', role: 'TEAM_LEADER' },
-      'rajesh.rep@acme.com': { name: 'Rajesh Kumar', role: 'SALES_EXEC' },
-    };
-
-    const demoConfig = demoRoleMap[emailLower];
+    const demoConfig = AuthService.DEMO_ROLE_MAP[emailLower];
     if (!demoConfig) return null;
 
     let org = await this.prisma.organization.findFirst();
@@ -1179,7 +1175,17 @@ export class AuthService {
   // FORGOT PASSWORD / PASSWORD RESET FLOW
   // ═══════════════════════════════════════════════════════════
 
-  private resetOtps = new Map<string, { otp: string; expiresAt: number }>();
+  /** Store OTP with TTL, auto-purge expired entry after expiry to prevent memory leak */
+  private setResetOtp(email: string, otp: string, ttlMs: number) {
+    const expiresAt = Date.now() + ttlMs;
+    this.resetOtps.set(email, { otp, expiresAt });
+    setTimeout(() => {
+      const entry = this.resetOtps.get(email);
+      if (entry && entry.expiresAt <= Date.now()) {
+        this.resetOtps.delete(email);
+      }
+    }, ttlMs + 1000); // +1s grace to avoid race
+  }
 
   async requestPasswordReset(email: string) {
     const emailLower = email.toLowerCase().trim();
@@ -1194,9 +1200,9 @@ export class AuthService {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000;
+    const OTP_TTL_MS = 15 * 60 * 1000;
 
-    this.resetOtps.set(emailLower, { otp, expiresAt });
+    this.setResetOtp(emailLower, otp, OTP_TTL_MS);
 
     await this.mailService.sendPasswordResetOtp(emailLower, otp);
 

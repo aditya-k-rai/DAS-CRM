@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
 export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX' | 'ENTERPRISE';
@@ -160,10 +160,6 @@ export function normalizeRoleStr(r?: any): UserRole {
   if (norm === 'TEAM_LEADER' || norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
   if (norm === 'SALES_EXEC' || norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP' || norm === 'SALES' || norm === 'USER' || norm === 'VIEWER') return 'SALES_EXEC';
 
-  if (norm === 'SUPER_ADMIN' || norm === 'ADMIN' || norm === 'HR' || norm === 'MANAGER' || norm === 'TEAM_LEADER' || norm === 'SALES_EXEC') {
-    return norm as UserRole;
-  }
-
   return 'ADMIN';
 }
 
@@ -223,33 +219,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const [roleTransitionLock, setRoleTransitionLock] = useState<RoleTransitionLock | null>(null);
 
+  // localStorage hydration is fully handled by the lazy useState initializer above.
+  // Only the plan-enforcement side-effect needs a useEffect.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('nexcrm_user');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (parsed && (parsed.role || parsed.email)) {
-            parsed.role = normalizeRoleStr(parsed.role || inferRoleFromEmail(parsed.email));
-            if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
-              parsed.role = 'ADMIN';
-            }
-            setCurrentUser(parsed);
-          }
-        } catch (e) {}
-      } else {
-        const roleStr = localStorage.getItem('nexcrm_active_role');
-        const safeRole = normalizeRoleStr(roleStr);
-        setCurrentUser(DEMO_USERS[safeRole] || DEMO_USERS.ADMIN);
-      }
-
-      const tok = localStorage.getItem('nexcrm_token');
-      if (tok) setToken(tok);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Sync features when plan changes
     if (subscription.planType === 'FREE_TRIAL') {
       setSubscription(prev => ({
         ...prev,
@@ -288,21 +260,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSubscription(prev => ({ ...prev, hasTeamLeaders: hasTL }));
   };
 
-  const canEdit = (): boolean => {
+  const canEdit = useCallback((): boolean => {
     if (currentUser.role === 'SUPER_ADMIN') return true;
     if (roleTransitionLock) return false; // Lock out edits during 24hr transition
     if (subscription.isExpired) return false;
     return true;
-  };
+  }, [currentUser.role, roleTransitionLock, subscription.isExpired]);
 
-  const canAccessFeature = (feat: keyof CompanySubscription['features']): boolean => {
+  const canAccessFeature = useCallback((feat: keyof CompanySubscription['features']): boolean => {
     if (currentUser.role === 'SUPER_ADMIN') return true;
     // Hard block WhatsApp and Email Automation on FREE_TRIAL
     if (subscription.planType === 'FREE_TRIAL' && (feat === 'whatsApp' || feat === 'emailAutomation')) {
       return false;
     }
     return !!subscription.features[feat];
-  };
+  }, [currentUser.role, subscription.planType, subscription.features]);
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
@@ -360,7 +332,7 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
     return {
-      currentUser: DEMO_USERS.SUPER_ADMIN,
+      currentUser: DEMO_USERS.ADMIN,
       subscription: MOCK_COMPANY_SUB,
       token: null,
       roleTransitionLock: null,

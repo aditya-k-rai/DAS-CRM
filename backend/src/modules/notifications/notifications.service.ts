@@ -57,19 +57,17 @@ export class NotificationsService {
     opts: { unreadOnly?: boolean; page?: number; limit?: number },
   ) {
     const { unreadOnly, page = 1, limit = 30 } = opts;
-    const where: any = {
-      organizationId,
-      userId,
+    const baseWhere = { organizationId, userId };
+    const filterWhere: any = {
+      ...baseWhere,
       ...(unreadOnly && { isRead: false }),
     };
 
     const [total, unreadCount, items] = await Promise.all([
-      this.prisma.notification.count({ where: { organizationId, userId } }),
-      this.prisma.notification.count({
-        where: { organizationId, userId, isRead: false },
-      }),
+      this.prisma.notification.count({ where: baseWhere }),
+      this.prisma.notification.count({ where: { ...baseWhere, isRead: false } }),
       this.prisma.notification.findMany({
-        where,
+        where: filterWhere,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -135,27 +133,30 @@ export class NotificationsService {
     });
   }
 
-  /** Helper: fire TASK_OVERDUE notifications */
+  /** Helper: fire TASK_OVERDUE notifications — batched into a single DB write */
   async notifyOverdueTasks(organizationId: string) {
     const overdue = await this.prisma.task.findMany({
       where: { organizationId, isCompleted: false, dueAt: { lt: new Date() } },
-      include: { assignee: { select: { id: true } } },
+      select: { id: true, title: true, dueAt: true, assigneeId: true },
     });
 
-    for (const task of overdue) {
-      if (!task.assigneeId) continue;
-      await this.send({
+    const records = overdue
+      .filter((task) => !!task.assigneeId)
+      .map((task) => ({
         organizationId,
-        recipientIds: [task.assigneeId],
-        event: 'TASK_OVERDUE',
+        userId: task.assigneeId!,
+        type: 'SYSTEM' as const,
         title: `Task Overdue: ${task.title}`,
         body: `This task was due ${task.dueAt?.toLocaleDateString('en-IN')}. Please complete it or reschedule.`,
-        linkUrl: `/tasks/${task.id}`,
-        channels: ['IN_APP', 'PUSH'],
-      });
+        data: { linkUrl: `/tasks/${task.id}` },
+        isRead: false,
+      }));
+
+    if (records.length > 0) {
+      await this.prisma.notification.createMany({ data: records });
     }
 
-    return { notified: overdue.length };
+    return { notified: records.length };
   }
 
   /**

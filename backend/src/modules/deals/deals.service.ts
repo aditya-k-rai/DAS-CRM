@@ -101,12 +101,12 @@ export class DealsService {
   }
 
   async moveDeal(organizationId: string, dealId: string, stageId: string) {
-    const deal = await this.prisma.deal.findFirst({
-      where: { id: dealId, organizationId },
-    });
+    // Fetch deal and its target stage in a single query
+    const [deal, stage] = await Promise.all([
+      this.prisma.deal.findFirst({ where: { id: dealId, organizationId } }),
+      this.prisma.stage.findFirst({ where: { id: stageId } }),
+    ]);
     if (!deal) throw new NotFoundException('Deal not found');
-
-    const stage = await this.prisma.stage.findFirst({ where: { id: stageId } });
     if (!stage) throw new NotFoundException('Stage not found');
 
     const isWon = stage.name.toLowerCase().includes('won');

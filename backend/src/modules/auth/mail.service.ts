@@ -10,6 +10,9 @@ export class MailService {
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587', 10),
       secure: false,
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
       auth: {
         user: process.env.SMTP_USER || 'adtyamighty@gmail.com',
         pass: process.env.SMTP_PASS || '',
