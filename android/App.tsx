@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
@@ -150,6 +150,7 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
 
 export default function App() {
   const { token, currentUser, logout } = useAuthStore();
+  const navigationRef = useNavigationContainerRef();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
@@ -253,7 +254,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
         ) : (
@@ -261,7 +262,7 @@ export default function App() {
             onOpenDrawer={openDrawer}
             onOpenProfile={() => setProfileModalOpen(true)}
             onOpenUpdateModal={() => setUpdateModalOpen(true)}
-            navigation={{ navigate: () => {} }}
+            navigation={{ navigate: (name: string, params?: any) => (navigationRef as any).navigate(name, params) }}
           />
         )}
       </NavigationContainer>
@@ -317,11 +318,11 @@ export default function App() {
               </View>
 
               {[
-                { icon: '🎯', label: 'Leads Directory', badge: 'LIVE', action: () => closeDrawer() },
-                { icon: '⚡', label: 'Leads Funnel Customization', badge: '3-MODEL', action: () => closeDrawer(() => Alert.alert('Funnel Customization', 'Opening 3-model lead routing & quota setup.')) },
-                { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => Alert.alert('Deals Pipeline', 'Navigating to Deals Kanban pipeline.')) },
-                { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => Alert.alert('Quotations', 'Opening Quotation Builder.')) },
-                { icon: '📦', label: 'Products & Services Catalog', badge: '', action: () => closeDrawer(() => Alert.alert('Catalog', 'Opening Products Catalog.')) },
+                { icon: '🎯', label: 'Leads Directory', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                { icon: '⚡', label: 'Leads Funnel Customization', badge: '3-MODEL', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
+                { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                { icon: '📦', label: 'Products & Services Catalog', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'PRODUCTS' })) },
               ].map((item, idx) => (
                 <TouchableOpacity key={idx} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
                   <View style={styles.drawerItemIconBox}>
@@ -343,10 +344,10 @@ export default function App() {
               </View>
 
               {[
-                { icon: '💬', label: 'Communications Hub', action: () => closeDrawer(() => Alert.alert('Comms Hub', 'Opening WhatsApp & Call logs audit.')) },
-                { icon: '📧', label: 'Email Marketing & Templates', action: () => closeDrawer(() => Alert.alert('Email Marketing', 'Opening Email templates.')) },
-                { icon: '🎯', label: 'Goals & Targets', action: () => closeDrawer(() => Alert.alert('Goals', 'Opening Target progress tracking.')) },
-                { icon: '⏱️', label: 'Attendance & HR Audit', action: () => closeDrawer() },
+                { icon: '💬', label: 'Communications Hub', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                { icon: '📧', label: 'Email Marketing & Templates', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                { icon: '🎯', label: 'Goals & Targets', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'GOALS' })) },
+                { icon: '⏱️', label: 'Attendance & HR Audit', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
               ].map((item, idx) => (
                 <TouchableOpacity key={idx} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
                   <View style={styles.drawerItemIconBox}>

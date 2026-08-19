@@ -149,14 +149,9 @@ class ApiService {
     }
   }
 
-  /** Record attendance punch (/attendance/punch) */
-  async recordAttendancePunch(
-    token: string | null,
-    punchType: 'PUNCH_IN' | 'PUNCH_OUT',
-    gpsCoordinates: string,
-    selfieImage?: string
-  ): Promise<boolean> {
-    if (!token) return true;
+  /** Record attendance punch in / punch out (/attendance/punch) */
+  async recordAttendancePunch(token: string | null, payload: { type: 'IN' | 'OUT'; location?: string; image?: string }) {
+    if (!token) return { success: true, timestamp: new Date().toISOString() };
     try {
       const res = await fetch(`${API_BASE}/attendance/punch`, {
         method: 'POST',
@@ -164,17 +159,67 @@ class ApiService {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          punchType,
-          gpsCoordinates,
-          selfieImage: selfieImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
-          timestamp: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
-      return res.ok;
-    } catch {
-      return true;
-    }
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    return { success: true, timestamp: new Date().toISOString() };
+  }
+
+  /** Fetch Products Catalog (/products) */
+  async getProducts(token: string | null) {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/products`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  /** Create Product Item (/products) */
+  async createProduct(token: string | null, product: any) {
+    if (!token) return product;
+    try {
+      const res = await fetch(`${API_BASE}/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(product),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return product;
+  }
+
+  /** Fetch Quotations and Invoices (/quotations) */
+  async getQuotations(token: string | null) {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/quotations`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  /** Create Quotation Invoice (/quotations) */
+  async createQuotation(token: string | null, quotation: any) {
+    if (!token) return quotation;
+    try {
+      const res = await fetch(`${API_BASE}/quotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(quotation),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return quotation;
   }
 }
 
