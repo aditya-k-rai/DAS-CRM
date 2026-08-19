@@ -40,14 +40,20 @@ DAS CRM operates as a high-throughput, horizontally scalable monorepo platform. 
 
 ```mermaid
 graph TD
-    ClientWeb["🌐 Next.js 16 Web App<br/>(Tenant Dashboards & CRM Portal)"]
-    ClientSuperAdmin["🛡️ Next.js 16 SuperAdmin Control Plane<br/>(Developer Management Portal)"]
-    ClientMobile["📱 Expo / React Native App<br/>(Android Dialer & Field App)"]
+    ClientWeb["🌐 Next.js 16 Web App
+(Tenant Dashboards and CRM Portal)"]
+    ClientSuperAdmin["🛡️ Next.js 16 SuperAdmin Control Plane
+(Developer Management Portal)"]
+    ClientMobile["📱 Expo / React Native App
+(Android Dialer and Field App)"]
 
-    Gateway["🔒 NestJS API Gateway & Microservices<br/>(JWT Guards, RBAC, Rate Limiting)"]
+    Gateway["🔒 NestJS API Gateway and Microservices
+(JWT Guards, RBAC, Rate Limiting)"]
 
-    DB[(🗄️ PostgreSQL Database<br/>Prisma ORM Scoped Tenant Models)]
-    Storage["☁️ Object Storage & Webhooks<br/>(Meta Ads, Google Ads, WhatsApp)"]
+    DB[("🗄️ PostgreSQL Database
+Prisma ORM Scoped Tenant Models")]
+    Storage["☁️ Object Storage and Webhooks
+(Meta Ads, Google Ads, WhatsApp)"]
 
     ClientWeb -->|HTTPS / REST API| Gateway
     ClientSuperAdmin -->|HTTPS / REST API| Gateway
@@ -105,9 +111,9 @@ Password / Google    --------> Standard: Verify Password Hash. Google OAuth: Ema
 graph TD
     Start([Workspace Login Request]) --> Step1{1. Verify Company Name in Database?}
     Step1 -- Invalid/Inactive --> Err1[400/403 Company Workspace Inactive]
-    Step1 -- Valid --> Step2{2. Verify Key Status & Plan Tier?}
+    Step1 -- Valid --> Step2{2. Verify Key Status and Plan Tier?}
     Step2 -- Revoked/Expired --> Err2[403 Key Revoked or Expired]
-    Step2 -- Valid --> Step3{3. Verify Email, User Status & Role?}
+    Step2 -- Valid --> Step3{3. Verify Email, User Status and Role?}
     Step3 -- Inactive User --> Err3[403 User Account Deactivated]
     Step3 -- Valid --> AuthMode{4. Auth Mode?}
     AuthMode -- Standard Password --> VerifyPass{Verify Bcrypt Hash?}
@@ -157,12 +163,12 @@ NexCRM employs fine-grained Role-Based Access Control (RBAC) augmented with Attr
 
 ```mermaid
 graph TD
-    SA["🛡️ SUPER_ADMIN (Platform Developer Control Plane)"]
-    OWN["👑 OWNER / TENANT ADMIN (Organization Owner)"]
-    HR["📊 HR ADMIN (Call & Attendance Auditor)"]
-    MGR["👔 MANAGER (Department Lead)"]
-    TL["🧢 TEAM_LEADER (Sub-team Lead)"]
-    SLS["💼 SALES / MARKETING / SUPPORT (Field Agent)"]
+    SA["🛡️ SUPER_ADMIN - Platform Developer Control Plane"]
+    OWN["👑 OWNER / TENANT ADMIN - Organization Owner"]
+    HR["📊 HR ADMIN - Call and Attendance Auditor"]
+    MGR["👔 MANAGER - Department Lead"]
+    TL["🧢 TEAM_LEADER - Sub-team Lead"]
+    SLS["💼 SALES / MARKETING / SUPPORT - Field Agent"]
 
     SA -.->|Platform Global Control| OWN
     OWN -->|Full Tenant Governance| HR
@@ -235,13 +241,21 @@ NexCRM accommodates diverse sales operational models via three distinct automate
 
 ```mermaid
 flowchart TD
-    Ingress[Lead Ingested via Webhook / CSV / Ad Campaign] --> CheckModel{Tenant Active Distribution Model}
+    Ingress["Lead Ingested via Webhook / CSV / Ad Campaign"] --> CheckModel{Tenant Active Distribution Model}
 
-    CheckModel -- Model 1: Custom Batch Quota --> BatchCalc[Calculate Quota Ranges<br/>Leads 1-100 -> Manager A<br/>Leads 101-200 -> Manager B] --> AssignBatch[Assign Lead to Batch Owner]
+    CheckModel -- "Model 1: Custom Batch Quota" --> BatchCalc["Calculate Quota Ranges
+Leads 1-100 to Manager A
+Leads 101-200 to Manager B"]
+    BatchCalc --> AssignBatch[Assign Lead to Batch Owner]
 
-    CheckModel -- Model 2: Dynamic Grab Flow --> GrabPool[Place in Anonymized Serial Pool<br/>Hide Contact Identifiers] --> FirstView{First Agent Clicks 'Grab'?} -->|Acquired| LockLead[Assign & Reveal Details<br/>Remove from Pool for Others]
+    CheckModel -- "Model 2: Dynamic Grab Flow" --> GrabPool["Place in Anonymized Serial Pool
+Hide Contact Identifiers"]
+    GrabPool --> FirstView{First Agent Clicks Grab?}
+    FirstView -->|Acquired| LockLead["Assign and Reveal Details
+Remove from Pool for Others"]
 
-    CheckModel -- Model 3: Direct Admin Funnel --> AdminQueue[Place in Admin Allocation Queue] --> ManualAssign[Tenant Admin Manually Target Assigns]
+    CheckModel -- "Model 3: Direct Admin Funnel" --> AdminQueue[Place in Admin Allocation Queue]
+    AdminQueue --> ManualAssign[Tenant Admin Manually Target Assigns]
 ```
 
 1. **Model 1: Custom Batch Quota Model**:
