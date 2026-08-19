@@ -13,6 +13,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole } from '../store/authStore';
@@ -32,6 +34,10 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
   const [lastSyncTime, setLastSyncTime] = useState('Today, 5:12 PM');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTestingConn, setIsTestingConn] = useState(false);
+
+  // 🚀 Plans Growth, Pro & Max Modal State
+  const [plansModalOpen, setPlansModalOpen] = useState(false);
+  const [selectedPlanTier, setSelectedPlanTier] = useState<'GROWTH' | 'PRO' | 'MAX'>('PRO');
 
   const handleLogout = async () => {
     await logout();
@@ -236,13 +242,24 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
             <Text style={styles.infoValue}>{(currentUser as any).company || 'Acme Sales Solutions'}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Assigned Superior / TL</Text>
-            <Text style={styles.infoValue}>Vikram Singh (Admin)</Text>
+            <Text style={styles.infoLabel}>Current Active Plan</Text>
+            <Text style={[styles.infoValue, { color: planColor, fontWeight: '800' }]}>{subscription.planType.replace('_', ' ')}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Tenant Domain ID</Text>
             <Text style={[styles.infoValue, { color: '#818cf8', fontFamily: 'monospace' }]}>acme-das-crm.app</Text>
           </View>
+
+          {/* 🚀 UPGRADE PLAN BUTTON FOR ADMIN */}
+          {(role === 'ADMIN' || role === 'SUPER_ADMIN') && (
+            <TouchableOpacity
+              style={styles.upgradePlanBannerBtn}
+              onPress={() => setPlansModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.upgradePlanBannerText}>🚀 Upgrade Subscription Plan (Growth, Pro &amp; Max) →</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── 3. ROLE TELEMETRY & PERFORMANCE ──────────────────────────────── */}
@@ -379,6 +396,116 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
           <Text style={styles.logoutButtonText}>🚪 Sign Out of Workspace</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 🚀 SUBSCRIPTION UPGRADE PLANS MODAL (GROWTH, PRO & MAX)                   */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={plansModalOpen} transparent animationType="slide">
+        <View style={styles.planModalOverlay}>
+          <View style={styles.planModalCard}>
+            
+            {/* Header */}
+            <View style={styles.planHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.planModalTitle}>🚀 Upgrade Workspace Plan</Text>
+                <Text style={styles.planModalSub}>Select Growth, Pro, or Max plan to unlock WhatsApp &amp; Email quotas.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setPlansModalOpen(false)} style={styles.planCloseBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              
+              {/* 🌱 1. GROWTH PLAN CARD */}
+              <TouchableOpacity
+                style={[styles.planCardOption, selectedPlanTier === 'GROWTH' && styles.planCardOptionActive]}
+                onPress={() => setSelectedPlanTier('GROWTH')}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: '#34d399' }}>🌱 GROWTH PLAN</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>₹999 + GST / mo</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, fontWeight: '700' }}>👥 Total 6 Users Quota (Tenant Admin included)</Text>
+
+                <View style={{ marginTop: 6, gap: 2 }}>
+                  <Text style={styles.planFeatureLine}>• Small AI Model &amp; Normal AI Lead Scoring</Text>
+                  <Text style={styles.planFeatureLine}>• Basic Workflow Automations &amp; Core CRM</Text>
+                  <Text style={styles.planFeatureLine}>• Standard Reports &amp; CSV Export</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* ⭐ 2. PRO PLAN CARD */}
+              <TouchableOpacity
+                style={[styles.planCardOption, selectedPlanTier === 'PRO' && styles.planCardOptionActivePro]}
+                onPress={() => setSelectedPlanTier('PRO')}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '900', color: '#818cf8' }}>⭐ PRO PLAN</Text>
+                    <View style={styles.popularTag}><Text style={styles.popularTagText}>POPULAR</Text></View>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>₹2,499 + GST / mo</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, fontWeight: '700' }}>👥 Total 22 Users Quota</Text>
+
+                <View style={{ marginTop: 6, gap: 2 }}>
+                  <Text style={styles.planFeatureLine}>• Includes ALL Growth Plan Features</Text>
+                  <Text style={[styles.planFeatureLine, { color: '#38bdf8', fontWeight: '800' }]}>• WhatsApp Cloud API: 10,000 Msgs / month Quota</Text>
+                  <Text style={[styles.planFeatureLine, { color: '#fbbf24', fontWeight: '800' }]}>• Email Marketing: 3,000 Mails / month Quota</Text>
+                  <Text style={styles.planFeatureLine}>• Basic Workflow Automations &amp; HR Portal</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* 👑 3. MAX PLAN CARD */}
+              <TouchableOpacity
+                style={[styles.planCardOption, selectedPlanTier === 'MAX' && styles.planCardOptionActiveMax]}
+                onPress={() => setSelectedPlanTier('MAX')}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: '#c084fc' }}>👑 MAX PLAN</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>₹4,999 + GST / mo</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, fontWeight: '700' }}>👥 Total 60 Users Quota</Text>
+
+                <View style={{ marginTop: 6, gap: 2 }}>
+                  <Text style={styles.planFeatureLine}>• Includes ALL Pro Plan Features</Text>
+                  <Text style={[styles.planFeatureLine, { color: '#38bdf8', fontWeight: '800' }]}>• WhatsApp Cloud API: 100,000 Msgs / month Quota</Text>
+                  <Text style={[styles.planFeatureLine, { color: '#fbbf24', fontWeight: '800' }]}>• Email Marketing: 50,000 Mails / month Quota</Text>
+                  <Text style={[styles.planFeatureLine, { color: '#c084fc', fontWeight: '800' }]}>• Advanced AI Customization &amp; Control</Text>
+                  <Text style={styles.planFeatureLine}>• Advanced Enterprise Workflow Automations</Text>
+                </View>
+              </TouchableOpacity>
+
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={styles.redirectWebBtn}
+                onPress={() => {
+                  setPlansModalOpen(false);
+                  const webUrl = `https://das-crm-app.com/billing?plan=${selectedPlanTier}`;
+                  Linking.openURL(webUrl).catch(() => {
+                    Linking.openURL(`http://localhost:3000/billing?plan=${selectedPlanTier}`).catch(() => {});
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.redirectWebBtnText}>💳 Upgrade to {selectedPlanTier} on Website →</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.cancelPlanBtn} onPress={() => setPlansModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 11 }}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -492,4 +619,37 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoutButtonText: { color: '#ef4444', fontSize: 13, fontWeight: '800' },
+
+  // Upgrade Plan Styles
+  upgradePlanBannerBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    borderWidth: 1,
+    borderColor: '#4f46e5',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  upgradePlanBannerText: { color: '#818cf8', fontSize: 12, fontWeight: '800' },
+
+  planModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  planModalCard: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  planHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
+  planModalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
+  planModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  planCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+
+  planCardOption: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12, marginBottom: 10 },
+  planCardOptionActive: { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.08)' },
+  planCardOptionActivePro: { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)' },
+  planCardOptionActiveMax: { borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.08)' },
+
+  popularTag: { backgroundColor: 'rgba(99,102,241,0.2)', borderWidth: 1, borderColor: '#4f46e5', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  popularTagText: { color: '#818cf8', fontSize: 8, fontWeight: '900' },
+  planFeatureLine: { fontSize: 10, color: '#cbd5e1' },
+
+  redirectWebBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  redirectWebBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+  cancelPlanBtn: { paddingVertical: 8, alignItems: 'center' },
 });

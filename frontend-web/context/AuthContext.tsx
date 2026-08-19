@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
-export type PlanType = 'FREE_TRIAL' | 'STARTER' | 'BASIC' | 'PRO' | 'PRO_50' | 'PRO_MAX' | 'ENTERPRISE';
+export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX' | 'ENTERPRISE';
 
 export interface CompanySubscription {
   id: string;

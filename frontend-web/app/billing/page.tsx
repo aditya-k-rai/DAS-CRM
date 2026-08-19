@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Zap, Check, Shield, AlertTriangle, ArrowRight, Lock, CheckCircle2,
@@ -15,85 +15,73 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const p = params.get('plan')?.toUpperCase();
+      if (p === 'GROWTH' || p === 'PRO' || p === 'MAX') {
+        setSelectedPlan(p as PlanType);
+      }
+    }
+  }, []);
+
   const PLANS = [
     {
-      id: 'STARTER',
-      name: 'Starter Plan',
-      price: '₹1,999',
+      id: 'GROWTH',
+      name: '🌱 Growth Plan',
+      price: '₹999',
+      taxNote: '+ 18% GST (Total ₹1,178.82)',
       period: '/ month',
-      seats: '6 Users Quota',
-      seatNote: 'Tenant Admin not counted in quota',
-      description: 'Ideal for small growing sales teams.',
+      seats: 'Total 6 Users Quota',
+      seatNote: 'Tenant Admin included',
+      description: 'Basic CRM features with Small AI model scoring.',
       features: [
         { name: 'Core CRM & Pipeline Management', enabled: true },
         { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'WhatsApp Integration', enabled: true },
-        { name: 'Email Marketing Campaigns', enabled: true },
-        { name: 'AI Lead Scoring & Assist', enabled: false },
+        { name: 'Small AI Model & Normal AI Scoring', enabled: true },
+        { name: 'Basic Automations', enabled: true },
+        { name: 'Standard Lead Reports & Export', enabled: true },
+        { name: 'WhatsApp Cloud API Quota', enabled: false },
+        { name: 'Email Marketing Campaigns', enabled: false },
       ],
     },
     {
       id: 'PRO',
-      name: 'Pro Plan',
-      price: '₹4,999',
+      name: '⭐ Pro Plan',
+      price: '₹2,499',
+      taxNote: '+ 18% GST (Total ₹2,948.82)',
       period: '/ month',
       popular: true,
-      seats: '20 Users Quota',
-      seatNote: 'Tenant Admin not counted in quota',
-      description: 'Full sales automation & HR portal features.',
+      seats: 'Total 22 Users Quota',
+      seatNote: 'Includes 10K WhatsApp & 3K Email Quota',
+      description: 'Includes all Growth features + WhatsApp & Email marketing.',
       features: [
-        { name: 'Core CRM & Pipeline Management', enabled: true },
-        { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'WhatsApp Integration', enabled: true },
-        { name: 'Email Marketing Campaigns', enabled: true },
-        { name: 'HR Portal & Salary Builder', enabled: true },
+        { name: 'Includes All Growth Plan Features', enabled: true },
+        { name: 'WhatsApp Cloud API (10,000 Msgs / mo)', enabled: true },
+        { name: 'Email Marketing (3,000 Mails / mo)', enabled: true },
+        { name: 'Basic Workflow Automations', enabled: true },
+        { name: 'Normal AI Model & Lead Scoring', enabled: true },
+        { name: 'HR Portal & Attendance Verification', enabled: true },
+        { name: 'Advanced AI Customization & Control', enabled: false },
       ],
     },
     {
-      id: 'PRO_50',
-      name: 'Pro 50 Plan',
-      price: '₹9,999',
+      id: 'MAX',
+      name: '👑 Max Plan',
+      price: '₹4,999',
+      taxNote: '+ 18% GST (Total ₹5,898.82)',
       period: '/ month',
-      seats: '50 Users Quota',
-      seatNote: 'Tenant Admin not counted in quota',
-      description: 'For expanding mid-sized enterprises.',
+      seats: 'Total 60 Users Quota',
+      seatNote: 'Includes 100K WhatsApp & 50K Email Quota',
+      description: 'Includes all Pro features + Advanced AI Customization & Control.',
       features: [
-        { name: 'Core CRM & Pipeline Management', enabled: true },
-        { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'WhatsApp Integration', enabled: true },
-        { name: 'Email Marketing Campaigns', enabled: true },
-        { name: 'Custom Field Definitions & Workflows', enabled: true },
-      ],
-    },
-    {
-      id: 'PRO_MAX',
-      name: 'Pro Max Plan',
-      price: '₹19,999',
-      period: '/ month',
-      seats: 'Unlimited Seats',
-      seatNote: 'No user quota limits',
-      description: 'Unlimited scale with AI intelligence included.',
-      features: [
-        { name: 'Everything in Pro 50', enabled: true },
-        { name: 'Unlimited Seats & Teams', enabled: true },
-        { name: 'WhatsApp & Email Marketing', enabled: true },
-        { name: 'AI Intelligence & Predictive Analytics', enabled: true },
-        { name: 'Dedicated Account Manager', enabled: true },
-      ],
-    },
-    {
-      id: 'ENTERPRISE',
-      name: 'Custom / Enterprise',
-      price: 'Custom',
-      period: 'Negotiated',
-      seats: 'Custom Quota',
-      seatNote: 'Negotiated SLAs & custom security',
-      description: 'Dedicated cloud deployment & SLA support.',
-      features: [
-        { name: 'Custom Seat Quota & Features', enabled: true },
-        { name: 'Single Sign-On (SSO / SAML)', enabled: true },
-        { name: 'Custom ERP/API Integrations', enabled: true },
-        { name: 'On-Premise / Isolated Database', enabled: true },
+        { name: 'Includes All Pro Plan Features', enabled: true },
+        { name: 'WhatsApp Cloud API (100,000 Msgs / mo)', enabled: true },
+        { name: 'Email Marketing (50,000 Mails / mo)', enabled: true },
+        { name: 'Advanced AI Customization & Control', enabled: true },
+        { name: 'Advanced Enterprise Workflow Automations', enabled: true },
+        { name: 'Custom Field & Funnel Customizer', enabled: true },
+        { name: 'Dedicated 24/7 Priority Support', enabled: true },
       ],
     },
   ];

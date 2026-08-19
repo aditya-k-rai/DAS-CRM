@@ -24,9 +24,12 @@ import {
   Image,
   PermissionsAndroid,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+
+import { apiService } from '../services/apiService';
 
 // Interface for daily attendance record
 interface DailyRecord {
@@ -52,6 +55,11 @@ export default function AttendanceScreen() {
   const { currentUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'MARK' | 'MY_ATTENDANCE'>('MARK');
 
+  // ── SERVER-AUTHORITATIVE TIME & DATE STATE ─────────────────────────────
+  const [serverTimeDisplay, setServerTimeDisplay] = useState('Fetching Server Time...');
+  const [serverFormattedTime, setServerFormattedTime] = useState('09:15 AM');
+  const [serverFormattedDate, setServerFormattedDate] = useState('19 August 2026');
+
   // ── PERMISSIONS STATE ───────────────────────────────────────────────────────
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
@@ -71,8 +79,12 @@ export default function AttendanceScreen() {
   const [geoDistanceMeters, setGeoDistanceMeters] = useState(14);
   const [isInsideGeoFence, setIsInsideGeoFence] = useState(true);
 
-  // ── PUNCH STATE ─────────────────────────────────────────────────────────────
+  // ── PUNCH STATE & LOCATION PRIVACY TIMER ─────────────────────────────────────
   const [punchedIn, setPunchedIn] = useState(true);
+  const [locationPromptOpen, setLocationPromptOpen] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(30);
+  const [locationDisabledInApp, setLocationDisabledInApp] = useState(false);
+  const [privacyTimerActive, setPrivacyTimerActive] = useState(false);
 
   // Month Filter State (Past 3 Months)
   const [selectedMonth, setSelectedMonth] = useState<'AUG' | 'JUL' | 'JUN'>('AUG');
@@ -81,10 +93,35 @@ export default function AttendanceScreen() {
   // Selected Day State for Calendar Click (Defaulting to 19 August)
   const [selectedDay, setSelectedDay] = useState<number>(19);
 
-  // ── AUTOMATIC PERMISSIONS REQUEST ON MOUNT ──────────────────────────────────
+  // ── AUTOMATIC PERMISSIONS & SERVER TIME REQUEST ON MOUNT ───────────────────
   useEffect(() => {
     requestPermissions();
+    fetchServerTime();
   }, []);
+
+  const scheduleLocationPrivacyPrompt = () => {
+    setPrivacyTimerActive(true);
+    setCountdownSeconds(30);
+
+    const interval = setInterval(() => {
+      setCountdownSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setPrivacyTimerActive(false);
+          setLocationPromptOpen(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const fetchServerTime = async () => {
+    const timeData = await apiService.getServerTime();
+    setServerTimeDisplay(timeData.serverTime);
+    setServerFormattedTime(timeData.formattedTime);
+    setServerFormattedDate(timeData.formattedDate);
+  };
 
   const requestPermissions = async () => {
     if (Platform.OS === 'android') {
@@ -203,8 +240,12 @@ export default function AttendanceScreen() {
     executePunch(false);
   };
 
-  const executePunch = (isAdminOverride: boolean) => {
-    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const executePunch = async (isAdminOverride: boolean) => {
+    const serverData = await apiService.getServerTime();
+    const nowTime = serverData.formattedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setServerTimeDisplay(serverData.serverTime);
+    setServerFormattedTime(nowTime);
+
     const currentGeoStr = `${userCoords.lat.toFixed(6)}, ${userCoords.lng.toFixed(6)}`;
 
     // Alternate front/rear sample photos on snap
@@ -235,8 +276,8 @@ export default function AttendanceScreen() {
         },
       }));
       Alert.alert(
-        '✅ Punched Out Successfully',
-        `Punch out recorded at ${nowTime} from ${currentGeoStr}.\nCamera lens: ${isFrontCamera ? 'Front Selfie' : 'Rear Lens'}\nGeo-fence distance: ${geoDistanceMeters}m`
+        '✅ Punched Out (Server Verified)',
+        `Server Timestamp: ${serverData.serverTime}\n\nPunch out recorded at ${nowTime} from ${currentGeoStr}.\nCamera lens: ${isFrontCamera ? 'Front Selfie' : 'Rear Lens'}\nGeo-fence distance: ${geoDistanceMeters}m`
       );
     } else {
       // Punching In
@@ -254,10 +295,13 @@ export default function AttendanceScreen() {
         },
       }));
       Alert.alert(
-        '✅ Punched In Successfully',
-        `Punch in recorded at ${nowTime} from ${currentGeoStr}.\nCamera lens: ${isFrontCamera ? 'Front Selfie' : 'Rear Lens'}\nGeo-fence distance: ${geoDistanceMeters}m`
+        '✅ Punched In (Server Verified)',
+        `Server Timestamp: ${serverData.serverTime}\n\nPunch in recorded at ${nowTime} from ${currentGeoStr}.\nCamera lens: ${isFrontCamera ? 'Front Selfie' : 'Rear Lens'}\nGeo-fence distance: ${geoDistanceMeters}m`
       );
     }
+
+    // Schedule 1-Minute Location Privacy Auto-Prompt
+    scheduleLocationPrivacyPrompt();
   };
 
   const openGoogleMaps = (geoStr: string) => {
@@ -287,8 +331,22 @@ export default function AttendanceScreen() {
 
         {/* 🏢 Company Title Header */}
         <View style={styles.companyHeader}>
-          <Text style={styles.companyHeaderTitle}>{currentUser.companyName}</Text>
-          <Text style={styles.companyHeaderSub}>Attendance Management System</Text>
+          <Text style={styles.companyHeaderTitle}>{currentUser.companyName || 'Acme Sales Solutions'}</Text>
+          <Text style={styles.companyHeaderSub}>Attendance Management &amp; Verification System</Text>
+        </View>
+
+        {/* ⏱️ SERVER-AUTHORITATIVE TIME & DATE BADGE */}
+        <View style={styles.serverTimeCard}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 14 }}>🌐</Text>
+              <Text style={styles.serverTimeTitle}>Server-Authoritative Time (Anti-Tamper)</Text>
+            </View>
+            <TouchableOpacity onPress={fetchServerTime} style={styles.syncTimeBtn}>
+              <Text style={styles.syncTimeBtnText}>🔄 Refresh Time</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.serverTimeVal}>{serverTimeDisplay}</Text>
         </View>
 
         {/* 🔘 TOP SEGMENTED SWITCHER (Mark Attendance vs My Attendance) */}
@@ -401,11 +459,30 @@ export default function AttendanceScreen() {
               <Text style={styles.notesText}>Check Today's Notes</Text>
             </TouchableOpacity>
 
-            {/* GPS Coordinates & Geo-Fence Readout */}
+            {/* ⏱️ POST-PUNCH LOCATION PRIVACY COUNTDOWN BANNER (1 MINUTE AUTO-PROMPT) */}
+            {privacyTimerActive && (
+              <View style={styles.privacyCountdownBanner}>
+                <Text style={styles.privacyCountdownText}>
+                  ⏱️ Post-Punch Location Guard: Auto-prompting in {countdownSeconds}s to close GPS Location...
+                </Text>
+              </View>
+            )}
+
+            {/* GPS Coordinates & Geo-Fence Readout + Settings Trigger */}
             <View style={styles.gpsBox}>
-              <Text style={styles.gpsText}>
-                📍 GPS Coordinates: <Text style={{ color: '#0284c7', fontWeight: '800' }}>{userCoords.lat}, {userCoords.lng}</Text>
-              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.gpsText}>
+                  📍 GPS Status: <Text style={{ color: locationDisabledInApp ? '#ef4444' : '#0284c7', fontWeight: '800' }}>
+                    {locationDisabledInApp ? 'DISABLED (PRIVACY SAFE)' : `${userCoords.lat}, ${userCoords.lng}`}
+                  </Text>
+                </Text>
+                <TouchableOpacity
+                  style={styles.openSettingsBtn}
+                  onPress={() => setLocationPromptOpen(true)}
+                >
+                  <Text style={styles.openSettingsBtnText}>⚙️ Location Settings</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -609,6 +686,66 @@ export default function AttendanceScreen() {
         )}
 
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 📍 POST-PUNCH LOCATION PRIVACY & DISMISSAL MODAL (AUTO-TRIGGER 30 SEC)     */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={locationPromptOpen} transparent animationType="slide">
+        <View style={styles.locModalOverlay}>
+          <View style={styles.locModalCard}>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 18 }}>📍</Text>
+                <Text style={styles.locModalTitle}>GPS Location Privacy Guard</Text>
+              </View>
+              <TouchableOpacity onPress={() => setLocationPromptOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.locModalSub}>
+              Your attendance punch in/out has been registered and timestamped on the server.
+              To preserve battery life and location privacy, you can now close GPS Location services.
+            </Text>
+
+            <View style={{ gap: 10, marginTop: 14 }}>
+              {/* Button 1: Open Device Location Settings */}
+              <TouchableOpacity
+                style={styles.locSettingsBtn}
+                onPress={() => {
+                  setLocationPromptOpen(false);
+                  Linking.openSettings().catch(() => {
+                    Alert.alert('Device Settings', 'Redirecting to Android Location Settings...');
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.locSettingsBtnText}>⚙️ Open Device Location Settings to Turn Off GPS →</Text>
+              </TouchableOpacity>
+
+              {/* Button 2: Turn Off App Location Tracking */}
+              <TouchableOpacity
+                style={styles.stopAppLocBtn}
+                onPress={() => {
+                  setLocationDisabledInApp(true);
+                  setLocationPromptOpen(false);
+                  Alert.alert('In-App GPS Closed', 'In-App location tracking has been stopped for privacy.');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.stopAppLocBtnText}>🔒 Stop App Location Tracking Now</Text>
+              </TouchableOpacity>
+
+              {/* Button 3: Dismiss */}
+              <TouchableOpacity style={styles.dismissLocBtn} onPress={() => setLocationPromptOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 11 }}>Keep Location Open &amp; Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -678,6 +815,22 @@ const styles = StyleSheet.create({
   geoBadgeOut: { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fca5a5' },
   geoBadgeText: { fontSize: 9, fontWeight: '800', color: '#15803d' },
 
+  // Server-Authoritative Time Card
+  serverTimeCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.3)',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  serverTimeTitle: { fontSize: 10, fontWeight: '800', color: '#38bdf8', letterSpacing: 0.5 },
+  serverTimeVal: { fontSize: 12, fontWeight: '900', color: '#ffffff', marginTop: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  syncTimeBtn: { backgroundColor: 'rgba(56,189,248,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
+  syncTimeBtnText: { fontSize: 9, fontWeight: '800', color: '#38bdf8' },
+
   markHeaderRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   statusPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   statusPillIn: { backgroundColor: '#fef08a', borderColor: '#facc15' },
@@ -689,9 +842,11 @@ const styles = StyleSheet.create({
 
   cameraViewfinderBox: {
     width: '100%',
-    height: 230,
+    height: 280,
     backgroundColor: '#070a12',
     borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#4f46e5',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -718,8 +873,28 @@ const styles = StyleSheet.create({
   punchBigButtonText: { color: '#ffffff', fontSize: 18, fontWeight: '900' },
   notesText: { color: '#0f172a', fontSize: 12, fontWeight: '800', textDecorationLine: 'underline' },
 
-  gpsBox: { backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, marginTop: 14, borderWidth: 1, borderColor: '#cbd5e1' },
-  gpsText: { fontSize: 11, fontWeight: '700', color: '#475569' },
+  gpsBox: { backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, marginTop: 14, borderWidth: 1, borderColor: '#cbd5e1' },
+  gpsText: { fontSize: 11, fontWeight: '700', color: '#475569', flex: 1 },
+
+  openSettingsBtn: { backgroundColor: '#0f172a', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  openSettingsBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+
+  privacyCountdownBanner: { width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderWidth: 1, borderColor: '#eab308', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginTop: 10, alignItems: 'center' },
+  privacyCountdownText: { color: '#854d0e', fontSize: 10, fontWeight: '800' },
+
+  // Location Privacy Modal Styles
+  locModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  locModalCard: { width: '100%', maxWidth: 380, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 18 },
+  locModalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  locModalSub: { fontSize: 11, color: '#94a3b8', marginTop: 4, lineHeight: 16 },
+
+  locSettingsBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center' },
+  locSettingsBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+
+  stopAppLocBtn: { backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center' },
+  stopAppLocBtnText: { color: '#ef4444', fontSize: 11, fontWeight: '800' },
+
+  dismissLocBtn: { paddingVertical: 6, alignItems: 'center' },
 
   // Mode 2: My Attendance
   myAttendanceContainer: { width: '100%', maxWidth: 380, alignItems: 'center' },

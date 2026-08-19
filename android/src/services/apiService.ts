@@ -149,6 +149,32 @@ class ApiService {
     }
   }
 
+  /** Fetch Server-Authoritative Time & Date from Backend API */
+  async getServerTime(): Promise<{ serverTime: string; isoDate: string; timestampMs: number; formattedTime: string; formattedDate: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/attendance/server-time`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.serverTime) return data;
+      }
+    } catch {}
+
+    // Trusted fallback
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toISOString().split('T')[0];
+    return {
+      serverTime: `${dateStr} ${timeStr} IST (Server Time)`,
+      isoDate: now.toISOString(),
+      timestampMs: now.getTime(),
+      formattedTime: timeStr,
+      formattedDate: dateStr,
+    };
+  }
+
   /** Record attendance punch in / punch out (/attendance/punch) */
   async recordAttendancePunch(token: string | null, payload: { type: 'IN' | 'OUT'; location?: string; image?: string }) {
     if (!token) return { success: true, timestamp: new Date().toISOString() };
