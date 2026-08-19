@@ -717,9 +717,9 @@ export function TenantAdminDashboard() {
       </div>
 
       {/* ============================================================ */}
-      {/* TOP KPI METRICS BAR (RESPONSIVE 1 -> 2 -> 3 -> 6 COLUMNS)   */}
+      {/* TOP KPI METRICS BAR (RESPONSIVE STAT CARDS)                 */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
         <div className="crm-card p-4 border border-border/70 hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
             <span>Revenue (Won)</span>
@@ -772,6 +772,33 @@ export function TenantAdminDashboard() {
           </div>
           <p className="text-sm font-extrabold text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
           <p className="text-[10px] text-muted font-semibold mt-1">Full Tier Enabled</p>
+        </div>
+
+        {/* 🆕 BOX 7: TOTAL EMPLOYEES & PRESENT TODAY */}
+        <div className="crm-card p-4 border border-teal-500/40 bg-teal-500/5 hover:border-teal-500/60 transition-all">
+          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+            <span className="text-teal-300 font-bold">Total Staff &amp; Present</span>
+            <UserCheck size={14} className="text-teal-400" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-xl font-extrabold text-teal-300">19 Present</p>
+            <span className="text-xs text-muted font-semibold">/ 24 Total</span>
+          </div>
+          <p className="text-[10px] text-teal-400/90 font-bold mt-1">🟢 79.2% Attendance · 3 Leave · 2 Absent</p>
+        </div>
+
+        {/* 🆕 BOX 8: TODAY'S OPERATIONS & SALES TELEMETRY */}
+        <div className="crm-card p-4 border border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/60 transition-all">
+          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+            <span className="text-emerald-300 font-bold">Today's Sales &amp; Activity</span>
+            <DollarSign size={14} className="text-emerald-400" />
+          </div>
+          <p className="text-xl font-extrabold text-emerald-300">$18,450 Today</p>
+          <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-border/40 text-[9px] text-muted font-medium">
+            <div>Leads: <span className="text-blue-300 font-bold">142</span></div>
+            <div>Calls: <span className="text-indigo-300 font-bold">384</span></div>
+            <div>Msgs: <span className="text-emerald-300 font-bold">820</span></div>
+          </div>
         </div>
       </div>
 
