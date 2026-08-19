@@ -43,22 +43,29 @@ const MESSAGES: Record<string, Message[]> = {
   ],
 };
 
-const QUICK_REPLIES = [
-  'Thanks for reaching out! I\'ll get back to you shortly.',
-  'Sure, I\'ll send the pricing details right away.',
-  'Let me schedule a demo call. When are you available?',
-  'Our enterprise plan supports unlimited users.',
+const DEFAULT_TEMPLATES = [
+  { id: '1', title: '🌱 Initial Outreach', text: "Hi {name}, I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-min call!" },
+  { id: '2', title: '💼 Proposal & Pricing', text: "Hi {name}, I have prepared the customized CRM quotation for {company}. Please let me know when you'd like to review it!" },
+  { id: '3', title: '📞 Quick Follow-Up', text: "Hi {name}, following up regarding our recent discussion for {company}. Do you have 5 minutes today?" },
+  { id: '4', title: '⚡ Exclusive Update', text: "Hi {name}, we launched new automation updates for {company}! Reply to claim your priority demo slot." },
 ];
 
 import { useAuth } from '@/context/AuthContext';
-import { Lock } from 'lucide-react';
+import { Lock, Plus, Sparkles, PhoneCall, ExternalLink } from 'lucide-react';
 
 export function WhatsAppThread() {
-  const { canAccessFeature, subscription, canEdit } = useAuth();
+  const { currentUser, canAccessFeature, subscription, canEdit } = useAuth();
+  const userRole = currentUser?.role || 'SALES_EXEC';
+  const isHR = userRole === 'HR';
+
   const [activeThread, setActiveThread]   = useState<Thread>(THREADS[0]);
   const [messages, setMessages]           = useState<Message[]>(MESSAGES['1'] || []);
   const [input, setInput]                 = useState('');
   const [showQuickReplies, setShowQR]     = useState(false);
+  const [customTemplates, setCustomTemplates] = useState(DEFAULT_TEMPLATES);
+  const [editingTpl, setEditingTpl]       = useState(false);
+  const [newTitle, setNewTitle]           = useState('');
+  const [newBody, setNewBody]             = useState('');
   const endRef                            = useRef<HTMLDivElement>(null);
 
   const hasWA = canAccessFeature('whatsApp');
@@ -218,42 +225,87 @@ export function WhatsAppThread() {
           <div ref={endRef} />
         </div>
 
-        {/* Quick Replies */}
-        {showQuickReplies && (
-          <div className="px-4 pb-2">
-            <div className="flex gap-2 flex-wrap">
-              {QUICK_REPLIES.map(qr => (
-                <button key={qr} onClick={() => { setInput(qr); setShowQR(false); }}
-                  className="text-xs px-3 py-1.5 rounded-full border truncate max-w-xs"
-                  style={{ borderColor: 'rgba(99,102,241,0.3)', color: 'rgb(129,140,248)', background: 'rgba(99,102,241,0.08)' }}>
-                  {qr.slice(0, 45)}{qr.length > 45 ? '…' : ''}
+        {/* HR ROLE RESTRICTION WARNING */}
+        {isHR && (
+          <div className="px-5 py-2.5 bg-rose-500/10 border-t border-b border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center gap-2">
+            ⚠️ Access Restricted: HR Role does not have permission to initiate calls or send WhatsApp marketing messages to sales leads.
+          </div>
+        )}
+
+        {/* Admin WhatsApp Templates Picker with Dynamic Interpolation */}
+        {showQuickReplies && !isHR && (
+          <div className="px-4 py-3 bg-slate-900/90 border-t border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                <Sparkles size={13} /> Select Admin WhatsApp Template (Auto-Interpolates Lead Name):
+              </p>
+              {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+                <button
+                  onClick={() => setEditingTpl(!editingTpl)}
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline"
+                >
+                  {editingTpl ? 'Close Editor' : '+ Admin Template Editor'}
                 </button>
-              ))}
+              )}
+            </div>
+
+            {/* Quick Template Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {customTemplates.map(tpl => {
+                const interpolated = tpl.text
+                  .replace(/\{name\}/gi, activeThread.leadName)
+                  .replace(/\{company\}/gi, activeThread.company);
+
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => { setInput(interpolated); setShowQR(false); }}
+                    className="text-left p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-indigo-500/50 transition-all group"
+                  >
+                    <p className="text-xs font-bold text-slate-200 group-hover:text-indigo-300">{tpl.title}</p>
+                    <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{interpolated}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Direct Launch WhatsApp App Button */}
+            <div className="pt-2 flex justify-end">
+              <a
+                href={`https://wa.me/91${activeThread.phone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(input || `Hi ${activeThread.leadName}, following up from DAS CRM.`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"
+              >
+                <ExternalLink size={13} /> Launch Direct WhatsApp App →
+              </a>
             </div>
           </div>
         )}
 
-        {/* Input */}
+        {/* Input Bar */}
         <div className="px-4 py-3 border-t" style={{ borderColor: 'rgb(var(--border))', background: 'rgb(var(--card))' }}>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowQR(!showQuickReplies)} className="btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center text-muted">
-              <Smile size={18} />
-            </button>
-            <button className="btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center text-muted">
-              <Paperclip size={18} />
+            <button
+              onClick={() => !isHR && setShowQR(!showQuickReplies)}
+              disabled={isHR}
+              className="btn-ghost px-2.5 h-10 rounded-lg flex items-center gap-1 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-40"
+            >
+              <Sparkles size={16} /> Templates
             </button>
             <input
-              className="crm-input text-sm flex-1 h-10"
-              placeholder="Type a message..."
+              className="crm-input text-sm flex-1 h-10 disabled:opacity-40"
+              placeholder={isHR ? 'Messaging restricted for HR role...' : 'Type a message...'}
+              disabled={isHR}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage()}
             />
             <button
               onClick={sendMessage}
-              disabled={!input.trim()}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-              style={{ background: input.trim() ? 'rgb(99,102,241)' : 'rgb(var(--muted))' }}
+              disabled={!input.trim() || isHR}
+              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all disabled:opacity-40"
+              style={{ background: input.trim() && !isHR ? 'rgb(99,102,241)' : 'rgb(var(--muted))' }}
             >
               <Send size={16} className="text-white" />
             </button>

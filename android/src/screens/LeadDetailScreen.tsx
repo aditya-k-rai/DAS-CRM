@@ -14,11 +14,22 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LeadsStackParamList } from '../../App';
 import { callSyncEngine, LeadCallSummary } from '../services/callSyncEngine';
+import { useAuthStore } from '../store/authStore';
+import {
+  whatsappTemplateEngine,
+  WhatsAppTemplate,
+  DEFAULT_TEMPLATES,
+  CATALOG_PRODUCTS,
+  ProductItem,
+} from '../services/whatsappTemplateEngine';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -29,6 +40,8 @@ interface LeadDetailScreenProps {
 
 export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailScreenProps) {
   const navigation = useNavigation();
+  const { currentUser } = useAuthStore();
+  const userRole = currentUser?.role || 'SALES_EXEC';
 
   let lead = propLead;
   try {
@@ -44,6 +57,8 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const leadId = lead?.id || 'lead-1';
   const leadName = lead?.name || 'Lead Details';
   const leadPhone = lead?.phone || '+91 98765 43210';
+  const leadCompany = lead?.company || 'Acme Partner';
+  const leadValue = lead?.value || '$14,200';
 
   // Live Call Telemetry State
   const [telemetry, setTelemetry] = useState<LeadCallSummary>({
@@ -58,10 +73,35 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
   const [hoursToMidnight, setHoursToMidnight] = useState(7);
 
+  // 💬 WhatsApp Template Picker & Product Selection State
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>(DEFAULT_TEMPLATES);
+  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate>(DEFAULT_TEMPLATES[0]);
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(CATALOG_PRODUCTS[0]);
+  const [customMsgText, setCustomMsgText] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState(false);
+  const [newTplTitle, setNewTplTitle] = useState('');
+  const [newTplBody, setNewTplBody] = useState('');
+
   useEffect(() => {
     callSyncEngine.checkAndPurgeMidnightLogs();
     const secs = callSyncEngine.getSecondsUntilMidnight();
     setHoursToMidnight(Math.floor(secs / 3600));
+
+    // Load Admin Custom WhatsApp Templates
+    whatsappTemplateEngine.getTemplates().then(list => {
+      setTemplates(list);
+      if (list.length > 0) {
+        setSelectedTemplate(list[0]);
+        setCustomMsgText(
+          whatsappTemplateEngine.interpolateTemplate(
+            list[0].text,
+            { name: leadName, company: leadCompany, value: leadValue },
+            selectedProduct || undefined
+          )
+        );
+      }
+    });
   }, []);
 
   const handleBack = () => {
@@ -72,14 +112,87 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     }
   };
 
+  // 📞 CALL NOW HANDLER (Role Guarded, HR Excluded)
   const handleCall = () => {
+    if (!whatsappTemplateEngine.canRoleCommunicate(userRole)) {
+      Alert.alert('Access Restricted', 'HR role does not have permission to initiate calls to sales leads.');
+      return;
+    }
+
     callSyncEngine.initiateCall(leadId, leadName, leadPhone, (updated) => {
       setTelemetry(updated);
     });
   };
 
+  // 💬 WHATSAPP DIRECT HANDLER (Role Guarded, HR Excluded)
   const handleWhatsApp = () => {
-    callSyncEngine.initiateWhatsApp(leadName, leadPhone);
+    if (!whatsappTemplateEngine.canRoleCommunicate(userRole)) {
+      Alert.alert('Access Restricted', 'HR role does not have permission to send WhatsApp messages to sales leads.');
+      return;
+    }
+
+    // Refresh interpolated message preview for this lead + selected product
+    const interpolated = whatsappTemplateEngine.interpolateTemplate(
+      selectedTemplate.text,
+      { name: leadName, company: leadCompany, value: leadValue },
+      selectedProduct || undefined
+    );
+    setCustomMsgText(interpolated);
+    setWaModalOpen(true);
+  };
+
+  const handleSelectTemplate = (tpl: WhatsAppTemplate) => {
+    setSelectedTemplate(tpl);
+    const interpolated = whatsappTemplateEngine.interpolateTemplate(
+      tpl.text,
+      { name: leadName, company: leadCompany, value: leadValue },
+      selectedProduct || undefined
+    );
+    setCustomMsgText(interpolated);
+  };
+
+  const handleSelectProduct = (product: ProductItem | null) => {
+    setSelectedProduct(product);
+    const interpolated = whatsappTemplateEngine.interpolateTemplate(
+      selectedTemplate.text,
+      { name: leadName, company: leadCompany, value: leadValue },
+      product || undefined
+    );
+    setCustomMsgText(interpolated);
+  };
+
+  const handleSendWhatsAppDirect = () => {
+    setWaModalOpen(false);
+    whatsappTemplateEngine.sendDirectWhatsApp(leadPhone, customMsgText, leadName);
+  };
+
+  const handleSaveNewTemplate = async () => {
+    if (!newTplTitle.trim() || !newTplBody.trim()) {
+      Alert.alert('Incomplete Template', 'Please enter both template title and message body.');
+      return;
+    }
+
+    const newTpl: WhatsAppTemplate = {
+      id: 'tpl_' + Date.now(),
+      title: newTplTitle.trim(),
+      category: 'OUTREACH',
+      text: newTplBody.trim(),
+    };
+
+    const updated = await whatsappTemplateEngine.upsertTemplate(newTpl);
+    setTemplates(updated);
+    setSelectedTemplate(newTpl);
+    setCustomMsgText(
+      whatsappTemplateEngine.interpolateTemplate(newTpl.text, {
+        name: leadName,
+        company: leadCompany,
+        value: leadValue,
+      })
+    );
+    setEditingTemplate(false);
+    setNewTplTitle('');
+    setNewTplBody('');
+    Alert.alert('Template Saved', 'New Admin WhatsApp Template saved successfully!');
   };
 
   const statusColor =
@@ -197,6 +310,161 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         </View>
 
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 💬 WHATSAPP DIRECT MESSAGE & ADMIN TEMPLATE SELECTOR MODAL                  */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={waModalOpen} transparent animationType="slide">
+        <View style={styles.waModalOverlay}>
+          <View style={styles.waModalCard}>
+            
+            {/* Header */}
+            <View style={styles.waModalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.waModalTitle}>💬 WhatsApp Direct Message</Text>
+                <Text style={styles.waModalSub}>Target Lead: <Text style={{ color: '#34d399', fontWeight: '800' }}>{leadName}</Text> ({leadPhone})</Text>
+              </View>
+              <TouchableOpacity onPress={() => setWaModalOpen(false)} style={styles.waCloseBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              
+              {/* ADMIN TEMPLATE PICKER DROPDOWN / LIST */}
+              <Text style={styles.waSectionTitle}>Select Admin WhatsApp Template:</Text>
+              <View style={{ gap: 8, marginBottom: 12 }}>
+                {templates.map(tpl => {
+                  const isSelected = selectedTemplate.id === tpl.id;
+                  return (
+                    <TouchableOpacity
+                      key={tpl.id}
+                      style={[styles.tplCard, isSelected && styles.tplCardSelected]}
+                      onPress={() => handleSelectTemplate(tpl)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={[styles.tplTitleText, isSelected && { color: '#38bdf8' }]}>{tpl.title}</Text>
+                        {isSelected && <Text style={{ fontSize: 11, color: '#34d399', fontWeight: '900' }}>✓ SELECTED</Text>}
+                      </View>
+                      <Text style={styles.tplPreviewText} numberOfLines={2}>{tpl.text}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* 📦 PRODUCT CATALOG ATTACHMENT SELECTOR */}
+              <Text style={[styles.waSectionTitle, { marginTop: 6 }]}>📦 Attach Product Details &amp; Image Brochure:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10, flexGrow: 0 }}>
+                <TouchableOpacity
+                  style={[styles.productChip, !selectedProduct && styles.productChipActive]}
+                  onPress={() => handleSelectProduct(null)}
+                >
+                  <Text style={[styles.productChipText, !selectedProduct && { color: '#ffffff', fontWeight: '900' }]}>🚫 No Product</Text>
+                </TouchableOpacity>
+
+                {CATALOG_PRODUCTS.map(prod => {
+                  const isSelected = selectedProduct?.id === prod.id;
+                  return (
+                    <TouchableOpacity
+                      key={prod.id}
+                      style={[styles.productChip, isSelected && styles.productChipActive]}
+                      onPress={() => handleSelectProduct(prod)}
+                    >
+                      <Image source={{ uri: prod.imageUrl }} style={styles.prodThumb} />
+                      <View>
+                        <Text style={[styles.productChipText, isSelected && { color: '#38bdf8', fontWeight: '900' }]}>{prod.name}</Text>
+                        <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '800' }}>{prod.price}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Selected Product Card Banner */}
+              {selectedProduct && (
+                <View style={styles.attachedProductCard}>
+                  <Image source={{ uri: selectedProduct.imageUrl }} style={styles.attachedProductImg} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.attachedProdName}>{selectedProduct.name}</Text>
+                      <Text style={styles.attachedProdPrice}>{selectedProduct.price}</Text>
+                    </View>
+                    <Text style={styles.attachedProdDesc} numberOfLines={2}>{selectedProduct.description}</Text>
+                    <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '700', marginTop: 2 }}>
+                      📷 Product Image &amp; Features attached automatically in message text!
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* ADMIN TEMPLATE CUSTOMIZER TOOL (FOR ADMIN / SUPER ADMIN) */}
+              {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+                <TouchableOpacity
+                  style={styles.addTplBannerBtn}
+                  onPress={() => setEditingTemplate(!editingTemplate)}
+                >
+                  <Text style={styles.addTplBannerText}>
+                    {editingTemplate ? '▲ Close Admin Template Editor' : '⚙️ Custom Admin Template Editor (+ Add New)'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {editingTemplate && (
+                <View style={styles.newTplBox}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff', marginBottom: 4 }}>Template Title</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    placeholder="e.g. 🎁 Festive Offer Template"
+                    placeholderTextColor="#64748b"
+                    value={newTplTitle}
+                    onChangeText={setNewTplTitle}
+                  />
+
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff', marginTop: 8, marginBottom: 4 }}>
+                    Message Body (Use {'{name}'}, {'{company}'}, {'{value}'})
+                  </Text>
+                  <TextInput
+                    style={[styles.inputField, { height: 70 }]}
+                    multiline
+                    placeholder="Hi {name}, inquiring about {company}..."
+                    placeholderTextColor="#64748b"
+                    value={newTplBody}
+                    onChangeText={setNewTplBody}
+                  />
+
+                  <TouchableOpacity style={styles.saveTplBtn} onPress={handleSaveNewTemplate}>
+                    <Text style={styles.saveTplBtnText}>💾 Save Admin Template for All Users</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* LIVE INTERPOLATED MESSAGE PREVIEW */}
+              <Text style={[styles.waSectionTitle, { marginTop: 10 }]}>Live Interpolated Message Preview:</Text>
+              <TextInput
+                style={styles.previewTextInput}
+                multiline
+                value={customMsgText}
+                onChangeText={setCustomMsgText}
+              />
+              <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 4 }}>
+                * Dynamic variables {'{name}'} replaced with "{leadName}", {'{company}'} with "{leadCompany}".
+              </Text>
+
+            </ScrollView>
+
+            {/* SEND ACTION BUTTON */}
+            <TouchableOpacity
+              style={styles.sendWaDirectBtn}
+              onPress={handleSendWhatsAppDirect}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.sendWaDirectBtnText}>💬 Launch Direct WhatsApp App →</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -300,4 +568,43 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
   rowLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
   rowValue: { fontSize: 12, color: '#ffffff', fontWeight: '700' },
+
+  // WhatsApp Modal Styles
+  waModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  waModalCard: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  waModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
+  waModalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
+  waModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  waCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+
+  waSectionTitle: { fontSize: 11, fontWeight: '800', color: '#818cf8', marginBottom: 6 },
+  tplCard: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 12, padding: 10 },
+  tplCardSelected: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.08)' },
+  tplTitleText: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
+  tplPreviewText: { fontSize: 10, color: '#94a3b8', marginTop: 3 },
+
+  // Product Attachment Styles
+  productChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginRight: 8 },
+  productChipActive: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)' },
+  productChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
+  prodThumb: { width: 22, height: 22, borderRadius: 6, resizeMode: 'cover' },
+
+  attachedProductCard: { flexDirection: 'row', gap: 10, backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', borderRadius: 12, padding: 10, marginBottom: 10 },
+  attachedProductImg: { width: 50, height: 50, borderRadius: 10, resizeMode: 'cover' },
+  attachedProdName: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
+  attachedProdPrice: { fontSize: 10, fontWeight: '800', color: '#34d399' },
+  attachedProdDesc: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+
+  addTplBannerBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingVertical: 6, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
+  addTplBannerText: { color: '#818cf8', fontSize: 10, fontWeight: '800' },
+
+  newTplBox: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 12, padding: 10, marginBottom: 10 },
+  inputField: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#ffffff', fontSize: 11 },
+  saveTplBtn: { backgroundColor: '#16a34a', paddingVertical: 8, borderRadius: 8, alignItems: 'center', marginTop: 8 },
+  saveTplBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
+
+  previewTextInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', borderRadius: 12, padding: 10, color: '#34d399', fontSize: 11, height: 90 },
+
+  sendWaDirectBtn: { backgroundColor: '#22c55e', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  sendWaDirectBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 });

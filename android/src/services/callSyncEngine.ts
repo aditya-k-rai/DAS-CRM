@@ -60,15 +60,12 @@ class CallSyncEngine {
 
     const dialUrl = `tel:${cleaned}`;
     try {
-      const supported = await Linking.canOpenURL(dialUrl);
-      if (supported) {
-        await Linking.openURL(dialUrl);
-      } else {
-        // Fallback prompt on emulator / devices without dialer
-        Alert.alert('Simulated Call Initiated', `Dialing ${cleaned} for lead ${leadName}...`);
-      }
+      // Launch native phone dialer app directly
+      await Linking.openURL(dialUrl).catch(() => {
+        Alert.alert('Phone Dialer', `Dialing ${cleaned} for lead ${leadName}...`);
+      });
     } catch {
-      Alert.alert('Simulated Call Initiated', `Dialing ${cleaned} for lead ${leadName}...`);
+      Alert.alert('Phone Dialer', `Dialing ${cleaned} for lead ${leadName}...`);
     }
 
     // Simulate / log call connection telemetry
