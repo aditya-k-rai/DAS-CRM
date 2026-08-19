@@ -54,6 +54,9 @@ export interface UserProfile {
   companyName: string;
   managerId?: string;
   teamLeaderId?: string;
+  isLocked?: boolean;
+  isSuspended?: boolean;
+  deletionScheduledAt?: string | null;
 }
 
 export interface RoleTransitionLock {

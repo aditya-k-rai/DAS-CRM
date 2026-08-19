@@ -26,6 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { apiService } from '../services/apiService';
 
+import ProductsCatalogScreen from './ProductsCatalogScreen';
+
 // Module Selector Types
 type MoreModule = 'PRODUCTS' | 'QUOTATIONS' | 'DEALS' | 'GOALS' | 'REVENUE' | 'COMMS' | 'TASKS';
 
@@ -142,7 +144,7 @@ export default function TasksScreen({ route }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── MODULE SELECTOR GRID ─────────────────────────────────────────── */}
@@ -174,30 +176,8 @@ export default function TasksScreen({ route }: any) {
         {/* 📦 MODULE 1: PRODUCTS & CATALOG MANAGER                                   */}
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeModule === 'PRODUCTS' && (
-          <View style={styles.moduleSection}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.moduleTitle}>📦 Products &amp; Services Catalog ({products.length})</Text>
-                <Text style={styles.moduleSub}>Manage workspace product items, SKUs, pricing, and stock limits.</Text>
-              </View>
-              <TouchableOpacity style={styles.createBtn} onPress={() => setCreateProductModal(true)}>
-                <Text style={styles.createBtnText}>+ Add Product</Text>
-              </TouchableOpacity>
-            </View>
-
-            {products.map(p => (
-              <View key={p.id} style={styles.cardItem}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.itemTitle}>{p.name}</Text>
-                  <Text style={styles.itemPrice}>{p.price}</Text>
-                </View>
-                <Text style={styles.itemMeta}>SKU: {p.sku} • Category: {p.category}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                  <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>🟢 ACTIVE IN CATALOG</Text>
-                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>Stock: {p.stock} Units Available</Text>
-                </View>
-              </View>
-            ))}
+          <View style={{ flex: 1, minHeight: 600 }}>
+            <ProductsCatalogScreen />
           </View>
         )}
 
@@ -419,15 +399,15 @@ export default function TasksScreen({ route }: any) {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#090d16' },
+  content: { padding: 16, alignItems: 'center', paddingBottom: 24 },
 
   headerTitle: { fontSize: 20, fontWeight: '900', color: '#ffffff', marginBottom: 12, width: '100%', maxWidth: 600 },
 

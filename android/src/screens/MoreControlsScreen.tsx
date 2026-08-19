@@ -18,7 +18,7 @@ export default function MoreControlsScreen() {
   const [activeTab, setActiveTab] = useState<'DEALS' | 'QUOTES' | 'PRODUCTS' | 'AUTOMATIONS' | 'AUDIT'>('DEALS');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── HEADER ────────────────────────────────────────────────────────── */}
@@ -166,15 +166,15 @@ export default function MoreControlsScreen() {
         )}
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#090d16' },
+  content: { padding: 16, alignItems: 'center', paddingBottom: 24 },
 
   headerBox: { width: '100%', maxWidth: 600, marginBottom: 14 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff', marginBottom: 2 },

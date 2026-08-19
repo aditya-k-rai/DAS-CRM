@@ -27,7 +27,7 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
   const selectedRole: UserRole = normalizeRoleStr(userRole || currentUser.role);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* 👑 Top Executive Banner */}
@@ -137,15 +137,15 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#090d16' },
+  content: { padding: 16, alignItems: 'center', paddingBottom: 24 },
 
   headerCard: {
     width: '100%',

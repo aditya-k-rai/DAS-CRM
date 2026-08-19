@@ -2,22 +2,135 @@
  * AdminDashboardScreen.tsx — DAS CRM Android (Tenant Admin Command Center)
  * Features complete parity with Web Admin Dashboard:
  * 1. 📊 Won Revenue ($128,400), Active Pipeline ($412,000), Total Leads (3,420), Conversion Rate (14.2%)
- * 2. 👥 Workforce & Attendance Today (19 Present / 24 Staff)
- * 3. ⚡ Today's Telemetry ($18,450 Sales, 142 Leads Allocated, 384 Calls Done, 820 Msgs Sent)
- * 4. 🎛️ Admin Quick Action Bar (Staff Inspector, Lead Handover, Funnel Setup, Column Shifting)
- * 5. 🟢 Multi-Source Ingestion Telemetry (Google Sheets Live Sync, CSV Uploads, Meta Webhooks)
+ * 2. 📅 Scheduled Meetings Today & Upcoming Meetings Audit (Interactive Lead Details Modal)
+ * 3. 👥 Workforce & Attendance Today (19 Present / 24 Staff)
+ * 4. ⚡ Today's Telemetry ($18,450 Sales, 142 Leads Allocated, 384 Calls Done, 820 Msgs Sent)
+ * 5. 🎛️ Admin Quick Action Bar (Staff Inspector, Lead Handover, Funnel Setup, Column Shifting)
+ * 6. 🟢 Multi-Source Ingestion Telemetry (Google Sheets Live Sync, CSV Uploads, Meta Webhooks)
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  Alert,
+  Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { callSyncEngine } from '../services/callSyncEngine';
+
+export interface ScheduledMeetingItem {
+  id: string;
+  leadId: string;
+  leadName: string;
+  company: string;
+  phone: string;
+  email: string;
+  value: string;
+  assignedAgent: string;
+  agentRole: string;
+  meetingPurpose: string;
+  scheduledTimeStr: string;
+  isToday: boolean;
+  status: 'CONFIRMED' | 'SCHEDULED' | 'IN_PROGRESS';
+}
+
+const MOCK_ADMIN_MEETINGS: ScheduledMeetingItem[] = [
+  {
+    id: 'mtg-1',
+    leadId: 'lead-1',
+    leadName: 'Rajesh Mehta',
+    company: 'TechCorp Solutions Ltd',
+    phone: '+91 98765 43210',
+    email: 'rajesh@techcorp.com',
+    value: '₹5,20,000',
+    assignedAgent: 'Rajesh Kumar',
+    agentRole: 'Sales Executive',
+    meetingPurpose: 'Enterprise CRM Suite Demo & SLA Negotiation',
+    scheduledTimeStr: 'Today, 02:30 PM',
+    isToday: true,
+    status: 'CONFIRMED',
+  },
+  {
+    id: 'mtg-2',
+    leadId: 'lead-2',
+    leadName: 'Priya Sharma',
+    company: 'LogiTech Freight Systems',
+    phone: '+91 98123 45678',
+    email: 'priya@logitech.com',
+    value: '₹3,50,000',
+    assignedAgent: 'Amit Patel',
+    agentRole: 'Sales Executive',
+    meetingPurpose: 'WhatsApp Automation Bot Integration Review',
+    scheduledTimeStr: 'Today, 04:45 PM',
+    isToday: true,
+    status: 'SCHEDULED',
+  },
+  {
+    id: 'mtg-3',
+    leadId: 'lead-3',
+    leadName: 'Sunita Kapoor',
+    company: 'Sunita Logistics Pvt Ltd',
+    phone: '+91 97222 33344',
+    email: 'sunita@sunitalogistics.com',
+    value: '₹8,90,000',
+    assignedAgent: 'Amit Shah',
+    agentRole: 'Team Leader',
+    meetingPurpose: 'Executive Contract Signing & License Rollout',
+    scheduledTimeStr: 'Today, 06:15 PM',
+    isToday: true,
+    status: 'CONFIRMED',
+  },
+  {
+    id: 'mtg-4',
+    leadId: 'lead-4',
+    leadName: 'Vikram Sethi',
+    company: 'Sethi Enterprises',
+    phone: '+91 98777 66655',
+    email: 'vikram@sethi.com',
+    value: '₹4,20,000',
+    assignedAgent: 'Neha Joshi',
+    agentRole: 'Team Leader',
+    meetingPurpose: 'Cloud Telemetry License Proposal Walkthrough',
+    scheduledTimeStr: 'Tomorrow, 11:00 AM',
+    isToday: false,
+    status: 'SCHEDULED',
+  },
+  {
+    id: 'mtg-5',
+    leadId: 'lead-5',
+    leadName: 'Rakesh Verma',
+    company: 'Verma Solutions',
+    phone: '+91 98111 22233',
+    email: 'rakesh@verma.com',
+    value: '₹2,45,000',
+    assignedAgent: 'Priya Sharma',
+    agentRole: 'Sales Executive',
+    meetingPurpose: 'AI Lead Scoring Engine Pro Walkthrough',
+    scheduledTimeStr: '22 Aug 2026, 03:00 PM',
+    isToday: false,
+    status: 'SCHEDULED',
+  },
+  {
+    id: 'mtg-6',
+    leadId: 'lead-6',
+    leadName: 'Deepa Nair',
+    company: 'Nair Exports Ltd',
+    phone: '+91 99888 77766',
+    email: 'deepa@nair.com',
+    value: '₹6,80,000',
+    assignedAgent: 'Rajesh Kumar',
+    agentRole: 'Sales Executive',
+    meetingPurpose: 'Multi-Tenant Migration & Security Compliance',
+    scheduledTimeStr: '23 Aug 2026, 05:30 PM',
+    isToday: false,
+    status: 'SCHEDULED',
+  },
+];
 
 interface ScreenProps {
   onNavigateToAttendance?: () => void;
@@ -27,8 +140,50 @@ interface ScreenProps {
 export default function AdminDashboardScreen({ onNavigateToAttendance, navigation }: ScreenProps) {
   const { currentUser, subscription } = useAuthStore();
 
+  const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
+  const [selectedMeeting, setSelectedMeeting] = useState<ScheduledMeetingItem | null>(null);
+
+  const filteredMeetings = MOCK_ADMIN_MEETINGS.filter((m) => {
+    if (meetingFilter === 'TODAY') return m.isToday;
+    if (meetingFilter === 'UPCOMING') return !m.isToday;
+    return true;
+  });
+
+  const todayCount = MOCK_ADMIN_MEETINGS.filter((m) => m.isToday).length;
+  const upcomingCount = MOCK_ADMIN_MEETINGS.filter((m) => !m.isToday).length;
+
+  const handleCallLeadDirect = (phone: string, leadName: string, leadId: string) => {
+    const cleaned = (phone || '').replace(/[^\d+]/g, '');
+    const dialUrl = `tel:${cleaned}`;
+    Linking.openURL(dialUrl).catch(() => {
+      Alert.alert('Dialing Direct', `Direct dialing ${cleaned} for ${leadName}...`);
+    });
+    callSyncEngine.initiateCall(leadId, leadName, phone);
+  };
+
+  const handleWhatsAppLeadDirect = (phone: string, leadName: string) => {
+    let cleaned = (phone || '').replace(/[^\d]/g, '');
+    if (cleaned.length === 10) cleaned = '91' + cleaned;
+    const waUrl = `whatsapp://send?phone=${cleaned}&text=Hi%20${encodeURIComponent(leadName)},%20following%20up%20regarding%20our%20scheduled%20meeting%20from%20DAS%20CRM.`;
+    Linking.openURL(waUrl).catch(() => {
+      Alert.alert('WhatsApp Launch', `Opening WhatsApp for ${leadName}...`);
+    });
+  };
+
+  const handleJumpToLeadDetail = (meeting: ScheduledMeetingItem) => {
+    setSelectedMeeting(null);
+    try {
+      navigation.navigate('Leads', {
+        screen: 'LeadDetail',
+        params: { leadId: meeting.leadId, leadName: meeting.leadName },
+      });
+    } catch {
+      navigation.navigate('Leads');
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* 👑 HEADER BANNER */}
@@ -91,26 +246,94 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           </View>
         </View>
 
-        {/* 📊 ROW 3: SEATS & SYSTEM STATUS CARDS */}
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(251, 191, 36, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>Active Seats</Text>
-            <Text style={[styles.statVal, { color: '#fcd34d' }]}>18 / 20</Text>
-            <Text style={styles.statSubLbl}>2 Seats Free</Text>
+        {/* 📅 SCHEDULED MEETINGS TODAY & UPCOMING WIDGET */}
+        <View style={[styles.cardBox, { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.06)' }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={[styles.cardTitle, { color: '#818cf8' }]}>📅 Scheduled Meetings Today &amp; Upcoming</Text>
+            <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>
+              {todayCount} Today • {upcomingCount} Upcoming
+            </Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>System Status</Text>
-            <Text style={[styles.statVal, { color: '#34d399', fontSize: 13, marginTop: 4 }]}>TRIAL_ACTIVE</Text>
-            <Text style={styles.statSubLbl}>Full Tier Enabled</Text>
+          {/* Filter Bar */}
+          <View style={styles.filterTabRow}>
+            <TouchableOpacity
+              style={[styles.filterChip, meetingFilter === 'TODAY' && styles.filterChipActive]}
+              onPress={() => setMeetingFilter('TODAY')}
+            >
+              <Text style={[styles.filterChipText, meetingFilter === 'TODAY' && styles.filterChipTextActive]}>
+                🟢 Today ({todayCount})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, meetingFilter === 'UPCOMING' && styles.filterChipActive]}
+              onPress={() => setMeetingFilter('UPCOMING')}
+            >
+              <Text style={[styles.filterChipText, meetingFilter === 'UPCOMING' && styles.filterChipTextActive]}>
+                🔵 Upcoming ({upcomingCount})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, meetingFilter === 'ALL' && styles.filterChipActive]}
+              onPress={() => setMeetingFilter('ALL')}
+            >
+              <Text style={[styles.filterChipText, meetingFilter === 'ALL' && styles.filterChipTextActive]}>
+                All Scheduled ({MOCK_ADMIN_MEETINGS.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Meetings List */}
+          <View style={{ marginTop: 8 }}>
+            {filteredMeetings.map((item, idx) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && styles.borderBottom]}
+                onPress={() => setSelectedMeeting(item)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.itemName}>{item.leadName}</Text>
+                    <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
+                      <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                        {item.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.itemSub}>{item.company} • {item.phone}</Text>
+                  <Text style={{ fontSize: 10, color: '#cbd5e1', marginTop: 2, fontWeight: '700' }}>
+                    💼 {item.meetingPurpose}
+                  </Text>
+                  <Text style={{ fontSize: 9, color: '#818cf8', marginTop: 2, fontWeight: '800' }}>
+                    👤 Assigned Rep: {item.assignedAgent} ({item.agentRole})
+                  </Text>
+                </View>
+
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <Text style={[styles.meetingTimeBadge, item.isToday ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                    ⏰ {item.scheduledTimeStr}
+                  </Text>
+                  <Text style={styles.leadValBadge}>{item.value}</Text>
+                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800', textDecorationLine: 'underline' }}>
+                    Inspect Lead →
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* 🆕 BOX 7: TOTAL EMPLOYEES & EMPLOYEES PRESENT */}
+        {/* 👥 WORKFORCE & ATTENDANCE TODAY */}
         <View style={[styles.cardBox, { borderColor: 'rgba(20, 184, 166, 0.4)', backgroundColor: 'rgba(20, 184, 166, 0.06)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <Text style={[styles.cardTitle, { color: '#2dd4bf' }]}>👥 Workforce &amp; Attendance Today</Text>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: '#2dd4bf' }}>79.2% Rate</Text>
+            <TouchableOpacity onPress={onNavigateToAttendance}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#2dd4bf' }}>79.2% Rate • View All →</Text>
+            </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
             <Text style={{ fontSize: 20, fontWeight: '900', color: '#ffffff' }}>19 Present</Text>
@@ -123,7 +346,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           </View>
         </View>
 
-        {/* 🆕 BOX 8: TODAY'S OPERATIONS & SALES TELEMETRY */}
+        {/* ⚡ TODAY'S OPERATIONS & SALES TELEMETRY */}
         <View style={[styles.cardBox, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.06)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <Text style={[styles.cardTitle, { color: '#34d399' }]}>⚡ Today's Sales &amp; Operations Telemetry</Text>
@@ -149,19 +372,6 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           </View>
         </View>
 
-        {/* ⏱️ SYNCHRONIZED ATTENDANCE CONTROL */}
-        <View style={styles.cardBox}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View>
-              <Text style={styles.cardTitle}>⏱️ Admin Attendance Status</Text>
-              <Text style={styles.cardSub}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (08:30 AM)</Text></Text>
-            </View>
-            <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance}>
-              <Text style={styles.actionBtnText}>Mark Attendance →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* LIVE INGESTION HISTORY */}
         <Text style={styles.sectionTitle}>Multi-Source Ingestion Telemetry</Text>
         <View style={styles.cardBox}>
@@ -181,15 +391,99 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 🔍 SCHEDULED MEETING & LEAD INSPECTOR MODAL                                */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={!!selectedMeeting} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {selectedMeeting && (
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>📅 Scheduled Meeting &amp; Lead Details</Text>
+                  <Text style={styles.modalSub}>Time: <Text style={{ color: '#34d399', fontWeight: '800' }}>{selectedMeeting.scheduledTimeStr}</Text></Text>
+                </View>
+                <TouchableOpacity onPress={() => setSelectedMeeting(null)} style={styles.modalCloseBtn}>
+                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+
+                {/* Lead Profile Header Card */}
+                <View style={styles.leadInspectHeaderCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff' }}>{selectedMeeting.leadName}</Text>
+                    <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{selectedMeeting.company}</Text>
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{selectedMeeting.value}</Text>
+                </View>
+
+                {/* Meeting Agenda Card */}
+                <View style={styles.inspectDetailBox}>
+                  <Text style={styles.inspectLabel}>🎯 Meeting Agenda &amp; Purpose:</Text>
+                  <Text style={{ fontSize: 12, color: '#ffffff', fontWeight: '700', marginTop: 2 }}>
+                    {selectedMeeting.meetingPurpose}
+                  </Text>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.inspectLabel}>👤 Assigned Staff:</Text>
+                    <Text style={{ fontSize: 11, color: '#818cf8', fontWeight: '800' }}>
+                      {selectedMeeting.assignedAgent} ({selectedMeeting.agentRole})
+                    </Text>
+                  </View>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.inspectLabel}>📞 Phone:</Text>
+                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '800' }}>{selectedMeeting.phone}</Text>
+                  </View>
+
+                  <View style={styles.metaRow}>
+                    <Text style={styles.inspectLabel}>✉️ Email:</Text>
+                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '800' }}>{selectedMeeting.email}</Text>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, { backgroundColor: '#10b981' }]}
+                    onPress={() => handleCallLeadDirect(selectedMeeting.phone, selectedMeeting.leadName, selectedMeeting.leadId)}
+                  >
+                    <Text style={styles.modalActionBtnText}>📞 Call Direct</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, { backgroundColor: '#25D366' }]}
+                    onPress={() => handleWhatsAppLeadDirect(selectedMeeting.phone, selectedMeeting.leadName)}
+                  >
+                    <Text style={styles.modalActionBtnText}>💬 WhatsApp</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.fullLeadBtn}
+                  onPress={() => handleJumpToLeadDetail(selectedMeeting)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.fullLeadBtnText}>⚡ Open Full Lead File in Funnel →</Text>
+                </TouchableOpacity>
+
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#090d16' },
+  content: { padding: 16, alignItems: 'center', paddingBottom: 32 },
 
   headerBox: { width: '100%', maxWidth: 600, marginBottom: 10 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
@@ -209,8 +503,24 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
   cardSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
 
-  actionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  actionBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+  filterTabRow: { flexDirection: 'row', gap: 6, marginVertical: 4 },
+  filterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155' },
+  filterChipActive: { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' },
+  filterChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
+  filterChipTextActive: { color: '#818cf8', fontWeight: '900' },
+
+  meetingCardItem: { paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  itemName: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
+  itemSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+
+  statusPill: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, borderWidth: 1 },
+  pillConfirmed: { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.4)' },
+  pillSched: { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.4)' },
+  statusPillText: { fontSize: 8, fontWeight: '900' },
+
+  meetingTimeBadge: { fontSize: 10, fontWeight: '900' },
+  leadValBadge: { fontSize: 11, fontWeight: '900', color: '#34d399' },
 
   telemetryGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
   telemetryItem: { alignItems: 'center', flex: 1 },
@@ -219,7 +529,22 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
   itemRow: { paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  itemName: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
-  itemSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  modalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+
+  leadInspectHeaderCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#334155', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  inspectDetailBox: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12 },
+  inspectLabel: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#1e293b' },
+
+  modalActionBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  modalActionBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
+
+  fullLeadBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  fullLeadBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
 });

@@ -1,6 +1,7 @@
 /**
  * App.tsx — DAS CRM Android Root Component
  * Main Navigation, Role-Based Route Dispatcher, Left-Side Drawer Overlay, Profile Modal,
+ * 🔔 Notifications Center & 5-Min Prior Automated Task Reminder System,
  * and Full In-App Update Engine (Version Checker, APK Direct Download, Installation Progress).
  */
 
@@ -42,9 +43,64 @@ import EmployeesScreen from './src/screens/EmployeesScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import TasksScreen from './src/screens/TasksScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
+import ProductsCatalogScreen from './src/screens/ProductsCatalogScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.82, 320);
+
+// Notifications Data Type
+export interface AppNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  timeStr: string;
+  type: 'TASK_5MIN_ALERT' | 'CALL_REMINDER' | 'LEAD_ASSIGNED' | 'SYSTEM';
+  isRead: boolean;
+  leadName?: string;
+  leadPhone?: string;
+}
+
+const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [
+  {
+    id: 'notif-1',
+    title: '⏰ Task Alert (Starts in 5 Mins)',
+    message: 'Meeting with Rajesh Mehta (TechCorp Solutions) starts in 5 minutes (02:30 PM). Get ready for demo!',
+    timeStr: 'In 5 Mins',
+    type: 'TASK_5MIN_ALERT',
+    isRead: false,
+    leadName: 'Rajesh Mehta',
+    leadPhone: '+91 98765 43210',
+  },
+  {
+    id: 'notif-2',
+    title: '📞 Priority Call Reminder (Starts in 5 Mins)',
+    message: 'Scheduled direct call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM).',
+    timeStr: 'In 5 Mins',
+    type: 'TASK_5MIN_ALERT',
+    isRead: false,
+    leadName: 'Priya Sharma',
+    leadPhone: '+91 98123 45678',
+  },
+  {
+    id: 'notif-3',
+    title: '🎯 Hot Lead Assigned',
+    message: 'New high-value lead assigned to your sales queue: Sunita Logistics Pvt Ltd (₹8,90,000).',
+    timeStr: '15 Mins ago',
+    type: 'LEAD_ASSIGNED',
+    isRead: false,
+    leadName: 'Sunita Kapoor',
+    leadPhone: '+91 97222 33344',
+  },
+  {
+    id: 'notif-4',
+    title: '⏱️ Attendance Sync Verified',
+    message: 'Workforce attendance punch logged successfully today at 09:21 AM (Geofence verified).',
+    timeStr: '1 Hour ago',
+    type: 'SYSTEM',
+    isRead: true,
+  },
+];
 
 // Navigation Param Lists
 export type LeadsStackParamList = {
@@ -83,14 +139,19 @@ function RoleDashboardDispatcher(props: any) {
   return <EmployeeDashboardScreen {...props} />;
 }
 
-function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: any) {
+function MainTabNavigator({ onOpenDrawer, onOpenNotifications, unreadCount }: any) {
   const insets = useSafeAreaInsets();
+  const { currentUser } = useAuthStore();
   const bottomPadding = Math.max(insets.bottom, 6);
+  const topPadding = Math.max(insets.top, 12);
+
+  const roleStr = currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
+  const companyStr = currentUser?.companyName || 'Acme Sales Solutions';
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#060810' }}>
+    <View style={{ flex: 1, backgroundColor: '#090d16' }}>
       {/* Dynamic Header */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenDrawer} activeOpacity={0.7}>
           <View style={styles.hamburgerLine} />
           <View style={[styles.hamburgerLine, { width: 14 }]} />
@@ -98,12 +159,18 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Acme Sales Solutions</Text>
-          <Text style={styles.headerSub}>ROLE: TENANT ADMIN</Text>
+          <Text style={styles.headerTitle}>{companyStr}</Text>
+          <Text style={styles.headerSub}>ROLE: {roleStr}</Text>
         </View>
 
-        <TouchableOpacity style={styles.profileBadge} onPress={onOpenProfile} activeOpacity={0.7}>
-          <Text style={styles.profileBadgeText}>AS</Text>
+        {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
+        <TouchableOpacity style={styles.notifHeaderBtn} onPress={onOpenNotifications} activeOpacity={0.7}>
+          <Text style={{ fontSize: 17 }}>🔔</Text>
+          {unreadCount > 0 && (
+            <View style={styles.notifBadgeCircle}>
+              <Text style={styles.notifBadgeCountText}>{unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -113,9 +180,9 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           tabBarStyle: [
             styles.tabBar,
             {
-              height: 68 + Math.max(bottomPadding, 10),
-              paddingTop: 6,
-              paddingBottom: Math.max(bottomPadding, 10) + 4,
+              height: 56 + bottomPadding,
+              paddingTop: 4,
+              paddingBottom: bottomPadding,
             }
           ],
           tabBarActiveTintColor: '#818cf8',
@@ -222,6 +289,21 @@ export default function App() {
   const navigationRef = useNavigationContainerRef();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [productsModalOpen, setProductsModalOpen] = useState(false);
+
+  // 🔔 NOTIFICATIONS & 5-MIN PRIOR TASK ALERTS STATE
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotificationItem[]>(INITIAL_NOTIFICATIONS);
+
+  const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
+
+  const handleMarkAllNotifsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const handleMarkSingleNotifRead = (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+  };
 
   // ── IN-APP UPDATE ENGINE STATE ──────────────────────────────────────────────
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
@@ -237,52 +319,6 @@ export default function App() {
   // Smooth Left-Side Animation State
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const openDrawer = () => {
-    setDrawerVisible(true);
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const closeDrawer = (callback?: () => void) => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: -DRAWER_WIDTH,
-        duration: 200,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setDrawerVisible(false);
-      if (callback) callback();
-    });
-  };
-
-  // ── IN-APP UPDATE HANDLERS ──────────────────────────────────────────────────
-  const handleCheckForUpdates = () => {
-    setCheckingUpdate(true);
-    setTimeout(() => {
-      setCheckingUpdate(false);
-      setUpdateAvailable(true);
-      Alert.alert('New Update Found!', `Version ${latestVersion} is available for download.`);
-    }, 1200);
-  };
 
   const handleStartDownload = () => {
     setDownloading(true);
@@ -320,6 +356,42 @@ export default function App() {
     );
   };
 
+  const openDrawer = () => {
+    setDrawerVisible(true);
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 240,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeDrawer = (callback?: () => void) => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -DRAWER_WIDTH,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDrawerVisible(false);
+      if (callback) callback();
+    });
+  };
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -329,8 +401,8 @@ export default function App() {
         ) : (
           <MainTabNavigator
             onOpenDrawer={openDrawer}
-            onOpenProfile={() => setProfileModalOpen(true)}
-            onOpenUpdateModal={() => setUpdateModalOpen(true)}
+            onOpenNotifications={() => setNotifModalOpen(true)}
+            unreadCount={unreadNotifCount}
             navigation={{ navigate: (name: string, params?: any) => (navigationRef as any).navigate(name, params) }}
           />
         )}
@@ -391,7 +463,7 @@ export default function App() {
                 { icon: '⚡', label: 'Leads Funnel Customization', badge: '3-MODEL', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                 { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
                 { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
-                { icon: '📦', label: 'Products & Services Catalog', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'PRODUCTS' })) },
+                { icon: '📦', label: 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
               ].map((item, idx) => (
                 <TouchableOpacity key={idx} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
                   <View style={styles.drawerItemIconBox}>
@@ -413,6 +485,7 @@ export default function App() {
               </View>
 
               {[
+                { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
                 { icon: '💬', label: 'Communications Hub', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
                 { icon: '📧', label: 'Email Marketing & Templates', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
                 { icon: '🎯', label: 'Goals & Targets', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'GOALS' })) },
@@ -426,22 +499,11 @@ export default function App() {
                 </TouchableOpacity>
               ))}
 
-              {/* SYSTEM & SUPPORT */}
+              {/* SYSTEM & IN-APP UPDATE */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.drawerGroupTitle}>SYSTEM &amp; SUPPORT</Text>
+                <Text style={styles.drawerGroupTitle}>SYSTEM &amp; UPDATES</Text>
                 <View style={styles.sectionLine} />
               </View>
-
-              <TouchableOpacity
-                style={styles.drawerItemRow}
-                onPress={() => closeDrawer(() => Alert.alert('Contact Support', 'DAS CRM Support Team: support@dascrm.com'))}
-                activeOpacity={0.7}
-              >
-                <View style={styles.drawerItemIconBox}>
-                  <Text style={{ fontSize: 14 }}>📞</Text>
-                </View>
-                <Text style={styles.drawerItemLabel}>Contact Support</Text>
-              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.drawerItemRow}
@@ -449,21 +511,26 @@ export default function App() {
                 activeOpacity={0.7}
               >
                 <View style={styles.drawerItemIconBox}>
-                  <Text style={{ fontSize: 14 }}>🔄</Text>
+                  <Text style={{ fontSize: 14 }}>🚀</Text>
                 </View>
-                <Text style={styles.drawerItemLabel}>In-App Update Center</Text>
-                <View style={[styles.itemBadge, { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)' }]}>
-                  <Text style={[styles.itemBadgeText, { color: '#34d399' }]}>v2.5.0</Text>
+                <Text style={styles.drawerItemLabel}>Check In-App Version</Text>
+                <View style={[styles.itemBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
+                  <Text style={[styles.itemBadgeText, { color: '#38bdf8' }]}>v2.5.0 NEW</Text>
                 </View>
               </TouchableOpacity>
 
+              <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.7}>
+                <Text style={styles.signOutBtnText}>🚪 Sign Out of Workspace</Text>
+              </TouchableOpacity>
+
+              {/* 💻 DEVELOPER BAR */}
               <TouchableOpacity
-                style={styles.signOutBtn}
-                onPress={() => closeDrawer(async () => await logout())}
+                style={styles.devBarCard}
+                onPress={() => Linking.openURL('https://github.com/aditya-k-rai')}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontSize: 14 }}>🚪</Text>
-                <Text style={styles.signOutBtnText}>Sign Out Workspace</Text>
+                <Text style={styles.devBarTitle}>⚡ Developed with ❤️ by <Text style={{ color: '#818cf8', fontWeight: '900' }}>Aditya Kumar Rai</Text></Text>
+                <Text style={styles.devBarLink}>🔗 github.com/aditya-k-rai →</Text>
               </TouchableOpacity>
 
             </ScrollView>
@@ -471,97 +538,119 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* 🔄 IN-APP OTA UPDATE MODAL */}
+      {/* 👤 FULL USER PROFILE MODAL */}
+      <Modal visible={profileModalOpen} transparent animationType="slide">
+        <ProfileScreen
+          onLogout={logout}
+          onOpenUpdate={() => {
+            setProfileModalOpen(false);
+            setUpdateModalOpen(true);
+          }}
+          onClose={() => setProfileModalOpen(false)}
+        />
+      </Modal>
+
+      {/* 📦 PRODUCTS & SERVICES CATALOG MANAGEMENT PORTAL MODAL */}
+      <Modal visible={productsModalOpen} transparent animationType="slide">
+        <ProductsCatalogScreen onClose={() => setProductsModalOpen(false)} />
+      </Modal>
+
+      {/* 🔔 NOTIFICATIONS CENTER & REAL-TIME ROUTING SCREEN MODAL */}
+      <Modal visible={notifModalOpen} transparent animationType="slide">
+        <NotificationsScreen
+          onClose={() => setNotifModalOpen(false)}
+          onNavigateToLead={(leadId, leadName) => {
+            setNotifModalOpen(false);
+            try {
+              (navigationRef as any).navigate('Leads', {
+                screen: 'LeadDetail',
+                params: { leadId, leadName },
+              });
+            } catch {
+              (navigationRef as any).navigate('Leads');
+            }
+          }}
+          onNavigateToRoute={(routeName) => {
+            setNotifModalOpen(false);
+            (navigationRef as any).navigate(routeName);
+          }}
+        />
+      </Modal>
+
+      {/* 🚀 IN-APP APK UPDATE ENGINE MODAL */}
       <Modal visible={updateModalOpen} transparent animationType="slide">
         <View style={styles.updateModalOverlay}>
           <View style={styles.updateModalCard}>
-            
-            {/* Header Title */}
+
             <View style={styles.updateHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={styles.updateIconBox}>
-                  <Text style={{ fontSize: 20 }}>🔄</Text>
+                  <Text style={{ fontSize: 20 }}>🚀</Text>
                 </View>
                 <View>
-                  <Text style={styles.updateModalTitle}>In-App Update Center</Text>
-                  <Text style={styles.updateModalSub}>Current: {currentVersion}</Text>
+                  <Text style={styles.updateModalTitle}>In-App App Updates</Text>
+                  <Text style={styles.updateModalSub}>DAS CRM Android Control System</Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => setUpdateModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              <TouchableOpacity onPress={() => setUpdateModalOpen(false)} style={styles.closeDrawerBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Version Info Box */}
             <View style={styles.versionBox}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.verTitle}>Target Release: {latestVersion}</Text>
+                <Text style={styles.verTitle}>Available Version: {latestVersion}</Text>
                 <View style={styles.stableBadge}>
-                  <Text style={styles.stableBadgeText}>STABLE APK</Text>
+                  <Text style={styles.stableBadgeText}>OFFICIAL STABLE</Text>
                 </View>
               </View>
-              <Text style={styles.verMeta}>Package Size: 24.8 MB • Build Date: Aug 19, 2026</Text>
+              <Text style={styles.verMeta}>Currently Installed: {currentVersion} • Size: 24.8 MB</Text>
             </View>
 
-            {/* Changelog Notes */}
-            <Text style={styles.changelogTitle}>What's New in Version {latestVersion}:</Text>
+            <Text style={styles.changelogTitle}>What's New in {latestVersion}:</Text>
             <View style={styles.changelogCard}>
-              <Text style={styles.changelogItem}>• ⚡ Real-time Geo-Fencing &amp; Camera Attendance Verification</Text>
-              <Text style={styles.changelogItem}>• 🎯 3-Model Lead Funnel Engine &amp; Column Reorder Controls</Text>
-              <Text style={styles.changelogItem}>• 🔒 Enhanced 5-Role Access Control &amp; Instant Data Sync</Text>
+              <Text style={styles.changelogItem}>• ⚡ 3-Model Lead Funnel Routing Engine (Batch Quotas &amp; Vanishing Pool)</Text>
+              <Text style={styles.changelogItem}>• 📊 Google Sheets 2-Way Live Sync &amp; Excel Bulk Import Ingestion</Text>
+              <Text style={styles.changelogItem}>• ⏱️ Geofenced Attendance Punch &amp; Auto Midnight Purge Engine</Text>
+              <Text style={styles.changelogItem}>• 💬 WhatsApp 2-Step Product Quotation &amp; Direct Launcher</Text>
             </View>
 
-            {/* Progress Bar (During Download) */}
-            {(downloading || downloadReady) && (
-              <View style={{ marginTop: 14 }}>
+            {downloading && (
+              <View style={{ marginVertical: 10 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#818cf8' }}>
-                    {downloadReady ? '✅ APK Download Complete (24.8 MB)' : `Downloading APK Package... ${downloadProgress}%`}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700' }}>4.5 MB/s</Text>
+                  <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800' }}>Downloading Update Package...</Text>
+                  <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '900' }}>{downloadProgress}%</Text>
                 </View>
-
                 <View style={styles.progressBarTrack}>
                   <View style={[styles.progressBarFill, { width: `${downloadProgress}%` }]} />
                 </View>
               </View>
             )}
 
-            {/* Action Buttons */}
             <View style={styles.updateActionsRow}>
-              {checkingUpdate ? (
-                <View style={[styles.updatePrimaryBtn, { backgroundColor: '#1e293b' }]}>
-                  <ActivityIndicator color="#818cf8" size="small" />
-                  <Text style={[styles.updatePrimaryBtnText, { marginLeft: 8 }]}>Checking Server...</Text>
-                </View>
-              ) : downloadReady ? (
-                <TouchableOpacity style={[styles.updatePrimaryBtn, { backgroundColor: '#22c55e' }]} onPress={handleInstallApk}>
-                  <Text style={styles.updatePrimaryBtnText}>🚀 Install APK Package Now</Text>
+              {downloadReady ? (
+                <TouchableOpacity style={styles.updatePrimaryBtn} onPress={handleInstallApk}>
+                  <Text style={styles.updatePrimaryBtnText}>📦 Install Updated APK Package Now →</Text>
                 </TouchableOpacity>
-              ) : downloading ? (
-                <View style={[styles.updatePrimaryBtn, { backgroundColor: '#334155' }]}>
-                  <ActivityIndicator color="#ffffff" size="small" />
-                  <Text style={[styles.updatePrimaryBtnText, { marginLeft: 8 }]}>Downloading ({downloadProgress}%)...</Text>
-                </View>
               ) : (
-                <TouchableOpacity style={styles.updatePrimaryBtn} onPress={handleStartDownload}>
-                  <Text style={styles.updatePrimaryBtnText}>📥 Download &amp; Install Update (24.8 MB)</Text>
+                <TouchableOpacity
+                  style={styles.updatePrimaryBtn}
+                  onPress={handleStartDownload}
+                  disabled={downloading}
+                >
+                  {downloading ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.updatePrimaryBtnText}>📥 Download &amp; Upgrade to {latestVersion} →</Text>
+                  )}
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity style={styles.checkServerBtn} onPress={handleCheckForUpdates}>
-                <Text style={styles.checkServerBtnText}>🔍 Re-Check Server</Text>
-              </TouchableOpacity>
             </View>
 
           </View>
         </View>
       </Modal>
 
-      {/* 👤 PROFILE MODAL */}
-      <Modal visible={profileModalOpen} transparent animationType="slide">
-        <ProfileScreen onClose={() => setProfileModalOpen(false)} onOpenUpdate={() => { setProfileModalOpen(false); setUpdateModalOpen(true); }} />
-      </Modal>
     </SafeAreaProvider>
   );
 }
@@ -603,17 +692,56 @@ const styles = StyleSheet.create({
   signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', paddingVertical: 10, borderRadius: 12, marginTop: 20 },
   signOutBtnText: { color: '#fca5a5', fontSize: 12, fontWeight: '800' },
 
-  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', paddingHorizontal: 16, paddingTop: 44, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  devBarCard: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, marginTop: 12, alignItems: 'center' },
+  devBarTitle: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
+  devBarLink: { color: '#38bdf8', fontSize: 9, fontWeight: '800', marginTop: 2 },
+
+  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   hamburgerBtn: { padding: 4, justifyContent: 'center', gap: 4 },
   hamburgerLine: { width: 18, height: 2, backgroundColor: '#818cf8', borderRadius: 1 },
   headerCenter: { alignItems: 'center' },
   headerTitle: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
   headerSub: { color: '#818cf8', fontSize: 8, fontWeight: '800', letterSpacing: 0.5, marginTop: 1 },
-  profileBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' },
-  profileBadgeText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
 
-  tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b' },
+  // 🔔 NOTIFICATION HEADER BUTTON WITH UNREAD COUNT BADGE
+  notifHeaderBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', position: 'relative', borderWidth: 1, borderColor: '#334155' },
+  notifBadgeCircle: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#090d16' },
+  notifBadgeCountText: { color: '#ffffff', fontSize: 9, fontWeight: '900' },
+
+  tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b', elevation: 0 },
   tabIconBox: { width: 44, height: 28, borderRadius: 10, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+
+  // 🔔 Notifications Modal Styles
+  notifModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  notifModalCard: { width: '100%', maxWidth: 430, backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  notifModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
+  notifModalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  unreadHeaderBadge: { backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
+  unreadHeaderBadgeText: { color: '#ffffff', fontSize: 8, fontWeight: '900' },
+  notifModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
+  notifCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+
+  alertNoticeBanner: { backgroundColor: 'rgba(234,179,8,0.12)', borderWidth: 1, borderColor: '#eab308', borderRadius: 12, padding: 10, marginBottom: 10 },
+  alertNoticeTitle: { fontSize: 11, fontWeight: '900', color: '#facc15' },
+  alertNoticeSub: { fontSize: 9, color: '#fef08a', marginTop: 2 },
+
+  markAllReadBtn: { backgroundColor: '#1e293b', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-end', marginBottom: 6 },
+  markAllReadBtnText: { color: '#818cf8', fontSize: 10, fontWeight: '800' },
+
+  notifItemCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 8 },
+  notifItemUnread: { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)' },
+  notifItemTitle: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
+  unreadDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#818cf8' },
+  notifTimeStr: { fontSize: 9, color: '#64748b', fontWeight: '700' },
+  notifItemMsg: { fontSize: 10, color: '#cbd5e1', marginTop: 4, lineHeight: 14 },
+
+  notifActionRow: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' },
+  notifLeadBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  notifLeadBtnText: { color: '#818cf8', fontSize: 9, fontWeight: '800' },
+  notifCallBtn: { backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  notifCallBtnText: { color: '#34d399', fontSize: 9, fontWeight: '800' },
+  markSingleReadBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginLeft: 'auto' },
+  markSingleReadBtnText: { color: '#94a3b8', fontSize: 9, fontWeight: '700' },
 
   // Update Modal Styles
   updateModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },

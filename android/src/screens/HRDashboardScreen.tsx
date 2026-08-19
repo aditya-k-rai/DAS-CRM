@@ -70,7 +70,7 @@ export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProp
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -350,15 +350,15 @@ export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProp
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060810' },
-  content: { padding: 16 },
+  container: { flex: 1, backgroundColor: '#090d16' },
+  content: { padding: 16, paddingBottom: 24 },
 
   headerCard: {
     backgroundColor: '#0f172a',

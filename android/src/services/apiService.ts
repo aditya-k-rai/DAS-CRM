@@ -16,14 +16,80 @@ export interface LeadItem {
   value: string;
   source: string;
   priority: string;
+
+  // Custom Spreadsheet Columns Parity
+  assignedRep?: string;
+  city?: string;
+  budget?: string;
+  requirement?: string;
+  callSyncStatus?: string;
 }
 
 export const FALLBACK_LEADS: LeadItem[] = [
-  { id: '1', name: 'Vikram Mehta', company: 'Acme Corp', email: 'vikram@acme.com', phone: '+91 98765 43210', status: 'IN NEGOTIATION', value: '$14,200', source: 'Google Sheets', priority: 'High' },
-  { id: '2', name: 'Sunita Rao', company: 'TechCorp India', email: 'No Email Provided', phone: '+91 98123 45678', status: 'NEW LEAD', value: '$8,500', source: 'Excel Import', priority: 'Medium' },
-  { id: '3', name: 'Rajesh Kumar', company: 'Starlight Media', email: 'rajesh@starlight.com', phone: '+91 97111 22233', status: 'QUALIFIED', value: '$22,000', source: 'Meta Ads', priority: 'High' },
-  { id: '4', name: 'Amit Shah', company: 'Global Freight', email: 'No Email Provided', phone: '+91 96555 44433', status: 'CONTACTED', value: '$6,800', source: 'Google Ads', priority: 'Low' },
-  { id: '5', name: 'Priya Sharma', company: 'LogiTech Solutions', email: 'priya@logitech.com', phone: '+91 95444 33322', status: 'WON', value: '$35,000', source: 'Direct Import', priority: 'High' },
+  {
+    id: '1',
+    name: 'Aditya Sharma',
+    company: 'TechCorp India',
+    email: 'aditya.s@techcorp.in',
+    phone: '+91 98765 43210',
+    status: 'Prospecting',
+    value: '₹45,000',
+    source: 'Facebook Ads',
+    priority: 'High',
+    assignedRep: 'Rajesh Kumar',
+    city: 'Mumbai',
+    budget: '50k-1L',
+    requirement: 'CRM Enterprise',
+    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+  },
+  {
+    id: '2',
+    name: 'Priya Patel',
+    company: 'Innovate Solutions',
+    email: 'priya.p@innovate.io',
+    phone: '+91 98123 76543',
+    status: 'Proposal',
+    value: '₹1,20,000',
+    source: 'Google Ads',
+    priority: 'High',
+    assignedRep: 'Priya Sharma',
+    city: 'Bangalore',
+    budget: '1L-2L',
+    requirement: 'Call Automation Bot',
+    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+  },
+  {
+    id: '3',
+    name: 'Vikram Malhotra',
+    company: 'Apex Global',
+    email: 'vikram.m@apexind.com',
+    phone: '+91 99887 11223',
+    status: 'Negotiation',
+    value: '₹85,000',
+    source: 'WhatsApp Web',
+    priority: 'Medium',
+    assignedRep: 'Amit Shah (TL)',
+    city: 'Delhi',
+    budget: '80k-1L',
+    requirement: 'Multi-Tenant SLA',
+    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+  },
+  {
+    id: '4',
+    name: 'Ananya Roy',
+    company: 'Sun Realty',
+    email: 'ananya.r@sunrealty.com',
+    phone: '+91 97654 32109',
+    status: 'Closed Won',
+    value: '₹2,10,000',
+    source: 'Website Form',
+    priority: 'High',
+    assignedRep: 'Sunita Verma (HR)',
+    city: 'Pune',
+    budget: '2L+',
+    requirement: 'Payroll Engine',
+    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+  },
 ];
 
 class ApiService {
