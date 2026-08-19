@@ -112,10 +112,19 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           headerShown: false,
           tabBarStyle: [
             styles.tabBar,
-            { height: 58 + bottomPadding, paddingBottom: bottomPadding + 2 }
+            {
+              height: 68 + Math.max(bottomPadding, 10),
+              paddingTop: 6,
+              paddingBottom: Math.max(bottomPadding, 10) + 4,
+            }
           ],
           tabBarActiveTintColor: '#818cf8',
           tabBarInactiveTintColor: '#64748b',
+          tabBarItemStyle: {
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingVertical: 2,
+          },
         }}
       >
         <Tab.Screen
@@ -129,11 +138,11 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(129,140,248,0.25)', borderColor: '#818cf8' }]}>
-                <Text style={{ fontSize: 16 }}>🏠</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>🏠</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#818cf8' : '#64748b' }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#818cf8' : '#64748b', marginTop: 1 }}>
                 {focused ? 'Home ●' : 'Home'}
               </Text>
             ),
@@ -145,11 +154,11 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(56,189,248,0.25)', borderColor: '#38bdf8' }]}>
-                <Text style={{ fontSize: 16 }}>🎯</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>🎯</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#38bdf8' : '#64748b' }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#38bdf8' : '#64748b', marginTop: 1 }}>
                 {focused ? 'Leads ●' : 'Leads'}
               </Text>
             ),
@@ -161,11 +170,11 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(192,132,252,0.25)', borderColor: '#c084fc' }]}>
-                <Text style={{ fontSize: 16 }}>👥</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>👥</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#c084fc' : '#64748b' }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#c084fc' : '#64748b', marginTop: 1 }}>
                 {focused ? 'Employees ●' : 'Employees'}
               </Text>
             ),
@@ -177,11 +186,11 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(251,191,36,0.25)', borderColor: '#fbbf24' }]}>
-                <Text style={{ fontSize: 16 }}>⚡</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>⚡</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#fbbf24' : '#64748b' }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#fbbf24' : '#64748b', marginTop: 1 }}>
                 {focused ? 'More ●' : 'More'}
               </Text>
             ),
@@ -193,11 +202,11 @@ function MainTabNavigator({ onOpenDrawer, onOpenProfile, onOpenUpdateModal }: an
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(52,211,153,0.25)', borderColor: '#34d399' }]}>
-                <Text style={{ fontSize: 16 }}>⏱️</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>⏱️</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#34d399' : '#64748b' }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#34d399' : '#64748b', marginTop: 1 }}>
                 {focused ? 'Attendance ●' : 'Attendance'}
               </Text>
             ),
@@ -604,7 +613,7 @@ const styles = StyleSheet.create({
   profileBadgeText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
 
   tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b' },
-  tabIconBox: { paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  tabIconBox: { width: 44, height: 28, borderRadius: 10, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 
   // Update Modal Styles
   updateModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
