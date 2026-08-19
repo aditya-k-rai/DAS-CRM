@@ -3,7 +3,7 @@
  * Complete Lead Management & Funnel Control Center.
  * Features top Segmented Slider Toggle:
  *   1. ⚡ Lead Funnel (3-Model Lead Routing, Quotas, Timeouts & Ingestion Controls)
- *   2. 🎯 Leads Collections (Directory, Filters, Search & Detail Cards)
+ *   2. 🎯 Leads Collections (Directory, Filters, Search, Column Reordering/Renaming & Lead Record Editing)
  * Matches the exact segmented slider aesthetic of the Attendance Screen.
  */
 
@@ -42,6 +42,41 @@ export default function LeadsScreen() {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
 
+  // ── DYNAMIC COLUMN REORDER & RENAME STATE ────────────────────────────────────
+  const [colOrderModalOpen, setColOrderModalOpen] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<string[]>([
+    'name', 'email', 'phone', 'company', 'source', 'status', 'value'
+  ]);
+  const [columnNames, setColumnNames] = useState<Record<string, string>>({
+    name: 'NAME COLUMN',
+    email: 'EMAIL COLUMN',
+    phone: 'NUMBER / PHONE COLUMN',
+    company: 'COMPANY COLUMN',
+    source: 'SOURCE',
+    status: 'SALES STAGE',
+    value: 'LEAD VALUE',
+  });
+
+  const moveColumnLeft = (colKey: string) => {
+    const idx = columnOrder.indexOf(colKey);
+    if (idx <= 0) return;
+    const newOrder = [...columnOrder];
+    const temp = newOrder[idx - 1];
+    newOrder[idx - 1] = newOrder[idx];
+    newOrder[idx] = temp;
+    setColumnOrder(newOrder);
+  };
+
+  const moveColumnRight = (colKey: string) => {
+    const idx = columnOrder.indexOf(colKey);
+    if (idx === -1 || idx >= columnOrder.length - 1) return;
+    const newOrder = [...columnOrder];
+    const temp = newOrder[idx + 1];
+    newOrder[idx + 1] = newOrder[idx];
+    newOrder[idx] = temp;
+    setColumnOrder(newOrder);
+  };
+
   // ── FUNNEL CUSTOMIZATION STATE ──────────────────────────────────────────────
   const [strategy, setStrategy] = useState<'BATCH_QUOTA' | 'VANISH_POOL' | 'MANUAL'>('BATCH_QUOTA');
   const [quotaCap, setQuotaCap] = useState(25);
@@ -61,6 +96,9 @@ export default function LeadsScreen() {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newValue, setNewValue] = useState('$15,000');
+
+  // ── EDIT LEAD MODAL STATE ───────────────────────────────────────────────────
+  const [editingLead, setEditingLead] = useState<LeadItem | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,6 +163,13 @@ export default function LeadsScreen() {
     setNewEmail('');
     setNewPhone('');
     Alert.alert('Lead Created', `Successfully added ${createdLead.name} to Leads Collections.`);
+  };
+
+  const handleSaveEditedLead = () => {
+    if (!editingLead) return;
+    setLeadsList(prev => prev.map(item => item.id === editingLead.id ? editingLead : item));
+    setEditingLead(null);
+    Alert.alert('Lead Updated', 'Successfully updated lead details.');
   };
 
   const filteredLeads = leadsList.filter(l => {
@@ -289,11 +334,11 @@ export default function LeadsScreen() {
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4f46e5' }]} onPress={() => setInsertModalOpen(true)}>
                 <Text style={styles.actionBtnText}>+ New Lead</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)' }]} onPress={() => setSheetModalOpen(true)}>
-                <Text style={[styles.actionBtnText, { color: '#34d399' }]}>🟢 Sheets Sync</Text>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]} onPress={() => setColOrderModalOpen(true)}>
+                <Text style={[styles.actionBtnText, { color: '#a5b4fc' }]}>🔀 Columns</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(168,85,247,0.15)', borderColor: 'rgba(168,85,247,0.3)' }]} onPress={() => setImportModalOpen(true)}>
-                <Text style={[styles.actionBtnText, { color: '#c084fc' }]}>📥 Import CSV</Text>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)' }]} onPress={() => setSheetModalOpen(true)}>
+                <Text style={[styles.actionBtnText, { color: '#34d399' }]}>🟢 Sheets</Text>
               </TouchableOpacity>
             </View>
 
@@ -328,17 +373,25 @@ export default function LeadsScreen() {
               >
                 <View style={styles.cardHeader}>
                   <Text style={styles.leadName}>{item.name}</Text>
-                  <View style={[styles.statusBadge, {
-                    backgroundColor: item.status === 'WON' ? 'rgba(16,185,129,0.15)' : item.status === 'IN NEGOTIATION' ? 'rgba(245,158,11,0.15)' : 'rgba(56,189,248,0.15)',
-                    borderColor: item.status === 'WON' ? 'rgba(16,185,129,0.4)' : item.status === 'IN NEGOTIATION' ? 'rgba(245,158,11,0.4)' : 'rgba(56,189,248,0.4)',
-                  }]}>
-                    <Text style={[styles.statusText, {
-                      color: item.status === 'WON' ? '#34d399' : item.status === 'IN NEGOTIATION' ? '#fbbf24' : '#38bdf8',
-                    }]}>{item.status}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                    <TouchableOpacity
+                      style={styles.editRowBtn}
+                      onPress={() => setEditingLead(item)}
+                    >
+                      <Text style={styles.editRowBtnText}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                    <View style={[styles.statusBadge, {
+                      backgroundColor: item.status === 'WON' ? 'rgba(16,185,129,0.15)' : item.status === 'IN NEGOTIATION' ? 'rgba(245,158,11,0.15)' : 'rgba(56,189,248,0.15)',
+                      borderColor: item.status === 'WON' ? 'rgba(16,185,129,0.4)' : item.status === 'IN NEGOTIATION' ? 'rgba(245,158,11,0.4)' : 'rgba(56,189,248,0.4)',
+                    }]}>
+                      <Text style={[styles.statusText, {
+                        color: item.status === 'WON' ? '#34d399' : item.status === 'IN NEGOTIATION' ? '#fbbf24' : '#38bdf8',
+                      }]}>{item.status}</Text>
+                    </View>
                   </View>
                 </View>
 
-                <Text style={styles.leadCompany}>{item.company} • {item.source}</Text>
+                <Text style={styles.leadCompany}>{item.company} • {item.email}</Text>
 
                 <View style={styles.cardFooter}>
                   <Text style={styles.leadVal}>{item.value}</Text>
@@ -350,7 +403,105 @@ export default function LeadsScreen() {
         </View>
       )}
 
-      {/* ── MODAL 1: GOOGLE SHEETS SYNC ────────────────────────────────────── */}
+      {/* ── MODAL 1: DYNAMIC COLUMN REORDER & RENAME ───────────────────────── */}
+      <Modal visible={colOrderModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🔀 Reorder &amp; Edit Columns</Text>
+            <Text style={styles.modalSub}>Shift column positions forward/backward and customize display names.</Text>
+
+            <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+              {columnOrder.map((colKey, idx) => (
+                <View key={colKey} style={styles.colItemRow}>
+                  <TextInput
+                    style={styles.colNameInput}
+                    value={columnNames[colKey] || colKey}
+                    onChangeText={text => setColumnNames(prev => ({ ...prev, [colKey]: text }))}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      style={[styles.colShiftBtn, idx === 0 && { opacity: 0.3 }]}
+                      disabled={idx === 0}
+                      onPress={() => moveColumnLeft(colKey)}
+                    >
+                      <Text style={styles.colShiftBtnText}>← Shift</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.colShiftBtn, idx === columnOrder.length - 1 && { opacity: 0.3 }]}
+                      disabled={idx === columnOrder.length - 1}
+                      onPress={() => moveColumnRight(colKey)}
+                    >
+                      <Text style={styles.colShiftBtnText}>Shift →</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 14 }]} onPress={() => setColOrderModalOpen(false)}>
+              <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save Column Layout ✓</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 2: EDIT LEAD RECORD ──────────────────────────────────────── */}
+      <Modal visible={!!editingLead} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {editingLead && (
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>✏️ Admin Edit Lead Record</Text>
+              <Text style={styles.modalSub}>Update lead details across active workspace collections.</Text>
+
+              <Text style={styles.label}>Lead Name *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editingLead.name}
+                onChangeText={text => setEditingLead({ ...editingLead, name: text })}
+              />
+
+              <Text style={styles.label}>Company / Firm</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editingLead.company}
+                onChangeText={text => setEditingLead({ ...editingLead, company: text })}
+              />
+
+              <Text style={styles.label}>Email Address</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editingLead.email}
+                onChangeText={text => setEditingLead({ ...editingLead, email: text })}
+              />
+
+              <Text style={styles.label}>Phone Number</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editingLead.phone}
+                onChangeText={text => setEditingLead({ ...editingLead, phone: text })}
+              />
+
+              <Text style={styles.label}>Lead Value ($/₹)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editingLead.value}
+                onChangeText={text => setEditingLead({ ...editingLead, value: text })}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b' }]} onPress={() => setEditingLead(null)}>
+                  <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#10b981' }]} onPress={handleSaveEditedLead}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save Lead ✓</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* ── MODAL 3: GOOGLE SHEETS SYNC ────────────────────────────────────── */}
       <Modal visible={sheetModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -387,7 +538,7 @@ export default function LeadsScreen() {
         </View>
       </Modal>
 
-      {/* ── MODAL 2: CSV / EXCEL IMPORT ────────────────────────────────────── */}
+      {/* ── MODAL 4: CSV / EXCEL IMPORT ────────────────────────────────────── */}
       <Modal visible={importModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -416,7 +567,7 @@ export default function LeadsScreen() {
         </View>
       </Modal>
 
-      {/* ── MODAL 3: INSERT SINGLE LEAD ────────────────────────────────────── */}
+      {/* ── MODAL 5: INSERT SINGLE LEAD ────────────────────────────────────── */}
       <Modal visible={insertModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -555,6 +706,8 @@ const styles = StyleSheet.create({
   leadCard: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 14, marginBottom: 10 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   leadName: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  editRowBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  editRowBtnText: { color: '#a5b4fc', fontSize: 10, fontWeight: '800' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   statusText: { fontSize: 9, fontWeight: '800' },
   leadCompany: { fontSize: 11, color: '#94a3b8', marginTop: 4 },
@@ -562,12 +715,18 @@ const styles = StyleSheet.create({
   leadVal: { fontSize: 13, fontWeight: '900', color: '#34d399' },
   leadPhone: { fontSize: 11, color: '#64748b' },
 
+  // Column Reorder Modal Items
+  colItemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#020617', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 8 },
+  colNameInput: { flex: 1, color: '#ffffff', fontWeight: '700', fontSize: 11, backgroundColor: '#0f172a', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8, borderWidth: 1, borderColor: '#1e293b' },
+  colShiftBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 },
+  colShiftBtnText: { color: '#818cf8', fontWeight: '800', fontSize: 10 },
+
   // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.8)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalContent: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 16, padding: 18 },
   modalTitle: { fontSize: 16, fontWeight: '800', color: '#ffffff', marginBottom: 4 },
   modalSub: { fontSize: 11, color: '#94a3b8', marginBottom: 14 },
-  label: { fontSize: 11, fontWeight: '700', color: '#cbd5e1', marginTop: 10, marginBottom: 4 },
+  label: { fontSize: 11, fontWeight: '700', color: '#cbd5e1', marginTop: 8, marginBottom: 3 },
   modalInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, color: '#ffffff', fontSize: 12 },
   fileOption: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, padding: 12, marginBottom: 8 },
   fileOptionActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.1)' },

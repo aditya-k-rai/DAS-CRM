@@ -247,6 +247,54 @@ export function TenantAdminDashboard() {
     assignedRep: true,
   });
 
+  // Dynamic Column Order State
+  const [columnOrder, setColumnOrder] = useState<string[]>([
+    'name', 'email', 'phone', 'company', 'source', 'stage', 'value', 'assignedRep', 'City', 'Budget', 'Requirement'
+  ]);
+
+  // Dynamic Column Header Display Names State
+  const [columnHeaderNames, setColumnHeaderNames] = useState<Record<string, string>>({
+    name: 'NAME COLUMN',
+    email: 'EMAIL COLUMN',
+    phone: 'NUMBER / PHONE COLUMN',
+    company: 'COMPANY COLUMN',
+    source: 'SOURCE',
+    stage: 'SALES STAGE',
+    value: 'LEAD VALUE',
+    assignedRep: 'ASSIGNED REP',
+    City: 'CITY (CUSTOM)',
+    Budget: 'BUDGET (CUSTOM)',
+    Requirement: 'REQUIREMENT (CUSTOM)',
+  });
+
+  // Admin Lead Record Editor Modal State
+  const [editingLead, setEditingLead] = useState<DashboardLeadRecord | null>(null);
+
+  // Column Reorder Helpers
+  const moveColumnLeft = (colKey: string) => {
+    const idx = columnOrder.indexOf(colKey);
+    if (idx <= 0) return;
+    const newOrder = [...columnOrder];
+    const temp = newOrder[idx - 1];
+    newOrder[idx - 1] = newOrder[idx];
+    newOrder[idx] = temp;
+    setColumnOrder(newOrder);
+  };
+
+  const moveColumnRight = (colKey: string) => {
+    const idx = columnOrder.indexOf(colKey);
+    if (idx === -1 || idx >= columnOrder.length - 1) return;
+    const newOrder = [...columnOrder];
+    const temp = newOrder[idx + 1];
+    newOrder[idx + 1] = newOrder[idx];
+    newOrder[idx] = temp;
+    setColumnOrder(newOrder);
+  };
+
+  const renameColumnHeader = (colKey: string, newTitle: string) => {
+    setColumnHeaderNames(prev => ({ ...prev, [colKey]: newTitle }));
+  };
+
   // Custom Columns State
   const [customColumns, setCustomColumns] = useState<string[]>(['City', 'Budget', 'Requirement']);
   const [visibleCustomColumns, setVisibleCustomColumns] = useState<Record<string, boolean>>({
@@ -867,53 +915,64 @@ export function TenantAdminDashboard() {
               </button>
 
               {colPickerOpen && (
-                <div className="absolute right-0 mt-2 w-72 p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 shadow-2xl z-50 space-y-3 animate-fade-in text-xs">
+                <div className="absolute right-0 mt-2 w-80 p-4 rounded-2xl bg-slate-900 border border-indigo-500/40 shadow-2xl z-50 space-y-3 animate-fade-in text-xs">
                   <div className="flex items-center justify-between border-b border-border pb-2">
                     <span className="font-bold text-white flex items-center gap-1">
-                      <Sliders size={13} className="text-indigo-400" /> Select Visible Columns
+                      <Sliders size={13} className="text-indigo-400" /> Reorder &amp; Edit Columns
                     </span>
                     <button onClick={() => setColPickerOpen(false)} className="text-muted hover:text-white">
                       <X size={14} />
                     </button>
                   </div>
 
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Standard Lead Columns</p>
-                    {[
-                      { key: 'name', label: 'Name Column' },
-                      { key: 'email', label: 'Email Column' },
-                      { key: 'phone', label: 'Number / Phone Column' },
-                      { key: 'company', label: 'Company Column' },
-                      { key: 'source', label: 'Lead Source Column' },
-                      { key: 'stage', label: 'Sales Stage Column' },
-                      { key: 'value', label: 'Lead Value Column' },
-                      { key: 'assignedRep', label: 'Assigned Rep Column' },
-                    ].map(col => (
-                      <label key={col.key} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer">
-                        <span className="text-slate-300 font-semibold">{col.label}</span>
-                        <input
-                          type="checkbox"
-                          checked={(columnVisibility as any)[col.key]}
-                          onChange={e => setColumnVisibility(prev => ({ ...prev, [col.key]: e.target.checked }))}
-                          className="accent-indigo-500 w-4 h-4 rounded cursor-pointer"
-                        />
-                      </label>
-                    ))}
-
-                    <div className="pt-2 border-t border-border">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Custom Columns</p>
-                      {customColumns.map(col => (
-                        <label key={col} className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer">
-                          <span className="text-purple-300 font-semibold">{col} (Custom)</span>
-                          <input
-                            type="checkbox"
-                            checked={!!visibleCustomColumns[col]}
-                            onChange={e => setVisibleCustomColumns(prev => ({ ...prev, [col]: e.target.checked }))}
-                            className="accent-purple-500 w-4 h-4 rounded cursor-pointer"
-                          />
-                        </label>
-                      ))}
-                    </div>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Column Positions &amp; Names</p>
+                    {columnOrder.map((colKey, idx) => {
+                      const isStandard = ['name', 'email', 'phone', 'company', 'source', 'stage', 'value', 'assignedRep'].includes(colKey);
+                      const isVisible = isStandard ? (columnVisibility as any)[colKey] : !!visibleCustomColumns[colKey];
+                      return (
+                        <div key={colKey} className="p-2 rounded-xl bg-slate-950/80 border border-border/60 space-y-1.5">
+                          <div className="flex items-center justify-between gap-1">
+                            <input
+                              type="text"
+                              value={columnHeaderNames[colKey] || colKey}
+                              onChange={e => renameColumnHeader(colKey, e.target.value)}
+                              className="bg-slate-900 border border-border/80 text-white font-bold text-[11px] px-2 py-1 rounded w-36 focus:border-indigo-500"
+                            />
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => moveColumnLeft(colKey)}
+                                disabled={idx === 0}
+                                title="Move Column Left / Front"
+                                className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-white font-bold disabled:opacity-30"
+                              >
+                                ←
+                              </button>
+                              <button
+                                onClick={() => moveColumnRight(colKey)}
+                                disabled={idx === columnOrder.length - 1}
+                                title="Move Column Right / Back"
+                                className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-white font-bold disabled:opacity-30"
+                              >
+                                →
+                              </button>
+                              <input
+                                type="checkbox"
+                                checked={isVisible}
+                                onChange={e => {
+                                  if (isStandard) {
+                                    setColumnVisibility(prev => ({ ...prev, [colKey]: e.target.checked }));
+                                  } else {
+                                    setVisibleCustomColumns(prev => ({ ...prev, [colKey]: e.target.checked }));
+                                  }
+                                }}
+                                className="accent-indigo-500 w-4 h-4 rounded cursor-pointer ml-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1025,7 +1084,7 @@ export function TenantAdminDashboard() {
           ))}
         </div>
 
-        {/* DYNAMIC ADJUSTABLE LEAD DATA TABLE (INSERTED ABOVE LEAD WIDGETS) */}
+        {/* DYNAMIC ADJUSTABLE LEAD DATA TABLE (DYNAMIC COLUMN ORDER & EDIT CONTROLS) */}
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
@@ -1047,17 +1106,23 @@ export function TenantAdminDashboard() {
             <table className="w-full text-xs text-left text-slate-300">
               <thead className="bg-slate-900/90 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
                 <tr>
-                  {columnVisibility.name && <th className="p-3">Name Column</th>}
-                  {columnVisibility.email && <th className="p-3">Email Column</th>}
-                  {columnVisibility.phone && <th className="p-3">Number / Phone Column</th>}
-                  {columnVisibility.company && <th className="p-3">Company Column</th>}
-                  {columnVisibility.source && <th className="p-3">Source</th>}
-                  {columnVisibility.stage && <th className="p-3">Sales Stage</th>}
-                  {columnVisibility.value && <th className="p-3">Lead Value</th>}
-                  {columnVisibility.assignedRep && <th className="p-3">Assigned Rep</th>}
-                  {customColumns.map(col => visibleCustomColumns[col] && (
-                    <th key={col} className="p-3 text-purple-300">{col} (Custom)</th>
-                  ))}
+                  {columnOrder.map(colKey => {
+                    const isStandard = ['name', 'email', 'phone', 'company', 'source', 'stage', 'value', 'assignedRep'].includes(colKey);
+                    const isVisible = isStandard ? (columnVisibility as any)[colKey] : !!visibleCustomColumns[colKey];
+                    if (!isVisible) return null;
+                    return (
+                      <th key={colKey} className="p-3 text-slate-300 border-r border-border/40 last:border-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{columnHeaderNames[colKey] || colKey}</span>
+                          <div className="flex items-center gap-1 opacity-70 hover:opacity-100">
+                            <button onClick={() => moveColumnLeft(colKey)} title="Move Left" className="hover:text-indigo-400">←</button>
+                            <button onClick={() => moveColumnRight(colKey)} title="Move Right" className="hover:text-indigo-400">→</button>
+                          </div>
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -1069,47 +1134,213 @@ export function TenantAdminDashboard() {
                   )
                   .map(l => (
                     <tr key={l.id} className="hover:bg-slate-900/60 transition-colors">
-                      {columnVisibility.name && <td className="p-3 font-extrabold text-white">{sanitizeCellString(l.name, 'Unknown')}</td>}
-                      {columnVisibility.email && (
-                        <td className="p-3 font-mono text-indigo-300">
-                          {!l.email || l.email.trim() === '' || l.email === 'No Email Provided' || l.email.toLowerCase().includes('lead@organization.com') ? (
-                            <span className="text-slate-400 font-sans italic text-[11px] bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
-                              No Email Provided
-                            </span>
-                          ) : (
-                            sanitizeCellString(l.email, 'No Email Provided')
-                          )}
-                        </td>
-                      )}
-                      {columnVisibility.phone && <td className="p-3 font-mono text-emerald-400 font-bold">{sanitizeCellString(l.phone, '')}</td>}
-                      {columnVisibility.company && <td className="p-3 font-semibold text-slate-300">{sanitizeCellString(l.company, '')}</td>}
-                      {columnVisibility.source && (
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            {sanitizeCellString(l.source, 'Inbound Source')}
-                          </span>
-                        </td>
-                      )}
-                      {columnVisibility.stage && (
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            {sanitizeCellString(l.stage, 'Prospecting')}
-                          </span>
-                        </td>
-                      )}
-                      {columnVisibility.value && <td className="p-3 font-mono font-bold text-emerald-400">₹{(l.value || 50000).toLocaleString()}</td>}
-                      {columnVisibility.assignedRep && <td className="p-3 font-semibold text-slate-300">{sanitizeCellString(l.assignedRep, 'Rajesh Kumar')}</td>}
-                      {customColumns.map(col => visibleCustomColumns[col] && (
-                        <td key={col} className="p-3 font-mono text-purple-300 font-bold">
-                          {sanitizeCellString(l.customFields[col], '')}
-                        </td>
-                      ))}
+                      {columnOrder.map(colKey => {
+                        const isStandard = ['name', 'email', 'phone', 'company', 'source', 'stage', 'value', 'assignedRep'].includes(colKey);
+                        const isVisible = isStandard ? (columnVisibility as any)[colKey] : !!visibleCustomColumns[colKey];
+                        if (!isVisible) return null;
+
+                        if (colKey === 'name') {
+                          return <td key={colKey} className="p-3 font-extrabold text-white">{sanitizeCellString(l.name, 'Unknown')}</td>;
+                        }
+                        if (colKey === 'email') {
+                          return (
+                            <td key={colKey} className="p-3 font-mono text-indigo-300">
+                              {!l.email || l.email.trim() === '' || l.email === 'No Email Provided' || l.email.toLowerCase().includes('lead@organization.com') ? (
+                                <span className="text-slate-400 font-sans italic text-[11px] bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
+                                  No Email Provided
+                                </span>
+                              ) : (
+                                sanitizeCellString(l.email, 'No Email Provided')
+                              )}
+                            </td>
+                          );
+                        }
+                        if (colKey === 'phone') return <td key={colKey} className="p-3 font-mono text-emerald-400 font-bold">{sanitizeCellString(l.phone, '')}</td>;
+                        if (colKey === 'company') return <td key={colKey} className="p-3 font-semibold text-slate-300">{sanitizeCellString(l.company, '')}</td>;
+                        if (colKey === 'source') {
+                          return (
+                            <td key={colKey} className="p-3">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                {sanitizeCellString(l.source, 'Inbound Source')}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (colKey === 'stage') {
+                          return (
+                            <td key={colKey} className="p-3">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {sanitizeCellString(l.stage, 'Prospecting')}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (colKey === 'value') return <td key={colKey} className="p-3 font-mono font-bold text-emerald-400">₹{(l.value || 50000).toLocaleString()}</td>;
+                        if (colKey === 'assignedRep') return <td key={colKey} className="p-3 font-semibold text-slate-300">{sanitizeCellString(l.assignedRep, 'Rajesh Kumar')}</td>;
+
+                        // Custom field value
+                        return <td key={colKey} className="p-3 font-medium text-purple-300">{sanitizeCellString(l.customFields[colKey], '—')}</td>;
+                      })}
+
+                      {/* Row Action Edit Lead */}
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => setEditingLead(l)}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30 text-[11px] font-bold transition-all"
+                        >
+                          ✏️ Edit Lead
+                        </button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* ✏️ ADMIN LEAD RECORD EDIT MODAL */}
+        {editingLead && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="crm-card max-w-lg w-full p-6 border-indigo-500/40 bg-slate-900 space-y-4 rounded-2xl shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 font-extrabold text-sm">✏️</span>
+                  <div>
+                    <h3 className="font-extrabold text-white text-base">Edit Lead Record</h3>
+                    <p className="text-xs text-muted">Update contact details, sales stage, value, and custom properties.</p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingLead(null)} className="text-muted hover:text-white p-1">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs max-h-[70vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="text-muted font-bold block mb-1">Lead Full Name *</label>
+                  <input
+                    type="text"
+                    value={editingLead.name}
+                    onChange={e => setEditingLead({ ...editingLead, name: e.target.value })}
+                    className="crm-input w-full text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      value={editingLead.email}
+                      onChange={e => setEditingLead({ ...editingLead, email: e.target.value })}
+                      className="crm-input w-full text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      value={editingLead.phone}
+                      onChange={e => setEditingLead({ ...editingLead, phone: e.target.value })}
+                      className="crm-input w-full text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Company / Organization</label>
+                    <input
+                      type="text"
+                      value={editingLead.company}
+                      onChange={e => setEditingLead({ ...editingLead, company: e.target.value })}
+                      className="crm-input w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Lead Source</label>
+                    <input
+                      type="text"
+                      value={editingLead.source}
+                      onChange={e => setEditingLead({ ...editingLead, source: e.target.value })}
+                      className="crm-input w-full text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Sales Stage</label>
+                    <select
+                      value={editingLead.stage}
+                      onChange={e => setEditingLead({ ...editingLead, stage: e.target.value })}
+                      className="crm-input w-full text-xs bg-slate-900"
+                    >
+                      <option value="Prospecting">Prospecting</option>
+                      <option value="Qualified">Qualified</option>
+                      <option value="Proposal">Proposal</option>
+                      <option value="Negotiation">Negotiation</option>
+                      <option value="Closed Won">Closed Won</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-muted font-bold block mb-1">Lead Value (₹)</label>
+                    <input
+                      type="number"
+                      value={editingLead.value}
+                      onChange={e => setEditingLead({ ...editingLead, value: Number(e.target.value) || 0 })}
+                      className="crm-input w-full text-xs font-mono font-bold text-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-muted font-bold block mb-1">Assigned Sales Rep</label>
+                  <input
+                    type="text"
+                    value={editingLead.assignedRep}
+                    onChange={e => setEditingLead({ ...editingLead, assignedRep: e.target.value })}
+                    className="crm-input w-full text-xs"
+                  />
+                </div>
+
+                {/* Custom Fields Editing */}
+                <div className="pt-2 border-t border-border space-y-2">
+                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Custom Fields</p>
+                  {customColumns.map(col => (
+                    <div key={col} className="flex items-center justify-between gap-2">
+                      <span className="text-slate-300 font-semibold text-[11px] w-28">{col}:</span>
+                      <input
+                        type="text"
+                        value={editingLead.customFields[col] || ''}
+                        onChange={e => setEditingLead({
+                          ...editingLead,
+                          customFields: { ...editingLead.customFields, [col]: e.target.value },
+                        })}
+                        className="crm-input flex-1 text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <button onClick={() => setEditingLead(null)} className="btn-secondary text-xs px-4 py-2">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setLeadsList(prev => prev.map(item => item.id === editingLead.id ? editingLead : item));
+                    setEditingLead(null);
+                  }}
+                  className="btn-primary text-xs px-5 py-2 font-bold bg-indigo-600 hover:bg-indigo-500 text-white"
+                >
+                  Save Changes ✓
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ============================================================ */}
         {/* 📊 LEAD INCOMING HISTORY & DATA SOURCE AUDIT CENTER          */}
