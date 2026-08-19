@@ -18,9 +18,11 @@ import { useAuthStore, UserRole } from '../store/authStore';
 
 interface ProfileScreenProps {
   onLogout?: () => void;
+  onOpenUpdate?: () => void;
+  onClose?: () => void;
 }
 
-export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
+export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: ProfileScreenProps) {
   const { currentUser, subscription, logout } = useAuthStore();
   const role: UserRole = currentUser.role || 'SALES_EXEC';
 
@@ -255,8 +257,8 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
           </View>
         </View>
 
-        {/* ── 6. DATA EXPORT ACTIONS ───────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Export Personal Data Reports</Text>
+        {/* ── 6. DATA EXPORT & SYSTEM ACTIONS ───────────────────────────────── */}
+        <Text style={styles.sectionTitle}>Data Export &amp; System Actions</Text>
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.exportBtn}
@@ -270,6 +272,14 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
           >
             <Text style={[styles.exportBtnText, { color: '#38bdf8' }]}>📅 Export Attendance &amp; Payslip CSV</Text>
           </TouchableOpacity>
+          {onOpenUpdate && (
+            <TouchableOpacity
+              style={[styles.exportBtn, { marginTop: 8, backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}
+              onPress={onOpenUpdate}
+            >
+              <Text style={[styles.exportBtnText, { color: '#818cf8' }]}>🔄 Check for In-App APK Updates (v2.5.0)</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── 7. LOGOUT BUTTON ────────────────────────────────────────────── */}
