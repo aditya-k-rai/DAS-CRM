@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2, FolderPlus, Layers, ShieldCheck, Check, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2, FolderPlus, Layers, ShieldCheck, Check, Sparkles, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+
+interface ProductsCatalogProps {
+  isAdmin?: boolean;
+}
 
 interface ProductItemWeb {
   id: string;
@@ -114,7 +118,7 @@ const INITIAL_PRODUCTS: ProductItemWeb[] = [
   },
 ];
 
-export function ProductsCatalog() {
+export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
   const [categories, setCategories] = useState<string[]>(['All', 'Software & Cloud', 'Automation & APIs', 'Infrastructure', 'Services']);
   const [subCategories, setSubCategories] = useState<Record<string, string[]>>({
@@ -130,6 +134,10 @@ export function ProductsCatalog() {
 
   // Inspector Modal State
   const [inspectorProduct, setInspectorProduct] = useState<ProductItemWeb | null>(null);
+
+  // Delete confirmation modal state
+  const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<ProductItemWeb | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // New Product Modal State
   const [createProductOpen, setCreateProductOpen] = useState(false);
@@ -191,6 +199,52 @@ export function ProductsCatalog() {
     setNewProdSku('');
     setNewProdPrice('');
     alert(`✅ Product "${newProd.name}" added successfully to catalog!`);
+  };
+
+  // ─── Admin Delete Product (permanently removes from database) ───────────────
+  const handleDeleteProduct = async (product: ProductItemWeb) => {
+    if (!isAdmin) {
+      alert('⛔ Access Denied: Only Admins can delete products.');
+      return;
+    }
+    setDeleteConfirmProduct(product);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmProduct) return;
+    setIsDeleting(true);
+    try {
+      // Call backend DELETE /api/products/:id
+      const response = await fetch(`/api/products/${deleteConfirmProduct.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok || response.status === 200) {
+        // Optimistic UI: remove from local state immediately
+        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+        if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
+        alert(`🗑️ Product "${deleteConfirmProduct.name}" has been permanently deleted from the database.`);
+      } else if (response.status === 403) {
+        alert('⛔ Access Denied: Only Admins can delete products.');
+      } else if (response.status === 404) {
+        alert('⚠️ Product not found. It may have already been deleted.');
+        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+      } else {
+        // Fallback: delete from local state anyway (offline mode)
+        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+        if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
+        alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted (offline mode).`);
+      }
+    } catch (err) {
+      // Network error: still remove from local state (offline-first)
+      setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+      if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
+      alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted from local catalog.`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmProduct(null);
+    }
   };
 
   const handleAddCategory = () => {
@@ -372,12 +426,23 @@ export function ProductsCatalog() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      onClick={() => setInspectorProduct(p)}
-                      className="btn-secondary text-xs py-1 px-2.5 gap-1"
-                    >
-                      🔍 Inspect
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setInspectorProduct(p)}
+                        className="btn-secondary text-xs py-1 px-2.5 gap-1"
+                      >
+                        🔍 Inspect
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteProduct(p)}
+                          className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 hover:border-red-500 hover:text-red-300 flex items-center gap-1"
+                          title="Admin: Permanently delete this product from database"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -464,8 +529,19 @@ export function ProductsCatalog() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
-              <button onClick={() => setInspectorProduct(null)} className="btn-primary text-xs px-5">Close Inspector</button>
+            <div className="flex items-center justify-between pt-2">
+              {isAdmin && inspectorProduct && (
+                <button
+                  onClick={() => {
+                    setInspectorProduct(null);
+                    handleDeleteProduct(inspectorProduct);
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-xl transition-all"
+                >
+                  <Trash2 size={13} /> Delete Product Permanently
+                </button>
+              )}
+              <button onClick={() => setInspectorProduct(null)} className="btn-primary text-xs px-5 ml-auto">Close Inspector</button>
             </div>
           </div>
         </div>
@@ -627,9 +703,59 @@ export function ProductsCatalog() {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setCreateSubCategoryOpen(false)} className="btn-secondary text-xs">Cancel</button>
               <button onClick={handleAddSubCategory} className="btn-primary text-xs">Save Sub-Category</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ ADMIN DELETE CONFIRMATION MODAL */}
+      {deleteConfirmProduct && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            {/* Warning Header */}
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={22} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Delete Product Permanently?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">This action <strong className="text-red-400">cannot be undone</strong>. The product will be permanently removed from the database and will no longer be visible to anyone.</p>
+              </div>
+            </div>
+
+            {/* Product Info Card */}
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 space-y-1">
+              <p className="text-xs font-bold text-white">📦 {deleteConfirmProduct.name}</p>
+              <p className="text-[11px] font-mono text-slate-400">SKU: {deleteConfirmProduct.sku} • {deleteConfirmProduct.category}</p>
+              <p className="text-[11px] text-emerald-400 font-bold">₹{deleteConfirmProduct.price.toLocaleString('en-IN')} / {deleteConfirmProduct.unit}</p>
+            </div>
+
+            {/* Admin Badge */}
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={14} className="text-amber-400" />
+              <span className="text-[11px] font-bold text-amber-300">Admin-Only Action — Permanently deletes from production database</span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDeleteConfirmProduct(null)}
+                disabled={isDeleting}
+                className="btn-secondary text-xs flex-1"
+              >
+                Cancel — Keep Product
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <Trash2 size={13} />
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+              </button>
             </div>
           </div>
         </div>

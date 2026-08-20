@@ -59,6 +59,11 @@ export default function ProductsCatalogScreen({
   const [newCatNameInput, setNewCatNameInput] = useState('');
   const [newSubCatNameInput, setNewSubCatNameInput] = useState('');
 
+  // Sub-Category Creation Modal State (separate from Category modal)
+  const [subCatModalOpen, setSubCatModalOpen] = useState(false);
+  const [newSubCatOnlyNameInput, setNewSubCatOnlyNameInput] = useState('');
+  const [newSubCatParentInput, setNewSubCatParentInput] = useState('');
+
   // Form Field Inputs & Conditions
   const [nameInput, setNameInput] = useState('');
   const [skuInput, setSkuInput] = useState('');
@@ -178,7 +183,33 @@ export default function ProductsCatalogScreen({
     setCatModalOpen(false);
     setNewCatNameInput('');
     setNewSubCatNameInput('');
-    Alert.alert('✅ Category Added', `Added "${newCatNameInput.trim()}" (${subCatStr}) to category tree!`);
+    Alert.alert('✅ Category Added', `Added category "${newCatNameInput.trim()}" with sub-category "${subCatStr}"!`);
+  };
+
+  const handleSaveSubCategory = async () => {
+    const subName = newSubCatOnlyNameInput.trim();
+    const parentName = newSubCatParentInput.trim();
+    if (!subName) {
+      Alert.alert('Validation Error', 'Sub-Category Name is required.');
+      return;
+    }
+    if (!parentName) {
+      Alert.alert('Validation Error', 'Please select a Parent Category for this Sub-Category.');
+      return;
+    }
+    // Find existing category and add sub-category under it
+    const existingCat = categories.find(c => c.name === parentName);
+    if (!existingCat) {
+      Alert.alert('Error', `Parent category "${parentName}" does not exist. Please create it first.`);
+      return;
+    }
+    const updatedSubs = [...existingCat.subCategories, subName];
+    const updatedCats = await productCatalogService.addCategory(parentName, updatedSubs);
+    setCategories(updatedCats);
+    setSubCatModalOpen(false);
+    setNewSubCatOnlyNameInput('');
+    setNewSubCatParentInput('');
+    Alert.alert('✅ Sub-Category Added', `Added sub-category "${subName}" under "${parentName}"!`);
   };
 
   const handleSaveProduct = async () => {
@@ -324,11 +355,28 @@ export default function ProductsCatalogScreen({
             <Text style={styles.createProductBtnText}>+ Create Product →</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.createCatBtn, { flex: 1 }]} onPress={() => setCatModalOpen(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[styles.createCatBtn, { flex: 1 }]}
+            onPress={() => {
+              setNewCatNameInput('');
+              setNewSubCatNameInput('');
+              setCatModalOpen(true);
+            }}
+            activeOpacity={0.85}
+          >
             <Text style={styles.createCatBtnText}>📁 + Category</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.createSubCatBtn, { flex: 1.1 }]} onPress={() => setCatModalOpen(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[styles.createSubCatBtn, { flex: 1.1 }]}
+            onPress={() => {
+              // Pre-fill parent with first available category
+              setNewSubCatParentInput(categories.length > 0 ? categories[0].name : '');
+              setNewSubCatOnlyNameInput('');
+              setSubCatModalOpen(true);
+            }}
+            activeOpacity={0.85}
+          >
             <Text style={styles.createSubCatBtnText}>📂 + Sub-Category</Text>
           </TouchableOpacity>
         </View>
@@ -573,21 +621,21 @@ export default function ProductsCatalogScreen({
         </View>
       </Modal>
 
-      {/* 📁 CREATE NEW CATEGORY & SUB-CATEGORY MODAL */}
+      {/* 📁 CREATE NEW CATEGORY MODAL (Category name + its first Sub-Category) */}
       <Modal visible={catModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCardSmall}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>📁 Add New Category &amp; Sub-Category</Text>
-                <Text style={styles.modalSub}>Expand your CRM Product Hierarchy Tree</Text>
+                <Text style={styles.modalTitle}>📁 Add New Category</Text>
+                <Text style={styles.modalSub}>Create a new top-level product category</Text>
               </View>
               <TouchableOpacity onPress={() => setCatModalOpen(false)} style={styles.modalCloseBtn}>
                 <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>1. Parent Category Name (e.g. Cybersecurity &amp; Firewall):</Text>
+            <Text style={styles.inputLabel}>Category Name (Required):</Text>
             <TextInput
               style={styles.formInput}
               placeholder="e.g. Cybersecurity Software"
@@ -596,17 +644,68 @@ export default function ProductsCatalogScreen({
               onChangeText={setNewCatNameInput}
             />
 
-            <Text style={styles.inputLabel}>2. Initial Sub-Category Name (e.g. Network VPN Shield):</Text>
+            <Text style={styles.inputLabel}>Initial Sub-Category (Optional — defaults to 'General'):</Text>
             <TextInput
               style={[styles.formInput, { marginTop: 4 }]}
-              placeholder="e.g. Network VPN Shield"
+              placeholder="e.g. Network VPN Shield (Leave empty for 'General')"
               placeholderTextColor="#64748b"
               value={newSubCatNameInput}
               onChangeText={setNewSubCatNameInput}
             />
 
             <TouchableOpacity style={styles.saveProductBtn} onPress={handleSaveCategory} activeOpacity={0.85}>
-              <Text style={styles.saveProductBtnText}>💾 Save New Category Tree →</Text>
+              <Text style={styles.saveProductBtnText}>💾 Save Category →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 📂 CREATE SUB-CATEGORY MODAL (Separate — adds sub under existing category) */}
+      <Modal visible={subCatModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCardSmall}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>📂 Add Sub-Category</Text>
+                <Text style={styles.modalSub}>Add a sub-category under an existing parent category</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSubCatModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>1. Select Parent Category:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.catChip,
+                    newSubCatParentInput === cat.name && styles.catChipActive,
+                  ]}
+                  onPress={() => setNewSubCatParentInput(cat.name)}
+                >
+                  <Text style={[
+                    styles.catChipText,
+                    newSubCatParentInput === cat.name && { color: '#818cf8', fontWeight: '900' },
+                  ]}>
+                    📁 {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.inputLabel}>2. Sub-Category Name (Required):</Text>
+            <TextInput
+              style={[styles.formInput, { marginTop: 4 }]}
+              placeholder="e.g. Network VPN Shield"
+              placeholderTextColor="#64748b"
+              value={newSubCatOnlyNameInput}
+              onChangeText={setNewSubCatOnlyNameInput}
+            />
+
+            <TouchableOpacity style={styles.saveProductBtn} onPress={handleSaveSubCategory} activeOpacity={0.85}>
+              <Text style={styles.saveProductBtnText}>💾 Save Sub-Category →</Text>
             </TouchableOpacity>
           </View>
         </View>
