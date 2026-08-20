@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
 
 interface LeadDataWeb {
   id: string;
@@ -21,16 +22,41 @@ interface LeadDataWeb {
   city: string;
   budget: string;
   requirement: string;
+  // Allocation & Assignment Chain
+  allocationTrail?: AllocationEvent[];
+  currentAssignee?: string;
+  currentAssigneeRole?: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
 }
 
 const LEADS: LeadDataWeb[] = [
-  { id: '1', name: 'Rajesh Kumar', email: 'rajesh@example.com', phone: '+91 98765 43210', status: 'Qualified', statusColor: '#3b82f6', source: 'Website', score: 85, owner: 'Rajesh K.', value: '₹2,40,000', created: 'Aug 9, 2026', tags: ['hot', 'real-estate'], city: 'Delhi NCR', budget: '₹2.5L - ₹5L', requirement: '50-Seat Enterprise CRM' },
-  { id: '2', name: 'Priya Sharma', email: 'priya@example.com', phone: '+91 87654 32109', status: 'New', statusColor: '#6366f1', source: 'LinkedIn', score: 72, owner: 'Priya S.', value: '₹1,80,000', created: 'Aug 9, 2026', tags: ['warm'], city: 'Mumbai', budget: '₹1.5L - ₹3L', requirement: 'WhatsApp Bot Integration' },
-  { id: '3', name: 'TechCorp Ltd', email: 'contact@techcorp.com', phone: '+91 22 1234 5678', status: 'Proposal', statusColor: '#8b5cf6', source: 'Referral', score: 91, owner: 'Rajesh K.', value: '₹5,20,000', created: 'Aug 8, 2026', tags: ['hot', 'enterprise'], city: 'Bengaluru', budget: '₹5L+', requirement: 'AI Scoring Engine Pro' },
-  { id: '4', name: 'Amit Patel', email: 'amit@example.com', phone: '+91 76543 21098', status: 'Contacted', statusColor: '#f59e0b', source: 'Cold Call', score: 58, owner: 'Amit P.', value: '₹90,000', created: 'Aug 8, 2026', tags: [], city: 'Ahmedabad', budget: '₹50k - ₹1L', requirement: 'Cloud Telemetry License' },
-  { id: '5', name: 'Sunita Real Estate', email: 'info@sunita.com', phone: '+91 44 9876 5432', status: 'Negotiation', statusColor: '#ec4899', source: 'Events', score: 77, owner: 'Rajesh K.', value: '₹8,50,000', created: 'Aug 7, 2026', tags: ['warm'], city: 'Chennai', budget: '₹7L - ₹10L', requirement: 'Full CRM Suite + Mobile App' },
-  { id: '6', name: 'Construkt Inc.', email: 'bd@construkt.in', phone: '+91 80 1111 2222', status: 'New', statusColor: '#6366f1', source: 'Website', score: 63, owner: 'Priya S.', value: '₹3,60,000', created: 'Aug 7, 2026', tags: ['construction'], city: 'Pune', budget: '₹3L - ₹5L', requirement: 'Lead Scoring Engine' },
-  { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer' },
+  {
+    id: '1', name: 'Rajesh Kumar', email: 'rajesh@example.com', phone: '+91 98765 43210',
+    status: 'Qualified', statusColor: '#3b82f6', source: 'Website', score: 85,
+    owner: 'Rajesh K.', value: '₹2,40,000', created: 'Aug 9, 2026',
+    tags: ['hot', 'real-estate'], city: 'Delhi NCR', budget: '₹2.5L - ₹5L', requirement: '50-Seat Enterprise CRM',
+    currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
+    allocationTrail: [
+      { id: 'a1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Vikram Singh (Manager A)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:00:00+05:30', note: 'High-value enterprise lead from Website campaign.' },
+      { id: 'a2', fromRole: 'MANAGER', fromName: 'Vikram Singh (Manager A)', toRole: 'TEAM_LEADER', toName: 'Priya Sharma (TL A)', action: 'ALLOCATED', assignedAt: '2026-08-09T09:30:00+05:30', note: 'Delhi NCR territory. CRM vertical.' },
+      { id: 'a3', fromRole: 'TEAM_LEADER', fromName: 'Priya Sharma (TL A)', toRole: 'SALES_EXEC', toName: 'Rajesh K. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T10:45:00+05:30', note: 'Assigned for outreach. Follow up by EOD.' },
+    ],
+  },
+  {
+    id: '2', name: 'Priya Sharma', email: 'priya@example.com', phone: '+91 87654 32109',
+    status: 'New', statusColor: '#6366f1', source: 'LinkedIn', score: 72,
+    owner: 'Priya S.', value: '₹1,80,000', created: 'Aug 9, 2026',
+    tags: ['warm'], city: 'Mumbai', budget: '₹1.5L - ₹3L', requirement: 'WhatsApp Bot Integration',
+    currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
+    allocationTrail: [
+      { id: 'b1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Anil Kumar (Manager B)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:15:00+05:30', note: 'LinkedIn inbound lead.' },
+      { id: 'b2', fromRole: 'MANAGER', fromName: 'Anil Kumar (Manager B)', toRole: 'SALES_EXEC', toName: 'Priya S. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T11:00:00+05:30', note: 'Direct assignment — small ticket, no TL needed.' },
+    ],
+  },
+  { id: '3', name: 'TechCorp Ltd', email: 'contact@techcorp.com', phone: '+91 22 1234 5678', status: 'Proposal', statusColor: '#8b5cf6', source: 'Referral', score: 91, owner: 'Rajesh K.', value: '₹5,20,000', created: 'Aug 8, 2026', tags: ['hot', 'enterprise'], city: 'Bengaluru', budget: '₹5L+', requirement: 'AI Scoring Engine Pro', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '4', name: 'Amit Patel', email: 'amit@example.com', phone: '+91 76543 21098', status: 'Contacted', statusColor: '#f59e0b', source: 'Cold Call', score: 58, owner: 'Amit P.', value: '₹90,000', created: 'Aug 8, 2026', tags: [], city: 'Ahmedabad', budget: '₹50k - ₹1L', requirement: 'Cloud Telemetry License', currentAssignee: 'Amit P. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '5', name: 'Sunita Real Estate', email: 'info@sunita.com', phone: '+91 44 9876 5432', status: 'Negotiation', statusColor: '#ec4899', source: 'Events', score: 77, owner: 'Rajesh K.', value: '₹8,50,000', created: 'Aug 7, 2026', tags: ['warm'], city: 'Chennai', budget: '₹7L - ₹10L', requirement: 'Full CRM Suite + Mobile App', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '6', name: 'Construkt Inc.', email: 'bd@construkt.in', phone: '+91 80 1111 2222', status: 'New', statusColor: '#6366f1', source: 'Website', score: 63, owner: 'Priya S.', value: '₹3,60,000', created: 'Aug 7, 2026', tags: ['construction'], city: 'Pune', budget: '₹3L - ₹5L', requirement: 'Lead Scoring Engine', currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
 ];
 
 const STATUSES = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
@@ -40,6 +66,7 @@ export function LeadsTable() {
   const [activeStatus, setActiveStatus] = useState('All');
   const [selected, setSelected] = useState<string[]>([]);
   const [isExcelMode, setIsExcelMode] = useState(true);
+  const [expandedTrailLeadId, setExpandedTrailLeadId] = useState<string | null>(null);
   const { currentUser } = useAuth();
 
   // Excel Interactive Column Order State
@@ -319,7 +346,8 @@ export function LeadsTable() {
               </tr>
             ) : (
             filtered.map((lead) => (
-              <tr key={lead.id} className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
+              <React.Fragment key={lead.id}>
+              <tr className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
                 <td className="px-3 py-3 border-b border-slate-800/60">
                   <input type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggleSelect(lead.id)} />
                 </td>
@@ -336,6 +364,22 @@ export function LeadsTable() {
                           <span>·</span>
                           <span>{lead.phone}</span>
                         </div>
+                        {/* Allocation Chain Mini-Badge */}
+                        {lead.allocationTrail && lead.allocationTrail.length > 0 && (
+                          <button
+                            onClick={() => setExpandedTrailLeadId(expandedTrailLeadId === lead.id ? null : lead.id)}
+                            className="mt-1.5 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
+                            style={{
+                              background: expandedTrailLeadId === lead.id ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.1)',
+                              borderColor: 'rgba(99,102,241,0.35)',
+                              color: '#818cf8',
+                            }}
+                          >
+                            <GitBranch size={9} />
+                            {lead.allocationTrail.length}-Step Chain
+                            <span className="ml-0.5">{expandedTrailLeadId === lead.id ? '▲' : '▼'}</span>
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -383,6 +427,85 @@ export function LeadsTable() {
                   </button>
                 </td>
               </tr>
+
+              {/* 🔗 Inline Allocation Trail Expanded Row */}
+              {expandedTrailLeadId === lead.id && lead.allocationTrail && (
+                <tr key={`trail-${lead.id}`}>
+                  <td colSpan={columnOrder.length + 2} className="px-4 py-0 bg-slate-950/60 border-b border-slate-800">
+                    <div className="py-4">
+                      {/* Compact Timeline */}
+                      <div className="flex items-center gap-1 mb-3">
+                        <GitBranch size={13} className="text-indigo-400" />
+                        <span className="text-xs font-bold text-indigo-300">Lead Allocation & Assignment Chain</span>
+                        <span className="text-[10px] text-slate-500 ml-auto">Admin → Manager → TL → Sales Rep</span>
+                      </div>
+                      <div className="flex items-stretch gap-0 overflow-x-auto pb-1">
+                        {lead.allocationTrail.map((event, idx) => {
+                          const roleColors: Record<string, { color: string; bg: string; border: string; label: string }> = {
+                            ADMIN: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.35)', label: 'Admin' },
+                            MANAGER: { color: '#818cf8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.35)', label: 'Manager' },
+                            TEAM_LEADER: { color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', border: 'rgba(56,189,248,0.35)', label: 'TL' },
+                            SALES_EXEC: { color: '#34d399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.35)', label: 'Sales Rep' },
+                          };
+                          const toMeta = roleColors[event.toRole] || roleColors.SALES_EXEC;
+                          const fromMeta = roleColors[event.fromRole] || roleColors.ADMIN;
+                          const dt = new Date(event.assignedAt);
+                          const dateStr = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                          const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                          const isFinal = event.toRole === 'SALES_EXEC';
+
+                          return (
+                            <div key={event.id} className="flex items-center gap-0 flex-shrink-0">
+                              {/* Event Node */}
+                              <div
+                                className="min-w-[180px] max-w-[220px] p-2.5 rounded-xl border space-y-1.5"
+                                style={{ background: toMeta.bg, borderColor: toMeta.border }}
+                              >
+                                {/* From badge */}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: fromMeta.bg, color: fromMeta.color, border: `1px solid ${fromMeta.border}` }}>
+                                    {fromMeta.label}
+                                  </span>
+                                  <span className="text-[9px] text-slate-500">→</span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: toMeta.bg, color: toMeta.color, border: `1px solid ${toMeta.border}` }}>
+                                    {toMeta.label}
+                                  </span>
+                                  {isFinal && <span className="text-[8px] font-black text-emerald-400 ml-auto">✓ Final</span>}
+                                </div>
+                                {/* Action text */}
+                                <p className="text-[11px] font-bold text-white leading-tight">
+                                  {isFinal ? '🎯 Assigned to' : '📁 Allocated to'} {event.toName}
+                                </p>
+                                {/* By whom */}
+                                <p className="text-[10px] text-slate-400">By <span style={{ color: fromMeta.color }} className="font-bold">{event.fromName}</span></p>
+                                {/* Date + Time */}
+                                <div className="flex items-center gap-1 pt-0.5">
+                                  <span className="text-[9px] font-bold text-slate-500">{dateStr}</span>
+                                  <span className="text-[9px] text-slate-600">·</span>
+                                  <span className="text-[10px] font-extrabold" style={{ color: toMeta.color }}>{timeStr}</span>
+                                </div>
+                                {/* Note */}
+                                {event.note && (
+                                  <p className="text-[9px] text-slate-400 italic leading-tight border-t border-slate-800 pt-1 mt-1">"{event.note.substring(0, 60)}{event.note.length > 60 ? '...' : ''}"</p>
+                                )}
+                              </div>
+
+                              {/* Arrow connector */}
+                              {idx < lead.allocationTrail!.length - 1 && (
+                                <div className="flex items-center px-1">
+                                  <div className="w-6 h-0.5 bg-slate-700" />
+                                  <div className="text-slate-500 text-[10px]">▶</div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))
             )}
           </tbody>

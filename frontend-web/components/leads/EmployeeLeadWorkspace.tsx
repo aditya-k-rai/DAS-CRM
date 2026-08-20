@@ -7,6 +7,8 @@ import {
   PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { LeadAllocationTrail } from './LeadAllocationTrail';
+import { CallContactHistory } from './CallContactHistory';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -338,94 +340,54 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       {/* ── SECTION 1: LEAD CENTER (MAIN HUB) ────────────────────────────────── */}
       {activeSection === 'lead_center' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left Column: Lead Info Card */}
-          <div className="crm-card space-y-4">
-            <h3 className="font-bold text-sm text-white flex items-center gap-2 border-b border-border pb-3">
-              <User size={16} className="text-brand-400" /> Single Source of Truth — Lead Profile
-            </h3>
+          {/* Left Column: Lead Info Card & Allocation Chain */}
+          <div className="space-y-6">
+            <div className="crm-card space-y-4">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2 border-b border-border pb-3">
+                <User size={16} className="text-brand-400" /> Single Source of Truth — Lead Profile
+              </h3>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Lead Name:</span>
-                <span className="font-bold text-white">{lead.name}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Company:</span>
-                <span className="font-bold text-white">{lead.company}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Phone:</span>
-                <span className="font-bold text-emerald-400">{lead.phone}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Email:</span>
-                <span className="font-bold text-purple-400">{lead.email}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Ingestion Source:</span>
-                <span className="font-bold text-indigo-300">{lead.source}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted">Current Status:</span>
-                <span className="font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
-                  {lead.status}
-                </span>
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Lead Name:</span>
+                  <span className="font-bold text-white">{lead.name}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Company:</span>
+                  <span className="font-bold text-white">{lead.company}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Phone:</span>
+                  <span className="font-bold text-emerald-400">{lead.phone}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Email:</span>
+                  <span className="font-bold text-purple-400">{lead.email}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Ingestion Source:</span>
+                  <span className="font-bold text-indigo-300">{lead.source}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Current Status:</span>
+                  <span className="font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                    {lead.status}
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Allocation Trail Component */}
+            <LeadAllocationTrail
+              currentAssignee={lead.owner}
+              currentRole="SALES_EXEC"
+              leadId={lead.id}
+            />
           </div>
 
-          {/* Right Column: Auto-Synced Timeline Stream across all 4 Sections */}
-          <div className="md:col-span-2 crm-card space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                  <RefreshCw size={16} className="text-emerald-400 animate-spin-slow" /> Real-Time Auto-Synced Activity Stream
-                </h3>
-                <p className="text-[11px] text-muted">Automatically syncs any call cut disposition, WhatsApp message, AI draft, or email</p>
-              </div>
-
-              <span className="text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                LIVE SYNC ACTIVE ✓
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {syncedActivities.map((act) => (
-                <div key={act.id} className="p-4 rounded-2xl bg-background border border-border space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
-                        act.section === 'DIALLER' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                        act.section === 'WA_DIRECT' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                        act.section === 'WA_CLOUD' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
-                        'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                      }`}>
-                        {act.section}
-                      </span>
-                      <p className="font-bold text-xs text-white">{act.title}</p>
-                    </div>
-
-                    <span className="text-[11px] text-muted flex items-center gap-1">
-                      <Clock size={11} /> {act.timestamp}
-                    </span>
-                  </div>
-
-                  {act.disposition && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                        Disposition: {act.disposition}
-                      </span>
-                    </div>
-                  )}
-
-                  {act.notes && (
-                    <p className="text-xs text-muted italic bg-card/50 p-2 rounded-xl border border-border/50">
-                      "{act.notes}"
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+          {/* Right Column: Full Contact History & Call Timeline */}
+          <div className="md:col-span-2 space-y-6">
+            <CallContactHistory leadName={lead.name} />
           </div>
         </div>
       )}

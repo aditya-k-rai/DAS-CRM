@@ -84,8 +84,53 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       phone: leadPhone,
       outcome: 'PICKED_UP',
       subOption: 'TALKED',
-      notes: 'Initial outreach call completed. Client interested in Enterprise CRM package.',
-      timestamp: '3:15 PM',
+      notes: 'Outreach call completed. Client interested in Enterprise CRM 50-seat package. Requested proposal on WhatsApp.',
+      timestamp: '02:45 PM',
+      dateLabel: 'Today',
+      callerName: 'Mighty Rai',
+      callerRole: 'SALES_EXEC',
+      durationStr: '4m 18s',
+      selectedProduct: CATALOG_PRODUCTS[0],
+      scheduledDate: '2026-08-22',
+      scheduledTime: '11:00 AM',
+    },
+    {
+      leadId: leadId,
+      leadName: leadName,
+      phone: leadPhone,
+      outcome: 'WHATSAPP_CHAT',
+      subOption: 'WA_SENT',
+      notes: 'Sent DAS CRM Enterprise Proposal PDF deck via WhatsApp.',
+      timestamp: '03:10 PM',
+      dateLabel: 'Today',
+      callerName: 'Mighty Rai',
+      callerRole: 'SALES_EXEC',
+    },
+    {
+      leadId: leadId,
+      leadName: leadName,
+      phone: leadPhone,
+      outcome: 'PICKED_UP',
+      subOption: 'INTERESTED',
+      notes: 'Follow-up call by Team Leader. Answered GST and SLA queries. Client confirmed CFO review.',
+      timestamp: '11:30 AM',
+      dateLabel: 'Yesterday',
+      callerName: 'Priya Sharma',
+      callerRole: 'TEAM_LEADER',
+      durationStr: '2m 22s',
+      scheduledDate: '2026-08-21',
+      scheduledTime: '02:00 PM',
+    },
+    {
+      leadId: leadId,
+      leadName: leadName,
+      phone: leadPhone,
+      outcome: 'BUSY',
+      notes: 'Called — line busy. Will try again.',
+      timestamp: '09:15 AM',
+      dateLabel: 'Yesterday',
+      callerName: 'Mighty Rai',
+      callerRole: 'SALES_EXEC',
     },
   ]);
 
@@ -151,7 +196,13 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   };
 
   const handleSaveCallOutcome = (data: CallOutcomeData) => {
-    setRecentOutcomes(prev => [data, ...prev]);
+    const enrichedData: CallOutcomeData = {
+      ...data,
+      callerName: data.callerName || currentUser?.name || 'Current User',
+      callerRole: data.callerRole || userRole,
+      dateLabel: data.dateLabel || 'Today',
+    };
+    setRecentOutcomes(prev => [enrichedData, ...prev]);
     setTelemetry(prev => ({
       ...prev,
       lastCalledAt: `Today, ${data.timestamp}`,
@@ -326,6 +377,101 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </TouchableOpacity>
         </View>
 
+        {/* ── 🔗 LEAD ALLOCATION & ASSIGNMENT CHAIN TRAIL ───────────────────────── */}
+        <Text style={styles.sectionTitle}>🔗 Lead Allocation & Assignment Chain</Text>
+        <View style={[styles.telemetryCard, { paddingBottom: 8 }]}>
+          {/* Section Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#818cf8' }}>Full Delegation Trail</Text>
+            <View style={{ backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.35)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 9, fontWeight: '900', color: '#818cf8' }}>Admin → Manager → TL → Sales</Text>
+            </View>
+          </View>
+
+          {/* Currently Assigned To Banner */}
+          <View style={{ backgroundColor: 'rgba(52,211,153,0.12)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.35)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Currently Assigned To</Text>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff', marginTop: 2 }}>{lead?.assignedRep || 'Rajesh Kumar (Sales Rep)'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <View style={{ backgroundColor: 'rgba(52,211,153,0.2)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontWeight: '900', color: '#34d399' }}>SALES EXECUTIVE</Text>
+              </View>
+              <Text style={{ fontSize: 9, color: '#64748b' }}>• Final Assignment</Text>
+            </View>
+          </View>
+
+          {/* Allocation Steps Horizontal Scroll */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
+
+              {/* Step 1: Admin → Manager */}
+              <View style={{ width: 160, backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 12, padding: 10, marginRight: 2 }}>
+                <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6 }}>
+                  <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#f59e0b' }}>Admin</Text>
+                  </View>
+                  <Text style={{ fontSize: 8, color: '#64748b', alignSelf: 'center' }}>→</Text>
+                  <View style={{ backgroundColor: 'rgba(129,140,248,0.2)', borderWidth: 1, borderColor: 'rgba(129,140,248,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#818cf8' }}>Manager</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff', marginBottom: 2 }}>📁 Allocated to{'\n'}Manager A</Text>
+                <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3 }}>By Super Admin</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#f59e0b' }}>Aug 21 • 08:30 AM</Text>
+              </View>
+
+              {/* Arrow */}
+              <View style={{ width: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#475569', fontSize: 12 }}>▶</Text>
+              </View>
+
+              {/* Step 2: Manager → TL */}
+              <View style={{ width: 160, backgroundColor: 'rgba(129,140,248,0.1)', borderWidth: 1, borderColor: 'rgba(129,140,248,0.3)', borderRadius: 12, padding: 10, marginRight: 2 }}>
+                <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6 }}>
+                  <View style={{ backgroundColor: 'rgba(129,140,248,0.2)', borderWidth: 1, borderColor: 'rgba(129,140,248,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#818cf8' }}>Manager</Text>
+                  </View>
+                  <Text style={{ fontSize: 8, color: '#64748b', alignSelf: 'center' }}>→</Text>
+                  <View style={{ backgroundColor: 'rgba(56,189,248,0.2)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#38bdf8' }}>TL</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff', marginBottom: 2 }}>📁 Allocated to{'\n'}TL A</Text>
+                <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3 }}>By Manager A</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#818cf8' }}>Aug 21 • 10:15 AM</Text>
+              </View>
+
+              {/* Arrow */}
+              <View style={{ width: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#475569', fontSize: 12 }}>▶</Text>
+              </View>
+
+              {/* Step 3: TL → Sales (Final Assignment) */}
+              <View style={{ width: 175, backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 2, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 12, padding: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <View style={{ backgroundColor: 'rgba(56,189,248,0.2)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#38bdf8' }}>TL</Text>
+                  </View>
+                  <Text style={{ fontSize: 8, color: '#64748b', alignSelf: 'center' }}>→</Text>
+                  <View style={{ backgroundColor: 'rgba(52,211,153,0.2)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: '#34d399' }}>Sales Rep</Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(52,211,153,0.25)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 7, fontWeight: '900', color: '#34d399' }}>✓ FINAL</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '900', color: '#ffffff', marginBottom: 2 }}>
+                  🎯 Assigned to{'\n'}{lead?.assignedRep || 'Rajesh Kumar (Sales Rep)'}
+                </Text>
+                <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3 }}>By TL A</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>Aug 21 • 11:45 AM</Text>
+              </View>
+            </View>
+          </ScrollView>
+
+          <Text style={{ fontSize: 9, color: '#475569', textAlign: 'center', marginTop: 6 }}>← Scroll to see full allocation chain →</Text>
+        </View>
+
         {/* ── 📞 SYNCED CALL HISTORY & TELEMETRY WIDGET ───────────────────── */}
         <Text style={styles.sectionTitle}>📞 Call Telemetry &amp; Follow-Up Audit</Text>
         <View style={styles.telemetryCard}>
@@ -370,42 +516,74 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </View>
         </View>
 
-        {/* ── 📋 LEAD FOLLOW-UP ACTIVITY & STATUS LOG HISTORY ───────────────── */}
-        <Text style={styles.sectionTitle}>📋 Lead Activity &amp; Status Audit History</Text>
+        {/* ── 📋 LEAD FOLLOW-UP ACTIVITY & TIMELINE LOG HISTORY ───────────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyBetween: 'space-between', marginBottom: 6 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>📋 Call Timeline & Contact Audit</Text>
+        </View>
+
         <View style={styles.activityHistoryCard}>
-          {recentOutcomes.map((item, idx) => (
-            <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && styles.activityItemBorder]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.activityTitleText}>
-                    {item.outcome === 'PICKED_UP' ? '🟢 Picked Up' : item.outcome === 'WHATSAPP_CHAT' ? '💬 WhatsApp Chat' : item.outcome === 'BUSY' ? '🟡 Busy' : '🔴 Not Responding'}
+          {recentOutcomes.map((item, idx) => {
+            const roleColor = item.callerRole === 'TEAM_LEADER' ? '#38bdf8' : item.callerRole === 'MANAGER' ? '#818cf8' : '#34d399';
+            const roleLabel = item.callerRole === 'TEAM_LEADER' ? 'TL' : item.callerRole === 'MANAGER' ? 'Manager' : 'Sales Rep';
+
+            return (
+              <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && styles.activityItemBorder]}>
+                {/* Header Row: Outcome Badge + Date / Time */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={styles.activityTitleText}>
+                      {item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : item.outcome === 'WHATSAPP_CHAT' ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
+                    </Text>
+                    {item.subOption && (
+                      <View style={styles.subOptionPill}>
+                        <Text style={styles.subOptionPillText}>{item.subOption.replace('_', ' ')}</Text>
+                      </View>
+                    )}
+                    {item.durationStr && (
+                      <View style={{ backgroundColor: 'rgba(52,211,153,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>🎙 {item.durationStr}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>
+                    {item.dateLabel ? `${item.dateLabel} · ` : ''}{item.timestamp}
                   </Text>
-                  {item.subOption && (
-                    <View style={styles.subOptionPill}>
-                      <Text style={styles.subOptionPillText}>{item.subOption.replace('_', ' ')}</Text>
-                    </View>
-                  )}
                 </View>
-                <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>⏰ {item.timestamp}</Text>
+
+                {/* Who Called / Initiator Badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <Text style={{ fontSize: 10, color: '#64748b' }}>By:</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#e2e8f0' }}>{item.callerName || 'Sales Executive'}</Text>
+                  <View style={{ backgroundColor: roleColor + '20', borderWidth: 1, borderColor: roleColor + '50', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: roleColor }}>{roleLabel}</Text>
+                  </View>
+                </View>
+
+                {/* Notes & Reasoning */}
+                {item.notes ? (
+                  <View style={{ backgroundColor: 'rgba(15,23,42,0.8)', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, padding: 8, marginTop: 6 }}>
+                    <Text style={{ fontSize: 10, color: '#cbd5e1', fontStyle: 'italic' }}>"{item.notes}"</Text>
+                  </View>
+                ) : null}
+
+                {/* Interested Product */}
+                {item.selectedProduct && (
+                  <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', marginTop: 4 }}>
+                    🛍️ Product Discussed: {item.selectedProduct.name}
+                  </Text>
+                )}
+
+                {/* Scheduled Callback */}
+                {item.scheduledDate && (
+                  <View style={{ backgroundColor: 'rgba(56,189,248,0.1)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', borderRadius: 8, padding: 6, marginTop: 4 }}>
+                    <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800' }}>
+                      📅 Callback Scheduled: {item.scheduledDate} {item.scheduledTime ? `at ${item.scheduledTime}` : ''}
+                    </Text>
+                  </View>
+                )}
               </View>
-
-              {item.notes ? (
-                <Text style={styles.activityNotesText}>📝 Note: "{item.notes}"</Text>
-              ) : null}
-
-              {item.selectedProduct && (
-                <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', marginTop: 3 }}>
-                  🛍️ Product Interested: {item.selectedProduct.name} ({item.selectedProduct.minPrice} - {item.selectedProduct.maxPrice})
-                </Text>
-              )}
-
-              {item.scheduledDate && (
-                <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800', marginTop: 3 }}>
-                  📅 Scheduled Date: {item.scheduledDate} {item.scheduledTime || ''}
-                </Text>
-              )}
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Contact Details */}

@@ -39,6 +39,10 @@ export interface CallOutcomeData {
   selectedProduct?: ProductItem | null;
   notes: string;
   timestamp: string;
+  callerName?: string;
+  callerRole?: string;
+  durationStr?: string;
+  dateLabel?: string;
 }
 
 interface PostCallOutcomeModalProps {
