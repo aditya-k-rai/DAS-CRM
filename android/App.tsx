@@ -293,9 +293,10 @@ export default function App() {
 
   // 🔔 NOTIFICATIONS & 5-MIN PRIOR TASK ALERTS STATE
   const [notifModalOpen, setNotifModalOpen] = useState(false);
+  const [overrideUnreadCount, setOverrideUnreadCount] = useState<number | null>(3);
   const [notifications, setNotifications] = useState<AppNotificationItem[]>(INITIAL_NOTIFICATIONS);
 
-  const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
+  const unreadNotifCount = overrideUnreadCount !== null ? overrideUnreadCount : notifications.filter((n) => !n.isRead).length;
 
   const handleMarkAllNotifsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -559,6 +560,7 @@ export default function App() {
       <Modal visible={notifModalOpen} transparent animationType="slide">
         <NotificationsScreen
           onClose={() => setNotifModalOpen(false)}
+          onUnreadCountChange={(count) => setOverrideUnreadCount(count)}
           onNavigateToLead={(leadId, leadName) => {
             setNotifModalOpen(false);
             try {
@@ -572,7 +574,15 @@ export default function App() {
           }}
           onNavigateToRoute={(routeName) => {
             setNotifModalOpen(false);
-            (navigationRef as any).navigate(routeName);
+            if (routeName === 'Products') {
+              setProductsModalOpen(true);
+            } else {
+              try {
+                (navigationRef as any).navigate(routeName);
+              } catch (e) {
+                console.log('Nav error:', e);
+              }
+            }
           }}
         />
       </Modal>

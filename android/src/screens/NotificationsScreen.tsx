@@ -20,6 +20,7 @@ import {
   Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useAuthStore } from '../store/authStore';
 import { callSyncEngine } from '../services/callSyncEngine';
 
 export interface DetailedNotification {
@@ -38,109 +39,351 @@ export interface DetailedNotification {
   email?: string;
   value?: string;
   meetingPurpose?: string;
-  routeTarget: 'LeadDetail' | 'Leads' | 'Attendance' | 'Deals' | 'Tasks';
+  meetingPurpose?: string;
+  routeTarget: 'LeadDetail' | 'Leads' | 'Attendance' | 'Deals' | 'Tasks' | 'Employees' | 'Products';
 }
 
-export const INITIAL_DETAILED_NOTIFICATIONS: DetailedNotification[] = [
-  {
-    id: 'notif-101',
-    title: '⏰ Task Alert (Starts in 5 Mins)',
-    message: 'Scheduled product demo meeting with Rajesh Mehta (TechCorp Solutions) starts in 5 minutes (02:30 PM). Get ready for live demo & SLA review.',
-    timeStr: 'In 5 Mins',
-    exactTime: '02:25 PM',
-    type: 'TASK_5MIN_ALERT',
-    priority: 'HIGH',
-    isRead: false,
-    leadId: 'lead-1',
-    leadName: 'Rajesh Mehta',
-    company: 'TechCorp Solutions Ltd',
-    phone: '+91 98765 43210',
-    email: 'rajesh@techcorp.com',
-    value: '₹5,20,000',
-    meetingPurpose: 'Enterprise CRM Suite Demo & Technical Review',
-    routeTarget: 'LeadDetail',
-  },
-  {
-    id: 'notif-102',
-    title: '📞 Priority Call Reminder (Starts in 5 Mins)',
-    message: 'Scheduled direct follow-up call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM). Discuss WhatsApp Bot Integration quotation.',
-    timeStr: 'In 5 Mins',
-    exactTime: '04:40 PM',
-    type: 'CALL_REMINDER',
-    priority: 'HIGH',
-    isRead: false,
-    leadId: 'lead-2',
-    leadName: 'Priya Sharma',
-    company: 'LogiTech Freight Systems',
-    phone: '+91 98123 45678',
-    email: 'priya@logitech.com',
-    value: '₹3,50,000',
-    meetingPurpose: 'WhatsApp Automation Bot Setup Review',
-    routeTarget: 'LeadDetail',
-  },
-  {
-    id: 'notif-103',
-    title: '🎯 Hot Lead Assigned to Your Queue',
-    message: 'New high-value lead assigned: Sunita Logistics Pvt Ltd (₹8,90,000). Priority contact requested by Tenant Admin.',
-    timeStr: '15 Mins ago',
-    exactTime: '01:45 PM',
-    type: 'LEAD_ASSIGNED',
-    priority: 'MEDIUM',
-    isRead: false,
-    leadId: 'lead-3',
-    leadName: 'Sunita Kapoor',
-    company: 'Sunita Logistics Pvt Ltd',
-    phone: '+91 97222 33344',
-    email: 'sunita@sunitalogistics.com',
-    value: '₹8,90,000',
-    meetingPurpose: 'Executive Contract Signing & License Rollout',
-    routeTarget: 'Leads',
-  },
-  {
-    id: 'notif-104',
-    title: '⏱️ Workforce Attendance Audit Complete',
-    message: 'Workforce attendance punch logged successfully today at 09:21 AM (Geofence verified at Acme HQ).',
-    timeStr: '2 Hours ago',
-    exactTime: '09:21 AM',
-    type: 'SYSTEM',
-    priority: 'NORMAL',
-    isRead: true,
-    routeTarget: 'Attendance',
-  },
-];
+export function getRoleNotifications(roleStr: string): DetailedNotification[] {
+  const normRole = (roleStr || '').toUpperCase();
+  if (normRole.includes('ADMIN')) {
+    return [
+      {
+        id: 'notif-admin-1',
+        title: '👑 Tenant Executive Command Summary',
+        message: 'Active subscription plan: FREE_TRIAL. 3,420 multi-source leads ingested across Google Sheets, CSV, and Meta Webhooks.',
+        timeStr: 'Today',
+        exactTime: '08:00 AM',
+        type: 'SYSTEM',
+        priority: 'HIGH',
+        isRead: false,
+        routeTarget: 'Leads',
+      },
+      {
+        id: 'notif-admin-2',
+        title: '💼 High-Value Enterprise Lead Allocated',
+        message: 'High-value deal Rajesh Mehta (TechCorp Solutions, ₹5,20,000) successfully allocated down hierarchy to Manager A.',
+        timeStr: 'In 5 Mins',
+        exactTime: '02:25 PM',
+        type: 'TASK_5MIN_ALERT',
+        priority: 'HIGH',
+        isRead: false,
+        leadId: 'lead-1',
+        leadName: 'Rajesh Mehta',
+        company: 'TechCorp Solutions Ltd',
+        phone: '+91 98765 43210',
+        email: 'rajesh@techcorp.com',
+        value: '₹5,20,000',
+        meetingPurpose: 'Enterprise CRM Suite Demo & Technical Review',
+        routeTarget: 'LeadDetail',
+      },
+      {
+        id: 'notif-admin-3',
+        title: '👥 Workforce Attendance Audit Complete',
+        message: '19 Present / 24 Staff today (79.2% attendance rate). 3 on leave, 2 absent.',
+        timeStr: '1 Hour ago',
+        exactTime: '09:21 AM',
+        type: 'SYSTEM',
+        priority: 'NORMAL',
+        isRead: false,
+        routeTarget: 'Attendance',
+      },
+      {
+        id: 'notif-admin-4',
+        title: '🔒 Role Assignment Hierarchy Enforced',
+        message: 'Supervisor delegation rules verified. All sales execs mapped under TLs/Managers only.',
+        timeStr: '2 Hours ago',
+        exactTime: '08:30 AM',
+        type: 'SYSTEM',
+        priority: 'NORMAL',
+        isRead: true,
+        routeTarget: 'Employees',
+      },
+    ];
+  }
+
+  if (normRole.includes('MANAGER')) {
+    return [
+      {
+        id: 'notif-mgr-1',
+        title: '📊 Manager Team Performance Audit',
+        message: 'Team Leader Priya Sharma completed 184 calls & closed ₹9,40,000 revenue today (85% target achievement).',
+        timeStr: 'Today',
+        exactTime: '01:15 PM',
+        type: 'DEAL_UPDATE',
+        priority: 'HIGH',
+        isRead: false,
+        routeTarget: 'Employees',
+      },
+      {
+        id: 'notif-mgr-2',
+        title: '🔄 Lead Allocation Handover Request',
+        message: 'TL Priya Sharma requested lead handover for Sunita Logistics Pvt Ltd (₹8,90,000).',
+        timeStr: '20 Mins ago',
+        exactTime: '01:30 PM',
+        type: 'LEAD_ASSIGNED',
+        priority: 'HIGH',
+        isRead: false,
+        leadId: 'lead-3',
+        leadName: 'Sunita Kapoor',
+        company: 'Sunita Logistics Pvt Ltd',
+        phone: '+91 97222 33344',
+        email: 'sunita@sunitalogistics.com',
+        value: '₹8,90,000',
+        meetingPurpose: 'Executive Contract Signing & License Rollout',
+        routeTarget: 'LeadDetail',
+      },
+      {
+        id: 'notif-mgr-3',
+        title: '⏰ 5-Min Prior Demo Review Alert',
+        message: 'Scheduled direct call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM).',
+        timeStr: 'In 5 Mins',
+        exactTime: '04:40 PM',
+        type: 'CALL_REMINDER',
+        priority: 'HIGH',
+        isRead: false,
+        leadId: 'lead-2',
+        leadName: 'Priya Sharma',
+        company: 'LogiTech Freight Systems',
+        phone: '+91 98123 45678',
+        email: 'priya@logitech.com',
+        value: '₹3,50,000',
+        meetingPurpose: 'WhatsApp Automation Bot Setup Review',
+        routeTarget: 'LeadDetail',
+      },
+      {
+        id: 'notif-mgr-4',
+        title: '⏱️ Staff Attendance Summary Logged',
+        message: '2 Team Leaders & 14 Sales Reps checked in today with geofence verification.',
+        timeStr: '3 Hours ago',
+        exactTime: '09:15 AM',
+        type: 'SYSTEM',
+        priority: 'NORMAL',
+        isRead: true,
+        routeTarget: 'Attendance',
+      },
+    ];
+  }
+
+  if (normRole.includes('HR')) {
+    return [
+      {
+        id: 'notif-hr-1',
+        title: '📋 3 Staff Leave Requests Pending',
+        message: 'Rajesh Kumar (Sales Exec) submitted Sick Leave application for approval.',
+        timeStr: 'Today',
+        exactTime: '10:30 AM',
+        type: 'SYSTEM',
+        priority: 'HIGH',
+        isRead: false,
+        routeTarget: 'Attendance',
+      },
+      {
+        id: 'notif-hr-2',
+        title: '⏱️ Late Attendance Punch Alert',
+        message: 'Priya Sharma punched in late at 10:14 AM (Geofence verified at Acme HQ).',
+        timeStr: '1 Hour ago',
+        exactTime: '10:14 AM',
+        type: 'SYSTEM',
+        priority: 'MEDIUM',
+        isRead: false,
+        routeTarget: 'Attendance',
+      },
+      {
+        id: 'notif-hr-3',
+        title: '👥 Staff Directory & Role Sync',
+        message: '24 active employee profiles fully synced with NestJS backend database.',
+        timeStr: '2 Hours ago',
+        exactTime: '09:00 AM',
+        type: 'SYSTEM',
+        priority: 'NORMAL',
+        isRead: false,
+        routeTarget: 'Employees',
+      },
+      {
+        id: 'notif-hr-4',
+        title: '💼 Monthly Payroll Telemetry Report',
+        message: 'Monthly workforce attendance & overtime telemetry report ready for download.',
+        timeStr: 'Yesterday',
+        exactTime: '05:00 PM',
+        type: 'SYSTEM',
+        priority: 'NORMAL',
+        isRead: true,
+        routeTarget: 'Attendance',
+      },
+    ];
+  }
+
+  if (normRole.includes('TEAM') || normRole.includes('LEADER') || normRole.includes('TL')) {
+    return [
+      {
+        id: 'notif-tl-1',
+        title: '🎯 Lead Funnel Batch Allocated to Team',
+        message: '15 new leads allocated to your team queue from Google Sheets live sync ingestion.',
+        timeStr: 'Today',
+        exactTime: '11:00 AM',
+        type: 'LEAD_ASSIGNED',
+        priority: 'HIGH',
+        isRead: false,
+        routeTarget: 'Leads',
+      },
+      {
+        id: 'notif-tl-2',
+        title: '📞 Team Outbound Calling Target Alert',
+        message: 'Team completed 184 calls out of 200 daily target (92% completion rate).',
+        timeStr: '30 Mins ago',
+        exactTime: '01:15 PM',
+        type: 'TASK_5MIN_ALERT',
+        priority: 'HIGH',
+        isRead: false,
+        routeTarget: 'Tasks',
+      },
+      {
+        id: 'notif-tl-3',
+        title: '⏰ 5-Min Prior Meeting Alert',
+        message: 'Scheduled direct call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM).',
+        timeStr: 'In 5 Mins',
+        exactTime: '04:40 PM',
+        type: 'CALL_REMINDER',
+        priority: 'HIGH',
+        isRead: false,
+        leadId: 'lead-2',
+        leadName: 'Priya Sharma',
+        company: 'LogiTech Freight Systems',
+        phone: '+91 98123 45678',
+        email: 'priya@logitech.com',
+        value: '₹3,50,000',
+        meetingPurpose: 'WhatsApp Automation Bot Setup Review',
+        routeTarget: 'LeadDetail',
+      },
+      {
+        id: 'notif-tl-4',
+        title: '🤝 Rep Deal Closed Successfully',
+        message: 'Sales Exec Amit Patel closed deal with Sunita Logistics (₹8,90,000).',
+        timeStr: '2 Hours ago',
+        exactTime: '11:30 AM',
+        type: 'DEAL_UPDATE',
+        priority: 'NORMAL',
+        isRead: true,
+        leadId: 'lead-3',
+        leadName: 'Sunita Kapoor',
+        company: 'Sunita Logistics Pvt Ltd',
+        routeTarget: 'LeadDetail',
+      },
+    ];
+  }
+
+  // Default: SALES_EXEC
+  return [
+    {
+      id: 'notif-sales-1',
+      title: '⏰ Task Alert (Starts in 5 Mins)',
+      message: 'Scheduled product demo meeting with Rajesh Mehta (TechCorp Solutions) starts in 5 minutes (02:30 PM). Get ready for live demo & SLA review.',
+      timeStr: 'In 5 Mins',
+      exactTime: '02:25 PM',
+      type: 'TASK_5MIN_ALERT',
+      priority: 'HIGH',
+      isRead: false,
+      leadId: 'lead-1',
+      leadName: 'Rajesh Mehta',
+      company: 'TechCorp Solutions Ltd',
+      phone: '+91 98765 43210',
+      email: 'rajesh@techcorp.com',
+      value: '₹5,20,000',
+      meetingPurpose: 'Enterprise CRM Suite Demo & Technical Review',
+      routeTarget: 'LeadDetail',
+    },
+    {
+      id: 'notif-sales-2',
+      title: '📞 Priority Call Reminder (Starts in 5 Mins)',
+      message: 'Scheduled direct follow-up call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM). Discuss WhatsApp Bot Integration quotation.',
+      timeStr: 'In 5 Mins',
+      exactTime: '04:40 PM',
+      type: 'CALL_REMINDER',
+      priority: 'HIGH',
+      isRead: false,
+      leadId: 'lead-2',
+      leadName: 'Priya Sharma',
+      company: 'LogiTech Freight Systems',
+      phone: '+91 98123 45678',
+      email: 'priya@logitech.com',
+      value: '₹3,50,000',
+      meetingPurpose: 'WhatsApp Automation Bot Setup Review',
+      routeTarget: 'LeadDetail',
+    },
+    {
+      id: 'notif-sales-3',
+      title: '🎯 Hot Lead Assigned to Your Queue',
+      message: 'New high-value lead assigned: Sunita Logistics Pvt Ltd (₹8,90,000). Priority contact requested by Tenant Admin.',
+      timeStr: '15 Mins ago',
+      exactTime: '01:45 PM',
+      type: 'LEAD_ASSIGNED',
+      priority: 'MEDIUM',
+      isRead: false,
+      leadId: 'lead-3',
+      leadName: 'Sunita Kapoor',
+      company: 'Sunita Logistics Pvt Ltd',
+      phone: '+91 97222 33344',
+      email: 'sunita@sunitalogistics.com',
+      value: '₹8,90,000',
+      meetingPurpose: 'Executive Contract Signing & License Rollout',
+      routeTarget: 'LeadDetail',
+    },
+    {
+      id: 'notif-sales-4',
+      title: '⏱️ Workforce Attendance Audit Complete',
+      message: 'Workforce attendance punch logged successfully today at 09:21 AM (Geofence verified at Acme HQ).',
+      timeStr: '2 Hours ago',
+      exactTime: '09:21 AM',
+      type: 'SYSTEM',
+      priority: 'NORMAL',
+      isRead: true,
+      routeTarget: 'Attendance',
+    },
+  ];
+}
+
+export const INITIAL_DETAILED_NOTIFICATIONS: DetailedNotification[] = getRoleNotifications('ADMIN');
 
 interface NotificationsScreenProps {
   onClose?: () => void;
   onNavigateToLead?: (leadId: string, leadName: string) => void;
   onNavigateToRoute?: (routeName: string) => void;
+  onUnreadCountChange?: (unreadCount: number) => void;
 }
 
 export default function NotificationsScreen({
   onClose,
   onNavigateToLead,
   onNavigateToRoute,
+  onUnreadCountChange,
 }: NotificationsScreenProps) {
   const navigation = useNavigation<any>();
+  const { currentUser } = useAuthStore();
+  const userRole = currentUser?.role || 'SALES_EXEC';
 
-  const [notifications, setNotifications] = useState<DetailedNotification[]>(INITIAL_DETAILED_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<DetailedNotification[]>(() =>
+    getRoleNotifications(userRole)
+  );
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'UNREAD' | 'TASK_ALERTS' | 'LEADS'>('ALL');
   const [selectedNotif, setSelectedNotif] = useState<DetailedNotification | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const filteredNotifs = notifications.filter((n) => {
-    if (activeFilter === 'UNREAD') return !n.isRead;
-    if (activeFilter === 'TASK_ALERTS') return n.type === 'TASK_5MIN_ALERT' || n.type === 'CALL_REMINDER';
-    if (activeFilter === 'LEADS') return n.type === 'LEAD_ASSIGNED';
-    return true;
-  });
-
   const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, isRead: true }));
+      if (onUnreadCountChange) onUnreadCountChange(0);
+      return next;
+    });
   };
 
   const handleMarkSingleRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+      const count = next.filter((n) => !n.isRead).length;
+      if (onUnreadCountChange) onUnreadCountChange(count);
+      return next;
+    });
   };
 
   const handleRouteToTarget = (notif: DetailedNotification) => {
@@ -164,9 +407,15 @@ export default function NotificationsScreen({
     } else if (notif.routeTarget === 'Attendance') {
       if (onNavigateToRoute) onNavigateToRoute('Attendance');
       else navigation.navigate('Attendance');
+    } else if (notif.routeTarget === 'Employees') {
+      if (onNavigateToRoute) onNavigateToRoute('Employees');
+      else navigation.navigate('Employees');
     } else if (notif.routeTarget === 'Leads') {
       if (onNavigateToRoute) onNavigateToRoute('Leads');
       else navigation.navigate('Leads');
+    } else if (notif.routeTarget === 'Products') {
+      if (onNavigateToRoute) onNavigateToRoute('Products');
+      else navigation.navigate('More');
     } else {
       if (onNavigateToRoute) onNavigateToRoute('More');
       else navigation.navigate('More');
