@@ -26,6 +26,9 @@ interface LeadDataWeb {
   allocationTrail?: AllocationEvent[];
   currentAssignee?: string;
   currentAssigneeRole?: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+  // Call History & Telemetry Summaries
+  totalCalls?: number;
+  lastCalledAt?: string;
 }
 
 const LEADS: LeadDataWeb[] = [
@@ -35,6 +38,7 @@ const LEADS: LeadDataWeb[] = [
     owner: 'Rajesh K.', value: '₹2,40,000', created: 'Aug 9, 2026',
     tags: ['hot', 'real-estate'], city: 'Delhi NCR', budget: '₹2.5L - ₹5L', requirement: '50-Seat Enterprise CRM',
     currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 6, lastCalledAt: 'Today 2:45 PM',
     allocationTrail: [
       { id: 'a1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Vikram Singh (Manager A)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:00:00+05:30', note: 'High-value enterprise lead from Website campaign.' },
       { id: 'a2', fromRole: 'MANAGER', fromName: 'Vikram Singh (Manager A)', toRole: 'TEAM_LEADER', toName: 'Priya Sharma (TL A)', action: 'ALLOCATED', assignedAt: '2026-08-09T09:30:00+05:30', note: 'Delhi NCR territory. CRM vertical.' },
@@ -47,6 +51,7 @@ const LEADS: LeadDataWeb[] = [
     owner: 'Priya S.', value: '₹1,80,000', created: 'Aug 9, 2026',
     tags: ['warm'], city: 'Mumbai', budget: '₹1.5L - ₹3L', requirement: 'WhatsApp Bot Integration',
     currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 3, lastCalledAt: 'Yesterday 4:20 PM',
     allocationTrail: [
       { id: 'b1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Anil Kumar (Manager B)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:15:00+05:30', note: 'LinkedIn inbound lead.' },
       { id: 'b2', fromRole: 'MANAGER', fromName: 'Anil Kumar (Manager B)', toRole: 'SALES_EXEC', toName: 'Priya S. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T11:00:00+05:30', note: 'Direct assignment — small ticket, no TL needed.' },
@@ -364,22 +369,40 @@ export function LeadsTable() {
                           <span>·</span>
                           <span>{lead.phone}</span>
                         </div>
-                        {/* Allocation Chain Mini-Badge */}
-                        {lead.allocationTrail && lead.allocationTrail.length > 0 && (
-                          <button
-                            onClick={() => setExpandedTrailLeadId(expandedTrailLeadId === lead.id ? null : lead.id)}
-                            className="mt-1.5 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
+                        {/* Badges Container: Allocation Chain + Call Telemetry */}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                          {/* Allocation Chain Mini-Badge */}
+                          {lead.allocationTrail && lead.allocationTrail.length > 0 && (
+                            <button
+                              onClick={() => setExpandedTrailLeadId(expandedTrailLeadId === lead.id ? null : lead.id)}
+                              className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
+                              style={{
+                                background: expandedTrailLeadId === lead.id ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.1)',
+                                borderColor: 'rgba(99,102,241,0.35)',
+                                color: '#818cf8',
+                              }}
+                            >
+                              <GitBranch size={9} />
+                              {lead.allocationTrail.length}-Step Chain
+                              <span className="ml-0.5">{expandedTrailLeadId === lead.id ? '▲' : '▼'}</span>
+                            </button>
+                          )}
+
+                          {/* Call Telemetry Count Badge */}
+                          <Link
+                            href={`/leads/${lead.id}`}
+                            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
                             style={{
-                              background: expandedTrailLeadId === lead.id ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.1)',
-                              borderColor: 'rgba(99,102,241,0.35)',
-                              color: '#818cf8',
+                              background: 'rgba(52,211,153,0.1)',
+                              borderColor: 'rgba(52,211,153,0.35)',
+                              color: '#34d399',
                             }}
+                            title="Click to view full call contact timeline & audit"
                           >
-                            <GitBranch size={9} />
-                            {lead.allocationTrail.length}-Step Chain
-                            <span className="ml-0.5">{expandedTrailLeadId === lead.id ? '▲' : '▼'}</span>
-                          </button>
-                        )}
+                            <Phone size={9} />
+                            {lead.totalCalls || 4} Calls (Last: {lead.lastCalledAt || 'Today 2:45 PM'})
+                          </Link>
+                        </div>
                       </div>
                     )}
 
