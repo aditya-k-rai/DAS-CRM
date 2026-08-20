@@ -233,14 +233,24 @@ export default function LeadsScreen() {
   };
 
   const filteredLeads = leadsList.filter((item) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.company.toLowerCase().includes(search.toLowerCase()) ||
-      item.phone.toLowerCase().includes(search.toLowerCase()) ||
-      item.email.toLowerCase().includes(search.toLowerCase()) ||
-      (item.assignedRep && item.assignedRep.toLowerCase().includes(search.toLowerCase()));
+    // Multi-field search \u2014 covers ALL fields, works in BOTH Excel Grid & Card List view
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      const matchesSearch =
+        item.name.toLowerCase().includes(q) ||
+        item.company.toLowerCase().includes(q) ||
+        item.phone.toLowerCase().includes(q) ||
+        item.email.toLowerCase().includes(q) ||
+        (item.assignedRep && item.assignedRep.toLowerCase().includes(q)) ||
+        item.status.toLowerCase().includes(q) ||
+        (item.source && item.source.toLowerCase().includes(q)) ||
+        (item.city && item.city.toLowerCase().includes(q)) ||
+        (item.budget && item.budget.toLowerCase().includes(q)) ||
+        (item.requirement && item.requirement.toLowerCase().includes(q)) ||
+        (item.value && item.value.toLowerCase().includes(q));
+      if (!matchesSearch) return false;
+    }
 
-    if (!matchesSearch) return false;
     if (activeFilter === 'ALL') return true;
     return item.status.toUpperCase() === activeFilter.toUpperCase();
   });
@@ -424,11 +434,38 @@ export default function LeadsScreen() {
           <View style={styles.topBar}>
             <TextInput
               style={styles.searchInput}
-              placeholder="🔍 Search leads by name, company, phone, email..."
+              placeholder="🔍 Search by name, company, phone, email, status, city, budget, source, rep..."
               placeholderTextColor="#64748b"
               value={search}
               onChangeText={setSearch}
             />
+
+            {/* Search Results Count & Clear Button */}
+            {search.trim().length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 2 }}>
+                <View style={{
+                  backgroundColor: filteredLeads.length > 0 ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)',
+                  borderWidth: 1,
+                  borderColor: filteredLeads.length > 0 ? 'rgba(52,211,153,0.35)' : 'rgba(239,68,68,0.35)',
+                  borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3,
+                }}>
+                  <Text style={{
+                    fontSize: 10, fontWeight: '800',
+                    color: filteredLeads.length > 0 ? '#34d399' : '#ef4444',
+                  }}>
+                    {filteredLeads.length > 0
+                      ? `✓ ${filteredLeads.length} match${filteredLeads.length !== 1 ? 'es' : ''} found`
+                      : '✗ No results found'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setSearch('')}
+                  style={{ backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }}>✕ Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.actionRow}>
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4f46e5' }]} onPress={() => setInsertModalOpen(true)}>

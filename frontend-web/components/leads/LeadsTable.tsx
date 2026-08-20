@@ -82,10 +82,32 @@ export function LeadsTable() {
   const isRep = currentUser.role === 'SALES_EXEC';
 
   const filtered = LEADS.filter((l) => {
+    // Role-based scoping for Sales Reps
     if (isRep && l.owner !== 'Rajesh K.') return false;
-    const matchSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.email.toLowerCase().includes(search.toLowerCase());
+
+    // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      const matchSearch =
+        l.name.toLowerCase().includes(q) ||
+        l.email.toLowerCase().includes(q) ||
+        l.phone.toLowerCase().includes(q) ||
+        l.status.toLowerCase().includes(q) ||
+        l.source.toLowerCase().includes(q) ||
+        l.owner.toLowerCase().includes(q) ||
+        l.value.toLowerCase().includes(q) ||
+        l.city.toLowerCase().includes(q) ||
+        l.budget.toLowerCase().includes(q) ||
+        l.requirement.toLowerCase().includes(q) ||
+        l.created.toLowerCase().includes(q) ||
+        l.tags.some(tag => tag.toLowerCase().includes(q)) ||
+        String(l.score).includes(q);
+      if (!matchSearch) return false;
+    }
+
+    // Status tab filter
     const matchStatus = activeStatus === 'All' || l.status === activeStatus;
-    return matchSearch && matchStatus;
+    return matchStatus;
   });
 
   const toggleSelect = (id: string) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -162,17 +184,41 @@ export function LeadsTable() {
           </div>
         </div>
 
-        {/* Search row */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgb(var(--muted-foreground))' }} />
+        {/* Search row — full-width, multi-field, works in both Excel & Standard view */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
-              className="crm-input pl-9 h-9"
-              placeholder="Search leads across columns..."
+              className="crm-input pl-9 pr-9 h-9 w-full text-sm"
+              placeholder="🔍 Search by name, email, phone, status, city, budget, requirement, source, rep..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm font-bold px-1 rounded"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
+
+          {/* Search Results Count + Active Field Indicator */}
+          {search.trim() && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+                filtered.length > 0
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                  : 'bg-red-500/15 border-red-500/30 text-red-300'
+              }`}>
+                {filtered.length > 0 ? `✓ ${filtered.length} match${filtered.length !== 1 ? 'es' : ''}` : '✗ No results'}
+              </span>
+            </div>
+          )}
+
+          {/* Bulk Actions (when rows selected) */}
           {selected.length > 0 && (
             <div className="flex items-center gap-2 text-sm flex-wrap" style={{ color: 'rgb(var(--muted-foreground))' }}>
               <span className="font-medium" style={{ color: 'rgb(var(--brand-400))' }}>{selected.length} selected</span>
@@ -252,7 +298,27 @@ export function LeadsTable() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((lead) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={columnOrder.length + 2} className="px-6 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">🔍</div>
+                    <p className="text-sm font-bold text-white">No leads match your search</p>
+                    <p className="text-xs text-slate-400 max-w-xs">
+                      No results for <strong className="text-indigo-300">"{search}"</strong> across all fields.
+                      Try searching by name, phone, email, city, status, or any other field.
+                    </p>
+                    <button
+                      onClick={() => setSearch('')}
+                      className="mt-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 px-4 py-1.5 rounded-xl hover:bg-indigo-500/10 transition-all"
+                    >
+                      ✕ Clear Search & Show All Leads
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+            filtered.map((lead) => (
               <tr key={lead.id} className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
                 <td className="px-3 py-3 border-b border-slate-800/60">
                   <input type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggleSelect(lead.id)} />
@@ -317,7 +383,8 @@ export function LeadsTable() {
                   </button>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>
