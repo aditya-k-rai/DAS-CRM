@@ -142,6 +142,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
   const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
   const [selectedMeeting, setSelectedMeeting] = useState<ScheduledMeetingItem | null>(null);
+  const [inDepthReportOpen, setInDepthReportOpen] = useState(false);
 
   const filteredMeetings = MOCK_ADMIN_MEETINGS.filter((m) => {
     if (meetingFilter === 'TODAY') return m.isToday;
@@ -348,9 +349,15 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
         {/* ⚡ TODAY'S OPERATIONS & SALES TELEMETRY */}
         <View style={[styles.cardBox, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.06)' }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <Text style={[styles.cardTitle, { color: '#34d399' }]}>⚡ Today's Sales &amp; Operations Telemetry</Text>
-            <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>$18,450 Sales Today</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={[styles.cardTitle, { color: '#34d399' }]}>⚡ Operations &amp; Sales Telemetry</Text>
+            <TouchableOpacity
+              onPress={() => setInDepthReportOpen(true)}
+              activeOpacity={0.7}
+              style={{ backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#34d399' }}>View In-Depth Report →</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.telemetryGrid}>
             <View style={styles.telemetryItem}>
