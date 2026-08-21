@@ -264,7 +264,7 @@ function MainTabNavigator({
               onOpenProductsCatalog={onOpenProductsCatalog}
               onOpenProfile={onOpenProfile}
               onOpenAppUpdates={onOpenAppUpdates}
-              onNavigateTab={(tabName) => navProps.navigation.navigate(tabName)}
+              onNavigateTab={(tabName: string) => navProps.navigation.navigate(tabName as any)}
             />
           )}
           options={{
