@@ -39,7 +39,6 @@ export interface DetailedNotification {
   email?: string;
   value?: string;
   meetingPurpose?: string;
-  meetingPurpose?: string;
   routeTarget: 'LeadDetail' | 'Leads' | 'Attendance' | 'Deals' | 'Tasks' | 'Employees' | 'Products';
 }
 
@@ -368,6 +367,13 @@ export default function NotificationsScreen({
   const [selectedNotif, setSelectedNotif] = useState<DetailedNotification | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const filteredNotifs = notifications.filter((n) => {
+    if (activeFilter === 'UNREAD') return !n.isRead;
+    if (activeFilter === 'TASK_ALERTS') return n.type === 'TASK_5MIN_ALERT' || n.type === 'CALL_REMINDER';
+    if (activeFilter === 'LEADS') return n.type === 'LEAD_ASSIGNED';
+    return true;
+  });
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => {

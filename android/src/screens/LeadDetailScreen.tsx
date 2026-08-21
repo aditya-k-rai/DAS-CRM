@@ -517,7 +517,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         </View>
 
         {/* ── 📋 LEAD FOLLOW-UP ACTIVITY & TIMELINE LOG HISTORY ───────────────── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyBetween: 'space-between', marginBottom: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>📋 Call Timeline & Contact Audit</Text>
         </View>
 

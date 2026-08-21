@@ -140,7 +140,14 @@ function RoleDashboardDispatcher(props: any) {
   return <EmployeeDashboardScreen {...props} />;
 }
 
-function MainTabNavigator({ onOpenDrawer, onOpenNotifications, unreadCount }: any) {
+function MainTabNavigator({
+  onOpenDrawer,
+  onOpenNotifications,
+  unreadCount,
+  onOpenProductsCatalog,
+  onOpenProfile,
+  onOpenAppUpdates,
+}: any) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
   const bottomPadding = Math.max(insets.bottom, 6);
@@ -253,9 +260,9 @@ function MainTabNavigator({ onOpenDrawer, onOpenNotifications, unreadCount }: an
           children={(navProps) => (
             <MoreControlsScreen
               {...navProps}
-              onOpenProductsCatalog={() => setProductsModalOpen(true)}
-              onOpenProfile={() => setProfileModalOpen(true)}
-              onOpenAppUpdates={() => setUpdateModalOpen(true)}
+              onOpenProductsCatalog={onOpenProductsCatalog}
+              onOpenProfile={onOpenProfile}
+              onOpenAppUpdates={onOpenAppUpdates}
               onNavigateTab={(tabName) => navProps.navigation.navigate(tabName)}
             />
           )}
@@ -413,6 +420,9 @@ export default function App() {
             onOpenDrawer={openDrawer}
             onOpenNotifications={() => setNotifModalOpen(true)}
             unreadCount={unreadNotifCount}
+            onOpenProductsCatalog={() => setProductsModalOpen(true)}
+            onOpenProfile={() => setProfileModalOpen(true)}
+            onOpenAppUpdates={() => setUpdateModalOpen(true)}
             navigation={{ navigate: (name: string, params?: any) => (navigationRef as any).navigate(name, params) }}
           />
         )}

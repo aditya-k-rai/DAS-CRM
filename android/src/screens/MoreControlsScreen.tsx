@@ -35,6 +35,7 @@ import {
 
 interface MoreControlsScreenProps {
   navigation?: any;
+  onOpenProductsCatalog?: () => void;
   onOpenProfile?: () => void;
   onOpenAppUpdates?: () => void;
   onNavigateTab?: (tabName: string) => void;
@@ -532,7 +533,7 @@ export default function MoreControlsScreen({
 
                       {/* Active Chat Conversation Feed */}
                       <View style={{ backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12, gap: 10 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#1e293b', pb: 6 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 6 }}>
                           <View>
                             <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>💬 Thread: {activeThread.contactName}</Text>
                             <Text style={{ fontSize: 9, color: '#94a3b8' }}>{activeThread.phone} • {activeThread.assignedAgent}</Text>
@@ -1339,7 +1340,7 @@ const styles = StyleSheet.create({
 
   scrollContent: { padding: 16, paddingBottom: 32 },
   moduleCard: { backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 14 },
-  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, pb: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   moduleTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
   moduleSub: { fontSize: 10, color: '#94a3b8', marginTop: 2, lineHeight: 14 },
 
@@ -1371,7 +1372,7 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '85%', borderWidth: 1, borderColor: '#1e293b' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: '#1e293b', pb: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
   modalTitleText: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
   modalCloseBtn: { backgroundColor: '#1e293b', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });
