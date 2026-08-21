@@ -255,9 +255,6 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         <View style={[styles.cardBox, { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.06)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={[styles.cardTitle, { color: '#818cf8' }]}>📅 Scheduled Meetings Today &amp; Upcoming</Text>
-            <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>
-              {todayCount} Today • {upcomingCount} Upcoming
-            </Text>
           </View>
 
           {/* Filter Bar */}
