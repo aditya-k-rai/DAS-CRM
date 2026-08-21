@@ -21,7 +21,7 @@ import {
   Linking,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { callSyncEngine } from '../services/callSyncEngine';
+import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 
 export interface ScheduledMeetingItem {
   id: string;
@@ -216,6 +216,9 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
             <Text style={styles.quickChipText}>💼 Deals Kanban</Text>
           </TouchableOpacity>
         </View>
+
+        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
+        <IngestionChannelsWidget navigation={navigation} />
 
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>

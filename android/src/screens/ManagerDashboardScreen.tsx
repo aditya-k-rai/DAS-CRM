@@ -18,7 +18,7 @@ import {
   Linking,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { callSyncEngine } from '../services/callSyncEngine';
+import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 
 export interface ManagerMeetingItem {
   id: string;
@@ -173,6 +173,9 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
           <Text style={styles.headerTitle}>📈 Department Manager Workspace</Text>
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
+
+        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
+        <IngestionChannelsWidget navigation={navigation} />
 
         {/* DEPARTMENT STAT CARDS */}
         <View style={styles.statsGrid}>
