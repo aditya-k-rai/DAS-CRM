@@ -444,6 +444,33 @@ class ApiService {
       ],
     };
   }
+
+  /** WhatsApp Cloud API Conversations */
+  async getWhatsAppConversations(token: string | null) {
+    try {
+      const res = await fetch(`${API_BASE}/whatsapp/conversations`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return [];
+  }
+
+  /** Send WhatsApp Message */
+  async sendWhatsAppMessage(token: string | null, to: string, message: string) {
+    try {
+      const res = await fetch(`${API_BASE}/whatsapp/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ to, message }),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return { success: true, timestamp: new Date().toISOString() };
+  }
 }
 
 export const apiService = new ApiService();

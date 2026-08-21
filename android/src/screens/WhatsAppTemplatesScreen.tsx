@@ -22,6 +22,15 @@ interface WhatsAppTemplatesScreenProps {
 }
 
 export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = ({ onClose }) => {
+  const [activeTab, setActiveTab] = useState<'ALL' | 'OUTREACH' | 'PROPOSAL' | 'FOLLOWUP' | 'PROMOTION'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Variable Sandbox State
+  const [sandboxName, setSandboxName] = useState('Rajesh Kumar');
+  const [sandboxCompany, setSandboxCompany] = useState('TechCorp Solutions');
+  const [sandboxValue, setSandboxValue] = useState('₹5,90,000');
+  const [sandboxProduct, setSandboxProduct] = useState('Enterprise Suite');
+
   const [waTemplatesList, setWaTemplatesList] = useState<WhatsAppTemplate[]>([
     {
       id: 'tpl_1',
@@ -33,13 +42,19 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
       id: 'tpl_2',
       title: '📄 GST Commercial Proposal',
       category: 'PROPOSAL',
-      text: 'Hello {name}, please find our official commercial quote attached with 18% GST tax breakdown.',
+      text: 'Hello {name}, please find our official commercial quote for {product} attached with 18% GST tax breakdown totaling {value}.',
     },
     {
       id: 'tpl_3',
       title: '⏰ SLA 15-Min Followup',
       category: 'FOLLOWUP',
-      text: 'Hi {name}, just checking in to see if you had any questions regarding our enterprise suite proposal.',
+      text: 'Hi {name}, just checking in from {company} to see if you had any questions regarding our enterprise proposal.',
+    },
+    {
+      id: 'tpl_4',
+      title: '🎉 Q3 Festival Discount Offer',
+      category: 'PROMOTION',
+      text: 'Exciting news {name}! Get 20% off on {product} for {company} when you upgrade this week.',
     },
   ]);
 
@@ -84,9 +99,48 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
     Alert.alert('✅ Template Saved', `WhatsApp template "${tplFormTitle}" saved & synced!`);
   };
 
+  const handleDeleteTpl = (id: string, title: string) => {
+    Alert.alert('Delete Template', `Are you sure you want to remove "${title}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => setWaTemplatesList((prev) => prev.filter((t) => t.id !== id)),
+      },
+    ]);
+  };
+
+  const handleDuplicateTpl = (tpl: WhatsAppTemplate) => {
+    const dup: WhatsAppTemplate = {
+      id: `tpl_dup_${Date.now()}`,
+      title: `${tpl.title} (Copy)`,
+      category: tpl.category,
+      text: tpl.text,
+    };
+    setWaTemplatesList([dup, ...waTemplatesList]);
+    Alert.alert('📋 Template Duplicated', `Created duplicate of "${tpl.title}"`);
+  };
+
+  const parseVariables = (rawText: string) => {
+    return rawText
+      .replace(/{name}/g, sandboxName || '{name}')
+      .replace(/{company}/g, sandboxCompany || '{company}')
+      .replace(/{value}/g, sandboxValue || '{value}')
+      .replace(/{product}/g, sandboxProduct || '{product}');
+  };
+
+  const filteredTemplates = waTemplatesList.filter((tpl) => {
+    if (activeTab !== 'ALL' && tpl.category !== activeTab) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return tpl.title.toLowerCase().includes(q) || tpl.text.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   return (
     <View style={styles.container}>
-      {/* Navigation Header */}
+      {/* Header */}
       <View style={styles.topHeader}>
         {onClose && (
           <TouchableOpacity style={styles.backBtn} onPress={onClose}>
@@ -97,30 +151,85 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Category Tabs & Search */}
         <View style={styles.moduleCard}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.moduleTitle}>✏️ 1-Click Message Templates</Text>
+            <Text style={styles.moduleTitle}>✏️ WhatsApp Template Engine</Text>
             <TouchableOpacity style={styles.actionBtnGreen} onPress={() => handleOpenEditTpl()}>
               <Text style={styles.actionBtnText}>+ Create Tpl</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.moduleSub}>Manage pre-approved WhatsApp message templates with dynamic variable tags.</Text>
 
-          {waTemplatesList.map((tpl) => (
+          {/* Category Chips */}
+          <View style={styles.tabsRow}>
+            {(['ALL', 'OUTREACH', 'PROPOSAL', 'FOLLOWUP', 'PROMOTION'] as const).map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.tabChip, activeTab === cat && styles.tabChipActive]}
+                onPress={() => setActiveTab(cat)}
+              >
+                <Text style={[styles.tabChipText, activeTab === cat && styles.tabChipTextActive]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ marginVertical: 6 }}>
+            <TextInput
+              style={styles.inputField}
+              placeholder="🔍 Search templates..."
+              placeholderTextColor="#64748b"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
+          {filteredTemplates.map((tpl) => (
             <View key={tpl.id} style={[styles.itemRow, styles.borderBottom]}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.itemName}>{tpl.title}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.itemName}>{tpl.title}</Text>
+                  <Text style={styles.catBadge}>{tpl.category}</Text>
+                </View>
                 <Text style={styles.itemSub} numberOfLines={2}>{tpl.text}</Text>
+                {/* Live Preview */}
+                <View style={styles.parsedPreviewBox}>
+                  <Text style={styles.parsedPreviewText}>Preview: "{parseVariables(tpl.text)}"</Text>
+                </View>
               </View>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEditTpl(tpl)}>
-                <Text style={styles.actionBtnText}>Edit</Text>
-              </TouchableOpacity>
+              <View style={{ gap: 4 }}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEditTpl(tpl)}>
+                  <Text style={styles.actionBtnText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#0284c7' }]} onPress={() => handleDuplicateTpl(tpl)}>
+                  <Text style={styles.actionBtnText}>Copy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDeleteTpl(tpl.id, tpl.title)}>
+                  <Text style={styles.actionBtnText}>Del</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
+
+        {/* Live Variable Parser Sandbox */}
+        <View style={[styles.moduleCard, { marginTop: 12 }]}>
+          <Text style={styles.moduleTitle}>🧪 Live Template Variable Sandbox</Text>
+          <Text style={styles.moduleSub}>Enter test parameters to test parsed message outputs live before dispatching.</Text>
+
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TextInput style={[styles.inputField, { flex: 1 }]} value={sandboxName} onChangeText={setSandboxName} placeholder="Client Name" placeholderTextColor="#64748b" />
+              <TextInput style={[styles.inputField, { flex: 1 }]} value={sandboxCompany} onChangeText={setSandboxCompany} placeholder="Company Name" placeholderTextColor="#64748b" />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <TextInput style={[styles.inputField, { flex: 1 }]} value={sandboxValue} onChangeText={setSandboxValue} placeholder="Deal Value" placeholderTextColor="#64748b" />
+              <TextInput style={[styles.inputField, { flex: 1 }]} value={sandboxProduct} onChangeText={setSandboxProduct} placeholder="Product Name" placeholderTextColor="#64748b" />
+            </View>
+          </View>
+        </View>
       </ScrollView>
 
-      {/* Edit / Create Sub-Modal */}
+      {/* Modal */}
       <Modal visible={editTplModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -208,16 +317,24 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
   scrollContent: { padding: 14, paddingBottom: 32 },
   moduleCard: { backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 14 },
-  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   moduleTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
   moduleSub: { fontSize: 10, color: '#94a3b8', marginTop: 2, lineHeight: 14 },
-  actionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  tabsRow: { flexDirection: 'row', gap: 4, marginVertical: 6, flexWrap: 'wrap' },
+  tabChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
+  tabChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
+  tabChipText: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
+  tabChipTextActive: { color: '#ffffff' },
+  actionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignItems: 'center' },
   actionBtnGreen: { backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  actionBtnText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
+  actionBtnText: { fontSize: 9, fontWeight: '900', color: '#ffffff' },
   itemRow: { paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   itemName: { fontSize: 12, fontWeight: '700', color: '#ffffff' },
+  catBadge: { fontSize: 8, fontWeight: '900', color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   itemSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  parsedPreviewBox: { backgroundColor: '#020617', padding: 6, borderRadius: 6, marginTop: 4, borderWidth: 1, borderColor: '#1e293b' },
+  parsedPreviewText: { fontSize: 9, color: '#34d399', fontStyle: 'italic' },
   inputField: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 12, color: '#ffffff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, maxHeight: '85%', borderWidth: 1, borderColor: '#1e293b' },
