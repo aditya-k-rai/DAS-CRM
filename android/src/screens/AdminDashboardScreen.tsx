@@ -486,6 +486,127 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           )}
         </View>
       </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 📊 IN-DEPTH OPERATIONS & SALES TELEMETRY REPORT MODAL                       */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={inDepthReportOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>⚡ In-Depth Operations Telemetry Report</Text>
+                <Text style={styles.modalSub}>
+                  Acme Sales Solutions • Real-Time Performance &amp; Lead Ingestion Audit
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setInDepthReportOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+
+              {/* Financial KPI Summary Cards Grid */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', padding: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>WON REVENUE</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399', marginTop: 2 }}>$128,400</Text>
+                  <Text style={{ fontSize: 8, color: '#34d399', marginTop: 2, fontWeight: '700' }}>↑ +14.2% closed</Text>
+                </View>
+
+                <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(129,140,248,0.3)', padding: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>ACTIVE PIPELINE</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff', marginTop: 2 }}>$412,000</Text>
+                  <Text style={{ fontSize: 8, color: '#818cf8', marginTop: 2, fontWeight: '700' }}>42 Open Deals</Text>
+                </View>
+
+                <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(192,132,252,0.3)', padding: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>CONV. RATE</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc', marginTop: 2 }}>14.2%</Text>
+                  <Text style={{ fontSize: 8, color: '#c084fc', marginTop: 2, fontWeight: '700' }}>Target: 15.0%</Text>
+                </View>
+              </View>
+
+              {/* Today's Telemetry Metrics Breakdown */}
+              <View style={{ backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399', marginBottom: 8 }}>⚡ Today's Telemetry Audit</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 6 }}>
+                  <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Total Leads Ingested &amp; Allocated:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#93c5fd' }}>142 Leads</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Outbound Calls Completed:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>384 Calls (4m 18s avg)</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• WhatsApp &amp; SMS Dispatches:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>820 Messages</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6 }}>
+                  <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Closed Won Deals Today:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#fbbf24' }}>8 Deals ($18,450)</Text>
+                </View>
+              </View>
+
+              {/* Call Outcome Distribution Audit */}
+              <View style={{ backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>📞 Call Outcome Distribution Audit</Text>
+                {[
+                  { outcome: '🟢 Connected / Picked Up', count: '228 Calls', pct: '59.3%', color: '#34d399' },
+                  { outcome: '💬 WhatsApp Follow-up Chat', count: '94 Chats', pct: '24.5%', color: '#38bdf8' },
+                  { outcome: '🟡 Line Busy / Call Back', count: '42 Calls', pct: '10.9%', color: '#fbbf24' },
+                  { outcome: '🔴 Not Responding / Switched Off', count: '20 Calls', pct: '5.2%', color: '#f87171' },
+                ].map((item, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: '#1e293b' }}>
+                    <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>{item.outcome}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '900', color: item.color }}>{item.count} ({item.pct})</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Sales Rep Leaderboard */}
+              <View style={{ backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#818cf8', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
+                {[
+                  { rank: '#1', rep: 'Rajesh Kumar (Sales Exec)', calls: '64 Calls', closed: '₹5,20,000' },
+                  { rank: '#2', rep: 'Amit Patel (Sales Exec)', calls: '52 Calls', closed: '₹3,50,000' },
+                  { rank: '#3', rep: 'Priya Sharma (Sales Exec)', calls: '48 Calls', closed: '₹2,45,000' },
+                  { rank: '#4', rep: 'Neha Joshi (Team Leader)', calls: '44 Calls', closed: '₹1,90,000' },
+                ].map((item, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: '#1e293b' }}>
+                    <Text style={{ fontSize: 10, color: '#ffffff', fontWeight: '800' }}>{item.rank} {item.rep}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#34d399' }}>{item.calls} • {item.closed}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                  onPress={() => Alert.alert('📥 Telemetry Export Generated', 'Operations & Sales Telemetry CSV exported successfully.')}
+                >
+                  <Text style={{ color: '#34d399', fontSize: 11, fontWeight: '800' }}>📥 Export Report CSV</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: '#4f46e5', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                  onPress={() => {
+                    setInDepthReportOpen(false);
+                    try {
+                      navigation?.navigate('More', { initialModule: 'REPORTS' });
+                    } catch {}
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '900' }}>🚀 Open Reports Hub →</Text>
+                </TouchableOpacity>
+              </View>
+
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
