@@ -74,7 +74,7 @@ export default function DownloadsPage() {
   const [dmgUploadStatus, setDmgUploadStatus] = useState('');
 
   const currentRole = normalizeRoleStr(currentUser?.role);
-  const canManageRelease = currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN';
+  const canManageRelease = currentRole === 'SUPER_ADMIN';
 
   useEffect(() => {
     const saved = localStorage.getItem('das_crm_release_info');
