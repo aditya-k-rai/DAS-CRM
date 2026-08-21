@@ -191,9 +191,6 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
           </TouchableOpacity>
         </View>
 
-        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
-        <IngestionChannelsWidget navigation={navigation} />
-
         {/* DEPARTMENT STAT CARDS */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
@@ -209,6 +206,9 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
             <Text style={styles.statLbl}>Conversion Rate</Text>
           </View>
         </View>
+
+        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
+        <IngestionChannelsWidget navigation={navigation} />
 
         {/* 📅 ASSIGNED EMPLOYEES SCHEDULED MEETINGS WIDGET */}
         <View style={[styles.cardBox, { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.06)' }]}>

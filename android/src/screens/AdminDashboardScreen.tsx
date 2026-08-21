@@ -218,9 +218,6 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           </TouchableOpacity>
         </View>
 
-        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
-        <IngestionChannelsWidget navigation={navigation} />
-
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
@@ -250,6 +247,9 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
             <Text style={styles.statSubLbl}>Target: 15.0%</Text>
           </View>
         </View>
+
+        {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
+        <IngestionChannelsWidget navigation={navigation} />
 
         {/* 📅 SCHEDULED MEETINGS TODAY & UPCOMING WIDGET */}
         <View style={[styles.cardBox, { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.06)' }]}>
