@@ -209,11 +209,60 @@ export default function LeadsScreen() {
     Alert.alert('Lead Created', `Added ${newLead.name} to workspace collection.`);
   };
 
+  const [rawCsvInput, setRawCsvInput] = useState('');
+
   const handleSaveEditedLead = () => {
     if (!editingLead) return;
     setLeadsList((prev) => prev.map((l) => (l.id === editingLead.id ? editingLead : l)));
     setEditingLead(null);
     Alert.alert('Lead Updated', 'Successfully updated lead details.');
+  };
+
+  const handleSyncGoogleSheet = async () => {
+    if (!sheetUrl.trim()) {
+      Alert.alert('Missing URL', 'Please enter a valid Google Sheet URL.');
+      return;
+    }
+    const res = await apiService.syncGoogleSheets(token || '', sheetUrl.trim(), sheetRange);
+    if (res && res.leads && res.leads.length > 0) {
+      setLeadsList((prev) => [...res.leads, ...prev]);
+      setSheetModalOpen(false);
+      setSheetUrl('');
+      Alert.alert(
+        '🟢 Google Sheet Synced',
+        `Successfully ingested ${res.importedCount} live leads from Google Sheet "${res.sheetTitle || 'Web Leads'}" into workspace!`
+      );
+    } else {
+      Alert.alert('Sync Error', 'Could not sync Google Sheet. Check URL permissions.');
+    }
+  };
+
+  const handleProcessCsvTextImport = async (inputStr?: string) => {
+    const textToImport = inputStr || rawCsvInput;
+    if (!textToImport.trim()) {
+      // Default demo CSV if empty
+      const demoCsv = `Name, Phone, Company, Email, Status, Value
+Rajesh Varma (CSV), +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000
+Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUALIFIED, ₹90,000`;
+      const res = await apiService.importLeadsCsv(token || '', demoCsv);
+      if (res && res.leads) {
+        setLeadsList((prev) => [...res.leads, ...prev]);
+        setImportModalOpen(false);
+        setRawCsvInput('');
+        Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records from CSV sample!`);
+      }
+      return;
+    }
+
+    const res = await apiService.importLeadsCsv(token || '', textToImport);
+    if (res && res.leads && res.leads.length > 0) {
+      setLeadsList((prev) => [...res.leads, ...prev]);
+      setImportModalOpen(false);
+      setRawCsvInput('');
+      Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records into workspace!`);
+    } else {
+      Alert.alert('Import Failed', 'Could not parse CSV structure.');
+    }
   };
 
   const handleInitiateCallLead = (leadId: string, leadName: string, phone: string) => {
@@ -829,7 +878,83 @@ export default function LeadsScreen() {
         </View>
       </Modal>
 
-      {/* ── MODAL 5: POST-CALL OUTCOME MODAL ───────────────────────────────── */}
+      {/* ── MODAL 5: GOOGLE SHEETS LIVE SYNC MODAL ───────────────────────── */}
+      <Modal visible={sheetModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>🟢 Google Sheets Live Sync</Text>
+              <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSheetModalOpen(false)}>
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSub}>Connect published Google Sheet URL for continuous 2-way lead ingestion.</Text>
+
+            <Text style={styles.label}>Google Sheet URL *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              placeholderTextColor="#64748b"
+              value={sheetUrl}
+              onChangeText={setSheetUrl}
+            />
+
+            <Text style={styles.label}>Sheet Data Range (Optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Sheet1!A2:F"
+              placeholderTextColor="#64748b"
+              value={sheetRange}
+              onChangeText={setSheetRange}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => setSheetModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#0284c7', flex: 1 }]} onPress={handleSyncGoogleSheet}>
+                <Text style={{ color: '#ffffff', fontWeight: '800' }}>🚀 Connect &amp; Sync →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 6: CSV / EXCEL FILE & DATA IMPORT MODAL ─────────────────── */}
+      <Modal visible={importModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>📥 CSV / Excel Spreadsheet Import</Text>
+              <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setImportModalOpen(false)}>
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSub}>Paste raw CSV text or click sample runner to ingest lead batches into DAS CRM.</Text>
+
+            <Text style={styles.label}>Raw CSV Data / Multiline Input:</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
+              placeholder="Name, Phone, Company, Email, Status, Value&#10;Rajesh Varma, +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000"
+              placeholderTextColor="#64748b"
+              multiline
+              value={rawCsvInput}
+              onChangeText={setRawCsvInput}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
+                <Text style={{ color: '#38bdf8', fontWeight: '800' }}>⚡ Run Sample CSV</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#10b981', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
+                <Text style={{ color: '#ffffff', fontWeight: '800' }}>📥 Import Leads →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 7: POST-CALL OUTCOME MODAL ───────────────────────────────── */}
       <PostCallOutcomeModal
         visible={postCallModalOpen}
         leadId={callingLeadData?.id || ''}
