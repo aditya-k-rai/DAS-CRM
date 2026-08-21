@@ -177,6 +177,105 @@ export default function MoreControlsScreen({
     { id: 'a4', name: 'After-Hours WhatsApp Bot Auto-Reply', trigger: 'Between 08:00 PM - 08:00 AM', status: false },
   ]);
 
+  // New Chat Thread Form State
+  const [showNewThreadForm, setShowNewThreadForm] = useState(false);
+  const [newThreadContact, setNewThreadContact] = useState('');
+  const [newThreadPhone, setNewThreadPhone] = useState('');
+  const [newThreadCompany, setNewThreadCompany] = useState('');
+
+  // Create Deal Form State
+  const [showNewDealForm, setShowNewDealForm] = useState(false);
+  const [newDealTitle, setNewDealTitle] = useState('');
+  const [newDealCompany, setNewDealCompany] = useState('');
+  const [newDealValue, setNewDealValue] = useState('');
+  const [newDealStage, setNewDealStage] = useState<'NEW_LEAD' | 'QUALIFIED' | 'PROPOSAL' | 'CLOSED_WON'>('NEW_LEAD');
+
+  // Create Automation Form State
+  const [showNewRuleForm, setShowNewRuleForm] = useState(false);
+  const [newRuleName, setNewRuleName] = useState('');
+  const [newRuleTrigger, setNewRuleTrigger] = useState('');
+
+  // Reports Date Filter State
+  const [reportsFilter, setReportsFilter] = useState<'TODAY' | 'WEEK' | 'MONTH'>('TODAY');
+
+  // Email Campaign History State
+  const [emailCampaignsLog, setEmailCampaignsLog] = useState([
+    { to: 'rajesh@techcorp.com', subject: 'Enterprise CRM Suite Deck', time: '10:15 AM', status: 'DISPATCHED' },
+    { to: 'priya@logitech.com', subject: 'Custom SLA & Quotation', time: 'Yesterday', status: 'DELIVERED' },
+  ]);
+
+  const handleCreateNewThread = () => {
+    if (!newThreadContact.trim() || !newThreadPhone.trim()) {
+      Alert.alert('Missing Info', 'Please enter contact name and phone number.');
+      return;
+    }
+    const newT: WAChatThread = {
+      id: `thread_${Date.now()}`,
+      contactName: newThreadContact.trim(),
+      phone: newThreadPhone.trim(),
+      company: newThreadCompany.trim() || 'Enterprise Prospect',
+      lastMessage: 'Chat thread created.',
+      timestamp: 'Just Now',
+      unreadCount: 0,
+      assignedAgent: 'Active User',
+      stage: 'NEW',
+      internalNotes: ['New thread created manually.'],
+      messages: [{ sender: 'SYSTEM', text: 'Chat conversation initialized via WhatsApp Cloud API.', time: 'Just Now' }],
+    };
+    setChatThreads([newT, ...chatThreads]);
+    setActiveThreadId(newT.id);
+    setNewThreadContact('');
+    setNewThreadPhone('');
+    setNewThreadCompany('');
+    setShowNewThreadForm(false);
+    Alert.alert('✅ Chat Thread Created', `Initialized new WhatsApp thread with ${newT.contactName}!`);
+  };
+
+  const handleCreateNewDeal = () => {
+    if (!newDealTitle.trim() || !newDealValue.trim()) {
+      Alert.alert('Missing Info', 'Please enter deal name and amount.');
+      return;
+    }
+    const dealItem = {
+      id: `d_${Date.now()}`,
+      name: newDealTitle.trim(),
+      company: newDealCompany.trim() || 'Enterprise Client',
+      val: newDealValue.trim().startsWith('$') || newDealValue.trim().startsWith('₹') ? newDealValue.trim() : `$${newDealValue.trim()}`,
+      stage: newDealStage,
+    };
+    setDealsList([dealItem, ...dealsList]);
+    setNewDealTitle('');
+    setNewDealCompany('');
+    setNewDealValue('');
+    setShowNewDealForm(false);
+    Alert.alert('✅ Deal Created', `Created deal "${dealItem.name}" in stage ${dealItem.stage}!`);
+  };
+
+  const handleCreateAutomationRule = () => {
+    if (!newRuleName.trim() || !newRuleTrigger.trim()) {
+      Alert.alert('Missing Info', 'Please enter rule title and trigger description.');
+      return;
+    }
+    const ruleItem = {
+      id: `a_${Date.now()}`,
+      name: newRuleName.trim(),
+      trigger: newRuleTrigger.trim(),
+      status: true,
+    };
+    setAutomationsRules([...automationsRules, ruleItem]);
+    setNewRuleName('');
+    setNewRuleTrigger('');
+    setShowNewRuleForm(false);
+    Alert.alert('✅ Automation Rule Active', `Registered rule "${ruleItem.name}"!`);
+  };
+
+  const handleDispatchPdfViaWhatsApp = (pdfTitle: string) => {
+    const waUrl = `whatsapp://send?phone=919876543210&text=Hi,%20here%20is%20the%20download%20link%20for%20${encodeURIComponent(pdfTitle)}:%20https://das-crm.com/brochures/${encodeURIComponent(pdfTitle)}`;
+    Linking.openURL(waUrl).catch(() => {
+      Alert.alert('📄 PDF Brochure Dispatched', `Sharing download link for ${pdfTitle} via WhatsApp!`);
+    });
+  };
+
   useEffect(() => {
     whatsappTemplateEngine.getTemplates().then((tpls) => {
       if (tpls && tpls.length > 0) setWaTemplatesList(tpls);
@@ -460,11 +559,34 @@ export default function MoreControlsScreen({
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>📱 WhatsApp Cloud API Shared Team Inbox</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={styles.moduleTitle}>📱 WhatsApp Cloud API Shared Team Inbox</Text>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 4 }]}
+                  onPress={() => setShowNewThreadForm(!showNewThreadForm)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#ffffff' }}>
+                    {showNewThreadForm ? '✕ Close Form' : '➕ Start New Thread'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.moduleSub}>In-depth live chat threads, client messages &amp; private team notes.</Text>
 
+              {/* New Thread Inline Form */}
+              {showNewThreadForm && (
+                <View style={{ backgroundColor: '#020617', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#10b981', gap: 6, marginVertical: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>👤 Initialize New WhatsApp Contact Thread</Text>
+                  <TextInput style={styles.inputField} placeholder="Contact Name (e.g. Rahul Varma)" placeholderTextColor="#64748b" value={newThreadContact} onChangeText={setNewThreadContact} />
+                  <TextInput style={styles.inputField} placeholder="Phone Number (e.g. +91 98765 12345)" placeholderTextColor="#64748b" value={newThreadPhone} onChangeText={setNewThreadPhone} keyboardType="phone-pad" />
+                  <TextInput style={styles.inputField} placeholder="Company / Client Name" placeholderTextColor="#64748b" value={newThreadCompany} onChangeText={setNewThreadCompany} />
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10b981', paddingVertical: 8, alignItems: 'center' }]} onPress={handleCreateNewThread}>
+                    <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 11 }}>🚀 Create &amp; Open Chat Thread →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Thread Selector Chips */}
-              <View style={{ flexDirection: 'row', gap: 6, marginVertical: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 10 }}>
                 {chatThreads.map((t) => (
                   <TouchableOpacity
                     key={t.id}
@@ -490,6 +612,20 @@ export default function MoreControlsScreen({
                       <Text style={{ fontSize: 11, color: '#ffffff' }}>{m.text}</Text>
                       <Text style={{ fontSize: 8, color: '#94a3b8', alignSelf: 'flex-end', marginTop: 2 }}>{m.time}</Text>
                     </View>
+                  ))}
+                </View>
+
+                {/* Template Quick-Insert Chips */}
+                <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginVertical: 4 }}>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700', width: '100%' }}>Insert Quick Template:</Text>
+                  {waTemplatesList.slice(0, 3).map((tpl) => (
+                    <TouchableOpacity
+                      key={tpl.id}
+                      style={{ backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}
+                      onPress={() => setNewChatInput((prev) => (prev ? prev + ' ' + tpl.text : tpl.text))}
+                    >
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#818cf8' }}>+ {tpl.title}</Text>
+                    </TouchableOpacity>
                   ))}
                 </View>
 
@@ -704,12 +840,20 @@ export default function MoreControlsScreen({
                     <Text style={styles.itemName}>📄 {pdf.title}</Text>
                     <Text style={styles.itemSub}>{pdf.size} • {pdf.updated}</Text>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: '#38bdf8' }]}
-                    onPress={() => Alert.alert('📄 Download PDF Catalogue', `Downloading ${pdf.title}...`)}
-                  >
-                    <Text style={styles.actionBtnText}>Download</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: '#38bdf8' }]}
+                      onPress={() => Alert.alert('📄 Download PDF Catalogue', `Downloading ${pdf.title}...`)}
+                    >
+                      <Text style={styles.actionBtnText}>Download</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: '#10b981' }]}
+                      onPress={() => handleDispatchPdfViaWhatsApp(pdf.title)}
+                    >
+                      <Text style={styles.actionBtnText}>Share WA</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>
@@ -730,8 +874,42 @@ export default function MoreControlsScreen({
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>💼 5-Stage Deals Kanban Pipeline</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={styles.moduleTitle}>💼 5-Stage Deals Kanban Pipeline</Text>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 4 }]}
+                  onPress={() => setShowNewDealForm(!showNewDealForm)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#ffffff' }}>
+                    {showNewDealForm ? '✕ Close Form' : '➕ Create Deal'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.moduleSub}>Tap stage shifter buttons to transition deals across pipeline stages.</Text>
+
+              {/* Create Deal Inline Form */}
+              {showNewDealForm && (
+                <View style={{ backgroundColor: '#020617', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#4f46e5', gap: 6, marginVertical: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>💼 Register New Enterprise Deal</Text>
+                  <TextInput style={styles.inputField} placeholder="Deal Title (e.g. Acme Corp CRM)" placeholderTextColor="#64748b" value={newDealTitle} onChangeText={setNewDealTitle} />
+                  <TextInput style={styles.inputField} placeholder="Company Name" placeholderTextColor="#64748b" value={newDealCompany} onChangeText={setNewDealCompany} />
+                  <TextInput style={styles.inputField} placeholder="Deal Value (e.g. $150,000)" placeholderTextColor="#64748b" value={newDealValue} onChangeText={setNewDealValue} keyboardType="numeric" />
+                  <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {(['NEW_LEAD', 'QUALIFIED', 'PROPOSAL', 'CLOSED_WON'] as const).map((stg) => (
+                      <TouchableOpacity
+                        key={stg}
+                        style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 6, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b' }, newDealStage === stg && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                        onPress={() => setNewDealStage(stg)}
+                      >
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: newDealStage === stg ? '#ffffff' : '#94a3b8' }}>{stg}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4f46e5', paddingVertical: 8, alignItems: 'center', marginTop: 4 }]} onPress={handleCreateNewDeal}>
+                    <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 11 }}>💾 Create Deal Record →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {dealsList.map((deal) => (
                 <View key={deal.id} style={[styles.itemRow, styles.borderBottom, { flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
@@ -773,15 +951,34 @@ export default function MoreControlsScreen({
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>📊 Performance &amp; Call Telemetry Audit</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.moduleTitle}>📊 Performance &amp; Call Telemetry Audit</Text>
+                {/* Date Filter Chips */}
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {(['TODAY', 'WEEK', 'MONTH'] as const).map((range) => (
+                    <TouchableOpacity
+                      key={range}
+                      style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, reportsFilter === range && { backgroundColor: '#38bdf8', borderColor: '#38bdf8' }]}
+                      onPress={() => setReportsFilter(range)}
+                    >
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: reportsFilter === range ? '#020617' : '#94a3b8' }}>{range}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                 <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#38bdf8' }}>$128.4K</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#38bdf8' }}>
+                    {reportsFilter === 'TODAY' ? '$128.4K' : reportsFilter === 'WEEK' ? '$412.0K' : '$1.42M'}
+                  </Text>
                   <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Revenue Won</Text>
                 </View>
                 <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399' }}>384 Calls</Text>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Done Today</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399' }}>
+                    {reportsFilter === 'TODAY' ? '384 Calls' : reportsFilter === 'WEEK' ? '1,840 Calls' : '7,920 Calls'}
+                  </Text>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Done</Text>
                 </View>
                 <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
                   <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc' }}>14.2%</Text>
@@ -791,11 +988,11 @@ export default function MoreControlsScreen({
 
               {/* Team Leaderboard */}
               <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>🏆 Sales Rep Leaderboard ({reportsFilter})</Text>
                 {[
-                  { name: 'Rajesh Kumar', calls: '64 Calls', closed: '₹5,20,000' },
-                  { name: 'Amit Patel', calls: '52 Calls', closed: '₹3,50,000' },
-                  { name: 'Priya Sharma', calls: '48 Calls', closed: '₹2,45,000' },
+                  { name: 'Rajesh Kumar', calls: reportsFilter === 'TODAY' ? '64 Calls' : '312 Calls', closed: '₹5,20,000' },
+                  { name: 'Amit Patel', calls: reportsFilter === 'TODAY' ? '52 Calls' : '248 Calls', closed: '₹3,50,000' },
+                  { name: 'Priya Sharma', calls: reportsFilter === 'TODAY' ? '48 Calls' : '210 Calls', closed: '₹2,45,000' },
                 ].map((rep, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#020617' }}>
                     <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>#{idx + 1} {rep.name}</Text>
@@ -803,6 +1000,13 @@ export default function MoreControlsScreen({
                   </View>
                 ))}
               </View>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#38bdf8', paddingVertical: 10, alignItems: 'center', marginTop: 12 }]}
+                onPress={() => Alert.alert('📊 Report Exported', `Generated telemetry & performance CSV audit report for range: ${reportsFilter}`)}
+              >
+                <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 11 }}>📥 Export Full Telemetry CSV Report →</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
@@ -821,8 +1025,30 @@ export default function MoreControlsScreen({
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>⚡ Active Automation Rules &amp; Triggers</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={styles.moduleTitle}>⚡ Active Automation Rules &amp; Triggers</Text>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 4 }]}
+                  onPress={() => setShowNewRuleForm(!showNewRuleForm)}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#ffffff' }}>
+                    {showNewRuleForm ? '✕ Close Form' : '➕ Add Rule'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.moduleSub}>Toggle triggers for auto-nudge, call reminders &amp; lead ingestion.</Text>
+
+              {/* New Automation Inline Form */}
+              {showNewRuleForm && (
+                <View style={{ backgroundColor: '#020617', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#4f46e5', gap: 6, marginVertical: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>⚡ Register New Automation Bot Trigger</Text>
+                  <TextInput style={styles.inputField} placeholder="Rule Name (e.g. SLA 15-Min Followup)" placeholderTextColor="#64748b" value={newRuleName} onChangeText={setNewRuleName} />
+                  <TextInput style={styles.inputField} placeholder="Trigger Event (e.g. On New Inbound Lead)" placeholderTextColor="#64748b" value={newRuleTrigger} onChangeText={setNewRuleTrigger} />
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4f46e5', paddingVertical: 8, alignItems: 'center', marginTop: 4 }]} onPress={handleCreateAutomationRule}>
+                    <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 11 }}>⚡ Save &amp; Activate Bot Rule →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {automationsRules.map((rule) => (
                 <View key={rule.id} style={[styles.itemRow, styles.borderBottom]}>
@@ -863,13 +1089,52 @@ export default function MoreControlsScreen({
               <Text style={styles.moduleTitle}>📧 AWS SES Email Marketing Portal</Text>
               <Text style={styles.moduleSub}>Compose &amp; dispatch email campaigns to lead segments.</Text>
 
+              {/* Template Quick Select */}
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+                {[
+                  { label: 'Enterprise Pitch', subj: 'DAS CRM Enterprise Suite Proposal & Pricing', body: 'Hi,\n\nPlease find attached our enterprise proposal for DAS CRM.' },
+                  { label: 'GST Rate Card', subj: 'DAS CRM 18% GST Tax Breakdown & Specs', body: 'Hi,\n\nHere is our 18% GST tax rate card and product specifications.' },
+                ].map((tpl, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{ backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
+                    onPress={() => {
+                      setEmailSubject(tpl.subj);
+                      setEmailBody(tpl.body);
+                    }}
+                  >
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>+ {tpl.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <View style={{ gap: 10, marginTop: 10 }}>
                 <TextInput style={styles.inputField} value={emailTo} onChangeText={setEmailTo} placeholder="Recipient Email" placeholderTextColor="#64748b" />
                 <TextInput style={styles.inputField} value={emailSubject} onChangeText={setEmailSubject} placeholder="Email Subject" placeholderTextColor="#64748b" />
                 <TextInput style={[styles.inputField, { height: 110, textAlignVertical: 'top' }]} value={emailBody} onChangeText={setEmailBody} multiline />
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 12, alignItems: 'center' }]} onPress={handleDispatchEmail}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 12, alignItems: 'center' }]}
+                  onPress={() => {
+                    handleDispatchEmail();
+                    setEmailCampaignsLog([{ to: emailTo, subject: emailSubject, time: 'Just Now', status: 'DISPATCHED' }, ...emailCampaignsLog]);
+                  }}
+                >
                   <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 12 }}>🚀 Dispatch AWS SES Email Campaign →</Text>
                 </TouchableOpacity>
+              </View>
+
+              {/* Dispatched Log Table */}
+              <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff', marginBottom: 6 }}>📬 AWS SES Dispatch History</Text>
+                {emailCampaignsLog.map((log, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#020617' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 10, color: '#ffffff', fontWeight: '700' }}>To: {log.to}</Text>
+                      <Text style={{ fontSize: 9, color: '#94a3b8' }}>{log.subject}</Text>
+                    </View>
+                    <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '800' }}>{log.status} ({log.time})</Text>
+                  </View>
+                ))}
               </View>
             </View>
           </ScrollView>
