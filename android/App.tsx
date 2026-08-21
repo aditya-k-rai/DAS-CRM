@@ -45,6 +45,7 @@ import TasksScreen from './src/screens/TasksScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import ProductsCatalogScreen from './src/screens/ProductsCatalogScreen';
+import MoreControlsScreen from './src/screens/MoreControlsScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.82, 320);
@@ -249,7 +250,15 @@ function MainTabNavigator({ onOpenDrawer, onOpenNotifications, unreadCount }: an
         />
         <Tab.Screen
           name="More"
-          component={TasksScreen}
+          children={(navProps) => (
+            <MoreControlsScreen
+              {...navProps}
+              onOpenProductsCatalog={() => setProductsModalOpen(true)}
+              onOpenProfile={() => setProfileModalOpen(true)}
+              onOpenAppUpdates={() => setUpdateModalOpen(true)}
+              onNavigateTab={(tabName) => navProps.navigation.navigate(tabName)}
+            />
+          )}
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(251,191,36,0.25)', borderColor: '#fbbf24' }]}>
