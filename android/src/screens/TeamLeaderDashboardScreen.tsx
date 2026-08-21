@@ -19,7 +19,7 @@ interface ScreenProps {
   onNavigateToAttendance?: () => void;
 }
 
-export default function TeamLeaderDashboardScreen({ onNavigateToAttendance }: ScreenProps) {
+export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAttendance }: any) {
   const { currentUser } = useAuthStore();
 
   return (
@@ -29,6 +29,22 @@ export default function TeamLeaderDashboardScreen({ onNavigateToAttendance }: Sc
         <View style={styles.headerBox}>
           <Text style={styles.headerTitle}>🛡️ Team Leader Unit Workspace</Text>
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
+        </View>
+
+        {/* 🎛️ TEAM LEADER QUICK COMMAND SHORTCUT BAR */}
+        <View style={styles.quickBarRow}>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Leads')}>
+            <Text style={styles.quickChipText}>🎯 Lead Queue</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}>
+            <Text style={styles.quickChipText}>💼 Unit Deals</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'REPORTS' })}>
+            <Text style={styles.quickChipText}>🏆 Rep Leaderboard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
+            <Text style={styles.quickChipText}>⏱️ Unit Attendance</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
@@ -110,4 +126,7 @@ const styles = StyleSheet.create({
   itemVal: { fontSize: 12, fontWeight: '800', color: '#34d399' },
   assignBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   assignBtnText: { fontSize: 10, color: '#ffffff', fontWeight: '800' },
+  quickBarRow: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 8, marginBottom: 14 },
+  quickChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#4f46e5', alignItems: 'center' },
+  quickChipText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
 });

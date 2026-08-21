@@ -175,6 +175,22 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
 
+        {/* 🎛️ MANAGER QUICK COMMAND SHORTCUT BAR */}
+        <View style={styles.quickBarRow}>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Employees')}>
+            <Text style={styles.quickChipText}>👥 Team Members</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Leads')}>
+            <Text style={styles.quickChipText}>⚡ Team Funnel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}>
+            <Text style={styles.quickChipText}>💼 Deals Kanban</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'QUOTATIONS' })}>
+            <Text style={styles.quickChipText}>📝 Proposals</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
         <IngestionChannelsWidget navigation={navigation} />
 
@@ -407,6 +423,10 @@ const styles = StyleSheet.create({
   headerBox: { width: '100%', maxWidth: 600, marginBottom: 14 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
   headerSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+
+  quickBarRow: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 8, marginBottom: 14 },
+  quickChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#4f46e5', alignItems: 'center' },
+  quickChipText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
 
   statsGrid: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12, alignItems: 'center' },

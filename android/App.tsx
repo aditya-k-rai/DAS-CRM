@@ -472,52 +472,134 @@ export default function App() {
 
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
 
-              {/* CORE CRM SHORTCUTS */}
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.drawerGroupTitle}>CORE CRM SHORTCUTS</Text>
-                <View style={styles.sectionLine} />
-              </View>
+              {/* ROLE-CUSTOMIZED SHORTCUT GROUPS */}
+              {(() => {
+                const normRole = (currentUser?.role || '').toUpperCase();
+                let groups = [];
+                if (normRole.includes('ADMIN')) {
+                  groups = [
+                    {
+                      title: '👑 TENANT ADMIN COMMAND',
+                      items: [
+                        { icon: '🎯', label: 'All Ingested Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                        { icon: '👥', label: 'Staff Directory & Hierarchy', badge: 'ADMIN', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                        { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '📦', label: 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
+                      ]
+                    },
+                    {
+                      title: 'COMMUNICATIONS & AUDIT',
+                      items: [
+                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                        { icon: '💬', label: 'Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '📊', label: 'In-Depth Telemetry Reports', badge: 'REPORTS', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'REPORTS' })) },
+                        { icon: '⏱️', label: 'Workforce Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                      ]
+                    }
+                  ];
+                } else if (normRole.includes('MANAGER')) {
+                  groups = [
+                    {
+                      title: '📈 DEPARTMENT MANAGER CONTROL',
+                      items: [
+                        { icon: '🎯', label: 'Department Team Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                        { icon: '👥', label: 'Supervised Staff Members', badge: 'TEAM', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                        { icon: '💼', label: 'Department Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'Quotation Approvals', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '📦', label: 'Products Catalog', badge: '', action: () => closeDrawer(() => setProductsModalOpen(true)) },
+                      ]
+                    },
+                    {
+                      title: 'COMMUNICATIONS & AUDIT',
+                      items: [
+                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                        { icon: '💬', label: 'Team Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '⏱️', label: 'Team Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                      ]
+                    }
+                  ];
+                } else if (normRole.includes('HR')) {
+                  groups = [
+                    {
+                      title: '👔 HR & WORKFORCE CONTROL',
+                      items: [
+                        { icon: '⏱️', label: 'Attendance & Punch Log Audit', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        { icon: '📅', label: 'Staff Leave Approvals', badge: 'ACTION', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        { icon: '👥', label: 'Organization Staff List', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                        { icon: '💳', label: 'Payroll & Overtime Telemetry', badge: 'PAYROLL', action: () => closeDrawer(() => (navigationRef as any).navigate('Profile')) },
+                      ]
+                    },
+                    {
+                      title: 'COMMUNICATIONS & NOTIFICATIONS',
+                      items: [
+                        { icon: '🔔', label: 'HR Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                        { icon: '💬', label: 'HR Directives & Announcements', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                      ]
+                    }
+                  ];
+                } else if (normRole.includes('TEAM_LEADER') || normRole.includes('LEADER')) {
+                  groups = [
+                    {
+                      title: '🛡️ TEAM LEADER UNIT CONTROL',
+                      items: [
+                        { icon: '🎯', label: 'Unit Lead Queue Allocation', badge: 'UNIT', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                        { icon: '💼', label: 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
+                        { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'REPORTS' })) },
+                        { icon: '⏱️', label: 'Unit Punch Log Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                      ]
+                    },
+                    {
+                      title: 'COMMUNICATIONS & ALERTS',
+                      items: [
+                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                        { icon: '💬', label: 'Team WhatsApp Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                      ]
+                    }
+                  ];
+                } else {
+                  groups = [
+                    {
+                      title: '🎯 MY SALES WORKSPACE',
+                      items: [
+                        { icon: '📞', label: 'My Assigned Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                        { icon: '💼', label: 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '⏱️', label: 'Daily Attendance Punch', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                      ]
+                    },
+                    {
+                      title: 'COMMUNICATIONS & ALERTS',
+                      items: [
+                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                        { icon: '💬', label: 'WhatsApp Inbox & Comms', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                      ]
+                    }
+                  ];
+                }
 
-              {[
-                { icon: '🎯', label: 'Leads Directory', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                { icon: '⚡', label: 'Leads Funnel Customization', badge: '3-MODEL', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
-                { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
-                { icon: '📦', label: 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
-              ].map((item, idx) => (
-                <TouchableOpacity key={idx} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
-                  <View style={styles.drawerItemIconBox}>
-                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
-                  </View>
-                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
-                  {item.badge !== '' && (
-                    <View style={styles.itemBadge}>
-                      <Text style={styles.itemBadgeText}>{item.badge}</Text>
+                return groups.map((grp, idx) => (
+                  <React.Fragment key={idx}>
+                    <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.drawerGroupTitle}>{grp.title}</Text>
+                      <View style={styles.sectionLine} />
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-
-              {/* COMMUNICATIONS & GOALS */}
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.drawerGroupTitle}>COMMUNICATIONS &amp; GOALS</Text>
-                <View style={styles.sectionLine} />
-              </View>
-
-              {[
-                { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                { icon: '💬', label: 'Communications Hub', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
-                { icon: '📧', label: 'Email Marketing & Templates', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
-                { icon: '🎯', label: 'Goals & Targets', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'GOALS' })) },
-                { icon: '⏱️', label: 'Attendance & HR Audit', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-              ].map((item, idx) => (
-                <TouchableOpacity key={idx} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
-                  <View style={styles.drawerItemIconBox}>
-                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
-                  </View>
-                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
+                    {grp.items.map((item, i) => (
+                      <TouchableOpacity key={i} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
+                        <View style={styles.drawerItemIconBox}>
+                          <Text style={{ fontSize: 14 }}>{item.icon}</Text>
+                        </View>
+                        <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                        {!!item.badge && (
+                          <View style={styles.itemBadge}>
+                            <Text style={styles.itemBadgeText}>{item.badge}</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </React.Fragment>
+                ));
+              })()}
 
               {/* SYSTEM & IN-APP UPDATE */}
               <View style={styles.sectionHeaderRow}>

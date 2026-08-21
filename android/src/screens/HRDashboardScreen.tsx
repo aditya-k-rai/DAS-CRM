@@ -53,20 +53,16 @@ const ATTENDANCE_TODAY = [
   { name: 'Priya Sharma', role: 'SALES EXEC', status: 'LATE', time: '10:14 AM' },
 ];
 
-interface ScreenProps {
-  onNavigateToAttendance?: () => void;
-}
-
-export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProps) {
+export default function HRDashboardScreen({ navigation }: any) {
   const { currentUser, subscription } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'leaves'>(
-    'overview',
-  );
+  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'leaves' | 'payroll'>('overview');
+  const [leaves, setLeaves] = useState(LEAVE_REQUESTS);
 
   const tabs = [
-    { key: 'overview' as const, label: 'Overview' },
-    { key: 'attendance' as const, label: 'Attendance' },
-    { key: 'leaves' as const, label: 'Leave Queue' },
+    { key: 'overview', label: '📊 Overview' },
+    { key: 'attendance', label: '⏱️ Attendance' },
+    { key: 'leaves', label: '📅 Leaves' },
+    { key: 'payroll', label: '💳 Payroll' },
   ];
 
   return (
@@ -92,6 +88,22 @@ export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProp
           </View>
         </View>
 
+        {/* 🎛️ HR QUICK COMMAND SHORTCUT BAR */}
+        <View style={styles.quickBarRow}>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
+            <Text style={styles.quickChipText}>⏱️ Punch Log</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Employees')}>
+            <Text style={styles.quickChipText}>👥 Staff Directory</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
+            <Text style={styles.quickChipText}>📅 Leave Approvals</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Profile')}>
+            <Text style={styles.quickChipText}>💳 Payroll Audit</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Session Banner */}
         <View style={styles.sessionBanner}>
           <Text style={styles.sessionBannerText}>
@@ -105,7 +117,7 @@ export default function HRDashboardScreen({ onNavigateToAttendance }: ScreenProp
             <TouchableOpacity
               key={tab.key}
               style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
+              onPress={() => setActiveTab(tab.key as any)}
               activeOpacity={0.8}
             >
               <Text
@@ -550,4 +562,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.4)',
   },
   leaveActionText: { fontSize: 12, fontWeight: '700' },
+
+  quickBarRow: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 8, marginBottom: 14 },
+  quickChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#4f46e5', alignItems: 'center' },
+  quickChipText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
 });
