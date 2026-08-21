@@ -194,30 +194,6 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           <Text style={styles.headerSub}>{currentUser.companyName || 'Acme Sales Solutions'} • Plan: {subscription.planType}</Text>
         </View>
 
-        {/* 🎛️ ADMIN QUICK COMMAND SHORTCUT BAR */}
-        <View style={styles.quickBarRow}>
-          <TouchableOpacity
-            style={styles.quickChip}
-            onPress={() => navigation?.navigate('Employees')}
-          >
-            <Text style={styles.quickChipText}>👥 Staff Inspector</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickChip}
-            onPress={() => navigation?.navigate('Leads')}
-          >
-            <Text style={styles.quickChipText}>⚡ Lead Funnel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.quickChip}
-            onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}
-          >
-            <Text style={styles.quickChipText}>💼 Deals Kanban</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(52, 211, 153, 0.4)' }]}>

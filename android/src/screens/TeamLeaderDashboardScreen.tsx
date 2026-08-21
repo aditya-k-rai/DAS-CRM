@@ -31,22 +31,6 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
 
-        {/* 🎛️ TEAM LEADER QUICK COMMAND SHORTCUT BAR */}
-        <View style={styles.quickBarRow}>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Leads')}>
-            <Text style={styles.quickChipText}>🎯 Lead Queue</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}>
-            <Text style={styles.quickChipText}>💼 Unit Deals</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'REPORTS' })}>
-            <Text style={styles.quickChipText}>🏆 Rep Leaderboard</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
-            <Text style={styles.quickChipText}>⏱️ Unit Attendance</Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
             <Text style={styles.statVal}>₹14.2L</Text>

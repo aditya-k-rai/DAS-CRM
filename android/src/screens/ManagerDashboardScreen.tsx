@@ -175,22 +175,6 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
 
-        {/* 🎛️ MANAGER QUICK COMMAND SHORTCUT BAR */}
-        <View style={styles.quickBarRow}>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Employees')}>
-            <Text style={styles.quickChipText}>👥 Team Members</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Leads')}>
-            <Text style={styles.quickChipText}>⚡ Team Funnel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}>
-            <Text style={styles.quickChipText}>💼 Deals Kanban</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'QUOTATIONS' })}>
-            <Text style={styles.quickChipText}>📝 Proposals</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* DEPARTMENT STAT CARDS */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>

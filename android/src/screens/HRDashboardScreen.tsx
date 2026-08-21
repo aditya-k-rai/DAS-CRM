@@ -88,22 +88,6 @@ export default function HRDashboardScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* 🎛️ HR QUICK COMMAND SHORTCUT BAR */}
-        <View style={styles.quickBarRow}>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
-            <Text style={styles.quickChipText}>⏱️ Punch Log</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Employees')}>
-            <Text style={styles.quickChipText}>👥 Staff Directory</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
-            <Text style={styles.quickChipText}>📅 Leave Approvals</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Profile')}>
-            <Text style={styles.quickChipText}>💳 Payroll Audit</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Session Banner */}
         <View style={styles.sessionBanner}>
           <Text style={styles.sessionBannerText}>

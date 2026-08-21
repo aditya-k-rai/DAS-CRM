@@ -48,22 +48,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
 
-        {/* 🎛️ SALES EXEC QUICK COMMAND SHORTCUT BAR */}
-        <View style={styles.quickBarRow}>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Leads')}>
-            <Text style={styles.quickChipText}>📞 My Leads</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'DEALS' })}>
-            <Text style={styles.quickChipText}>💼 My Pipeline</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('More', { initialModule: 'QUOTATIONS' })}>
-            <Text style={styles.quickChipText}>📝 Quotations</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickChip} onPress={() => navigation?.navigate('Attendance')}>
-            <Text style={styles.quickChipText}>⏱️ Punch Log</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Personal Stat Cards */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
