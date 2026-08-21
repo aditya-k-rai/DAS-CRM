@@ -21,6 +21,27 @@ interface ScreenProps {
 
 export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAttendance }: any) {
   const { currentUser } = useAuthStore();
+  const [selectedRep, setSelectedRep] = React.useState<string | null>(null);
+  const [assignModalOpen, setAssignModalOpen] = React.useState(false);
+  const [selectedLeadToAssign, setSelectedLeadToAssign] = React.useState('LogiTech Freight Systems (₹3,50,000)');
+
+  const [repsList, setRepsList] = React.useState([
+    { name: 'Rajesh Kumar', leads: 31, won: 12, rev: '₹5.2L', calls: 84 },
+    { name: 'Priya Sharma', leads: 24, won: 8, rev: '₹3.1L', calls: 65 },
+    { name: 'Amit Patel', leads: 18, won: 5, rev: '₹2.4L', calls: 52 },
+  ]);
+
+  const handleConfirmAssignLead = () => {
+    if (!selectedRep) return;
+    setRepsList((prev) =>
+      prev.map((r) => (r.name === selectedRep ? { ...r, leads: r.leads + 1 } : r))
+    );
+    setAssignModalOpen(false);
+    Alert.alert(
+      '✅ Lead Re-assigned',
+      `Assigned "${selectedLeadToAssign}" to ${selectedRep} successfully!`
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -37,7 +58,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
             <Text style={styles.statLbl}>Team Unit Revenue (🥇 #1)</Text>
           </View>
           <View style={[styles.statCard, { borderColor: 'rgba(56,189,248,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>5 Execs</Text>
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{repsList.length} Execs</Text>
             <Text style={styles.statLbl}>Supervised Execs</Text>
           </View>
           <View style={[styles.statCard, { borderColor: 'rgba(245,158,11,0.3)' }]}>
@@ -62,19 +83,21 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
         {/* Rep Leaderboard */}
         <Text style={styles.sectionTitle}>Supervised Rep Leaderboard</Text>
         <View style={styles.cardBox}>
-          {[
-            { name: 'Rajesh Kumar', leads: 31, won: 12, rev: '₹5.2L', calls: 84 },
-            { name: 'Priya Sharma', leads: 24, won: 8, rev: '₹3.1L', calls: 65 },
-            { name: 'Amit Patel', leads: 18, won: 5, rev: '₹2.4L', calls: 52 },
-          ].map((rep, idx) => (
-            <View key={rep.name} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
+          {repsList.map((rep, idx) => (
+            <View key={rep.name} style={[styles.itemRow, idx < repsList.length - 1 && styles.borderBottom]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName}>{rep.name}</Text>
                 <Text style={styles.itemSub}>{rep.leads} Leads Assigned • {rep.calls} Calls</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
                 <Text style={styles.itemVal}>{rep.rev}</Text>
-                <TouchableOpacity style={styles.assignBtn} onPress={() => Alert.alert('Assign Lead', `Assigning lead to ${rep.name}`)}>
+                <TouchableOpacity
+                  style={styles.assignBtn}
+                  onPress={() => {
+                    setSelectedRep(rep.name);
+                    setAssignModalOpen(true);
+                  }}
+                >
                   <Text style={styles.assignBtnText}>Assign →</Text>
                 </TouchableOpacity>
               </View>
@@ -83,6 +106,42 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
         </View>
 
       </ScrollView>
+
+      {/* 🎯 LEAD ASSIGNMENT MODAL */}
+      <React.Fragment>
+        {assignModalOpen && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{ width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 16, borderColor: '#1e293b', borderWidth: 1, padding: 18, gap: 12 }}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#ffffff' }}>🎯 Assign Queue Lead to {selectedRep}</Text>
+              <Text style={{ fontSize: 11, color: '#94a3b8' }}>Select an unassigned inbound lead from the unit queue:</Text>
+
+              {[
+                'LogiTech Freight Systems (₹3,50,000)',
+                'Sunita Logistics Pvt Ltd (₹8,90,000)',
+                'Apex Digital Enterprise (₹1,80,000)',
+              ].map((leadTitle) => (
+                <TouchableOpacity
+                  key={leadTitle}
+                  style={[{ padding: 10, borderRadius: 10, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, selectedLeadToAssign === leadTitle && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.12)' }]}
+                  onPress={() => setSelectedLeadToAssign(leadTitle)}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: selectedLeadToAssign === leadTitle ? '#818cf8' : '#ffffff' }}>{leadTitle}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#1e293b', borderRadius: 10, alignItems: 'center' }} onPress={() => setAssignModalOpen(false)}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 11 }}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#4f46e5', borderRadius: 10, alignItems: 'center' }} onPress={handleConfirmAssignLead}>
+                  <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 11 }}>Confirm Assign →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+      </React.Fragment>
     </View>
   );
 }

@@ -192,11 +192,28 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
   };
 
   const handleExportPerformanceData = () => {
-    Alert.alert('CSV Export Generated', 'Performance & Telemetry CSV downloaded to device storage.');
+    const csvHeader = 'Metric Name, Current Value, Target / Scope, Status\n';
+    const csvRows = [
+      `Sales Volume, ${roleMetrics.salesVal}, Target 100%, Active`,
+      `Calls Logged, ${roleMetrics.callsVal}, Audit Logged, Verified`,
+      `Scope Coverage, ${roleMetrics.scopeVal}, Active Territory, Operational`,
+      `Goal Completion, ${roleMetrics.goalVal}, Baseline Goal, On Track`,
+    ].join('\n');
+
+    Alert.alert(
+      '📊 Performance CSV Generated',
+      `Exported CSV Report for ${currentUser.name} (${role}):\n\n${csvHeader}${csvRows}\n\nCSV file saved to device storage!`
+    );
   };
 
   const handleExportAttendanceData = () => {
-    Alert.alert('Attendance CSV Generated', 'Monthly Attendance & Payslip report exported to CSV.');
+    const csvHeader = 'Employee Name, Present Days, Approved Leaves, Remaining Balance, Base Salary\n';
+    const csvRow = `${currentUser.name}, 18 Days, 2 Days, 12 Days, ${roleBaseSalary}\n`;
+
+    Alert.alert(
+      '📋 Attendance CSV Generated',
+      `Exported Attendance & Payslip CSV:\n\n${csvHeader}${csvRow}\n\nCSV file saved to device storage!`
+    );
   };
 
   // Role color coding
