@@ -45,7 +45,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(port);
+  const server = await app.listen(port);
+  if (server && 'keepAliveTimeout' in server) {
+    (server as any).keepAliveTimeout = 65000;
+    (server as any).headersTimeout = 66000;
+  }
   Logger.log(`🚀 CRM Backend running on http://localhost:${port}`, 'Bootstrap');
   Logger.log(
     `📚 Swagger docs at http://localhost:${port}/api/docs`,

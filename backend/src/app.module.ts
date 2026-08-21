@@ -29,7 +29,11 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 1000, limit: 100 },
+      { name: 'medium', ttl: 10000, limit: 500 },
+      { name: 'long', ttl: 60000, limit: 2500 },
+    ]),
     BullModule.forRootAsync({
       useFactory: () => ({
         redis: {
