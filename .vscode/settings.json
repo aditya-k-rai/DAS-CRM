@@ -1,13 +1,18 @@
 {
   "java.configuration.updateBuildConfiguration": "disabled",
   "java.compile.nullAnalysis.mode": "automatic",
+  "java.autobuild.enabled": false,
+  "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
   "java.import.exclusions": [
     "**/node_modules/**",
+    "**/android/node_modules/**",
     "**/.git/**",
     "**/wacrm-main/**"
   ],
   "files.exclude": {
     "**/node_modules/**/*.project": true,
-    "**/node_modules/**/*.classpath": true
+    "**/node_modules/**/*.classpath": true,
+    "**/node_modules/**/*.settings": true
   }
 }
