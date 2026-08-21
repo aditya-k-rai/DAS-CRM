@@ -207,6 +207,7 @@ function MainTabNavigator({
           children={(navProps) => (
             <RoleDashboardDispatcher
               {...navProps}
+              onOpenNotifications={onOpenNotifications}
               onNavigateToAttendance={() => navProps.navigation.navigate('Attendance')}
             />
           )}
@@ -426,7 +427,6 @@ export default function App() {
             navigation={{ navigate: (name: string, params?: any) => (navigationRef as any).navigate(name, params) }}
           />
         )}
-      </NavigationContainer>
 
       {/* ☰ LEFT-SLIDING HAMBURGER DRAWER MODAL */}
       <Modal visible={drawerVisible} transparent animationType="none">
@@ -680,6 +680,7 @@ export default function App() {
         </View>
       </Modal>
 
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }

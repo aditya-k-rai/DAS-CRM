@@ -344,6 +344,7 @@ export function getRoleNotifications(roleStr: string): DetailedNotification[] {
 export const INITIAL_DETAILED_NOTIFICATIONS: DetailedNotification[] = getRoleNotifications('ADMIN');
 
 interface NotificationsScreenProps {
+  navigation?: any;
   onClose?: () => void;
   onNavigateToLead?: (leadId: string, leadName: string) => void;
   onNavigateToRoute?: (routeName: string) => void;
@@ -351,12 +352,19 @@ interface NotificationsScreenProps {
 }
 
 export default function NotificationsScreen({
+  navigation: propNavigation,
   onClose,
   onNavigateToLead,
   onNavigateToRoute,
   onUnreadCountChange,
 }: NotificationsScreenProps) {
-  const navigation = useNavigation<any>();
+  let navFromHook = null;
+  try {
+    navFromHook = useNavigation<any>();
+  } catch (e) {
+    // Rendered outside navigation context or in modal
+  }
+  const navigation = propNavigation || navFromHook;
   const { currentUser } = useAuthStore();
   const userRole = currentUser?.role || 'SALES_EXEC';
 
