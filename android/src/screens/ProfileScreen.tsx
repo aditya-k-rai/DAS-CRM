@@ -221,6 +221,19 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
       ? '#c084fc'
       : '#818cf8';
 
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+
+  const roleBaseSalary =
+    role === 'ADMIN' || role === 'SUPER_ADMIN'
+      ? 'Executive Director Equity'
+      : role === 'MANAGER'
+      ? '₹65,000 / mo'
+      : role === 'HR'
+      ? '₹45,000 / mo'
+      : role === 'TEAM_LEADER'
+      ? '₹40,000 / mo'
+      : '₹30,000 / mo';
+
   // Role-customized Telemetry Data
   const roleMetrics = {
     SUPER_ADMIN: {
@@ -235,63 +248,63 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
     },
     ADMIN: {
       salesLabel: 'Total Organization Sales Volume',
-      salesVal: '$148,500',
-      callsLabel: 'Total System Calls Audited',
-      callsVal: '1,420 Calls',
-      scopeLabel: 'Total Ingested Leads',
-      scopeVal: '1,420 Leads',
-      goalLabel: 'System Conversion Target',
-      goalVal: '28.5%',
+      salesVal: '$128,400',
+      callsLabel: 'Active Sales Pipeline',
+      callsVal: '$412,000',
+      scopeLabel: 'Total Multi-Source Leads',
+      scopeVal: '3,420 Leads',
+      goalLabel: 'System Conversion Rate',
+      goalVal: '14.2%',
     },
     HR: {
       salesLabel: 'Total Processed Payroll Volume',
-      salesVal: '$64,200',
+      salesVal: '₹64.2L',
       callsLabel: 'HR Audit Calls Recorded',
       callsVal: '184 Calls',
       scopeLabel: 'Employees Audited',
-      scopeVal: '24 Staff Members',
+      scopeVal: '45 Staff Members',
       goalLabel: 'Attendance Rate Today',
       goalVal: '95.5%',
     },
     MANAGER: {
       salesLabel: 'Department Revenue Managed',
       salesVal: '₹24.8L',
-      callsLabel: 'Total Team Calls Supervised',
-      callsVal: '580 Calls',
-      scopeLabel: 'Open Leads Queue',
-      scopeVal: '142 Leads',
-      goalLabel: 'Department Goal Progress',
-      goalVal: '82% Achieved',
+      callsLabel: 'Supervised Staff Members',
+      callsVal: '14 Reps & TLs',
+      scopeLabel: 'Total Team Calls Supervised',
+      scopeVal: '580 Calls',
+      goalLabel: 'Department Conversion Rate',
+      goalVal: '34.8%',
     },
     TEAM_LEADER: {
       salesLabel: 'Team Unit Revenue',
       salesVal: '₹14.2L (🥇 #1 Team)',
-      callsLabel: 'Team Calls Logged Today',
-      callsVal: '284 Calls',
-      scopeLabel: 'Active Assigned Leads',
-      scopeVal: '68 Leads',
-      goalLabel: 'Team Target Completion',
-      goalVal: '89.4%',
+      callsLabel: 'Supervised Execs',
+      callsVal: '5 Execs',
+      scopeLabel: 'Unassigned Queue Leads',
+      scopeVal: '18 Leads',
+      goalLabel: 'Team Unit Conversion',
+      goalVal: '36.2%',
     },
     SALES_EXEC: {
       salesLabel: 'My Won Deals Volume',
       salesVal: '₹5.2L',
-      callsLabel: 'Personal Calls Placed',
-      callsVal: '84 Calls',
-      scopeLabel: 'My Assigned Leads',
-      scopeVal: '31 Leads',
-      goalLabel: 'Personal Target Progress',
-      goalVal: '88%',
+      callsLabel: 'My Assigned Leads',
+      callsVal: '31 Leads',
+      scopeLabel: 'Personal Calls Placed',
+      scopeVal: '84 Calls',
+      goalLabel: 'Personal Conversion Rate',
+      goalVal: '38.7%',
     },
   }[role] || {
     salesLabel: 'Sales Volume',
-    salesVal: '$12,400',
+    salesVal: '₹5.2L',
     callsLabel: 'Calls Logged',
     callsVal: '84 Calls',
     scopeLabel: 'Assigned Leads',
     scopeVal: '31 Leads',
     goalLabel: 'Target Progress',
-    goalVal: '88%',
+    goalVal: '38.7%',
   };
 
   return (
@@ -378,9 +391,11 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
             <Text style={styles.infoLabel}>Plan Tier Active:</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={[styles.infoValue, { color: planColor, fontWeight: '900' }]}>{subscription.planType}</Text>
-              <TouchableOpacity style={styles.upgradePlanBannerBtn} onPress={() => setPlansModalOpen(true)}>
-                <Text style={styles.upgradePlanBannerText}>⚡ Upgrade Plan</Text>
-              </TouchableOpacity>
+              {isAdmin && (
+                <TouchableOpacity style={styles.upgradePlanBannerBtn} onPress={() => setPlansModalOpen(true)}>
+                  <Text style={styles.upgradePlanBannerText}>⚡ Upgrade Plan</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -442,7 +457,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
           <Text style={styles.cardBoxTitle}>Salary, Incentives &amp; Overtime Earnings</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Base Monthly Salary:</Text>
-            <Text style={styles.infoValue}>₹45,000 / mo</Text>
+            <Text style={styles.infoValue}>{roleBaseSalary}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Incentives &amp; Commissions:</Text>
