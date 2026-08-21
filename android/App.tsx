@@ -5,7 +5,7 @@
  * and Full In-App Update Engine (Version Checker, APK Direct Download, Installation Progress).
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -410,6 +410,27 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    if (!token) {
+      setDrawerVisible(false);
+      setProfileModalOpen(false);
+      setProductsModalOpen(false);
+      setNotifModalOpen(false);
+      setUpdateModalOpen(false);
+    }
+  }, [token]);
+
+  const handleLogout = () => {
+    closeDrawer(() => {
+      setDrawerVisible(false);
+      setProfileModalOpen(false);
+      setProductsModalOpen(false);
+      setNotifModalOpen(false);
+      setUpdateModalOpen(false);
+      logout();
+    });
+  };
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -621,7 +642,7 @@ export default function App() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.signOutBtn} onPress={logout} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.7}>
                 <Text style={styles.signOutBtnText}>🚪 Sign Out of Workspace</Text>
               </TouchableOpacity>
 
@@ -643,7 +664,7 @@ export default function App() {
       {/* 👤 FULL USER PROFILE MODAL */}
       <Modal visible={profileModalOpen} transparent animationType="slide">
         <ProfileScreen
-          onLogout={logout}
+          onLogout={handleLogout}
           onOpenUpdate={() => {
             setProfileModalOpen(false);
             setUpdateModalOpen(true);
