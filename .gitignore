@@ -1,5 +1,37 @@
-# Ignore downloaded source folders
-wacrm-main/
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs & Bundler Caches
+.next/
+out/
 dist/
+build/
+.expo/
+.gradle/
+*.tsbuildinfo
+.cache/
+
+# Android Native Build Outputs
+android/android/app/build/
+android/android/.gradle/
+android/android/build/
+android/build/
+android/.expo/
+android/crm-android/
+
+# Environment & Local Configuration
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.log
+
+# System & IDE Caches
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+.idea/
