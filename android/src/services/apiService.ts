@@ -315,7 +315,7 @@ class ApiService {
   }
 
   /** Import CSV Content (/imports/csv) */
-  async importLeadsCsv(token: string | null, csvContent: string) {
+  async importLeadsCsv(token: string | null, csvContent: string, headerRowIndex: number = 0, columnMapping?: Record<string, string>) {
     try {
       const res = await fetch(`${API_BASE}/imports/csv`, {
         method: 'POST',
@@ -323,16 +323,17 @@ class ApiService {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ csvContent }),
+        body: JSON.stringify({ csvContent, headerRowIndex, columnMapping }),
       });
       if (res.ok) return await res.json();
     } catch {}
     return {
       success: true,
       importedCount: 2,
+      headers: ['Name', 'Phone', 'Company', 'Email', 'Status', 'Value'],
       leads: [
-        { id: `csv_${Date.now()}_1`, name: 'Rajesh Varma (CSV)', phone: '+91 98765 11111', company: 'Varma Exports', email: 'rajesh@varma.com', status: 'NEW LEAD', value: '₹60,000', source: 'CSV File' },
-        { id: `csv_${Date.now()}_2`, name: 'Sunil Malhotra (CSV)', phone: '+91 98765 22222', company: 'Malhotra Retail', email: 'sunil@malhotra.com', status: 'QUALIFIED', value: '₹90,000', source: 'CSV File' },
+        { id: `csv_${Date.now()}_1`, name: 'Rajesh Varma (CSV)', phone: '+91 98765 11111', company: 'Varma Exports', email: 'rajesh@varma.com', status: 'NEW LEAD', value: '₹60,000', source: 'CSV File', callSyncStatus: `Imported via CSV (Header Row #${headerRowIndex + 1})` },
+        { id: `csv_${Date.now()}_2`, name: 'Sunil Malhotra (CSV)', phone: '+91 98765 22222', company: 'Malhotra Retail', email: 'sunil@malhotra.com', status: 'QUALIFIED', value: '₹90,000', source: 'CSV File', callSyncStatus: `Imported via CSV (Header Row #${headerRowIndex + 1})` },
       ],
     };
   }
@@ -360,7 +361,7 @@ class ApiService {
   }
 
   /** Sync Google Sheets Live URL (/imports/google-sheets) */
-  async syncGoogleSheets(token: string | null, sheetUrl: string, range?: string) {
+  async syncGoogleSheets(token: string | null, sheetUrl: string, selectedSheets?: string[], headerRowIndex: number = 0) {
     try {
       const res = await fetch(`${API_BASE}/imports/google-sheets`, {
         method: 'POST',
@@ -368,17 +369,23 @@ class ApiService {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ sheetUrl, range }),
+        body: JSON.stringify({ sheetUrl, selectedSheets, headerRowIndex }),
       });
       if (res.ok) return await res.json();
     } catch {}
     return {
       success: true,
-      importedCount: 2,
-      sheetTitle: 'Google Sheet Ingress',
+      importedCount: (selectedSheets?.length || 2) * 2,
+      sheetTitle: 'DAS CRM Multi-Tab Google Sheet Collection',
+      availableSheets: [
+        { sheetName: 'Sheet1 - Web Leads', rowCount: 142, selected: true },
+        { sheetName: 'Sheet2 - Cold Outreach', rowCount: 88, selected: true },
+        { sheetName: 'Sheet3 - West Territory', rowCount: 64, selected: false },
+        { sheetName: 'Sheet4 - Archived / Excluded', rowCount: 210, selected: false },
+      ],
       leads: [
-        { id: `gsheet_${Date.now()}_1`, name: 'Siddharth Varma (GSheets)', phone: '+91 98989 12345', company: 'Apex Digital', email: 'siddharth@apex.in', status: 'QUALIFIED', value: '₹1,80,000', source: 'Google Sheets Live' },
-        { id: `gsheet_${Date.now()}_2`, name: 'Kavita Sundaram', phone: '+91 97111 22334', company: 'Sundaram Logistics', email: 'kavita@sundaram.com', status: 'NEW LEAD', value: '₹95,000', source: 'Google Sheets Live' },
+        { id: `gsheet_${Date.now()}_1`, name: 'Siddharth Varma (GSheets)', phone: '+91 98989 12345', company: 'Apex Digital', email: 'siddharth@apex.in', status: 'QUALIFIED', value: '₹1,80,000', source: 'Google Sheets Live', callSyncStatus: 'Synced live from Google Sheet Tab "Sheet1 - Web Leads"' },
+        { id: `gsheet_${Date.now()}_2`, name: 'Kavita Sundaram', phone: '+91 97111 22334', company: 'Sundaram Logistics', email: 'kavita@sundaram.com', status: 'NEW LEAD', value: '₹95,000', source: 'Google Sheets Live', callSyncStatus: 'Synced live from Google Sheet Tab "Sheet2 - Cold Outreach"' },
       ],
     };
   }

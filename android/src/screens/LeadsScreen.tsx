@@ -147,6 +147,11 @@ export default function LeadsScreen() {
   const [sheetModalOpen, setSheetModalOpen] = useState(false);
   const [sheetUrl, setSheetUrl] = useState('');
   const [sheetRange, setSheetRange] = useState('Sheet1!A2:F');
+  const [headerRowIdx, setHeaderRowIdx] = useState<number>(0);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([
+    'Sheet1 - Web Leads',
+    'Sheet2 - Cold Outreach',
+  ]);
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -223,14 +228,14 @@ export default function LeadsScreen() {
       Alert.alert('Missing URL', 'Please enter a valid Google Sheet URL.');
       return;
     }
-    const res = await apiService.syncGoogleSheets(token || '', sheetUrl.trim(), sheetRange);
+    const res = await apiService.syncGoogleSheets(token || '', sheetUrl.trim(), selectedSheets, headerRowIdx);
     if (res && res.leads && res.leads.length > 0) {
       setLeadsList((prev) => [...res.leads, ...prev]);
       setSheetModalOpen(false);
       setSheetUrl('');
       Alert.alert(
-        '🟢 Google Sheet Synced',
-        `Successfully ingested ${res.importedCount} live leads from Google Sheet "${res.sheetTitle || 'Web Leads'}" into workspace!`
+        '🟢 Google Sheet Multi-Tab Synced',
+        `Ingested ${res.importedCount} live leads from ${selectedSheets.length} selected tabs in Google Sheet "${res.sheetTitle || 'Web Leads'}" into spreadsheet table!`
       );
     } else {
       Alert.alert('Sync Error', 'Could not sync Google Sheet. Check URL permissions.');
@@ -240,26 +245,25 @@ export default function LeadsScreen() {
   const handleProcessCsvTextImport = async (inputStr?: string) => {
     const textToImport = inputStr || rawCsvInput;
     if (!textToImport.trim()) {
-      // Default demo CSV if empty
-      const demoCsv = `Name, Phone, Company, Email, Status, Value
+      const demoCsv = `Lead Name, Mobile Number, Business Firm, Mail Address, Lead Stage, Value
 Rajesh Varma (CSV), +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000
 Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUALIFIED, ₹90,000`;
-      const res = await apiService.importLeadsCsv(token || '', demoCsv);
+      const res = await apiService.importLeadsCsv(token || '', demoCsv, headerRowIdx);
       if (res && res.leads) {
         setLeadsList((prev) => [...res.leads, ...prev]);
         setImportModalOpen(false);
         setRawCsvInput('');
-        Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records from CSV sample!`);
+        Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records (Header Row #${headerRowIdx + 1}) into spreadsheet table!`);
       }
       return;
     }
 
-    const res = await apiService.importLeadsCsv(token || '', textToImport);
+    const res = await apiService.importLeadsCsv(token || '', textToImport, headerRowIdx);
     if (res && res.leads && res.leads.length > 0) {
       setLeadsList((prev) => [...res.leads, ...prev]);
       setImportModalOpen(false);
       setRawCsvInput('');
-      Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records into workspace!`);
+      Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records into spreadsheet table!`);
     } else {
       Alert.alert('Import Failed', 'Could not parse CSV structure.');
     }
@@ -883,12 +887,12 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.modalTitle}>🟢 Google Sheets Live Sync</Text>
+              <Text style={styles.modalTitle}>🟢 Google Sheets Live Multi-Tab Sync</Text>
               <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSheetModalOpen(false)}>
                 <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSub}>Connect published Google Sheet URL for continuous 2-way lead ingestion.</Text>
+            <Text style={styles.modalSub}>Select workbook tabs &amp; header row index to ingest live leads into spreadsheet table.</Text>
 
             <Text style={styles.label}>Google Sheet URL *</Text>
             <TextInput
@@ -899,14 +903,57 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               onChangeText={setSheetUrl}
             />
 
-            <Text style={styles.label}>Sheet Data Range (Optional)</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Sheet1!A2:F"
-              placeholderTextColor="#64748b"
-              value={sheetRange}
-              onChangeText={setSheetRange}
-            />
+            {/* Header Row Index Selector */}
+            <Text style={styles.label}>Header Row Index:</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[
+                { idx: 0, label: 'Row 1 (Default)' },
+                { idx: 1, label: 'Row 2' },
+                { idx: 2, label: 'Row 3' },
+              ].map((r) => (
+                <TouchableOpacity
+                  key={r.idx}
+                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 6, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)' }]}
+                  onPress={() => setHeaderRowIdx(r.idx)}
+                >
+                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, headerRowIdx === r.idx && { color: '#38bdf8' }]}>
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Multi-Tab Selector */}
+            <Text style={styles.label}>Select Workbook Tabs to Import:</Text>
+            <View style={{ gap: 6 }}>
+              {[
+                'Sheet1 - Web Leads',
+                'Sheet2 - Cold Outreach',
+                'Sheet3 - West Territory',
+              ].map((tab) => {
+                const isSelected = selectedSheets.includes(tab);
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[{ backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isSelected && { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.12)' }]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setSelectedSheets((prev) => prev.filter((s) => s !== tab));
+                      } else {
+                        setSelectedSheets((prev) => [...prev, tab]);
+                      }
+                    }}
+                  >
+                    <Text style={[{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }, isSelected && { color: '#34d399' }]}>
+                      📊 {tab}
+                    </Text>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: isSelected ? '#34d399' : '#64748b' }}>
+                      {isSelected ? '✓ INCLUDED' : '+ INCLUDE'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => setSheetModalOpen(false)}>
@@ -925,17 +972,37 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.modalTitle}>📥 CSV / Excel Spreadsheet Import</Text>
+              <Text style={styles.modalTitle}>📥 CSV / Excel Customization Wizard</Text>
               <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setImportModalOpen(false)}>
                 <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSub}>Paste raw CSV text or click sample runner to ingest lead batches into DAS CRM.</Text>
+            <Text style={styles.modalSub}>Configure headline row index and field mapping before ingesting data.</Text>
+
+            {/* Header Row Selector */}
+            <Text style={styles.label}>Select Header Row Line:</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+              {[
+                { idx: 0, label: 'Line 1 (Default)' },
+                { idx: 1, label: 'Line 2' },
+                { idx: 2, label: 'Line 3' },
+              ].map((r) => (
+                <TouchableOpacity
+                  key={r.idx}
+                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 6, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.15)' }]}
+                  onPress={() => setHeaderRowIdx(r.idx)}
+                >
+                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, headerRowIdx === r.idx && { color: '#818cf8' }]}>
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Text style={styles.label}>Raw CSV Data / Multiline Input:</Text>
             <TextInput
               style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
-              placeholder="Name, Phone, Company, Email, Status, Value&#10;Rajesh Varma, +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000"
+              placeholder="Lead Name, Mobile Number, Business Firm, Mail Address, Lead Stage, Value&#10;Rajesh Varma, +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000"
               placeholderTextColor="#64748b"
               multiline
               value={rawCsvInput}

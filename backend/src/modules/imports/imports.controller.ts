@@ -15,11 +15,18 @@ export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 
   /**
-   * Import CSV File / String Endpoint (POST)
+   * Import CSV File / String Endpoint with Custom Header Row & Mapping (POST)
    */
   @Post('csv')
-  async importCsv(@Body() body: { csvContent: string }, @Res() res: Response) {
-    const result = await this.importsService.importCsv(body.csvContent || '');
+  async importCsv(
+    @Body() body: { csvContent: string; headerRowIndex?: number; columnMapping?: Record<string, string> },
+    @Res() res: Response,
+  ) {
+    const result = await this.importsService.importCsv(
+      body.csvContent || '',
+      body.headerRowIndex ?? 0,
+      body.columnMapping,
+    );
     return res.status(HttpStatus.OK).json(result);
   }
 
@@ -33,14 +40,18 @@ export class ImportsController {
   }
 
   /**
-   * Sync Google Sheets Live URL Endpoint (POST)
+   * Sync Google Sheets Live URL with Multi-Tab Selector (POST)
    */
   @Post('google-sheets')
   async syncGoogleSheets(
-    @Body() body: { sheetUrl: string; range?: string },
+    @Body() body: { sheetUrl: string; selectedSheets?: string[]; headerRowIndex?: number },
     @Res() res: Response,
   ) {
-    const result = await this.importsService.syncGoogleSheets(body.sheetUrl || '', body.range);
+    const result = await this.importsService.syncGoogleSheets(
+      body.sheetUrl || '',
+      body.selectedSheets || ['Sheet1 - Web Leads', 'Sheet2 - Cold Outreach'],
+      body.headerRowIndex ?? 0,
+    );
     return res.status(HttpStatus.OK).json(result);
   }
 }
