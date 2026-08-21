@@ -1,6 +1,6 @@
 /**
  * MoreControlsScreen.tsx — DAS CRM Android
- * Operations Control Directory Hub (Button-Only Main View with Modal Workspaces)
+ * Operations Control Directory Hub (Button-Only 2-Column Grid View with In-Depth Modal Controls)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -56,7 +56,17 @@ interface WAChatThread {
   messages: { sender: 'CLIENT' | 'AGENT' | 'SYSTEM'; text: string; time: string; status?: 'SENT' | 'DELIVERED' | 'READ' }[];
 }
 
-export type ModuleKey = 'PRODUCTS' | 'COMMUNICATIONS' | 'AI_CONTROL' | 'WA_TEMPLATES' | 'QUOTES' | 'DEALS' | 'REPORTS' | 'AUTOMATIONS' | 'AUDIT';
+export type ModuleKey =
+  | 'PRODUCTS'
+  | 'COMMUNICATIONS'
+  | 'WA_TEMPLATES'
+  | 'AI_CONTROL'
+  | 'QUOTES'
+  | 'PDF_CATALOG'
+  | 'DEALS'
+  | 'REPORTS'
+  | 'AUTOMATIONS'
+  | 'EXTRA_EMAIL';
 
 export default function MoreControlsScreen({
   navigation,
@@ -69,8 +79,7 @@ export default function MoreControlsScreen({
   const [activeModal, setActiveModal] = useState<ModuleKey | null>(null);
 
   // Sub-Module State
-  const [commSubTab, setCommSubTab] = useState<'WA_CLOUD' | 'EMAIL' | 'AI_BOT'>('WA_CLOUD');
-  const [waSubModule, setWaSubModule] = useState<'INBOX' | 'BROADCASTS' | 'AUTOMATIONS' | 'AI_KB' | 'CONTACTS'>('INBOX');
+  const [commSubTab, setCommSubTab] = useState<'WA_CLOUD' | 'CONTACTS'>('WA_CLOUD');
 
   // wacrm Conversation Threads State
   const [chatThreads, setChatThreads] = useState<WAChatThread[]>([
@@ -113,12 +122,7 @@ export default function MoreControlsScreen({
   const [newChatInput, setNewChatInput] = useState('');
   const [internalNoteInput, setInternalNoteInput] = useState('');
 
-  // Form States
-  const [waClientName, setWaClientName] = useState('Rajesh Mehta');
-  const [waClientPhone, setWaClientPhone] = useState('+91 98765 43210');
-  const [selectedWaTpl, setSelectedWaTpl] = useState<WhatsAppTemplate>(DEFAULT_TEMPLATES[1]);
-  const [selectedProduct, setSelectedProduct] = useState(CATALOG_PRODUCTS[0]);
-
+  // Email Form State
   const [emailTo, setEmailTo] = useState('rajesh@techcorp.com');
   const [emailSubject, setEmailSubject] = useState('Exclusive Enterprise CRM Suite Proposal & Pricing Deck');
   const [emailBody, setEmailBody] = useState(
@@ -144,8 +148,30 @@ export default function MoreControlsScreen({
     "You are DAS CRM's senior AI sales consultant. Always address prospects professionally, provide pricing with 18% GST tax rate breakdown, attach brochure specs, and offer a 5-minute live demo call."
   );
 
-  const [broadcastTarget, setBroadcastTarget] = useState<'ALL' | 'HOT_LEADS' | 'QUALIFIED'>('HOT_LEADS');
-  const [broadcastTpl, setBroadcastTpl] = useState<WhatsAppTemplate>(DEFAULT_TEMPLATES[0]);
+  // Quotation Form State
+  const [newQuoteClient, setNewQuoteClient] = useState('');
+  const [newQuoteAmount, setNewQuoteAmount] = useState('');
+  const [quotesList, setQuotesList] = useState([
+    { title: 'TechCorp Solutions Ltd (25 Licenses)', val: '₹5,20,000', gst: '₹93,600 (18% GST)', total: '₹6,13,600', date: 'Today, 02:30 PM', status: 'CONFIRMED' },
+    { title: 'LogiTech Freight Systems (Bot Suite)', val: '₹3,50,000', gst: '₹63,000 (18% GST)', total: '₹4,13,000', date: 'Today, 04:45 PM', status: 'ACCEPTED' },
+    { title: 'Sunita Logistics (Enterprise Rollout)', val: '₹8,90,000', gst: '₹1,60,200 (18% GST)', total: '₹10,50,200', date: 'Today, 06:15 PM', status: 'SIGNED' },
+  ]);
+
+  // Deals Kanban Pipeline State
+  const [dealsList, setDealsList] = useState([
+    { id: 'd1', name: 'TechCorp Solutions', company: 'TechCorp Ltd', val: '$120,000', stage: 'QUALIFIED' },
+    { id: 'd2', name: 'LogiTech Systems', company: 'LogiTech Systems', val: '$85,000', stage: 'PROPOSAL' },
+    { id: 'd3', name: 'Sunita Logistics', company: 'Sunita Logistics', val: '$210,000', stage: 'CLOSED_WON' },
+    { id: 'd4', name: 'Verma Enterprises', company: 'Verma Solutions', val: '$45,000', stage: 'NEW_LEAD' },
+  ]);
+
+  // Automations State
+  const [automationsRules, setAutomationsRules] = useState([
+    { id: 'a1', name: 'Google Sheets Ingress Auto-Allocation', trigger: 'On New Sheet Row Ingested', status: true },
+    { id: 'a2', name: '5-Minute Prior Call & Task Reminder Engine', trigger: '5 Mins Before Meeting Start', status: true },
+    { id: 'a3', name: 'Meta Webhook Instant Lead Auto-Responder', trigger: 'On Facebook Lead Form Submitted', status: true },
+    { id: 'a4', name: 'After-Hours WhatsApp Bot Auto-Reply', trigger: 'Between 08:00 PM - 08:00 AM', status: false },
+  ]);
 
   useEffect(() => {
     whatsappTemplateEngine.getTemplates().then((tpls) => {
@@ -215,13 +241,6 @@ export default function MoreControlsScreen({
     Alert.alert('✅ Internal Note Saved', 'Private note added to thread (invisible to contact).');
   };
 
-  const handleTriggerBroadcast = () => {
-    Alert.alert(
-      '📢 wacrm Broadcast Dispatched',
-      `Meta-approved broadcast campaign "${broadcastTpl.title}" launched to ${broadcastTarget === 'ALL' ? '240 Contacts' : broadcastTarget === 'HOT_LEADS' ? '42 Hot Leads' : '88 Qualified Leads'}.\n\n• Delivery Status: 100% In Progress\n• Variable Substitution: {name}, {company}`
-    );
-  };
-
   const handleSaveAiRules = async () => {
     const aiConfig = {
       enabled: aiEngineEnabled,
@@ -272,35 +291,33 @@ export default function MoreControlsScreen({
     Alert.alert('✅ Template Saved', `WhatsApp template "${tplFormTitle}" saved and synced across CRM!`);
   };
 
-  const handleDispatchWhatsApp = () => {
-    const cleanPhone = waClientPhone.replace(/[^\d]/g, '');
-    const interpolated = whatsappTemplateEngine.interpolateTemplate(
-      selectedWaTpl.text,
-      { name: waClientName, company: 'TechCorp Solutions', value: selectedProduct.minPrice },
-      null,
-      1
+  const handleCreateQuotation = () => {
+    if (!newQuoteClient.trim() || !newQuoteAmount.trim()) {
+      Alert.alert('Validation Error', 'Please enter client name and quotation base amount.');
+      return;
+    }
+    const baseNum = parseFloat(newQuoteAmount.replace(/[^\d.]/g, '')) || 0;
+    const gstNum = baseNum * 0.18;
+    const totalNum = baseNum + gstNum;
+
+    const newQ = {
+      title: `${newQuoteClient.trim()} (Custom Package)`,
+      val: `₹${baseNum.toLocaleString()}`,
+      gst: `₹${gstNum.toLocaleString()} (18% GST)`,
+      total: `₹${totalNum.toLocaleString()}`,
+      date: 'Just Now',
+      status: 'CONFIRMED',
+    };
+    setQuotesList([newQ, ...quotesList]);
+    setNewQuoteClient('');
+    setNewQuoteAmount('');
+    Alert.alert('✅ Quotation Generated', `Created proposal for ${newQ.title} with total value of ${newQ.total}!`);
+  };
+
+  const handleShiftDealStage = (dealId: string, nextStage: string) => {
+    setDealsList((prev) =>
+      prev.map((d) => (d.id === dealId ? { ...d, stage: nextStage } : d))
     );
-    const fullMsg = `${interpolated}\n\n📦 Product Deck: ${selectedProduct.name} (${selectedProduct.sku})\nPricing: ${selectedProduct.minPrice} - ${selectedProduct.maxPrice} (+18% GST)`;
-
-    const waUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(fullMsg)}`;
-
-    Linking.canOpenURL(waUrl)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(waUrl);
-        } else {
-          Alert.alert(
-            '💬 WhatsApp Cloud API Dispatched',
-            `Message sent via Cloud API to ${waClientPhone} (${waClientName}):\n\n${fullMsg}`
-          );
-        }
-      })
-      .catch(() => {
-        Alert.alert(
-          '💬 WhatsApp Cloud API Dispatched',
-          `Message sent via Cloud API to ${waClientPhone} (${waClientName}):\n\n${fullMsg}`
-        );
-      });
   };
 
   const handleDispatchEmail = () => {
@@ -314,79 +331,18 @@ export default function MoreControlsScreen({
     );
   };
 
-  const MODULE_BUTTONS: { key: ModuleKey; icon: string; title: string; subtitle: string; badge: string; color: string }[] = [
-    {
-      key: 'PRODUCTS',
-      icon: '📦',
-      title: 'Products & Catalog Customization',
-      subtitle: 'Categories, Sub-categories, Specs, Inventory & SKU pricing',
-      badge: 'PORTAL',
-      color: '#818cf8',
-    },
-    {
-      key: 'COMMUNICATIONS',
-      icon: '💬',
-      title: 'Communications Hub',
-      subtitle: 'WhatsApp Cloud API inbox, email marketing & client outreach',
-      badge: 'wacrm API',
-      color: '#34d399',
-    },
-    {
-      key: 'AI_CONTROL',
-      icon: '🤖',
-      title: 'AI Controls & Persona Rules',
-      subtitle: 'Customize AI system prompt, auto-replies & intent scoring',
-      badge: 'GEMINI 1.5',
-      color: '#c084fc',
-    },
-    {
-      key: 'WA_TEMPLATES',
-      icon: '✏️',
-      title: 'WhatsApp Message Templates',
-      subtitle: 'Edit 1-click message templates & variable placeholder tags',
-      badge: '1-CLICK',
-      color: '#38bdf8',
-    },
-    {
-      key: 'QUOTES',
-      icon: '📝',
-      title: 'Quotations & Invoices',
-      subtitle: 'Generate proposals, 18% GST tax estimates & PDF exports',
-      badge: 'GST TAX',
-      color: '#fbbf24',
-    },
-    {
-      key: 'DEALS',
-      icon: '💼',
-      title: 'Deals Pipeline Kanban',
-      subtitle: '5-stage visual sales pipeline & deal stage shifters',
-      badge: 'KANBAN',
-      color: '#f472b6',
-    },
-    {
-      key: 'REPORTS',
-      icon: '📊',
-      title: 'In-Depth Reports & Analytics',
-      subtitle: 'Sales telemetry, call audit counts & team leaderboard',
-      badge: 'TELEMETRY',
-      color: '#38bdf8',
-    },
-    {
-      key: 'AUTOMATIONS',
-      icon: '⚡',
-      title: 'Workflow Automations & Bot Rules',
-      subtitle: 'Trigger rules, bot auto-responders & webhook listeners',
-      badge: 'TRIGGERS',
-      color: '#facc15',
-    },
-    {
-      key: 'AUDIT',
-      icon: '🔒',
-      title: 'Security & Audit Telemetry',
-      subtitle: 'System audit logs, user actions & permission tracking',
-      badge: 'SECURITY',
-      color: '#94a3b8',
-    },
+  // 10 Buttons matching user diagram layout exactly
+  const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string }[] = [
+    { key: 'PRODUCTS', icon: '📦', label: 'Products' },
+    { key: 'COMMUNICATIONS', icon: '💬', label: 'Communication' },
+    { key: 'WA_TEMPLATES', icon: '✏️', label: 'Whatsapp Direct Templates' },
+    { key: 'AI_CONTROL', icon: '🤖', label: 'Ai Customization' },
+    { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
+    { key: 'PDF_CATALOG', icon: '📄', label: 'Pdf Catalogue' },
+    { key: 'DEALS', icon: '💼', label: 'Deals Pipeline' },
+    { key: 'REPORTS', icon: '📊', label: 'In-Depth Reports & Analytics' },
+    { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations & Bot Rules' },
+    { key: 'EXTRA_EMAIL', icon: '📧', label: 'Extra Features , Like Email Marketing' },
   ];
 
   return (
@@ -394,168 +350,47 @@ export default function MoreControlsScreen({
       {/* ── TOP HEADER ──────────────────────────────────────────────────────── */}
       <View style={styles.headerArea}>
         <Text style={styles.headerTitle}>Operations Control Center</Text>
-        <Text style={styles.headerSub}>Tap any module button below to redirect to its workspace screen.</Text>
-
-        {/* ── HORIZONTAL QUICK PILL BUTTON BAR ──────────────────────────── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabPillRow}>
-          {MODULE_BUTTONS.map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={styles.pillBtn}
-              onPress={() => handleOpenModule(item.key)}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.pillBtnText}>
-                {item.icon} {item.title.split(' ')[0]}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <Text style={styles.headerSub}>Tap any section button below for in-depth and detailed control inside.</Text>
       </View>
 
-      {/* ── PURE BUTTON DIRECTORY MAIN SCREEN ───────────────────────────────── */}
+      {/* ── 2-COLUMN GRID OF BUTTONS (MATCHING USER DIAGRAM) ───────────────── */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Category: CORE BUSINESS WORKSPACES */}
-        <View style={styles.categoryBlock}>
-          <Text style={styles.categoryTitle}>💼 BUSINESS &amp; SALES OPERATIONS</Text>
-          {MODULE_BUTTONS.slice(0, 3).map((mod) => (
+        <View style={styles.gridContainer}>
+          {GRID_BUTTONS.map((btn) => (
             <TouchableOpacity
-              key={mod.key}
-              style={[styles.buttonCard, { borderColor: `${mod.color}40` }]}
-              onPress={() => handleOpenModule(mod.key)}
-              activeOpacity={0.82}
+              key={btn.key}
+              style={styles.gridBtnCard}
+              onPress={() => handleOpenModule(btn.key)}
+              activeOpacity={0.78}
             >
-              <View style={styles.buttonCardLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: `${mod.color}15` }]}>
-                  <Text style={{ fontSize: 20 }}>{mod.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.buttonCardTitle}>{mod.title}</Text>
-                    <View style={[styles.badgePill, { backgroundColor: `${mod.color}20`, borderColor: `${mod.color}50` }]}>
-                      <Text style={[styles.badgeText, { color: mod.color }]}>{mod.badge}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.buttonCardSub}>{mod.subtitle}</Text>
-                </View>
-              </View>
-              <Text style={[styles.arrowText, { color: mod.color }]}>→</Text>
+              <Text style={styles.gridBtnIcon}>{btn.icon}</Text>
+              <Text style={styles.gridBtnLabel}>{btn.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Category: COMMUNICATIONS & AI ENGINE */}
-        <View style={styles.categoryBlock}>
-          <Text style={styles.categoryTitle}>💬 COMMUNICATIONS &amp; AI ENGINE</Text>
-          {MODULE_BUTTONS.slice(3, 6).map((mod) => (
-            <TouchableOpacity
-              key={mod.key}
-              style={[styles.buttonCard, { borderColor: `${mod.color}40` }]}
-              onPress={() => handleOpenModule(mod.key)}
-              activeOpacity={0.82}
-            >
-              <View style={styles.buttonCardLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: `${mod.color}15` }]}>
-                  <Text style={{ fontSize: 20 }}>{mod.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.buttonCardTitle}>{mod.title}</Text>
-                    <View style={[styles.badgePill, { backgroundColor: `${mod.color}20`, borderColor: `${mod.color}50` }]}>
-                      <Text style={[styles.badgeText, { color: mod.color }]}>{mod.badge}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.buttonCardSub}>{mod.subtitle}</Text>
-                </View>
-              </View>
-              <Text style={[styles.arrowText, { color: mod.color }]}>→</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Category: TELEMETRY & SECURITY */}
-        <View style={styles.categoryBlock}>
-          <Text style={styles.categoryTitle}>📊 TELEMETRY, AUTOMATION &amp; AUDIT</Text>
-          {MODULE_BUTTONS.slice(6, 9).map((mod) => (
-            <TouchableOpacity
-              key={mod.key}
-              style={[styles.buttonCard, { borderColor: `${mod.color}40` }]}
-              onPress={() => handleOpenModule(mod.key)}
-              activeOpacity={0.82}
-            >
-              <View style={styles.buttonCardLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: `${mod.color}15` }]}>
-                  <Text style={{ fontSize: 20 }}>{mod.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.buttonCardTitle}>{mod.title}</Text>
-                    <View style={[styles.badgePill, { backgroundColor: `${mod.color}20`, borderColor: `${mod.color}50` }]}>
-                      <Text style={[styles.badgeText, { color: mod.color }]}>{mod.badge}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.buttonCardSub}>{mod.subtitle}</Text>
-                </View>
-              </View>
-              <Text style={[styles.arrowText, { color: mod.color }]}>→</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Category: ACCOUNT & APP CONTROLS */}
-        <View style={styles.categoryBlock}>
-          <Text style={styles.categoryTitle}>👤 ACCOUNT &amp; SYSTEM SHORTCUTS</Text>
-          
+        {/* Account & App Shortcuts */}
+        <View style={styles.accountBar}>
           <TouchableOpacity
-            style={[styles.buttonCard, { borderColor: 'rgba(129,140,248,0.4)' }]}
+            style={styles.accShortcutBtn}
             onPress={() => onOpenProfile?.()}
-            activeOpacity={0.82}
+            activeOpacity={0.8}
           >
-            <View style={styles.buttonCardLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: 'rgba(129,140,248,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>👤</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.buttonCardTitle}>User Profile &amp; Settings</Text>
-                  <View style={[styles.badgePill, { backgroundColor: 'rgba(129,140,248,0.2)', borderColor: 'rgba(129,140,248,0.5)' }]}>
-                    <Text style={[styles.badgeText, { color: '#818cf8' }]}>ACCOUNT</Text>
-                  </View>
-                </View>
-                <Text style={styles.buttonCardSub}>View account credentials, role permissions &amp; workspace info</Text>
-              </View>
-            </View>
-            <Text style={[styles.arrowText, { color: '#818cf8' }]}>→</Text>
+            <Text style={styles.accShortcutText}>👤 User Profile &amp; Settings</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.buttonCard, { borderColor: 'rgba(56,189,248,0.4)' }]}
+            style={styles.accShortcutBtn}
             onPress={() => onOpenAppUpdates?.()}
-            activeOpacity={0.82}
+            activeOpacity={0.8}
           >
-            <View style={styles.buttonCardLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: 'rgba(56,189,248,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>🚀</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.buttonCardTitle}>Check Version &amp; In-App Updates</Text>
-                  <View style={[styles.badgePill, { backgroundColor: 'rgba(56,189,248,0.2)', borderColor: 'rgba(56,189,248,0.5)' }]}>
-                    <Text style={[styles.badgeText, { color: '#38bdf8' }]}>v2.5.0</Text>
-                  </View>
-                </View>
-                <Text style={styles.buttonCardSub}>Check latest APK build updates &amp; release notes</Text>
-              </View>
-            </View>
-            <Text style={[styles.arrowText, { color: '#38bdf8' }]}>→</Text>
+            <Text style={styles.accShortcutText}>🚀 In-App Version (v2.5.0)</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📦 MODULE MODAL 1: PRODUCTS CATALOG WORKSPACE                             */}
+      {/* 📦 MODAL 1: PRODUCTS CATALOG IN-DEPTH CONTROL                              */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={activeModal === 'PRODUCTS'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
@@ -564,116 +399,84 @@ export default function MoreControlsScreen({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 💬 MODULE MODAL 2: COMMUNICATIONS HUB WORKSPACE                            */}
+      {/* 💬 MODAL 2: COMMUNICATION IN-DEPTH CONTROL                                  */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={activeModal === 'COMMUNICATIONS'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
           <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>💬 Communications Hub (wacrm Parity)</Text>
+            <Text style={styles.modalTopTitle}>💬 Communication Workspace</Text>
             <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Sub-Module Selector */}
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
-              {(['WA_CLOUD', 'EMAIL', 'AI_BOT'] as const).map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' }, commSubTab === tab && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
-                  onPress={() => setCommSubTab(tab)}
-                >
-                  <Text style={[{ fontSize: 10, fontWeight: '900', color: '#94a3b8' }, commSubTab === tab && { color: '#ffffff' }]}>
-                    {tab === 'WA_CLOUD' ? '💬 WhatsApp' : tab === 'EMAIL' ? '📧 Email' : '🤖 AI Bot'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {commSubTab === 'WA_CLOUD' && (
-              <View style={styles.moduleCard}>
-                <Text style={styles.moduleTitle}>📱 WhatsApp Cloud API &amp; Shared Team Inbox</Text>
-                <Text style={styles.moduleSub}>Official Meta WhatsApp Business API integration.</Text>
-                <View style={{ backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12, marginTop: 10, gap: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>💬 Active Thread: {activeThread.contactName}</Text>
-                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>{activeThread.phone} • {activeThread.assignedAgent}</Text>
-
-                  <View style={{ gap: 6, maxHeight: 180 }}>
-                    {activeThread.messages.map((m, idx) => (
-                      <View key={idx} style={[{ padding: 8, borderRadius: 8, maxWidth: '85%' }, m.sender === 'CLIENT' ? { backgroundColor: '#1e293b', alignSelf: 'flex-start' } : { backgroundColor: 'rgba(79,70,229,0.3)', alignSelf: 'flex-end' }]}>
-                        <Text style={{ fontSize: 11, color: '#ffffff' }}>{m.text}</Text>
-                        <Text style={{ fontSize: 8, color: '#94a3b8', alignSelf: 'flex-end', marginTop: 2 }}>{m.time}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-                    <TextInput
-                      style={[styles.inputField, { flex: 1 }]}
-                      placeholder="Type WhatsApp reply..."
-                      placeholderTextColor="#64748b"
-                      value={newChatInput}
-                      onChangeText={setNewChatInput}
-                    />
-                    <TouchableOpacity style={styles.actionBtn} onPress={handleSendChatMessage}>
-                      <Text style={styles.actionBtnText}>Send ➔</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {commSubTab === 'EMAIL' && (
-              <View style={styles.moduleCard}>
-                <Text style={styles.moduleTitle}>📧 AWS SES Email Marketing Ingress</Text>
-                <View style={{ gap: 10, marginTop: 10 }}>
-                  <TextInput style={styles.inputField} value={emailTo} onChangeText={setEmailTo} placeholder="To Email" placeholderTextColor="#64748b" />
-                  <TextInput style={styles.inputField} value={emailSubject} onChangeText={setEmailSubject} placeholder="Subject" placeholderTextColor="#64748b" />
-                  <TextInput style={[styles.inputField, { height: 90, textAlignVertical: 'top' }]} value={emailBody} onChangeText={setEmailBody} multiline />
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 10, alignItems: 'center' }]} onPress={handleDispatchEmail}>
-                    <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 12 }}>🚀 Dispatch AWS SES Email Campaign →</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 🤖 MODULE MODAL 3: AI ASSISTANT CONTROLS                                  */}
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'AI_CONTROL'} transparent animationType="slide">
-        <View style={styles.fullModalScreen}>
-          <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>🤖 AI Controls &amp; Persona Rules</Text>
-            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <View style={styles.cardHeaderRow}>
-                <View>
-                  <Text style={styles.moduleTitle}>🤖 Gemini 1.5 Pro AI Engine</Text>
-                  <Text style={styles.moduleSub}>Configure auto-reply persona, lead qualification score &amp; GST prompt.</Text>
-                </View>
-                <Switch value={aiEngineEnabled} onValueChange={setAiEngineEnabled} trackColor={{ false: '#334155', true: '#4f46e5' }} thumbColor="#ffffff" />
+              <Text style={styles.moduleTitle}>📱 WhatsApp Cloud API Shared Team Inbox</Text>
+              <Text style={styles.moduleSub}>In-depth live chat threads, client messages &amp; private team notes.</Text>
+
+              {/* Thread Selector Chips */}
+              <View style={{ flexDirection: 'row', gap: 6, marginVertical: 10 }}>
+                {chatThreads.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, activeThreadId === t.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                    onPress={() => setActiveThreadId(t.id)}
+                  >
+                    <Text style={[{ fontSize: 11, fontWeight: '800', color: '#94a3b8' }, activeThreadId === t.id && { color: '#ffffff' }]}>
+                      👤 {t.contactName}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <View style={{ gap: 10 }}>
-                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700' }}>Select AI Persona Tone:</Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {(['CONSULTATIVE', 'AGGRESSIVE', 'SUPPORT', 'CUSTOM'] as const).map((p) => (
-                    <TouchableOpacity key={p} style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, aiPersona === p && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]} onPress={() => setAiPersona(p)}>
-                      <Text style={[{ fontSize: 9, fontWeight: '900', color: '#94a3b8' }, aiPersona === p && { color: '#ffffff' }]}>{p}</Text>
-                    </TouchableOpacity>
+
+              {/* Active Conversation Feed */}
+              <View style={{ backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 14, padding: 12, gap: 8 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff' }}>💬 {activeThread.contactName} ({activeThread.company})</Text>
+                <Text style={{ fontSize: 9, color: '#94a3b8' }}>Phone: {activeThread.phone} • Agent: {activeThread.assignedAgent}</Text>
+
+                {/* Message Stream */}
+                <View style={{ gap: 6, marginVertical: 6 }}>
+                  {activeThread.messages.map((m, idx) => (
+                    <View key={idx} style={[{ padding: 8, borderRadius: 8, maxWidth: '85%' }, m.sender === 'CLIENT' ? { backgroundColor: '#1e293b', alignSelf: 'flex-start' } : { backgroundColor: 'rgba(79,70,229,0.3)', alignSelf: 'flex-end' }]}>
+                      <Text style={{ fontSize: 11, color: '#ffffff' }}>{m.text}</Text>
+                      <Text style={{ fontSize: 8, color: '#94a3b8', alignSelf: 'flex-end', marginTop: 2 }}>{m.time}</Text>
+                    </View>
                   ))}
                 </View>
-                <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700', marginTop: 4 }}>System Instructions Prompt:</Text>
-                <TextInput style={[styles.inputField, { height: 90, textAlignVertical: 'top' }]} value={aiSystemPrompt} onChangeText={setAiSystemPrompt} multiline />
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 10, alignItems: 'center', marginTop: 6 }]} onPress={handleSaveAiRules}>
-                  <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 12 }}>💾 Save AI Rules →</Text>
-                </TouchableOpacity>
+
+                {/* Reply Form */}
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                  <TextInput
+                    style={[styles.inputField, { flex: 1 }]}
+                    placeholder="Type WhatsApp reply..."
+                    placeholderTextColor="#64748b"
+                    value={newChatInput}
+                    onChangeText={setNewChatInput}
+                  />
+                  <TouchableOpacity style={styles.actionBtn} onPress={handleSendChatMessage}>
+                    <Text style={styles.actionBtnText}>Send ➔</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Internal Private Notes */}
+                <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b', gap: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>🔒 Internal Team Notes:</Text>
+                  {activeThread.internalNotes.map((note, idx) => (
+                    <Text key={idx} style={{ fontSize: 10, color: '#cbd5e1' }}>• {note}</Text>
+                  ))}
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                    <TextInput
+                      style={[styles.inputField, { flex: 1 }]}
+                      placeholder="Add private note..."
+                      placeholderTextColor="#64748b"
+                      value={internalNoteInput}
+                      onChangeText={setInternalNoteInput}
+                    />
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#fbbf24' }]} onPress={handleAddInternalNote}>
+                      <Text style={{ color: '#090d16', fontSize: 10, fontWeight: '900' }}>Save Note</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
             </View>
           </ScrollView>
@@ -681,24 +484,26 @@ export default function MoreControlsScreen({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* ✏️ MODULE MODAL 4: WHATSAPP MESSAGING TEMPLATES                           */}
+      {/* ✏️ MODAL 3: WHATSAPP DIRECT TEMPLATES IN-DEPTH CONTROL                     */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={activeModal === 'WA_TEMPLATES'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
           <View style={styles.modalTopBar}>
             <Text style={styles.modalTopTitle}>✏️ WhatsApp Direct Templates</Text>
             <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.moduleTitle}>✏️ Meta-Approved WhatsApp Templates</Text>
+                <Text style={styles.moduleTitle}>✏️ 1-Click Message Templates</Text>
                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10b981' }]} onPress={() => handleOpenEditTpl()}>
                   <Text style={styles.actionBtnText}>+ Create Tpl</Text>
                 </TouchableOpacity>
               </View>
+              <Text style={styles.moduleSub}>Manage pre-approved WhatsApp message templates with dynamic variable tags.</Text>
+
               {waTemplatesList.map((tpl) => (
                 <View key={tpl.id} style={[styles.itemRow, styles.borderBottom]}>
                   <View style={{ flex: 1, paddingRight: 10 }}>
@@ -716,94 +521,67 @@ export default function MoreControlsScreen({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📝 MODULE MODAL 5: QUOTATIONS & INVOICES                                    */}
+      {/* 🤖 MODAL 4: AI CUSTOMIZATION IN-DEPTH CONTROL                              */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'QUOTES'} transparent animationType="slide">
+      <Modal visible={activeModal === 'AI_CONTROL'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
           <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>📝 Quotations &amp; GST Invoicing</Text>
+            <Text style={styles.modalTopTitle}>🤖 AI Customization &amp; Rules</Text>
             <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>📝 Enterprise Quotations &amp; Proposals</Text>
-              <Text style={styles.moduleSub}>Generate official 18% GST proposals and share PDF links.</Text>
-              {[
-                { title: 'TechCorp Solutions Ltd (25 Licenses)', val: '₹5,20,000 (+18% GST)', date: 'Today, 02:30 PM', status: 'CONFIRMED' },
-                { title: 'LogiTech Freight Systems (Bot Suite)', val: '₹3,50,000 (+18% GST)', date: 'Today, 04:45 PM', status: 'ACCEPTED' },
-                { title: 'Sunita Logistics (Enterprise Rollout)', val: '₹8,90,000 (+18% GST)', date: 'Today, 06:15 PM', status: 'SIGNED' },
-              ].map((q, idx) => (
-                <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{q.title}</Text>
-                    <Text style={styles.itemSub}>{q.date}</Text>
-                  </View>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>{q.val}</Text>
+              <View style={styles.cardHeaderRow}>
+                <View>
+                  <Text style={styles.moduleTitle}>🤖 Gemini 1.5 Pro Sales Assistant</Text>
+                  <Text style={styles.moduleSub}>In-depth control for persona, auto-nudge &amp; GST prompt.</Text>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+                <Switch value={aiEngineEnabled} onValueChange={setAiEngineEnabled} trackColor={{ false: '#334155', true: '#4f46e5' }} thumbColor="#ffffff" />
+              </View>
 
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 💼 MODULE MODAL 6: DEALS PIPELINE KANBAN                                    */}
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'DEALS'} transparent animationType="slide">
-        <View style={styles.fullModalScreen}>
-          <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>💼 Deals &amp; Pipeline Kanban</Text>
-            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>💼 5-Stage Deals Kanban Pipeline</Text>
-              <Text style={styles.moduleSub}>Track active deals from Lead Ingestion to Closed Won.</Text>
-              {[
-                { name: 'TechCorp Solutions', stage: 'QUALIFIED', val: '$120,000' },
-                { name: 'LogiTech Systems', stage: 'PROPOSAL', val: '$85,000' },
-                { name: 'Sunita Logistics', stage: 'CLOSED_WON', val: '$210,000' },
-              ].map((d, idx) => (
-                <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{d.name}</Text>
-                    <Text style={styles.itemSub}>Stage: {d.stage}</Text>
+              <View style={{ gap: 12 }}>
+                <View>
+                  <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700', marginBottom: 6 }}>Select AI Sales Persona:</Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {(['CONSULTATIVE', 'AGGRESSIVE', 'SUPPORT', 'CUSTOM'] as const).map((p) => (
+                      <TouchableOpacity key={p} style={[{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, aiPersona === p && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]} onPress={() => setAiPersona(p)}>
+                        <Text style={[{ fontSize: 9, fontWeight: '900', color: '#94a3b8' }, aiPersona === p && { color: '#ffffff' }]}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#818cf8' }}>{d.val}</Text>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
 
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📊 MODULE MODAL 7: IN-DEPTH REPORTS                                       */}
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'REPORTS'} transparent animationType="slide">
-        <View style={styles.fullModalScreen}>
-          <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>📊 In-Depth Analytics &amp; Reports</Text>
-            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>📊 Performance &amp; Call Telemetry Audit</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#38bdf8' }}>$128.4K</Text>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Revenue Won</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>Min Lead Score Threshold:</Text>
+                    <TextInput style={styles.inputField} value={aiMinScoreThreshold} onChangeText={setAiMinScoreThreshold} keyboardType="numeric" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>Auto-Nudge (Mins):</Text>
+                    <TextInput style={styles.inputField} value={aiAutoNudgeMins} onChangeText={setAiAutoNudgeMins} keyboardType="numeric" />
+                  </View>
                 </View>
-                <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399' }}>384 Calls</Text>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Completed Today</Text>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                  <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>Include Product Catalog Specs in Replies</Text>
+                  <Switch value={aiIncludeCatalog} onValueChange={setAiIncludeCatalog} trackColor={{ false: '#334155', true: '#10b981' }} thumbColor="#ffffff" />
                 </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                  <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>Compute 18% GST Tax Breakdown Automatically</Text>
+                  <Switch value={aiGstTaxCalc} onValueChange={setAiGstTaxCalc} trackColor={{ false: '#334155', true: '#10b981' }} thumbColor="#ffffff" />
+                </View>
+
+                <View>
+                  <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>Custom AI System Instructions Prompt:</Text>
+                  <TextInput style={[styles.inputField, { height: 100, textAlignVertical: 'top' }]} value={aiSystemPrompt} onChangeText={setAiSystemPrompt} multiline />
+                </View>
+
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 12, alignItems: 'center', marginTop: 4 }]} onPress={handleSaveAiRules}>
+                  <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 12 }}>💾 Save AI Rules &amp; Persona Settings →</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
@@ -811,28 +589,39 @@ export default function MoreControlsScreen({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* ⚡ MODULE MODAL 8: AUTOMATIONS                                              */}
+      {/* 📝 MODAL 5: QUOTATIONS & INVOICES IN-DEPTH CONTROL                         */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'AUTOMATIONS'} transparent animationType="slide">
+      <Modal visible={activeModal === 'QUOTES'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
           <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>⚡ Workflow Automations</Text>
+            <Text style={styles.modalTopTitle}>📝 Quotations &amp; GST Invoices</Text>
             <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Create Quotation Form */}
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>⚡ Workflow Rules &amp; Bot Triggers</Text>
-              <Text style={styles.moduleSub}>Active triggers for auto-nudge and lead auto-assignment.</Text>
-              {[
-                { name: 'Google Sheets Ingress Auto-Assign', status: 'ACTIVE' },
-                { name: '5-Min Prior Call Alert Engine', status: 'ACTIVE' },
-                { name: 'Meta Webhook Lead Auto-Responder', status: 'ACTIVE' },
-              ].map((a, idx) => (
-                <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
-                  <Text style={styles.itemName}>{a.name}</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '900', color: '#34d399' }}>{a.status}</Text>
+              <Text style={styles.moduleTitle}>➕ Generate New Proposal / GST Estimate</Text>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                <TextInput style={styles.inputField} placeholder="Client / Company Name" placeholderTextColor="#64748b" value={newQuoteClient} onChangeText={setNewQuoteClient} />
+                <TextInput style={styles.inputField} placeholder="Base Amount (e.g. ₹5,00,000)" placeholderTextColor="#64748b" value={newQuoteAmount} onChangeText={setNewQuoteAmount} keyboardType="numeric" />
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#fbbf24', paddingVertical: 10, alignItems: 'center' }]} onPress={handleCreateQuotation}>
+                  <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 11 }}>Calculated +18% GST → Generate Quotation</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Existing Quotations List */}
+            <View style={[styles.moduleCard, { marginTop: 12 }]}>
+              <Text style={styles.moduleTitle}>📋 Active Enterprise Quotations</Text>
+              {quotesList.map((q, idx) => (
+                <View key={idx} style={[styles.itemRow, idx < quotesList.length - 1 && styles.borderBottom]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{q.title}</Text>
+                    <Text style={styles.itemSub}>{q.date} • Base: {q.val} + {q.gst}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>{q.total}</Text>
                 </View>
               ))}
             </View>
@@ -841,32 +630,198 @@ export default function MoreControlsScreen({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 🔒 MODULE MODAL 9: AUDIT LOGS                                             */}
+      {/* 📄 MODAL 6: PDF CATALOGUE IN-DEPTH CONTROL                                 */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={activeModal === 'AUDIT'} transparent animationType="slide">
+      <Modal visible={activeModal === 'PDF_CATALOG'} transparent animationType="slide">
         <View style={styles.fullModalScreen}>
           <View style={styles.modalTopBar}>
-            <Text style={styles.modalTopTitle}>🔒 Security &amp; Telemetry Audit Logs</Text>
+            <Text style={styles.modalTopTitle}>📄 PDF Catalogue &amp; Brochure Hub</Text>
             <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
-              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 13 }}>✕ Close</Text>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.moduleCard}>
-              <Text style={styles.moduleTitle}>🔒 System Audit Trail</Text>
+              <Text style={styles.moduleTitle}>📄 Corporate PDF Catalogues &amp; Decks</Text>
+              <Text style={styles.moduleSub}>Download, share or dispatch PDF brochures directly to leads.</Text>
+
               {[
-                { user: 'Super Admin', action: 'Enforced Hierarchy Assignment Rules', time: '10 mins ago' },
-                { user: 'Mighty Rai (Sales)', action: 'Logged Call Outcome (4m 18s — Connected)', time: '25 mins ago' },
-                { user: 'Priya Sharma (TL)', action: 'Punched In via Geofence (09:21 AM)', time: '1 hour ago' },
-              ].map((log, idx) => (
+                { title: 'DAS CRM Enterprise Suite 2026 Deck.pdf', size: '4.2 MB', updated: 'Updated 2 days ago' },
+                { title: 'AI Lead Scoring Engine Pro Specs.pdf', size: '2.8 MB', updated: 'Updated last week' },
+                { title: 'WhatsApp Cloud API Pricing Rate Card.pdf', size: '1.5 MB', updated: 'Updated 3 days ago' },
+              ].map((pdf, idx) => (
                 <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{log.user}</Text>
-                    <Text style={styles.itemSub}>{log.action}</Text>
+                    <Text style={styles.itemName}>📄 {pdf.title}</Text>
+                    <Text style={styles.itemSub}>{pdf.size} • {pdf.updated}</Text>
                   </View>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>{log.time}</Text>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#38bdf8' }]}
+                    onPress={() => Alert.alert('📄 Download PDF Catalogue', `Downloading ${pdf.title}...`)}
+                  >
+                    <Text style={styles.actionBtnText}>Download</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 💼 MODAL 7: DEALS PIPELINE IN-DEPTH CONTROL                                */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={activeModal === 'DEALS'} transparent animationType="slide">
+        <View style={styles.fullModalScreen}>
+          <View style={styles.modalTopBar}>
+            <Text style={styles.modalTopTitle}>💼 Deals Pipeline Kanban</Text>
+            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.moduleCard}>
+              <Text style={styles.moduleTitle}>💼 5-Stage Deals Kanban Pipeline</Text>
+              <Text style={styles.moduleSub}>Tap stage shifter buttons to transition deals across pipeline stages.</Text>
+
+              {dealsList.map((deal) => (
+                <View key={deal.id} style={[styles.itemRow, styles.borderBottom, { flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <Text style={styles.itemName}>{deal.name} ({deal.company})</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#818cf8' }}>{deal.val}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>Stage: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{deal.stage}</Text></Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 4, marginTop: 2 }}>
+                    {(['NEW_LEAD', 'QUALIFIED', 'PROPOSAL', 'CLOSED_WON'] as const).map((stg) => (
+                      <TouchableOpacity
+                        key={stg}
+                        style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, deal.stage === stg && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                        onPress={() => handleShiftDealStage(deal.id, stg)}
+                      >
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: deal.stage === stg ? '#ffffff' : '#94a3b8' }}>{stg}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 📊 MODAL 8: IN-DEPTH REPORTS & ANALYTICS CONTROL                           */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={activeModal === 'REPORTS'} transparent animationType="slide">
+        <View style={styles.fullModalScreen}>
+          <View style={styles.modalTopBar}>
+            <Text style={styles.modalTopTitle}>📊 In-Depth Reports &amp; Analytics</Text>
+            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.moduleCard}>
+              <Text style={styles.moduleTitle}>📊 Performance &amp; Call Telemetry Audit</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#38bdf8' }}>$128.4K</Text>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Revenue Won</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399' }}>384 Calls</Text>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Done Today</Text>
+                </View>
+                <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc' }}>14.2%</Text>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Conv. Rate</Text>
+                </View>
+              </View>
+
+              {/* Team Leaderboard */}
+              <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
+                {[
+                  { name: 'Rajesh Kumar', calls: '64 Calls', closed: '₹5,20,000' },
+                  { name: 'Amit Patel', calls: '52 Calls', closed: '₹3,50,000' },
+                  { name: 'Priya Sharma', calls: '48 Calls', closed: '₹2,45,000' },
+                ].map((rep, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#020617' }}>
+                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>#{idx + 1} {rep.name}</Text>
+                    <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>{rep.calls} • {rep.closed}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* ⚡ MODAL 9: WORKFLOW AUTOMATIONS IN-DEPTH CONTROL                          */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={activeModal === 'AUTOMATIONS'} transparent animationType="slide">
+        <View style={styles.fullModalScreen}>
+          <View style={styles.modalTopBar}>
+            <Text style={styles.modalTopTitle}>⚡ Workflow Automations &amp; Bot Rules</Text>
+            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.moduleCard}>
+              <Text style={styles.moduleTitle}>⚡ Active Automation Rules &amp; Triggers</Text>
+              <Text style={styles.moduleSub}>Toggle triggers for auto-nudge, call reminders &amp; lead ingestion.</Text>
+
+              {automationsRules.map((rule) => (
+                <View key={rule.id} style={[styles.itemRow, styles.borderBottom]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={styles.itemName}>{rule.name}</Text>
+                    <Text style={styles.itemSub}>Trigger: {rule.trigger}</Text>
+                  </View>
+                  <Switch
+                    value={rule.status}
+                    onValueChange={(val) =>
+                      setAutomationsRules((prev) =>
+                        prev.map((r) => (r.id === rule.id ? { ...r, status: val } : r))
+                      )
+                    }
+                    trackColor={{ false: '#334155', true: '#4f46e5' }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 📧 MODAL 10: EMAIL MARKETING IN-DEPTH CONTROL                             */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={activeModal === 'EXTRA_EMAIL'} transparent animationType="slide">
+        <View style={styles.fullModalScreen}>
+          <View style={styles.modalTopBar}>
+            <Text style={styles.modalTopTitle}>📧 Email Marketing &amp; Extra Features</Text>
+            <TouchableOpacity style={styles.modalCloseIconBtn} onPress={() => setActiveModal(null)}>
+              <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>✕ Close</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.moduleCard}>
+              <Text style={styles.moduleTitle}>📧 AWS SES Email Marketing Portal</Text>
+              <Text style={styles.moduleSub}>Compose &amp; dispatch email campaigns to lead segments.</Text>
+
+              <View style={{ gap: 10, marginTop: 10 }}>
+                <TextInput style={styles.inputField} value={emailTo} onChangeText={setEmailTo} placeholder="Recipient Email" placeholderTextColor="#64748b" />
+                <TextInput style={styles.inputField} value={emailSubject} onChangeText={setEmailSubject} placeholder="Email Subject" placeholderTextColor="#64748b" />
+                <TextInput style={[styles.inputField, { height: 110, textAlignVertical: 'top' }]} value={emailBody} onChangeText={setEmailBody} multiline />
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#34d399', paddingVertical: 12, alignItems: 'center' }]} onPress={handleDispatchEmail}>
+                  <Text style={{ color: '#090d16', fontWeight: '900', fontSize: 12 }}>🚀 Dispatch AWS SES Email Campaign →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -954,79 +909,61 @@ export default function MoreControlsScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
-  headerArea: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  headerArea: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
-  headerSub: { fontSize: 10, color: '#94a3b8', marginTop: 2, marginBottom: 10 },
+  headerSub: { fontSize: 10, color: '#94a3b8', marginTop: 3 },
 
-  tabPillRow: { flexDirection: 'row', gap: 6, paddingRight: 16 },
-  pillBtn: {
-    backgroundColor: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  pillBtnText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#38bdf8',
-  },
+  scrollContent: { padding: 14, paddingBottom: 32 },
 
-  scrollContent: { padding: 16, paddingBottom: 32 },
-
-  categoryBlock: { marginBottom: 16 },
-  categoryTitle: { fontSize: 10, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5, marginBottom: 8 },
-
-  buttonCard: {
-    backgroundColor: '#0f172a',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    padding: 12,
-    marginBottom: 8,
+  // 2-Column Grid Layout matching user diagram
+  gridContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-  },
-  buttonCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    flex: 1,
-    paddingRight: 8,
   },
-  iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+  gridBtnCard: {
+    width: '48.5%',
+    backgroundColor: '#0c1827',
+    borderWidth: 1.5,
+    borderColor: '#00d2d3',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 88,
   },
-  buttonCardTitle: {
-    fontSize: 12,
-    fontWeight: '900',
+  gridBtnIcon: {
+    fontSize: 22,
+    marginBottom: 6,
+  },
+  gridBtnLabel: {
+    fontSize: 11,
+    fontWeight: '800',
     color: '#ffffff',
+    textAlign: 'center',
+    lineHeight: 14,
   },
-  buttonCardSub: {
-    fontSize: 9,
-    color: '#94a3b8',
-    marginTop: 2,
-    lineHeight: 12,
+
+  accountBar: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
   },
-  badgePill: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
+  accShortcutBtn: {
+    flex: 1,
+    backgroundColor: '#0f172a',
     borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
   },
-  badgeText: {
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  arrowText: {
-    fontSize: 16,
-    fontWeight: '900',
+  accShortcutText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#94a3b8',
   },
 
   fullModalScreen: {
