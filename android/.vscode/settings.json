@@ -4,14 +4,25 @@
   "java.autobuild.enabled": false,
   "java.import.gradle.enabled": false,
   "java.import.maven.enabled": false,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.import.gradle.version": "8.13",
   "java.import.exclusions": [
     "**/node_modules/**",
     "**/android/node_modules/**",
     "**/.git/**"
   ],
+  "gradle.autoDetect": "off",
+  "gradle.nestedProjects": false,
+  "gradle.projectOpenBehavior": "Interactive",
+  "gradle.wrapper.enabled": true,
   "files.exclude": {
     "**/node_modules/**/*.project": true,
     "**/node_modules/**/*.classpath": true,
     "**/node_modules/**/*.settings": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/android/node_modules/**": true,
+    "**/.git/**": true
   }
 }
