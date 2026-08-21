@@ -3,8 +3,7 @@
   "java.compile.nullAnalysis.mode": "automatic",
   "java.import.exclusions": [
     "**/node_modules/**",
-    "**/.git/**",
-    "**/wacrm-main/**"
+    "**/.git/**"
   ],
   "files.exclude": {
     "**/node_modules/**/*.project": true,

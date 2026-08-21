@@ -69,12 +69,25 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
   // Real Network Reachability Ping Test
   const checkNetworkReachability = async (): Promise<boolean> => {
     try {
-      const res = await apiService.getPublicCompanies();
-      return !!res && res.length > 0;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch('https://clients3.google.com/generate_204', {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return res.status === 204 || res.ok;
     } catch {
       return false;
     }
   };
+
+  React.useEffect(() => {
+    checkNetworkReachability().then((online) => {
+      setIsOnline(online);
+    });
+  }, []);
 
   // Live Data Sync Handler
   const handleSyncWorkspaceData = async () => {
