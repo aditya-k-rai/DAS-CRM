@@ -24,6 +24,7 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { RoleTransitionModule } from './modules/role-transition/role-transition.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { BillingModule } from './modules/billing/billing.module';
     ImportsModule,
     RoleTransitionModule,
     BillingModule,
+    WhatsappModule,
   ],
 })
 export class AppModule {}
