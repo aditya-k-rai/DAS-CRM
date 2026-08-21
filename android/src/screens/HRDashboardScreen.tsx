@@ -11,6 +11,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
@@ -281,7 +282,7 @@ export default function HRDashboardScreen({ navigation }: any) {
               Pending leave requests awaiting HR approval
             </Text>
 
-            {LEAVE_REQUESTS.map((req) => {
+            {leaves.map((req) => {
               const isPending = req.status === 'PENDING';
               return (
                 <View key={req.id} style={styles.leaveCard}>
@@ -324,6 +325,12 @@ export default function HRDashboardScreen({ navigation }: any) {
                     <View style={styles.leaveActions}>
                       <TouchableOpacity
                         style={[styles.leaveActionBtn, styles.approveBtn]}
+                        onPress={() => {
+                          setLeaves((prev) =>
+                            prev.map((l) => (l.id === req.id ? { ...l, status: 'APPROVED' } : l))
+                          );
+                          Alert.alert('✓ Leave Approved', `Approved leave request for ${req.name} (${req.days} Days).`);
+                        }}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.leaveActionText, { color: '#34d399' }]}>
@@ -332,6 +339,12 @@ export default function HRDashboardScreen({ navigation }: any) {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.leaveActionBtn, styles.rejectBtn]}
+                        onPress={() => {
+                          setLeaves((prev) =>
+                            prev.map((l) => (l.id === req.id ? { ...l, status: 'REJECTED' } : l))
+                          );
+                          Alert.alert('✕ Leave Rejected', `Rejected leave request for ${req.name}.`);
+                        }}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.leaveActionText, { color: '#f87171' }]}>
