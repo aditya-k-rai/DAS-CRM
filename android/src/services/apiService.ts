@@ -93,6 +93,61 @@ export const FALLBACK_LEADS: LeadItem[] = [
 ];
 
 class ApiService {
+  /** Live NestJS Backend Health & Network Reachability Check */
+  async checkBackendHealth(): Promise<{ isOnline: boolean; isBackendConnected: boolean; latencyMs: number; service?: string }> {
+    const startTime = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const res = await fetch(`${API_BASE}/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const latencyMs = Date.now() - startTime;
+        return {
+          isOnline: true,
+          isBackendConnected: true,
+          latencyMs,
+          service: data.service || 'DAS CRM NestJS Backend',
+        };
+      }
+    } catch {
+      // Secondary fallback ping if local dev backend is starting up
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch('https://clients3.google.com/generate_204', {
+          method: 'HEAD',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.status === 204 || res.ok) {
+          return {
+            isOnline: true,
+            isBackendConnected: false,
+            latencyMs: Date.now() - startTime,
+            service: 'Internet Reachable (Backend Offline)',
+          };
+        }
+      } catch {}
+    }
+
+    return {
+      isOnline: false,
+      isBackendConnected: false,
+      latencyMs: 0,
+      service: 'Offline / Disconnected',
+    };
+  }
+
   /** Fetch public active tenant companies for login dropdown */
   async getPublicCompanies(): Promise<Array<{ id: string; name: string }>> {
     try {

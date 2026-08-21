@@ -31,6 +31,8 @@ interface ProfileScreenProps {
 export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: ProfileScreenProps) {
   const { currentUser, subscription, token, logout } = useAuthStore();
   const role: UserRole = currentUser.role || 'SALES_EXEC';
+  const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [latency, setLatency] = useState<number>(0);
 
   // Live Network & Sync State
   const [isOnline, setIsOnline] = useState(true);
@@ -66,27 +68,17 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
     onLogout?.();
   };
 
-  // Real Network Reachability Ping Test
+  // Real NestJS Backend Health & Network Reachability Ping Test
   const checkNetworkReachability = async (): Promise<boolean> => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
-      const res = await fetch('https://clients3.google.com/generate_204', {
-        method: 'HEAD',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      return res.status === 204 || res.ok;
-    } catch {
-      return false;
-    }
+    const res = await apiService.checkBackendHealth();
+    setIsOnline(res.isOnline);
+    setIsBackendConnected(res.isBackendConnected);
+    setLatency(res.latencyMs);
+    return res.isOnline;
   };
 
   React.useEffect(() => {
-    checkNetworkReachability().then((online) => {
-      setIsOnline(online);
-    });
+    checkNetworkReachability();
   }, []);
 
   // Live Data Sync Handler
@@ -94,7 +86,6 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
     setIsSyncing(true);
     const startTime = Date.now();
     const online = await checkNetworkReachability();
-    setIsOnline(online);
 
     if (!online) {
       setIsSyncing(false);
@@ -363,9 +354,9 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
                 <Text style={[styles.planBadgeText, { color: planColor }]}>{subscription.planType.replace('_', ' ')}</Text>
               </View>
 
-              <View style={[styles.networkStatusChip, { backgroundColor: isOnline ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }]}>
-                <Text style={[styles.networkStatusChipText, { color: isOnline ? '#34d399' : '#ef4444' }]}>
-                  {isOnline ? '🟢 Connected' : '🔴 Offline'}
+              <View style={[styles.networkStatusChip, { backgroundColor: !isOnline ? 'rgba(239,68,68,0.15)' : isBackendConnected ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)' }]}>
+                <Text style={[styles.networkStatusChipText, { color: !isOnline ? '#ef4444' : isBackendConnected ? '#34d399' : '#fbbf24' }]}>
+                  {!isOnline ? '🔴 Offline' : isBackendConnected ? '🟢 Connected' : '🟡 Internet OK (Backend Offline)'}
                 </Text>
               </View>
             </View>
