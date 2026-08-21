@@ -6,8 +6,8 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
-import { ImportsService, ImportLeadRow } from './imports.service';
+import type { Response } from 'express';
+import { ImportsService, type ImportLeadRow } from './imports.service';
 
 @ApiTags('Imports')
 @Controller('api/v1/imports')

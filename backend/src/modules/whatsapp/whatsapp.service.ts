@@ -128,7 +128,7 @@ export class WhatsappService {
    */
   async sendBroadcast(templateName: string, recipientPhones: string[], variables?: Record<string, string>): Promise<any> {
     this.logger.log(`Dispatching bulk WhatsApp broadcast "${templateName}" to ${recipientPhones.length} recipients`);
-    const results = [];
+    const results: any[] = [];
     for (const phone of recipientPhones) {
       const res = await this.sendMessage({
         to: phone,
