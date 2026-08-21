@@ -99,9 +99,13 @@ export default function AttendanceScreen() {
   );
 
   // ── SERVER-AUTHORITATIVE TIME & DATE STATE ─────────────────────────────
-  const [serverTimeDisplay, setServerTimeDisplay] = useState('Fetching Server Time...');
-  const [serverFormattedTime, setServerFormattedTime] = useState('09:15 AM');
-  const [serverFormattedDate, setServerFormattedDate] = useState('19 August 2026');
+  const now = new Date();
+  const initialTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const initialDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const [serverTimeDisplay, setServerTimeDisplay] = useState(`${initialDateStr} ${initialTimeStr} IST (Delhi Live Time)`);
+  const [serverFormattedTime, setServerFormattedTime] = useState(initialTimeStr);
+  const [serverFormattedDate, setServerFormattedDate] = useState(initialDateStr);
 
   // ── PERMISSIONS STATE ───────────────────────────────────────────────────────
   const [cameraPermissionGranted, setCameraPermissionGranted] = useState(false);
@@ -134,15 +138,22 @@ export default function AttendanceScreen() {
   const [selectedMonth, setSelectedMonth] = useState<'AUG' | 'JUL' | 'JUN'>('AUG');
   const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
 
-  // Selected Day State for Calendar Click (Defaulting to 19 August)
-  const [selectedDay, setSelectedDay] = useState<number>(19);
+  // Selected Day State for Calendar Click (Defaulting to today's date)
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
 
-  // ── AUTOMATIC PERMISSIONS & SERVER TIME REQUEST ON MOUNT ───────────────────
+  // ── AUTOMATIC PERMISSIONS & LIVE SERVER TIME CLOCK ON MOUNT ───────────────
   useEffect(() => {
     if (!isAdmin) {
       requestPermissions();
     }
     fetchServerTime();
+
+    // 1-second live ticking clock interval
+    const clockInterval = setInterval(() => {
+      fetchServerTime();
+    }, 1000);
+
+    return () => clearInterval(clockInterval);
   }, [isAdmin]);
 
   // Generate dynamic records map per employee + month

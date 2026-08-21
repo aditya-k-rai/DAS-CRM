@@ -444,6 +444,35 @@ class ApiService {
       ],
     };
   }
+
+  /** Fetch live server time and date from NestJS Backend (/attendance/server-time) */
+  async getServerTime(): Promise<{ serverTime: string; formattedTime: string; formattedDate: string; timestampMs: number }> {
+    const now = new Date();
+    try {
+      const res = await fetch(`${API_BASE}/attendance/server-time`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          serverTime: data.serverTime || `${data.formattedDate} ${data.formattedTime} IST`,
+          formattedTime: data.formattedTime || data.delhiTime || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          formattedDate: data.formattedDate || now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          timestampMs: data.timestampMs || now.getTime(),
+        };
+      }
+    } catch {}
+
+    const delhiTimeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const delhiDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return {
+      serverTime: `${delhiDateStr} ${delhiTimeStr} IST (Delhi Live Time)`,
+      formattedTime: delhiTimeStr,
+      formattedDate: delhiDateStr,
+      timestampMs: now.getTime(),
+    };
+  }
 }
 
 export const apiService = new ApiService();
