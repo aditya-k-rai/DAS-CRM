@@ -21,6 +21,7 @@ import {
   Linking,
 } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { callSyncEngine } from '../services/callSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 
 export interface ScheduledMeetingItem {

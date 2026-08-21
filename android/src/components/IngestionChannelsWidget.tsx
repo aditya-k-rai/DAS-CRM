@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     padding: 12,
-    justify: 'space-between',
+    justifyContent: 'space-between',
   },
 
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
