@@ -308,10 +308,10 @@ export default function AttendanceScreen() {
           grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
           grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
 
-        setCameraPermissionGranted(isCamOk || true);
-        setLocationPermissionGranted(isLocOk || true);
+        setCameraPermissionGranted(isCamOk);
+        setLocationPermissionGranted(isLocOk);
         fetchCurrentLocation();
-        return { isCamOk: isCamOk || true, isLocOk: isLocOk || true };
+        return { isCamOk, isLocOk };
       } catch (err) {
         setCameraPermissionGranted(true);
         setLocationPermissionGranted(true);

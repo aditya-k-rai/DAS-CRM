@@ -232,8 +232,24 @@ export default function LeadsScreen() {
     );
   };
 
+  const { currentUser } = useAuthStore();
+  const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const userName = currentUser?.name || 'Mighty Rai';
+
   const filteredLeads = leadsList.filter((item) => {
-    // Multi-field search \u2014 covers ALL fields, works in BOTH Excel Grid & Card List view
+    // 🔒 Role-Based Data Isolation Scoping (Except Admin)
+    if (!userRole.includes('ADMIN')) {
+      if (userRole.includes('MANAGER')) {
+        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase()) && !item.assignedRep.includes('Manager A')) return false;
+      } else if (userRole.includes('TL') || userRole.includes('LEADER')) {
+        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase()) && !item.assignedRep.includes('TL A')) return false;
+      } else {
+        // Sales Rep (e.g. Amit Patel): can ONLY see leads assigned to him
+        if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase())) return false;
+      }
+    }
+
+    // Multi-field search — covers ALL fields, works in BOTH Excel Grid & Card List view
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       const matchesSearch =

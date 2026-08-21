@@ -111,11 +111,31 @@ export function LeadsTable() {
   const [editingColKey, setEditingColKey] = useState<string | null>(null);
   const [newTitleInput, setNewTitleInput] = useState('');
 
-  const isRep = currentUser.role === 'SALES_EXEC';
+  const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const userName = currentUser?.name || 'Mighty Rai';
+  const isRep = !userRole.includes('ADMIN');
 
   const filtered = LEADS.filter((l) => {
-    // Role-based scoping for Sales Reps
-    if (isRep && l.owner !== 'Rajesh K.') return false;
+    // 🔒 Role-Based Data Isolation Scoping (Except Admin)
+    if (!userRole.includes('ADMIN')) {
+      if (userRole.includes('MANAGER')) {
+        // Manager A sees only Manager A's allocated leads or team leads
+        if (l.allocationTrail) {
+          const inTrail = l.allocationTrail.some((a) => a.toRole === 'MANAGER' && a.toName.toLowerCase().includes(userName.toLowerCase()));
+          if (!inTrail && !l.owner.toLowerCase().includes(userName.toLowerCase())) return false;
+        }
+      } else if (userRole.includes('TL') || userRole.includes('LEADER')) {
+        // TL A sees only TL A's allocated leads or sales rep leads under TL A
+        if (l.allocationTrail) {
+          const inTrail = l.allocationTrail.some((a) => a.toRole === 'TEAM_LEADER' && a.toName.toLowerCase().includes(userName.toLowerCase()));
+          if (!inTrail && !l.owner.toLowerCase().includes(userName.toLowerCase())) return false;
+        }
+      } else {
+        // Sales Rep (e.g. Amit Patel): can ONLY see leads explicitly assigned to him
+        const isAssignedToUser = l.owner.toLowerCase().includes(userName.toLowerCase()) || (l.currentAssignee && l.currentAssignee.toLowerCase().includes(userName.toLowerCase()));
+        if (!isAssignedToUser) return false;
+      }
+    }
 
     // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
     if (search.trim()) {
