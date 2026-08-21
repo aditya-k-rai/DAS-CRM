@@ -484,10 +484,8 @@ export default function EmployeesScreen() {
                 onPress={() => openProfileInspector(emp)}
                 activeOpacity={0.7}
               >
-                <Image source={{ uri: emp.avatarUrl }} style={styles.rowAvatar} />
-
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                     <Text style={styles.empName}>{emp.name}</Text>
                     <View style={[styles.roleTag, { backgroundColor: roleBadgeBg }]}>
                       <Text style={[styles.roleTagText, { color: roleBadgeColor }]}>{emp.role.replace('_', ' ')}</Text>
@@ -501,50 +499,18 @@ export default function EmployeesScreen() {
 
                     {!!emp.deletionScheduledAt && (
                       <View style={styles.suspendedBadge}>
-                        <Text style={styles.suspendedBadgeText}>⚠️ SUSPENDED (7-Day Deletion)</Text>
+                        <Text style={styles.suspendedBadgeText}>⚠️ SUSPENDED</Text>
                       </View>
                     )}
                   </View>
 
-                  <Text style={styles.empSub}>{emp.email} • {emp.phone}</Text>
                   <Text style={styles.supervisorText}>
-                    👤 Assigned Manager: <Text style={{ color: '#818cf8', fontWeight: '700' }}>{emp.assignedManager}</Text>
+                    👤 Assigned under: <Text style={{ color: '#818cf8', fontWeight: '700' }}>{emp.assignedManager}</Text>
                   </Text>
-                  <Text style={styles.telemetryText}>
-                    🎯 Leads &amp; Status: {emp.leads.totalReceived} Received ({emp.leads.totalDistributed} Distributed)
-                  </Text>
-
-                  {/* ADMIN EXCLUSIVE CONTROLS: LOCK SCREEN & 7-DAY SOFT DELETE */}
-                  {isAdmin && (
-                    <View style={styles.adminEmpToolbar}>
-                      <TouchableOpacity
-                        style={[styles.adminToolBtn, emp.isLocked && styles.adminToolBtnActive]}
-                        onPress={() => handleToggleLock(emp.id)}
-                      >
-                        <Text style={styles.adminToolBtnText}>{emp.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}</Text>
-                      </TouchableOpacity>
-
-                      {emp.deletionScheduledAt ? (
-                        <TouchableOpacity
-                          style={[styles.adminToolBtn, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.3)' }]}
-                          onPress={() => handleRevokeDelete(emp.id)}
-                        >
-                          <Text style={{ color: '#34d399', fontSize: 9, fontWeight: '800' }}>↺ Revoke Delete</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity
-                          style={[styles.adminToolBtn, { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)' }]}
-                          onPress={() => handleScheduleSoftDelete(emp.id)}
-                        >
-                          <Text style={{ color: '#fca5a5', fontSize: 9, fontWeight: '800' }}>🗑️ Delete (7 Days)</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.inspectBtn}>
-                  <Text style={styles.inspectBtnText}>Open Profile →</Text>
+                  <Text style={styles.inspectBtnText}>Inspect &amp; Control →</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -640,6 +606,48 @@ export default function EmployeesScreen() {
                         </View>
                       ) : (
                         <Text style={{ fontSize: 10, color: '#64748b' }}>Only Tenant Administrators can re-assign manager authority.</Text>
+                      )}
+
+                      {/* Admin Account Security & Status Controls */}
+                      {isAdmin && (
+                        <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b', gap: 8 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>🛡️ Account Security &amp; Admin Controls:</Text>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <TouchableOpacity
+                              style={[{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' }, inspectingEmp.isLocked && { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: '#ef4444' }]}
+                              onPress={() => {
+                                handleToggleLock(inspectingEmp.id);
+                                setInspectingEmp(prev => prev ? { ...prev, isLocked: !prev.isLocked } : null);
+                              }}
+                            >
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: inspectingEmp.isLocked ? '#fca5a5' : '#ffffff' }}>
+                                {inspectingEmp.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}
+                              </Text>
+                            </TouchableOpacity>
+
+                            {inspectingEmp.deletionScheduledAt ? (
+                              <TouchableOpacity
+                                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(34,197,94,0.15)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)' }}
+                                onPress={() => {
+                                  handleRevokeDelete(inspectingEmp.id);
+                                  setInspectingEmp(prev => prev ? { ...prev, deletionScheduledAt: null } : null);
+                                }}
+                              >
+                                <Text style={{ color: '#34d399', fontSize: 11, fontWeight: '800' }}>↺ Revoke Delete</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <TouchableOpacity
+                                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}
+                                onPress={() => {
+                                  handleScheduleSoftDelete(inspectingEmp.id);
+                                  setInspectingEmp(prev => prev ? { ...prev, deletionScheduledAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() } : null);
+                                }}
+                              >
+                                <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '800' }}>🗑️ Delete (7 Days)</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
                       )}
                     </View>
                   </View>
