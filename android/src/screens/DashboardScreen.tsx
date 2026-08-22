@@ -13,8 +13,9 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
 interface DashboardScreenProps {
   userRole?: UserRole;
@@ -26,29 +27,16 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
   const { currentUser, subscription } = useAuthStore();
   const selectedRole: UserRole = normalizeRoleStr(userRole || currentUser.role);
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 Top Executive Banner */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <Image
-              source={require('../../assets/DAS CRM small logo .png')}
-              style={{ width: 40, height: 40, borderRadius: 10 }}
-              resizeMode="contain"
-            />
-            <View style={{ flex: 1 }}>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>🔒 ROLE: {selectedRole.replace('_', ' ')}</Text>
-              </View>
-              <Text style={styles.companyName}>{currentUser.companyName}</Text>
-            </View>
-            <View style={styles.planPill}>
-              <Text style={styles.planPillText}>{subscription.planType.replace('_', ' ')}</Text>
-            </View>
-          </View>
-        </View>
+        <TenantAdminHeaderBanner role={selectedRole} />
 
         {/* 📊 Executive Performance Summary Cards */}
         <Text style={styles.sectionTitle}>Executive Performance Overview</Text>

@@ -13,8 +13,9 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
 const LEAVE_REQUESTS = [
   {
@@ -66,35 +67,18 @@ export default function HRDashboardScreen({ navigation }: any) {
     { key: 'payroll', label: '💳 Payroll' },
   ];
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerCard}>
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>
-                  🔒 AUTHENTICATED: {currentUser.role.replace('_', ' ')} (LOCKED)
-                </Text>
-              </View>
-              <Text style={styles.companyName}>{currentUser.companyName}</Text>
-            </View>
-            <View style={styles.planPill}>
-              <Text style={styles.planPillText}>{subscription.planType.replace('_', ' ')}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Session Banner */}
-        <View style={styles.sessionBanner}>
-          <Text style={styles.sessionBannerText}>
-            🔒 HR Portal — Human Resources, Attendance &amp; Payroll Management
-          </Text>
-        </View>
+        {/* Header Banner */}
+        <TenantAdminHeaderBanner navigation={navigation} role="HR" />
 
         {/* Tabs */}
         <View style={styles.tabsContainer}>

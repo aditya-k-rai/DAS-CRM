@@ -24,6 +24,7 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   productCatalogService,
   CatalogProductItem,
@@ -310,9 +311,13 @@ export default function ProductsCatalogScreen({
     });
   };
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* Top Header */}
         <View style={styles.headerRow}>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Target, Zap, Sliders, Shield, Users, ArrowRight, CheckCircle2,
   Lock, Eye, EyeOff, RefreshCw, Layers, Phone, MessageSquare, Mail, Globe, Share2, FileSpreadsheet, UserCheck,
-  Bell, AlertCircle, Ban, UserPlus, Clock, History, FileText
+  Bell, AlertCircle, Ban, UserPlus, Clock, History, FileText, Database, Plus, Upload, Download
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -277,6 +277,69 @@ export function LeadFunnelDistribution() {
 
   return (
     <div className="space-y-6">
+      {/* ============================================================ */}
+      {/* LEAD INTEGRATION & INGESTION CONTROL CENTER BANNER           */}
+      {/* ============================================================ */}
+      <div className="crm-card p-6 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 space-y-4 rounded-2xl shadow-2xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                ⚡ INTEGRATION & DATA HUB
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                5 ACTIVE CHANNELS
+              </span>
+            </div>
+            <h2 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
+              <Database size={20} className="text-indigo-400" /> Lead Integration & Ingestion Control Center
+            </h2>
+            <p className="text-xs text-muted mt-0.5">
+              Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+            </p>
+          </div>
+
+          {/* ACTION BUTTONS TOOLBAR */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => alert('➕ Insert New Lead Modal Opened')}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
+            >
+              <Plus size={14} /> + Insert Lead
+            </button>
+            <button
+              onClick={() => alert('📤 Import CSV / Excel Modal Opened')}
+              className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Upload size={14} /> Import CSV / Excel
+            </button>
+            <button
+              onClick={() => alert('📊 Google Sheets Sync Modal Opened')}
+              className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
+            >
+              <FileSpreadsheet size={14} /> Google Sheets Sync
+            </button>
+            <button
+              onClick={() => alert('📥 Leads CSV Exported Successfully')}
+              className="px-3.5 py-2 rounded-xl bg-teal-600/20 border border-teal-500/40 text-teal-300 hover:bg-teal-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+            <button
+              onClick={() => alert('➕ Add Custom Column Modal Opened')}
+              className="px-3.5 py-2 rounded-xl bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Plus size={14} /> + Custom Column
+            </button>
+            <button
+              onClick={() => alert('🎛️ Column Shifting Controls Opened')}
+              className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all"
+            >
+              <Sliders size={14} /> Adjust Columns (11)
+            </button>
+          </div>
+        </div>
+      </div>
       {/* Real-Time Push Notification Alert Banner */}
       {pushNotificationAlert && (
         <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-900/40 via-purple-900/40 to-indigo-900/40 border border-purple-500/40 shadow-xl flex items-center justify-between flex-wrap gap-3 animate-pulse">

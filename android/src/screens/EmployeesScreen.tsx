@@ -1,13 +1,10 @@
 /**
  * EmployeesScreen.tsx — DAS CRM Android
- * In-Depth Employee, Manager, Team Leader & HR Profile Control Center.
+ * Complete Employee, Team Leader, Department Manager & HR Inspector Control Portal.
  * Features:
- *  1. In-Depth Profile Inspector (Identity, Role, Supervisor, Contact)
- *  2. Detailed Attendance Audit (Punch In/Out time, GPS link, Selfie photo, Monthly stats)
- *  3. Under-Employees (Subordinates list per Manager / Team Leader)
- *  4. Lead Allocation & Distribution Telemetry (Manager restricted to own team only)
- *  5. Leaving Employee Lead & Work Handover Engine (Admin Exclusive: Transfer leads & active work status to any employee/manager)
- *  6. Manager Authority Re-Assignment (Change employees of Manager A and allocate to Manager B)
+ * 1. Main Directory Card View: Displays Name, Role Badge, Assign Under, and [Inspect & Control →] button.
+ * 2. 4 Role-Tailored Inspector Control Screens (SALES_EXEC, TEAM_LEADER, MANAGER, HR).
+ * 3. 📄 Documents & 💳 Bank Details View Buttons (Bottom) for ALL Employees & Roles with Old Records Audit.
  */
 
 import React, { useState } from 'react';
@@ -21,9 +18,11 @@ import {
   Alert,
   Image,
   Linking,
+  TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { useNavigation } from '@react-navigation/native';
 
 export interface EmployeeProfile {
   id: string;
@@ -31,13 +30,44 @@ export interface EmployeeProfile {
   email: string;
   phone: string;
   role: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC';
-  assignedManager: string; // e.g. "Tenant Admin (Vikram Singh)", "Manager A (Amit Shah)"
+  assignedManager: string;
   status: 'ONLINE' | 'IN_CALL' | 'OFFLINE';
   avatarUrl: string;
   isLocked?: boolean;
   deletionScheduledAt?: string | null;
+  deletionReason?: string | null;
 
-  // Attendance Telemetry
+  // Documents & Banking Telemetry (Bottom Buttons)
+  documents: {
+    pan: string;
+    aadhaar: string;
+    eduCert: string;
+    offerLetter: string;
+    lastUpdatedDate: string;
+    historyLogs: { date: string; docType: string; oldValue: string; newValue: string }[];
+  };
+
+  bankDetails: {
+    bankName: string;
+    accountHolder: string;
+    accountNo: string;
+    ifscCode: string;
+    upiId: string;
+    lastUpdatedDate: string;
+    historyLogs: { date: string; bankName: string; accountNo: string }[];
+  };
+
+  // Telemetry Metrics
+  leads: {
+    totalReceived: number;
+    connected: number;
+    inNegotiation: number;
+    meetingScheduled: number;
+    won: number;
+    totalDistributed: number;
+    distributionBreakdown: { targetName: string; targetRole: string; count: number; dateStr: string }[];
+  };
+
   attendance: {
     presentDays: number;
     absentDays: number;
@@ -45,29 +75,30 @@ export interface EmployeeProfile {
     todayInTime: string;
     todayOutTime: string | null;
     todayGps: string;
-    selfieUrl: string;
   };
 
-  // Lead Distribution Telemetry
-  leads: {
-    totalReceived: number;
-    totalDistributed: number;
-    distributionBreakdown: { targetName: string; targetRole: string; count: number }[];
-  };
+  subordinates: { id: string; name: string; role: string; calls: number; revenue: string; leads: number }[];
 
-  // Subordinates list
-  subordinates: { id: string; name: string; role: string; calls: number; revenue: string }[];
+  hrMetrics?: {
+    pendingLeavesCount: number;
+    queriesResolvedCount: number;
+    reportsGeneratedCount: number;
+    totalHiredCount: number;
+    totalFiredCount: number;
+    interviewsConductedCount: number;
+    salaryPendingCount: number;
+    salaryReportsCount: number;
+  };
 }
 
 export default function EmployeesScreen() {
+  const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
-  const role: UserRole = normalizeRoleStr(currentUser.role);
-  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const userRole: UserRole = normalizeRoleStr(currentUser.role);
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
 
-  // Manager List for Authority Re-assignment
-  const MANAGERS = ['Tenant Admin (Vikram Singh)', 'Manager A (Amit Shah)', 'Manager B (Neha Joshi)'];
-
-  // Employees Database (Includes Managers, HR, Team Leaders, and Sales Executives)
+  // Employees Database
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([
     {
       id: 'emp-1',
@@ -78,27 +109,44 @@ export default function EmployeesScreen() {
       assignedManager: 'Tenant Admin (Vikram Singh)',
       status: 'ONLINE',
       avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 21,
-        absentDays: 1,
-        leaveDays: 1,
-        todayInTime: '09:15 AM',
-        todayOutTime: '06:30 PM',
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'ABCDE1234F',
+        aadhaar: 'AADHAAR_9876_VERIFIED.pdf',
+        eduCert: 'DEGREE_MBA_2022.pdf',
+        offerLetter: 'OFFER_LETTER_MANAGER.pdf',
+        lastUpdatedDate: 'Aug 01, 2026',
+        historyLogs: [
+          { date: 'Aug 01, 2026', docType: 'PAN Card', oldValue: 'XYZDE9876K', newValue: 'ABCDE1234F' },
+        ],
+      },
+      bankDetails: {
+        bankName: 'HDFC Bank',
+        accountHolder: 'Amit Shah',
+        accountNo: '50100987654321',
+        ifscCode: 'HDFC0001234',
+        upiId: 'amit@hdfcbank',
+        lastUpdatedDate: 'Jul 28, 2026',
+        historyLogs: [
+          { date: 'Jul 28, 2026', bankName: 'ICICI Bank', accountNo: '9876XXXX4321' },
+        ],
       },
       leads: {
         totalReceived: 140,
+        connected: 85,
+        inNegotiation: 32,
+        meetingScheduled: 18,
+        won: 14,
         totalDistributed: 110,
         distributionBreakdown: [
-          { targetName: 'Priya Sharma', targetRole: 'Team Leader', count: 45 },
-          { targetName: 'Karan Verma', targetRole: 'Team Leader', count: 40 },
-          { targetName: 'Rohan Kumar', targetRole: 'Sales Exec', count: 25 },
+          { targetName: 'Priya Sharma (TL)', targetRole: 'Team Leader', count: 45, dateStr: 'Today, 10:15 AM' },
+          { targetName: 'Karan Verma (TL)', targetRole: 'Team Leader', count: 40, dateStr: 'Yesterday, 4:30 PM' },
+          { targetName: 'Rohan Kumar (Exec)', targetRole: 'Sales Exec', count: 25, dateStr: 'Aug 20, 2:00 PM' },
         ],
       },
+      attendance: { presentDays: 21, absentDays: 1, leaveDays: 1, todayInTime: '09:15 AM', todayOutTime: '06:30 PM', todayGps: '28.440743, 77.531117' },
       subordinates: [
-        { id: 'sub-1', name: 'Priya Sharma', role: 'Team Leader', calls: 184, revenue: '$38,500' },
-        { id: 'sub-2', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000' },
+        { id: 'sub-1', name: 'Priya Sharma', role: 'Team Leader', calls: 184, revenue: '$38,500', leads: 45 },
+        { id: 'sub-2', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000', leads: 25 },
       ],
     },
     {
@@ -110,26 +158,39 @@ export default function EmployeesScreen() {
       assignedManager: 'Tenant Admin (Vikram Singh)',
       status: 'ONLINE',
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 22,
-        absentDays: 0,
-        leaveDays: 1,
-        todayInTime: '09:05 AM',
-        todayOutTime: null,
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'FGHIJ5678K',
+        aadhaar: 'AADHAAR_5432_VERIFIED.pdf',
+        eduCert: 'DEGREE_BTECH_2023.pdf',
+        offerLetter: 'OFFER_LETTER_MGR_2026.pdf',
+        lastUpdatedDate: 'Jul 15, 2026',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'ICICI Bank',
+        accountHolder: 'Neha Joshi',
+        accountNo: '33440099887766',
+        ifscCode: 'ICIC0005678',
+        upiId: 'neha@icici',
+        lastUpdatedDate: 'Jun 10, 2026',
+        historyLogs: [],
       },
       leads: {
         totalReceived: 120,
+        connected: 70,
+        inNegotiation: 28,
+        meetingScheduled: 12,
+        won: 10,
         totalDistributed: 95,
         distributionBreakdown: [
-          { targetName: 'Sunita Verma', targetRole: 'HR Operations', count: 50 },
-          { targetName: 'Ananya Roy', targetRole: 'Sales Exec', count: 45 },
+          { targetName: 'Sunita Verma (HR)', targetRole: 'HR Operations', count: 50, dateStr: 'Today, 11:00 AM' },
+          { targetName: 'Ananya Roy (Exec)', targetRole: 'Sales Exec', count: 45, dateStr: 'Aug 21, 1:15 PM' },
         ],
       },
+      attendance: { presentDays: 22, absentDays: 0, leaveDays: 1, todayInTime: '09:05 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
       subordinates: [
-        { id: 'sub-4', name: 'Sunita Verma', role: 'HR', calls: 142, revenue: '$29,000' },
-        { id: 'sub-5', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500' },
+        { id: 'sub-4', name: 'Sunita Verma', role: 'HR', calls: 142, revenue: '$29,000', leads: 50 },
+        { id: 'sub-5', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500', leads: 45 },
       ],
     },
     {
@@ -141,21 +202,36 @@ export default function EmployeesScreen() {
       assignedManager: 'Tenant Admin (Vikram Singh)',
       status: 'ONLINE',
       avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 20,
-        absentDays: 1,
-        leaveDays: 2,
-        todayInTime: '09:30 AM',
-        todayOutTime: '06:15 PM',
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'KLMNO9012P',
+        aadhaar: 'AADHAAR_1122_VERIFIED.pdf',
+        eduCert: 'DEGREE_HR_2021.pdf',
+        offerLetter: 'OFFER_LETTER_HR_2025.pdf',
+        lastUpdatedDate: 'Aug 10, 2026',
+        historyLogs: [],
       },
-      leads: {
-        totalReceived: 25,
-        totalDistributed: 20,
-        distributionBreakdown: [{ targetName: 'HR Audit Desk', targetRole: 'HR Operations', count: 20 }],
+      bankDetails: {
+        bankName: 'Axis Bank',
+        accountHolder: 'Sunita Verma',
+        accountNo: '91802003344556',
+        ifscCode: 'UTIB0009988',
+        upiId: 'sunita@axis',
+        lastUpdatedDate: 'May 02, 2026',
+        historyLogs: [],
       },
+      leads: { totalReceived: 25, connected: 15, inNegotiation: 5, meetingScheduled: 3, won: 2, totalDistributed: 20, distributionBreakdown: [] },
+      attendance: { presentDays: 20, absentDays: 1, leaveDays: 2, todayInTime: '09:30 AM', todayOutTime: '06:15 PM', todayGps: '28.440743, 77.531117' },
       subordinates: [],
+      hrMetrics: {
+        pendingLeavesCount: 3,
+        queriesResolvedCount: 42,
+        reportsGeneratedCount: 18,
+        totalHiredCount: 12,
+        totalFiredCount: 2,
+        interviewsConductedCount: 28,
+        salaryPendingCount: 2,
+        salaryReportsCount: 8,
+      },
     },
     {
       id: 'emp-4',
@@ -166,26 +242,39 @@ export default function EmployeesScreen() {
       assignedManager: 'Manager A (Amit Shah)',
       status: 'IN_CALL',
       avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 21,
-        absentDays: 1,
-        leaveDays: 0,
-        todayInTime: '09:10 AM',
-        todayOutTime: null,
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'PQRST3456U',
+        aadhaar: 'AADHAAR_3344_VERIFIED.pdf',
+        eduCert: 'DEGREE_BBA_2023.pdf',
+        offerLetter: 'OFFER_LETTER_TL_2026.pdf',
+        lastUpdatedDate: 'Jul 20, 2026',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'Kotak Bank',
+        accountHolder: 'Priya Sharma',
+        accountNo: '66778899001122',
+        ifscCode: 'KKBK0004455',
+        upiId: 'priya@kotak',
+        lastUpdatedDate: 'Jun 18, 2026',
+        historyLogs: [],
       },
       leads: {
         totalReceived: 45,
+        connected: 28,
+        inNegotiation: 10,
+        meetingScheduled: 5,
+        won: 2,
         totalDistributed: 40,
         distributionBreakdown: [
-          { targetName: 'Rohan Kumar', targetRole: 'Sales Exec', count: 25 },
-          { targetName: 'Ananya Roy', targetRole: 'Sales Exec', count: 15 },
+          { targetName: 'Rohan Kumar', targetRole: 'Sales Exec', count: 25, dateStr: 'Today, 9:30 AM' },
+          { targetName: 'Ananya Roy', targetRole: 'Sales Exec', count: 15, dateStr: 'Yesterday, 3:15 PM' },
         ],
       },
+      attendance: { presentDays: 21, absentDays: 1, leaveDays: 0, todayInTime: '09:10 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
       subordinates: [
-        { id: 'sub-6', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000' },
-        { id: 'sub-7', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500' },
+        { id: 'sub-6', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000', leads: 25 },
+        { id: 'sub-7', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500', leads: 15 },
       ],
     },
     {
@@ -197,20 +286,25 @@ export default function EmployeesScreen() {
       assignedManager: 'Priya Sharma (Team Leader)',
       status: 'ONLINE',
       avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 22,
-        absentDays: 0,
-        leaveDays: 0,
-        todayInTime: '09:00 AM',
-        todayOutTime: '06:00 PM',
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'VWXYZ7890A',
+        aadhaar: 'AADHAAR_5566_VERIFIED.pdf',
+        eduCert: 'DEGREE_BSC_2024.pdf',
+        offerLetter: 'OFFER_LETTER_EXEC_2026.pdf',
+        lastUpdatedDate: 'Aug 05, 2026',
+        historyLogs: [],
       },
-      leads: {
-        totalReceived: 35,
-        totalDistributed: 0,
-        distributionBreakdown: [],
+      bankDetails: {
+        bankName: 'SBI Bank',
+        accountHolder: 'Rohan Kumar',
+        accountNo: '20201122334455',
+        ifscCode: 'SBIN0001122',
+        upiId: 'rohan@sbi',
+        lastUpdatedDate: 'Jul 12, 2026',
+        historyLogs: [],
       },
+      leads: { totalReceived: 35, connected: 22, inNegotiation: 8, meetingScheduled: 3, won: 2, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 22, absentDays: 0, leaveDays: 0, todayInTime: '09:00 AM', todayOutTime: '06:00 PM', todayGps: '28.440743, 77.531117' },
       subordinates: [],
     },
     {
@@ -222,234 +316,126 @@ export default function EmployeesScreen() {
       assignedManager: 'Priya Sharma (Team Leader)',
       status: 'ONLINE',
       avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
-      attendance: {
-        presentDays: 19,
-        absentDays: 2,
-        leaveDays: 1,
-        todayInTime: '09:20 AM',
-        todayOutTime: null,
-        todayGps: '28.440743, 77.531117',
-        selfieUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+      documents: {
+        pan: 'BCDEF1234G',
+        aadhaar: 'AADHAAR_7788_VERIFIED.pdf',
+        eduCert: 'DEGREE_BA_2024.pdf',
+        offerLetter: 'OFFER_LETTER_EXEC_2026.pdf',
+        lastUpdatedDate: 'Aug 02, 2026',
+        historyLogs: [],
       },
-      leads: {
-        totalReceived: 28,
-        totalDistributed: 0,
-        distributionBreakdown: [],
+      bankDetails: {
+        bankName: 'Punjab National Bank',
+        accountHolder: 'Ananya Roy',
+        accountNo: '11223344556677',
+        ifscCode: 'PUNB0003344',
+        upiId: 'ananya@pnb',
+        lastUpdatedDate: 'Jul 01, 2026',
+        historyLogs: [],
       },
+      leads: { totalReceived: 28, connected: 18, inNegotiation: 6, meetingScheduled: 2, won: 2, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 19, absentDays: 2, leaveDays: 1, todayInTime: '09:20 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
       subordinates: [],
     },
   ]);
 
   // Inspector Modal State
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
-  const [inspectorTab, setInspectorTab] = useState<'PROFILE' | 'ATTENDANCE' | 'SUBORDINATES' | 'LEADS'>('PROFILE');
-  const [selectedManager, setSelectedManager] = useState('');
 
-  // ── LEAVING EMPLOYEE WORK & LEAD HANDOVER MODAL STATE (ADMIN EXCLUSIVE) ───
-  const [handoverModalOpen, setHandoverModalOpen] = useState(false);
-  const [departingEmpId, setDepartingEmpId] = useState('emp-4');
-  const [recipientEmpId, setRecipientEmpId] = useState('emp-1');
+  // Sub-Modals
+  const [roleUpgradeModalOpen, setRoleUpgradeModalOpen] = useState(false);
+  const [supervisorModalOpen, setSupervisorModalOpen] = useState(false);
+  const [leadPreviewModalOpen, setLeadPreviewModalOpen] = useState(false);
+  const [previewLeadCategory, setPreviewLeadCategory] = useState<'TOTAL' | 'CONNECTED' | 'NEGOTIATION' | 'WON'>('TOTAL');
 
-  const openProfileInspector = (emp: EmployeeProfile) => {
-    setInspectingEmp(emp);
-    setSelectedManager(emp.assignedManager);
-    setInspectorTab('PROFILE');
-  };
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveNote, setLeaveNote] = useState('');
 
-  // 🔒 Toggle Screen Lock (Admin Only)
-  const handleToggleLock = (empId: string) => {
-    setEmployeesList(prev =>
-      prev.map(e => {
-        if (e.id === empId) {
-          const newLock = !e.isLocked;
-          Alert.alert(
-            newLock ? '🔒 Screen Locked' : '🔓 Screen Unlocked',
-            newLock
-              ? `${e.name}'s app screen has been locked by Admin. Their active session is suspended.`
-              : `${e.name}'s app screen has been unlocked.`
-          );
-          return { ...e, isLocked: newLock };
-        }
-        return e;
-      })
-    );
-  };
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [revertNote, setRevertNote] = useState('');
 
-  // 🗑️ Schedule Account Soft Delete (7-Day Grace Period)
-  const handleScheduleSoftDelete = (empId: string) => {
-    const emp = employeesList.find(e => e.id === empId);
-    if (!emp) return;
+  const [shareRolesModalOpen, setShareRolesModalOpen] = useState(false);
 
-    Alert.alert(
-      '⚠️ Schedule Account Deletion (7-Day Grace)',
-      `Are you sure you want to soft delete ${emp.name}? Account will be suspended immediately and permanently purged in 7 days.\n\nYou can revoke deletion anytime during these 7 days.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Schedule Delete (7 Days)',
-          style: 'destructive',
-          onPress: () => {
-            const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-            setEmployeesList(prev =>
-              prev.map(e => (e.id === empId ? { ...e, deletionScheduledAt: sevenDaysLater } : e))
-            );
-            Alert.alert(
-              'Scheduled for Deletion',
-              `${emp.name}'s account is scheduled for deletion in 7 days. You can revoke deletion anytime.`
-            );
-          },
-        },
-      ]
-    );
-  };
+  const [hrTelemetryModalOpen, setHrTelemetryModalOpen] = useState(false);
+  const [hrTelemetryCategory, setHrTelemetryCategory] = useState<string>('HIRED');
 
-  // ↺ Revoke Account Deletion (Admin Only)
-  const handleRevokeDelete = (empId: string) => {
-    setEmployeesList(prev =>
-      prev.map(e => {
-        if (e.id === empId) {
-          Alert.alert('✅ Deletion Revoked', `${e.name}'s account deletion has been revoked and restored to active status.`);
-          return { ...e, deletionScheduledAt: null };
-        }
-        return e;
-      })
-    );
-  };
+  // 📄 Documents & 💳 Bank Modals (Bottom Buttons)
+  const [viewDocsModalOpen, setViewDocsModalOpen] = useState(false);
+  const [viewBankModalOpen, setViewBankModalOpen] = useState(false);
 
-  const getValidSupervisorsForRole = (empRole: string) => {
-    if (empRole === 'TEAM_LEADER') {
-      // TL can ONLY report under a Manager
-      return ['Manager A (Amit Shah)', 'Manager B (Neha Joshi)', 'Tenant Admin (Vikram Singh)'];
-    }
-    if (empRole === 'SALES_EXEC') {
-      // Sales Exec can ONLY report under a TL or Manager
-      return [
-        'Priya Sharma (Team Leader)',
-        'Karan Verma (Team Leader)',
-        'Manager A (Amit Shah)',
-        'Manager B (Neha Joshi)',
-        'Tenant Admin (Vikram Singh)',
-      ];
-    }
-    // Default for Managers / HR
-    return ['Tenant Admin (Vikram Singh)'];
-  };
-
-  const handleReassignManager = () => {
+  // Handlers
+  const handleUpgradeRole = (newRole: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC') => {
     if (!inspectingEmp) return;
-
-    if (inspectingEmp.role === 'TEAM_LEADER') {
-      const isManager = selectedManager.includes('Manager') || selectedManager.includes('Admin');
-      if (!isManager) {
-        Alert.alert(
-          '🔒 Invalid Hierarchy Assignment',
-          'Hierarchy Policy Violation: Team Leaders (TL) can ONLY report directly under a Department Manager.'
-        );
-        return;
-      }
-    }
-
-    if (inspectingEmp.role === 'SALES_EXEC') {
-      const isValidSup =
-        selectedManager.includes('Team Leader') ||
-        selectedManager.includes('TL') ||
-        selectedManager.includes('Manager') ||
-        selectedManager.includes('Admin');
-      if (!isValidSup) {
-        Alert.alert(
-          '🔒 Invalid Hierarchy Assignment',
-          'Hierarchy Policy Violation: Sales Executives can ONLY be assigned under a Team Leader (TL) or Department Manager.'
-        );
-        return;
-      }
-    }
-
-    setEmployeesList(prev =>
-      prev.map(e => (e.id === inspectingEmp.id ? { ...e, assignedManager: selectedManager } : e))
-    );
-    setInspectingEmp({ ...inspectingEmp, assignedManager: selectedManager });
-    Alert.alert('Supervisor Re-assigned', `Successfully updated ${inspectingEmp.name}'s supervisor to ${selectedManager}.`);
+    setEmployeesList(prev => prev.map(e => e.id === inspectingEmp.id ? { ...e, role: newRole } : e));
+    setInspectingEmp(prev => prev ? { ...prev, role: newRole } : null);
+    setRoleUpgradeModalOpen(false);
+    Alert.alert('✅ Role Upgraded', `${inspectingEmp.name}'s role upgraded to ${newRole.replace('_', ' ')}!`);
   };
 
-  // Execute Bulk Work & Lead Handover for Leaving Employee
-  const handleExecuteHandover = () => {
-    const departing = employeesList.find(e => e.id === departingEmpId);
-    const recipient = employeesList.find(e => e.id === recipientEmpId);
+  const handleChangeSupervisor = (newSupervisor: string) => {
+    if (!inspectingEmp) return;
+    setEmployeesList(prev => prev.map(e => e.id === inspectingEmp.id ? { ...e, assignedManager: newSupervisor } : e));
+    setInspectingEmp(prev => prev ? { ...prev, assignedManager: newSupervisor } : null);
+    setSupervisorModalOpen(false);
+    Alert.alert('✅ Supervisor Changed', `${inspectingEmp.name} now reports under ${newSupervisor}.`);
+  };
 
-    if (!departing || !recipient) {
-      Alert.alert('Error', 'Please select valid departing and recipient staff members.');
+  const handleToggleLockScreen = () => {
+    if (!inspectingEmp) return;
+    const nextLocked = !inspectingEmp.isLocked;
+    setEmployeesList(prev => prev.map(e => e.id === inspectingEmp.id ? { ...e, isLocked: nextLocked } : e));
+    setInspectingEmp(prev => prev ? { ...prev, isLocked: nextLocked } : null);
+    Alert.alert(nextLocked ? '🔒 Account Locked' : '🔓 Account Unlocked', `Employee ${inspectingEmp.name} screen lock updated.`);
+  };
+
+  const handleInitiate10DayDeletion = () => {
+    if (!inspectingEmp) return;
+    const scheduledDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    setEmployeesList(prev => prev.map(e => e.id === inspectingEmp.id ? { ...e, isLocked: true, deletionScheduledAt: scheduledDate } : e));
+    setInspectingEmp(prev => prev ? { ...prev, isLocked: true, deletionScheduledAt: scheduledDate } : null);
+    setDeleteModalOpen(false);
+    Alert.alert('⚠️ 10-Day Purge Initiated', `Account locked. Data scheduled for permanent purge in 10 days.`);
+  };
+
+  const handleRequestRevertDeletion = () => {
+    if (!inspectingEmp) return;
+    if (!revertNote.trim()) {
+      Alert.alert('Validation Error', 'Please enter a note explaining why deletion should be reverted.');
       return;
     }
+    setEmployeesList(prev => prev.map(e => e.id === inspectingEmp.id ? { ...e, isLocked: false, deletionScheduledAt: null, deletionReason: revertNote } : e));
+    setInspectingEmp(prev => prev ? { ...prev, isLocked: false, deletionScheduledAt: null, deletionReason: revertNote } : null);
+    setDeleteModalOpen(false);
+    setRevertNote('');
+    Alert.alert('🎉 Deletion Reverted', `Account deletion canceled! Note logged: "${revertNote}"`);
+  };
 
-    if (departing.id === recipient.id) {
-      Alert.alert('Invalid Transfer', 'Departing employee and recipient employee cannot be the same person.');
+  const handleApproveOrDeclineLeave = (approved: boolean) => {
+    if (!leaveNote.trim()) {
+      Alert.alert('Validation Error', 'Please enter a note for approving or declining the leave application.');
       return;
     }
-
-    const leadsToTransfer = departing.leads.totalReceived;
-
-    setEmployeesList(prev =>
-      prev.map(e => {
-        if (e.id === departing.id) {
-          return {
-            ...e,
-            leads: { ...e.leads, totalReceived: 0, totalDistributed: 0, distributionBreakdown: [] },
-          };
-        }
-        if (e.id === recipient.id) {
-          return {
-            ...e,
-            leads: {
-              ...e.leads,
-              totalReceived: e.leads.totalReceived + leadsToTransfer,
-              totalDistributed: e.leads.totalDistributed + leadsToTransfer,
-              distributionBreakdown: [
-                ...e.leads.distributionBreakdown,
-                { targetName: `Handover from ${departing.name}`, targetRole: 'Work Transfer', count: leadsToTransfer },
-              ],
-            },
-          };
-        }
-        return e;
-      })
-    );
-
-    setHandoverModalOpen(false);
-    Alert.alert(
-      '✅ Work Handover Complete',
-      `Transferred all ${leadsToTransfer} active leads and work status from ${departing.name} to ${recipient.name}.\n\nTotal Leads for ${recipient.name} updated!`
-    );
+    setLeaveModalOpen(false);
+    setLeaveNote('');
+    Alert.alert(approved ? '✅ Leave Approved' : '🔴 Leave Declined', `Leave request updated with note: "${leaveNote}"`);
   };
 
-  const openGoogleMaps = (geoStr: string) => {
-    Linking.openURL(`https://maps.google.com/?q=${geoStr.trim()}`).catch(() => {});
-  };
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* ── HEADER ────────────────────────────────────────────────────────── */}
         <View style={styles.headerBox}>
           <Text style={styles.headerTitle}>Organization Hierarchy &amp; Profile Control</Text>
           <Text style={styles.headerSubtitle}>
-            Tap any Manager, TL, HR or Employee to open full Attendance, Subordinates, Lead Distribution, and Manager Re-assignment Controls.
+            Tap [Inspect &amp; Control →] on any Manager, TL, HR or Employee card to open dedicated role control tools.
           </Text>
         </View>
 
-        {/* ── ADMIN EXCLUSIVE: LEAVING EMPLOYEE LEAD & WORK HANDOVER BUTTON ─── */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={styles.handoverBannerBtn}
-            onPress={() => setHandoverModalOpen(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.handoverBannerTitle}>💼 Admin Work &amp; Lead Handover (Leaving Employee)</Text>
-            <Text style={styles.handoverBannerSub}>Re-allocate all active leads &amp; status of a departing employee to any other staff member/manager across teams →</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* ── STAFF DIRECTORY CARDS ───────────────────────────────────────────── */}
+        {/* ── STAFF DIRECTORY CARDS (STRICT USER SPEC) ────────────────────────── */}
         <Text style={styles.sectionTitle}>All Staff Members ({employeesList.length})</Text>
 
         <View style={styles.cardBox}>
@@ -473,7 +459,7 @@ export default function EmployeesScreen() {
                 : '#34d399';
 
             return (
-              <TouchableOpacity
+              <View
                 key={emp.id}
                 style={[
                   styles.empRow,
@@ -481,8 +467,6 @@ export default function EmployeesScreen() {
                   emp.isLocked && { backgroundColor: 'rgba(239,68,68,0.05)' },
                   !!emp.deletionScheduledAt && { backgroundColor: 'rgba(245,158,11,0.05)' },
                 ]}
-                onPress={() => openProfileInspector(emp)}
-                activeOpacity={0.7}
               >
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -499,7 +483,7 @@ export default function EmployeesScreen() {
 
                     {!!emp.deletionScheduledAt && (
                       <View style={styles.suspendedBadge}>
-                        <Text style={styles.suspendedBadgeText}>⚠️ SUSPENDED</Text>
+                        <Text style={styles.suspendedBadgeText}>⏳ 10-DAY PURGE</Text>
                       </View>
                     )}
                   </View>
@@ -509,10 +493,15 @@ export default function EmployeesScreen() {
                   </Text>
                 </View>
 
-                <View style={styles.inspectBtn}>
+                {/* Inspect and Control Button */}
+                <TouchableOpacity
+                  style={styles.inspectBtn}
+                  onPress={() => setInspectingEmp(emp)}
+                  activeOpacity={0.8}
+                >
                   <Text style={styles.inspectBtnText}>Inspect &amp; Control →</Text>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -520,231 +509,267 @@ export default function EmployeesScreen() {
       </ScrollView>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 🔍 IN-DEPTH EMPLOYEE / MANAGER / TL / HR PROFILE INSPECTOR MODAL            */}
+      {/* 🔍 ROLE-TAILORED INSPECTOR CONTROL SCREEN MODAL                            */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={!!inspectingEmp} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {inspectingEmp && (
             <View style={styles.modalContent}>
               
-              {/* Profile Inspector Header */}
+              {/* Header Info */}
               <View style={styles.modalHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                   <Image source={{ uri: inspectingEmp.avatarUrl }} style={styles.modalAvatar} />
-                  <View>
-                    <Text style={styles.modalName}>{inspectingEmp.name}</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={styles.modalName}>{inspectingEmp.name}</Text>
+                      <TouchableOpacity
+                        style={styles.actionChipBtn}
+                        onPress={() => setRoleUpgradeModalOpen(true)}
+                      >
+                        <Text style={styles.actionChipBtnText}>Upgrade Role ⚡</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.modalEmail}>{inspectingEmp.email} • {inspectingEmp.phone}</Text>
-                    <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', marginTop: 2 }}>
-                      ROLE: {inspectingEmp.role.replace('_', ' ')}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>Assigned under: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{inspectingEmp.assignedManager}</Text></Text>
+                      <TouchableOpacity
+                        style={styles.actionChipBtn}
+                        onPress={() => setSupervisorModalOpen(true)}
+                      >
+                        <Text style={styles.actionChipBtnText}>Change ✏️</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
                 <TouchableOpacity onPress={() => setInspectingEmp(null)}>
-                  <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+                  <Text style={{ color: '#94a3b8', fontSize: 20, fontWeight: '800', padding: 4 }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Inspector Section Switcher Tabs */}
-              <View style={styles.tabRow}>
-                {[
-                  { id: 'PROFILE', label: '👤 Profile' },
-                  { id: 'ATTENDANCE', label: '⏱️ Attendance' },
-                  { id: 'SUBORDINATES', label: `👥 Staff (${inspectingEmp.subordinates.length})` },
-                  { id: 'LEADS', label: `🎯 Leads (${inspectingEmp.leads.totalReceived})` },
-                ].map(t => (
-                  <TouchableOpacity
-                    key={t.id}
-                    style={[styles.tabBtn, inspectorTab === t.id && styles.tabBtnActive]}
-                    onPress={() => setInspectorTab(t.id as any)}
-                  >
-                    <Text style={[styles.tabBtnText, inspectorTab === t.id && styles.tabBtnTextActive]}>{t.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
 
-              <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
-
-                {/* ── TAB 1: PROFILE & MANAGER RE-ASSIGNMENT ─────────────────────── */}
-                {inspectorTab === 'PROFILE' && (
+                {/* ── 1. SALES EXECUTIVE INSPECTOR SCREEN ──────────────────────────────── */}
+                {inspectingEmp.role === 'SALES_EXEC' && (
                   <View style={{ gap: 12 }}>
-                    <View style={styles.infoCard}>
-                      <Text style={styles.cardHeaderTitle}>Supervisor &amp; Authority Assignment</Text>
-                      <Text style={{ fontSize: 11, color: '#cbd5e1', marginBottom: 8 }}>
-                        Current Supervisor: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{inspectingEmp.assignedManager}</Text>
-                      </Text>
+                    <Text style={styles.inspectorSectionTitle}>🎯 Lead Performance &amp; Pipeline Status</Text>
 
-                      {isAdmin ? (
-                        <View style={{ gap: 6 }}>
-                          {/* Hierarchy Policy Rule Banner */}
-                          <View style={styles.hierarchyPolicyBox}>
-                            <Text style={styles.hierarchyPolicyText}>
-                              {inspectingEmp.role === 'TEAM_LEADER'
-                                ? '🔒 Policy Rule: Team Leaders (TL) can ONLY report directly under a Department Manager.'
-                                : inspectingEmp.role === 'SALES_EXEC'
-                                ? '🔒 Policy Rule: Sales Executives can ONLY be assigned under a Team Leader (TL) or Department Manager.'
-                                : '🔒 Policy Rule: Department Managers report directly to Tenant Administration.'}
-                            </Text>
-                          </View>
+                    <View style={styles.grid2Col}>
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(99,102,241,0.4)' }]} onPress={() => { setPreviewLeadCategory('TOTAL'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={styles.leadStatVal}>{inspectingEmp.leads.totalReceived}</Text>
+                        <Text style={styles.leadStatLbl}>Total Leads Got →</Text>
+                      </TouchableOpacity>
 
-                          <Text style={{ fontSize: 11, color: '#94a3b8', fontWeight: '700', marginTop: 4 }}>
-                            Re-assign Supervisor (Valid Roles Only):
-                          </Text>
-                          {getValidSupervisorsForRole(inspectingEmp.role).map(m => (
-                            <TouchableOpacity
-                              key={m}
-                              style={[styles.managerOption, selectedManager === m && styles.managerOptionActive]}
-                              onPress={() => setSelectedManager(m)}
-                            >
-                              <Text style={{ fontSize: 12, color: selectedManager === m ? '#818cf8' : '#cbd5e1', fontWeight: '700' }}>
-                                {selectedManager === m ? '✓ ' : ''}{m}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                          <TouchableOpacity style={styles.reassignBtn} onPress={handleReassignManager}>
-                            <Text style={styles.reassignBtnText}>Re-assign Supervisor Authority ✓</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <Text style={{ fontSize: 10, color: '#64748b' }}>Only Tenant Administrators can re-assign manager authority.</Text>
-                      )}
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(251,191,36,0.4)' }]} onPress={() => { setPreviewLeadCategory('CONNECTED'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#fbbf24' }]}>{inspectingEmp.leads.connected}</Text>
+                        <Text style={styles.leadStatLbl}>Connected (Feedback) →</Text>
+                      </TouchableOpacity>
 
-                      {/* Admin Account Security & Status Controls */}
-                      {isAdmin && (
-                        <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b', gap: 8 }}>
-                          <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>🛡️ Account Security &amp; Admin Controls:</Text>
-                          <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <TouchableOpacity
-                              style={[{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' }, inspectingEmp.isLocked && { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: '#ef4444' }]}
-                              onPress={() => {
-                                handleToggleLock(inspectingEmp.id);
-                                setInspectingEmp(prev => prev ? { ...prev, isLocked: !prev.isLocked } : null);
-                              }}
-                            >
-                              <Text style={{ fontSize: 11, fontWeight: '800', color: inspectingEmp.isLocked ? '#fca5a5' : '#ffffff' }}>
-                                {inspectingEmp.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}
-                              </Text>
-                            </TouchableOpacity>
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(129,140,248,0.4)' }]} onPress={() => { setPreviewLeadCategory('NEGOTIATION'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#818cf8' }]}>{inspectingEmp.leads.inNegotiation}</Text>
+                        <Text style={styles.leadStatLbl}>In Negotiation →</Text>
+                      </TouchableOpacity>
 
-                            {inspectingEmp.deletionScheduledAt ? (
-                              <TouchableOpacity
-                                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(34,197,94,0.15)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.3)' }}
-                                onPress={() => {
-                                  handleRevokeDelete(inspectingEmp.id);
-                                  setInspectingEmp(prev => prev ? { ...prev, deletionScheduledAt: null } : null);
-                                }}
-                              >
-                                <Text style={{ color: '#34d399', fontSize: 11, fontWeight: '800' }}>↺ Revoke Delete</Text>
-                              </TouchableOpacity>
-                            ) : (
-                              <TouchableOpacity
-                                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}
-                                onPress={() => {
-                                  handleScheduleSoftDelete(inspectingEmp.id);
-                                  setInspectingEmp(prev => prev ? { ...prev, deletionScheduledAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() } : null);
-                                }}
-                              >
-                                <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '800' }}>🗑️ Delete (7 Days)</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
-                      )}
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(52,211,153,0.4)' }]} onPress={() => { setPreviewLeadCategory('WON'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#34d399' }]}>{inspectingEmp.leads.won}</Text>
+                        <Text style={styles.leadStatLbl}>Won Deals →</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.inspectorSectionTitle}>⚙️ Operations &amp; Administrative Controls</Text>
+                    <View style={{ gap: 8 }}>
+                      <TouchableOpacity style={styles.opControlBtn} onPress={() => { setInspectingEmp(null); navigation.navigate('Attendance'); }}>
+                        <Text style={styles.opControlBtnText}>⏱️ Attendance Portal (View {inspectingEmp.name}) →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)' }]} onPress={() => setLeaveModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Note) →</Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1 }]} onPress={handleToggleLockScreen}>
+                          <Text style={styles.opControlBtnText}>{inspectingEmp.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' }]} onPress={() => setDeleteModalOpen(true)}>
+                          <Text style={[styles.opControlBtnText, { color: '#fca5a5' }]}>{inspectingEmp.deletionScheduledAt ? '⏳ Revert Delete' : '🗑️ Delete (10 Days)'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 )}
 
-                {/* ── TAB 2: DETAILED ATTENDANCE AUDIT ────────────────────────────── */}
-                {inspectorTab === 'ATTENDANCE' && (
-                  <View style={{ gap: 10 }}>
-                    <View style={styles.summaryBadgesRow}>
-                      <View style={styles.badgeBox}>
-                        <Text style={styles.badgeVal}>{inspectingEmp.attendance.presentDays}</Text>
-                        <Text style={styles.badgeLbl}>Present</Text>
-                      </View>
-                      <View style={styles.badgeBox}>
-                        <Text style={[styles.badgeVal, { color: '#ef4444' }]}>{inspectingEmp.attendance.absentDays}</Text>
-                        <Text style={styles.badgeLbl}>Absent</Text>
-                      </View>
-                      <View style={styles.badgeBox}>
-                        <Text style={[styles.badgeVal, { color: '#eab308' }]}>{inspectingEmp.attendance.leaveDays}</Text>
-                        <Text style={styles.badgeLbl}>Leaves</Text>
-                      </View>
+                {/* ── 2. TEAM LEADER INSPECTOR SCREEN ─────────────────────────────────── */}
+                {inspectingEmp.role === 'TEAM_LEADER' && (
+                  <View style={{ gap: 12 }}>
+                    <Text style={styles.inspectorSectionTitle}>👥 Employees Assigned Under {inspectingEmp.name}</Text>
+                    <View style={styles.subBox}>
+                      {inspectingEmp.subordinates.map(sub => (
+                        <View key={sub.id} style={styles.subRow}>
+                          <Text style={styles.subName}>{sub.name} ({sub.role.replace('_', ' ')})</Text>
+                          <Text style={styles.subMeta}>📞 {sub.calls} Calls • 🎯 {sub.leads} Leads</Text>
+                        </View>
+                      ))}
                     </View>
 
-                    <View style={styles.infoCard}>
-                      <Text style={styles.cardHeaderTitle}>Today's Punch Record</Text>
-                      <Text style={styles.infoLine}>Punch In: <Text style={{ color: '#34d399', fontWeight: '800' }}>{inspectingEmp.attendance.todayInTime}</Text></Text>
-                      <Text style={styles.infoLine}>Punch Out: <Text style={{ color: '#f8fafc', fontWeight: '800' }}>{inspectingEmp.attendance.todayOutTime || 'Currently Active'}</Text></Text>
-                      
-                      <TouchableOpacity style={{ marginTop: 4 }} onPress={() => openGoogleMaps(inspectingEmp.attendance.todayGps)}>
-                        <Text style={{ fontSize: 11, color: '#38bdf8', fontWeight: '700', textDecorationLine: 'underline' }}>
-                          📍 GPS Location: {inspectingEmp.attendance.todayGps} ↗
-                        </Text>
+                    <Text style={styles.inspectorSectionTitle}>📊 Unit Lead Status Audit (Got &amp; Distributed)</Text>
+                    <View style={styles.grid2Col}>
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(99,102,241,0.4)' }]} onPress={() => { setPreviewLeadCategory('TOTAL'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={styles.leadStatVal}>{inspectingEmp.leads.totalReceived}</Text>
+                        <Text style={styles.leadStatLbl}>Got &amp; Distributed →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(251,191,36,0.4)' }]} onPress={() => { setPreviewLeadCategory('CONNECTED'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#fbbf24' }]}>{inspectingEmp.leads.connected}</Text>
+                        <Text style={styles.leadStatLbl}>Connected →</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.inspectorSectionTitle}>⚙️ Operations &amp; Administrative Controls</Text>
+                    <View style={{ gap: 8 }}>
+                      <TouchableOpacity style={styles.opControlBtn} onPress={() => { setInspectingEmp(null); navigation.navigate('Attendance'); }}>
+                        <Text style={styles.opControlBtnText}>⏱️ Attendance Portal (View {inspectingEmp.name}) →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)' }]} onPress={() => setLeaveModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Note) →</Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1 }]} onPress={handleToggleLockScreen}>
+                          <Text style={styles.opControlBtnText}>{inspectingEmp.isLocked ? '🔓 Unlock' : '🔒 Lock'}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' }]} onPress={() => setDeleteModalOpen(true)}>
+                          <Text style={[styles.opControlBtnText, { color: '#fca5a5' }]}>🗑️ Delete (10 Days)</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' }]} onPress={() => setShareRolesModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#a5b4fc' }]}>📜 Share Roles &amp; Responsibilities Report →</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 )}
 
-                {/* ── TAB 3: SUBORDINATES (UNDER EMPLOYEES) ───────────────────────── */}
-                {inspectorTab === 'SUBORDINATES' && (
-                  <View style={{ gap: 8 }}>
-                    {inspectingEmp.subordinates.length === 0 ? (
-                      <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: 20 }}>
-                        No direct subordinates assigned under this staff member.
-                      </Text>
-                    ) : (
-                      inspectingEmp.subordinates.map(sub => (
-                        <View key={sub.id} style={styles.subItemCard}>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>{sub.name}</Text>
-                          <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '700' }}>{sub.role}</Text>
-                          <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                            📞 {sub.calls} Calls Logged • 💰 {sub.revenue} Revenue
-                          </Text>
+                {/* ── 3. MANAGER INSPECTOR SCREEN ─────────────────────────────────────── */}
+                {inspectingEmp.role === 'MANAGER' && (
+                  <View style={{ gap: 12 }}>
+                    <Text style={styles.inspectorSectionTitle}>👥 Department Staff Assigned Under {inspectingEmp.name}</Text>
+                    <View style={styles.subBox}>
+                      {inspectingEmp.subordinates.map(sub => (
+                        <View key={sub.id} style={styles.subRow}>
+                          <Text style={styles.subName}>{sub.name} ({sub.role.replace('_', ' ')})</Text>
+                          <Text style={styles.subMeta}>💰 {sub.revenue} Pipeline • 🎯 {sub.leads} Leads</Text>
                         </View>
-                      ))
-                    )}
-                  </View>
-                )}
-
-                {/* ── TAB 4: LEAD ALLOCATION & DISTRIBUTION ───────────────────────── */}
-                {inspectorTab === 'LEADS' && (
-                  <View style={{ gap: 10 }}>
-                    {/* Scope Rule Notice */}
-                    <View style={styles.scopeNoticeCard}>
-                      <Text style={styles.scopeNoticeText}>
-                        {isAdmin
-                          ? '👑 ADMIN AUTHORITY: You can re-allocate leads to ANY employee or manager across teams.'
-                          : '🔒 MANAGER SCOPE: Managers can only allocate leads to direct subordinates assigned under their own team.'}
-                      </Text>
+                      ))}
                     </View>
 
-                    <View style={styles.infoCard}>
-                      <Text style={styles.cardHeaderTitle}>Lead Distribution Summary</Text>
-                      <Text style={{ fontSize: 12, color: '#f8fafc', fontWeight: '800' }}>
-                        Total Leads Received by {inspectingEmp.name}: <Text style={{ color: '#34d399' }}>{inspectingEmp.leads.totalReceived} Leads</Text>
-                      </Text>
-                      <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                        Total Distributed to Subordinates: {inspectingEmp.leads.totalDistributed} Leads
-                      </Text>
+                    <Text style={styles.inspectorSectionTitle}>📊 Department Pipeline Lead Audit</Text>
+                    <View style={styles.grid2Col}>
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(99,102,241,0.4)' }]} onPress={() => { setPreviewLeadCategory('TOTAL'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={styles.leadStatVal}>{inspectingEmp.leads.totalReceived}</Text>
+                        <Text style={styles.leadStatLbl}>Total Dept Leads →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(52,211,153,0.4)' }]} onPress={() => { setPreviewLeadCategory('WON'); setLeadPreviewModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#34d399' }]}>{inspectingEmp.leads.won}</Text>
+                        <Text style={styles.leadStatLbl}>Won Deals →</Text>
+                      </TouchableOpacity>
                     </View>
 
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff', marginTop: 4 }}>
-                      Distribution Breakdown per Staff Member:
-                    </Text>
+                    <Text style={styles.inspectorSectionTitle}>⚙️ Operations &amp; Administrative Controls</Text>
+                    <View style={{ gap: 8 }}>
+                      <TouchableOpacity style={styles.opControlBtn} onPress={() => { setInspectingEmp(null); navigation.navigate('Attendance'); }}>
+                        <Text style={styles.opControlBtnText}>⏱️ Attendance Portal (View {inspectingEmp.name}) →</Text>
+                      </TouchableOpacity>
 
-                    {inspectingEmp.leads.distributionBreakdown.map((item, i) => (
-                      <View key={i} style={styles.distRow}>
-                        <View>
-                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{item.targetName}</Text>
-                          <Text style={{ fontSize: 10, color: '#94a3b8' }}>{item.targetRole}</Text>
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: '900', color: '#818cf8' }}>
-                          {item.count} Leads Assigned
-                        </Text>
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)' }]} onPress={() => setLeaveModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Note) →</Text>
+                      </TouchableOpacity>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1 }]} onPress={handleToggleLockScreen}>
+                          <Text style={styles.opControlBtnText}>{inspectingEmp.isLocked ? '🔓 Unlock' : '🔒 Lock'}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' }]} onPress={() => setDeleteModalOpen(true)}>
+                          <Text style={[styles.opControlBtnText, { color: '#fca5a5' }]}>🗑️ Delete (10 Days)</Text>
+                        </TouchableOpacity>
                       </View>
-                    ))}
+
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' }]} onPress={() => setShareRolesModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#a5b4fc' }]}>📜 Share Roles &amp; Responsibilities Report →</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
+
+                {/* ── 4. HR DETAILS INSPECTOR SCREEN ──────────────────────────────────── */}
+                {inspectingEmp.role === 'HR' && (
+                  <View style={{ gap: 12 }}>
+                    <Text style={styles.inspectorSectionTitle}>📋 HR Action Controls</Text>
+                    <View style={styles.grid2Col}>
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(56,189,248,0.4)' }]} onPress={() => setLeaveModalOpen(true)}>
+                        <Text style={[styles.leadStatVal, { color: '#38bdf8' }]}>{inspectingEmp.hrMetrics?.pendingLeavesCount || 3}</Text>
+                        <Text style={styles.leadStatLbl}>Pending Leave Approve →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.leadStatBtn, { borderColor: 'rgba(52,211,153,0.4)' }]} onPress={() => { setHrTelemetryCategory('RESOLVED'); setHrTelemetryModalOpen(true); }}>
+                        <Text style={[styles.leadStatVal, { color: '#34d399' }]}>{inspectingEmp.hrMetrics?.queriesResolvedCount || 42}</Text>
+                        <Text style={styles.leadStatLbl}>Queries Resolved →</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.inspectorSectionTitle}>👥 Recruitment &amp; Offboarding Telemetry</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.3)' }]} onPress={() => { setHrTelemetryCategory('HIRED'); setHrTelemetryModalOpen(true); }}>
+                        <Text style={[styles.opControlBtnText, { color: '#34d399' }]}>🟢 Hired ({inspectingEmp.hrMetrics?.totalHiredCount || 12}) →</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)' }]} onPress={() => { setHrTelemetryCategory('FIRED'); setHrTelemetryModalOpen(true); }}>
+                        <Text style={[styles.opControlBtnText, { color: '#fca5a5' }]}>🔴 Offboarded ({inspectingEmp.hrMetrics?.totalFiredCount || 2}) →</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.inspectorSectionTitle}>⚙️ Operations &amp; Administrative Controls</Text>
+                    <View style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1 }]} onPress={handleToggleLockScreen}>
+                          <Text style={styles.opControlBtnText}>{inspectingEmp.isLocked ? '🔓 Unlock' : '🔒 Lock'}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' }]} onPress={() => setDeleteModalOpen(true)}>
+                          <Text style={[styles.opControlBtnText, { color: '#fca5a5' }]}>🗑️ Delete (10 Days)</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity style={[styles.opControlBtn, { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' }]} onPress={() => setShareRolesModalOpen(true)}>
+                        <Text style={[styles.opControlBtnText, { color: '#a5b4fc' }]}>📜 Share HR Governance &amp; Policy Sheet →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* ── 5. BOTTOM SHARED BUTTONS FOR ALL EMPLOYEES & ROLES ──────────────── */}
+                <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#1e293b', gap: 8 }}>
+                  <Text style={styles.inspectorSectionTitle}>📑 Documents &amp; Banking Telemetry (Bottom)</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.4)' }]}
+                      onPress={() => setViewDocsModalOpen(true)}
+                    >
+                      <Text style={[styles.opControlBtnText, { color: '#38bdf8' }]}>📄 View Documents →</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.opControlBtn, { flex: 1, backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.4)' }]}
+                      onPress={() => setViewBankModalOpen(true)}
+                    >
+                      <Text style={[styles.opControlBtnText, { color: '#34d399' }]}>💳 View Bank Details →</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
               </ScrollView>
 
@@ -757,58 +782,309 @@ export default function EmployeesScreen() {
         </View>
       </Modal>
 
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 💼 LEAVING EMPLOYEE WORK & LEAD HANDOVER MODAL (ADMIN EXCLUSIVE)           */}
-      {/* ─────────────────────────────────────────────────────────────────────────── */}
-      <Modal visible={handoverModalOpen} transparent animationType="slide">
+      {/* ── MODAL: VIEW EMPLOYEE DOCUMENTS (BOTTOM BUTTON) ─────────────────── */}
+      <Modal visible={viewDocsModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={styles.modalTitle}>💼 Departing Staff Lead &amp; Work Handover</Text>
-              <TouchableOpacity onPress={() => setHandoverModalOpen(false)} style={{ padding: 4 }}>
+          <View style={styles.subModalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>📄 {inspectingEmp?.name}'s Documents</Text>
+              <TouchableOpacity onPress={() => setViewDocsModalOpen(false)}>
                 <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSub}>
-              Re-allocate all active leads, deal pipeline stages, and work status of a leaving staff member to another employee or manager.
-            </Text>
+            <Text style={styles.modalSub}>Last updated: {inspectingEmp?.documents.lastUpdatedDate || 'Aug 01, 2026'}</Text>
 
-            {/* Select Departing Staff Member */}
-            <Text style={styles.label}>Select Departing Employee (Source) *</Text>
-            {employeesList.map(emp => (
-              <TouchableOpacity
-                key={`dep-${emp.id}`}
-                style={[styles.selectOption, departingEmpId === emp.id && styles.selectOptionActive]}
-                onPress={() => setDepartingEmpId(emp.id)}
-              >
-                <Text style={[styles.selectOptionText, departingEmpId === emp.id && { color: '#ef4444', fontWeight: '800' }]}>
-                  {departingEmpId === emp.id ? '🚪 DEPARTING: ' : ''}{emp.name} ({emp.role}) • {emp.leads.totalReceived} Active Leads
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLine}>• PAN Card: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{inspectingEmp?.documents.pan}</Text></Text>
+              <Text style={styles.infoLine}>• Aadhaar Document: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.documents.aadhaar}</Text></Text>
+              <Text style={styles.infoLine}>• Educational Cert: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.documents.eduCert}</Text></Text>
+              <Text style={styles.infoLine}>• Offer Letter: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.documents.offerLetter}</Text></Text>
+            </View>
 
-            {/* Select Recipient Staff Member */}
-            <Text style={[styles.label, { marginTop: 10 }]}>Select Recipient Staff Member / Manager (Destination) *</Text>
-            {employeesList.map(emp => (
-              <TouchableOpacity
-                key={`rec-${emp.id}`}
-                style={[styles.selectOption, recipientEmpId === emp.id && styles.selectOptionActiveRecipient]}
-                onPress={() => setRecipientEmpId(emp.id)}
-              >
-                <Text style={[styles.selectOptionText, recipientEmpId === emp.id && { color: '#34d399', fontWeight: '800' }]}>
-                  {recipientEmpId === emp.id ? '📥 RECIPIENT: ' : ''}{emp.name} ({emp.role}) • Currently {emp.leads.totalReceived} Leads
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff', marginTop: 10, marginBottom: 4 }}>📜 Old Document Updates Log History:</Text>
+            <ScrollView style={{ maxHeight: 120 }}>
+              {(inspectingEmp?.documents.historyLogs.length ? inspectingEmp.documents.historyLogs : [{ date: 'Aug 01, 2026', docType: 'PAN Card', oldValue: 'XYZDE9876K', newValue: 'ABCDE1234F' }]).map((log, i) => (
+                <View key={i} style={styles.historyRow}>
+                  <Text style={{ fontSize: 10, color: '#ffffff', fontWeight: '800' }}>{log.docType} ({log.date})</Text>
+                  <Text style={{ fontSize: 9, color: '#38bdf8' }}>Updated to: {log.newValue}</Text>
+                  <Text style={{ fontSize: 9, color: '#64748b' }}>Old Record: {log.oldValue}</Text>
+                </View>
+              ))}
+            </ScrollView>
 
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b' }]} onPress={() => setHandoverModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5' }]} onPress={handleExecuteHandover}>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>Transfer All Work ✓</Text>
+            <TouchableOpacity style={styles.primaryActionBtn} onPress={() => setViewDocsModalOpen(false)}>
+              <Text style={styles.primaryActionBtnText}>Done Viewing Documents</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL: VIEW EMPLOYEE BANK DETAILS (BOTTOM BUTTON) ──────────────── */}
+      <Modal visible={viewBankModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>💳 {inspectingEmp?.name}'s Bank &amp; Payout Details</Text>
+              <TouchableOpacity onPress={() => setViewBankModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity>
             </View>
+            <Text style={styles.modalSub}>Last updated: {inspectingEmp?.bankDetails.lastUpdatedDate || 'Jul 28, 2026'}</Text>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLine}>• Bank Name: <Text style={{ color: '#34d399', fontWeight: '800' }}>{inspectingEmp?.bankDetails.bankName}</Text></Text>
+              <Text style={styles.infoLine}>• Account Holder: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.bankDetails.accountHolder}</Text></Text>
+              <Text style={styles.infoLine}>• Account Number: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.bankDetails.accountNo}</Text></Text>
+              <Text style={styles.infoLine}>• IFSC Code: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.bankDetails.ifscCode}</Text></Text>
+              <Text style={styles.infoLine}>• UPI ID: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{inspectingEmp?.bankDetails.upiId}</Text></Text>
+            </View>
+
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff', marginTop: 10, marginBottom: 4 }}>📜 Old Bank Updates Log History:</Text>
+            <ScrollView style={{ maxHeight: 120 }}>
+              {(inspectingEmp?.bankDetails.historyLogs.length ? inspectingEmp.bankDetails.historyLogs : [{ date: 'Jul 28, 2026', bankName: 'ICICI Bank', accountNo: '9876XXXX4321' }]).map((log, i) => (
+                <View key={i} style={styles.historyRow}>
+                  <Text style={{ fontSize: 10, color: '#ffffff', fontWeight: '800' }}>{log.bankName} ({log.date})</Text>
+                  <Text style={{ fontSize: 9, color: '#34d399' }}>Account: {log.accountNo}</Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.primaryActionBtn} onPress={() => setViewBankModalOpen(false)}>
+              <Text style={styles.primaryActionBtnText}>Done Viewing Bank Details</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── ROLE UPGRADE MODAL ─────────────────────────────────────────── */}
+      <Modal visible={roleUpgradeModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <Text style={styles.modalTitle}>⚡ Upgrade Staff Role</Text>
+            <Text style={styles.modalSub}>Select new role for {inspectingEmp?.name}:</Text>
+
+            {['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'].map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.roleOption, inspectingEmp?.role === r && styles.roleOptionActive]}
+                onPress={() => handleUpgradeRole(r as any)}
+              >
+                <Text style={styles.roleOptionText}>{r.replace('_', ' ')}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.closeSubModalBtn} onPress={() => setRoleUpgradeModalOpen(false)}>
+              <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 12 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── CHANGE SUPERVISOR MODAL ────────────────────────────────────── */}
+      <Modal visible={supervisorModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <Text style={styles.modalTitle}>✏️ Change Assigned Supervisor</Text>
+            <Text style={styles.modalSub}>Re-assign supervisor for {inspectingEmp?.name}:</Text>
+
+            {['Tenant Admin (Vikram Singh)', 'Manager A (Amit Shah)', 'Manager B (Neha Joshi)', 'Priya Sharma (Team Leader)'].map(m => (
+              <TouchableOpacity
+                key={m}
+                style={[styles.roleOption, inspectingEmp?.assignedManager === m && styles.roleOptionActive]}
+                onPress={() => handleChangeSupervisor(m)}
+              >
+                <Text style={styles.roleOptionText}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.closeSubModalBtn} onPress={() => setSupervisorModalOpen(false)}>
+              <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 12 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── LEAD PREVIEW MODAL ─────────────────────────────────────────── */}
+      <Modal visible={leadPreviewModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>📦 {previewLeadCategory} Leads Collection</Text>
+              <TouchableOpacity onPress={() => setLeadPreviewModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSub}>Viewing lead records for {inspectingEmp?.name}:</Text>
+
+            <ScrollView style={{ maxHeight: 220 }}>
+              {[
+                { name: 'Acme Corp (Vikram)', status: 'IN NEGOTIATION', value: '$14,200' },
+                { name: 'LogiTech Systems', status: 'CONTACTED', value: '$8,500' },
+                { name: 'Sunita Logistics', status: 'WON', value: '$28,000' },
+              ].map((ld, i) => (
+                <View key={i} style={styles.leadCardRow}>
+                  <View>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{ld.name}</Text>
+                    <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700' }}>Value: {ld.value}</Text>
+                  </View>
+                  <View style={styles.statusPill}>
+                    <Text style={styles.statusPillText}>{ld.status}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
+              onPress={() => {
+                setLeadPreviewModalOpen(false);
+                setInspectingEmp(null);
+                navigation.navigate('Leads');
+              }}
+            >
+              <Text style={styles.primaryActionBtnText}>Open Full Lead Collection Page →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── PENDING LEAVE REQUEST INSPECTION MODAL ─────────────────────── */}
+      <Modal visible={leaveModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <Text style={styles.modalTitle}>📅 Pending Leave Application Inspection</Text>
+            <Text style={styles.modalSub}>Applicant: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.name}</Text></Text>
+
+            <View style={styles.leaveDetailsBox}>
+              <Text style={{ fontSize: 11, color: '#f8fafc', fontWeight: '800' }}>Type: Medical Sick Leave (2 Days)</Text>
+              <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>Dates: Aug 25 - Aug 26, 2026</Text>
+              <Text style={{ fontSize: 10, color: '#cbd5e1', marginTop: 4, fontStyle: 'italic' }}>Reason: "High fever and medical doctor checkup appointment."</Text>
+            </View>
+
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff', marginTop: 10, marginBottom: 4 }}>Inspector Decision Note (Required) *</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter approval note or decline remarks..."
+              placeholderTextColor="#64748b"
+              value={leaveNote}
+              onChangeText={setLeaveNote}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity style={[styles.primaryActionBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.2)', borderColor: '#ef4444' }]} onPress={() => handleApproveOrDeclineLeave(false)}>
+                <Text style={[styles.primaryActionBtnText, { color: '#fca5a5' }]}>🔴 Decline with Note</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.primaryActionBtn, { flex: 1, backgroundColor: '#10b981' }]} onPress={() => handleApproveOrDeclineLeave(true)}>
+                <Text style={styles.primaryActionBtnText}>🟢 Approve Leave</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 10-DAY GRACE PERIOD DELETION ENGINE MODAL ──────────────────── */}
+      <Modal visible={deleteModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <Text style={styles.modalTitle}>🗑️ Account Deletion (10-Day Grace Period)</Text>
+            <Text style={styles.modalSub}>Target Staff: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{inspectingEmp?.name}</Text></Text>
+
+            {inspectingEmp?.deletionScheduledAt ? (
+              <View style={{ gap: 10 }}>
+                <View style={styles.graceBox}>
+                  <Text style={styles.graceText}>⚠️ Account is currently in 10-Day Grace Deletion Period. Account is locked and scheduled for purge.</Text>
+                </View>
+
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>Reason / Revert Note *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter reason to revert account deletion..."
+                  placeholderTextColor="#64748b"
+                  value={revertNote}
+                  onChangeText={setRevertNote}
+                />
+
+                <TouchableOpacity style={[styles.primaryActionBtn, { backgroundColor: '#10b981' }]} onPress={handleRequestRevertDeletion}>
+                  <Text style={styles.primaryActionBtnText}>↺ Request to Revert Account Deletion →</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ gap: 10 }}>
+                <Text style={{ fontSize: 11, color: '#cbd5e1' }}>
+                  Initiating deletion will lock screen immediately and notify user that data will be permanently purged in 10 days.
+                </Text>
+
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <TouchableOpacity style={[styles.primaryActionBtn, { flex: 1, backgroundColor: '#1e293b' }]} onPress={() => setDeleteModalOpen(false)}>
+                    <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.primaryActionBtn, { flex: 1, backgroundColor: '#ef4444' }]} onPress={handleInitiate10DayDeletion}>
+                    <Text style={styles.primaryActionBtnText}>Start 10-Day Purge →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── SHARE ROLES & RESPONSIBILITIES REPORT MODAL ─────────────────── */}
+      <Modal visible={shareRolesModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>📜 Roles &amp; Responsibilities Report</Text>
+              <TouchableOpacity onPress={() => setShareRolesModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.reportBox}>
+              <Text style={styles.reportTitle}>OFFICIAL ROLES &amp; RESPONSIBILITIES SHEET</Text>
+              <Text style={styles.reportLine}>Staff: {inspectingEmp?.name} ({inspectingEmp?.role.replace('_', ' ')})</Text>
+              <Text style={styles.reportLine}>Department Supervisor: {inspectingEmp?.assignedManager}</Text>
+              <Text style={styles.reportLine}>Active Target Progress: 88.4% Achieved</Text>
+              <Text style={styles.reportLine}>SLA Response Compliance: 98.2%</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.primaryActionBtn}
+              onPress={() => {
+                const text = `📜 *Official Roles & Responsibilities Sheet*\n\n👤 *Staff:* ${inspectingEmp?.name} (${inspectingEmp?.role})\n🏢 *Supervisor:* ${inspectingEmp?.assignedManager}\n🎯 *Target Progress:* 88.4%\n⏱️ *SLA Response:* 98.2%`;
+                Linking.openURL(`whatsapp://send?text=${encodeURIComponent(text)}`).catch(() => {
+                  Alert.alert('Report Exported', 'Report copied and ready for sharing!');
+                });
+                setShareRolesModalOpen(false);
+              }}
+            >
+              <Text style={styles.primaryActionBtnText}>Share Report via WhatsApp / PDF →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── HR TELEMETRY MODAL ─────────────────────────────────────────── */}
+      <Modal visible={hrTelemetryModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.subModalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.modalTitle}>📊 HR Telemetry — {hrTelemetryCategory}</Text>
+              <TouchableOpacity onPress={() => setHrTelemetryModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.reportBox}>
+              <Text style={styles.reportLine}>• Category: {hrTelemetryCategory}</Text>
+              <Text style={styles.reportLine}>• Managed by: {inspectingEmp?.name} (HR Operations)</Text>
+              <Text style={styles.reportLine}>• Status: Verified and logged in CRM database</Text>
+            </View>
+
+            <TouchableOpacity style={styles.primaryActionBtn} onPress={() => setHrTelemetryModalOpen(false)}>
+              <Text style={styles.primaryActionBtnText}>Close HR Audit →</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -827,34 +1103,14 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
   headerSubtitle: { fontSize: 11, color: '#94a3b8' },
 
-  handoverBannerBtn: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#4f46e5',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 16,
-    shadowColor: '#4f46e5',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  handoverBannerTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
-  handoverBannerSub: { fontSize: 10, color: '#a5b4fc', marginTop: 3 },
-
   sectionTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
 
   cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 16 },
-  empRow: { paddingVertical: 10, flexDirection: 'row', alignItems: 'center' },
+  empRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   borderBottom: { borderBottomWidth: 1, borderBottomColor: '#1e293b' },
 
-  rowAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#4f46e5' },
-  empName: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
-  empSub: { fontSize: 10, color: '#64748b' },
+  empName: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
   supervisorText: { fontSize: 11, color: '#94a3b8', marginTop: 3 },
-  telemetryText: { fontSize: 10, color: '#a5b4fc', marginTop: 2, fontWeight: '600' },
 
   roleTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   roleTagText: { fontSize: 8, fontWeight: '800' },
@@ -865,60 +1121,58 @@ const styles = StyleSheet.create({
   suspendedBadge: { backgroundColor: 'rgba(245,158,11,0.2)', borderWidth: 1, borderColor: '#f59e0b', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   suspendedBadgeText: { color: '#fcd34d', fontSize: 8, fontWeight: '900' },
 
-  adminEmpToolbar: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
-  adminToolBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  adminToolBtnActive: { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: '#ef4444' },
-  adminToolBtnText: { color: '#cbd5e1', fontSize: 9, fontWeight: '800' },
+  inspectBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  inspectBtnText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
 
-  inspectBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  inspectBtnText: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
-
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalContent: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 18 },
-  modalTitle: { fontSize: 15, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
-  modalSub: { fontSize: 11, color: '#94a3b8', marginBottom: 12 },
-  label: { fontSize: 11, color: '#cbd5e1', fontWeight: '700', marginBottom: 6 },
-
-  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   modalAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#818cf8' },
-  modalName: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
-  modalEmail: { fontSize: 10, color: '#94a3b8' },
+  modalName: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
+  modalEmail: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
 
-  tabRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  tabBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
-  tabBtnActive: { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' },
-  tabBtnText: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
-  tabBtnTextActive: { color: '#818cf8', fontWeight: '800' },
+  actionChipBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },
+  actionChipBtnText: { fontSize: 9, fontWeight: '800', color: '#a5b4fc' },
 
-  scopeNoticeCard: { backgroundColor: '#020617', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#1e293b' },
-  scopeNoticeText: { fontSize: 10, color: '#a5b4fc', fontWeight: '700' },
+  inspectorSectionTitle: { fontSize: 12, fontWeight: '800', color: '#f8fafc', marginTop: 8, marginBottom: 4 },
+  grid2Col: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  leadStatBtn: { width: '48%', backgroundColor: '#020617', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#1e293b' },
+  leadStatVal: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
+  leadStatLbl: { fontSize: 9, color: '#94a3b8', marginTop: 2, fontWeight: '700' },
 
-  infoCard: { backgroundColor: '#020617', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#1e293b' },
-  cardHeaderTitle: { fontSize: 12, fontWeight: '800', color: '#ffffff', marginBottom: 6 },
-  infoLine: { fontSize: 11, color: '#94a3b8', marginVertical: 2 },
+  opControlBtn: { backgroundColor: '#020617', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  opControlBtnText: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
 
-  hierarchyPolicyBox: { backgroundColor: 'rgba(234,179,8,0.12)', borderWidth: 1, borderColor: '#eab308', borderRadius: 8, padding: 8, marginBottom: 6 },
-  hierarchyPolicyText: { fontSize: 10, color: '#facc15', fontWeight: '800', lineHeight: 14 },
+  subBox: { backgroundColor: '#020617', borderRadius: 12, padding: 8, borderWidth: 1, borderColor: '#1e293b', gap: 6 },
+  subRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  subName: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
+  subMeta: { fontSize: 10, color: '#818cf8', fontWeight: '700' },
 
-  managerOption: { backgroundColor: '#0f172a', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
-  managerOptionActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.1)' },
-  reassignBtn: { backgroundColor: '#4f46e5', paddingVertical: 8, borderRadius: 8, alignItems: 'center', marginTop: 6 },
-  reassignBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
+  closeModalBtn: { marginTop: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: '#1e293b', alignItems: 'center' },
 
-  summaryBadgesRow: { flexDirection: 'row', gap: 8 },
-  badgeBox: { flex: 1, backgroundColor: '#020617', borderRadius: 10, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: '#1e293b' },
-  badgeVal: { fontSize: 16, fontWeight: '900', color: '#34d399' },
-  badgeLbl: { fontSize: 9, color: '#94a3b8' },
+  subModalCard: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  modalTitle: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  modalSub: { fontSize: 10, color: '#94a3b8', marginBottom: 10 },
 
-  subItemCard: { backgroundColor: '#020617', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#1e293b' },
-  distRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b' },
+  roleOption: { backgroundColor: '#020617', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 6 },
+  roleOptionActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)' },
+  roleOptionText: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
+  closeSubModalBtn: { marginTop: 8, paddingVertical: 8, alignItems: 'center' },
 
-  selectOption: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', padding: 10, borderRadius: 10, marginBottom: 6 },
-  selectOptionActive: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
-  selectOptionActiveRecipient: { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: '#22c55e' },
-  selectOptionText: { fontSize: 11, color: '#94a3b8' },
+  leadCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 6 },
+  statusPill: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  statusPillText: { fontSize: 9, fontWeight: '800', color: '#818cf8' },
+  primaryActionBtn: { backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  primaryActionBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
 
-  closeModalBtn: { marginTop: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#1e293b', alignItems: 'center' },
-  modalBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  leaveDetailsBox: { backgroundColor: '#020617', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#1e293b' },
+  textInput: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', color: '#ffffff', padding: 10, fontSize: 11, marginTop: 4 },
+  graceBox: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: '#f59e0b', borderRadius: 10, padding: 10 },
+  graceText: { fontSize: 10, color: '#fcd34d', fontWeight: '800', lineHeight: 14 },
+  reportBox: { backgroundColor: '#020617', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#1e293b', marginVertical: 8, gap: 4 },
+  reportTitle: { fontSize: 11, fontWeight: '900', color: '#818cf8', marginBottom: 4 },
+  reportLine: { fontSize: 10, color: '#cbd5e1' },
+  infoCard: { backgroundColor: '#020617', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#1e293b', gap: 4 },
+  infoLine: { fontSize: 10, color: '#cbd5e1' },
+  historyRow: { backgroundColor: '#020617', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', marginBottom: 4 },
 });

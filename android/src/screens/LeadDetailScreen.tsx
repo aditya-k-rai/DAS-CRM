@@ -20,6 +20,7 @@ import {
   Image,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LeadsStackParamList } from '../../App';
 import { callSyncEngine, LeadCallSummary } from '../services/callSyncEngine';
@@ -32,6 +33,7 @@ import {
   ProductItem,
 } from '../services/whatsappTemplateEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
+import { PaymentStatusModal, PaymentOutcomeResult } from '../components/PaymentStatusModal';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -61,6 +63,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const leadPhone = lead?.phone || '+91 98765 43210';
   const leadCompany = lead?.company || 'Acme Partner';
   const leadValue = lead?.value || '$14,200';
+
+  // Dynamic Lead Status State
+  const [leadStatusState, setLeadStatusState] = useState<string>(lead?.status || 'NEW LEAD');
 
   // Live Call Telemetry State
   const [telemetry, setTelemetry] = useState<LeadCallSummary>({
@@ -206,10 +211,44 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     setTelemetry(prev => ({
       ...prev,
       lastCalledAt: `Today, ${data.timestamp}`,
-      connectionStatus: data.outcome === 'PICKED_UP' ? 'CONNECTED' : data.outcome === 'BUSY' ? 'NO_ANSWER' : 'MISSED',
       outgoingCount: prev.outgoingCount + 1,
       lastFollowupAt: data.scheduledDate ? `${data.scheduledDate} ${data.scheduledTime || ''}` : `Today, ${data.timestamp}`,
     }));
+
+    // ⚡ AUTOMATED LEAD STATUS TRANSITION ENGINE
+    if (data.scheduledDate) {
+      setLeadStatusState('MEETING SCHEDULED');
+      Alert.alert('📅 Status Updated', 'Meeting / Follow-up scheduled! Lead status auto-updated to MEETING SCHEDULED.');
+    } else if (data.selectedProduct || data.subOption === 'CATALOGUE_SHARED') {
+      setLeadStatusState('IN NEGOTIATION');
+      Alert.alert('📄 Status Updated', 'Product details / Quotation shared! Lead status auto-updated to IN NEGOTIATION.');
+    } else if (data.outcome === 'PICKED_UP' || data.subOption === 'TALKED') {
+      if (!leadStatusState || leadStatusState === 'NEW LEAD' || leadStatusState === 'NEW') {
+        setLeadStatusState('CONTACTED');
+        Alert.alert('📞 Status Updated', 'Call picked up & feedback recorded! Lead status auto-updated to CONTACTED.');
+      }
+    }
+  };
+
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+
+  const handleConfirmPaymentOutcome = (result: PaymentOutcomeResult) => {
+    setLeadStatusState(result.targetLeadStatus);
+    handleSaveCallOutcome({
+      leadId,
+      leadName,
+      phone: leadPhone,
+      outcome: 'WHATSAPP_CHAT',
+      subOption: 'WA_SENT',
+      notes: `Invoice Payment Result: ${result.paymentStatus} — ${result.notes}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    if (result.targetLeadStatus === 'WON') {
+      Alert.alert('🎉 Deal Won!', 'Payment cleared! Lead status auto-updated to WON.');
+    } else {
+      Alert.alert('📄 Status Recorded', `Invoice payment logged as ${result.paymentStatus}. Status set to IN NEGOTIATION.`);
+    }
   };
 
   // 💬 WHATSAPP DIRECT HANDLER
@@ -331,9 +370,13 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       ? '#fbbf24'
       : '#94a3b8';
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 24 }]} showsVerticalScrollIndicator={false}>
 
         {/* Back Button */}
         <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
@@ -358,23 +401,63 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </View>
 
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>{lead?.status || 'NEW LEAD'}</Text>
+            <Text style={[styles.statusText, { color: statusColor }]}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
           </View>
         </View>
 
-        {/* Action Buttons: 📞 CALL NOW, 💬 WHATSAPP & 📝 UPDATE LEAD STATUS */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.callBtn, { flex: 1 }]} onPress={handleCall} activeOpacity={0.8}>
-            <Text style={styles.callBtnText}>📞 Call</Text>
-          </TouchableOpacity>
+        {/* Action Buttons Toolbar (6 Buttons: Call, WhatsApp Direct, WA Cloud, Direct Email, Email Marketing, Update Status) */}
+        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+          {/* Row 1 */}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity style={[styles.callBtn, { flex: 1 }]} onPress={handleCall} activeOpacity={0.8}>
+              <Text style={styles.callBtnText}>📞 Call</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.whatsappBtn, { flex: 1 }]} onPress={handleWhatsApp} activeOpacity={0.8}>
-            <Text style={styles.whatsappBtnText}>💬 WhatsApp</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={[styles.whatsappBtn, { flex: 1 }]} onPress={handleWhatsApp} activeOpacity={0.8}>
+              <Text style={styles.whatsappBtnText}>💬 WhatsApp Direct</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.updateStatusBtn, { flex: 1.2 }]} onPress={() => setPostCallModalOpen(true)} activeOpacity={0.8}>
-            <Text style={styles.updateStatusBtnText}>📝 Update Status</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: '#4f46e5', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => { handleWhatsApp(); setLeadStatusState('IN NEGOTIATION'); setPaymentModalOpen(true); }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '900' }}>☁️ WA Cloud</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Row 2 */}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(2,132,199,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => {
+                const em = lead?.email || 'lead@example.com';
+                Linking.openURL(`mailto:${em}?subject=Follow-up%20from%20DAS%20CRM`).catch(() => Alert.alert('Direct Email', `Opening email for ${em}...`));
+                if (leadStatusState === 'NEW LEAD') setLeadStatusState('CONTACTED');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>✉️ Direct Email</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(139,92,246,0.15)', borderWidth: 1, borderColor: 'rgba(192,132,252,0.4)', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => {
+                setLeadStatusState('IN NEGOTIATION');
+                Alert.alert('🚀 Email Marketing', 'Automated Email Marketing campaign dispatched! Status updated to IN NEGOTIATION.', [
+                  { text: 'Send Invoice & Check Payment', onPress: () => setPaymentModalOpen(true) },
+                  { text: 'OK' },
+                ]);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#c084fc', fontSize: 11, fontWeight: '800' }}>🚀 Email Marketing</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.updateStatusBtn, { flex: 1 }]} onPress={() => setPostCallModalOpen(true)} activeOpacity={0.8}>
+              <Text style={styles.updateStatusBtnText}>📝 Update Status</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── 🔗 LEAD ALLOCATION & ASSIGNMENT CHAIN TRAIL ───────────────────────── */}
@@ -766,6 +849,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         phone={leadPhone}
         onClose={() => setPostCallModalOpen(false)}
         onSaveOutcome={handleSaveCallOutcome}
+      />
+
+      {/* 💳 INVOICE & PAYMENT STATUS CONFIRMATION POPUP MODAL */}
+      <PaymentStatusModal
+        visible={paymentModalOpen}
+        leadName={leadName}
+        leadValue={lead?.value || '$14,200'}
+        onClose={() => setPaymentModalOpen(false)}
+        onConfirmPaymentOutcome={handleConfirmPaymentOutcome}
       />
     </View>
   );

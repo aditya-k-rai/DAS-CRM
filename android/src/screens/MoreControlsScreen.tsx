@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductsCatalogScreen from './ProductsCatalogScreen';
 import { CommunicationScreen } from './CommunicationScreen';
 import { WhatsAppTemplatesScreen } from './WhatsAppTemplatesScreen';
@@ -97,9 +98,13 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     );
   }
 
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
   // Operations Directory Grid View (Default)
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
       {/* ── TOP HEADER ──────────────────────────────────────────────────────── */}
       <View style={styles.headerArea}>
         <Text style={styles.headerTitle}>Operations Control Center</Text>
@@ -107,7 +112,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       </View>
 
       {/* ── 2-COLUMN GRID OF BUTTONS (MATCHING USER DIAGRAM) ───────────────── */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.gridContainer}>
           {GRID_BUTTONS.map((btn) => (
             <TouchableOpacity

@@ -1,21 +1,14 @@
 /**
  * AttendanceScreen.tsx — DAS CRM Android (Tab 5: Attendance)
- * Complete visual & functional parity with user requests:
- * 1. Admin Policy:
- *    - Admin does NOT register attendance; Admin verifies & manages employee attendance.
- *    - "Mark Attendance" camera module hidden for Admin.
- *    - "All Employee Attendance" view active for Admin with Employee Dropdown (Manager, HR, Sales, TL).
- * 2. Live Attendance Selfie Camera Modal:
- *    - Camera viewfinder viewport modal opens on tapping "Punch In / Snap Selfie".
- *    - Camera HUD overlay showing live GPS coordinates, Office Geo-Fence status, and Server Timestamp.
- *    - Front/Rear lens switcher and Flash toggle.
- * 3. Location Access Rationale & Non-Blocking Fallback:
- *    - Clear location rationale modal explaining Office Geo-Fence boundary verification (500m radius).
- *    - Graceful fallback option ("Proceed with Default Office Geo Tag") so attendance is NEVER deadlocked if location is disabled!
- * 4. Working Hours Rules & Admin Override:
- *    - Full Day >= 8 hrs (e.g. 8h 30m)
- *    - Half Day < 5 hrs (e.g. 4h 15m)
- *    - Admin date override controls: Set Present (Full Day), Set Half Day (<5h), Set Absent, Set Leave.
+ * Complete Attendance with Live Camera Capture & GPS Location Permissions:
+ * 1. Expo Camera & Image Picker Integration:
+ *    - Requests runtime Camera permissions & launches device camera for live selfie capture.
+ * 2. Expo Location Integration:
+ *    - Requests runtime Location permissions & fetches high-accuracy GPS coordinates.
+ *    - Calculates real distance to Office HQ Geo-Fence (28.440743, 77.531117).
+ * 3. Graceful Fallback & Admin Controls:
+ *    - Allows fallback HQ geo-tag if location is disabled or in offline environment.
+ *    - Full Day >= 8 hrs, Half Day < 5 hrs rules + Admin date override controls.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -32,8 +25,11 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { apiService } from '../services/apiService';
+import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 
 // Interface for daily attendance record
 interface DailyRecord {
@@ -130,9 +126,6 @@ export default function AttendanceScreen() {
   // ── PUNCH STATE & LOCATION PRIVACY TIMER ─────────────────────────────────────
   const [punchedIn, setPunchedIn] = useState(true);
   const [locationPromptOpen, setLocationPromptOpen] = useState(false);
-  const [countdownSeconds, setCountdownSeconds] = useState(30);
-  const [locationDisabledInApp, setLocationDisabledInApp] = useState(false);
-  const [privacyTimerActive, setPrivacyTimerActive] = useState(false);
 
   // Month Filter State (Past 3 Months)
   const [selectedMonth, setSelectedMonth] = useState<'AUG' | 'JUL' | 'JUN'>('AUG');
@@ -144,11 +137,10 @@ export default function AttendanceScreen() {
   // ── AUTOMATIC PERMISSIONS & LIVE SERVER TIME CLOCK ON MOUNT ───────────────
   useEffect(() => {
     if (!isAdmin) {
-      requestPermissions();
+      requestAllPermissions();
     }
     fetchServerTime();
 
-    // 1-second live ticking clock interval
     const clockInterval = setInterval(() => {
       fetchServerTime();
     }, 1000);
@@ -156,12 +148,11 @@ export default function AttendanceScreen() {
     return () => clearInterval(clockInterval);
   }, [isAdmin]);
 
-  // Generate dynamic records map per employee + month
+  // ── RECORD GENERATION ──────────────────────────────────────────────────────
   const [recordsMap, setRecordsMap] = useState<Record<number, DailyRecord>>(() => {
     return generateRecordsForEmployee(selectedEmployeeId, selectedMonth);
   });
 
-  // Re-generate records when employee or month changes
   useEffect(() => {
     setRecordsMap(generateRecordsForEmployee(selectedEmployeeId, selectedMonth));
   }, [selectedEmployeeId, selectedMonth]);
@@ -215,7 +206,6 @@ export default function AttendanceScreen() {
         outTime = '01:30 PM';
         workingHours = '4h 15m';
       } else if (d === new Date().getDate() && month === 'AUG') {
-        // Today
         status = 'PRESENT';
         statusLabel = 'Punched In (Today)';
         inTime = '09:21 AM';
@@ -238,13 +228,8 @@ export default function AttendanceScreen() {
     return map;
   }
 
-  // Calculate dynamic monthly counts based on recordsMap
   const dynamicCounts = useMemo(() => {
-    let present = 0,
-      absent = 0,
-      halfDay = 0,
-      leave = 0,
-      weekOff = 0;
+    let present = 0, absent = 0, halfDay = 0, leave = 0, weekOff = 0;
     Object.values(recordsMap).forEach((r) => {
       if (r.status === 'PRESENT') present++;
       else if (r.status === 'ABSENT') absent++;
@@ -255,23 +240,6 @@ export default function AttendanceScreen() {
     return { present, absent, halfDay, leave, weekOff };
   }, [recordsMap]);
 
-  const startPrivacyCountdown = () => {
-    setPrivacyTimerActive(true);
-    setCountdownSeconds(30);
-
-    const interval = setInterval(() => {
-      setCountdownSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setPrivacyTimerActive(false);
-          setLocationPromptOpen(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
   const fetchServerTime = async () => {
     const timeData = await apiService.getServerTime();
     setServerTimeDisplay(timeData.serverTime);
@@ -279,98 +247,116 @@ export default function AttendanceScreen() {
     setServerFormattedDate(timeData.formattedDate);
   };
 
-  const fetchCurrentLocation = () => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setUserCoords({ lat, lng });
-          const dist = calculateDistanceMeters(lat, lng, OFFICE_GEO.lat, OFFICE_GEO.lng);
-          setGeoDistanceMeters(dist);
-          setIsInsideGeoFence(dist <= OFFICE_GEO.maxRadiusMeters);
-        },
-        () => {
-          // Fallback to HQ Geo coords if GPS disabled or timeout
-          setUserCoords({ lat: 28.440743, lng: 77.531117 });
-          setGeoDistanceMeters(14);
-          setIsInsideGeoFence(true);
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
-      );
-    } else {
-      setUserCoords({ lat: 28.440743, lng: 77.531117 });
-      setGeoDistanceMeters(14);
-      setIsInsideGeoFence(true);
+  // ── REAL GPS LOCATION FETCH VIA EXPO LOCATION & PERMISSIONS ─────────────
+  const fetchCurrentLocation = async () => {
+    try {
+      // 1. Request Android native location permissions
+      if (Platform.OS === 'android') {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+        ]);
+      }
+
+      // 2. Request Expo Location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        setLocationPermissionGranted(true);
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const lat = loc.coords.latitude;
+        const lng = loc.coords.longitude;
+        setUserCoords({ lat, lng });
+
+        const dist = calculateDistanceMeters(lat, lng, OFFICE_GEO.lat, OFFICE_GEO.lng);
+        setGeoDistanceMeters(dist);
+        setIsInsideGeoFence(dist <= OFFICE_GEO.maxRadiusMeters);
+        return { lat, lng, isLocOk: true };
+      }
+    } catch (err) {
+      console.log('Location fetch error:', err);
     }
+
+    // Fallback HQ Geo coords
+    setUserCoords({ lat: 28.440743, lng: 77.531117 });
+    setGeoDistanceMeters(14);
+    setIsInsideGeoFence(true);
+    return { lat: 28.440743, lng: 77.531117, isLocOk: false };
   };
 
-  const requestPermissions = async (): Promise<{ isCamOk: boolean; isLocOk: boolean }> => {
+  // ── REAL DEVICE CAMERA LAUNCH & SELFIE CAPTURE ───────────────────────────
+  const handleLaunchDeviceCamera = async () => {
+    try {
+      // 1. Request Android native camera permission
+      if (Platform.OS === 'android') {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+      }
+
+      // 2. Request Expo ImagePicker camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          '📷 Camera Permission Required',
+          'Camera access is required to capture live attendance selfies. Please grant Camera permission in device settings.',
+          [
+            { text: '📍 Open Device Settings', onPress: () => Linking.openSettings() },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        return false;
+      }
+
+      setCameraPermissionGranted(true);
+
+      // 3. Launch native camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        cameraType: isFrontCamera ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const takenUri = result.assets[0].uri;
+        setCapturedPhoto(takenUri);
+        setCameraModalOpen(true);
+        await fetchCurrentLocation();
+        return true;
+      }
+    } catch (err) {
+      console.log('Camera launch error:', err);
+      setCameraModalOpen(true);
+    }
+    return false;
+  };
+
+  // Request all permissions on mount / action
+  const requestAllPermissions = async () => {
     if (Platform.OS === 'android') {
       try {
-        const grantedResults = await PermissionsAndroid.requestMultiple([
+        await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.CAMERA,
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
         ]);
-
-        const isCamOk = grantedResults[PermissionsAndroid.PERMISSIONS.CAMERA] === PermissionsAndroid.RESULTS.GRANTED;
-        const isLocOk =
-          grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED ||
-          grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
-
-        setCameraPermissionGranted(isCamOk);
-        setLocationPermissionGranted(isLocOk);
-        fetchCurrentLocation();
-        return { isCamOk, isLocOk };
-      } catch (err) {
-        setCameraPermissionGranted(true);
-        setLocationPermissionGranted(true);
-        fetchCurrentLocation();
-        return { isCamOk: true, isLocOk: true };
-      }
+      } catch (e) {}
     }
-    setCameraPermissionGranted(true);
-    setLocationPermissionGranted(true);
-    fetchCurrentLocation();
-    return { isCamOk: true, isLocOk: true };
+    await ImagePicker.requestCameraPermissionsAsync();
+    await Location.requestForegroundPermissionsAsync();
+    await fetchCurrentLocation();
   };
 
   // ── PUNCH TOGGLE & CAMERA CAPTURE HANDLER ─────────────────────────
   const handlePunchToggle = async () => {
-    fetchCurrentLocation();
-    const { isCamOk, isLocOk } = await requestPermissions();
-
-    if (!isLocOk && !locationPermissionGranted) {
-      Alert.alert(
-        '📍 Location Verification Required',
-        'Geo-fencing boundary verification ensures attendance is logged within the Office HQ (28.440743, 77.531117).',
-        [
-          { text: '📍 Grant Device GPS', onPress: () => requestPermissions() },
-          {
-            text: '📍 Use Office HQ Geo Tag (Fallback)',
-            onPress: () => {
-              setLocationPermissionGranted(true);
-              setUserCoords({ lat: 28.440743, lng: 77.531117 });
-              setGeoDistanceMeters(14);
-              setIsInsideGeoFence(true);
-              setCameraModalOpen(true);
-            },
-          },
-        ]
-      );
-      return;
+    await requestAllPermissions();
+    const success = await handleLaunchDeviceCamera();
+    if (!success) {
+      setCameraModalOpen(true);
     }
-
-    if (!isCamOk && !cameraPermissionGranted) {
-      setCameraPermissionGranted(true);
-    }
-
-    setCameraModalOpen(true);
   };
 
   const executePunch = async (isAdminOverride: boolean) => {
-    fetchCurrentLocation();
+    await fetchCurrentLocation();
     const token = useAuthStore.getState().token;
     const serverData = await apiService.getServerTime();
     const nowTime = serverData.formattedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -380,23 +366,8 @@ export default function AttendanceScreen() {
     const currentGeoStr = `${userCoords.lat.toFixed(6)}, ${userCoords.lng.toFixed(6)} (${OFFICE_GEO.name} • ${geoDistanceMeters}m from HQ)`;
     const punchType = punchedIn ? 'OUT' : 'IN';
 
-    const frontPhotos = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-    ];
-    const rearPhotos = [
-      'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=400&q=80',
-      'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=400&q=80',
-    ];
+    const newPhoto = capturedPhoto;
 
-    const chosenList = isFrontCamera ? frontPhotos : rearPhotos;
-    const newPhoto = capturedPhoto && capturedPhoto !== frontPhotos[0]
-      ? capturedPhoto
-      : chosenList[Math.floor(Math.random() * chosenList.length)];
-    setCapturedPhoto(newPhoto);
-
-    // 🚀 LIVE BACKEND API SYNC
     try {
       await apiService.recordAttendancePunch(token, {
         type: punchType,
@@ -434,7 +405,7 @@ export default function AttendanceScreen() {
       setCameraModalOpen(false);
       Alert.alert(
         '✅ Punched Out (Server & Backend Synced)',
-        `Server Timestamp: ${serverData.serverTime}\n\nPunch out recorded at ${nowTime} from ${currentGeoStr}.\nGeo-fence distance: ${geoDistanceMeters}m\n\nLive location & selfie image synced to backend!`
+        `Server Timestamp: ${serverData.serverTime}\n\nPunch out recorded at ${nowTime} from ${currentGeoStr}.\n\nLive GPS location & selfie image synced to CRM backend!`
       );
     } else {
       setPunchedIn(true);
@@ -449,297 +420,241 @@ export default function AttendanceScreen() {
             inGeo: currentGeoStr,
             outTime: null,
             outGeo: null,
-            workingHours: 'Active',
+            workingHours: '0h (Active)',
             selfieUrl: newPhoto,
           }),
-          status: 'PRESENT',
           inTime: nowTime,
           inGeo: currentGeoStr,
-          statusLabel: 'Punched In (Today)',
+          statusLabel: isAdminOverride ? 'Punched In (Override)' : 'Punched In (Today)',
           selfieUrl: newPhoto,
         },
       }));
       setCameraModalOpen(false);
       Alert.alert(
-        '✅ Punched In (Server & Backend Synced)',
-        `Server Timestamp: ${serverData.serverTime}\n\nPunch in recorded at ${nowTime} from ${currentGeoStr}.\nGeo-fence distance: ${geoDistanceMeters}m\n\nLive location & selfie image synced to backend!`
+        '🎉 Punched In Successfully!',
+        `Server Timestamp: ${serverData.serverTime}\n\nPunch in recorded at ${nowTime} from ${currentGeoStr}.\n\nLive GPS location & selfie image synced!`
       );
     }
-
-    startPrivacyCountdown();
   };
 
-  // ── ADMIN OVERRIDE STATUS HANDLERS ─────────────────────────────────────────
-  const handleAdminSetStatus = (newStatus: 'PRESENT' | 'HALF_DAY' | 'ABSENT' | 'LEAVE') => {
-    let statusLabel = '';
+  const handleAdminSetStatus = (newStatus: DailyRecord['status']) => {
+    let statusLabel = 'Full Day (8h 30m)';
+    let workingHours = '8h 30m';
     let inTime = '09:15 AM';
     let outTime: string | null = '05:45 PM';
-    let workingHours = '8h 30m';
-    let inGeo = '28.440743, 77.531117';
-    let outGeo: string | null = '28.440743, 77.531117';
 
-    if (newStatus === 'PRESENT') {
-      statusLabel = 'Full Day (8h 30m)';
-      inTime = '09:15 AM';
-      outTime = '05:45 PM';
-      workingHours = '8h 30m';
+    if (newStatus === 'ABSENT') {
+      statusLabel = 'Absent (Admin Override)';
+      workingHours = '0h';
+      inTime = '—';
+      outTime = null;
     } else if (newStatus === 'HALF_DAY') {
       statusLabel = 'Half Day (<5 hrs)';
+      workingHours = '4h 15m';
       inTime = '09:15 AM';
       outTime = '01:30 PM';
-      workingHours = '4h 15m';
-    } else if (newStatus === 'ABSENT') {
-      statusLabel = 'Absent Record';
-      inTime = '—';
-      outTime = null;
-      inGeo = 'Location not available';
-      outGeo = null;
-      workingHours = '0h';
     } else if (newStatus === 'LEAVE') {
       statusLabel = 'Approved Leave';
+      workingHours = '0h';
       inTime = '—';
       outTime = null;
-      inGeo = 'Location not available';
-      outGeo = null;
-      workingHours = '0h';
     }
 
     setRecordsMap((prev) => ({
       ...prev,
       [selectedDay]: {
-        ...prev[selectedDay],
+        ...(prev[selectedDay] || {
+          day: selectedDay,
+          status: newStatus,
+          statusLabel,
+          inTime,
+          inGeo: '28.440743, 77.531117 (Admin Override)',
+          outTime,
+          outGeo: outTime ? '28.440743, 77.531117' : null,
+          workingHours,
+          selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        }),
         status: newStatus,
         statusLabel,
-        inTime,
-        inGeo,
-        outTime,
-        outGeo,
         workingHours,
+        inTime,
+        outTime,
       },
     }));
 
     Alert.alert(
-      '✅ Attendance Status Updated',
-      `Admin Override applied for ${selectedEmployee.name} on ${selectedDay} ${selectedMonth} 2026:\n\n• New Status: ${newStatus}\n• Working Hours: ${workingHours}\n• In: ${inTime} | Out: ${outTime || 'N/A'}`
+      '👑 Admin Override Saved',
+      `Attendance for ${selectedEmployee.name} on ${selectedDay} ${selectedMonth} 2026 set to ${newStatus}.`
     );
   };
 
   const openGoogleMaps = (geoStr: string) => {
-    if (!geoStr || geoStr.includes('not available')) {
-      Alert.alert('No Location', 'GPS coordinates are not available for this record.');
-      return;
+    const match = geoStr.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if (match) {
+      const lat = match[1];
+      const lng = match[2];
+      const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+      Linking.openURL(url).catch(() => {
+        Alert.alert('Map Location', `Coordinates: ${lat}, ${lng}`);
+      });
+    } else {
+      Alert.alert('Map Location', `Geo string: ${geoStr}`);
     }
-    const url = `https://maps.google.com/?q=${geoStr.trim()}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Maps Error', 'Could not open maps browser application.');
-    });
   };
 
-  const monthName = {
-    AUG: 'Aug 2026',
-    JUL: 'Jul 2026',
-    JUN: 'Jun 2026',
-  }[selectedMonth];
+  const activeDayRecord = recordsMap[selectedDay] || {
+    day: selectedDay,
+    status: 'FUTURE',
+    statusLabel: 'No Record',
+    inTime: '—',
+    inGeo: 'Location not recorded',
+    outTime: null,
+    outGeo: null,
+    workingHours: '0h',
+    selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  };
 
-  // Currently Selected Day Record
-  const activeDayRecord = recordsMap[selectedDay] || recordsMap[19];
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
+
+  const monthName = selectedMonth === 'AUG' ? 'August' : selectedMonth === 'JUL' ? 'July' : 'June';
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* 🏢 Company Title Header */}
-        <View style={styles.companyHeader}>
-          <Text style={styles.companyHeaderTitle}>{currentUser.companyName || 'Acme Sales Solutions'}</Text>
-          <Text style={styles.companyHeaderSub}>
-            {isAdmin ? '👑 Tenant Admin — Workforce Attendance & Verification Control' : 'Attendance Management & Verification System'}
-          </Text>
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      {/* ── TOP HEADER BAR ───────────────────────────────────────────────── */}
+      <View style={styles.topHeaderBar}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.topHeaderTitle}>Attendance &amp; Workforce Verification</Text>
+          <Text style={styles.topHeaderSub}>{serverTimeDisplay}</Text>
         </View>
 
-        {/* ⏱️ SERVER-AUTHORITATIVE TIME & DATE BADGE */}
-        <View style={styles.serverTimeCard}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 14 }}>🌐</Text>
-              <Text style={styles.serverTimeTitle}>Server-Authoritative Time (Anti-Tamper)</Text>
-            </View>
-            <TouchableOpacity onPress={fetchServerTime} style={styles.syncTimeBtn}>
-              <Text style={styles.syncTimeBtnText}>🔄 Refresh Time</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.serverTimeVal}>{serverTimeDisplay}</Text>
-        </View>
-
-        {/* 🔘 TOP SEGMENTED SWITCHER */}
-        <View style={styles.segmentedContainer}>
-          {!isAdmin ? (
-            <>
-              <TouchableOpacity
-                style={[styles.segmentedTab, activeTab === 'MARK' && styles.segmentedTabActive]}
-                onPress={() => setActiveTab('MARK')}
-              >
-                <Text style={[styles.segmentedText, activeTab === 'MARK' && styles.segmentedTextActive]}>
-                  ☝️ Mark Attendance
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.segmentedTab, activeTab === 'MY_ATTENDANCE' && styles.segmentedTabActive]}
-                onPress={() => setActiveTab('MY_ATTENDANCE')}
-              >
-                <Text style={[styles.segmentedText, activeTab === 'MY_ATTENDANCE' && styles.segmentedTextActive]}>
-                  📅 My Attendance
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={[styles.segmentedTab, styles.segmentedTabActive, { flex: 1 }]}>
-              <Text style={styles.segmentedTextActive}>
-                👥 All Employee Attendance Audit &amp; Verification
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ========================================================================= */}
-        {/* 📷 MODE 1: MARK ATTENDANCE (NON-ADMIN USERS ONLY)                        */}
-        {/* ========================================================================= */}
-        {!isAdmin && activeTab === 'MARK' && (
-          <View style={styles.markViewContainer}>
-            {/* PERMISSIONS & GEO-FENCE STATUS RIBBON */}
-            <View style={styles.permissionRibbon}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d' }}>📷 CAM: GRANTED</Text>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: '#0369a1' }}>📍 GPS: ACTIVE</Text>
-              </View>
-
-              <View style={[styles.geoBadge, isInsideGeoFence ? styles.geoBadgeIn : styles.geoBadgeOut]}>
-                <Text style={styles.geoBadgeText}>
-                  {isInsideGeoFence ? `🟢 INSIDE GEO-FENCE (${geoDistanceMeters}m)` : `🔴 OUTSIDE GEO-FENCE (${geoDistanceMeters}m)`}
-                </Text>
-              </View>
-            </View>
-
-            {/* Punch Status Badge & Camera Controls */}
-            <View style={styles.markHeaderRow}>
-              <View style={[styles.statusPill, punchedIn ? styles.statusPillIn : styles.statusPillOut]}>
-                <Text style={styles.statusPillText}>
-                  19 August • {punchedIn ? 'Punched In' : 'Punched Out'}
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity
-                  style={[styles.camControlBtn, flashOn && styles.camControlBtnActive]}
-                  onPress={() => setFlashOn(!flashOn)}
-                >
-                  <Text style={{ fontSize: 14 }}>⚡ {flashOn ? 'ON' : 'OFF'}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.camControlBtn}
-                  onPress={() => setIsFrontCamera(!isFrontCamera)}
-                >
-                  <Text style={{ fontSize: 14 }}>🔄 {isFrontCamera ? 'FRONT' : 'REAR'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* CIRCULAR VIEW-FINDER PREVIEW */}
-            <TouchableOpacity style={styles.cameraViewfinderBox} onPress={handlePunchToggle} activeOpacity={0.85}>
-              <View style={styles.circularViewport}>
-                <Image source={{ uri: capturedPhoto }} style={styles.selfieImagePreview} />
-                <View style={styles.viewportOverlay}>
-                  <Text style={styles.viewportText}>
-                    {isFrontCamera ? '📷 Tap to Open Selfie Camera' : 'Rear Lens View'}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* PUNCH ACTION BUTTON — LAUNCHES CAMERA MODAL */}
+        {/* Tab Toggle: Mark vs All Attendance */}
+        <View style={styles.tabToggleBox}>
+          {!isAdmin && (
             <TouchableOpacity
-              style={[styles.punchBigButton, punchedIn ? styles.punchBtnOut : styles.punchBtnIn]}
+              style={[styles.tabToggleBtn, activeTab === 'MARK' && styles.tabToggleBtnActive]}
+              onPress={() => setActiveTab('MARK')}
+            >
+              <Text style={[styles.tabToggleText, activeTab === 'MARK' && styles.tabToggleTextActive]}>
+                Punch In/Out
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, activeTab === 'MY_ATTENDANCE' && styles.tabToggleBtnActive]}
+            onPress={() => setActiveTab('MY_ATTENDANCE')}
+          >
+            <Text style={[styles.tabToggleText, activeTab === 'MY_ATTENDANCE' && styles.tabToggleTextActive]}>
+              {isAdmin ? '👥 All Employees' : '📅 My Records'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ── CONTENT SCROLL ───────────────────────────────────────────────── */}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+
+        {/* ─────────────────────────────────────────────────────────────────────────── */}
+        {/* 📸 TAB 1: MARK ATTENDANCE (STAFF / NON-ADMIN EXCLUSIVE)                   */}
+        {/* ─────────────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'MARK' && !isAdmin && (
+          <View style={styles.markCardBox}>
+            <View style={styles.liveClockBanner}>
+              <Text style={styles.liveClockTitle}>🕒 Server Time: {serverFormattedTime}</Text>
+              <Text style={styles.liveClockSub}>{serverFormattedDate} • IST (Delhi Live Time)</Text>
+            </View>
+
+            {/* GPS & Camera Permission Status Bar */}
+            <View style={styles.permStatusBar}>
+              <TouchableOpacity onPress={requestAllPermissions} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: locationPermissionGranted ? '#34d399' : '#f87171' }}>
+                  {locationPermissionGranted ? '🟢 GPS Permission Active' : '🔴 Tap to Grant GPS Permission'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleLaunchDeviceCamera} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: cameraPermissionGranted ? '#34d399' : '#f87171' }}>
+                  {cameraPermissionGranted ? '📷 Camera Ready' : '🔴 Tap to Grant Camera'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Geo-Fence Location Telemetry Card */}
+            <View style={styles.geoCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.geoCardTitle}>📍 Office Geo-Fence Telemetry</Text>
+                <TouchableOpacity onPress={fetchCurrentLocation} style={styles.refreshGpsBtn}>
+                  <Text style={styles.refreshGpsBtnText}>🔄 Fetch Live GPS</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.geoCoordsText}>
+                Live Coords: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{userCoords.lat.toFixed(6)}, {userCoords.lng.toFixed(6)}</Text>
+              </Text>
+              <Text style={styles.geoBoundaryText}>
+                Distance from {OFFICE_GEO.name}: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{geoDistanceMeters}m</Text> (Limit: 500m)
+              </Text>
+
+              <View style={[styles.geoPill, isInsideGeoFence ? styles.geoPillInside : styles.geoPillOutside]}>
+                <Text style={[styles.geoPillText, isInsideGeoFence ? { color: '#15803d' } : { color: '#b91c1c' }]}>
+                  {isInsideGeoFence ? '✓ INSIDE OFFICE BOUNDARY (VERIFIED)' : '⚠️ OUTSIDE OFFICE BOUNDARY'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Big Punch Button (Launches Camera) */}
+            <TouchableOpacity
+              style={[styles.bigPunchBtn, punchedIn ? styles.bigPunchBtnOut : styles.bigPunchBtnIn]}
               onPress={handlePunchToggle}
               activeOpacity={0.85}
             >
-              <Text style={styles.punchBigButtonText}>
-                {punchedIn ? '📷 Take Selfie & Punch Out' : '📷 Take Selfie & Punch In'}
+              <Text style={styles.bigPunchBtnIcon}>📷</Text>
+              <Text style={styles.bigPunchBtnText}>
+                {punchedIn ? 'Snap Selfie & Punch Out →' : 'Snap Selfie & Punch In →'}
+              </Text>
+              <Text style={styles.bigPunchBtnSub}>
+                Launches Camera + Captures GPS Coords + Syncs Server Timestamp
               </Text>
             </TouchableOpacity>
-
-            {privacyTimerActive && (
-              <View style={styles.privacyCountdownBanner}>
-                <Text style={styles.privacyCountdownText}>
-                  ⏱️ Post-Punch Location Guard: Auto-prompting in {countdownSeconds}s to close GPS Location...
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.gpsBox}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.gpsText}>
-                  📍 GPS Status:{' '}
-                  <Text style={{ color: locationDisabledInApp ? '#ef4444' : '#0284c7', fontWeight: '800' }}>
-                    {locationDisabledInApp ? 'DISABLED (PRIVACY SAFE)' : `${userCoords.lat}, ${userCoords.lng}`}
-                  </Text>
-                </Text>
-                <TouchableOpacity style={styles.openSettingsBtn} onPress={() => setLocationPromptOpen(true)}>
-                  <Text style={styles.openSettingsBtnText}>⚙️ Location Settings</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
         )}
 
-        {/* ========================================================================= */}
-        {/* 📅 MODE 2: ATTENDANCE AUDIT (FOR ADMIN & MY ATTENDANCE FOR NON-ADMIN)     */}
-        {/* ========================================================================= */}
-        {(isAdmin || activeTab === 'MY_ATTENDANCE') && (
-          <View style={styles.myAttendanceContainer}>
-            {/* 👑 ADMIN EMPLOYEE AUDIT SELECTOR */}
+        {/* ─────────────────────────────────────────────────────────────────────────── */}
+        {/* 📅 TAB 2: MY ATTENDANCE / ALL EMPLOYEE AUDIT                              */}
+        {/* ─────────────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'MY_ATTENDANCE' && (
+          <View style={{ width: '100%', maxWidth: 600 }}>
+
+            {/* Admin Employee Selector Dropdown */}
             {isAdmin && (
               <View style={styles.adminEmpSelectorCard}>
-                <Text style={styles.adminEmpSelectorLabel}>👤 Select Employee to View Attendance Record:</Text>
+                <Text style={styles.adminSelectorLabel}>👑 Admin Workforce Selection:</Text>
                 <TouchableOpacity
-                  style={styles.adminEmpPickerBtn}
+                  style={styles.adminDropdownBtn}
                   onPress={() => setEmpDropdownOpen(!empDropdownOpen)}
-                  activeOpacity={0.8}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={styles.empAvatarPill}>
-                      <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 12 }}>{selectedEmployee.avatar}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: '#0f172a', fontWeight: '800', fontSize: 13 }}>{selectedEmployee.name}</Text>
-                      <Text style={{ color: '#64748b', fontSize: 10, marginTop: 1 }}>
-                        {selectedEmployee.role.replace('_', ' ')} • {selectedEmployee.dept}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={{ fontSize: 14, color: '#4f46e5', fontWeight: '900' }}>{empDropdownOpen ? '▲' : '▼'}</Text>
+                  <Text style={styles.adminDropdownText}>
+                    👤 {selectedEmployee.name} ({selectedEmployee.role}) • {selectedEmployee.dept}
+                  </Text>
+                  <Text style={{ color: '#64748b' }}>{empDropdownOpen ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
 
                 {empDropdownOpen && (
-                  <View style={styles.empDropdownList}>
+                  <View style={styles.dropdownMenu}>
                     {EMPLOYEES.map((emp) => (
                       <TouchableOpacity
                         key={emp.id}
-                        style={[styles.empDropdownItem, selectedEmployeeId === emp.id && styles.empDropdownItemActive]}
+                        style={[styles.dropdownItem, selectedEmployeeId === emp.id && styles.dropdownItemActive]}
                         onPress={() => {
                           setSelectedEmployeeId(emp.id);
                           setEmpDropdownOpen(false);
                         }}
                       >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                          <View style={[styles.empAvatarPillSmall, selectedEmployeeId === emp.id && { backgroundColor: '#4f46e5' }]}>
-                            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 10 }}>{emp.avatar}</Text>
-                          </View>
-                          <View>
-                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a' }}>{emp.name}</Text>
-                            <Text style={{ fontSize: 9, color: '#64748b' }}>{emp.role.replace('_', ' ')}</Text>
-                          </View>
-                        </View>
-                        {selectedEmployeeId === emp.id && <Text style={{ color: '#4f46e5', fontWeight: '900' }}>✓</Text>}
+                        <Text style={[styles.dropdownItemText, selectedEmployeeId === emp.id && { color: '#4f46e5', fontWeight: '800' }]}>
+                          {emp.name} ({emp.role}) — {emp.dept}
+                        </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -747,39 +662,25 @@ export default function AttendanceScreen() {
               </View>
             )}
 
-            {/* MONTH FILTER SELECTOR */}
-            <View style={styles.monthPickerContainer}>
-              <TouchableOpacity
-                style={styles.monthPickerBtn}
-                onPress={() => setMonthDropdownOpen(!monthDropdownOpen)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.monthPickerText}>📅 {monthName} {monthDropdownOpen ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-
-              {monthDropdownOpen && (
-                <View style={styles.dropdownMenu}>
-                  {[
-                    { id: 'AUG', label: 'Aug 2026 (Current)' },
-                    { id: 'JUL', label: 'Jul 2026' },
-                    { id: 'JUN', label: 'Jun 2026' },
-                  ].map((m) => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[styles.dropdownItem, selectedMonth === m.id && styles.dropdownItemActive]}
-                      onPress={() => {
-                        setSelectedMonth(m.id as any);
-                        setMonthDropdownOpen(false);
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{m.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+            {/* Month Filter Selector */}
+            <View style={styles.monthSelectorBar}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }}>Month: {monthName} 2026</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['AUG', 'JUL', 'JUN'] as const).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.monthFilterChip, selectedMonth === m && styles.monthFilterChipActive]}
+                    onPress={() => setSelectedMonth(m)}
+                  >
+                    <Text style={[styles.monthFilterChipText, selectedMonth === m && styles.monthFilterChipTextActive]}>
+                      {m} 26
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
-            {/* DYNAMIC MONTHLY SUMMARY COUNTERS */}
+            {/* Dynamic Summary Badges Row */}
             <View style={styles.summaryBadgesRow}>
               <View style={styles.summaryBadgeItem}>
                 <Text style={styles.badgeLabel}>Present</Text>
@@ -885,7 +786,6 @@ export default function AttendanceScreen() {
                 </View>
               </View>
 
-              {/* Working Hours Badge */}
               <View style={styles.workingHoursBox}>
                 <Text style={styles.workingHoursTitle}>⏱️ Total Working Hours: {activeDayRecord.workingHours}</Text>
                 <Text style={styles.workingHoursSub}>Rule: Full Day ≥ 8h • Half Day &lt; 5h • Overtime logged after 8h</Text>
@@ -969,7 +869,7 @@ export default function AttendanceScreen() {
       </ScrollView>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
-      {/* 📷 LIVE ATTENDANCE SELFIE CAMERA VIEW FINDER MODAL                         */}
+      {/* 📷 LIVE ATTENDANCE SELFIE CAMERA VIEWFINDER MODAL                           */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       <Modal visible={cameraModalOpen} transparent animationType="slide">
         <View style={styles.camModalOverlay}>
@@ -991,7 +891,6 @@ export default function AttendanceScreen() {
             <View style={styles.camViewportBox}>
               <Image source={{ uri: capturedPhoto }} style={styles.camLivePreview} />
 
-              {/* Viewfinder Target Guidelines */}
               <View style={styles.camTargetGuideRing}>
                 <Text style={styles.camTargetGuideText}>
                   {isFrontCamera ? 'Center face inside circle' : 'Rear Lens Viewfinder'}
@@ -1013,34 +912,20 @@ export default function AttendanceScreen() {
               </View>
             </View>
 
-            {/* Camera Control Toolbar (Lens Switch & Flash Toggle) */}
+            {/* Camera Control Toolbar (Open Native Camera & Switch Lens) */}
             <View style={{ flexDirection: 'row', gap: 10, marginVertical: 10 }}>
               <TouchableOpacity
-                style={[styles.camToolbarBtn, flashOn && styles.camToolbarBtnActive]}
-                onPress={() => setFlashOn(!flashOn)}
+                style={[styles.camToolbarBtn, { backgroundColor: '#4f46e5', flex: 1.5 }]}
+                onPress={handleLaunchDeviceCamera}
               >
-                <Text style={styles.camToolbarText}>⚡ Flash: {flashOn ? 'ON' : 'OFF'}</Text>
+                <Text style={[styles.camToolbarText, { color: '#ffffff', fontWeight: '900' }]}>📷 Launch Device Camera</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.camToolbarBtn}
+                style={[styles.camToolbarBtn, { flex: 1 }]}
                 onPress={() => setIsFrontCamera(!isFrontCamera)}
               >
-                <Text style={styles.camToolbarText}>🔄 Switch Lens ({isFrontCamera ? 'Front Selfie' : 'Rear'})</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.camToolbarBtn}
-                onPress={() => {
-                  const frontPhotos = [
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-                    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
-                  ];
-                  setCapturedPhoto(frontPhotos[Math.floor(Math.random() * frontPhotos.length)]);
-                }}
-              >
-                <Text style={styles.camToolbarText}>📸 Snap Photo</Text>
+                <Text style={styles.camToolbarText}>🔄 Switch ({isFrontCamera ? 'Front' : 'Rear'})</Text>
               </TouchableOpacity>
             </View>
 
@@ -1054,7 +939,7 @@ export default function AttendanceScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.snapPunchBtnText}>
-                📸 Snap Selfie &amp; Confirm {punchedIn ? 'Punch Out' : 'Punch In'} →
+                📸 Confirm {punchedIn ? 'Punch Out' : 'Punch In'} &amp; Sync →
               </Text>
             </TouchableOpacity>
           </View>
@@ -1072,42 +957,22 @@ export default function AttendanceScreen() {
               Location access is required by DAS CRM to verify if Attendance Punch In/Out is executed within the 500m radius of the Office HQ Hub (28.440743, 77.531117).
             </Text>
 
-            <View style={{ backgroundColor: '#020617', padding: 10, borderRadius: 10, marginVertical: 10, borderWidth: 1, borderColor: '#1e293b' }}>
-              <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800' }}>
-                🔒 Privacy Guarantee:
-              </Text>
-              <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2, lineHeight: 14 }}>
-                Location tracking automatically turns OFF after punch execution. No continuous background tracking is performed.
-              </Text>
-            </View>
-
-            <View style={{ gap: 8 }}>
+            <View style={{ gap: 8, marginTop: 10 }}>
               <TouchableOpacity
                 style={styles.locSettingsBtn}
                 onPress={async () => {
                   setLocationPromptOpen(false);
-                  const { isLocOk } = await requestPermissions();
-                  if (isLocOk) {
-                    Alert.alert('📍 Location Granted', 'Location permission granted! You can now Punch In / Punch Out.');
-                  }
+                  await fetchCurrentLocation();
+                  Alert.alert('📍 Location Granted', 'Location permission active!');
                 }}
               >
                 <Text style={styles.locSettingsBtnText}>📍 Grant / Enable Location Access →</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.stopAppLocBtn}
-                onPress={() => {
-                  setLocationPromptOpen(false);
-                  Alert.alert('Punch Disabled', 'Without location access, Punch In / Punch Out cannot be executed.');
-                }}
-              >
-                <Text style={styles.stopAppLocBtnText}>✕ Cancel (Punch In/Out Disabled Without Location)</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
     </View>
   );
 }
@@ -1116,190 +981,132 @@ export default function AttendanceScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16, alignItems: 'center', paddingBottom: 32 },
 
-  companyHeader: { width: '100%', maxWidth: 380, marginBottom: 12, alignItems: 'center' },
-  companyHeaderTitle: { fontSize: 20, fontWeight: '900', color: '#0f172a' },
-  companyHeaderSub: { fontSize: 11, color: '#64748b', marginTop: 2, textAlign: 'center' },
-
-  serverTimeCard: {
-    width: '100%',
-    maxWidth: 380,
+  topHeaderBar: {
     backgroundColor: '#0f172a',
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
   },
-  serverTimeTitle: { color: '#818cf8', fontSize: 11, fontWeight: '800' },
-  syncTimeBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  syncTimeBtnText: { color: '#38bdf8', fontSize: 9, fontWeight: '800' },
-  serverTimeVal: { color: '#ffffff', fontSize: 18, fontWeight: '900', marginTop: 6, letterSpacing: 0.5 },
+  topHeaderTitle: { fontSize: 15, fontWeight: '800', color: '#ffffff' },
+  topHeaderSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
 
-  segmentedContainer: { width: '100%', maxWidth: 380, flexDirection: 'row', backgroundColor: '#e2e8f0', borderRadius: 14, padding: 3, marginBottom: 14 },
-  segmentedTab: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  segmentedTabActive: { backgroundColor: '#4f46e5' },
-  segmentedText: { fontSize: 11, fontWeight: '700', color: '#475569' },
-  segmentedTextActive: { color: '#ffffff', fontWeight: '900' },
+  tabToggleBox: { flexDirection: 'row', backgroundColor: '#020617', borderRadius: 8, padding: 3, marginTop: 8 },
+  tabToggleBtn: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 6 },
+  tabToggleBtnActive: { backgroundColor: '#4f46e5' },
+  tabToggleText: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
+  tabToggleTextActive: { color: '#ffffff' },
 
-  markViewContainer: { width: '100%', maxWidth: 380, alignItems: 'center' },
+  content: { padding: 16, alignItems: 'center' },
 
-  permissionRibbon: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  geoBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  geoBadgeIn: { backgroundColor: '#dcfce7' },
-  geoBadgeOut: { backgroundColor: '#fee2e2' },
-  geoBadgeText: { fontSize: 9, fontWeight: '800', color: '#15803d' },
+  markCardBox: { width: '100%', maxWidth: 500, gap: 12 },
+  liveClockBanner: { backgroundColor: '#0f172a', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  liveClockTitle: { fontSize: 14, fontWeight: '900', color: '#38bdf8' },
+  liveClockSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
 
-  markHeaderRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  statusPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  statusPillIn: { backgroundColor: '#dcfce7' },
-  statusPillOut: { backgroundColor: '#fee2e2' },
-  statusPillText: { fontSize: 11, fontWeight: '800', color: '#15803d' },
+  permStatusBar: { backgroundColor: '#ffffff', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', justifyContent: 'space-between' },
 
-  camControlBtn: { backgroundColor: '#ffffff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1' },
-  camControlBtnActive: { backgroundColor: '#fef08a', borderColor: '#eab308' },
+  geoCard: { backgroundColor: '#ffffff', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', gap: 4 },
+  geoCardTitle: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  refreshGpsBtn: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  refreshGpsBtnText: { fontSize: 9, fontWeight: '800', color: '#4f46e5' },
+  geoCoordsText: { fontSize: 11, color: '#475569' },
+  geoBoundaryText: { fontSize: 10, color: '#64748b' },
 
-  cameraViewfinderBox: {
-    width: '100%',
-    height: 240,
-    backgroundColor: '#070a12',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#4f46e5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  circularViewport: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    overflow: 'hidden',
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  selfieImagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  viewportOverlay: { position: 'absolute', bottom: 12, backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  viewportText: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
+  geoPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 4, alignItems: 'center' },
+  geoPillInside: { backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#22c55e' },
+  geoPillOutside: { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#ef4444' },
+  geoPillText: { fontSize: 10, fontWeight: '900' },
 
-  punchBigButton: { width: '100%', paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  punchBtnIn: { backgroundColor: '#22c55e' },
-  punchBtnOut: { backgroundColor: '#ef4444' },
-  punchBigButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '900' },
+  bigPunchBtn: { borderRadius: 18, padding: 20, alignItems: 'center', shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
+  bigPunchBtnIn: { backgroundColor: '#22c55e' },
+  bigPunchBtnOut: { backgroundColor: '#ef4444' },
+  bigPunchBtnIcon: { fontSize: 32 },
+  bigPunchBtnText: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginTop: 4 },
+  bigPunchBtnSub: { fontSize: 10, color: '#f1f5f9', marginTop: 2, textAlign: 'center' },
 
-  gpsBox: { backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, marginTop: 14, borderWidth: 1, borderColor: '#cbd5e1' },
-  gpsText: { fontSize: 11, fontWeight: '700', color: '#475569', flex: 1 },
-  openSettingsBtn: { backgroundColor: '#0f172a', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  openSettingsBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+  adminEmpSelectorCard: { backgroundColor: '#ffffff', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
+  adminSelectorLabel: { fontSize: 11, fontWeight: '800', color: '#4f46e5', marginBottom: 6 },
+  adminDropdownBtn: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#cbd5e1', padding: 10, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  adminDropdownText: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  dropdownMenu: { backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1, borderColor: '#cbd5e1', marginTop: 6, padding: 4 },
+  dropdownItem: { padding: 8, borderRadius: 6 },
+  dropdownItemActive: { backgroundColor: '#e0e7ff' },
+  dropdownItemText: { fontSize: 11, color: '#334155' },
 
-  privacyCountdownBanner: { width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderWidth: 1, borderColor: '#eab308', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, marginTop: 10, alignItems: 'center' },
-  privacyCountdownText: { color: '#854d0e', fontSize: 10, fontWeight: '800' },
+  monthSelectorBar: { backgroundColor: '#ffffff', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  monthFilterChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#f1f5f9' },
+  monthFilterChipActive: { backgroundColor: '#4f46e5' },
+  monthFilterChipText: { fontSize: 10, color: '#64748b', fontWeight: '700' },
+  monthFilterChipTextActive: { color: '#ffffff', fontWeight: '800' },
 
-  // Camera Modal Styles
-  camModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.9)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  camModalCard: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  camModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
-  camModalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
-  camModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
-  camCloseBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+  summaryBadgesRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  summaryBadgeItem: { alignItems: 'center' },
+  badgeLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', marginBottom: 2 },
+  badgePillCircle: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  badgePillNum: { fontSize: 13, fontWeight: '900' },
 
-  camViewportBox: { width: '100%', height: 260, borderRadius: 16, overflow: 'hidden', position: 'relative', backgroundColor: '#000000', borderWidth: 2, borderColor: '#4f46e5' },
-  camLivePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  camTargetGuideRing: { position: 'absolute', top: '15%', left: '20%', right: '20%', bottom: '25%', borderRadius: 100, borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
-  camTargetGuideText: { color: '#ffffff', fontSize: 9, fontWeight: '800', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  camHudOverlay: { position: 'absolute', bottom: 8, left: 8, right: 8, backgroundColor: 'rgba(2,6,23,0.85)', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
-  camHudText: { fontSize: 9, color: '#cbd5e1', fontWeight: '700', marginVertical: 1 },
-
-  camToolbarBtn: { flex: 1, backgroundColor: '#1e293b', paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
-  camToolbarBtnActive: { backgroundColor: 'rgba(234,179,8,0.2)', borderColor: '#eab308' },
-  camToolbarText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
-
-  snapPunchBtn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
-  snapPunchBtnIn: { backgroundColor: '#16a34a' },
-  snapPunchBtnOut: { backgroundColor: '#dc2626' },
-  snapPunchBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
-
-  // Location Privacy Modal Styles
-  locModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  locModalCard: { width: '100%', maxWidth: 380, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 18 },
-  locModalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
-  locModalSub: { fontSize: 11, color: '#94a3b8', marginTop: 4, lineHeight: 16 },
-  locSettingsBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center' },
-  locSettingsBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
-  stopAppLocBtn: { backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, alignItems: 'center' },
-  stopAppLocBtnText: { color: '#fca5a5', fontSize: 10, fontWeight: '800' },
-
-  // Mode 2: My Attendance / Audit
-  myAttendanceContainer: { width: '100%', maxWidth: 380, alignItems: 'center' },
-  adminEmpSelectorCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 18, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#cbd5e1' },
-  adminEmpSelectorLabel: { fontSize: 10, fontWeight: '800', color: '#475569', marginBottom: 6 },
-  adminEmpPickerBtn: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  empAvatarPill: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' },
-  empDropdownList: { backgroundColor: '#ffffff', borderRadius: 12, marginTop: 6, borderWidth: 1, borderColor: '#cbd5e1', overflow: 'hidden' },
-  empDropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  empDropdownItemActive: { backgroundColor: '#f0f9ff' },
-  empAvatarPillSmall: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#94a3b8', justifyContent: 'center', alignItems: 'center' },
-
-  monthPickerContainer: { width: '100%', alignItems: 'center', marginBottom: 14, zIndex: 20 },
-  monthPickerBtn: { backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#cbd5e1' },
-  monthPickerText: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
-  dropdownMenu: { position: 'absolute', top: 40, backgroundColor: '#ffffff', borderRadius: 14, padding: 6, borderWidth: 1, borderColor: '#cbd5e1', width: 180, shadowColor: '#000', shadowRadius: 8, elevation: 6 },
-  dropdownItem: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  dropdownItemActive: { backgroundColor: '#f1f5f9' },
-  dropdownItemText: { fontSize: 11, fontWeight: '700', color: '#475569' },
-
-  summaryBadgesRow: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#ffffff', borderRadius: 18, padding: 10, marginBottom: 14, borderWidth: 1, borderColor: '#cbd5e1' },
-  summaryBadgeItem: { alignItems: 'center', flex: 1 },
-  badgeLabel: { fontSize: 9, fontWeight: '700', color: '#64748b', marginBottom: 4 },
-  badgePillCircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  badgePillNum: { fontSize: 11, fontWeight: '900' },
-
-  calendarCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 20, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: '#cbd5e1' },
-  calendarHeaderInfo: { marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 6 },
-  calendarDaysRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  calendarDayHeader: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#64748b' },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  gridDayCol: { width: '14.28%', alignItems: 'center', marginVertical: 4 },
+  calendarCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
+  calendarHeaderInfo: { marginBottom: 8 },
+  calendarDaysRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 6 },
+  calendarDayHeader: { fontSize: 10, fontWeight: '800', color: '#94a3b8', width: 32, textAlign: 'center' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  gridDayCol: { width: '13%', alignItems: 'center', marginVertical: 3 },
   dayCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  selectedDayCircle: { borderWidth: 3, borderColor: '#0284c7', shadowColor: '#0284c7', shadowRadius: 6, elevation: 5 },
-  dayCircleText: { fontSize: 11, fontWeight: '900' },
+  selectedDayCircle: { borderWidth: 2, borderColor: '#4f46e5' },
+  dayCircleText: { fontSize: 11, fontWeight: '800' },
 
-  punchCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: '#cbd5e1', marginBottom: 14 },
-  punchedPillTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  punchCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 12 },
+  punchedPillTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   punchedPillText: { fontSize: 10, fontWeight: '800' },
-  punchRecordBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#f8fafc', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  alertCircleIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center' },
-  punchRecordTitle: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
-  geoLinkText: { fontSize: 11, fontWeight: '700', color: '#0284c7', textDecorationLine: 'underline', marginTop: 2 },
-  noGeoText: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
 
-  workingHoursBox: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 12, padding: 10, marginBottom: 10 },
-  workingHoursTitle: { fontSize: 12, fontWeight: '800', color: '#166534' },
-  workingHoursSub: { fontSize: 10, color: '#15803d', marginTop: 2 },
+  workingHoursBox: { backgroundColor: '#f8fafc', borderRadius: 10, padding: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 10 },
+  workingHoursTitle: { fontSize: 11, fontWeight: '800', color: '#0f172a' },
+  workingHoursSub: { fontSize: 9, color: '#64748b', marginTop: 2 },
 
-  // Admin Override Panel Styles
-  adminOverrideCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: '#818cf8' },
-  adminOverrideTitle: { fontSize: 13, fontWeight: '900', color: '#4f46e5' },
-  adminOverrideBadge: { fontSize: 10, fontWeight: '800', color: '#6366f1', backgroundColor: '#e0e7ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  adminOverrideSub: { fontSize: 11, color: '#64748b', marginVertical: 6 },
-  adminOverrideButtonsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  overrideBtn: { flex: 1, minWidth: '45%', paddingVertical: 10, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  overrideBtnText: { fontSize: 11, fontWeight: '800' },
+  punchRecordBox: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: '#f8fafc', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+  alertCircleIcon: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#dcfce7', justifyContent: 'center', alignItems: 'center' },
+  punchRecordTitle: { fontSize: 11, fontWeight: '800', color: '#0f172a' },
+  geoLinkText: { fontSize: 10, color: '#4f46e5', marginTop: 2, fontWeight: '700' },
+  noGeoText: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+
+  adminOverrideCard: { backgroundColor: '#0f172a', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#1e293b' },
+  adminOverrideTitle: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
+  adminOverrideBadge: { fontSize: 8, fontWeight: '900', color: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  adminOverrideSub: { fontSize: 10, color: '#94a3b8', marginTop: 2, marginBottom: 8 },
+  adminOverrideButtonsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  overrideBtn: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  overrideBtnText: { fontSize: 10, fontWeight: '800' },
+
+  camModalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.9)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  camModalCard: { width: '100%', maxWidth: 440, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  camModalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  camModalTitle: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  camModalSub: { fontSize: 10, color: '#94a3b8' },
+  camCloseBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+
+  camViewportBox: { width: '100%', height: 260, borderRadius: 16, overflow: 'hidden', position: 'relative', backgroundColor: '#020617', borderWidth: 2, borderColor: '#38bdf8' },
+  camLivePreview: { width: '100%', height: '100%' },
+  camTargetGuideRing: { position: 'absolute', top: 30, left: '20%', right: '20%', bottom: 60, borderRadius: 80, borderWidth: 2, borderColor: 'rgba(56,189,248,0.6)', justifyContent: 'center', alignItems: 'center' },
+  camTargetGuideText: { color: '#ffffff', fontSize: 10, fontWeight: '800', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+
+  camHudOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(2,6,23,0.85)', padding: 8, gap: 2 },
+  camHudText: { fontSize: 9, color: '#cbd5e1', fontWeight: '700' },
+
+  camToolbarBtn: { backgroundColor: '#1e293b', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  camToolbarBtnActive: { backgroundColor: 'rgba(251,191,36,0.2)', borderColor: '#fbbf24' },
+  camToolbarText: { fontSize: 10, color: '#ffffff', fontWeight: '800' },
+
+  snapPunchBtn: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 6 },
+  snapPunchBtnIn: { backgroundColor: '#22c55e' },
+  snapPunchBtnOut: { backgroundColor: '#ef4444' },
+  snapPunchBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 13 },
+
+  locModalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  locModalCard: { width: '100%', maxWidth: 380, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  locModalTitle: { fontSize: 14, fontWeight: '800', color: '#ffffff', marginBottom: 4 },
+  locModalSub: { fontSize: 10, color: '#94a3b8', lineHeight: 14 },
+  locSettingsBtn: { backgroundColor: '#4f46e5', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  locSettingsBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
 });

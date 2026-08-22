@@ -93,6 +93,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  // Modals & Status State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
+  const [newStatusChoice, setNewStatusChoice] = useState('Qualified');
+  const [statusNotes, setStatusNotes] = useState('');
+
   const showSyncNotification = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
@@ -266,11 +272,62 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-muted bg-muted/20 px-3 py-1.5 rounded-xl border border-border">
               Assigned Rep: <strong className="text-white">{lead.owner}</strong>
             </span>
           </div>
+        </div>
+
+        {/* ── 6 ACTION BUTTONS TOOLBAR ────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-2 border-t border-border">
+          <button
+            onClick={() => { handleStartCall(); setActiveSection('dialler'); }}
+            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all"
+          >
+            <Phone size={14} /> 📞 Call
+          </button>
+
+          <button
+            onClick={() => setActiveSection('wa_direct')}
+            className="px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Zap size={14} /> 💬 WhatsApp Direct
+          </button>
+
+          <button
+            onClick={() => setActiveSection('wa_cloud')}
+            className="px-3 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+          >
+            <MessageSquare size={14} /> ☁️ WA Cloud
+          </button>
+
+          <button
+            onClick={() => {
+              window.location.href = `mailto:${lead.email}?subject=Follow-up%20from%20DAS%20CRM`;
+              if (lead.status === 'New Lead' || lead.status === 'NEW LEAD') {
+                setLead(prev => ({ ...prev, status: 'Contacted' }));
+                showSyncNotification('📞 Lead Status auto-updated to Contacted!');
+              }
+            }}
+            className="px-3 py-2 rounded-xl bg-sky-600/20 border border-sky-500/40 text-sky-300 hover:bg-sky-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Mail size={14} /> ✉️ Direct Email
+          </button>
+
+          <button
+            onClick={() => setActiveSection('email_marketing')}
+            className="px-3 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Send size={14} /> 🚀 Email Marketing
+          </button>
+
+          <button
+            onClick={() => setShowUpdateStatusModal(true)}
+            className="px-3 py-2 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 hover:bg-amber-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Tag size={14} /> 📝 Update Status
+          </button>
         </div>
 
         {/* ── 5 SECTIONS NAVIGATION BAR ────────────────────────────────────────── */}
@@ -768,6 +825,129 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             >
               <Mail size={15} /> Dispatch Email & Auto-Sync to Lead Center →
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── UPDATE STATUS MODAL ─────────────────────────────────────────── */}
+      {showUpdateStatusModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">📝 Update Lead Status & Stage</h3>
+              <button onClick={() => setShowUpdateStatusModal(false)} className="text-slate-400 hover:text-white p-1">✕</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1">Select New Stage *</label>
+                <select
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"
+                  value={newStatusChoice}
+                  onChange={(e) => setNewStatusChoice(e.target.value)}
+                >
+                  <option value="New Lead">New Lead</option>
+                  <option value="Contacted">Contacted (Call/Msg Feedback Logged)</option>
+                  <option value="Meeting Scheduled">Meeting Scheduled</option>
+                  <option value="In Negotiation">In Negotiation (Product/Invoice Shared)</option>
+                  <option value="Won">Won (Payment Cleared)</option>
+                  <option value="Lost">Lost</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1">Status Notes / Remarks</label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  placeholder="Enter status update notes..."
+                  value={statusNotes}
+                  onChange={(e) => setStatusNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setShowUpdateStatusModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setLead(prev => ({ ...prev, status: newStatusChoice }));
+                    setShowUpdateStatusModal(false);
+                    setStatusNotes('');
+                    showSyncNotification(`✓ Lead status updated to ${newStatusChoice}!`);
+                    if (newStatusChoice === 'In Negotiation') {
+                      setShowPaymentModal(true);
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
+                >
+                  Save Status →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PAYMENT CONFIRMATION POPUP MODAL ─────────────────────────── */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">
+                  💳 INVOICE & PAYMENT AUDIT
+                </span>
+                <h3 className="text-base font-extrabold text-white mt-1">Invoice Payment Outcome</h3>
+              </div>
+              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-white p-1">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              An Invoice has been generated for <strong className="text-white">{lead.name}</strong>. Please confirm the payment result:
+            </p>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setLead(prev => ({ ...prev, status: 'Won' }));
+                  setShowPaymentModal(false);
+                  showSyncNotification('🎉 Payment Cleared! Lead status auto-updated to WON!');
+                }}
+                className="w-full p-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-left transition-all"
+              >
+                <p className="text-xs font-bold text-emerald-300 flex items-center gap-2">🟢 Payment Done / Cleared</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Full payment received. Auto-transitions status to WON 🎉</p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setLead(prev => ({ ...prev, status: 'In Negotiation' }));
+                  setShowPaymentModal(false);
+                  showSyncNotification('📄 Payment Promised. Status set to In Negotiation.');
+                }}
+                className="w-full p-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-left transition-all"
+              >
+                <p className="text-xs font-bold text-amber-300 flex items-center gap-2">🟡 Payment Promised / Will Pay Later</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Invoice sent. Client promised payment later. Status: IN NEGOTIATION</p>
+              </button>
+
+              <button
+                onClick={() => {
+                  setLead(prev => ({ ...prev, status: 'In Negotiation' }));
+                  setShowPaymentModal(false);
+                  showSyncNotification('⏳ Awaiting Client Approval. Status set to In Negotiation.');
+                }}
+                className="w-full p-3 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-left transition-all"
+              >
+                <p className="text-xs font-bold text-indigo-300 flex items-center gap-2">⏳ Waiting / Client Reviewing</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Awaiting client review. Status: IN NEGOTIATION</p>
+              </button>
+            </div>
           </div>
         </div>
       )}

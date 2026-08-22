@@ -32,6 +32,7 @@ import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
 import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
+import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
@@ -419,7 +420,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* ── TOP SEGMENTED SLIDER (FUNNEL vs COLLECTIONS) ───────────────────── */}
       <View style={styles.sliderContainer}>
         <View style={styles.sliderTrack}>
@@ -448,6 +449,17 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       {activeSegment === 'FUNNEL' ? (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* 🛢️ Lead Integration & Ingestion Control Center Banner */}
+          <LeadIngestionControlCenterBar
+            onInsertLeadPress={() => setInsertModalOpen(true)}
+            onImportCsvPress={() => setImportModalOpen(true)}
+            onGoogleSheetsPress={() => setSheetModalOpen(true)}
+            onExportCsvPress={() => handleProcessCsvTextImport()}
+            onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
+            onAdjustColumnsPress={() => setColOrderModalOpen(true)}
+            columnCount={columnOrder.length}
+          />
+
           <View style={styles.cardBox}>
             <Text style={styles.cardTitle}>🔄 Lead Distribution Strategy Engine</Text>
             <Text style={styles.cardSub}>Choose how incoming lead traffic is routed across rep quotas.</Text>

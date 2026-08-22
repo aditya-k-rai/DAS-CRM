@@ -20,9 +20,11 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { callSyncEngine } from '../services/callSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
+import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
 export interface ScheduledMeetingItem {
   id: string;
@@ -184,15 +186,16 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
+  const bottomPadding = Math.max(insets.bottom + 10, 20);
 
-        {/* 👑 HEADER BANNER */}
-        <View style={styles.headerBox}>
-          <Text style={styles.headerTitle}>👑 Tenant Admin Command Center</Text>
-          <Text style={styles.headerSub}>{currentUser.companyName || 'Acme Sales Solutions'} • Plan: {subscription.planType}</Text>
-        </View>
+  return (
+    <View style={[styles.container, { paddingTop: topPadding }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+
+        {/* 👑 HEADER BANNER (TENANT ADMIN COMMAND CENTER) */}
+        <TenantAdminHeaderBanner navigation={navigation} />
 
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>
