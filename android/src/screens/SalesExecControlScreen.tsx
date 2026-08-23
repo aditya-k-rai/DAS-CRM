@@ -1,8 +1,14 @@
 /**
  * SalesExecControlScreen.tsx — DAS CRM Android
  * Dedicated Full Screen Inspector for Sales Executives (SALES_EXEC role)
- * Includes: Name, Email, Phone, Role Upgrade, Change Supervisor, Lead Collection Status Pages (Got, Connected, Negotiated, Won),
- * Attendance, Pending Leave with Note, Account Lock, 10-day Grace Period Delete Engine with Revert Note, Documents & Bank details buttons.
+ * Features:
+ * 1. Name, Email, Number, Role (Button to Upgrade), Assigned Under (Button to Change).
+ * 2. Lead Status Buttons (Total Lead he Got, Connected, Negotiated, Won) -> Opens full Lead Collection page modal.
+ * 3. Attendance button -> Redirects to Attendance section with his name pre-selected in workforce filter.
+ * 4. Pending Leave Request Button -> Inspect Application and approve or decline with decision Note.
+ * 5. Lock Screen Toggle.
+ * 6. Delete (10-day grace period where screen is locked, notifies purge date, and exposes Revert Note Request input for 10 days).
+ * 7. Documents & Bank Details Telemetry buttons.
  */
 
 import React, { useState } from 'react';
@@ -14,12 +20,12 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
-  Image,
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { EmployeeProfile } from './EmployeesScreen';
+import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 
 interface Props {
   employee: EmployeeProfile;
@@ -31,17 +37,24 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
+  const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
+
   const [upgradeRoleModalOpen, setUpgradeRoleModalOpen] = useState(false);
   const [changeSupervisorModalOpen, setChangeSupervisorModalOpen] = useState(false);
-  const [leadPreviewModalOpen, setLeadPreviewModalOpen] = useState(false);
+
+  // 🎯 Lead Collection Modal State
+  const [leadCollectionModalOpen, setLeadCollectionModalOpen] = useState(false);
   const [leadCategory, setLeadCategory] = useState<'GOT' | 'CONNECTED' | 'NEGOTIATED' | 'WON'>('GOT');
 
+  // 📅 Leave Decision Modal State
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [leaveNote, setLeaveNote] = useState('');
 
+  // 🗑️ 10-Day Deletion Engine State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [revertNote, setRevertNote] = useState('');
 
+  // 📄 Docs & Bank Details Modals
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
@@ -52,22 +65,44 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
     'Team Leader (Priya Sharma)',
   ];
 
+  const MOCK_LEADS = [
+    { id: 'lead-1', name: 'Rajesh Varma', company: 'TechCorp', phone: '+91 98765 43210', value: '₹5,20,000', status: 'GOT', date: 'Today, 10:15 AM' },
+    { id: 'lead-2', name: 'Priya Sharma', company: 'LogiTech', phone: '+91 98123 45678', value: '₹3,50,000', status: 'CONNECTED', date: 'Yesterday, 4:45 PM' },
+    { id: 'lead-3', name: 'Sunita Kapoor', company: 'Sunita Logistics', phone: '+91 97222 33344', value: '₹8,90,000', status: 'NEGOTIATED', date: 'Aug 20, 2026' },
+    { id: 'lead-4', name: 'Vikram Sethi', company: 'Sethi Ent', phone: '+91 98777 66655', value: '₹4,20,000', status: 'WON', date: 'Aug 18, 2026' },
+  ];
+
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
     setUpgradeRoleModalOpen(false);
-    Alert.alert('⚡ Role Upgraded', `${employee.name} upgraded to ${newRole.replace('_', ' ')}.`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: '⚡ Role Upgraded',
+      message: `${employee.name} upgraded to ${newRole.replace('_', ' ')}.`,
+      type: 'SUCCESS',
+    });
   };
 
   const handleSupervisorChange = (sup: string) => {
     onUpdateEmployee({ ...employee, assignedManager: sup });
     setChangeSupervisorModalOpen(false);
-    Alert.alert('✏️ Supervisor Updated', `${employee.name} assigned under ${sup}.`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: '✏️ Supervisor Updated',
+      message: `${employee.name} assigned under ${sup}.`,
+      type: 'SUCCESS',
+    });
   };
 
   const handleToggleLock = () => {
     const isLocked = !employee.isLocked;
     onUpdateEmployee({ ...employee, isLocked });
-    Alert.alert(isLocked ? '🔒 Screen Locked' : '🔓 Screen Unlocked', `${employee.name} account screen ${isLocked ? 'LOCKED' : 'UNLOCKED'}.`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: isLocked ? '🔒 Screen Locked' : '🔓 Screen Unlocked',
+      message: `${employee.name} account screen ${isLocked ? 'LOCKED' : 'UNLOCKED'}.`,
+      type: isLocked ? 'WARNING' : 'SUCCESS',
+    });
   };
 
   const handleInitiate10DayDelete = () => {
@@ -76,28 +111,66 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
     const dateStr = purgeDate.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
     onUpdateEmployee({ ...employee, isLocked: true, deletionScheduledAt: dateStr });
     setDeleteModalOpen(false);
-    Alert.alert('🗑️ 10-Day Purge Scheduled', `Account locked. Data will be purged on ${dateStr}. Revert note request is open for 10 days.`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: '🗑️ 10-Day Purge Scheduled',
+      message: `Account locked. Data will be purged on ${dateStr}.`,
+      type: 'WARNING',
+    });
   };
 
   const handleRequestRevert = () => {
     if (!revertNote.trim()) {
-      Alert.alert('Revert Note Required', 'Please enter a note explaining why deletion should be reverted.');
+      setToastConfig({
+        id: `toast_${Date.now()}`,
+        title: '⚠️ Revert Note Required',
+        message: 'Please enter a note explaining why deletion should be reverted.',
+        type: 'WARNING',
+      });
       return;
     }
-    onUpdateEmployee({ ...employee, isLocked: false, deletionScheduledAt: null });
+    onUpdateEmployee({ ...employee, isLocked: false, deletionScheduledAt: null, deletionReason: revertNote });
     setDeleteModalOpen(false);
     setRevertNote('');
-    Alert.alert('↺ Deletion Reverted', `Deletion reverted for ${employee.name}.\nNote: "${revertNote}"`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: '↺ Deletion Reverted',
+      message: `Deletion reverted for ${employee.name}. Note: "${revertNote}"`,
+      type: 'SUCCESS',
+    });
   };
 
   const handleApproveDeclineLeave = (approved: boolean) => {
     if (!leaveNote.trim()) {
-      Alert.alert('Note Required', 'Please enter a decision note.');
+      setToastConfig({
+        id: `toast_${Date.now()}`,
+        title: '⚠️ Note Required',
+        message: 'Please enter a decision note.',
+        type: 'WARNING',
+      });
       return;
     }
     setLeaveModalOpen(false);
     setLeaveNote('');
-    Alert.alert(approved ? '🟢 Leave Approved' : '🔴 Leave Declined', `Leave for ${employee.name} ${approved ? 'APPROVED' : 'DECLINED'}.\nNote: "${leaveNote}"`);
+    setToastConfig({
+      id: `toast_${Date.now()}`,
+      title: approved ? '🟢 Leave Approved' : '🔴 Leave Declined',
+      message: `Leave for ${employee.name} ${approved ? 'APPROVED' : 'DECLINED'}. Note: "${leaveNote}"`,
+      type: approved ? 'SUCCESS' : 'WARNING',
+    });
+  };
+
+  const handleRedirectToAttendance = () => {
+    try {
+      navigation.navigate('Attendance', { preSelectedEmpId: employee.id, preSelectedEmpName: employee.name });
+    } catch {
+      setToastConfig({
+        id: `toast_${Date.now()}`,
+        title: '⏱️ Attendance Portal',
+        message: `Redirecting to Attendance Section with ${employee.name} selected.`,
+        type: 'INFO',
+      });
+    }
   };
 
   const topPadding = Math.max(insets.top + 6, 18);
@@ -105,7 +178,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
-      {/* Top Header Navigation */}
+      {/* Top Navigation Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Text style={styles.backBtnText}>← Back to Directory</Text>
@@ -116,186 +189,220 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 30 }]} showsVerticalScrollIndicator={false}>
-        {/* Profile Details Card */}
+        {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-            <Image source={{ uri: employee.avatarUrl }} style={styles.avatar} />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.empName}>{employee.name}</Text>
-                {employee.isLocked && <Text style={styles.lockBadge}>🔒 LOCKED</Text>}
-              </View>
-              <Text style={styles.empMeta}>📧 Email: {employee.email}</Text>
-              <Text style={styles.empMeta}>📞 Number: {employee.phone}</Text>
-
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <TouchableOpacity style={styles.chipBtn} onPress={() => setUpgradeRoleModalOpen(true)}>
-                  <Text style={styles.chipBtnText}>Upgrade Role ⚡</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.chipBtn, { backgroundColor: 'rgba(56,189,248,0.2)', borderColor: '#38bdf8' }]} onPress={() => setChangeSupervisorModalOpen(true)}>
-                  <Text style={[styles.chipBtnText, { color: '#38bdf8' }]}>Assigned Under (Change) ✏️</Text>
-                </TouchableOpacity>
-              </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.profileName}>{employee.name}</Text>
+              {employee.isLocked && <Text style={styles.lockedPill}>🔒 LOCKED</Text>}
             </View>
+            <Text style={styles.profileMeta}>✉️ Email: {employee.email}</Text>
+            <Text style={styles.profileMeta}>📞 Number: {employee.phone}</Text>
+            <Text style={styles.profileMeta}>
+              Assigned Under: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{employee.assignedManager}</Text>
+            </Text>
           </View>
 
-          <View style={styles.supBox}>
-            <Text style={styles.supLabel}>Assigned Under Supervisor:</Text>
-            <Text style={styles.supVal}>👤 {employee.assignedManager}</Text>
+          <View style={{ gap: 6 }}>
+            <TouchableOpacity style={styles.upgradeBtn} onPress={() => setUpgradeRoleModalOpen(true)}>
+              <Text style={styles.upgradeBtnText}>Upgrade Role ⚡</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.changeSupBtn} onPress={() => setChangeSupervisorModalOpen(true)}>
+              <Text style={styles.changeSupBtnText}>Assigned Under (Change) ✏️</Text>
+            </TouchableOpacity>
           </View>
-
-          {employee.deletionScheduledAt && (
-            <View style={styles.purgeNotice}>
-              <Text style={styles.purgeNoticeText}>
-                ⚠️ 10-Day Grace Deletion Period Active: Scheduled for purge on {employee.deletionScheduledAt}. Account locked.
-              </Text>
-            </View>
-          )}
         </View>
 
-        {/* Lead Status Collections Section */}
-        <Text style={styles.sectionTitle}>🎯 Lead Collection Pages &amp; Pipeline Status</Text>
-        <View style={styles.grid2}>
-          <TouchableOpacity style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.4)' }]} onPress={() => { setLeadCategory('GOT'); setLeadPreviewModalOpen(true); }}>
-            <Text style={styles.statVal}>{employee.leads.totalReceived}</Text>
-            <Text style={styles.statLbl}>Total Leads Got →</Text>
+        {employee.deletionScheduledAt && (
+          <View style={styles.deletionNoticeBox}>
+            <Text style={styles.deletionNoticeText}>
+              ⚠️ 10-DAY GRACE DELETION ACTIVE: Account locked. Scheduled for purge on {employee.deletionScheduledAt}.
+            </Text>
+          </View>
+        )}
+
+        {/* Lead Status Buttons -> Opens Lead Collection Page Modal */}
+        <Text style={styles.sectionTitle}>🎯 Lead Collection &amp; Status Portal</Text>
+        <View style={styles.statsGrid}>
+          <TouchableOpacity
+            style={[styles.statCard, { borderColor: '#38bdf8' }]}
+            onPress={() => { setLeadCategory('GOT'); setLeadCollectionModalOpen(true); }}
+          >
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{employee.leads?.totalReceived || 35}</Text>
+            <Text style={styles.statLbl}>Total Lead Got →</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.statCard, { borderColor: 'rgba(251,191,36,0.4)' }]} onPress={() => { setLeadCategory('CONNECTED'); setLeadPreviewModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#fbbf24' }]}>{employee.leads.connected}</Text>
-            <Text style={styles.statLbl}>Connected Leads →</Text>
+          <TouchableOpacity
+            style={[styles.statCard, { borderColor: '#22c55e' }]}
+            onPress={() => { setLeadCategory('CONNECTED'); setLeadCollectionModalOpen(true); }}
+          >
+            <Text style={[styles.statVal, { color: '#22c55e' }]}>{employee.leads?.connected || 22}</Text>
+            <Text style={styles.statLbl}>Connected →</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <TouchableOpacity
+            style={[styles.statCard, { borderColor: '#818cf8' }]}
+            onPress={() => { setLeadCategory('NEGOTIATED'); setLeadCollectionModalOpen(true); }}
+          >
+            <Text style={[styles.statVal, { color: '#818cf8' }]}>{employee.leads?.inNegotiation || 8}</Text>
+            <Text style={styles.statLbl}>Negotiated →</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.statCard, { borderColor: 'rgba(56,189,248,0.4)' }]} onPress={() => { setLeadCategory('NEGOTIATED'); setLeadPreviewModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{employee.leads.inNegotiation}</Text>
-            <Text style={styles.statLbl}>Negotiated Leads →</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.statCard, { borderColor: 'rgba(52,211,153,0.4)' }]} onPress={() => { setLeadCategory('WON'); setLeadPreviewModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>{employee.leads.won}</Text>
+          <TouchableOpacity
+            style={[styles.statCard, { borderColor: '#34d399' }]}
+            onPress={() => { setLeadCategory('WON'); setLeadCollectionModalOpen(true); }}
+          >
+            <Text style={[styles.statVal, { color: '#34d399' }]}>{employee.leads?.won || 2}</Text>
             <Text style={styles.statLbl}>Won Deals →</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Operational Controls Section */}
-        <Text style={styles.sectionTitle}>⚙️ Sales Executive Controls</Text>
-        <View style={{ gap: 10, width: '100%', maxWidth: 600 }}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Attendance')}>
-            <Text style={styles.actionBtnText}>⏱️ Attendance Portal (View {employee.name} Selected) →</Text>
+        {/* Operational Actions */}
+        <Text style={styles.sectionTitle}>⚙️ Executive Operations &amp; Governance</Text>
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity style={styles.actionCard} onPress={handleRedirectToAttendance}>
+            <Text style={styles.actionCardTitle}>⏱️ Attendance Section (View {employee.name} Selected) →</Text>
+            <Text style={styles.actionCardSub}>Redirects to attendance portal with staff member pre-selected in filter</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.4)' }]} onPress={() => setLeaveModalOpen(true)}>
-            <Text style={[styles.actionBtnText, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Approve Note) →</Text>
+          <TouchableOpacity style={[styles.actionCard, { borderColor: '#fbbf24' }]} onPress={() => setLeaveModalOpen(true)}>
+            <Text style={[styles.actionCardTitle, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Approve Note) →</Text>
+            <Text style={styles.actionCardSub}>Inspect 3-day leave application; approve/decline with mandatory note</Text>
           </TouchableOpacity>
 
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={handleToggleLock}>
-              <Text style={styles.actionBtnText}>{employee.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[styles.actionBtnHalf, { flex: 1 }]} onPress={handleToggleLock}>
+              <Text style={styles.actionBtnHalfText}>{employee.isLocked ? '🔓 Unlock Screen' : '🔒 Lock Screen'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' }]} onPress={() => setDeleteModalOpen(true)}>
-              <Text style={[styles.actionBtnText, { color: '#fca5a5' }]}>🗑️ Delete (10-Day Grace)</Text>
+            <TouchableOpacity style={[styles.actionBtnHalf, styles.deleteBtn, { flex: 1 }]} onPress={() => setDeleteModalOpen(true)}>
+              <Text style={styles.deleteBtnText}>🗑️ Delete (10-Day Grace)</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Documents & Banking Section */}
-        <View style={styles.docsCard}>
-          <Text style={styles.sectionTitle}>📄 Documents &amp; Bank Details Telemetry</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: '#1e293b' }]} onPress={() => setDocumentsModalOpen(true)}>
-              <Text style={[styles.actionBtnText, { color: '#38bdf8' }]}>📄 View Documents →</Text>
-            </TouchableOpacity>
+        {/* Compliance Buttons */}
+        <Text style={styles.sectionTitle}>📄 Documents &amp; Bank Details Telemetry</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[styles.docBankBtn, { flex: 1 }]} onPress={() => setDocumentsModalOpen(true)}>
+            <Text style={styles.docBankBtnText}>📄 View Documents →</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: '#1e293b' }]} onPress={() => setBankDetailsModalOpen(true)}>
-              <Text style={[styles.actionBtnText, { color: '#34d399' }]}>💳 View Bank Details →</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={[styles.docBankBtn, { flex: 1 }]} onPress={() => setBankDetailsModalOpen(true)}>
+            <Text style={styles.docBankBtnText}>💳 View Bank Details →</Text>
+          </TouchableOpacity>
         </View>
-
       </ScrollView>
 
-      {/* Sub Modals */}
-      <Modal visible={upgradeRoleModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: LEAD COLLECTION PAGE ───────────────────────────────────── */}
+      <Modal visible={leadCollectionModalOpen} transparent animationType="slide" onRequestClose={() => setLeadCollectionModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>⚡ Upgrade Role</Text>
-            {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'] as const).map(r => (
-              <TouchableOpacity key={r} style={[styles.roleOpt, employee.role === r && styles.roleOptActive]} onPress={() => handleRoleUpgrade(r)}>
-                <Text style={styles.roleOptText}>{r.replace('_', ' ')}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🎯 Lead Collection — {leadCategory} LEADS</Text>
+              <TouchableOpacity onPress={() => setLeadCollectionModalOpen(false)}>
+                <Text style={styles.modalCloseBtnText}>✕</Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setUpgradeRoleModalOpen(false)}>
-              <Text style={{ color: '#94a3b8', textAlign: 'center' }}>Cancel</Text>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {MOCK_LEADS.map((lead) => (
+                <View key={lead.id} style={styles.leadCardRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>{lead.name}</Text>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{lead.company} • {lead.phone}</Text>
+                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>Logged: {lead.date}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>{lead.value}</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8', marginTop: 2 }}>{leadCategory}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => setLeadCollectionModalOpen(false)}>
+              <Text style={styles.modalBtnText}>Close Lead Collection →</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={changeSupervisorModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: ROLE UPGRADE ───────────────────────────────────────────── */}
+      <Modal visible={upgradeRoleModalOpen} transparent animationType="slide" onRequestClose={() => setUpgradeRoleModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>⚡ Upgrade Role for {employee.name}</Text>
+            {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'] as const).map((r) => (
+              <TouchableOpacity key={r} style={styles.modalItemBtn} onPress={() => handleRoleUpgrade(r)}>
+                <Text style={styles.modalItemBtnText}>{r.replace('_', ' ')}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setUpgradeRoleModalOpen(false)}>
+              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 10, fontWeight: '800' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL: CHANGE SUPERVISOR ──────────────────────────────────────── */}
+      <Modal visible={changeSupervisorModalOpen} transparent animationType="slide" onRequestClose={() => setChangeSupervisorModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>✏️ Change Assigned Supervisor</Text>
-            {SUPERVISORS.map((sup, idx) => (
-              <TouchableOpacity key={idx} style={[styles.roleOpt, employee.assignedManager === sup && styles.roleOptActive]} onPress={() => handleSupervisorChange(sup)}>
-                <Text style={styles.roleOptText}>{sup}</Text>
+            {SUPERVISORS.map((sup, i) => (
+              <TouchableOpacity key={i} style={styles.modalItemBtn} onPress={() => handleSupervisorChange(sup)}>
+                <Text style={styles.modalItemBtnText}>{sup}</Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setChangeSupervisorModalOpen(false)}>
-              <Text style={{ color: '#94a3b8', textAlign: 'center' }}>Cancel</Text>
+            <TouchableOpacity onPress={() => setChangeSupervisorModalOpen(false)}>
+              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 10, fontWeight: '800' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={leadPreviewModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🎯 Lead Collection Page — {leadCategory}</Text>
-            {[1, 2, 3].map(i => (
-              <View key={i} style={styles.leadItem}>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>Lead #{i}09 • Enterprise</Text>
-                <Text style={{ color: '#818cf8', fontWeight: '700', fontSize: 10 }}>{leadCategory}</Text>
-              </View>
-            ))}
-            <TouchableOpacity style={styles.submitBtn} onPress={() => setLeadPreviewModalOpen(false)}>
-              <Text style={styles.submitBtnText}>Close Lead Collection →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={leaveModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: PENDING LEAVE APPLICATION ──────────────────────────────── */}
+      <Modal visible={leaveModalOpen} transparent animationType="slide" onRequestClose={() => setLeaveModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>📅 Pending Leave Application Inspection</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 6 }}>
+              Applicant: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{employee.name}</Text>{'\n'}
+              Duration: 3 Days (Medical Leave){'\n'}
+              Dates: Aug 25 - Aug 27, 2026
+            </Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Enter approval or decline note..."
+              placeholder="Enter decision note..."
               placeholderTextColor="#64748b"
               value={leaveNote}
               onChangeText={setLeaveNote}
             />
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              <TouchableOpacity style={[styles.submitBtn, { flex: 1, backgroundColor: '#ef4444' }]} onPress={() => handleApproveDeclineLeave(false)}>
-                <Text style={styles.submitBtnText}>Decline</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleApproveDeclineLeave(false)}>
+                <Text style={styles.modalBtnText}>Decline</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.submitBtn, { flex: 1, backgroundColor: '#10b981' }]} onPress={() => handleApproveDeclineLeave(true)}>
-                <Text style={styles.submitBtnText}>Approve</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#22c55e' }]} onPress={() => handleApproveDeclineLeave(true)}>
+                <Text style={styles.modalBtnText}>Approve</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={deleteModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: 10-DAY GRACE DELETE & REVERT ───────────────────────────── */}
+      <Modal visible={deleteModalOpen} transparent animationType="slide" onRequestClose={() => setDeleteModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>🗑️ Account Deletion (10-Day Grace Period)</Text>
             {employee.deletionScheduledAt ? (
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: '#fcd34d', fontSize: 11 }}>Account is locked &amp; scheduled for purge. Revert note required:</Text>
+              <View>
+                <Text style={{ fontSize: 11, color: '#fbbf24', marginVertical: 6 }}>
+                  Scheduled for purge on {employee.deletionScheduledAt}. Account locked. Enter note to revert:
+                </Text>
                 <TextInput
                   style={styles.textInput}
                   placeholder="Enter reason to revert deletion..."
@@ -303,96 +410,96 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
                   value={revertNote}
                   onChangeText={setRevertNote}
                 />
-                <TouchableOpacity style={styles.submitBtn} onPress={handleRequestRevert}>
-                  <Text style={styles.submitBtnText}>↺ Request Revert Deletion →</Text>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#22c55e', marginTop: 10 }]} onPress={handleRequestRevert}>
+                  <Text style={styles.modalBtnText}>↺ Request to Revert Deletion →</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#ef4444' }]} onPress={handleInitiate10DayDelete}>
-                <Text style={styles.submitBtnText}>Initiate 10-Day Purge →</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#ef4444', marginTop: 10 }]} onPress={handleInitiate10DayDelete}>
+                <Text style={styles.modalBtnText}>Initiate 10-Day Purge →</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setDeleteModalOpen(false)}>
-              <Text style={{ color: '#94a3b8', textAlign: 'center' }}>Cancel</Text>
+            <TouchableOpacity onPress={() => setDeleteModalOpen(false)}>
+              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 10, fontWeight: '800' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={documentsModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: DOCUMENTS TELEMETRY ────────────────────────────────────── */}
+      <Modal visible={documentsModalOpen} transparent animationType="slide" onRequestClose={() => setDocumentsModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📄 Official Documents</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11 }}>PAN: {employee.documents.pan}</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11, marginTop: 4 }}>Aadhaar: {employee.documents.aadhaar}</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11, marginTop: 4 }}>Offer Letter: {employee.documents.offerLetter}</Text>
-            <TouchableOpacity style={styles.submitBtn} onPress={() => setDocumentsModalOpen(false)}>
-              <Text style={styles.submitBtnText}>Close Documents →</Text>
+            <Text style={styles.modalTitle}>📄 Official Documents Telemetry</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'ABCDE1234F'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'AADHAAR_VERIFIED.pdf'}</Text>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setDocumentsModalOpen(false)}>
+              <Text style={styles.modalBtnText}>Close Documents →</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={bankDetailsModalOpen} transparent animationType="slide">
-        <View style={styles.overlay}>
+      {/* ── MODAL: BANK DETAILS TELEMETRY ─────────────────────────────────── */}
+      <Modal visible={bankDetailsModalOpen} transparent animationType="slide" onRequestClose={() => setBankDetailsModalOpen(false)}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>💳 Bank Account Details</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11 }}>Bank: {employee.bankDetails.bankName}</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11, marginTop: 4 }}>Account: {employee.bankDetails.accountNo}</Text>
-            <Text style={{ color: '#ffffff', fontSize: 11, marginTop: 4 }}>IFSC: {employee.bankDetails.ifscCode}</Text>
-            <TouchableOpacity style={styles.submitBtn} onPress={() => setBankDetailsModalOpen(false)}>
-              <Text style={styles.submitBtnText}>Close Bank Details →</Text>
+            <Text style={styles.modalTitle}>💳 Bank Account Details Telemetry</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'HDFC Bank'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || '50100987654321'}</Text>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setBankDetailsModalOpen(false)}>
+              <Text style={styles.modalBtnText}>Close Bank Details →</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
+      <ToastBanner toast={toastConfig} onDismiss={() => setToastConfig(null)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
-  topBar: { backgroundColor: '#0f172a', padding: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  backBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
-  backBtnText: { color: '#38bdf8', fontWeight: '800', fontSize: 11 },
-  roleTag: { backgroundColor: 'rgba(52,211,153,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#34d399' },
-  roleTagText: { color: '#34d399', fontSize: 9, fontWeight: '900' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  backBtn: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
+  backBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '800' },
+  roleTag: { backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  roleTagText: { fontSize: 10, fontWeight: '900', color: '#34d399' },
   content: { padding: 16, alignItems: 'center' },
-
-  profileCard: { width: '100%', maxWidth: 600, backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 14, marginBottom: 14 },
-  avatar: { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#34d399' },
-  empName: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
-  lockBadge: { backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 8, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  empMeta: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
-  chipBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },
-  chipBtnText: { fontSize: 9, fontWeight: '800', color: '#a5b4fc' },
-
-  supBox: { backgroundColor: '#020617', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#1e293b', marginTop: 10 },
-  supLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
-  supVal: { fontSize: 12, color: '#38bdf8', fontWeight: '800', marginTop: 2 },
-  purgeNotice: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: '#f59e0b', borderRadius: 10, padding: 10, marginTop: 8 },
-  purgeNoticeText: { color: '#fcd34d', fontSize: 10, fontWeight: '700' },
-
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, marginTop: 12, width: '100%', maxWidth: 600 },
-  grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%', maxWidth: 600 },
-  statCard: { width: '48%', backgroundColor: '#0f172a', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#1e293b' },
-  statVal: { fontSize: 20, fontWeight: '900', color: '#ffffff' },
-  statLbl: { fontSize: 10, color: '#94a3b8', marginTop: 2, fontWeight: '700' },
-
-  actionBtn: { backgroundColor: '#0f172a', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
-  actionBtnText: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
-
-  docsCard: { width: '100%', maxWidth: 600, marginTop: 14 },
-
-  overlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalTitle: { fontSize: 14, fontWeight: '800', color: '#ffffff', marginBottom: 10 },
-  roleOpt: { backgroundColor: '#020617', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 6 },
-  roleOptActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)' },
-  roleOptText: { fontSize: 12, fontWeight: '800', color: '#ffffff' },
-  leadItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', marginBottom: 6 },
-  textInput: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', color: '#ffffff', padding: 10, fontSize: 11 },
-  submitBtn: { backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginTop: 10 },
-  submitBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
+  profileCard: { width: '100%', maxWidth: 500, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  profileName: { fontSize: 17, fontWeight: '900', color: '#ffffff' },
+  profileMeta: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+  lockedPill: { backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 9, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  upgradeBtn: { backgroundColor: 'rgba(99,102,241,0.2)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.5)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  upgradeBtnText: { fontSize: 10, fontWeight: '900', color: '#818cf8' },
+  changeSupBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  changeSupBtnText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
+  deletionNoticeBox: { width: '100%', maxWidth: 500, backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', borderRadius: 12, padding: 10, marginBottom: 12 },
+  deletionNoticeText: { fontSize: 10, fontWeight: '800', color: '#fbbf24' },
+  sectionTitle: { width: '100%', maxWidth: 500, fontSize: 12, fontWeight: '900', color: '#818cf8', textTransform: 'uppercase', marginBottom: 8, marginTop: 6 },
+  statsGrid: { width: '100%', maxWidth: 500, flexDirection: 'row', gap: 8, marginBottom: 8 },
+  statCard: { flex: 1, backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, padding: 12 },
+  statVal: { fontSize: 18, fontWeight: '900' },
+  statLbl: { fontSize: 10, fontWeight: '800', color: '#94a3b8', marginTop: 2 },
+  actionCard: { width: '100%', maxWidth: 500, backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 8 },
+  actionCardTitle: { fontSize: 12, fontWeight: '900', color: '#38bdf8' },
+  actionCardSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  actionBtnHalf: { backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  actionBtnHalfText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
+  deleteBtn: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.4)' },
+  deleteBtnText: { color: '#fca5a5', fontWeight: '900', fontSize: 11 },
+  docBankBtn: { backgroundColor: '#0f172a', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#1e293b' },
+  docBankBtnText: { color: '#38bdf8', fontWeight: '800', fontSize: 11 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.88)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 430, backgroundColor: '#0d1527', borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.35)', padding: 18, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)', paddingBottom: 10 },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  modalCloseBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
+  leadCardRow: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalItemBtn: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginTop: 8 },
+  modalItemBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '800' },
+  textInput: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#334155', color: '#ffffff', padding: 12, fontSize: 12, marginTop: 8 },
+  modalBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  modalBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
 });

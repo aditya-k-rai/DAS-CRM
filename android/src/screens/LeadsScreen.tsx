@@ -714,7 +714,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       )}
 
       {/* ── MODAL 1: INLINE HEADER RENAME MODAL ─────────────────────────────── */}
-      <Modal visible={!!editingColKey} transparent animationType="fade">
+      <Modal visible={!!editingColKey} transparent animationType="fade" onRequestClose={() => setEditingColKey(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContentSmall}>
             <Text style={styles.modalTitle}>✏️ Rename Column Header</Text>
@@ -741,7 +741,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       </Modal>
 
       {/* ── MODAL 2: DYNAMIC COLUMN REORDER & RENAME ───────────────────────── */}
-      <Modal visible={colOrderModalOpen} transparent animationType="slide">
+      <Modal visible={colOrderModalOpen} transparent animationType="slide" onRequestClose={() => setColOrderModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>🔀 Reorder &amp; Edit Columns</Text>
@@ -783,7 +783,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       </Modal>
 
       {/* ── MODAL 3: EDIT LEAD RECORD ──────────────────────────────────────── */}
-      <Modal visible={!!editingLead} transparent animationType="slide">
+      <Modal visible={!!editingLead} transparent animationType="slide" onRequestClose={() => setEditingLead(null)}>
         <View style={styles.modalOverlay}>
           {editingLead && (
             <View style={styles.modalContent}>
@@ -839,7 +839,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       </Modal>
 
       {/* ── MODAL 4: NEW LEAD CREATION ──────────────────────────────────────── */}
-      <Modal visible={insertModalOpen} transparent animationType="slide">
+      <Modal visible={insertModalOpen} transparent animationType="slide" onRequestClose={() => setInsertModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
@@ -895,7 +895,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       </Modal>
 
       {/* ── MODAL 5: GOOGLE SHEETS LIVE SYNC MODAL ───────────────────────── */}
-      <Modal visible={sheetModalOpen} transparent animationType="slide">
+      <Modal visible={sheetModalOpen} transparent animationType="slide" onRequestClose={() => setSheetModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -979,20 +979,33 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         </View>
       </Modal>
 
-      {/* ── MODAL 6: CSV / EXCEL FILE & DATA IMPORT MODAL ─────────────────── */}
-      <Modal visible={importModalOpen} transparent animationType="slide">
+      {/* ── MODAL 6: UNIVERSAL MULTI-FORMAT IMPORT ENGINE (CSV, XLSX, XLS, TSV, TXT, JSON, XML) ── */}
+      <Modal visible={importModalOpen} transparent animationType="slide" onRequestClose={() => setImportModalOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxWidth: 440 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.modalTitle}>📥 CSV / Excel Customization Wizard</Text>
+              <Text style={styles.modalTitle}>📥 Universal Multi-Format Import Engine</Text>
               <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setImportModalOpen(false)}>
                 <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSub}>Configure headline row index and field mapping before ingesting data.</Text>
+            <Text style={styles.modalSub}>Supports CSV, XLSX, XLS, TSV, TXT, JSON &amp; XML file structures into CRM Table.</Text>
 
-            {/* Header Row Selector */}
-            <Text style={styles.label}>Select Header Row Line:</Text>
+            {/* Format Chips Selector */}
+            <Text style={styles.label}>Select File Format Source:</Text>
+            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              {['CSV', 'XLSX', 'XLS', 'TSV', 'TXT', 'JSON', 'XML'].map((fmt) => (
+                <TouchableOpacity
+                  key={fmt}
+                  style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, fmt === 'CSV' && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: fmt === 'CSV' ? '#ffffff' : '#94a3b8' }}>{fmt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Header Line Selector */}
+            <Text style={styles.label}>Header Row Index (1-based):</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
               {[
                 { idx: 0, label: 'Line 1 (Default)' },
@@ -1001,7 +1014,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               ].map((r) => (
                 <TouchableOpacity
                   key={r.idx}
-                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 6, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.15)' }]}
+                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 5, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.15)' }]}
                   onPress={() => setHeaderRowIdx(r.idx)}
                 >
                   <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, headerRowIdx === r.idx && { color: '#818cf8' }]}>
@@ -1011,22 +1024,24 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               ))}
             </View>
 
-            <Text style={styles.label}>Raw CSV Data / Multiline Input:</Text>
+            {/* Raw Data Input */}
+            <Text style={styles.label}>Data Contents (Paste CSV / JSON / XML):</Text>
             <TextInput
-              style={[styles.modalInput, { height: 90, textAlignVertical: 'top' }]}
-              placeholder="Lead Name, Mobile Number, Business Firm, Mail Address, Lead Stage, Value&#10;Rajesh Varma, +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000"
+              style={[styles.modalInput, { height: 80, textAlignVertical: 'top', fontSize: 10 }]}
+              placeholder="Full Name, Phone Number, Company, Email, Value, Status&#10;Rajesh Kumar, +91 98765 43210, TechCorp, rajesh@techcorp.com, ₹5,20,000, QUALIFIED&#10;Priya Sharma, +91 98123 45678, LogiTech, priya@logitech.com, ₹3,10,000, NEW LEAD"
               placeholderTextColor="#64748b"
               multiline
               value={rawCsvInput}
               onChangeText={setRawCsvInput}
             />
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+            {/* Action Buttons */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
-                <Text style={{ color: '#38bdf8', fontWeight: '800' }}>⚡ Run Sample CSV</Text>
+                <Text style={{ color: '#38bdf8', fontWeight: '800' }}>⚡ Run Sample Data</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#10b981', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>📥 Import Leads →</Text>
+                <Text style={{ color: '#ffffff', fontWeight: '800' }}>📥 Import File Data →</Text>
               </TouchableOpacity>
             </View>
           </View>

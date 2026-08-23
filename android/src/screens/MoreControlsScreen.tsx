@@ -69,7 +69,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string }[] = [
     { key: 'PRODUCTS', icon: '📦', label: 'Products Catalog' },
-    { key: 'COMMUNICATIONS', icon: '💬', label: 'Communication' },
+    { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
     { key: 'WA_TEMPLATES', icon: '✏️', label: 'WhatsApp Direct Templates' },
     { key: 'AI_CONTROL', icon: '🤖', label: 'Ai Customization' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
@@ -77,7 +77,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'DEALS', icon: '💼', label: 'Deals Pipeline' },
     { key: 'REPORTS', icon: '📊', label: 'In-Depth Reports & Analytics' },
     { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations & Bot Rules' },
-    { key: 'EXTRA_EMAIL', icon: '📧', label: 'Extra Features , Like Email Marketing' },
+    { key: 'EXTRA_EMAIL', icon: '🚀', label: 'Email Marketing' },
     { key: 'IMPORT_EXPORT', icon: '📥', label: 'Bulk CSV, Excel & G-Sheets Ingestion' },
   ];
 

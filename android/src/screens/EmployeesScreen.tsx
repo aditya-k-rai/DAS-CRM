@@ -9,13 +9,14 @@
  * 4. HrControlScreen
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
@@ -225,6 +226,18 @@ export default function EmployeesScreen() {
   ]);
 
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (inspectingEmp !== null) {
+        setInspectingEmp(null);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [inspectingEmp]);
 
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);

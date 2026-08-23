@@ -35,6 +35,8 @@ import {
 } from '../services/whatsappTemplateEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { PaymentStatusModal, PaymentOutcomeResult } from '../components/PaymentStatusModal';
+import ToastBanner, { ToastConfig } from '../components/ToastBanner';
+import CustomAlertModal, { CustomAlertState } from '../components/CustomAlertModal';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -47,6 +49,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const navigation = useNavigation();
   const { currentUser } = useAuthStore();
   const userRole = currentUser?.role || 'SALES_EXEC';
+
+  const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
+  const [customAlertConfig, setCustomAlertConfig] = useState<CustomAlertState | null>(null);
 
   let lead = propLead;
   try {
@@ -441,10 +446,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               style={{ flex: 1, backgroundColor: 'rgba(192,132,252,0.15)', borderWidth: 1, borderColor: '#c084fc', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => {
                 setLeadStatusState('IN NEGOTIATION');
-                Alert.alert('🚀 Email Marketing', 'Automated Email Marketing campaign dispatched! Status updated to IN NEGOTIATION.', [
-                  { text: 'Send Invoice & Check Payment', onPress: () => setPaymentModalOpen(true) },
-                  { text: 'OK' },
-                ]);
+                setCustomAlertConfig({
+                  visible: true,
+                  title: '🚀 Email Marketing',
+                  message: 'Automated Email Marketing campaign dispatched! Status updated to IN NEGOTIATION.',
+                  buttons: [
+                    { text: 'SEND INVOICE & CHECK PAYMENT 💳', onPress: () => setPaymentModalOpen(true), style: 'primary' },
+                    { text: 'OK', style: 'cancel' },
+                  ],
+                });
               }}
               activeOpacity={0.8}
             >
@@ -684,7 +694,12 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                 try {
                   Clipboard.setString(item.value);
                 } catch (e) {}
-                Alert.alert('📋 Copied to Clipboard', `${item.type} "${item.value}" copied to clipboard!`);
+                setToastConfig({
+                  id: `toast_${Date.now()}`,
+                  title: '📋 Copied to Clipboard',
+                  message: `${item.type} "${item.value}" copied to clipboard!`,
+                  type: 'COPY',
+                });
               }
             };
 
@@ -879,6 +894,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         onClose={() => setPaymentModalOpen(false)}
         onConfirmPaymentOutcome={handleConfirmPaymentOutcome}
       />
+
+      <ToastBanner toast={toastConfig} onDismiss={() => setToastConfig(null)} />
+      <CustomAlertModal alert={customAlertConfig} onClose={() => setCustomAlertConfig(null)} />
     </View>
   );
 }

@@ -198,12 +198,12 @@ export function ImportWizard() {
               onDrop={handleFileDrop}
               onClick={() => fileRef.current?.click()}
             >
-              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.txt" className="hidden" onChange={handleFileChange} />
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.tsv,.txt,.json,.xml" className="hidden" onChange={handleFileChange} />
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(99,102,241,0.12)' }}>
                 <Upload size={24} style={{ color: 'rgb(129,140,248)' }} />
               </div>
-              <h3 className="font-semibold text-base mb-1 text-white">Drag &amp; Drop Excel (.xlsx, .xls) or CSV file here</h3>
-              <p className="text-xs text-muted mb-4">Supports CSV, Excel (.xlsx, .xls), TXT · Multi-Column Auto-Mapping Engine · Max 50MB</p>
+              <h3 className="font-semibold text-base mb-1 text-white">Drag &amp; Drop Universal Lead File (CSV, XLSX, XLS, TSV, TXT, JSON, XML)</h3>
+              <p className="text-xs text-muted mb-4">Supports CSV, XLSX, XLS, TSV, TXT, JSON, XML · Universal Multi-Column Auto-Mapping Engine · Max 100MB</p>
               <button className="btn-primary px-6 text-xs">Browse File →</button>
             </div>
 

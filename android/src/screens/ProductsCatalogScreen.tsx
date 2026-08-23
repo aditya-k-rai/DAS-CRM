@@ -317,18 +317,26 @@ export default function ProductsCatalogScreen({
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 36 }]} showsVerticalScrollIndicator={false}>
 
         {/* Top Navigation Sub-Header (Matched to CommunicationScreen.tsx) */}
         <View style={styles.topSubHeaderBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={onClose ? onClose : undefined}>
-            <Text style={styles.backBtnText}>← Back to Operations</Text>
-          </TouchableOpacity>
-          
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.subHeaderTitle}>📦 Products &amp; Catalog Customization</Text>
-            <Text style={styles.subHeaderSub}>Categories • Sub-Categories • Inventory Stock • MOQ</Text>
-          </View>
+          {onClose ? (
+            <TouchableOpacity style={styles.backBtn} onPress={onClose}>
+              <Text style={styles.backBtnText}>← Back to Operations</Text>
+            </TouchableOpacity>
+          ) : (
+            <View />
+          )}
+          <Text style={styles.subHeaderTitle}>📦 Products &amp; Catalog Customization</Text>
+        </View>
+
+        {/* Main Header Box (Matched to CommunicationScreen.tsx) */}
+        <View style={styles.headerBox}>
+          <Text style={styles.headerTitle}>Products &amp; Catalog Customization Engine</Text>
+          <Text style={styles.headerSubtitle}>
+            Categories • Sub-Categories • Inventory Stock • Minimum Order Quantity &amp; Tier Pricing
+          </Text>
         </View>
 
         {/* Metrics Summary Cards */}
@@ -1033,16 +1041,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  subHeaderTitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#ffffff',
-  },
-  subHeaderSub: {
-    fontSize: 9,
-    color: '#94a3b8',
-    marginTop: 1,
-  },
+  subHeaderTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  headerBox: { width: '100%', maxWidth: 650, marginBottom: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
+  headerSubtitle: { fontSize: 11, color: '#94a3b8' },
 
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
   modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
