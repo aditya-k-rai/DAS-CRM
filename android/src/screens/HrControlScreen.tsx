@@ -504,7 +504,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
               • PF, ESI &amp; Tax Deduction Compliance Sheet{'\n'}
               • Quarterly Staff Retention &amp; Exit Log
             </Text>
-            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => { setGeneratedReportsModalOpen(false); Alert.alert('Exported', 'HR Compliance bundle exported.'); }}>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => { setGeneratedReportsModalOpen(false); setToastConfig({ id: `toast_${Date.now()}`, title: '📜 Bundle Exported', message: 'HR Compliance bundle exported successfully.', type: 'SUCCESS' }); }}>
               <Text style={styles.modalBtnText}>Export Compliance Bundle PDF →</Text>
             </TouchableOpacity>
           </View>
@@ -526,7 +526,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
               • Staff Awaiting Disbursal: 3 Sales Executives{'\n'}
               • Status: Bank Account Details Verified
             </Text>
-            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#22c55e', marginTop: 10 }]} onPress={() => { setSalaryPendingModalOpen(false); Alert.alert('Disbursed', 'Pending salary disbursal initiated.'); }}>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#22c55e', marginTop: 10 }]} onPress={() => { setSalaryPendingModalOpen(false); setToastConfig({ id: `toast_${Date.now()}`, title: '💳 Salary Disbursed', message: 'Pending salary disbursal initiated via bank gateway.', type: 'SUCCESS' }); }}>
               <Text style={styles.modalBtnText}>Disburse Pending Salaries Now →</Text>
             </TouchableOpacity>
           </View>
@@ -548,7 +548,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
               • Pending Disbursal: ₹1,45,000 (3 Staff Pending Bank Audit){'\n'}
               • Incentive Commission Release: ₹2,40,000 Approved
             </Text>
-            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => { setSalaryReportsModalOpen(false); Alert.alert('Exported', 'Salary report exported to PDF.'); }}>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => { setSalaryReportsModalOpen(false); setToastConfig({ id: `toast_${Date.now()}`, title: '📄 PDF Exported', message: 'Salary report exported to PDF.', type: 'SUCCESS' }); }}>
               <Text style={styles.modalBtnText}>Export Salary PDF Report →</Text>
             </TouchableOpacity>
           </View>
@@ -709,49 +709,49 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  backBtn: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
-  backBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '800' },
-  roleTag: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  roleTagText: { fontSize: 10, fontWeight: '900', color: '#38bdf8' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
+  backBtn: { backgroundColor: 'rgba(30, 41, 59, 0.8)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(56, 189, 248, 0.4)', shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 3 },
+  backBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
+  roleTag: { backgroundColor: 'rgba(56, 189, 248, 0.18)', borderWidth: 1.5, borderColor: 'rgba(56, 189, 248, 0.5)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  roleTagText: { fontSize: 10, fontWeight: '900', color: '#38bdf8', letterSpacing: 0.4 },
   content: { padding: 16, alignItems: 'center' },
-  profileCard: { width: '100%', maxWidth: 500, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  profileName: { fontSize: 17, fontWeight: '900', color: '#ffffff' },
-  profileMeta: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
-  lockedPill: { backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 9, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  upgradeBtn: { backgroundColor: 'rgba(99,102,241,0.2)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.5)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  upgradeBtnText: { fontSize: 10, fontWeight: '900', color: '#818cf8' },
-  changeSupBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  profileCard: { width: '100%', maxWidth: 500, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.3)', padding: 18, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },
+  profileName: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
+  profileMeta: { fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: '600' },
+  lockedPill: { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', fontSize: 9, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.4)' },
+  upgradeBtn: { backgroundColor: 'rgba(99, 102, 241, 0.25)', borderWidth: 1.5, borderColor: '#6366f1', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
+  upgradeBtnText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc', letterSpacing: 0.3 },
+  changeSupBtn: { backgroundColor: 'rgba(51, 65, 85, 0.6)', borderWidth: 1.5, borderColor: '#475569', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   changeSupBtnText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
-  deletionNoticeBox: { width: '100%', maxWidth: 500, backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', borderRadius: 12, padding: 10, marginBottom: 12 },
-  deletionNoticeText: { fontSize: 10, fontWeight: '800', color: '#fbbf24' },
-  sectionTitle: { width: '100%', maxWidth: 500, fontSize: 12, fontWeight: '900', color: '#818cf8', textTransform: 'uppercase', marginBottom: 8, marginTop: 6 },
-  statsGrid: { width: '100%', maxWidth: 500, flexDirection: 'row', gap: 8, marginBottom: 8 },
-  statCard: { flex: 1, backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, padding: 12 },
-  statVal: { fontSize: 18, fontWeight: '900' },
-  statLbl: { fontSize: 10, fontWeight: '800', color: '#94a3b8', marginTop: 2 },
-  actionCard: { width: '100%', maxWidth: 500, backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 8 },
-  actionCardTitle: { fontSize: 12, fontWeight: '900', color: '#38bdf8' },
-  actionCardSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
-  actionBtnHalf: { backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
-  actionBtnHalfText: { color: '#ffffff', fontWeight: '800', fontSize: 11 },
-  deleteBtn: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.4)' },
-  deleteBtnText: { color: '#fca5a5', fontWeight: '900', fontSize: 11 },
-  docBankBtn: { backgroundColor: '#0f172a', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#1e293b' },
-  docBankBtnText: { color: '#38bdf8', fontWeight: '800', fontSize: 11 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
-  modalTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
-  modalCloseBtnText: { color: '#94a3b8', fontSize: 16, fontWeight: '900' },
-  leadCardRow: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 8 },
-  modalItemBtn: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginTop: 6 },
-  modalItemBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
-  inputLabel: { fontSize: 10, fontWeight: '700', color: '#cbd5e1', marginTop: 6, marginBottom: 2 },
-  textInput: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', color: '#ffffff', padding: 10, fontSize: 11, marginTop: 4 },
-  modalBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center' },
-  modalBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 11 },
-  roleSelectChip: { flex: 1, backgroundColor: '#020617', paddingVertical: 6, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#1e293b' },
+  deletionNoticeBox: { width: '100%', maxWidth: 500, backgroundColor: 'rgba(245, 158, 11, 0.18)', borderWidth: 1.5, borderColor: 'rgba(245, 158, 11, 0.5)', borderRadius: 14, padding: 12, marginBottom: 14 },
+  deletionNoticeText: { fontSize: 11, fontWeight: '800', color: '#fbbf24', lineHeight: 16 },
+  sectionTitle: { width: '100%', maxWidth: 500, fontSize: 12, fontWeight: '900', color: '#818cf8', textTransform: 'uppercase', marginBottom: 10, marginTop: 8, letterSpacing: 0.5 },
+  statsGrid: { width: '100%', maxWidth: 500, flexDirection: 'row', gap: 10, marginBottom: 10 },
+  statCard: { flex: 1, backgroundColor: '#0d1527', borderRadius: 16, borderWidth: 1.5, padding: 14, shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
+  statVal: { fontSize: 20, fontWeight: '900' },
+  statLbl: { fontSize: 10, fontWeight: '800', color: '#cbd5e1', marginTop: 3 },
+  actionCard: { width: '100%', maxWidth: 500, backgroundColor: '#0d1527', borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(56, 189, 248, 0.35)', padding: 14, marginBottom: 10, shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
+  actionCardTitle: { fontSize: 12, fontWeight: '900', color: '#38bdf8', letterSpacing: 0.2 },
+  actionCardSub: { fontSize: 10, color: '#94a3b8', marginTop: 3, fontWeight: '500' },
+  actionBtnHalf: { backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: 14, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#334155', shadowColor: '#818cf8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
+  actionBtnHalfText: { color: '#ffffff', fontWeight: '900', fontSize: 11, letterSpacing: 0.3 },
+  deleteBtn: { backgroundColor: 'rgba(239, 68, 68, 0.18)', borderColor: 'rgba(239, 68, 68, 0.6)', shadowColor: '#ef4444', shadowOpacity: 0.3 },
+  deleteBtnText: { color: '#fca5a5', fontWeight: '900', fontSize: 11, letterSpacing: 0.3 },
+  docBankBtn: { backgroundColor: '#0d1527', borderRadius: 14, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(56, 189, 248, 0.4)', shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 3 },
+  docBankBtnText: { color: '#38bdf8', fontWeight: '900', fontSize: 11, letterSpacing: 0.3 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.88)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 430, backgroundColor: '#0d1527', borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.35)', padding: 18, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 20, elevation: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)', paddingBottom: 10 },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  modalCloseBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
+  leadCardRow: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 8 },
+  modalItemBtn: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1.5, borderColor: '#334155', padding: 12, marginTop: 8 },
+  modalItemBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '800' },
+  inputLabel: { fontSize: 11, fontWeight: '800', color: '#94a3b8', marginTop: 8 },
+  textInput: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1.5, borderColor: '#334155', color: '#ffffff', padding: 12, fontSize: 12, marginTop: 8 },
+  modalBtn: { paddingVertical: 13, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  modalBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 12, letterSpacing: 0.3 },
+  roleSelectChip: { flex: 1, backgroundColor: '#020617', paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#334155' },
   roleSelectChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
   roleSelectChipText: { fontSize: 10, color: '#94a3b8', fontWeight: '800' },
 });

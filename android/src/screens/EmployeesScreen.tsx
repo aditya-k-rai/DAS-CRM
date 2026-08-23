@@ -326,16 +326,16 @@ const styles = StyleSheet.create({
 
   sectionHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
 
-  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 16 },
+  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.3)', padding: 14, marginBottom: 16, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
   empRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
 
-  empName: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
-  supervisorText: { fontSize: 11, color: '#94a3b8', marginTop: 3 },
+  empName: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  supervisorText: { fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: '500' },
 
-  roleTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  roleTagText: { fontSize: 8, fontWeight: '800' },
+  roleTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1.5 },
+  roleTagText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.3 },
 
-  inspectBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  inspectBtnText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
+  inspectBtn: { backgroundColor: 'rgba(99, 102, 241, 0.22)', borderWidth: 1.5, borderColor: '#6366f1', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  inspectBtnText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc', letterSpacing: 0.3 },
 });
