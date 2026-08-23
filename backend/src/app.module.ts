@@ -25,6 +25,8 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { RoleTransitionModule } from './modules/role-transition/role-transition.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { DriveModule } from './modules/drive/drive.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     RoleTransitionModule,
     BillingModule,
     WhatsappModule,
+    DriveModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

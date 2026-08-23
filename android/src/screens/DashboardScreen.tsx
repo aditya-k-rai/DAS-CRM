@@ -32,7 +32,7 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: 4 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 Top Executive Banner */}

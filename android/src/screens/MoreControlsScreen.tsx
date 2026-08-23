@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductsCatalogScreen from './ProductsCatalogScreen';
-import { CommunicationScreen } from './CommunicationScreen';
+import CommunicationScreen from './CommunicationScreen';
 import { WhatsAppTemplatesScreen } from './WhatsAppTemplatesScreen';
 import { AiCustomizationScreen } from './AiCustomizationScreen';
 import { QuotationsInvoicesScreen } from './QuotationsInvoicesScreen';
@@ -16,7 +16,7 @@ import { PdfCatalogueScreen } from './PdfCatalogueScreen';
 import { DealsPipelineScreen } from './DealsPipelineScreen';
 import { ReportsAnalyticsScreen } from './ReportsAnalyticsScreen';
 import { WorkflowAutomationsScreen } from './WorkflowAutomationsScreen';
-import { EmailMarketingScreen } from './EmailMarketingScreen';
+import EmailMarketingScreen from './EmailMarketingScreen';
 import { BulkIngestionScreen } from './BulkIngestionScreen';
 
 export type ModuleKey =
@@ -47,6 +47,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   onOpenAppUpdates,
 }) => {
   const [activeModal, setActiveModal] = useState<ModuleKey | null>(null);
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(insets.top + 6, 18);
 
   useEffect(() => {
     const initMod = route?.params?.initialModule;
@@ -79,10 +81,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'IMPORT_EXPORT', icon: '📥', label: 'Bulk CSV, Excel & G-Sheets Ingestion' },
   ];
 
-  // Dedicated Full-Screen Screen Switcher
   if (activeModal !== null) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: '#090d16' }}>
         {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={() => setActiveModal(null)} />}
@@ -98,115 +99,55 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     );
   }
 
-  const insets = useSafeAreaInsets();
-  const topPadding = Math.max(insets.top + 6, 18);
-  const bottomPadding = Math.max(insets.bottom + 10, 20);
-
-  // Operations Directory Grid View (Default)
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
-      {/* ── TOP HEADER ──────────────────────────────────────────────────────── */}
-      <View style={styles.headerArea}>
-        <Text style={styles.headerTitle}>Operations Control Center</Text>
-        <Text style={styles.headerSub}>Tap any section button below for in-depth and detailed control inside.</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Enterprise Workspace Controls</Text>
+        <Text style={styles.headerSub}>Access all 11 modules and system toolkits</Text>
       </View>
 
-      {/* ── 2-COLUMN GRID OF BUTTONS (MATCHING USER DIAGRAM) ───────────────── */}
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.gridContainer}>
-          {GRID_BUTTONS.map((btn) => (
+          {GRID_BUTTONS.map((item) => (
             <TouchableOpacity
-              key={btn.key}
-              style={styles.gridBtnCard}
-              onPress={() => handleOpenModule(btn.key)}
-              activeOpacity={0.78}
+              key={item.key}
+              style={styles.gridCard}
+              onPress={() => handleOpenModule(item.key)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.gridBtnIcon}>{btn.icon}</Text>
-              <Text style={styles.gridBtnLabel}>{btn.label}</Text>
+              <Text style={styles.cardIcon}>{item.icon}</Text>
+              <Text style={styles.cardLabel}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Account & App Shortcuts */}
-        <View style={styles.accountBar}>
-          <TouchableOpacity
-            style={styles.accShortcutBtn}
-            onPress={() => onOpenProfile?.()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.accShortcutText}>👤 User Profile &amp; Settings</Text>
+        {onOpenProfile && (
+          <TouchableOpacity style={styles.systemBtn} onPress={onOpenProfile}>
+            <Text style={styles.systemBtnText}>👤 Open Profile &amp; Bank Settings</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.accShortcutBtn}
-            onPress={() => onOpenAppUpdates?.()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.accShortcutText}>🚀 In-App Version (v2.5.0)</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </ScrollView>
     </View>
   );
 };
 
+export default MoreControlsScreen;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
-  headerArea: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  headerTitle: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
-  headerSub: { fontSize: 10, color: '#94a3b8', marginTop: 3 },
-  scrollContent: { padding: 14, paddingBottom: 32 },
+  backBanner: { backgroundColor: '#1e293b', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#334155' },
+  backBannerText: { color: '#38bdf8', fontWeight: '800', fontSize: 12 },
 
-  // 2-Column Grid Layout matching user diagram
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  gridBtnCard: {
-    width: '48.5%',
-    backgroundColor: '#0c1827',
-    borderWidth: 1.5,
-    borderColor: '#00d2d3',
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 88,
-  },
-  gridBtnIcon: {
-    fontSize: 22,
-    marginBottom: 6,
-  },
-  gridBtnLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-    lineHeight: 14,
-  },
+  header: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', backgroundColor: '#0f172a' },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: '#ffffff' },
+  headerSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
 
-  accountBar: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 14,
-  },
-  accShortcutBtn: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  accShortcutText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#94a3b8',
-  },
+  scrollContent: { padding: 16, alignItems: 'center' },
+  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, width: '100%', maxWidth: 500 },
+  gridCard: { width: '48%', backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 14, alignItems: 'center', justifyContent: 'center' },
+  cardIcon: { fontSize: 24, marginBottom: 6 },
+  cardLabel: { fontSize: 11, fontWeight: '800', color: '#cbd5e1', textAlign: 'center' },
+
+  systemBtn: { marginTop: 16, width: '100%', maxWidth: 500, backgroundColor: '#1e293b', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
+  systemBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
 });
-
-export default MoreControlsScreen;

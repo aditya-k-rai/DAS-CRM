@@ -319,17 +319,16 @@ export default function ProductsCatalogScreen({
     <View style={[styles.container, { paddingTop: topPadding }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
-        {/* Top Header */}
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.screenTitle}>📦 Products &amp; Catalog Customization</Text>
-            <Text style={styles.screenSub}>Categories • Sub-Categories • Specifications • Inventory Stock • MOQ</Text>
+        {/* Top Navigation Sub-Header (Matched to CommunicationScreen.tsx) */}
+        <View style={styles.topSubHeaderBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={onClose ? onClose : undefined}>
+            <Text style={styles.backBtnText}>← Back to Operations</Text>
+          </TouchableOpacity>
+          
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.subHeaderTitle}>📦 Products &amp; Catalog Customization</Text>
+            <Text style={styles.subHeaderSub}>Categories • Sub-Categories • Inventory Stock • MOQ</Text>
           </View>
-          {onClose && (
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕ Close</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Metrics Summary Cards */}
@@ -1009,6 +1008,41 @@ const styles = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 460, maxHeight: '90%', backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
   modalCardLarge: { width: '100%', maxWidth: 500, maxHeight: '92%', backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
   modalCardSmall: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+
+  topSubHeaderBar: {
+    width: '100%',
+    maxWidth: 650,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+  },
+  backBtn: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  backBtnText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  subHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  subHeaderSub: {
+    fontSize: 9,
+    color: '#94a3b8',
+    marginTop: 1,
+  },
 
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
   modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },

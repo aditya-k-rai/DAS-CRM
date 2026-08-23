@@ -127,12 +127,49 @@ export default function AttendanceScreen() {
   const [punchedIn, setPunchedIn] = useState(true);
   const [locationPromptOpen, setLocationPromptOpen] = useState(false);
 
-  // Month Filter State (Past 3 Months)
-  const [selectedMonth, setSelectedMonth] = useState<'AUG' | 'JUL' | 'JUN'>('AUG');
-  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
-
-  // Selected Day State for Calendar Click (Defaulting to today's date)
+  // Dynamic Month & Year State (Default August 2026)
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(7); // 7 = August
+  const [currentYear, setCurrentYear] = useState<number>(2026);
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const handlePrevMonth = () => {
+    if (currentMonthIndex === 0) {
+      setCurrentMonthIndex(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonthIndex(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonthIndex === 11) {
+      setCurrentMonthIndex(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonthIndex(prev => prev + 1);
+    }
+  };
+
+  const handleTouchStart = (e: any) => {
+    setTouchStartX(e.nativeEvent.pageX);
+  };
+
+  const handleTouchEnd = (e: any) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.nativeEvent.pageX;
+    const deltaX = touchEndX - touchStartX;
+    if (deltaX > 35) {
+      handlePrevMonth(); // Swiped Right -> Previous Month
+    } else if (deltaX < -35) {
+      handleNextMonth(); // Swiped Left -> Next Month
+    }
+    setTouchStartX(null);
+  };
 
   // ── AUTOMATIC PERMISSIONS & LIVE SERVER TIME CLOCK ON MOUNT ───────────────
   useEffect(() => {
@@ -150,16 +187,16 @@ export default function AttendanceScreen() {
 
   // ── RECORD GENERATION ──────────────────────────────────────────────────────
   const [recordsMap, setRecordsMap] = useState<Record<number, DailyRecord>>(() => {
-    return generateRecordsForEmployee(selectedEmployeeId, selectedMonth);
+    return generateRecordsForEmployee(selectedEmployeeId, currentMonthIndex, currentYear);
   });
 
   useEffect(() => {
-    setRecordsMap(generateRecordsForEmployee(selectedEmployeeId, selectedMonth));
-  }, [selectedEmployeeId, selectedMonth]);
+    setRecordsMap(generateRecordsForEmployee(selectedEmployeeId, currentMonthIndex, currentYear));
+  }, [selectedEmployeeId, currentMonthIndex, currentYear]);
 
-  function generateRecordsForEmployee(empId: string, month: 'AUG' | 'JUL' | 'JUN') {
+  function generateRecordsForEmployee(empId: string, monthIdx: number, yr: number) {
     const map: Record<number, DailyRecord> = {};
-    const seed = (empId.charCodeAt(empId.length - 1) || 4) + (month === 'AUG' ? 0 : month === 'JUL' ? 1 : 2);
+    const seed = (empId.charCodeAt(empId.length - 1) || 4) + monthIdx + yr;
 
     for (let d = 1; d <= 28; d++) {
       const isSunday = d % 7 === 1;
@@ -167,7 +204,7 @@ export default function AttendanceScreen() {
       const isHalfDay = d === ((seed % 4) + 8);
       const isLeave = d === 12;
       const isWeekOff = isSunday || d === 21;
-      const isFuture = month === 'AUG' && d > 21;
+      const isFuture = yr > 2026 || (yr === 2026 && monthIdx > 7) || (yr === 2026 && monthIdx === 7 && d > 21);
 
       let status: DailyRecord['status'] = 'PRESENT';
       let statusLabel = 'Full Day (8h 30m)';
@@ -205,12 +242,6 @@ export default function AttendanceScreen() {
         inTime = '09:15 AM';
         outTime = '01:30 PM';
         workingHours = '4h 15m';
-      } else if (d === new Date().getDate() && month === 'AUG') {
-        status = 'PRESENT';
-        statusLabel = 'Punched In (Today)';
-        inTime = '09:21 AM';
-        outTime = null;
-        workingHours = '8h 15m (Active)';
       }
 
       map[d] = {
@@ -484,7 +515,7 @@ export default function AttendanceScreen() {
 
     Alert.alert(
       '👑 Admin Override Saved',
-      `Attendance for ${selectedEmployee.name} on ${selectedDay} ${selectedMonth} 2026 set to ${newStatus}.`
+      `Attendance for ${selectedEmployee.name} on ${selectedDay} ${MONTH_NAMES[currentMonthIndex]} ${currentYear} set to ${newStatus}.`
     );
   };
 
@@ -518,41 +549,8 @@ export default function AttendanceScreen() {
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
-  const monthName = selectedMonth === 'AUG' ? 'August' : selectedMonth === 'JUL' ? 'July' : 'June';
-
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
-      {/* ── TOP HEADER BAR ───────────────────────────────────────────────── */}
-      <View style={styles.topHeaderBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.topHeaderTitle}>Attendance &amp; Workforce Verification</Text>
-          <Text style={styles.topHeaderSub}>{serverTimeDisplay}</Text>
-        </View>
-
-        {/* Tab Toggle: Mark vs All Attendance */}
-        <View style={styles.tabToggleBox}>
-          {!isAdmin && (
-            <TouchableOpacity
-              style={[styles.tabToggleBtn, activeTab === 'MARK' && styles.tabToggleBtnActive]}
-              onPress={() => setActiveTab('MARK')}
-            >
-              <Text style={[styles.tabToggleText, activeTab === 'MARK' && styles.tabToggleTextActive]}>
-                Punch In/Out
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.tabToggleBtn, activeTab === 'MY_ATTENDANCE' && styles.tabToggleBtnActive]}
-            onPress={() => setActiveTab('MY_ATTENDANCE')}
-          >
-            <Text style={[styles.tabToggleText, activeTab === 'MY_ATTENDANCE' && styles.tabToggleTextActive]}>
-              {isAdmin ? '👥 All Employees' : '📅 My Records'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
+    <View style={[styles.container, { paddingTop: 4 }]}>
       {/* ── CONTENT SCROLL ───────────────────────────────────────────────── */}
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
@@ -662,22 +660,24 @@ export default function AttendanceScreen() {
               </View>
             )}
 
-            {/* Month Filter Selector */}
-            <View style={styles.monthSelectorBar}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f172a' }}>Month: {monthName} 2026</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['AUG', 'JUL', 'JUN'] as const).map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.monthFilterChip, selectedMonth === m && styles.monthFilterChipActive]}
-                    onPress={() => setSelectedMonth(m)}
-                  >
-                    <Text style={[styles.monthFilterChipText, selectedMonth === m && styles.monthFilterChipTextActive]}>
-                      {m} 26
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Month & Year Header Display Bar (With Left / Right Slide Controls) */}
+            <View style={styles.monthHeaderDisplayBar}>
+              <TouchableOpacity onPress={handlePrevMonth} style={styles.monthArrowBtn} activeOpacity={0.7}>
+                <Text style={styles.arrowIconText}>◀</Text>
+              </TouchableOpacity>
+
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.monthYearTitleText}>
+                  {MONTH_NAMES[currentMonthIndex]} {currentYear}
+                </Text>
+                <Text style={styles.monthSwipeHintText}>
+                  ← Slide card left / right to change month →
+                </Text>
               </View>
+
+              <TouchableOpacity onPress={handleNextMonth} style={styles.monthArrowBtn} activeOpacity={0.7}>
+                <Text style={styles.arrowIconText}>▶</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Dynamic Summary Badges Row */}
@@ -718,11 +718,15 @@ export default function AttendanceScreen() {
               </View>
             </View>
 
-            {/* 28-DAY CALENDAR GRID */}
-            <View style={styles.calendarCard}>
+            {/* 28-DAY CALENDAR GRID WITH SWIPE SLIDER GESTURE */}
+            <View
+              style={styles.calendarCard}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               <View style={styles.calendarHeaderInfo}>
                 <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a' }}>
-                  {monthName} Calendar Grid (Tap date to inspect record)
+                  {MONTH_NAMES[currentMonthIndex]} {currentYear} Calendar Grid (Tap date to inspect record)
                 </Text>
               </View>
 
@@ -777,7 +781,7 @@ export default function AttendanceScreen() {
             <View style={styles.punchCard}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <Text style={{ fontSize: 14, fontWeight: '900', color: '#0f172a' }}>
-                  Record for {selectedDay} {selectedMonth} 2026 ({selectedEmployee.name})
+                  Record for {selectedDay} {MONTH_NAMES[currentMonthIndex].substring(0, 3).toUpperCase()} {currentYear} ({selectedEmployee.name})
                 </Text>
                 <View style={[styles.punchedPillTag, { backgroundColor: activeDayRecord.status === 'PRESENT' ? '#dcfce7' : '#fee2e2' }]}>
                   <Text style={[styles.punchedPillText, { color: activeDayRecord.status === 'PRESENT' ? '#15803d' : '#b91c1c' }]}>
@@ -830,7 +834,7 @@ export default function AttendanceScreen() {
                   <Text style={styles.adminOverrideBadge}>ADMIN EXCLUSIVE</Text>
                 </View>
                 <Text style={styles.adminOverrideSub}>
-                  Modify status &amp; working hours for {selectedEmployee.name} on {selectedDay} {selectedMonth} 2026:
+                  Modify status &amp; working hours for {selectedEmployee.name} on {selectedDay} {MONTH_NAMES[currentMonthIndex]} {currentYear}:
                 </Text>
 
                 <View style={styles.adminOverrideButtonsRow}>
@@ -997,6 +1001,48 @@ const styles = StyleSheet.create({
   tabToggleBtnActive: { backgroundColor: '#4f46e5' },
   tabToggleText: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
   tabToggleTextActive: { color: '#ffffff' },
+
+  monthHeaderDisplayBar: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    marginBottom: 12,
+  },
+  monthArrowBtn: {
+    backgroundColor: '#1e293b',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  arrowIconText: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  monthYearTitleText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  monthSwipeHintText: {
+    fontSize: 9,
+    color: '#818cf8',
+    marginTop: 2,
+    fontWeight: '700',
+  },
 
   content: { padding: 16, alignItems: 'center' },
 

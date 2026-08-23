@@ -142,25 +142,6 @@ export function TenantAdminHeaderBanner({
           </Text>
         </View>
       </View>
-
-      {/* Quick Action Buttons Row */}
-      <View style={styles.actionButtonsRow}>
-        <TouchableOpacity
-          style={[styles.btnSecondary, { borderColor: `${themeColor}60` }]}
-          onPress={handleBtn1}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.btnSecondaryText, { color: avatarTextColor }]}>{btn1Text}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.btnPrimary, { backgroundColor: themeColor }]}
-          onPress={handleBtn2}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.btnPrimaryText}>{btn2Text}</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }

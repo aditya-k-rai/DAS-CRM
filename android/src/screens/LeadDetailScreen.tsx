@@ -19,6 +19,7 @@ import {
   TextInput,
   Image,
   Linking,
+  Clipboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -405,43 +406,39 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           </View>
         </View>
 
-        {/* Action Buttons Toolbar (6 Buttons: Call, WhatsApp Direct, WA Cloud, Direct Email, Email Marketing, Update Status) */}
-        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 14 }}>
+        {/* Action Buttons Toolbar (6 Glassmorphism Cards: Call, WhatsApp, WA Cloud, Direct Email, Email Mktg, Update Status) */}
+        <View style={{ width: '100%', maxWidth: 600, gap: 8, marginBottom: 16 }}>
           {/* Row 1 */}
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <TouchableOpacity style={[styles.callBtn, { flex: 1 }]} onPress={handleCall} activeOpacity={0.8}>
-              <Text style={styles.callBtnText}>📞 Call</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.whatsappBtn, { flex: 1 }]} onPress={handleWhatsApp} activeOpacity={0.8}>
-              <Text style={styles.whatsappBtnText}>💬 WhatsApp Direct</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: '#10b981', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+              onPress={handleCall}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#34d399', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>📞 Call</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: '#4f46e5', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
+              style={{ flex: 1, backgroundColor: 'rgba(37,211,102,0.15)', borderWidth: 1, borderColor: '#25D366', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+              onPress={handleWhatsApp}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>💬 WhatsApp</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: '#818cf8', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => { handleWhatsApp(); setLeadStatusState('IN NEGOTIATION'); setPaymentModalOpen(true); }}
               activeOpacity={0.8}
             >
-              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '900' }}>☁️ WA Cloud</Text>
+              <Text style={{ color: '#a5b4fc', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>☁️ WA Cloud</Text>
             </TouchableOpacity>
           </View>
 
           {/* Row 2 */}
-          <View style={{ flexDirection: 'row', gap: 6 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: 'rgba(2,132,199,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => {
-                const em = lead?.email || 'lead@example.com';
-                Linking.openURL(`mailto:${em}?subject=Follow-up%20from%20DAS%20CRM`).catch(() => Alert.alert('Direct Email', `Opening email for ${em}...`));
-                if (leadStatusState === 'NEW LEAD') setLeadStatusState('CONTACTED');
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>✉️ Direct Email</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{ flex: 1, backgroundColor: 'rgba(139,92,246,0.15)', borderWidth: 1, borderColor: 'rgba(192,132,252,0.4)', borderRadius: 12, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}
+              style={{ flex: 1, backgroundColor: 'rgba(192,132,252,0.15)', borderWidth: 1, borderColor: '#c084fc', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => {
                 setLeadStatusState('IN NEGOTIATION');
                 Alert.alert('🚀 Email Marketing', 'Automated Email Marketing campaign dispatched! Status updated to IN NEGOTIATION.', [
@@ -451,11 +448,15 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               }}
               activeOpacity={0.8}
             >
-              <Text style={{ color: '#c084fc', fontSize: 11, fontWeight: '800' }}>🚀 Email Marketing</Text>
+              <Text style={{ color: '#c084fc', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>🚀 Email Marketing</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.updateStatusBtn, { flex: 1 }]} onPress={() => setPostCallModalOpen(true)} activeOpacity={0.8}>
-              <Text style={styles.updateStatusBtnText}>📝 Update Status</Text>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(251,191,36,0.15)', borderWidth: 1, borderColor: '#fbbf24', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setPostCallModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>📝 Update Status</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -669,20 +670,39 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           })}
         </View>
 
-        {/* Contact Details */}
-        <Text style={styles.sectionTitle}>Contact Information</Text>
+        {/* Contact Details (With Copy-on-Tap Support for Phone & Email) */}
+        <Text style={styles.sectionTitle}>Contact Information (Tap Phone or Email to Copy 📋)</Text>
         <View style={styles.detailCard}>
           {[
-            ['📞 Phone', leadPhone],
-            ['✉️ Email', lead?.email || 'vikram@acme.com'],
-            ['🏢 Company', lead?.company || 'Acme Corp'],
-            ['🌐 Source', lead?.source || 'Google Sheets Sync'],
-          ].map(([label, value], i) => (
-            <View key={label} style={[styles.row, i < 3 && { borderBottomWidth: 1, borderBottomColor: '#1e293b' }]}>
-              <Text style={styles.rowLabel}>{label}</Text>
-              <Text style={styles.rowValue}>{value}</Text>
-            </View>
-          ))}
+            { label: '📞 Phone', value: leadPhone, isCopyable: true, type: 'Phone Number' },
+            { label: '✉️ Email', value: lead?.email || 'vikram@acme.com', isCopyable: true, type: 'Email Address' },
+            { label: '🏢 Company', value: lead?.company || 'Acme Corp', isCopyable: false, type: '' },
+            { label: '🌐 Source', value: lead?.source || 'Google Sheets Sync', isCopyable: false, type: '' },
+          ].map((item, i) => {
+            const handleTap = () => {
+              if (item.isCopyable) {
+                try {
+                  Clipboard.setString(item.value);
+                } catch (e) {}
+                Alert.alert('📋 Copied to Clipboard', `${item.type} "${item.value}" copied to clipboard!`);
+              }
+            };
+
+            return (
+              <TouchableOpacity
+                key={item.label}
+                style={[styles.row, i < 3 && { borderBottomWidth: 1, borderBottomColor: '#1e293b' }]}
+                onPress={handleTap}
+                activeOpacity={item.isCopyable ? 0.7 : 1}
+              >
+                <Text style={styles.rowLabel}>{item.label}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.rowValue, item.isCopyable && { color: '#38bdf8' }]}>{item.value}</Text>
+                  {item.isCopyable && <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800' }}>📋 Copy</Text>}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
       </ScrollView>
