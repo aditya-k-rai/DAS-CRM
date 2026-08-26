@@ -17,22 +17,22 @@ from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QThread
 from PyQt6.QtGui import QIcon, QColor, QFont
 from PyQt6.QtWidgets import QStyleFactory
 
-from core.api_client import APIClient
-from core.sync_engine import SyncEngine
+from core.api_client import get_api_client, DASCRMApiClient
+from core.sync_engine import get_sync_engine, DASCRMSyncEngine
 from core.display_pacing import DisplayPacingEngine
 
 
 class MainWindow(QMainWindow):
     """Main application window with sidebar navigation and tab-based views."""
-    
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("DAS CRM - Desktop Application")
         self.setGeometry(100, 100, 1400, 900)
-        
-        # Initialize core services
-        self.api_client = APIClient()
-        self.sync_engine = SyncEngine()
+
+        # Initialize core services (using singleton pattern)
+        self.api_client = get_api_client()
+        self.sync_engine = get_sync_engine()
         self.display_pacing = DisplayPacingEngine()
         
         # Setup UI
@@ -209,7 +209,6 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         """Connect signals for display pacing and sync."""
         self.display_pacing.frame_tick.connect(self._on_frame_tick)
-        self.sync_engine.sync_complete.connect(self._on_sync_complete)
     
     def _on_frame_tick(self, fps, delta_ms):
         """Update FPS display on frame tick."""
