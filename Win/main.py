@@ -1,4 +1,4 @@
-﻿"""
+"""
 DAS CRM Windows Application - Main Entry Point
 PyQt6 desktop application with 120 FPS display pacing, sidebar navigation,
 and full feature parity with Android and Web frontend.
@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QDockWidget, QWidget, QVBoxLayout,
-    QHBoxLayout, QStackedWidget, QPushButton, QSearchEdit, QLabel,
+    QHBoxLayout, QStackedWidget, QPushButton, QLineEdit, QLabel,
     QSystemTrayIcon, QMenu
 )
 from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QThread
@@ -89,10 +89,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
         
         # Search bar
-        search = QSearchEdit()
+        search = QLineEdit()
         search.setPlaceholderText("Search...")
         search.setStyleSheet("""
-            QSearchEdit {
+            QLineEdit {
                 padding: 8px 12px;
                 border-radius: 6px;
                 background-color: rgba(255, 255, 255, 0.1);

@@ -1,4 +1,4 @@
-﻿//
+//
 // AdminControlView.swift
 // DASCRM macOS App SuperAdmin, Manager & HR Control Panel
 // Full RBAC governance, audit logging & organization system settings
@@ -9,9 +9,9 @@ import SwiftUI
 public struct AdminControlView: View {
     @State private var selectedTab = 0
     @State private var auditLogs: [AuditLogItem] = [
-        AuditLogItem(action: "ROLE_TRANSITION", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date(), details: "Promoted Sales Rep to Manager role"),
-        AuditLogItem(action: "BULK_LEAD_IMPORT", actorName: "Sarah Jenkins", role: "ORG_ADMIN", timestamp: Date().addingTimeInterval(-3600 * 2), details: "Imported 1,450 leads into pipeline"),
-        AuditLogItem(action: "ORGANIZATION_UPDATE", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date().addingTimeInterval(-86400), details: "Updated API billing & seat limits")
+        AuditLogItem(id: UUID().uuidString, action: "ROLE_TRANSITION", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date(), details: "Promoted Sales Rep to Manager role"),
+        AuditLogItem(id: UUID().uuidString, action: "BULK_LEAD_IMPORT", actorName: "Sarah Jenkins", role: "ORG_ADMIN", timestamp: Date().addingTimeInterval(-3600 * 2), details: "Imported 1,450 leads into pipeline"),
+        AuditLogItem(id: UUID().uuidString, action: "ORGANIZATION_UPDATE", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date().addingTimeInterval(-86400), details: "Updated API billing & seat limits")
     ]
     
     public var body: some View {

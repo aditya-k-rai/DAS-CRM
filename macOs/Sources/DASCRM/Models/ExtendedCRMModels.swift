@@ -1,4 +1,4 @@
-﻿//
+//
 // ExtendedCRMModels.swift
 // DASCRM macOS App - Extended DTOs & Domain Models
 // Full feature coverage for Products Catalog, Quotes/Invoices, Reports, Bulk Ingestion & Role Controls
@@ -72,6 +72,15 @@ public struct AnalyticsMetric: Identifiable, Codable, Hashable {
     public var targetValue: String
     public var percentageGrowth: Double
     public var category: String
+
+    public init(id: String = UUID().uuidString, metricName: String, currentValue: String, targetValue: String, percentageGrowth: Double, category: String) {
+        self.id = id
+        self.metricName = metricName
+        self.currentValue = currentValue
+        self.targetValue = targetValue
+        self.percentageGrowth = percentageGrowth
+        self.category = category
+    }
 }
 
 // MARK: - Bulk Import Record
@@ -83,6 +92,16 @@ public struct BulkImportJob: Identifiable, Codable, Hashable {
     public var processedRows: Int
     public var status: String
     public var createdAt: Date
+
+    public init(id: String = UUID().uuidString, fileName: String, targetModule: String, totalRows: Int, processedRows: Int, status: String, createdAt: Date = Date()) {
+        self.id = id
+        self.fileName = fileName
+        self.targetModule = targetModule
+        self.totalRows = totalRows
+        self.processedRows = processedRows
+        self.status = status
+        self.createdAt = createdAt
+    }
 }
 
 // MARK: - Audit Log Record
@@ -93,4 +112,13 @@ public struct AuditLogItem: Identifiable, Codable, Hashable {
     public var role: String
     public var timestamp: Date
     public var details: String
+
+    public init(id: String = UUID().uuidString, action: String, actorName: String, role: String, timestamp: Date = Date(), details: String) {
+        self.id = id
+        self.action = action
+        self.actorName = actorName
+        self.role = role
+        self.timestamp = timestamp
+        self.details = details
+    }
 }
