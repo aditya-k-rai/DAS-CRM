@@ -1,4 +1,4 @@
-﻿# DAS CRM Windows Application - Requirements
+# DAS CRM Windows Application - Requirements
 # Python 3.11+ with PyQt6 for native desktop UI
 # High-performance 120 FPS display pacing and offline sync
 
@@ -11,4 +11,4 @@ pydantic-settings==2.2.1
 aiofiles==23.2.1
 python-dotenv==1.0.1
 pyinstaller==6.10
-pyinstaller-hooks-contrib==2024.2
+pyinstaller-hooks-contrib>=2024.8

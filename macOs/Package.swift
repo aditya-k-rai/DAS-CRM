@@ -1,4 +1,4 @@
-﻿// swift-tools-version:5.9
+// swift-tools-version:5.9
 // DAS CRM macOS Application Package Manifest
 // Supports macOS 12.0 Monterey through macOS 26.0 Tahoe
 

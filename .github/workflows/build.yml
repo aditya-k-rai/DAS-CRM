@@ -120,9 +120,13 @@ jobs:
       # ── 3. Resolve Swift package dependencies ─────────────────────────────
       #  macOs/Package.swift has zero external dependencies right now, so this
       #  is a no-op — but it will pull any future SPM packages automatically.
+      #  We explicitly set the tools version first to guard against any
+      #  CRLF line-ending misreads on the runner (which caused 5.1.0 errors).
       - name: Resolve Swift package dependencies
         working-directory: macOs
-        run: swift package resolve
+        run: |
+          swift package tools-version --set 5.9
+          swift package resolve
 
       # ── 4. Build the macOS executable in Release mode ─────────────────────
       #  Produces a universal binary (Apple Silicon + Intel) at:
