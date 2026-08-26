@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Menu } from 'lucide-react';
+import { Search, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
 import { useSidebar } from '@/context/SidebarContext';
+import { cn } from '@/lib/utils';
 
 interface TopbarProps {
   title: string;
@@ -13,20 +14,32 @@ interface TopbarProps {
 
 export function Topbar({ title, actions }: TopbarProps) {
   const [cmdOpen, setCmdOpen] = useState(false);
-  const { toggleMobile } = useSidebar();
+  const { toggleMobile, collapsed, toggleCollapsed } = useSidebar();
 
   return (
     <>
       <header className="topbar flex-wrap gap-2 px-3 sm:px-6 py-3">
         <div className="flex items-center gap-3">
+          {/* Mobile hamburger — visible only on small screens */}
           <button
             type="button"
             onClick={toggleMobile}
-            className="lg:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-muted hover:text-white hover:bg-slate-800 transition-colors"
+            className={cn('hamburger-btn lg:hidden flex items-center justify-center')}
             title="Toggle Navigation Menu"
           >
             <Menu size={18} />
           </button>
+
+          {/* Desktop collapse toggle — visible only on lg+ */}
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className={cn('hamburger-btn hidden lg:flex items-center justify-center', collapsed && 'glowing')}
+            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            {collapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+
           <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
         </div>
 

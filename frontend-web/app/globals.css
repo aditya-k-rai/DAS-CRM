@@ -96,7 +96,50 @@ body {
   left: 0;
   top: 0;
   z-index: 50;
-  transition: transform 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Collapsed sidebar — icon-only mode (desktop) */
+.sidebar.collapsed {
+  width: 68px;
+}
+
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .sidebar-group-title,
+.sidebar.collapsed .sidebar-role-badge,
+.sidebar.collapsed .sidebar-logo-text,
+.sidebar.collapsed .sidebar-user-info,
+.sidebar.collapsed .sidebar-dev-credit,
+.sidebar.collapsed .sidebar-upcoming-badge {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.2s ease, width 0.2s ease;
+}
+
+.sidebar:not(.collapsed) .sidebar-label,
+.sidebar:not(.collapsed) .sidebar-group-title,
+.sidebar:not(.collapsed) .sidebar-role-badge,
+.sidebar:not(.collapsed) .sidebar-logo-text,
+.sidebar:not(.collapsed) .sidebar-user-info,
+.sidebar:not(.collapsed) .sidebar-dev-credit,
+.sidebar:not(.collapsed) .sidebar-upcoming-badge {
+  opacity: 1;
+  width: auto;
+  transition: opacity 0.3s ease 0.1s, width 0.3s ease;
+}
+
+.sidebar.collapsed .sidebar-item {
+  justify-content: center;
+  padding: 0.625rem;
+  margin: 0 0.25rem;
+}
+
+.sidebar.collapsed .sidebar-item svg {
+  margin: 0;
 }
 
 .sidebar-item {
@@ -122,6 +165,79 @@ body {
   background: rgb(var(--sidebar-item-active));
   color: rgb(var(--sidebar-text-active));
   box-shadow: inset 2px 0 0 rgb(99 102 241);
+}
+
+.sidebar-item.upcoming {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Sidebar section divider */
+.sidebar-divider {
+  height: 1px;
+  background: rgb(var(--sidebar-border));
+  margin: 0.5rem 1rem;
+}
+
+/* ── Hamburger Glow Button ── */
+.hamburger-btn {
+  position: relative;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: rgb(17 19 31);
+  border: 1px solid rgb(var(--sidebar-border));
+  color: rgb(var(--sidebar-text));
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.hamburger-btn:hover {
+  color: white;
+  background: rgb(26 27 75);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.hamburger-btn::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 0.625rem;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.6) 25%,
+    transparent 50%,
+    rgba(129, 140, 248, 0.4) 75%,
+    transparent 100%
+  );
+  z-index: -1;
+  animation: hamburger-glow-spin 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.hamburger-btn:hover::after,
+.hamburger-btn.glowing::after {
+  opacity: 1;
+}
+
+@keyframes hamburger-glow-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Pulse glow for collapsed state indicator */
+.hamburger-btn.glowing {
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3), 0 0 4px rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  animation: hamburger-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hamburger-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.2); }
+  50%      { box-shadow: 0 0 16px rgba(99, 102, 241, 0.45), 0 0 6px rgba(129, 140, 248, 0.3); }
 }
 
 /* ── Cards ── */
