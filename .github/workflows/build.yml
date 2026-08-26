@@ -73,6 +73,8 @@ jobs:
       - name: Build DASCRM.exe with PyInstaller
         working-directory: Win
         shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"   # prevent UnicodeEncodeError on cp1252 Windows runner
         run: python build_exe.py
 
       # ── 6. Verify the artifact was actually produced ───────────────────────

@@ -1,4 +1,4 @@
-﻿//
+//
 // BulkIngestionView.swift
 // DASCRM macOS App Bulk Lead & Data Import Engine
 // Drag-and-drop CSV/Excel batch ingestion with high speed background parsing
@@ -11,8 +11,8 @@ public struct BulkIngestionView: View {
     @State private var selectedModule = "Leads"
     @State private var isTargeted = false
     @State private var importHistory: [BulkImportJob] = [
-        BulkImportJob(fileName: "Q3_Leads_Batch_Import.csv", targetModule: "Leads", totalRows: 1450, processedRows: 1450, status: "Completed", createdAt: Date().addingTimeInterval(-86400 * 2)),
-        BulkImportJob(fileName: "Enterprise_Contacts_List.csv", targetModule: "Contacts", totalRows: 520, processedRows: 520, status: "Completed", createdAt: Date().addingTimeInterval(-86400 * 5))
+        BulkImportJob(id: UUID().uuidString, fileName: "Q3_Leads_Batch_Import.csv", targetModule: "Leads", totalRows: 1450, processedRows: 1450, status: "Completed", createdAt: Date().addingTimeInterval(-86400 * 2)),
+        BulkImportJob(id: UUID().uuidString, fileName: "Enterprise_Contacts_List.csv", targetModule: "Contacts", totalRows: 520, processedRows: 520, status: "Completed", createdAt: Date().addingTimeInterval(-86400 * 5))
     ]
     
     let modules = ["Leads", "Contacts", "Deals", "Products"]

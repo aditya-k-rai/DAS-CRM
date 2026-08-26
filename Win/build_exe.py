@@ -40,7 +40,7 @@ def build_exe():
 
     PyInstaller.__main__.run(args)
 
-    print(f"✓ Executable built: {root_dir / 'dist' / 'DASCRM.exe'}")
+    print(f"[OK] Executable built: {root_dir / 'dist' / 'DASCRM.exe'}")
 
 
 if __name__ == "__main__":

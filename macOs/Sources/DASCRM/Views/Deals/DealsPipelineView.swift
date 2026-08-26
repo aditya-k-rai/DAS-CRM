@@ -1,4 +1,4 @@
-﻿//
+//
 // DealsPipelineView.swift
 // DASCRM macOS App Deals & Kanban Pipeline View
 // Smooth 120 FPS Drag/Drop & Column Rendering for Sales Stages
@@ -129,7 +129,7 @@ struct KanbanColumnView: View {
             }
         }
         .padding(14)
-        .frame(width: 250, minHeight: 480)
+        .frame(minWidth: 250, minHeight: 480)
         .background(Color.secondary.opacity(0.06))
         .cornerRadius(12)
     }
