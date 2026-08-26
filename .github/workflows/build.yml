@@ -129,16 +129,13 @@ jobs:
           swift package resolve
 
       # ── 4. Build the macOS executable in Release mode ─────────────────────
-      #  Produces a universal binary (Apple Silicon + Intel) at:
-      #  macOs/.build/apple/Products/Release/DASCRM
-      #  Remove both --arch flags to build only for the runner's native arch.
-      - name: Build macOS Swift executable (release, universal binary)
+      #  Builds a native arm64 binary (the GitHub macOS-latest runner is arm64).
+      #  Rosetta 2 provides x86_64 compatibility automatically on Intel Macs.
+      #  If you need a true fat binary, use xcodebuild with lipo instead.
+      - name: Build macOS Swift executable (release)
         working-directory: macOs
         run: |
-          swift build \
-            --configuration release \
-            --arch arm64 \
-            --arch x86_64
+          swift build --configuration release
 
       # ── 5. Assemble a minimal .app bundle ────────────────────────────────
       #  Swift CLI apps don't produce a .app automatically; we create the
@@ -147,12 +144,8 @@ jobs:
         run: |
           APP="$RUNNER_TEMP/DASCRM.app"
 
-          # Universal binary location (both --arch flags used above)
-          BIN="macOs/.build/apple/Products/Release/DASCRM"
-          # Fallback for single-arch builds
-          if [ ! -f "$BIN" ]; then
-            BIN="macOs/.build/release/DASCRM"
-          fi
+          # Single-arch release binary (arm64 native on the runner)
+          BIN="macOs/.build/release/DASCRM"
 
           echo "Using binary at: $BIN"
           ls -lh "$BIN"

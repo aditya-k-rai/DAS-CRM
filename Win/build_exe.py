@@ -22,7 +22,7 @@ def build_exe():
         "--onefile",
         "--windowed",           # --windowed already suppresses the console window
         f"--distpath={root_dir / 'dist'}",
-        f"--buildpath={root_dir / 'build'}",
+        f"--workpath={root_dir / 'build'}",
         f"--specpath={root_dir}",
         f"--add-data=resources{sep}resources",
         "--hidden-import=PyQt6.QtCore",
