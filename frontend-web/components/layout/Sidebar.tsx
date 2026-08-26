@@ -10,7 +10,7 @@ import {
   Shield, LogOut, PanelLeftClose, PanelLeft, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
+import { useAuth, normalizeRoleStr, inferRoleFromEmail, UserRole } from '@/context/AuthContext';
 import { useState, useEffect } from 'react';
 import { useSidebar } from '@/context/SidebarContext';
 
@@ -20,30 +20,32 @@ interface NavItem {
   icon: any;
   upcoming?: boolean;
   dividerAfter?: boolean;
+  roles?: UserRole[];
 }
 
 // ─── 20 Navigation Items in exact order specified ───
+// Displayed for ADMIN and MANAGER roles
 const adminNavigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Leads', href: '/leads', icon: Target },
-  { label: 'Employees', href: '/hr/employees', icon: Users },
-  { label: 'Product Catalogue', href: '/products', icon: Package },
-  { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare },
-  { label: 'WhatsApp Direct Template', href: '/comms?tab=templates', icon: MessageCircle },
-  { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true },
-  { label: 'AI Customization', href: '/admin/ai', icon: Sparkles },
-  { label: 'PDF Catalogue', href: '/products?tab=pdf', icon: FileText },
-  { label: 'Lead Pipeline', href: '/deals?view=pipeline', icon: GitBranch },
-  { label: 'Reports & Analytics', href: '/reports', icon: BarChart3 },
-  { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap },
-  { label: 'Lead Import History', href: '/imports', icon: Database, dividerAfter: true },
-  { label: 'Deals', href: '/deals', icon: Briefcase },
-  { label: 'Goals & Targets', href: '/goals', icon: TrendingUp },
-  { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck },
-  { label: 'Communicate with Employees', href: '#', icon: Radio, upcoming: true, dividerAfter: true },
-  { label: 'Settings', href: '/settings', icon: Settings },
-  { label: 'Company Profile Settings', href: '/profile', icon: Building2 },
-  { label: 'Support', href: '/help', icon: HelpCircle },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'SUPER_ADMIN'] },
+  { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'WhatsApp Direct Template', href: '/comms?tab=templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'AI Customization', href: '/admin/ai', icon: Sparkles, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'PDF Catalogue', href: '/products?tab=pdf', icon: FileText, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Lead Pipeline', href: '/deals?view=pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Lead Import History', href: '/imports', icon: Database, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck, roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'Communicate with Employees', href: '#', icon: Radio, upcoming: true, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
 ];
 
 export function Sidebar() {
@@ -60,6 +62,16 @@ export function Sidebar() {
   const currentNormalizedRole = mounted
     ? normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email))
     : 'ADMIN';
+
+  const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(currentNormalizedRole);
+
+  // Filter navigation items for Admin & Manager (all 20) vs other roles
+  const filteredNav = adminNavigation.filter(item => {
+    if (isAdminOrManager) return true; // Admin & Manager get all 20 items
+    if (!item.roles) return true;
+    const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
+    return normalizedItemRoles.includes(currentNormalizedRole);
+  });
 
   // For Dashboard, route based on role
   const getDashboardHref = () => {
@@ -156,7 +168,7 @@ export function Sidebar() {
 
         {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto px-1 pb-4">
-          {adminNavigation.map((item) => {
+          {filteredNav.map((item) => {
             const targetHref = item.label === 'Dashboard' ? getDashboardHref() : item.href;
             const isActive = isItemActive(item);
 
