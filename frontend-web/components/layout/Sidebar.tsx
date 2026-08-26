@@ -7,8 +7,7 @@ import {
   MessageCircle, Mail, Sparkles, FileText, GitBranch,
   BarChart3, Zap, Database, Briefcase, TrendingUp,
   UserCheck, Radio, Settings, Building2, HelpCircle,
-  Shield, LogOut, User, Menu, PanelLeftClose, PanelLeft,
-  X, Layers
+  Shield, LogOut, PanelLeftClose, PanelLeft, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
@@ -50,7 +49,7 @@ const adminNavigation: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, subscription, canEdit, logout } = useAuth();
+  const { currentUser, subscription, logout } = useAuth();
   const { mobileOpen, closeMobile, collapsed, toggleCollapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
@@ -98,36 +97,50 @@ export function Sidebar() {
         )}
       >
         {/* Logo Header */}
-        <div className="flex items-center justify-between px-4 py-4 mb-1">
-          <div className="flex items-center gap-3 min-w-0">
-            <img
-              src="/das-logo.png"
-              alt="DAS CRM Logo"
-              className="h-9 w-9 flex-shrink-0 object-contain rounded-lg shadow-md"
-            />
-            <div className="sidebar-logo-text min-w-0">
-              <span className="text-white font-bold text-base tracking-tight block truncate">DAS CRM</span>
-              <p className="text-xs text-muted font-medium truncate">{subscription.companyName}</p>
+        <div className="flex items-center justify-between px-3.5 py-4 mb-1 h-16 border-b border-slate-800/50">
+          {!collapsed ? (
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <img
+                  src="/das-logo.png"
+                  alt="DAS CRM Logo"
+                  className="h-9 w-9 flex-shrink-0 object-contain rounded-lg shadow-md"
+                />
+                <div className="sidebar-logo-text min-w-0">
+                  <span className="text-white font-bold text-base tracking-tight block truncate">DAS CRM</span>
+                  <p className="text-xs text-muted font-medium truncate">{subscription.companyName}</p>
+                </div>
+              </div>
+
+              {/* Mobile close button */}
+              <button onClick={closeMobile} className="lg:hidden p-1 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-colors">
+                <X size={18} />
+              </button>
+
+              {/* Desktop collapse toggle */}
+              <button
+                onClick={toggleCollapsed}
+                className="hamburger-btn hidden lg:flex items-center justify-center flex-shrink-0 p-1.5"
+                title="Collapse Sidebar"
+              >
+                <PanelLeftClose size={18} />
+              </button>
+            </>
+          ) : (
+            <div className="w-full flex items-center justify-center">
+              <button
+                onClick={toggleCollapsed}
+                className="hamburger-btn glowing flex items-center justify-center p-2 rounded-lg"
+                title="Expand Sidebar"
+              >
+                <PanelLeft size={18} className="text-indigo-400" />
+              </button>
             </div>
-          </div>
-
-          {/* Mobile close button */}
-          <button onClick={closeMobile} className="lg:hidden p-1 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-colors">
-            <X size={18} />
-          </button>
-
-          {/* Desktop collapse toggle — inside sidebar */}
-          <button
-            onClick={toggleCollapsed}
-            className={cn('hamburger-btn hidden lg:flex items-center justify-center', collapsed && 'glowing')}
-            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-          </button>
+          )}
         </div>
 
         {/* Authenticated User Role Badge */}
-        <div className="px-3 mb-3 sidebar-role-badge">
+        <div className="px-3 my-3 sidebar-role-badge">
           <div
             className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold"
             style={{

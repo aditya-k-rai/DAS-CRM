@@ -102,7 +102,7 @@ body {
 
 /* Collapsed sidebar — icon-only mode (desktop) */
 .sidebar.collapsed {
-  width: 68px;
+  width: 68px !important;
 }
 
 .sidebar.collapsed .sidebar-label,
@@ -705,7 +705,7 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
 
 /* 💻 Small Laptops (1024px – 1279px) */
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .sidebar { width: 260px; }
+  /* Standard Small Laptop Layout */
 }
 
 /* 💻 Laptops (1280px – 1439px) */

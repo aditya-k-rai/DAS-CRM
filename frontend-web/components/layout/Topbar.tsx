@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Search, Menu } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
 import { useSidebar } from '@/context/SidebarContext';
@@ -16,28 +16,29 @@ export function Topbar({ title, actions }: TopbarProps) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { toggleMobile, collapsed, toggleCollapsed } = useSidebar();
 
+  const handleHamburgerClick = () => {
+    if (window.innerWidth < 1024) {
+      toggleMobile();
+    } else {
+      toggleCollapsed();
+    }
+  };
+
   return (
     <>
       <header className="topbar flex-wrap gap-2 px-3 sm:px-6 py-3">
         <div className="flex items-center gap-3">
-          {/* Mobile hamburger — visible only on small screens */}
+          {/* Hamburger button — shrinks desktop sidebar & toggles mobile drawer */}
           <button
             type="button"
-            onClick={toggleMobile}
-            className={cn('hamburger-btn lg:hidden flex items-center justify-center')}
-            title="Toggle Navigation Menu"
-          >
-            <Menu size={18} />
-          </button>
-
-          {/* Desktop collapse toggle — visible only on lg+ */}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={cn('hamburger-btn hidden lg:flex items-center justify-center', collapsed && 'glowing')}
+            onClick={handleHamburgerClick}
+            className={cn(
+              'hamburger-btn flex items-center justify-center p-2 rounded-lg transition-all',
+              collapsed && 'glowing'
+            )}
             title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
-            {collapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+            <Menu size={18} />
           </button>
 
           <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
