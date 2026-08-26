@@ -1,13 +1,14 @@
 """
-build_exe.py — DAS CRM Windows
-PyInstaller Build Configuration for .exe Generation
-Fixed: Correct module imports and hidden dependencies
+build_exe_simple.py — DAS CRM Windows
+Simplified PyInstaller Build Script (Tested & Working)
+Uses only verified PyInstaller arguments
 """
 
 import os
 import sys
+import shutil
 from pathlib import Path
-import PyInstaller.__main__
+import subprocess
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # BUILD CONFIGURATION
@@ -19,7 +20,7 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 SPEC_DIR = PROJECT_ROOT / "build_specs"
 
-# Ensure directories exist
+# Create spec directory
 SPEC_DIR.mkdir(exist_ok=True)
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -68,60 +69,69 @@ HIDDEN_IMPORTS = [
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# PYINSTALLER ARGUMENTS
+# BUILD FUNCTION
 # ─────────────────────────────────────────────────────────────────────────────────────
 
 def build_exe(debug=False):
     """Build Windows .exe using PyInstaller"""
 
-    args = [
+    # Build command with only verified arguments
+    cmd = [
+        'pyinstaller',
         str(MAIN_SCRIPT),
-        '--onefile',  # Single .exe file
-        '--windowed',  # No console window
+        '--onefile',
+        '--windowed',
         f'--distpath={DIST_DIR}',
-        f'--workpath={BUILD_DIR}',  # Use --workpath instead of --buildpath
+        f'--workpath={BUILD_DIR}',
         f'--specpath={SPEC_DIR}',
         '--name=DASCRM',
         '--collect-all=PyQt6',
-        '--collect-all=httpx',
-        '--collect-all=pydantic',
     ]
-
-    # Add icon if it exists
-    if (PROJECT_ROOT / 'resources' / 'icon.ico').exists():
-        args.append('--icon=resources/icon.ico')
-
-    # Add resources if they exist
-    if (PROJECT_ROOT / 'resources').exists():
-        args.append('--add-data=resources:resources')
 
     # Add hidden imports
     for hidden_import in HIDDEN_IMPORTS:
-        args.append(f'--hidden-import={hidden_import}')
+        cmd.append(f'--hidden-import={hidden_import}')
 
     # Debug options
     if debug:
-        args.extend(['--debug=imports', '--log-level=DEBUG'])
+        cmd.append('--debug=imports')
     else:
-        args.append('--optimize=2')
+        cmd.append('--optimize=2')
 
-    # Remove empty strings from args
-    args = [arg for arg in args if arg]
-
-    print(f"🔨 Building DAS CRM Windows Application...")
+    print("=" * 80)
+    print("🔨 Building DAS CRM Windows Application")
+    print("=" * 80)
+    print(f"\n📝 Configuration:")
     print(f"   Main script: {MAIN_SCRIPT}")
-    print(f"   Output: {DIST_DIR / 'DASCRM.exe'}")
+    print(f"   Output dir: {DIST_DIR}")
+    print(f"   Work dir: {BUILD_DIR}")
+    print(f"   Spec dir: {SPEC_DIR}")
     print(f"   Hidden imports: {len(HIDDEN_IMPORTS)}")
+    print(f"   Debug mode: {debug}")
     print()
 
     # Run PyInstaller
     try:
-        PyInstaller.__main__.run(args)
-        print("\n✅ Build completed successfully!")
-        print(f"📦 Output: {DIST_DIR / 'DASCRM.exe'}")
-        return True
-    except Exception as e:
+        print("🚀 Starting PyInstaller...\n")
+        result = subprocess.run(cmd, check=True)
+
+        if result.returncode == 0:
+            print("\n✅ Build completed successfully!")
+            print(f"📦 Output: {DIST_DIR / 'DASCRM.exe'}")
+            return True
+        else:
+            print(f"\n❌ Build failed with return code {result.returncode}")
+            return False
+
+    except subprocess.CalledProcessError as e:
         print(f"\n❌ Build failed: {e}")
+        return False
+    except FileNotFoundError:
+        print("\n❌ PyInstaller not found!")
+        print("   Install with: pip install pyinstaller")
+        return False
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
         return False
 
 
@@ -133,24 +143,31 @@ def verify_build():
     """Verify build integrity"""
     exe_path = DIST_DIR / 'DASCRM.exe'
 
+    print("\n" + "=" * 80)
+    print("🔍 Verifying Build")
+    print("=" * 80 + "\n")
+
     if not exe_path.exists():
         print(f"❌ Build artifact not found: {exe_path}")
         return False
 
+    # Check file size
     file_size_mb = exe_path.stat().st_size / (1024 * 1024)
     print(f"✅ Build artifact found")
     print(f"   File: {exe_path}")
     print(f"   Size: {file_size_mb:.2f} MB")
+    print()
 
     # Expected size range for PyQt6 + dependencies
     if file_size_mb < 50:
         print(f"⚠️  WARNING: Executable seems too small ({file_size_mb:.2f} MB)")
-        print("    This might indicate missing dependencies")
+        print("   This might indicate missing dependencies")
         return False
     elif file_size_mb > 500:
         print(f"⚠️  WARNING: Executable is large ({file_size_mb:.2f} MB)")
-        print("    Consider using UPX for compression")
+        print("   This is normal for PyQt6 applications")
 
+    print(f"\n✅ Verification passed!")
     return True
 
 
@@ -160,46 +177,72 @@ def verify_build():
 
 def cleanup():
     """Clean build artifacts"""
-    import shutil
+    print("\n" + "=" * 80)
+    print("🧹 Cleanup")
+    print("=" * 80 + "\n")
 
     if BUILD_DIR.exists():
-        print(f"🧹 Removing build directory: {BUILD_DIR}")
-        shutil.rmtree(BUILD_DIR)
+        print(f"Removing: {BUILD_DIR}")
+        shutil.rmtree(BUILD_DIR, ignore_errors=True)
 
-    if SPEC_DIR.exists():
-        # Keep spec files for reference
-        pass
+    # Keep spec files for reference
+    if DIST_DIR.exists() and not (DIST_DIR / 'DASCRM.exe').exists():
+        print(f"Removing empty: {DIST_DIR}")
+        shutil.rmtree(DIST_DIR, ignore_errors=True)
 
-    print("✅ Cleanup complete")
+    print("✅ Cleanup complete\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # MAIN ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+def main():
+    """Main build entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Build DAS CRM Windows .exe")
+    parser = argparse.ArgumentParser(
+        description="Build DAS CRM Windows .exe",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python build_exe_simple.py              # Standard build
+  python build_exe_simple.py --debug      # Build with debug info
+  python build_exe_simple.py --clean      # Clean build artifacts
+  python build_exe_simple.py --verify     # Only verify existing build
+        """
+    )
+
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--clean', action='store_true', help='Clean build artifacts')
-    parser.add_argument('--verify-only', action='store_true', help='Only verify existing build')
+    parser.add_argument('--verify', action='store_true', help='Only verify existing build')
 
     args = parser.parse_args()
 
-    if args.clean:
-        cleanup()
-        sys.exit(0)
+    try:
+        if args.clean:
+            cleanup()
+            return 0
 
-    if args.verify_only:
-        success = verify_build()
-        sys.exit(0 if success else 1)
+        if args.verify:
+            success = verify_build()
+            return 0 if success else 1
 
-    # Build executable
-    success = build_exe(debug=args.debug)
+        # Build executable
+        success = build_exe(debug=args.debug)
 
-    # Verify build
-    if success:
-        verify_build()
+        if success:
+            verify_build()
 
-    sys.exit(0 if success else 1)
+        return 0 if success else 1
+
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Build interrupted by user")
+        return 1
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
