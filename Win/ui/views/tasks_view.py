@@ -1,15 +1,15 @@
 """
-ProductsView.py — DAS CRM Windows
-Product Catalog with SKU Management, Pricing, and Categories
-Feature parity with Android ProductsCatalogScreen.tsx
+TasksView.py — DAS CRM Windows
+Task Management with Priority, Assignment, and Due Date Tracking
+Feature parity with Android TasksScreen.tsx
 """
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QScrollArea, QFrame, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QMessageBox, QDialog, QComboBox, QSpinBox
+    QMessageBox, QDialog, QComboBox, QDateEdit, QCheckBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont, QBrush, QColor
 from dataclasses import dataclass
 
@@ -18,56 +18,52 @@ from dataclasses import dataclass
 # ─────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
-class ProductItem:
-    """Represents a product"""
+class TaskItem:
+    """Represents a task"""
     id: str
-    name: str
-    sku: str
-    category: str
-    price: str
-    stock: int
+    title: str
     description: str
-    status: str  # ACTIVE, INACTIVE, DISCONTINUED
+    assignedTo: str
+    dueDate: str
+    priority: str  # HIGH, MEDIUM, LOW
+    status: str  # TODO, IN_PROGRESS, COMPLETED
+    category: str  # FOLLOW_UP, PROPOSAL, MEETING, OTHER
 
-PRODUCT_CATEGORIES = [
-    "Software License",
-    "Add-On Module",
-    "Integration",
-    "Professional Services",
-    "Support & Maintenance",
-]
+PRIORITY_OPTIONS = ["HIGH", "MEDIUM", "LOW"]
+STATUS_OPTIONS = ["TODO", "IN_PROGRESS", "COMPLETED"]
+CATEGORY_OPTIONS = ["FOLLOW_UP", "PROPOSAL", "MEETING", "OTHER"]
 
-FALLBACK_PRODUCTS = [
-    ProductItem("p1", "Enterprise CRM Suite (Per Seat)", "DAS-CRM-ENT", "Software License",
-               "$1,250", 500, "Full-featured CRM platform with all modules", "ACTIVE"),
-    ProductItem("p2", "AI Lead Routing Engine Module", "DAS-AI-ROUTE", "Add-On Module",
-               "$450", 100, "Advanced AI-powered lead distribution", "ACTIVE"),
-    ProductItem("p3", "Automated WhatsApp Telemetry Hook", "DAS-WA-HOOK", "Integration",
-               "$290", 250, "Real-time WhatsApp message tracking", "ACTIVE"),
-    ProductItem("p4", "Custom Multi-Tenant Setup Service", "DAS-SRV-SETUP", "Professional Services",
-               "$2,500", 20, "Dedicated setup and configuration service", "ACTIVE"),
-    ProductItem("p5", "Annual Support & Maintenance Plan", "DAS-SUP-ANNUAL", "Support & Maintenance",
-               "$4,999", 100, "Priority support and system maintenance", "ACTIVE"),
+FALLBACK_TASKS = [
+    TaskItem("t1", "Follow up with TechCorp", "Call Rajesh regarding proposal feedback",
+            "Priya Sharma", "2026-08-27", "HIGH", "TODO", "FOLLOW_UP"),
+    TaskItem("t2", "Prepare Global Solutions proposal", "Complete pricing and scope document",
+            "Vikram Mehta", "2026-08-29", "HIGH", "IN_PROGRESS", "PROPOSAL"),
+    TaskItem("t3", "Schedule demo with FastTrack", "Confirm meeting time with client",
+            "Amit Patel", "2026-08-28", "MEDIUM", "TODO", "MEETING"),
+    TaskItem("t4", "Review contract terms", "Legal review of Premium Partners agreement",
+            "Sunita Rao", "2026-08-30", "HIGH", "IN_PROGRESS", "OTHER"),
+    TaskItem("t5", "Send invoice to Regional Corp", "Invoice for completed integration project",
+            "Rajesh Kumar", "2026-08-26", "MEDIUM", "COMPLETED", "OTHER"),
+    TaskItem("t6", "Update CRM with new leads", "Import leads from latest CSV upload",
+            "Priya Sharma", "2026-08-27", "LOW", "TODO", "FOLLOW_UP"),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# PRODUCT DETAILS MODAL
+# TASK DETAILS MODAL
 # ─────────────────────────────────────────────────────────────────────────────────────
 
-class ProductDetailsModal(QDialog):
-    """Modal showing detailed product information"""
-    def __init__(self, product: ProductItem, parent=None):
+class TaskDetailsModal(QDialog):
+    """Modal showing detailed task information"""
+    def __init__(self, task: TaskItem, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"📦 Product Details - {product.name}")
+        self.setWindowTitle(f"✓ Task Details - {task.title}")
         self.setGeometry(100, 100, 550, 500)
         self.setStyleSheet("""
             QDialog { background-color: #0f172a; }
             QLabel { color: #f8fafc; }
             QPushButton { padding: 8px 12px; border-radius: 6px; font-weight: bold; }
-            QLineEdit, QSpinBox { background-color: #020617; color: #ffffff; border: 1px solid #334155;
-                                  border-radius: 6px; padding: 6px; }
             QPushButton#edit { background-color: #f97316; color: white; }
-            QPushButton#reorder { background-color: #10b981; color: white; }
+            QPushButton#complete { background-color: #10b981; color: white; }
             QPushButton#close { background-color: #1e293b; color: #94a3b8; }
         """)
 
@@ -77,15 +73,15 @@ class ProductDetailsModal(QDialog):
         headerLayout = QHBoxLayout()
         headerLayout.setContentsMargins(16, 16, 16, 12)
 
-        titleLabel = QLabel(f"📦 {product.name}")
+        titleLabel = QLabel(f"✓ {task.title}")
         titleLabel.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         titleLabel.setStyleSheet("color: #ffffff;")
         headerLayout.addWidget(titleLabel)
         headerLayout.addStretch()
 
-        statusLabel = QLabel(product.status)
+        statusLabel = QLabel(task.status)
         statusLabel.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        statusColor = "#34d399" if product.status == "ACTIVE" else "#ef4444"
+        statusColor = "#34d399" if task.status == "COMPLETED" else "#38bdf8" if task.status == "IN_PROGRESS" else "#fbbf24"
         statusLabel.setStyleSheet(f"""
             background-color: rgba(100, 100, 100, 0.15);
             color: {statusColor};
@@ -102,18 +98,28 @@ class ProductDetailsModal(QDialog):
         contentLayout.setContentsMargins(16, 0, 16, 12)
         contentLayout.setSpacing(12)
 
-        # Product Info Card
+        # Task Info
         infoCard = self._build_info_section(
-            "📋 Product Information",
+            "📋 Task Information",
             [
-                ("SKU", product.sku),
-                ("Category", product.category),
-                ("Price", product.price),
-                ("Stock Level", str(product.stock)),
-                ("Description", product.description),
+                ("Title", task.title),
+                ("Description", task.description),
+                ("Category", task.category),
+                ("Priority", task.priority),
             ]
         )
         contentLayout.addWidget(infoCard)
+
+        # Assignment
+        assignCard = self._build_info_section(
+            "👤 Assignment",
+            [
+                ("Assigned To", task.assignedTo),
+                ("Due Date", task.dueDate),
+                ("Status", task.status),
+            ]
+        )
+        contentLayout.addWidget(assignCard)
 
         contentLayout.addStretch()
 
@@ -124,15 +130,15 @@ class ProductDetailsModal(QDialog):
         actionLayout.setContentsMargins(16, 0, 16, 16)
         actionLayout.setSpacing(8)
 
-        btnEdit = QPushButton("✏️ Edit Product")
+        btnEdit = QPushButton("✏️ Edit")
         btnEdit.setObjectName("edit")
-        btnEdit.clicked.connect(lambda: QMessageBox.information(self, "Edit", f"Editing {product.name}..."))
+        btnEdit.clicked.connect(lambda: QMessageBox.information(self, "Edit", f"Editing {task.title}..."))
         actionLayout.addWidget(btnEdit)
 
-        btnReorder = QPushButton("📦 Reorder Stock")
-        btnReorder.setObjectName("reorder")
-        btnReorder.clicked.connect(lambda: QMessageBox.information(self, "Reorder", f"Reordering {product.name}..."))
-        actionLayout.addWidget(btnReorder)
+        btnComplete = QPushButton("✅ Mark Complete")
+        btnComplete.setObjectName("complete")
+        btnComplete.clicked.connect(lambda: QMessageBox.information(self, "Complete", f"Marked {task.title} as complete."))
+        actionLayout.addWidget(btnComplete)
 
         actionLayout.addStretch()
 
@@ -184,67 +190,65 @@ class ProductDetailsModal(QDialog):
         return card
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# CREATE PRODUCT MODAL
+# CREATE TASK MODAL
 # ─────────────────────────────────────────────────────────────────────────────────────
 
-class CreateProductModal(QDialog):
-    """Modal for creating new product"""
+class CreateTaskModal(QDialog):
+    """Modal for creating new task"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("➕ Create New Product")
+        self.setWindowTitle("➕ Create New Task")
         self.setGeometry(100, 100, 500, 550)
         self.setStyleSheet("""
             QDialog { background-color: #0f172a; }
             QLabel { color: #cbd5e1; font-weight: bold; font-size: 10px; }
-            QLineEdit, QComboBox, QSpinBox { background-color: #020617; color: #ffffff;
-                                            border: 1px solid #334155; border-radius: 6px; padding: 6px; }
+            QLineEdit, QComboBox, QDateEdit { background-color: #020617; color: #ffffff;
+                                             border: 1px solid #334155; border-radius: 6px; padding: 6px; }
             QPushButton#create { background-color: #10b981; color: white; }
             QPushButton#cancel { background-color: #1e293b; color: #94a3b8; }
         """)
 
         layout = QVBoxLayout(self)
 
-        title = QLabel("➕ Create New Product")
+        title = QLabel("➕ Create New Task")
         title.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         title.setStyleSheet("color: #ffffff;")
         layout.addWidget(title)
 
-        desc = QLabel("Add a new product to your catalog.")
+        desc = QLabel("Create a new task and assign it to a team member.")
         desc.setStyleSheet("color: #94a3b8; margin-bottom: 12px;")
         layout.addWidget(desc)
 
         # Form fields
-        layout.addWidget(QLabel("Product Name *"))
-        self.nameInput = QLineEdit()
-        self.nameInput.setPlaceholderText("e.g. Enterprise CRM Suite")
-        layout.addWidget(self.nameInput)
-
-        layout.addWidget(QLabel("SKU *"))
-        self.skuInput = QLineEdit()
-        self.skuInput.setPlaceholderText("e.g. DAS-CRM-ENT")
-        layout.addWidget(self.skuInput)
-
-        layout.addWidget(QLabel("Category *"))
-        self.categoryCombo = QComboBox()
-        self.categoryCombo.addItems(PRODUCT_CATEGORIES)
-        layout.addWidget(self.categoryCombo)
-
-        layout.addWidget(QLabel("Price ($) *"))
-        self.priceInput = QLineEdit()
-        self.priceInput.setPlaceholderText("e.g. 1250")
-        layout.addWidget(self.priceInput)
-
-        layout.addWidget(QLabel("Stock Quantity *"))
-        self.stockInput = QSpinBox()
-        self.stockInput.setMinimum(0)
-        self.stockInput.setMaximum(10000)
-        self.stockInput.setValue(100)
-        layout.addWidget(self.stockInput)
+        layout.addWidget(QLabel("Task Title *"))
+        self.titleInput = QLineEdit()
+        self.titleInput.setPlaceholderText("e.g. Follow up with client")
+        layout.addWidget(self.titleInput)
 
         layout.addWidget(QLabel("Description"))
         self.descInput = QLineEdit()
-        self.descInput.setPlaceholderText("Product description...")
+        self.descInput.setPlaceholderText("Task details...")
         layout.addWidget(self.descInput)
+
+        layout.addWidget(QLabel("Category *"))
+        self.categoryCombo = QComboBox()
+        self.categoryCombo.addItems(CATEGORY_OPTIONS)
+        layout.addWidget(self.categoryCombo)
+
+        layout.addWidget(QLabel("Priority *"))
+        self.priorityCombo = QComboBox()
+        self.priorityCombo.addItems(PRIORITY_OPTIONS)
+        layout.addWidget(self.priorityCombo)
+
+        layout.addWidget(QLabel("Assign To *"))
+        self.assignedInput = QLineEdit()
+        self.assignedInput.setPlaceholderText("e.g. Rajesh Kumar")
+        layout.addWidget(self.assignedInput)
+
+        layout.addWidget(QLabel("Due Date *"))
+        self.dueDateInput = QDateEdit()
+        self.dueDateInput.setDate(QDate.currentDate())
+        layout.addWidget(self.dueDateInput)
 
         layout.addStretch()
 
@@ -252,32 +256,32 @@ class CreateProductModal(QDialog):
         btnCancel = QPushButton("Cancel")
         btnCancel.setObjectName("cancel")
         btnCancel.clicked.connect(self.reject)
-        btnCreate = QPushButton("Create Product ✓")
+        btnCreate = QPushButton("Create Task ✓")
         btnCreate.setObjectName("create")
         btnCreate.clicked.connect(self.accept)
         btnLayout.addWidget(btnCancel, 1)
         btnLayout.addWidget(btnCreate, 1)
         layout.addLayout(btnLayout)
 
-    def get_product(self) -> ProductItem:
-        """Return created product"""
-        return ProductItem(
-            id=f"p-{id(self)}",
-            name=self.nameInput.text().strip(),
-            sku=self.skuInput.text().strip(),
-            category=self.categoryCombo.currentText(),
-            price=f"${self.priceInput.text().strip()}",
-            stock=self.stockInput.value(),
+    def get_task(self) -> TaskItem:
+        """Return created task"""
+        return TaskItem(
+            id=f"t-{id(self)}",
+            title=self.titleInput.text().strip(),
             description=self.descInput.text().strip(),
-            status="ACTIVE"
+            assignedTo=self.assignedInput.text().strip(),
+            dueDate=self.dueDateInput.date().toString("yyyy-MM-dd"),
+            priority=self.priorityCombo.currentText(),
+            status="TODO",
+            category=self.categoryCombo.currentText()
         )
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# MAIN PRODUCTS VIEW
+# MAIN TASKS VIEW
 # ─────────────────────────────────────────────────────────────────────────────────────
 
-class ProductsView(QWidget):
-    """Products Catalog with SKU Management"""
+class TasksView(QWidget):
+    """Task Management with Priority & Due Date Tracking"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -285,18 +289,18 @@ class ProductsView(QWidget):
             QWidget { background-color: #090d16; }
             QLabel { color: #f8fafc; }
             QPushButton { color: white; font-weight: bold; border: none; border-radius: 6px; }
-            QLineEdit, QComboBox { background-color: #0f172a; color: #ffffff; border: 1px solid #1e293b;
-                                   border-radius: 6px; padding: 8px; }
+            QLineEdit { background-color: #0f172a; color: #ffffff; border: 1px solid #1e293b;
+                       border-radius: 6px; padding: 8px; }
         """)
 
-        self.productsList = list(FALLBACK_PRODUCTS)
+        self.tasksList = list(FALLBACK_TASKS)
         self.search = ""
-        self.selectedCategory = "ALL"
+        self.selectedStatus = "ALL"
 
         self._build_ui()
 
     def _build_ui(self):
-        """Build products UI"""
+        """Build tasks UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -310,7 +314,7 @@ class ProductsView(QWidget):
         scrollLayout.setSpacing(12)
 
         # Title
-        titleLabel = QLabel("📦 Product Catalog")
+        titleLabel = QLabel("✓ Tasks & Follow-ups")
         titleLabel.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         titleLabel.setStyleSheet("color: #ffffff;")
         scrollLayout.addWidget(titleLabel)
@@ -322,28 +326,28 @@ class ProductsView(QWidget):
 
         # Search input
         self.searchInput = QLineEdit()
-        self.searchInput.setPlaceholderText("🔍 Search by name, SKU, category...")
+        self.searchInput.setPlaceholderText("🔍 Search by task title, assignee...")
         self.searchInput.setMinimumHeight(32)
         self.searchInput.textChanged.connect(self._on_search_changed)
         searchLayout.addWidget(self.searchInput)
 
         # Action buttons
         actionLayout = QHBoxLayout()
-        btnAdd = QPushButton("➕ Add Product")
+        btnAdd = QPushButton("➕ New Task")
         btnAdd.setStyleSheet("background-color: #10b981; padding: 6px 12px;")
-        btnAdd.clicked.connect(self._open_create_product)
+        btnAdd.clicked.connect(self._open_create_task)
         actionLayout.addWidget(btnAdd)
 
         actionLayout.addStretch()
         searchLayout.addLayout(actionLayout)
 
-        # Category filter chips
-        categoryLayout = QHBoxLayout()
-        categories = ["ALL"] + PRODUCT_CATEGORIES
-        for category in categories:
-            btn = QPushButton(category)
+        # Status filter chips
+        statusLayout = QHBoxLayout()
+        statuses = ["ALL"] + STATUS_OPTIONS
+        for status in statuses:
+            btn = QPushButton(status)
             btn.setCheckable(True)
-            btn.setChecked(category == "ALL")
+            btn.setChecked(status == "ALL")
             btn.setMaximumHeight(24)
             btn.setStyleSheet(f"""
                 QPushButton {{
@@ -361,128 +365,128 @@ class ProductsView(QWidget):
                     border-color: #4f46e5;
                 }}
             """)
-            btn.toggled.connect(lambda checked, c=category: self._set_category_filter(c) if checked else None)
-            categoryLayout.addWidget(btn)
+            btn.toggled.connect(lambda checked, s=status: self._set_status_filter(s) if checked else None)
+            statusLayout.addWidget(btn)
 
-        categoryLayout.addStretch()
-        searchLayout.addLayout(categoryLayout)
+        statusLayout.addStretch()
+        searchLayout.addLayout(statusLayout)
 
         scrollLayout.addLayout(searchLayout)
 
-        # Products Table
-        self.productsTable = QTableWidget()
-        self.productsTable.setColumnCount(7)
-        self.productsTable.setHorizontalHeaderLabels([
-            "Product Name", "SKU", "Category", "Price", "Stock", "Status", "Action"
+        # Tasks Table
+        self.tasksTable = QTableWidget()
+        self.tasksTable.setColumnCount(7)
+        self.tasksTable.setHorizontalHeaderLabels([
+            "Task", "Category", "Priority", "Assigned To", "Due Date", "Status", "Action"
         ])
-        self.productsTable.horizontalHeader().setStretchLastSection(False)
-        self.productsTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.productsTable.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.productsTable.setStyleSheet("""
+        self.tasksTable.horizontalHeader().setStretchLastSection(False)
+        self.tasksTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tasksTable.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.tasksTable.setStyleSheet("""
             QTableWidget { background-color: #030712; gridline-color: #1e293b; }
             QHeaderView::section { background-color: #0b1329; color: #818cf8; padding: 6px;
                                    border: none; border-right: 1px solid #1e293b; }
         """)
 
-        self.productsTable.setColumnWidth(0, 180)
-        self.productsTable.setColumnWidth(1, 120)
-        self.productsTable.setColumnWidth(2, 150)
-        self.productsTable.setColumnWidth(3, 80)
-        self.productsTable.setColumnWidth(4, 80)
-        self.productsTable.setColumnWidth(5, 80)
-        self.productsTable.setColumnWidth(6, 100)
+        self.tasksTable.setColumnWidth(0, 150)
+        self.tasksTable.setColumnWidth(1, 110)
+        self.tasksTable.setColumnWidth(2, 90)
+        self.tasksTable.setColumnWidth(3, 120)
+        self.tasksTable.setColumnWidth(4, 100)
+        self.tasksTable.setColumnWidth(5, 100)
+        self.tasksTable.setColumnWidth(6, 80)
 
-        self.productsTable.doubleClicked.connect(self._open_product_details)
+        self.tasksTable.doubleClicked.connect(self._open_task_details)
 
-        self._refresh_products_table()
+        self._refresh_tasks_table()
 
-        scrollLayout.addWidget(self.productsTable, 1)
+        scrollLayout.addWidget(self.tasksTable, 1)
 
         scrollArea.setWidget(scrollWidget)
         layout.addWidget(scrollArea)
 
-    def _refresh_products_table(self):
-        """Refresh products table"""
-        filtered = self._get_filtered_products()
+    def _refresh_tasks_table(self):
+        """Refresh tasks table"""
+        filtered = self._get_filtered_tasks()
 
-        self.productsTable.setRowCount(len(filtered))
+        self.tasksTable.setRowCount(len(filtered))
 
-        for rowIdx, product in enumerate(filtered):
-            self.productsTable.setItem(rowIdx, 0, QTableWidgetItem(product.name))
-            self.productsTable.setItem(rowIdx, 1, QTableWidgetItem(product.sku))
-            self.productsTable.setItem(rowIdx, 2, QTableWidgetItem(product.category))
-            self.productsTable.setItem(rowIdx, 3, QTableWidgetItem(product.price))
+        for rowIdx, task in enumerate(filtered):
+            self.tasksTable.setItem(rowIdx, 0, QTableWidgetItem(task.title))
+            self.tasksTable.setItem(rowIdx, 1, QTableWidgetItem(task.category))
 
-            stockItem = QTableWidgetItem(str(product.stock))
-            stockColor = "#34d399" if product.stock > 50 else "#fbbf24" if product.stock > 10 else "#ef4444"
-            stockItem.setForeground(QBrush(QColor(stockColor)))
-            self.productsTable.setItem(rowIdx, 4, stockItem)
+            priorityItem = QTableWidgetItem(task.priority)
+            priorityColor = "#ef4444" if task.priority == "HIGH" else "#fbbf24" if task.priority == "MEDIUM" else "#34d399"
+            priorityItem.setForeground(QBrush(QColor(priorityColor)))
+            self.tasksTable.setItem(rowIdx, 2, priorityItem)
 
-            statusItem = QTableWidgetItem(product.status)
-            statusColor = "#34d399" if product.status == "ACTIVE" else "#ef4444"
+            self.tasksTable.setItem(rowIdx, 3, QTableWidgetItem(task.assignedTo))
+            self.tasksTable.setItem(rowIdx, 4, QTableWidgetItem(task.dueDate))
+
+            statusItem = QTableWidgetItem(task.status)
+            statusColor = "#34d399" if task.status == "COMPLETED" else "#38bdf8" if task.status == "IN_PROGRESS" else "#fbbf24"
             statusItem.setForeground(QBrush(QColor(statusColor)))
-            self.productsTable.setItem(rowIdx, 5, statusItem)
+            self.tasksTable.setItem(rowIdx, 5, statusItem)
 
             viewBtn = QPushButton("👁️ View")
             viewBtn.setStyleSheet("background-color: #4f46e5; padding: 4px 8px; font-size: 9px;")
-            viewBtn.clicked.connect(lambda checked, p=product: self._open_product_details_for(p))
-            self.productsTable.setCellWidget(rowIdx, 6, viewBtn)
+            viewBtn.clicked.connect(lambda checked, t=task: self._open_task_details_for(t))
+            self.tasksTable.setCellWidget(rowIdx, 6, viewBtn)
 
-    def _get_filtered_products(self) -> list:
-        """Get filtered products"""
+    def _get_filtered_tasks(self) -> list:
+        """Get filtered tasks"""
         result = []
 
-        for product in self.productsList:
-            # Category filter
-            if self.selectedCategory != "ALL" and product.category != self.selectedCategory:
+        for task in self.tasksList:
+            # Status filter
+            if self.selectedStatus != "ALL" and task.status != self.selectedStatus:
                 continue
 
             # Search filter
             if self.search.strip():
                 q = self.search.lower()
                 matches = (
-                    q in product.name.lower() or
-                    q in product.sku.lower() or
-                    q in product.category.lower() or
-                    q in product.price.lower()
+                    q in task.title.lower() or
+                    q in task.assignedTo.lower() or
+                    q in task.category.lower()
                 )
                 if not matches:
                     continue
 
-            result.append(product)
+            result.append(task)
 
         return result
 
     def _on_search_changed(self):
         """Handle search input changed"""
         self.search = self.searchInput.text()
-        self._refresh_products_table()
+        self._refresh_tasks_table()
 
-    def _set_category_filter(self, category: str):
-        """Set category filter"""
-        self.selectedCategory = category
-        self._refresh_products_table()
+    def _set_status_filter(self, status: str):
+        """Set status filter"""
+        self.selectedStatus = status
+        self._refresh_tasks_table()
 
-    def _open_create_product(self):
-        """Open create product modal"""
-        dialog = CreateProductModal(self)
+    def _open_create_task(self):
+        """Open create task modal"""
+        dialog = CreateTaskModal(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            product = dialog.get_product()
-            self.productsList.insert(0, product)
-            self._refresh_products_table()
-            QMessageBox.information(self, "✓ Product Created", f"Added {product.name} to catalog.")
+            task = dialog.get_task()
+            self.tasksList.insert(0, task)
+            self._refresh_tasks_table()
+            QMessageBox.information(self, "✓ Task Created", f"Created task: {task.title}")
 
-    def _open_product_details(self, index):
-        """Open product details modal"""
+    def _open_task_details(self, index):
+        """Open task details modal"""
         row = index.row()
-        filtered = self._get_filtered_products()
+        filtered = self._get_filtered_tasks()
 
         if row < len(filtered):
-            product = filtered[row]
-            dialog = ProductDetailsModal(product, self)
+            task = filtered[row]
+            dialog = TaskDetailsModal(task, self)
             dialog.exec()
 
-    def _open_product_details_for(self, product: ProductItem):
-        """Open product details modal for specific product"""
-        dialog = ProductDetailsModal(product, self)
+    def _open_task_details_for(self, task: TaskItem):
+        """Open task details modal for specific task"""
+        dialog = TaskDetailsModal(task, self)
         dialog.exec()
