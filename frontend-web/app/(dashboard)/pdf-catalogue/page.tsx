@@ -44,7 +44,7 @@ interface PdfItem {
 const makeLog = (
   id: string, sharedBy: string, sharedTo: string,
   channel: ShareChannel, timestamp: string,
-  extra?: Partial<ShareEvent>
+  extra: Partial<ShareEvent> = {}
 ): ShareEvent => ({ id, sharedBy, sharedTo, channel, timestamp, ...extra });
 
 // ── Seed Data ────────────────────────────────────────────
@@ -72,7 +72,7 @@ const INITIAL_PDFS: PdfItem[] = [
     shareLog: [
       makeLog('sl6', 'Ravi Singh',  'Rahul Industries', 'EMAIL',    'Today 08:55 AM', { leadEmail: 'rahul@industries.com' }),
       makeLog('sl7', 'Aisha Khan',  'CloudBase Corp',   'WHATSAPP', 'Yesterday 2:10 PM', { leadPhone: '+91 99887 76655' }),
-      makeLog('sl8', 'Ravi Singh',  'StartupXYZ',       'LINK',     '3 days ago' }),
+      makeLog('sl8', 'Ravi Singh',  'StartupXYZ',       'LINK',     '3 days ago', {}),
     ],
   },
   {
@@ -86,7 +86,7 @@ const INITIAL_PDFS: PdfItem[] = [
       makeLog('sl10', 'Rajesh Kumar', 'TechCorp Ltd',    'EMAIL',    'Today 10:00 AM', { leadEmail: 'contact@techcorp.com' }),
       makeLog('sl11', 'Aisha Khan',   'Mehta Enterprises','WHATSAPP', 'Yesterday 4:50 PM', { leadPhone: '+91 78563 21098' }),
       makeLog('sl12', 'Ravi Singh',   'Infosys Partner', 'EMAIL',    'Yesterday 9:30 AM', { leadEmail: 'partner@infosys.com' }),
-      makeLog('sl13', 'Priya Sharma', 'ZoomSales Ltd',   'LINK',     '2 days ago' }),
+      makeLog('sl13', 'Priya Sharma', 'ZoomSales Ltd',   'LINK',     '2 days ago', {}),
     ],
   },
   {
@@ -110,7 +110,7 @@ const INITIAL_PDFS: PdfItem[] = [
     shareLog: [
       makeLog('sl17', 'Ravi Singh',   'Softech Pvt Ltd', 'WHATSAPP', 'Today 08:10 AM', { leadPhone: '+91 88991 00223', note: 'Sent before product demo' }),
       makeLog('sl18', 'Rajesh Kumar', 'NovaBiz Corp',    'EMAIL',    'Yesterday 5:00 PM', { leadEmail: 'hello@novabiz.com' }),
-      makeLog('sl19', 'Aisha Khan',   'DataDriven Co',   'LINK',     '3 days ago' }),
+      makeLog('sl19', 'Aisha Khan',   'DataDriven Co',   'LINK',     '3 days ago', {}),
     ],
   },
   {
@@ -124,7 +124,7 @@ const INITIAL_PDFS: PdfItem[] = [
       makeLog('sl21', 'Ravi Singh',   'StartupNest',      'EMAIL',    'Today 09:30 AM', { leadEmail: 'team@startupnest.in' }),
       makeLog('sl22', 'Rajesh Kumar', 'FintechEdge',      'WHATSAPP', 'Yesterday 3:00 PM', { leadPhone: '+91 66778 88990' }),
       makeLog('sl23', 'Aisha Khan',   'Greenfield Corp',  'EMAIL',    'Yesterday 11:45 AM', { leadEmail: 'gf@greenfield.com' }),
-      makeLog('sl24', 'Ravi Singh',   'SwiftLogistics',   'LINK',     '2 days ago' }),
+      makeLog('sl24', 'Ravi Singh',   'SwiftLogistics',   'LINK',     '2 days ago', {}),
       makeLog('sl25', 'Priya Sharma', 'MegaStore Ltd',    'EMAIL',    '3 days ago', { leadEmail: 'contact@megastore.in' }),
     ],
   },
