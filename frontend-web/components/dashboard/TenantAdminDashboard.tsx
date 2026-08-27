@@ -849,54 +849,20 @@ export function TenantAdminDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ============================================================ */}
-      {/* ⚡ LEAD INTEGRATION & INGESTION CONTROL CENTER (NEW SECTION) */}
-      {/* ============================================================ */}
-      <div className="crm-card p-6 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 space-y-6 rounded-2xl shadow-2xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-4">
+      {/* ── Lead Pipeline & Ingestion Banner ── */}
+      <div className="crm-card p-5 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/20 to-slate-900 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
+            <Zap size={20} />
+          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                ⚡ INTEGRATION & DATA HUB
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                5 ACTIVE CHANNELS
-              </span>
-            </div>
-            <h2 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
-              <Database size={20} className="text-indigo-400" /> Lead Integration & Ingestion Control Center
-            </h2>
+            <h3 className="text-white font-bold text-sm flex items-center gap-2">
+              Lead Integration, Ingestion Control Center & Routing Widgets
+            </h3>
             <p className="text-xs text-muted mt-0.5">
-              Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+              Widget 1 (Ingestion & Routing), Widget 2 (Hierarchy Builder), Widget 3 (Permissions Policy), and Lead Directory Table are now hosted under Lead Pipeline.
             </p>
           </div>
-
-          {/* ACTION BUTTONS TOOLBAR */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setInsertLeadModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
-            >
-              <Plus size={14} /> + Insert Lead
-            </button>
-            <button
-              onClick={() => setImportCsvModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
-            >
-              <Upload size={14} /> Import CSV / Excel
-            </button>
-            <button
-              onClick={() => setGoogleSheetsModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
-            >
-              <FileSpreadsheet size={14} /> Google Sheets Sync
-            </button>
-            <button
-              onClick={handleExportLeadsCSV}
-              className="px-3.5 py-2 rounded-xl bg-teal-600/20 border border-teal-500/40 text-teal-300 hover:bg-teal-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
-            >
-              <Download size={14} /> Export CSV
             </button>
             <button
               onClick={() => setAddCustomColModalOpen(true)}
