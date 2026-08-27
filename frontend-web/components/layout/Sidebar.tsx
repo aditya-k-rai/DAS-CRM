@@ -42,7 +42,7 @@ const adminNavigation: NavItem[] = [
   { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
   { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck, roles: ['ADMIN', 'MANAGER', 'HR'] },
-  { label: 'Communicate with Employees', href: '#', icon: Radio, upcoming: true, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Communicate with Employees', href: '/communicate', icon: Radio, upcoming: true, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
