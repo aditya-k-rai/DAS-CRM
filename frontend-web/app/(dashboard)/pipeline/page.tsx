@@ -28,6 +28,39 @@ interface DashboardLeadRecord {
   createdAt: string;
 }
 
+interface FileUploadHistoryItem {
+  id: string;
+  fileName: string;
+  fileSize: string;
+  uploadedAt: string;
+  leadsCount: number;
+  uploadedBy: string;
+  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+}
+
+interface GoogleSheetHistoryItem {
+  id: string;
+  spreadsheetTitle: string;
+  spreadsheetUrl: string;
+  sheetTab: string;
+  rangeMapped: string;
+  connectedAt: string;
+  lastSyncAt: string;
+  totalSyncsCount: number;
+  totalLeadsIngested: number;
+  status: 'ACTIVE_SYNC' | 'PAUSED';
+}
+
+interface DatewiseLeadsAnalytics {
+  date: string;
+  totalLeads: number;
+  googleSheets: number;
+  fileUploads: number;
+  facebookAds: number;
+  googleAds: number;
+  whatsAppDirect: number;
+}
+
 function sanitizeCellString(input: any, fallback: string = '—'): string {
   if (input === null || input === undefined) return fallback;
   const str = String(input).trim();
@@ -69,7 +102,75 @@ export default function LeadPipelinePage() {
   const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
   const [googleSheetsModalOpen, setGoogleSheetsModalOpen] = useState(false);
   const [customColumnModalOpen, setCustomColumnModalOpen] = useState(false);
-  const [importSuccessModalOpen, setImportSuccessModalOpen] = useState(false);
+
+  // Lead Incoming History Active Tab State
+  const [historyActiveTab, setHistoryActiveTab] = useState<'DATEWISE' | 'FILE_UPLOADS' | 'GSHEETS_SYNC'>('DATEWISE');
+
+  // History Seed State
+  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([
+    {
+      id: 'file_hist_1',
+      fileName: 'August_Sales_Leads_Master.xlsx',
+      fileSize: '2.4 MB',
+      uploadedAt: '2026-08-16 02:30 PM',
+      leadsCount: 24,
+      uploadedBy: 'Vikram Singh (Admin)',
+      status: 'SUCCESS',
+    },
+    {
+      id: 'file_hist_2',
+      fileName: 'Mumbai_Campaign_Contacts.csv',
+      fileSize: '480 KB',
+      uploadedAt: '2026-08-15 11:15 AM',
+      leadsCount: 18,
+      uploadedBy: 'Priya Sharma (Manager)',
+      status: 'SUCCESS',
+    },
+    {
+      id: 'file_hist_3',
+      fileName: 'Q2_Archived_Inquiries.csv',
+      fileSize: '1.1 MB',
+      uploadedAt: '2026-08-14 06:45 PM',
+      leadsCount: 40,
+      uploadedBy: 'Vikram Singh (Admin)',
+      status: 'SUCCESS',
+    },
+  ]);
+
+  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([
+    {
+      id: 'gsheet_hist_1',
+      spreadsheetTitle: 'August_2026_Inbound_Leads.gsheet',
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+      sheetTab: 'Inbound_Leads_Sheet1',
+      rangeMapped: 'Range A2:F',
+      connectedAt: '2026-08-01 09:00 AM',
+      lastSyncAt: 'Today, 02:45 PM (Just Now)',
+      totalSyncsCount: 420,
+      totalLeadsIngested: 1890,
+      status: 'ACTIVE_SYNC',
+    },
+    {
+      id: 'gsheet_hist_2',
+      spreadsheetTitle: 'Web_Contact_Form_Responses.gsheet',
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
+      sheetTab: 'Form_Submissions',
+      rangeMapped: 'Range A2:D',
+      connectedAt: '2026-08-10 03:20 PM',
+      lastSyncAt: 'Yesterday, 06:10 PM',
+      totalSyncsCount: 115,
+      totalLeadsIngested: 230,
+      status: 'ACTIVE_SYNC',
+    },
+  ]);
+
+  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([
+    { date: 'Today (Aug 27)', totalLeads: 48, googleSheets: 18, fileUploads: 12, facebookAds: 10, googleAds: 5, whatsAppDirect: 3 },
+    { date: 'Yesterday (Aug 26)', totalLeads: 62, googleSheets: 22, fileUploads: 15, facebookAds: 14, googleAds: 8, whatsAppDirect: 3 },
+    { date: 'Aug 25, 2026', totalLeads: 55, googleSheets: 19, fileUploads: 14, facebookAds: 12, googleAds: 6, whatsAppDirect: 4 },
+    { date: 'Aug 24, 2026', totalLeads: 41, googleSheets: 14, fileUploads: 10, facebookAds: 9, googleAds: 5, whatsAppDirect: 3 },
+    { date: 'Aug 23, 2026', totalLeads: 38, googleSheets: 12, fileUploads: 8, facebookAds: 10, googleAds: 6, whatsAppDirect: 2 },
+  ]);
 
   // Single Insert Form
   const [newLeadName, setNewLeadName] = useState('');
@@ -345,6 +446,150 @@ export default function LeadPipelinePage() {
               </table>
             </div>
           </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* 📊 LEAD INCOMING HISTORY & DATA SOURCE AUDIT CENTER          */}
+        {/* ============================================================ */}
+        <div className="crm-card p-6 border-purple-500/30 bg-slate-950/80 space-y-4 rounded-2xl shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                AUDIT & INGESTION LOGS
+              </span>
+              <h3 className="font-extrabold text-base text-white mt-1 flex items-center gap-2">
+                <ClipboardList size={18} className="text-purple-400" /> Lead Incoming History & Data Source Audit
+              </h3>
+            </div>
+
+            {/* TAB SELECTOR */}
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold flex-wrap">
+              <button
+                onClick={() => setHistoryActiveTab('DATEWISE')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'DATEWISE' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                📅 Date-Wise Total Leads ({datewiseAnalytics.reduce((a, b) => a + b.totalLeads, 0)})
+              </button>
+              <button
+                onClick={() => setHistoryActiveTab('FILE_UPLOADS')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'FILE_UPLOADS' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                📄 File Upload History ({fileUploadHistory.length})
+              </button>
+              <button
+                onClick={() => setHistoryActiveTab('GSHEETS_SYNC')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'GSHEETS_SYNC' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                📊 Google Sheets History ({googleSheetHistory.length})
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 1: DATEWISE ANALYTICS BREAKDOWN */}
+          {historyActiveTab === 'DATEWISE' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Date Window</th>
+                    <th className="p-3 text-cyan-300">Total Leads Ingested</th>
+                    <th className="p-3 text-emerald-400">Google Sheets Sync</th>
+                    <th className="p-3 text-purple-300">File Uploads (CSV/Excel)</th>
+                    <th className="p-3 text-blue-400">Facebook Ads</th>
+                    <th className="p-3 text-red-400">Google Ads</th>
+                    <th className="p-3 text-emerald-300">WhatsApp / Direct</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {datewiseAnalytics.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-white">{row.date}</td>
+                      <td className="p-3 font-mono font-black text-cyan-300">{row.totalLeads} Leads</td>
+                      <td className="p-3 font-mono text-emerald-400 font-bold">+{row.googleSheets}</td>
+                      <td className="p-3 font-mono text-purple-300 font-bold">+{row.fileUploads}</td>
+                      <td className="p-3 font-mono text-blue-400 font-bold">+{row.facebookAds}</td>
+                      <td className="p-3 font-mono text-red-400 font-bold">+{row.googleAds}</td>
+                      <td className="p-3 font-mono text-emerald-300 font-bold">+{row.whatsAppDirect}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: FILE UPLOAD HISTORY LOG */}
+          {historyActiveTab === 'FILE_UPLOADS' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Uploaded File Name</th>
+                    <th className="p-3">File Size</th>
+                    <th className="p-3 text-purple-300">Total Leads Ingested</th>
+                    <th className="p-3">Upload Timestamp</th>
+                    <th className="p-3">Uploaded By User</th>
+                    <th className="p-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {fileUploadHistory.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-white flex items-center gap-1.5">
+                        <FileSpreadsheet size={14} className="text-purple-400" /> {item.fileName}
+                      </td>
+                      <td className="p-3 font-mono text-slate-400">{item.fileSize}</td>
+                      <td className="p-3 font-mono font-extrabold text-purple-300">+{item.leadsCount} Leads</td>
+                      <td className="p-3 font-mono text-muted text-[11px]">{item.uploadedAt}</td>
+                      <td className="p-3 font-semibold text-slate-300">{item.uploadedBy}</td>
+                      <td className="p-3 text-right">
+                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 3: GOOGLE SHEETS INTEGRATION HISTORY */}
+          {historyActiveTab === 'GSHEETS_SYNC' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Google Sheet Workbook</th>
+                    <th className="p-3">Connected Tab</th>
+                    <th className="p-3">Cell Range Mapped</th>
+                    <th className="p-3 text-emerald-400">Total Ingested Leads</th>
+                    <th className="p-3">Last Sync Timestamp</th>
+                    <th className="p-3 text-right">Sync Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {googleSheetHistory.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-emerald-300">
+                        <a href={item.spreadsheetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1.5">
+                          <FileSpreadsheet size={14} className="text-emerald-400" /> {item.spreadsheetTitle} ↗
+                        </a>
+                      </td>
+                      <td className="p-3 font-mono text-purple-300 font-bold">{item.sheetTab}</td>
+                      <td className="p-3 font-mono text-cyan-300 font-bold">{item.rangeMapped}</td>
+                      <td className="p-3 font-mono font-black text-emerald-400">{item.totalLeadsIngested.toLocaleString()} Leads</td>
+                      <td className="p-3 font-mono text-muted text-[11px]">{item.lastSyncAt}</td>
+                      <td className="p-3 text-right">
+                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit ml-auto">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* ============================================================ */}
