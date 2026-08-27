@@ -89,15 +89,20 @@ body {
   background: rgb(var(--sidebar-bg));
   border-right: 1px solid rgb(var(--sidebar-border));
   width: var(--sidebar-width);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   position: fixed;
   left: 0;
   top: 0;
+  bottom: 0;
   z-index: 50;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease;
   overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 /* Collapsed sidebar — icon-only mode (desktop) */

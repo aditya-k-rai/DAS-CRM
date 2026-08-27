@@ -59,9 +59,7 @@ export function Sidebar() {
     setMounted(true);
   }, []);
 
-  const currentNormalizedRole = mounted
-    ? normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email))
-    : 'ADMIN';
+  const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'ADMIN');
 
   const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(currentNormalizedRole);
 
@@ -167,7 +165,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-1 pb-4">
+        <nav className="flex-1 overflow-y-auto px-1 pb-4 min-h-0">
           {filteredNav.map((item) => {
             const targetHref = item.label === 'Dashboard' ? getDashboardHref() : item.href;
             const isActive = isItemActive(item);
