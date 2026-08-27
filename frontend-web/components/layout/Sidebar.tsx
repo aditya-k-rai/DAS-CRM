@@ -34,7 +34,7 @@ const adminNavigation: NavItem[] = [
   { label: 'WhatsApp Direct Template', href: '/comms?tab=templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
   { label: 'AI Customization', href: '/admin/ai', icon: Sparkles, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'PDF Catalogue', href: '/products?tab=pdf', icon: FileText, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'PDF Catalogue', href: '/pdf-catalogue', icon: FileText, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Lead Pipeline', href: '/deals?view=pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
   { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap, roles: ['ADMIN', 'MANAGER'] },
