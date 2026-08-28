@@ -110,8 +110,24 @@ const CATALOG_PRODUCTS = [
   { name: 'AI Lead Scoring & Automation Engine', price: 120000, tax: 18, unit: 'License', image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&auto=format&fit=crop&q=60' },
   { name: 'WhatsApp Cloud API Gateway Setup', price: 45000, tax: 18, unit: 'Setup', image: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?w=200&auto=format&fit=crop&q=60' },
   { name: 'Dedicated Cloud Infrastructure Node', price: 85000, tax: 18, unit: 'Month', image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=200&auto=format&fit=crop&q=60' },
-  { name: 'Implementation & Training Workshop', price: 35000, tax: 18, unit: 'Hours', image: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=200&auto=format&fit=crop&q=60' },
-];
+// ─── Helper: Number to Words (Indian Rupee Spectro Format) ────
+function numberToWordsINR(amount: number): string {
+  if (!amount || isNaN(amount) || amount === 0) return 'Rupees Zero Only';
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const inWords = (n: number): string => {
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 ? ' ' + a[n % 10] : '');
+    if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + inWords(n % 100) : '');
+    if (n < 100000) return inWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + inWords(n % 1000) : '');
+    if (n < 10000000) return inWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + inWords(n % 100000) : '');
+    return inWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + inWords(n % 10000000) : '');
+  };
+
+  const rounded = Math.round(amount);
+  return `Rupees ${inWords(rounded)} Only`;
+}
 
 export function QuotationBuilder() {
   // Document Type Flow
@@ -287,7 +303,7 @@ export function QuotationBuilder() {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-12 font-sans text-slate-900 dark:text-white">
       {/* ── TOP ACTION BAR & DOCUMENT TYPE FLOW SELECTOR ── */}
-      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-4">
+      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-4 print-hide">
         <div>
           <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded">
             PROCESS FLOW ENGINE
@@ -330,7 +346,7 @@ export function QuotationBuilder() {
             onClick={() => window.print()}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
           >
-            <Download size={14} /> Print / Export PDF
+            <Download size={14} /> Print / Export PDF (A4)
           </button>
         </div>
       </div>
@@ -338,7 +354,7 @@ export function QuotationBuilder() {
       {/* ── DUAL PANE LAYOUT (LEFT CONTROLS | RIGHT LIVE PDF PREVIEW) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ── LEFT PANE: CONTROLS & FORM BUILDER (7 COLS) ── */}
-        <div className="lg:col-span-6 space-y-6">
+        <div className="lg:col-span-6 space-y-6 print-hide">
           {/* 1. SELLER / COMPANY SELECTOR (DROPDOWN - RECENT ON TOP) */}
           <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -639,135 +655,184 @@ export function QuotationBuilder() {
           </div>
         </div>
 
-        {/* ── RIGHT PANE: LIVE PDF PREVIEW (SPECTRO COMMERCIAL GST INVOICE LAYOUT) (6 COLS) ── */}
-        <div className="lg:col-span-6 sticky top-6">
-          <div className="crm-card bg-white text-slate-900 border border-slate-200 rounded-2xl p-6 shadow-2xl space-y-6 font-sans">
-            {/* Header / Document Title */}
-            <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
-              <div className="flex items-center gap-3">
-                <img src={activeCompany.logoUrl} alt="Logo" className="w-12 h-12 rounded-lg object-cover border border-slate-200" />
-                <div>
-                  <h1 className="text-base font-black text-slate-900">{activeCompany.name}</h1>
-                  <p className="text-[10px] text-slate-500 max-w-xs leading-tight mt-0.5">{activeCompany.address}</p>
-                  <p className="text-[10px] font-bold text-indigo-600 mt-1">GSTIN: {activeCompany.gstNo} • PAN: {activeCompany.panNo}</p>
+        {/* ── RIGHT PANE: LIVE PDF PREVIEW (SPECTRO A4 COMMERCIAL GST FORMAT) ── */}
+        <div className="lg:col-span-6 sticky top-6 flex flex-col items-center">
+          {/* A4 Format Badge Indicator (Screen Only) */}
+          <div className="w-full max-w-[210mm] flex items-center justify-between px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold print-hide mb-[-1px] z-10 shadow-md">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Spectro PDF Engine (A4 Format: 210 x 297 mm)
+            </span>
+            <span className="text-slate-400 font-mono text-[9px] bg-slate-800 px-2 py-0.5 rounded">100% Print Ready</span>
+          </div>
+
+          {/* A4 Paper Document Container */}
+          <div className="a4-document bg-white text-slate-900 border border-slate-300 shadow-2xl space-y-5 font-sans relative text-xs overflow-hidden rounded-b-xl sm:rounded-b-none p-6 sm:p-8 w-full max-w-[210mm]">
+            {/* Top Spectro Brand Color Bar */}
+            <div className="h-2.5 bg-gradient-to-r from-slate-950 via-indigo-900 to-slate-950 -mx-8 -mt-8 mb-4"></div>
+
+            {/* Header: Company Info + Document Title Block */}
+            <div className="border-b border-slate-200 pb-4 flex justify-between items-start gap-4">
+              <div className="flex items-start gap-3.5 max-w-[60%]">
+                <img src={activeCompany.logoUrl} alt="Company Logo" className="w-14 h-14 rounded-lg object-cover border border-slate-200 shadow-sm flex-shrink-0" />
+                <div className="space-y-0.5">
+                  <h1 className="text-base font-black text-slate-900 tracking-tight uppercase leading-snug">{activeCompany.name}</h1>
+                  <p className="text-[10px] text-slate-600 leading-tight">{activeCompany.address}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 text-[10px] font-extrabold text-indigo-700 mt-1">
+                    <span>GSTIN: <span className="font-mono">{activeCompany.gstNo}</span></span>
+                    <span>•</span>
+                    <span>PAN: <span className="font-mono">{activeCompany.panNo}</span></span>
+                  </div>
+                  {activeCompany.email && (
+                    <p className="text-[9.5px] text-slate-500">Email: {activeCompany.email}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="text-right">
-                <span className="text-sm font-black tracking-wider uppercase px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <div className="text-right space-y-1">
+                <span className="inline-block text-xs font-black tracking-widest uppercase px-3 py-1 bg-slate-900 text-white rounded border border-slate-800 shadow-sm">
                   {getDocTitle()}
                 </span>
-                <p className="text-xs font-extrabold text-slate-900 mt-2">Doc #: <span className="font-mono">{docNo}</span></p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Date: <strong>{docDate}</strong></p>
+                <p className="text-xs font-black text-slate-900 pt-1">
+                  Doc #: <span className="font-mono text-indigo-700 font-extrabold">{docNo}</span>
+                </p>
+                <p className="text-[11px] text-slate-600">Date: <strong className="text-slate-900">{docDate}</strong></p>
                 {validUntilDate && validUntilDate.trim() !== '' && (
-                  <p className="text-[11px] text-slate-500">Valid: <strong>{validUntilDate}</strong></p>
+                  <p className="text-[11px] text-slate-600">Valid Until: <strong className="text-slate-900">{validUntilDate}</strong></p>
                 )}
+                <p className="text-[9.5px] font-semibold text-slate-400">Place of Supply: <span className="text-slate-700 font-bold">06-Haryana</span></p>
               </div>
             </div>
 
-            {/* Billed To / Party Details */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 grid grid-cols-2 gap-4">
+            {/* Billed To / Party & Consignee Grid */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 grid grid-cols-2 gap-4">
               <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Billed To (Client / Buyer)</span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Billed To (Buyer)</span>
                 <h4 className="text-xs font-black text-slate-900">{activeParty.name}</h4>
-                <p className="text-[10px] text-slate-600 mt-0.5">Attn: {activeParty.contactPerson}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{activeParty.address}</p>
+                {activeParty.contactPerson && (
+                  <p className="text-[10px] font-medium text-slate-700 mt-0.5">Attn: {activeParty.contactPerson}</p>
+                )}
+                <p className="text-[10px] text-slate-600 mt-0.5 leading-snug">{activeParty.address}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-slate-700">GSTIN: <span className="font-mono">{activeParty.gstNo}</span></p>
-                <p className="text-[10px] font-bold text-slate-700">PAN: <span className="font-mono">{activeParty.panNo}</span></p>
-                <p className="text-[10px] text-slate-500 mt-1">✉️ {activeParty.email}</p>
-                <p className="text-[10px] text-slate-500">📞 {activeParty.phone}</p>
+              <div className="text-right space-y-0.5">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Tax &amp; Contact Identifiers</span>
+                <p className="text-[10px] font-bold text-slate-800">GSTIN: <span className="font-mono text-indigo-700">{activeParty.gstNo}</span></p>
+                <p className="text-[10px] font-bold text-slate-800">PAN: <span className="font-mono">{activeParty.panNo}</span></p>
+                {activeParty.email && <p className="text-[10px] text-slate-600">✉️ {activeParty.email}</p>}
+                <p className="text-[10px] text-slate-600">📞 {activeParty.phone}</p>
               </div>
             </div>
 
-            {/* Line Items Table */}
-            <div className="overflow-x-auto">
+            {/* Line Items Table (Spectro Clean Commercial Layout) */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-300 bg-slate-100 text-slate-600 text-[10px] uppercase font-black">
-                    <th className="py-2 px-2">#</th>
-                    <th className="py-2 px-2">Product Description</th>
-                    <th className="py-2 px-2 text-center">Qty / Unit</th>
-                    <th className="py-2 px-2 text-right">Rate</th>
-                    <th className="py-2 px-2 text-center">GST %</th>
-                    <th className="py-2 px-2 text-right">Total (₹)</th>
+                  <tr className="bg-slate-900 text-white text-[9.5px] uppercase font-black tracking-wider border-b border-slate-800">
+                    <th className="py-2.5 px-2.5 text-center w-8">#</th>
+                    <th className="py-2.5 px-2.5">Item &amp; Description</th>
+                    <th className="py-2.5 px-2 text-center">HSN/SAC</th>
+                    <th className="py-2.5 px-2 text-center">Qty</th>
+                    <th className="py-2.5 px-2 text-right">Rate (₹)</th>
+                    <th className="py-2.5 px-2 text-center">GST %</th>
+                    <th className="py-2.5 px-2.5 text-right">Amount (₹)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 bg-white">
                   {items.map((it, idx) => (
-                    <tr key={it.id} className="text-slate-800">
-                      <td className="py-2.5 px-2 font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-2.5 px-2">
-                        <div className="flex items-center gap-2">
+                    <tr key={it.id} className={idx % 2 === 1 ? 'bg-slate-50/60 text-slate-800' : 'text-slate-800'}>
+                      <td className="py-2.5 px-2.5 text-center font-bold text-slate-400 text-[11px]">{idx + 1}</td>
+                      <td className="py-2.5 px-2.5">
+                        <div className="flex items-center gap-2.5">
                           {it.showImage && it.imageUrl && (
-                            <img src={it.imageUrl} alt="Prod" className="w-8 h-8 rounded border border-slate-200 object-cover flex-shrink-0" />
+                            <img src={it.imageUrl} alt="Prod" className="w-7 h-7 rounded border border-slate-200 object-cover flex-shrink-0" />
                           )}
                           <div>
-                            <span className="font-bold block text-slate-900">{it.productName}</span>
+                            <span className="font-bold block text-slate-900 leading-snug">{it.productName}</span>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 text-center font-semibold">{it.qty} {it.unit}</td>
-                      <td className="py-2.5 px-2 text-right font-semibold">₹{it.unitPrice.toLocaleString()}</td>
-                      <td className="py-2.5 px-2 text-center font-bold text-amber-600">{it.taxRate}%</td>
-                      <td className="py-2.5 px-2 text-right font-black text-slate-900">₹{it.total.toLocaleString()}</td>
+                      <td className="py-2.5 px-2 text-center font-mono text-[10px] text-slate-500">998313</td>
+                      <td className="py-2.5 px-2 text-center font-semibold text-[11px]">{it.qty} {it.unit}</td>
+                      <td className="py-2.5 px-2 text-right font-semibold text-[11px]">₹{it.unitPrice.toLocaleString('en-IN')}</td>
+                      <td className="py-2.5 px-2 text-center font-bold text-indigo-700 text-[11px]">{it.taxRate}%</td>
+                      <td className="py-2.5 px-2.5 text-right font-black text-slate-900 text-[11px]">₹{it.total.toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Financial Summary & Bank Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 pt-4">
-              {/* Bank Details */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Bank Payment Details</span>
-                <p className="text-[10px] font-bold text-slate-800">Bank: {activeCompany.bankName}</p>
-                <p className="text-[10px] font-bold text-indigo-600">A/C No: {activeCompany.accountNo}</p>
-                <p className="text-[10px] text-slate-600">IFSC: {activeCompany.ifscCode} • Branch: {activeCompany.branch}</p>
-                <p className="text-[10px] font-extrabold text-emerald-600">UPI ID: {activeCompany.upiId}</p>
+            {/* Financial Summary & Bank Details Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 pt-3">
+              {/* Bank Details & Amount in Words */}
+              <div className="space-y-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Bank Payment Details</span>
+                  <p className="text-[10px] font-bold text-slate-800">Bank: {activeCompany.bankName}</p>
+                  <p className="text-[10px] font-bold text-indigo-700 font-mono">A/C No: {activeCompany.accountNo}</p>
+                  <p className="text-[10px] text-slate-600">IFSC: <span className="font-mono">{activeCompany.ifscCode}</span> • Branch: {activeCompany.branch}</p>
+                  <p className="text-[10px] font-extrabold text-emerald-700">UPI ID: {activeCompany.upiId}</p>
+                </div>
+
+                {/* Amount in Words */}
+                <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg p-2.5">
+                  <span className="text-[8.5px] font-black uppercase tracking-wider text-indigo-500 block">Total Amount (in words)</span>
+                  <p className="text-[10.5px] font-extrabold text-indigo-950 italic mt-0.5">
+                    {numberToWordsINR(grandTotal)}
+                  </p>
+                </div>
               </div>
 
-              {/* Totals Box */}
-              <div className="space-y-1.5 text-xs text-right">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal:</span>
-                  <span className="font-bold">₹{subtotal.toLocaleString()}</span>
+              {/* Totals Calculation Box */}
+              <div className="space-y-1.5 text-xs text-right bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>Subtotal (Base Value):</span>
+                  <span className="font-bold text-slate-800">₹{subtotal.toLocaleString('en-IN')}</span>
                 </div>
                 {totalItemDiscounts > 0 && (
-                  <div className="flex justify-between text-emerald-600">
+                  <div className="flex justify-between text-emerald-700 text-[11px]">
                     <span>Item Discounts:</span>
-                    <span className="font-bold">-₹{totalItemDiscounts.toLocaleString()}</span>
+                    <span className="font-bold">-₹{totalItemDiscounts.toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 {overallDiscAmount > 0 && (
-                  <div className="flex justify-between text-emerald-600">
+                  <div className="flex justify-between text-emerald-700 text-[11px]">
                     <span>Overall Discount:</span>
-                    <span className="font-bold">-₹{overallDiscAmount.toLocaleString()}</span>
+                    <span className="font-bold">-₹{overallDiscAmount.toLocaleString('en-IN')}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-amber-700">
-                  <span>GST Tax Total (18%):</span>
-                  <span className="font-bold">₹{gstTaxTotal.toLocaleString()}</span>
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>CGST (9%):</span>
+                  <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
                 </div>
-                <div className="flex justify-between text-sm font-black text-indigo-600 border-t border-slate-300 pt-1.5">
-                  <span>Grand Total:</span>
-                  <span>₹{grandTotal.toLocaleString()}</span>
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>SGST (9%):</span>
+                  <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between text-indigo-700 font-bold border-t border-slate-200 pt-1.5 text-xs">
+                  <span>Total Tax (18% GST):</span>
+                  <span>₹{gstTaxTotal.toLocaleString('en-IN')}</span>
+                </div>
+                
+                {/* Grand Total Callout Box */}
+                <div className="bg-slate-900 text-white rounded-lg p-2.5 mt-2 flex justify-between items-center font-black text-sm shadow-md">
+                  <span className="uppercase tracking-wider text-[11px] font-bold text-slate-300">Grand Total</span>
+                  <span className="text-base text-amber-400">₹{grandTotal.toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>
 
-            {/* Terms & Authorization Footer */}
-            <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4 items-end">
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Terms &amp; Conditions</span>
-                <p className="text-[9px] text-slate-500 whitespace-pre-line leading-relaxed">{termsText}</p>
+            {/* Terms & Conditions + Authorized Signatory Footer */}
+            <div className="border-t border-slate-200 pt-3 grid grid-cols-2 gap-4 items-end mt-auto">
+              <div className="space-y-1">
+                <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-400 block">Terms &amp; Conditions</span>
+                <p className="text-[8.5px] text-slate-500 whitespace-pre-line leading-relaxed">{termsText}</p>
+                <p className="text-[7.5px] text-slate-400 italic pt-1">E. &amp; O.E. • Computer Generated Document</p>
               </div>
               <div className="text-right space-y-4">
-                <p className="text-[10px] font-bold text-slate-700">For {activeCompany.name}</p>
-                <div className="inline-block border-b border-slate-400 w-32 pb-1 text-center">
-                  <span className="text-[9px] font-bold text-slate-400">Authorized Signatory</span>
+                <p className="text-[10px] font-bold text-slate-800">For {activeCompany.name}</p>
+                <div className="inline-block border-b border-slate-400 w-36 pb-1 text-center">
+                  <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">Authorized Signatory</span>
                 </div>
               </div>
             </div>
