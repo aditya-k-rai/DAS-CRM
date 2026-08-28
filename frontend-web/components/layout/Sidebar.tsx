@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Target, Users, Package, MessageSquare,
+  LayoutDashboard, Target, Users, Package, Receipt, MessageSquare,
   MessageCircle, Mail, Sparkles, FileText, GitBranch,
   BarChart3, Zap, Database, Briefcase, TrendingUp,
   UserCheck, Radio, Settings, Building2, HelpCircle,
@@ -23,7 +23,7 @@ interface NavItem {
   roles?: UserRole[];
 }
 
-// ─── 20 Navigation Items in exact order specified ───
+// ─── Navigation Items in exact order specified ───
 // Displayed for ADMIN and MANAGER roles
 const adminNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'SUPER_ADMIN'] },
@@ -31,6 +31,7 @@ const adminNavigation: NavItem[] = [
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
   { label: 'WhatsApp Direct Template', href: '/whatsapp-templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },

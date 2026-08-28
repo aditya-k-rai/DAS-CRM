@@ -69,10 +69,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string }[] = [
     { key: 'PRODUCTS', icon: '📦', label: 'Products Catalog' },
+    { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
     { key: 'WA_TEMPLATES', icon: '✏️', label: 'WhatsApp Direct Templates' },
     { key: 'AI_CONTROL', icon: '🤖', label: 'Ai Customization' },
-    { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'PDF_CATALOG', icon: '📄', label: 'Pdf Catalogue' },
     { key: 'DEALS', icon: '💼', label: 'Deals Pipeline' },
     { key: 'REPORTS', icon: '📊', label: 'In-Depth Reports & Analytics' },
