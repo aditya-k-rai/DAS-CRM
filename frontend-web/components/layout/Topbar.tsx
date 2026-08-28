@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Menu } from 'lucide-react';
+import { Search, Menu, Sun, Moon } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
 import { useSidebar } from '@/context/SidebarContext';
+import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
 interface TopbarProps {
@@ -15,6 +16,7 @@ interface TopbarProps {
 export function Topbar({ title, actions }: TopbarProps) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { toggleMobile, collapsed, toggleCollapsed } = useSidebar();
+  const { theme, toggleTheme } = useTheme();
 
   const handleHamburgerClick = () => {
     if (window.innerWidth < 1024) {
@@ -73,6 +75,17 @@ export function Topbar({ title, actions }: TopbarProps) {
 
           {/* Page Actions */}
           {actions}
+
+          {/* Theme Toggle Button (Dark & Light Mode) */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1.5 text-xs font-bold"
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span className="hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
 
           {/* Quick App Downloads Button */}
           <a

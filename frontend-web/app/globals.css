@@ -55,6 +55,64 @@
   --sidebar-width: 260px;
 }
 
+/* ─── CSS Custom Properties (Light Theme) ─── */
+.light, [data-theme="light"] {
+  --background: 248 250 252;
+  --foreground: 15 23 42;
+  --card: 255 255 255;
+  --card-foreground: 15 23 42;
+  --popover: 255 255 255;
+  --popover-foreground: 15 23 42;
+  --primary: 79 70 229;
+  --primary-foreground: 255 255 255;
+  --secondary: 241 245 249;
+  --secondary-foreground: 51 65 85;
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --accent: 241 245 249;
+  --accent-foreground: 15 23 42;
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+  --border: 226 232 240;
+  --input: 241 245 249;
+  --ring: 79 70 229;
+
+  /* Sidebar Light Theme */
+  --sidebar-bg: 255 255 255;
+  --sidebar-border: 226 232 240;
+  --sidebar-item-hover: 241 245 249;
+  --sidebar-item-active: 238 242 255;
+  --sidebar-text: 71 85 105;
+  --sidebar-text-active: 79 70 229;
+}
+
+.light body, [data-theme="light"] body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.light .crm-card, [data-theme="light"] .crm-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+}
+
+.light .topbar, [data-theme="light"] .topbar {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-bottom-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light .topbar h1, [data-theme="light"] .topbar h1 {
+  color: #0f172a !important;
+}
+
+.light .sidebar, [data-theme="light"] .sidebar {
+  background-color: #ffffff !important;
+  border-right-color: #e2e8f0 !important;
+}
+
 /* ─── Base Reset ─── */
 *, *::before, *::after {
   box-sizing: border-box;
