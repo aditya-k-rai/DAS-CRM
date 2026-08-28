@@ -12,7 +12,7 @@ const TEMPLATES = [
 
 I noticed {{company_name}} is growing rapidly in the {{industry}} space — congratulations on your progress!
 
-We help companies like yours streamline their sales process with our CRM platform, NexCRM. Teams using NexCRM typically see a 30% improvement in lead conversion within the first 90 days.
+We help companies like yours streamline their sales process with our CRM platform, DAS CRM. Teams using DAS CRM typically see a 30% improvement in lead conversion within the first 90 days.
 
 Would you be open to a 15-minute call this week to explore how we can help {{company_name}}?
 
@@ -22,11 +22,11 @@ Best regards,
   },
   {
     id: '2', name: 'Follow-Up After Demo',
-    subject: 'Next Steps: {{company_name}} × NexCRM Partnership',
+    subject: 'Next Steps: {{company_name}} × DAS CRM Partnership',
     category: 'Follow-Up', usedCount: 28,
     body: `Hi {{contact_first_name}},
 
-Thank you for taking the time to join our demo yesterday! I hope it gave you a clear picture of how NexCRM can transform your sales operations.
+Thank you for taking the time to join our demo yesterday! I hope it gave you a clear picture of how DAS CRM can transform your sales operations.
 
 As discussed, here are the next steps:
 1. Review the attached proposal (₹{{deal_value}})
@@ -42,24 +42,24 @@ Warm regards,
   },
   {
     id: '3', name: 'Deal Won — Welcome Onboard',
-    subject: '🎉 Welcome to NexCRM, {{company_name}}!',
+    subject: '🎉 Welcome to DAS CRM, {{company_name}}!',
     category: 'Post-Sale', usedCount: 17,
     body: `Hi {{contact_first_name}},
 
-We're thrilled to welcome {{company_name}} to the NexCRM family! 🎉
+We're thrilled to welcome {{company_name}} to the DAS CRM family! 🎉
 
 Your account has been set up and is ready to go. Here's what happens next:
 
 ✅ Account Activation: Your login credentials have been sent to {{contact_email}}
 📅 Onboarding Call: We'll schedule a call within 2 business days
-📚 Training: Access our self-paced training library at training.nexcrm.com
-🛠️ Support: Reach us at support@nexcrm.com or via in-app chat
+📚 Training: Access our self-paced training library at training.das_crm.com
+🛠️ Support: Reach us at support@das_crm.com or via in-app chat
 
 Your dedicated account manager is {{account_manager_name}} — feel free to reach them directly.
 
 Let's build something great together!
 
-Team NexCRM`,
+Team DAS CRM`,
   },
 ];
 

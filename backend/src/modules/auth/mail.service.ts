@@ -46,20 +46,20 @@ export class MailService {
   async sendPasswordResetOtp(email: string, otp: string): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: `"NexCRM Security" <${process.env.SMTP_FROM || 'dynamicadvancesolution@gmail.com'}>`,
+        from: `"DAS CRM Security" <${process.env.SMTP_FROM || 'dynamicadvancesolution@gmail.com'}>`,
         to: email,
-        subject: '🔑 NexCRM — Password Reset OTP Code',
+        subject: '🔑 DAS CRM — Password Reset OTP Code',
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
             <h2 style="color: #6366f1; margin: 0 0 16px;">Password Reset Request</h2>
-            <p style="color: #374151;">We received a request to reset your NexCRM account password.</p>
+            <p style="color: #374151;">We received a request to reset your DAS CRM account password.</p>
             <p style="color: #374151;">Use the following 6-digit OTP code to verify your identity and set a new password:</p>
             <div style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #4f46e5; background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
               ${otp}
             </div>
             <p style="color: #6b7280; font-size: 14px;">This OTP is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
             <hr style="border-color: #e5e7eb; margin: 20px 0;" />
-            <p style="color: #9ca3af; font-size: 12px;">Sent automatically by NexCRM Account Security System.</p>
+            <p style="color: #9ca3af; font-size: 12px;">Sent automatically by DAS CRM Account Security System.</p>
           </div>`,
       });
     } catch (err) {
@@ -79,14 +79,14 @@ export class MailService {
         timeZone: 'Asia/Kolkata',
       });
       await this.transporter.sendMail({
-        from: `"NexCRM" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
+        from: `"DAS CRM" <${process.env.SMTP_FROM || 'noreply@das_crm.app'}>`,
         to: userEmail,
-        subject: '🔄 Your NexCRM Role is Being Changed — Action Required',
+        subject: '🔄 Your DAS CRM Role is Being Changed — Action Required',
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px;">
             <h2 style="color: #f59e0b;">⚠️ Role Change in Progress</h2>
             <p>Hi <strong>${userName}</strong>,</p>
-            <p>Your account role in NexCRM is being changed:</p>
+            <p>Your account role in DAS CRM is being changed:</p>
             <table style="width: 100%; background: #f9fafb; border-radius: 8px; padding: 12px; margin: 12px 0;">
               <tr><td style="color: #6b7280;">Previous Role</td><td><strong style="color: #ef4444;">${oldRole}</strong></td></tr>
               <tr><td style="color: #6b7280;">New Role</td><td><strong style="color: #6366f1;">${newRole}</strong></td></tr>
@@ -117,7 +117,7 @@ export class MailService {
           ? 'accepted their new role'
           : 'had their role reverted by Admin';
       await this.transporter.sendMail({
-        from: `"NexCRM" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
+        from: `"DAS CRM" <${process.env.SMTP_FROM || 'noreply@das_crm.app'}>`,
         to: adminEmail,
         subject: `${emoji} Role Transition Update: ${userName}`,
         html: `
@@ -149,9 +149,9 @@ export class MailService {
     try {
       const role = isAdmin ? 'Admin' : name;
       await this.transporter.sendMail({
-        from: `"NexCRM" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
+        from: `"DAS CRM" <${process.env.SMTP_FROM || 'noreply@das_crm.app'}>`,
         to: toEmail,
-        subject: '📄 Your Activity Log Export is Ready — NexCRM',
+        subject: '📄 Your Activity Log Export is Ready — DAS CRM',
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px;">
             <h2 style="color: #6366f1;">📄 Activity Export Ready</h2>
@@ -176,7 +176,7 @@ export class MailService {
   ): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: `"NexCRM Billing" <${process.env.SMTP_FROM || 'noreply@nexcrm.app'}>`,
+        from: `"DAS CRM Billing" <${process.env.SMTP_FROM || 'noreply@das_crm.app'}>`,
         to: superAdminEmail,
         subject: `💳 Plan Upgrade Request — ${orgName}`,
         html: `

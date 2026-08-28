@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { ProductsCatalog } from '@/components/products/ProductsCatalog';
 import { Plus } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Products & Services | NexCRM' };
+export const metadata: Metadata = { title: 'Products & Services | DAS CRM' };
 
 export default function ProductsPage() {
   return (

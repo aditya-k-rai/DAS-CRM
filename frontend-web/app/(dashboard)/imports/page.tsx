@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { ImportWizard } from '@/components/imports/ImportWizard';
 import { Upload } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Import Data | NexCRM' };
+export const metadata: Metadata = { title: 'Import Data | DAS CRM' };
 
 export default function ImportsPage() {
   return (

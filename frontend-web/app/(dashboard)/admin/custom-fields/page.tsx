@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { CustomFieldsBuilder } from '@/components/admin/CustomFieldsBuilder';
 
-export const metadata: Metadata = { title: 'Custom Fields | Admin | NexCRM' };
+export const metadata: Metadata = { title: 'Custom Fields | Admin | DAS CRM' };
 
 export default function CustomFieldsPage() {
   return (

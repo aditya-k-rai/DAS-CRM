@@ -96,7 +96,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'SUPER_ADMIN',
     avatar: 'SA',
     companyId: 'platform_system',
-    companyName: 'NexCRM System Admin',
+    companyName: 'DAS CRM System Admin',
   },
   ADMIN: {
     id: 'usr_admin',
@@ -280,9 +280,9 @@ export function getPostLoginDefaultTab(role: UserRole): string {
 // ─── AsyncStorage Keys ────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  user: 'nexcrm_user',
-  token: 'nexcrm_token',
-  role: 'nexcrm_active_role',
+  user: 'das_crm_user',
+  token: 'das_crm_token',
+  role: 'das_crm_active_role',
 } as const;
 
 // ─── Auth Store ───────────────────────────────────────────────────────────────

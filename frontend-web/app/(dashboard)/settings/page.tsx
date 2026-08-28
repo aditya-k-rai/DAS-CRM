@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { Building2, Save, Upload, Shield, Bell, Key, CreditCard, Users, User } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata: Metadata = { title: 'Settings | NexCRM' };
+export const metadata: Metadata = { title: 'Settings | DAS CRM' };
 
 export default function SettingsPage() {
   return (

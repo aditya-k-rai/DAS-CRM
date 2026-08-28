@@ -11,7 +11,7 @@ Standalone Next.js application dedicated exclusively to the Super Admin System O
 2. Set **Root Directory** to `superadmin-web`.
 3. Add Environment Variable:
    - `NEXT_PUBLIC_API_URL` = `https://your-backend-api-url.com/api/v1`
-4. Connect custom domain (e.g., `admin.nexcrm.app` or `das-crm-superadmin.vercel.app`).
+4. Connect custom domain (e.g., `admin.das_crm.app` or `das-crm-superadmin.vercel.app`).
 
 ### Option 2: Local Development
 ```bash

@@ -78,7 +78,7 @@ Prisma ORM Scoped Tenant Models")]
 
 ### Dual-Entry Security Gateway
 
-NexCRM implements a decoupled, dual-entry security gateway ensuring zero trust isolation between developer control plane administration and tenant business logic:
+DAS CRM implements a decoupled, dual-entry security gateway ensuring zero trust isolation between developer control plane administration and tenant business logic:
 
 1. **Developer Control Plane (`SUPER_ADMIN`)**:
    - Access limited exclusively to verified system developer emails configured via `SUPER_ADMIN_EMAIL`.
@@ -159,7 +159,7 @@ graph TD
 
 ### Role Hierarchy & Matrix
 
-NexCRM employs fine-grained Role-Based Access Control (RBAC) augmented with Attribute-Based Access Control (ABAC) for record ownership.
+DAS CRM employs fine-grained Role-Based Access Control (RBAC) augmented with Attribute-Based Access Control (ABAC) for record ownership.
 
 ```mermaid
 graph TD
@@ -221,7 +221,7 @@ if (user.role?.name === 'OWNER' || user.role?.name === 'ADMIN') {
 
 ### Multi-Tenant Data Isolation Strategy
 
-NexCRM utilizes a **Shared Database, Shared Schema** architecture with **Row-Level Scoping**.
+DAS CRM utilizes a **Shared Database, Shared Schema** architecture with **Row-Level Scoping**.
 Every tenant-specific table (`users`, `leads`, `call_logs`, `teams`, `tasks`, `products`, `quotations`) contains a mandatory, indexed `organization_id` foreign key.
 
 ```sql
@@ -237,7 +237,7 @@ WHERE "organization_id" = 'org_77b21a990a'
 
 ### 3-Model Lead Funnel Distribution Engine
 
-NexCRM accommodates diverse sales operational models via three distinct automated lead distribution engines:
+DAS CRM accommodates diverse sales operational models via three distinct automated lead distribution engines:
 
 ```mermaid
 flowchart TD
@@ -285,7 +285,7 @@ DAS CRM features a native Google Sheets Ingestion & Webhook Sync Engine that con
 
 ### Hybrid Team Hierarchy Engine
 
-NexCRM supports complex enterprise reporting structures:
+DAS CRM supports complex enterprise reporting structures:
 - **Standard Hierarchy**: Manager $\rightarrow$ Team Leader $\rightarrow$ Employee A
 - **Direct Reporting (No TL)**: Manager $\rightarrow$ Employee B (Direct Report)
 - **Multi-TL Department**: Manager supervising multiple Team Leaders, each managing discrete agent clusters.
@@ -463,7 +463,7 @@ sequenceDiagram
 
 ## 🗄️ Database Schema & Data Model Topology
 
-NexCRM uses Prisma ORM with PostgreSQL. Key schema entities include:
+DAS CRM uses Prisma ORM with PostgreSQL. Key schema entities include:
 
 ```mermaid
 erDiagram

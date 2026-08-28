@@ -14,7 +14,7 @@ const KB_CATEGORIES = [
 ];
 
 const ARTICLES = [
-  { id: '1', cat: 'getting_started', title: 'Understanding Team Leader vs Admin vs Rep Roles', reads: 342, snippet: 'NexCRM enforces strict multi-level role hierarchy where Admins manage Team Leaders and HR controls payroll...' },
+  { id: '1', cat: 'getting_started', title: 'Understanding Team Leader vs Admin vs Rep Roles', reads: 342, snippet: 'DAS CRM enforces strict multi-level role hierarchy where Admins manage Team Leaders and HR controls payroll...' },
   { id: '2', cat: 'hr_payroll',      title: 'How to Customize Salary Builder Components', reads: 512, snippet: 'HR managers can create custom formula-based salary templates with earnings, deductions, and attendance pro-rating...' },
   { id: '3', cat: 'leads_deals',     title: 'Configuring AI Lead Scoring Thresholds', reads: 289, snippet: 'Learn how the 4-dimension scoring engine evaluates contact completeness, engagement, deal size, and intent...' },
   { id: '4', cat: 'automations',     title: 'Setting up WhatsApp Integration and Quick Replies', reads: 410, snippet: 'Connect your business WhatsApp API to view lead messaging threads and configure double-tick delivery status...' },

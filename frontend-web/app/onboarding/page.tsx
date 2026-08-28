@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
-export const metadata: Metadata = { title: 'Welcome to NexCRM | Workspace Setup' };
+export const metadata: Metadata = { title: 'Welcome to DAS CRM | Workspace Setup' };
 
 export default function OnboardingPage() {
   return (

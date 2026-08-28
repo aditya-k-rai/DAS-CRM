@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { AutomationBuilder } from '@/components/automations/AutomationBuilder';
 import { Plus, Zap } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Automations | NexCRM' };
+export const metadata: Metadata = { title: 'Automations | DAS CRM' };
 
 export default function AutomationsPage() {
   return (

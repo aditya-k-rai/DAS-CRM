@@ -17,7 +17,7 @@ export function RoleTransitionModal() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('das_crm_token')}`,
         },
       });
     } catch (e) {

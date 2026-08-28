@@ -89,7 +89,7 @@ export class ActivityExportService {
         .fillColor('#ffffff')
         .fontSize(20)
         .font('Helvetica-Bold')
-        .text('NexCRM — Activity Export Report', 40, 25);
+        .text('DAS CRM — Activity Export Report', 40, 25);
 
       doc
         .fillColor('#c7d2fe')
@@ -172,7 +172,7 @@ export class ActivityExportService {
         .fillColor('#9ca3af')
         .fontSize(8)
         .text(
-          'This document is confidential and intended for authorized NexCRM administrators only. Download link expires in 7 days.',
+          'This document is confidential and intended for authorized DAS CRM administrators only. Download link expires in 7 days.',
           { align: 'center' },
         );
 

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
 
-export const metadata: Metadata = { title: 'Reports & Analytics | NexCRM' };
+export const metadata: Metadata = { title: 'Reports & Analytics | DAS CRM' };
 
 export default function ReportsPage() {
   return (

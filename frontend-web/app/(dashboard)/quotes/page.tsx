@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { QuotationBuilder } from '@/components/quotations/QuotationBuilder';
 import { Plus, List } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Quotations | NexCRM' };
+export const metadata: Metadata = { title: 'Quotations | DAS CRM' };
 
 export default function QuotationsPage() {
   return (

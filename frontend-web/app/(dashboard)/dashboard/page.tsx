@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { RoleDashboardRouter } from '@/components/dashboard/RoleDashboardRouter';
 
-export const metadata: Metadata = { title: 'Dashboard | NexCRM' };
+export const metadata: Metadata = { title: 'Dashboard | DAS CRM' };
 
 export default function DashboardPage() {
   return (

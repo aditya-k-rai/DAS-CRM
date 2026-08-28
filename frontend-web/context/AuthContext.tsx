@@ -70,7 +70,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     role: 'SUPER_ADMIN',
     avatar: 'SA',
     companyId: 'platform_system',
-    companyName: 'NexCRM System Admin',
+    companyName: 'DAS CRM System Admin',
   },
   ADMIN: {
     id: 'usr_admin',
@@ -188,7 +188,7 @@ export function validateEmailRoleMatch(email?: string | null, selectedRole?: Use
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('nexcrm_user');
+      const stored = localStorage.getItem('das_crm_user');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (e) {}
       }
-      const roleStr = localStorage.getItem('nexcrm_active_role');
+      const roleStr = localStorage.getItem('das_crm_active_role');
       if (roleStr) {
         const safeRole = normalizeRoleStr(roleStr);
         return DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
@@ -213,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<CompanySubscription>(MOCK_COMPANY_SUB);
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('nexcrm_token');
+      return localStorage.getItem('das_crm_token');
     }
     return null;
   });
@@ -235,9 +235,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const targetUser = DEMO_USERS[normRole] || DEMO_USERS.ADMIN;
     setCurrentUser(targetUser);
     setToken('demo_active_token');
-    localStorage.setItem('nexcrm_active_role', normRole);
-    localStorage.setItem('nexcrm_user', JSON.stringify(targetUser));
-    localStorage.setItem('nexcrm_token', 'demo_active_token');
+    localStorage.setItem('das_crm_active_role', normRole);
+    localStorage.setItem('das_crm_user', JSON.stringify(targetUser));
+    localStorage.setItem('das_crm_token', 'demo_active_token');
   };
 
   const updateSubscription = (patch: Partial<CompanySubscription>) => {
@@ -286,18 +286,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(normalizedUser);
     setToken(newTok);
     if (sub) setSubscription(sub);
-    localStorage.setItem('nexcrm_user', JSON.stringify(normalizedUser));
-    localStorage.setItem('nexcrm_token', newTok);
-    localStorage.setItem('nexcrm_active_role', normalizedUser.role);
+    localStorage.setItem('das_crm_user', JSON.stringify(normalizedUser));
+    localStorage.setItem('das_crm_token', newTok);
+    localStorage.setItem('das_crm_active_role', normalizedUser.role);
   };
 
   const logout = () => {
     setToken(null);
     setCurrentUser(DEMO_USERS.ADMIN);
     setRoleTransitionLock(null);
-    localStorage.removeItem('nexcrm_user');
-    localStorage.removeItem('nexcrm_token');
-    localStorage.removeItem('nexcrm_active_role');
+    localStorage.removeItem('das_crm_user');
+    localStorage.removeItem('das_crm_token');
+    localStorage.removeItem('das_crm_active_role');
   };
 
   const setRoleLockState = (lock: RoleTransitionLock | null) => {

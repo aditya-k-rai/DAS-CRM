@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { EmailTemplates } from '@/components/emails/EmailTemplates';
 import { Plus } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Email Templates | NexCRM' };
+export const metadata: Metadata = { title: 'Email Templates | DAS CRM' };
 
 export default function EmailTemplatesPage() {
   return (

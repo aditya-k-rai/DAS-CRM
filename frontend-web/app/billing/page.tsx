@@ -96,7 +96,7 @@ export default function BillingPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('das_crm_token')}`,
         },
         body: JSON.stringify({ requestedPlan: planId, addOnSeats }),
       });
@@ -109,7 +109,7 @@ export default function BillingPage() {
             key: orderData.razorpayKeyId,
             amount: orderData.amountPaise,
             currency: 'INR',
-            name: 'NexCRM Billing',
+            name: 'DAS CRM Billing',
             description: `Upgrade to ${planId}`,
             order_id: orderData.orderId,
             handler: async function (response: any) {
@@ -117,7 +117,7 @@ export default function BillingPage() {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}`,
+                  Authorization: `Bearer ${localStorage.getItem('das_crm_token')}`,
                 },
                 body: JSON.stringify({
                   requestedPlan: planId,

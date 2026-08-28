@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Sign In | NexCRM' };
+export const metadata: Metadata = { title: 'Sign In | DAS CRM' };
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +19,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
               <span className="text-white font-bold">N</span>
             </div>
-            <span className="text-white font-bold text-xl">NexCRM</span>
+            <span className="text-white font-bold text-xl">DAS CRM</span>
           </div>
 
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
@@ -45,7 +45,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               </div>
             ))}
           </div>
-          <p className="text-sm" style={{ color: 'rgb(100 116 139)' }}>© 2026 NexCRM. All rights reserved.</p>
+          <p className="text-sm" style={{ color: 'rgb(100 116 139)' }}>© 2026 DAS CRM. All rights reserved.</p>
         </div>
       </div>
 

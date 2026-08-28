@@ -446,7 +446,7 @@ export class AuthService {
           lastName: 'Rai',
           role: 'SUPER_ADMIN',
           companyId: 'platform_system',
-          companyName: 'NexCRM System Admin',
+          companyName: 'DAS CRM System Admin',
         },
         ...tokens,
       };

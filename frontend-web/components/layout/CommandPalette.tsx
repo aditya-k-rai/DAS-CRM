@@ -153,7 +153,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <span><kbd className="px-1.5 py-0.5 rounded bg-muted">↵</kbd> to select</span>
             <span><kbd className="px-1.5 py-0.5 rounded bg-muted">ESC</kbd> to close</span>
           </div>
-          <span className="font-semibold text-brand-400">NexCRM Search</span>
+          <span className="font-semibold text-brand-400">DAS CRM Search</span>
         </div>
       </div>
     </div>

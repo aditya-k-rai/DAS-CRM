@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { SalesGoals } from '@/components/goals/SalesGoals';
 
-export const metadata: Metadata = { title: 'Sales Goals | NexCRM' };
+export const metadata: Metadata = { title: 'Sales Goals | DAS CRM' };
 
 export default function GoalsPage() {
   return (

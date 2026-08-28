@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { HelpCenter } from '@/components/help/HelpCenter';
 
-export const metadata: Metadata = { title: 'Help & Support | NexCRM' };
+export const metadata: Metadata = { title: 'Help & Support | DAS CRM' };
 
 export default function HelpPage() {
   return (

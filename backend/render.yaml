@@ -1,6 +1,7 @@
 services:
   - type: web
     name: nexcrm-backend
+    name: dascrm-backend
     env: node
     region: oregon
     plan: free
@@ -14,13 +15,13 @@ services:
         value: 3001
       - key: DATABASE_URL
         fromDatabase:
-          name: nexcrm-db
+          name: dascrm-db
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
 
 databases:
-  - name: nexcrm-db
+  - name: dascrm-db
     plan: free
-    databaseName: nexcrm
+    databaseName: dascrm
     user: postgres

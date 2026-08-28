@@ -198,7 +198,7 @@ export function LeadFunnelDistribution() {
   const fetchGrabPool = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/open-pool`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('das_crm_token')}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -211,7 +211,7 @@ export function LeadFunnelDistribution() {
   const fetchAdminMasterView = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/admin-master-view`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('das_crm_token')}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -223,7 +223,7 @@ export function LeadFunnelDistribution() {
   const fetchWhitelist = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/whitelist`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('das_crm_token')}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -236,7 +236,7 @@ export function LeadFunnelDistribution() {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/grab-lead/${id}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('das_crm_token')}` },
       });
     } catch (e) {}
 
@@ -261,7 +261,7 @@ export function LeadFunnelDistribution() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('nexcrm_token')}`,
+          Authorization: `Bearer ${localStorage.getItem('das_crm_token')}`,
         },
         body: JSON.stringify({ leadIds: ['lead_1'], targetUserId: 'usr_target' }),
       });

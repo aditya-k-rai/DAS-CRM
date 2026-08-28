@@ -3,7 +3,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { CreditCard, Check, Zap, Building2, Users, User, Shield } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata: Metadata = { title: 'Subscription & Billing | NexCRM' };
+export const metadata: Metadata = { title: 'Subscription & Billing | DAS CRM' };
 
 const PLANS = [
   { name: 'Basic', price: '₹1,999', period: '/month', users: '5 Users included', features: ['Core Lead Management', 'Basic Reports', 'Web CRM Access', 'Standard Support'], badge: 'Starter' },

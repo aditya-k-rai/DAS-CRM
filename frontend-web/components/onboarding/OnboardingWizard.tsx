@@ -47,7 +47,7 @@ export function OnboardingWizard() {
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xl" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
           <span className="text-white font-extrabold text-2xl">N</span>
         </div>
-        <h1 className="text-2xl font-bold">Set Up Your NexCRM Workspace</h1>
+        <h1 className="text-2xl font-bold">Set Up Your DAS CRM Workspace</h1>
         <p className="text-sm text-muted mt-1">Customizing your sales CRM environment in under 2 minutes</p>
       </div>
 
