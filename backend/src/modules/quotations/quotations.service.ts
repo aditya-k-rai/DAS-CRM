@@ -9,7 +9,7 @@ export interface QuotationItemDto {
   totalAmount: number;
   currency: string;
   status: 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED';
-  validUntil: string;
+  validUntil?: string;
   itemsCount: number;
 }
 

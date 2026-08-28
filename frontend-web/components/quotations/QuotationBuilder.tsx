@@ -441,9 +441,13 @@ export function QuotationBuilder() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 mb-1">Valid / Due Until</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Valid / Due Until</span>
+                  <span className="text-[9px] font-normal text-slate-500 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/50">Optional</span>
+                </label>
                 <input
                   type="text"
+                  placeholder="e.g. Sep 15, 2026 (Optional)"
                   value={validUntilDate}
                   onChange={e => setValidUntilDate(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white"
@@ -655,7 +659,9 @@ export function QuotationBuilder() {
                 </span>
                 <p className="text-xs font-extrabold text-slate-900 mt-2">Doc #: <span className="font-mono">{docNo}</span></p>
                 <p className="text-[11px] text-slate-500 mt-0.5">Date: <strong>{docDate}</strong></p>
-                <p className="text-[11px] text-slate-500">Valid: <strong>{validUntilDate}</strong></p>
+                {validUntilDate && validUntilDate.trim() !== '' && (
+                  <p className="text-[11px] text-slate-500">Valid: <strong>{validUntilDate}</strong></p>
+                )}
               </div>
             </div>
 
