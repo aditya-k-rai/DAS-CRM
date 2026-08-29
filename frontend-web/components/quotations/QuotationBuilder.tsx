@@ -5,7 +5,7 @@ import {
   UserCheck, RefreshCw, Image as ImageIcon, ShieldCheck, CreditCard, ChevronRight,
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
-  Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List
+  Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User
 } from 'lucide-react';
 
 // ─── Interfaces & Section Layout Definitions ──────────────────
@@ -35,6 +35,8 @@ export interface SavedQuoteRecord {
   totalAmount: number;
   status: 'DRAFT' | 'SENT' | 'APPROVED';
   itemsCount: number;
+  createdByName?: string;
+  createdByRole?: string;
   payload: {
     items: LineItem[];
     customColumns: CustomColumn[];
@@ -43,6 +45,7 @@ export interface SavedQuoteRecord {
     pdfTopPadding: number;
     pdfBottomPadding: number;
     globalGstRate: number;
+    gstType?: 'CGST_SGST' | 'IGST' | 'CGST_UTGST' | 'EXEMPT';
     docDate: string;
     validUntilDate: string;
   };
@@ -210,6 +213,8 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
     totalAmount: 238950,
     status: 'APPROVED',
     itemsCount: 1,
+    createdByName: 'Aditya Kumar Rai',
+    createdByRole: 'Tenant Admin',
     payload: {
       items: [
         {
@@ -252,6 +257,8 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
     totalAmount: 540000,
     status: 'SENT',
     itemsCount: 2,
+    createdByName: 'Priya Sharma',
+    createdByRole: 'Sales Manager',
     payload: {
       items: [
         {
@@ -294,6 +301,8 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
     totalAmount: 185000,
     status: 'DRAFT',
     itemsCount: 1,
+    createdByName: 'Rajesh Kumar',
+    createdByRole: 'Sales Executive',
     payload: {
       items: [],
       customColumns: [{ id: 'col-1', name: 'Make / Brand' }],
@@ -320,6 +329,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   // Recent Saved Quotes History Engine & Drawer
   const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState<boolean>(false);
+  const [historySearch, setHistorySearch] = useState<string>('');
 
   useEffect(() => {
     if (externalOpenHistory) {
@@ -396,8 +406,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     });
   };
 
-  // Table Column Visibility Controls (GST, HSN/SAC & Unlimited Custom Extra Columns)
+  // Table Column Visibility & Tax Mechanism Controls (GST Type, GST %, HSN/SAC & Custom Columns)
   const [globalGstRate, setGlobalGstRate] = useState<number>(18);
+  const [gstType, setGstType] = useState<'CGST_SGST' | 'IGST' | 'CGST_UTGST' | 'EXEMPT'>('CGST_SGST');
   const [showGstColumn, setShowGstColumn] = useState<boolean>(true);
   const [showHsnColumn, setShowHsnColumn] = useState<boolean>(true);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([
@@ -432,6 +443,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       totalAmount: grandTotal,
       status: 'DRAFT',
       itemsCount: items.length,
+      createdByName: 'Aditya Kumar Rai',
+      createdByRole: 'Tenant Admin',
       payload: {
         items: JSON.parse(JSON.stringify(items)),
         customColumns: JSON.parse(JSON.stringify(customColumns)),
@@ -440,6 +453,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         pdfTopPadding,
         pdfBottomPadding,
         globalGstRate,
+        gstType,
         docDate,
         validUntilDate,
       }
@@ -461,6 +475,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       if (record.payload.pdfTopPadding) setPdfTopPadding(record.payload.pdfTopPadding);
       if (record.payload.pdfBottomPadding) setPdfBottomPadding(record.payload.pdfBottomPadding);
       if (record.payload.globalGstRate) setGlobalGstRate(record.payload.globalGstRate);
+      if (record.payload.gstType) setGstType(record.payload.gstType);
       if (record.payload.docDate) setDocDate(record.payload.docDate);
       if (record.payload.validUntilDate) setValidUntilDate(record.payload.validUntilDate);
     }
@@ -640,7 +655,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     return sum + tax;
   }, 0);
 
-  const grandTotal = Math.round(finalTaxable + gstTaxTotal);
+  const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
+  const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
 
   const handleSaveNewCompany = () => {
     if (!newComp.name) return;
@@ -893,17 +909,44 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   <span className="font-bold">-₹{overallDiscAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
-                <span>CGST ({globalGstRate / 2}%):</span>
-                <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
-                <span>SGST ({globalGstRate / 2}%):</span>
-                <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
-              </div>
+              {gstType === 'EXEMPT' || globalGstRate === 0 ? (
+                <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                  <span>GST Tax Rate:</span>
+                  <span className="font-semibold text-emerald-700">0% (Nil Rated / Exempt)</span>
+                </div>
+              ) : gstType === 'IGST' ? (
+                <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                  <span>IGST ({globalGstRate}%):</span>
+                  <span className="font-semibold text-slate-700">₹{gstTaxTotal.toLocaleString('en-IN')}</span>
+                </div>
+              ) : gstType === 'CGST_UTGST' ? (
+                <>
+                  <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                    <span>CGST ({(globalGstRate / 2)}%):</span>
+                    <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                    <span>UTGST ({(globalGstRate / 2)}%):</span>
+                    <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                    <span>CGST ({(globalGstRate / 2)}%):</span>
+                    <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                    <span>SGST ({(globalGstRate / 2)}%):</span>
+                    <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+                  </div>
+                </>
+              )}
               <div style={{ color: '#002060' }} className="flex justify-between font-bold border-t border-slate-200 pt-0.5 text-[9.5px] sm:text-[10px]">
-                <span>Total Tax ({globalGstRate}% GST):</span>
-                <span>₹{gstTaxTotal.toLocaleString('en-IN')}</span>
+                <span>
+                  Total Tax ({gstType === 'EXEMPT' || globalGstRate === 0 ? '0% Exempt' : `${globalGstRate}% ${gstType === 'IGST' ? 'IGST' : gstType === 'CGST_UTGST' ? 'CGST+UTGST' : 'CGST+SGST'}`}):
+                </span>
+                <span>₹{(gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal).toLocaleString('en-IN')}</span>
               </div>
 
               <div style={{ backgroundColor: '#002060', color: '#ffffff' }} className="rounded-lg p-1.5 mt-1 flex justify-between items-center font-black text-xs shadow-md border border-[#00153e]">
@@ -920,7 +963,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             <div className="space-y-0.5">
               <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">Terms &amp; Conditions</span>
               <p className="text-[8.5px] sm:text-[9px] text-slate-600 whitespace-pre-line leading-snug break-words">{termsText}</p>
-              <p className="text-[7.5px] text-slate-400 italic pt-0.5">E. &amp; O.E. • Computer Generated Document</p>
+              <p className="text-[10px] text-slate-400 italic pt-0.5">
+                E. &amp; O.E. • Generated by DAS CRM • <a href="https://dascrm.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline font-semibold">www.dascrm.com</a>
+              </p>
             </div>
             <div className="text-right space-y-2">
               <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-800">For {activeCompany.name}</p>
@@ -962,6 +1007,28 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       {/* Dynamic Ordered & Filtered Document Sections */}
       {sectionOrder.map(secId => visibleSections[secId] ? renderSectionContent(secId) : null)}
+
+      {/* Official 10px Bottom Mention with DAS CRM Website Link */}
+      <div
+        style={{
+          marginLeft: `-${pdfMargin}mm`,
+          marginRight: `-${pdfMargin}mm`,
+          marginBottom: `-${pdfBottomPadding}px`,
+        }}
+        className="mt-auto pt-2 pb-1.5 px-4 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-500 font-medium flex items-center justify-between"
+      >
+        <span className="text-[10px] text-slate-500 font-medium">
+          Generated by <strong className="text-slate-700 font-bold">DAS CRM</strong>
+        </span>
+        <a
+          href="https://dascrm.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-indigo-600 hover:text-indigo-800 underline font-semibold transition-colors flex items-center gap-1"
+        >
+          www.dascrm.com
+        </a>
+      </div>
     </div>
   );
 
@@ -1124,409 +1191,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* ── LEFT PANE: CONTROLS & FORM BUILDER (SLIDABLE ACCORDION SECTIONS) ── */}
           <div className={`lg:col-span-6 space-y-4 sm:space-y-6 print-hide ${mobileActiveTab === 'PREVIEW' ? 'hidden lg:block' : 'block'}`}>
-            {/* 🎚️ 1. GST TAX RATE SLIDER & TABLE COLUMN TOGGLES (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('gst')}
-                className="flex items-center justify-between cursor-pointer select-none gap-2"
-              >
-                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5 truncate">
-                  <Percent size={16} className="flex-shrink-0" /> GST Tax Rate &amp; Column Controls ({globalGstRate}%)
-                </h3>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10.5px] sm:text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg">
-                    {globalGstRate}% Imposed
-                  </span>
-                  <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.gst ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Smooth Grid Height Slide Down */}
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.gst
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold text-slate-400">0%</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={28}
-                      step={1}
-                      value={globalGstRate}
-                      onChange={e => handleApplyGlobalGst(Number(e.target.value))}
-                      className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                    />
-                    <span className="text-[10px] font-bold text-slate-400">28%</span>
-                  </div>
-
-                  {/* Quick GST Presets */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                    {[
-                      { label: '0% Exempt', val: 0 },
-                      { label: '5% Reduced', val: 5 },
-                      { label: '12% Standard', val: 12 },
-                      { label: '18% Standard', val: 18 },
-                      { label: '28% Luxury', val: 28 },
-                    ].map(preset => (
-                      <button
-                        key={preset.val}
-                        type="button"
-                        onClick={() => handleApplyGlobalGst(preset.val)}
-                        className={`py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
-                          globalGstRate === preset.val
-                            ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                            : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* 👁️ TOGGLES: SHOW/HIDE GST % COLUMN & HSN/SAC COLUMN */}
-                  <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showGstColumn}
-                          onChange={e => setShowGstColumn(e.target.checked)}
-                          className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-800 cursor-pointer"
-                        />
-                        <span className="text-xs font-bold text-slate-200">
-                          Display GST % Column &amp; Calculate Amount with GST
-                        </span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
-                        ({showGstColumn ? 'Shows GST col & computes with GST' : 'Hides GST col & shows base rate'})
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showHsnColumn}
-                          onChange={e => setShowHsnColumn(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-500 bg-slate-950 border-slate-800 cursor-pointer"
-                        />
-                        <span className="text-xs font-bold text-slate-200">
-                          Display HSN / SAC Code Column in Table
-                        </span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
-                        ({showHsnColumn ? 'HSN Code Visible' : 'HSN Code Hidden'})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ⚙️ 2. PDF MARGIN & PAGE MODE CONTROLS (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('pdf')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
-                  <Sliders size={16} /> PDF Page &amp; Margin Controls
-                </h3>
-                <button className="text-slate-400 hover:text-white p-1">
-                  {openSections.pdf ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.pdf
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Margin Control */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Padding / Margin</label>
-                    <div className="flex gap-1.5">
-                      {[
-                        { label: '6mm Compact', val: 6 },
-                        { label: '10mm Standard', val: 10 },
-                        { label: '15mm Spacious', val: 15 },
-                      ].map(m => (
-                        <button
-                          key={m.val}
-                          type="button"
-                          onClick={() => setPdfMargin(m.val)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            pdfMargin === m.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Page Mode Control */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Flow Mode</label>
-                    <div className="flex gap-1.5">
-                      {[
-                        { label: '📄 1-Page Strict', val: 'SINGLE' },
-                        { label: '📄📄 Multi-Page', val: 'MULTI' },
-                      ].map(p => (
-                        <button
-                          key={p.val}
-                          type="button"
-                          onClick={() => setPdfPageMode(p.val as any)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            pdfPageMode === p.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 🎨 3. SECTION LAYOUT, GAPS & POSITIONING ENGINE */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('layout')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
-                  <Layers size={16} /> Section Layout, Gaps &amp; Positioning Engine
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); resetSectionLayout(); }}
-                    className="text-[10.5px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg hover:bg-amber-400/20 flex items-center gap-1"
-                    title="Reset Layout to Default"
-                  >
-                    <RotateCcw size={11} /> Reset
-                  </button>
-                  <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.layout ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.layout
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden space-y-4">
-                  {/* Section Gap Slider & Presets */}
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-300">Gap Between Sections</label>
-                      <span className="text-[11px] font-black font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                        {sectionGap}px Spacing
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max="60"
-                      step="1"
-                      value={sectionGap}
-                      onChange={e => setSectionGap(Number(e.target.value))}
-                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                    />
-
-                    <div className="grid grid-cols-5 gap-1">
-                      {[
-                        { label: '4px Tight', val: 4 },
-                        { label: '10px Std', val: 10 },
-                        { label: '18px Wide', val: 18 },
-                        { label: '30px Max', val: 30 },
-                        { label: '50px Jumbo', val: 50 },
-                      ].map(g => (
-                        <button
-                          key={g.val}
-                          type="button"
-                          onClick={() => setSectionGap(g.val)}
-                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all truncate ${
-                            sectionGap === g.val
-                              ? 'bg-amber-500 text-slate-950 shadow font-black'
-                              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-                          }`}
-                        >
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Top & Bottom Page Margin Padding Controls */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Top Padding Control */}
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">Top Page Space</label>
-                        <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
-                          {pdfTopPadding}px
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="50"
-                        step="2"
-                        value={pdfTopPadding}
-                        onChange={e => setPdfTopPadding(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
-                      />
-                      <div className="flex gap-1">
-                        {[
-                          { label: '15px', val: 15 },
-                          { label: '32px Std', val: 32 },
-                          { label: '45px Max', val: 45 },
-                        ].map(t => (
-                          <button
-                            key={t.val}
-                            type="button"
-                            onClick={() => setPdfTopPadding(t.val)}
-                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
-                              pdfTopPadding === t.val ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
-                            }`}
-                          >
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Bottom Padding Control */}
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">Bottom Page Space</label>
-                        <span className="text-[11px] font-black font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
-                          {pdfBottomPadding}px
-                        </span>
-                      </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="50"
-                        step="2"
-                        value={pdfBottomPadding}
-                        onChange={e => setPdfBottomPadding(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                      />
-                      <div className="flex gap-1">
-                        {[
-                          { label: '12px', val: 12 },
-                          { label: '28px Std', val: 28 },
-                          { label: '40px Max', val: 40 },
-                        ].map(b => (
-                          <button
-                            key={b.val}
-                            type="button"
-                            onClick={() => setPdfBottomPadding(b.val)}
-                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
-                              pdfBottomPadding === b.val ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
-                            }`}
-                          >
-                            {b.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section Position Re-ordering List */}
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider">
-                      Section Sequence &amp; Visibility Controls
-                    </label>
-                    <div className="space-y-1.5">
-                      {sectionOrder.map((secId, idx) => {
-                        const meta = SECTION_METADATA.find(m => m.id === secId);
-                        const isVisible = visibleSections[secId];
-                        return (
-                          <div
-                            key={secId}
-                            className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
-                              isVisible
-                                ? 'bg-slate-950 border-slate-800 text-white'
-                                : 'bg-slate-950/40 border-slate-900 text-slate-500 opacity-60'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-5 h-5 rounded bg-slate-900 border border-slate-800 text-[10px] font-black text-amber-400 flex items-center justify-center flex-shrink-0 font-mono">
-                                #{idx + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate leading-tight">{meta?.label}</p>
-                                <p className="text-[10px] text-slate-500 truncate leading-tight">{meta?.desc}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {/* Move Up */}
-                              <button
-                                type="button"
-                                onClick={() => moveSectionUp(secId)}
-                                disabled={idx === 0}
-                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
-                                title="Move Section Up"
-                              >
-                                <ArrowUp size={13} />
-                              </button>
-
-                              {/* Move Down */}
-                              <button
-                                type="button"
-                                onClick={() => moveSectionDown(secId)}
-                                disabled={idx === sectionOrder.length - 1}
-                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
-                                title="Move Section Down"
-                              >
-                                <ArrowDown size={13} />
-                              </button>
-
-                              {/* Visibility Toggle */}
-                              <button
-                                type="button"
-                                onClick={() => toggleSectionVisibility(secId)}
-                                className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  isVisible
-                                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
-                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
-                                }`}
-                                title={isVisible ? 'Hide Section' : 'Show Section'}
-                              >
-                                {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 🏢 3. SELLER / COMPANY SELECTOR (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+            {/* 🏢 1. SELLER / COMPANY SELECTOR (SMOOTH HEIGHT SLIDER) */}
               <div
                 onClick={() => toggleSection('company')}
                 className="flex items-center justify-between cursor-pointer select-none"
@@ -2042,6 +1707,462 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   />
                 </div>
               </div>
+            {/* 🎚️ 6. GST TAX RATE, TAX TYPE & COLUMN CONTROLS */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+              <div
+                onClick={() => toggleSection('gst')}
+                className="flex items-center justify-between cursor-pointer select-none gap-2"
+              >
+                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5 truncate">
+                  <Percent size={16} className="flex-shrink-0" /> 6. GST Tax Rate, Tax Type (CGST/IGST/UTGST) &amp; Column Controls
+                </h3>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10.5px] sm:text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg">
+                    {gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_', '+')})`}
+                  </span>
+                  <button className="text-slate-400 hover:text-white p-1">
+                    {openSections.gst ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Smooth Grid Height Slide Down */}
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  openSections.gst
+                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                }`}
+              >
+                <div className="overflow-hidden space-y-4">
+                  {/* GST Tax Type Selector (CGST + SGST, IGST, CGST + UTGST, EXEMPT) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-black uppercase text-amber-400 tracking-wider">
+                      Select GST Tax Type / Mechanism:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {[
+                        { id: 'CGST_SGST', label: 'CGST + SGST', sub: 'In-State Split' },
+                        { id: 'IGST', label: 'IGST', sub: 'Integrated Interstate' },
+                        { id: 'CGST_UTGST', label: 'CGST + UTGST', sub: 'Union Territory' },
+                        { id: 'EXEMPT', label: 'EXEMPT / NIL', sub: '0% Tax Exempt' },
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setGstType(t.id as any);
+                            if (t.id === 'EXEMPT') {
+                              handleApplyGlobalGst(0);
+                            } else if (globalGstRate === 0) {
+                              handleApplyGlobalGst(18);
+                            }
+                          }}
+                          className={`py-2 px-2.5 rounded-xl border text-left transition-all ${
+                            gstType === t.id
+                              ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-lg shadow-amber-500/20'
+                              : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <p className="text-xs font-black truncate">{t.label}</p>
+                          <p className={`text-[9.5px] truncate ${gstType === t.id ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
+                            {t.sub}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* GST Rate Slider & Presets */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">GST Tax Rate Percentage</label>
+                      <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded font-mono border border-amber-400/20">
+                        {globalGstRate}% Imposed
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold text-slate-400">0%</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={28}
+                        step={1}
+                        value={globalGstRate}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          handleApplyGlobalGst(val);
+                          if (val === 0) setGstType('EXEMPT');
+                          else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
+                        }}
+                        className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                      />
+                      <span className="text-[10px] font-bold text-slate-400">28%</span>
+                    </div>
+
+                    {/* Quick GST Presets */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
+                      {[
+                        { label: '0% Exempt', val: 0 },
+                        { label: '5% Reduced', val: 5 },
+                        { label: '12% Standard', val: 12 },
+                        { label: '18% Standard', val: 18 },
+                        { label: '28% Luxury', val: 28 },
+                      ].map(preset => (
+                        <button
+                          key={preset.val}
+                          type="button"
+                          onClick={() => {
+                            handleApplyGlobalGst(preset.val);
+                            if (preset.val === 0) setGstType('EXEMPT');
+                            else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
+                          }}
+                          className={`py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                            globalGstRate === preset.val
+                              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                              : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 👁️ TOGGLES: SHOW/HIDE GST % COLUMN & HSN/SAC COLUMN */}
+                  <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showGstColumn}
+                          onChange={e => setShowGstColumn(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-800 cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-slate-200">
+                          Display GST % Column &amp; Calculate Amount with GST
+                        </span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
+                        ({showGstColumn ? 'Shows GST col & computes with GST' : 'Hides GST col & shows base rate'})
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showHsnColumn}
+                          onChange={e => setShowHsnColumn(e.target.checked)}
+                          className="w-4 h-4 rounded text-indigo-500 bg-slate-950 border-slate-800 cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-slate-200">
+                          Display HSN / SAC Code Column in Table
+                        </span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
+                        ({showHsnColumn ? 'HSN Code Visible' : 'HSN Code Hidden'})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ⚙️ 7. PDF PAGE & MARGIN CONTROLS (SMOOTH HEIGHT SLIDER) */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+              <div
+                onClick={() => toggleSection('pdf')}
+                className="flex items-center justify-between cursor-pointer select-none"
+              >
+                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                  <Sliders size={16} /> 7. PDF Page &amp; Margin Controls
+                </h3>
+                <button className="text-slate-400 hover:text-white p-1">
+                  {openSections.pdf ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              </div>
+
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  openSections.pdf
+                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                }`}
+              >
+                <div className="overflow-hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Margin Control */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Padding / Margin</label>
+                    <div className="flex gap-1.5">
+                      {[
+                        { label: '6mm Compact', val: 6 },
+                        { label: '10mm Standard', val: 10 },
+                        { label: '15mm Spacious', val: 15 },
+                      ].map(m => (
+                        <button
+                          key={m.val}
+                          type="button"
+                          onClick={() => setPdfMargin(m.val)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            pdfMargin === m.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Page Mode Control */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Flow Mode</label>
+                    <div className="flex gap-1.5">
+                      {[
+                        { label: '📄 1-Page Strict', val: 'SINGLE' },
+                        { label: '📄📄 Multi-Page', val: 'MULTI' },
+                      ].map(p => (
+                        <button
+                          key={p.val}
+                          type="button"
+                          onClick={() => setPdfPageMode(p.val as any)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            pdfPageMode === p.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 🎨 8. SECTION LAYOUT, GAPS & POSITIONING ENGINE */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+              <div
+                onClick={() => toggleSection('layout')}
+                className="flex items-center justify-between cursor-pointer select-none"
+              >
+                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                  <Layers size={16} /> 8. Section Layout, Gaps &amp; Positioning Engine
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); resetSectionLayout(); }}
+                    className="text-[10.5px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg hover:bg-amber-400/20 flex items-center gap-1"
+                    title="Reset Layout to Default"
+                  >
+                    <RotateCcw size={11} /> Reset
+                  </button>
+                  <button className="text-slate-400 hover:text-white p-1">
+                    {openSections.layout ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  openSections.layout
+                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                }`}
+              >
+                <div className="overflow-hidden space-y-4">
+                  {/* Section Gap Slider & Presets */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">Gap Between Sections</label>
+                      <span className="text-[11px] font-black font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                        {sectionGap}px Spacing
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="60"
+                      step="1"
+                      value={sectionGap}
+                      onChange={e => setSectionGap(Number(e.target.value))}
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                    />
+
+                    <div className="grid grid-cols-5 gap-1">
+                      {[
+                        { label: '4px Tight', val: 4 },
+                        { label: '10px Std', val: 10 },
+                        { label: '18px Wide', val: 18 },
+                        { label: '30px Max', val: 30 },
+                        { label: '50px Jumbo', val: 50 },
+                      ].map(g => (
+                        <button
+                          key={g.val}
+                          type="button"
+                          onClick={() => setSectionGap(g.val)}
+                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all truncate ${
+                            sectionGap === g.val
+                              ? 'bg-amber-500 text-slate-950 shadow font-black'
+                              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          {g.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top & Bottom Page Margin Padding Controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Top Padding Control */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">Top Page Space</label>
+                        <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+                          {pdfTopPadding}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="50"
+                        step="2"
+                        value={pdfTopPadding}
+                        onChange={e => setPdfTopPadding(Number(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
+                      />
+                      <div className="flex gap-1">
+                        {[
+                          { label: '15px', val: 15 },
+                          { label: '32px Std', val: 32 },
+                          { label: '45px Max', val: 45 },
+                        ].map(t => (
+                          <button
+                            key={t.val}
+                            type="button"
+                            onClick={() => setPdfTopPadding(t.val)}
+                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
+                              pdfTopPadding === t.val ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bottom Padding Control */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">Bottom Page Space</label>
+                        <span className="text-[11px] font-black font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
+                          {pdfBottomPadding}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="50"
+                        step="2"
+                        value={pdfBottomPadding}
+                        onChange={e => setPdfBottomPadding(Number(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                      />
+                      <div className="flex gap-1">
+                        {[
+                          { label: '12px', val: 12 },
+                          { label: '28px Std', val: 28 },
+                          { label: '40px Max', val: 40 },
+                        ].map(b => (
+                          <button
+                            key={b.val}
+                            type="button"
+                            onClick={() => setPdfBottomPadding(b.val)}
+                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
+                              pdfBottomPadding === b.val ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            }`}
+                          >
+                            {b.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section Position Re-ordering List */}
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                      Section Sequence &amp; Visibility Controls
+                    </label>
+                    <div className="space-y-1.5">
+                      {sectionOrder.map((secId, idx) => {
+                        const meta = SECTION_METADATA.find(m => m.id === secId);
+                        const isVisible = visibleSections[secId];
+                        return (
+                          <div
+                            key={secId}
+                            className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                              isVisible
+                                ? 'bg-slate-950 border-slate-800 text-white'
+                                : 'bg-slate-950/40 border-slate-900 text-slate-500 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-5 h-5 rounded bg-slate-900 border border-slate-800 text-[10px] font-black text-amber-400 flex items-center justify-center flex-shrink-0 font-mono">
+                                #{idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate leading-tight">{meta?.label}</p>
+                                <p className="text-[10px] text-slate-500 truncate leading-tight">{meta?.desc}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Move Up */}
+                              <button
+                                type="button"
+                                onClick={() => moveSectionUp(secId)}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
+                                title="Move Section Up"
+                              >
+                                <ArrowUp size={13} />
+                              </button>
+
+                              {/* Move Down */}
+                              <button
+                                type="button"
+                                onClick={() => moveSectionDown(secId)}
+                                disabled={idx === sectionOrder.length - 1}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
+                                title="Move Section Down"
+                              >
+                                <ArrowDown size={13} />
+                              </button>
+
+                              {/* Visibility Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => toggleSectionVisibility(secId)}
+                                className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  isVisible
+                                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
+                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                }`}
+                                title={isVisible ? 'Hide Section' : 'Show Section'}
+                              >
+                                {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2338,52 +2459,95 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </div>
             </div>
 
+            {/* Search & Filter Bar */}
+            <div className="py-2.5 border-b border-slate-800 flex-shrink-0">
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  placeholder="Filter by quote #, client party, or generated by user..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
             {/* Quote Records List */}
             <div className="flex-1 overflow-y-auto py-4 space-y-3">
-              {savedQuotes.map(record => (
-                <div key={record.id} className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-mono font-black text-indigo-400">{record.docNo}</span>
-                        <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                          {record.docType.replace('_', ' ')}
-                        </span>
-                        <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded ${
-                          record.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                          record.status === 'SENT' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
-                          'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                        }`}>
-                          {record.status}
-                        </span>
+              {savedQuotes
+                .filter(record => {
+                  if (!historySearch.trim()) return true;
+                  const term = historySearch.toLowerCase();
+                  return (
+                    record.docNo.toLowerCase().includes(term) ||
+                    record.partyName.toLowerCase().includes(term) ||
+                    (record.createdByName && record.createdByName.toLowerCase().includes(term)) ||
+                    (record.createdByRole && record.createdByRole.toLowerCase().includes(term))
+                  );
+                })
+                .map(record => (
+                  <div key={record.id} className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono font-black text-indigo-400">{record.docNo}</span>
+                          <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                            {record.docType.replace('_', ' ')}
+                          </span>
+                          <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded ${
+                            record.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                            record.status === 'SENT' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                            'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          }`}>
+                            {record.status}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-bold text-white mt-1.5 truncate">{record.partyName}</h4>
+                        <p className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Clock size={11} className="text-slate-500" /> Saved on: <strong className="text-slate-300">{record.savedAt}</strong>
+                        </p>
                       </div>
-                      <h4 className="text-xs font-bold text-white mt-1.5 truncate">{record.partyName}</h4>
-                      <p className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
-                        <Clock size={11} className="text-slate-500" /> Saved on: <strong className="text-slate-300">{record.savedAt}</strong>
-                      </p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-black font-mono text-emerald-400">₹{record.totalAmount.toLocaleString('en-IN')}</p>
+                        <p className="text-[10px] text-slate-500">{record.itemsCount} Line Items</p>
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-black font-mono text-emerald-400">₹{record.totalAmount.toLocaleString('en-IN')}</p>
-                      <p className="text-[10px] text-slate-500">{record.itemsCount} Line Items</p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-900">
-                    <button
-                      onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
-                      className="px-2.5 py-1 text-slate-500 hover:text-rose-400 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer"
-                    >
-                      <Trash2 size={12} /> Delete
-                    </button>
-                    <button
-                      onClick={() => handleLoadSavedQuote(record)}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer"
-                    >
-                      <FolderOpen size={13} /> Load into Builder
-                    </button>
+                    {/* Generated By Creator Badge & Card Action Buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-900">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-black text-indigo-400 flex-shrink-0">
+                          {record.createdByName ? record.createdByName.charAt(0) : 'A'}
+                        </div>
+                        <div className="text-[11px] truncate flex items-center gap-1">
+                          <span className="text-slate-500">Generated by:</span>
+                          <strong className="text-indigo-300 font-bold">{record.createdByName || 'Aditya Kumar Rai'}</strong>
+                          {record.createdByRole && (
+                            <span className="text-[9.5px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.2 rounded">
+                              {record.createdByRole}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
+                          className="px-2.5 py-1 text-slate-500 hover:text-rose-400 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                        <button
+                          onClick={() => handleLoadSavedQuote(record)}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer transition-all"
+                        >
+                          <FolderOpen size={13} /> Load into Builder
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         </div>
