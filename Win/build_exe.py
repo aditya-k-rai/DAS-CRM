@@ -1,17 +1,10 @@
 """
-build_exe.py — DAS CRM Windows
-PyInstaller Build Configuration for .exe Generation
-Fixed: Correct module imports and hidden dependencies
+build_exe.py — DAS CRM Windows PyInstaller Build
 """
-
 import os
 import sys
 from pathlib import Path
 import PyInstaller.__main__
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# BUILD CONFIGURATION
-# ─────────────────────────────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).parent
 MAIN_SCRIPT = PROJECT_ROOT / "main.py"
@@ -19,187 +12,131 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 SPEC_DIR = PROJECT_ROOT / "build_specs"
 
-# Ensure directories exist
 SPEC_DIR.mkdir(exist_ok=True)
 
-# ─────────────────────────────────────────────────────────────────────────────────────
-# HIDDEN IMPORTS & DEPENDENCIES
-# ─────────────────────────────────────────────────────────────────────────────────────
-
 HIDDEN_IMPORTS = [
-    # Core modules
+    # Core
     'core.api_client',
     'core.sync_engine',
-    'core.display_pacing',
 
-    # Models
-    'models.crm_models',
+    # UI — sidebar
+    'ui.sidebar',
 
-    # UI Views
-    'ui.views.leads_view_enhanced',
-    'ui.views.dashboard_view',
-    'ui.views.deals_pipeline_view',
-    'ui.views.contacts_view',
-    'ui.views.products_view',
-    'ui.views.quotations_view',
-    'ui.views.reports_view',
-    'ui.views.bulk_ingestion_view',
-    'ui.views.admin_view',
-    'ui.views.automations_view',
-    'ui.views.communications_view',
-    'ui.views.help_view',
-    'ui.views.hr_view',
-    'ui.views.integrations_view',
-    'ui.views.settings_view',
-    'ui.views.tasks_view',
-    'ui.views.additional_views',
+    # UI — views (all in ui/ directory)
+    'ui.views',
+    'ui.views_dashboard',
+    'ui.views_leads',
+    'ui.views_deals',
+    'ui.views_quotations',
+    'ui.views_products',
+    'ui.views_contacts',
+    'ui.views_reports',
+    'ui.views_automation',
+    'ui.views_communications',
+    'ui.views_hr',
+    'ui.views_integrations',
+    'ui.views_admin',
+    'ui.views_settings',
+    'ui.views_help',
+    'ui.views_add_company',
+    'ui.views_add_party',
+    'ui.views_create_quotation',
 
-    # PyQt6 modules
+    # PyQt6
     'PyQt6.QtCore',
     'PyQt6.QtGui',
     'PyQt6.QtWidgets',
+    'PyQt6.QtCharts',
 
     # Third-party
     'httpx',
     'pydantic',
-    'sqlite3',
-    'json',
-    'asyncio',
+    'pydantic_settings',
+    'pydantic-settings',
+    'aiofiles',
+    'python_dotenv',
 ]
 
-# ─────────────────────────────────────────────────────────────────────────────────────
-# PYINSTALLER ARGUMENTS
-# ─────────────────────────────────────────────────────────────────────────────────────
 
 def build_exe(debug=False):
-    """Build Windows .exe using PyInstaller"""
-
+    """Build Windows .exe using PyInstaller."""
     args = [
         str(MAIN_SCRIPT),
-        '--onefile',  # Single .exe file
-        '--windowed',  # No console window
+        '--onefile',
+        '--windowed',
         f'--distpath={DIST_DIR}',
-        f'--workpath={BUILD_DIR}',  # Use --workpath instead of --buildpath
+        f'--workpath={BUILD_DIR}',
         f'--specpath={SPEC_DIR}',
         '--name=DASCRM',
-        '--collect-all=PyQt6',
-        '--collect-all=httpx',
-        '--collect-all=pydantic',
     ]
 
-    # Add icon if it exists
-    if (PROJECT_ROOT / 'resources' / 'icon.ico').exists():
-        args.append('--icon=resources/icon.ico')
+    # Collect all for heavy deps
+    for pkg in ['PyQt6', 'httpx', 'pydantic', 'pydantic_settings', 'aiofiles']:
+        args.append(f'--collect-all={pkg}')
 
-    # Add resources if they exist
-    if (PROJECT_ROOT / 'resources').exists():
-        args.append('--add-data=resources:resources')
+    # Icon
+    ico_path = PROJECT_ROOT / 'resources' / 'icon.ico'
+    if ico_path.exists():
+        args.append(f'--icon={ico_path}')
 
-    # Add hidden imports
-    for hidden_import in HIDDEN_IMPORTS:
-        args.append(f'--hidden-import={hidden_import}')
+    # Hidden imports
+    for imp in HIDDEN_IMPORTS:
+        args.append(f'--hidden-import={imp}')
 
-    # Debug options
+    # Debug / Release
     if debug:
         args.extend(['--debug=imports', '--log-level=DEBUG'])
     else:
         args.append('--optimize=2')
 
-    # Remove empty strings from args
-    args = [arg for arg in args if arg]
-
-    print(f"🔨 Building DAS CRM Windows Application...")
-    print(f"   Main script: {MAIN_SCRIPT}")
-    print(f"   Output: {DIST_DIR / 'DASCRM.exe'}")
-    print(f"   Hidden imports: {len(HIDDEN_IMPORTS)}")
+    print("=" * 60)
+    print("DAS CRM — Windows Build")
+    print("=" * 60)
+    print(f"Output : {DIST_DIR / 'DASCRM.exe'}")
+    print(f"Imports: {len(HIDDEN_IMPORTS)} modules")
     print()
 
-    # Run PyInstaller
     try:
         PyInstaller.__main__.run(args)
-        print("\n✅ Build completed successfully!")
-        print(f"📦 Output: {DIST_DIR / 'DASCRM.exe'}")
+        print()
+        print("=" * 60)
+        print("BUILD SUCCESSFUL")
+        print("=" * 60)
+        _verify_build()
         return True
     except Exception as e:
-        print(f"\n❌ Build failed: {e}")
+        print(f"\nBUILD FAILED: {e}")
         return False
 
 
-# ─────────────────────────────────────────────────────────────────────────────────────
-# VERIFICATION & TESTING
-# ─────────────────────────────────────────────────────────────────────────────────────
-
-def verify_build():
-    """Verify build integrity"""
+def _verify_build():
+    """Verify build artifact."""
     exe_path = DIST_DIR / 'DASCRM.exe'
-
     if not exe_path.exists():
-        print(f"❌ Build artifact not found: {exe_path}")
-        return False
+        print(f"ERROR: {exe_path} not found")
+        return
+    size_mb = exe_path.stat().st_size / (1024 * 1024)
+    print(f"File  : {exe_path}")
+    print(f"Size  : {size_mb:.1f} MB")
+    if size_mb < 80:
+        print("WARNING: File is unusually small — some imports may be missing")
 
-    file_size_mb = exe_path.stat().st_size / (1024 * 1024)
-    print(f"✅ Build artifact found")
-    print(f"   File: {exe_path}")
-    print(f"   Size: {file_size_mb:.2f} MB")
-
-    # Expected size range for PyQt6 + dependencies
-    if file_size_mb < 50:
-        print(f"⚠️  WARNING: Executable seems too small ({file_size_mb:.2f} MB)")
-        print("    This might indicate missing dependencies")
-        return False
-    elif file_size_mb > 500:
-        print(f"⚠️  WARNING: Executable is large ({file_size_mb:.2f} MB)")
-        print("    Consider using UPX for compression")
-
-    return True
-
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# CLEANUP
-# ─────────────────────────────────────────────────────────────────────────────────────
-
-def cleanup():
-    """Clean build artifacts"""
-    import shutil
-
-    if BUILD_DIR.exists():
-        print(f"🧹 Removing build directory: {BUILD_DIR}")
-        shutil.rmtree(BUILD_DIR)
-
-    if SPEC_DIR.exists():
-        # Keep spec files for reference
-        pass
-
-    print("✅ Cleanup complete")
-
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# MAIN ENTRY POINT
-# ─────────────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import argparse
-
-    parser = argparse.ArgumentParser(description="Build DAS CRM Windows .exe")
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    parser.add_argument('--clean', action='store_true', help='Clean build artifacts')
-    parser.add_argument('--verify-only', action='store_true', help='Only verify existing build')
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--clean', action='store_true')
     args = parser.parse_args()
 
     if args.clean:
-        cleanup()
+        import shutil
+        for d in [BUILD_DIR, DIST_DIR]:
+            if d.exists():
+                print(f"Removing {d}...")
+                shutil.rmtree(d)
+        print("Clean complete.")
         sys.exit(0)
 
-    if args.verify_only:
-        success = verify_build()
-        sys.exit(0 if success else 1)
-
-    # Build executable
-    success = build_exe(debug=args.debug)
-
-    # Verify build
-    if success:
-        verify_build()
-
-    sys.exit(0 if success else 1)
+    ok = build_exe(debug=args.debug)
+    sys.exit(0 if ok else 1)
