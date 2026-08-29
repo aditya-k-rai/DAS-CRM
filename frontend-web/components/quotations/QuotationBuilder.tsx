@@ -1,16 +1,52 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, GripVertical, Package, Percent, DollarSign,
   FileText, Send, Eye, Download, Check, Edit2, Building2,
   UserCheck, RefreshCw, Image as ImageIcon, ShieldCheck, CreditCard, ChevronRight,
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
-  ChevronDown, ChevronUp, Smartphone, Calendar
+  ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
+  Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List
 } from 'lucide-react';
 
-// ─── Interfaces ───────────────────────────────────────────────
+// ─── Interfaces & Section Layout Definitions ──────────────────
+export type SectionId = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
+
+export const SECTION_METADATA: { id: SectionId; label: string; desc: string }[] = [
+  { id: 'HEADER', label: 'Header & Company Details', desc: 'Logo, Address, GSTIN, Title, Date & Document #' },
+  { id: 'PARTY_INFO', label: 'Buyer & Shipping Addresses', desc: 'Billed To, Shipped To Consignee, Tax Identifiers' },
+  { id: 'ITEMS_TABLE', label: 'Line Items Table', desc: 'Product List, HSN Codes, Quantities, Rates & Tax' },
+  { id: 'SUMMARY_AND_BANK', label: 'Bank Details & Financial Totals', desc: 'Bank A/C, Amount in Words, Tax & Grand Total' },
+  { id: 'FOOTER_TERMS', label: 'Terms & Signatory Footer', desc: 'Terms & Conditions, E.&O.E., Authorized Signature' },
+];
 export type DocumentType = 'QUOTATION' | 'PROFORMA_INVOICE' | 'TAX_INVOICE' | 'PAYMENT_RECEIPT' | 'CREDIT_NOTE' | 'DELIVERY_CHALLAN';
+
+export interface CustomColumn {
+  id: string;
+  name: string;
+}
+
+export interface SavedQuoteRecord {
+  id: string;
+  docNo: string;
+  docType: DocumentType;
+  partyName: string;
+  companyName: string;
+  savedAt: string;
+  totalAmount: number;
+  status: 'DRAFT' | 'SENT' | 'APPROVED';
+  itemsCount: number;
+  payload: {
+    items: LineItem[];
+    customColumns: CustomColumn[];
+    sectionOrder: SectionId[];
+    sectionGap: number;
+    pdfTopPadding: number;
+    pdfBottomPadding: number;
+    globalGstRate: number;
+    docDate: string;
+    validUntilDate: string;
+  };
+}
 
 export interface CompanyDetails {
   id: string;
@@ -45,6 +81,7 @@ export interface LineItem {
   description?: string;
   showDescription: boolean;
   hsnCode?: string;
+  customValues?: { [colId: string]: string };
   imageUrl?: string;
   showImage: boolean;
   unit: string;
@@ -162,9 +199,134 @@ function numberToWordsINR(amount: number): string {
   return `Rupees ${inWords(rounded)} Only`;
 }
 
-export function QuotationBuilder() {
+const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
+  {
+    id: 'sq-1',
+    docNo: 'EST-2026-0891',
+    docType: 'QUOTATION',
+    partyName: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '29/08/2026, 07:45 PM',
+    totalAmount: 238950,
+    status: 'APPROVED',
+    itemsCount: 1,
+    payload: {
+      items: [
+        {
+          id: 'item-1',
+          productName: 'Executive Work Station',
+          description: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
+          showDescription: true,
+          hsnCode: '998313',
+          customValues: { 'col-1': 'Aarna Modular', 'col-2': '1 Year Full Warranty' },
+          showImage: false,
+          unit: 'Nos',
+          qty: 9,
+          unitPrice: 22500,
+          taxRate: 18,
+          discountType: 'flat',
+          discountVal: 0,
+          total: 202500,
+        }
+      ],
+      customColumns: [
+        { id: 'col-1', name: 'Make / Brand' },
+        { id: 'col-2', name: 'Warranty Period' },
+      ],
+      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+      sectionGap: 10,
+      pdfTopPadding: 32,
+      pdfBottomPadding: 28,
+      globalGstRate: 18,
+      docDate: '13/01/2026',
+      validUntilDate: '31/01/2026',
+    }
+  },
+  {
+    id: 'sq-2',
+    docNo: 'PI-2026-0412',
+    docType: 'PROFORMA_INVOICE',
+    partyName: 'INFOSYS ENTERPRISE SOLUTIONS',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '29/08/2026, 06:15 PM',
+    totalAmount: 540000,
+    status: 'SENT',
+    itemsCount: 2,
+    payload: {
+      items: [
+        {
+          id: 'item-101',
+          productName: 'Enterprise SaaS Suite Pro',
+          description: 'Annual License with Cloud Automation & Multi-user Seats',
+          showDescription: true,
+          hsnCode: '998314',
+          customValues: { 'col-1': 'Cloud Pro', 'col-2': '2 Years 24/7 SLA' },
+          showImage: false,
+          unit: 'Set',
+          qty: 2,
+          unitPrice: 225000,
+          taxRate: 18,
+          discountType: 'flat',
+          discountVal: 0,
+          total: 450000,
+        }
+      ],
+      customColumns: [
+        { id: 'col-1', name: 'Make / Brand' },
+        { id: 'col-2', name: 'Warranty Period' },
+      ],
+      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+      sectionGap: 12,
+      pdfTopPadding: 32,
+      pdfBottomPadding: 28,
+      globalGstRate: 18,
+      docDate: '28/08/2026',
+      validUntilDate: '15/09/2026',
+    }
+  },
+  {
+    id: 'sq-3',
+    docNo: 'EST-2026-0892',
+    docType: 'QUOTATION',
+    partyName: 'TATA CONSULTANCY SERVICES',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '28/08/2026, 03:20 PM',
+    totalAmount: 185000,
+    status: 'DRAFT',
+    itemsCount: 1,
+    payload: {
+      items: [],
+      customColumns: [{ id: 'col-1', name: 'Make / Brand' }],
+      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+      sectionGap: 10,
+      pdfTopPadding: 32,
+      pdfBottomPadding: 28,
+      globalGstRate: 18,
+      docDate: '28/08/2026',
+      validUntilDate: '10/09/2026',
+    }
+  }
+];
+
+export interface QuotationBuilderProps {
+  externalOpenHistory?: boolean;
+  onExternalOpenHistoryHandled?: () => void;
+}
+
+export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHandled }: QuotationBuilderProps = {}) {
   // Document Type Flow
   const [docType, setDocType] = useState<DocumentType>('QUOTATION');
+
+  // Recent Saved Quotes History Engine & Drawer
+  const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (externalOpenHistory) {
+      setHistoryDrawerOpen(true);
+      if (onExternalOpenHistoryHandled) onExternalOpenHistoryHandled();
+    }
+  }, [externalOpenHistory, onExternalOpenHistoryHandled]);
 
   // View Mode & Zoom Scale State
   const [viewMode, setViewMode] = useState<'SPLIT' | 'FULL_PREVIEW'>('SPLIT');
@@ -176,16 +338,168 @@ export function QuotationBuilder() {
   // PDF Page & Margin Controls State
   const [pdfMargin, setPdfMargin] = useState<number>(10); // 6mm, 10mm, 15mm
   const [pdfPageMode, setPdfPageMode] = useState<'SINGLE' | 'MULTI'>('SINGLE');
+  const [pdfTopPadding, setPdfTopPadding] = useState<number>(32); // 10px to 50px
+  const [pdfBottomPadding, setPdfBottomPadding] = useState<number>(28); // 10px to 50px
 
-  // Table Column Visibility Controls (GST & HSN/SAC Columns)
+  // Section Spacing, Ordering & Visibility State
+  const [sectionGap, setSectionGap] = useState<number>(10); // 4px, 8px, 12px, 16px, 20px
+  const [sectionOrder, setSectionOrder] = useState<SectionId[]>([
+    'HEADER',
+    'PARTY_INFO',
+    'ITEMS_TABLE',
+    'SUMMARY_AND_BANK',
+    'FOOTER_TERMS'
+  ]);
+  const [visibleSections, setVisibleSections] = useState<{ [key in SectionId]: boolean }>({
+    HEADER: true,
+    PARTY_INFO: true,
+    ITEMS_TABLE: true,
+    SUMMARY_AND_BANK: true,
+    FOOTER_TERMS: true
+  });
+
+  const moveSectionUp = (id: SectionId) => {
+    const index = sectionOrder.indexOf(id);
+    if (index <= 0) return;
+    const newOrder = [...sectionOrder];
+    const temp = newOrder[index - 1];
+    newOrder[index - 1] = newOrder[index];
+    newOrder[index] = temp;
+    setSectionOrder(newOrder);
+  };
+
+  const moveSectionDown = (id: SectionId) => {
+    const index = sectionOrder.indexOf(id);
+    if (index === -1 || index >= sectionOrder.length - 1) return;
+    const newOrder = [...sectionOrder];
+    const temp = newOrder[index + 1];
+    newOrder[index + 1] = newOrder[index];
+    newOrder[index] = temp;
+    setSectionOrder(newOrder);
+  };
+
+  const toggleSectionVisibility = (id: SectionId) => {
+    setVisibleSections(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const resetSectionLayout = () => {
+    setSectionGap(10);
+    setPdfTopPadding(32);
+    setPdfBottomPadding(28);
+    setSectionOrder(['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS']);
+    setVisibleSections({
+      HEADER: true,
+      PARTY_INFO: true,
+      ITEMS_TABLE: true,
+      SUMMARY_AND_BANK: true,
+      FOOTER_TERMS: true
+    });
+  };
+
+  // Table Column Visibility Controls (GST, HSN/SAC & Unlimited Custom Extra Columns)
   const [globalGstRate, setGlobalGstRate] = useState<number>(18);
   const [showGstColumn, setShowGstColumn] = useState<boolean>(true);
   const [showHsnColumn, setShowHsnColumn] = useState<boolean>(true);
+  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([
+    { id: 'col-1', name: 'Make / Brand' },
+    { id: 'col-2', name: 'Warranty Period' },
+  ]);
+
+  const addCustomColumn = () => {
+    const newColId = `col-${Date.now()}`;
+    setCustomColumns(prev => [...prev, { id: newColId, name: `Column ${prev.length + 1}` }]);
+  };
+
+  const updateCustomColumnName = (id: string, name: string) => {
+    setCustomColumns(prev => prev.map(c => c.id === id ? { ...c, name } : c));
+  };
+
+  const removeCustomColumn = (id: string) => {
+    setCustomColumns(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleSaveCurrentDraft = () => {
+    const now = new Date();
+    const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    
+    const newRecord: SavedQuoteRecord = {
+      id: `sq-${Date.now()}`,
+      docNo,
+      docType,
+      partyName: activeParty?.name || 'Client Party',
+      companyName: activeCompany?.name || 'Seller Company',
+      savedAt: formattedDate,
+      totalAmount: grandTotal,
+      status: 'DRAFT',
+      itemsCount: items.length,
+      payload: {
+        items: JSON.parse(JSON.stringify(items)),
+        customColumns: JSON.parse(JSON.stringify(customColumns)),
+        sectionOrder: [...sectionOrder],
+        sectionGap,
+        pdfTopPadding,
+        pdfBottomPadding,
+        globalGstRate,
+        docDate,
+        validUntilDate,
+      }
+    };
+
+    setSavedQuotes(prev => [newRecord, ...prev]);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
+  const handleLoadSavedQuote = (record: SavedQuoteRecord) => {
+    setDocNo(record.docNo);
+    setDocType(record.docType);
+    if (record.payload) {
+      if (record.payload.items) setItems(JSON.parse(JSON.stringify(record.payload.items)));
+      if (record.payload.customColumns) setCustomColumns(JSON.parse(JSON.stringify(record.payload.customColumns)));
+      if (record.payload.sectionOrder) setSectionOrder([...record.payload.sectionOrder]);
+      if (record.payload.sectionGap) setSectionGap(record.payload.sectionGap);
+      if (record.payload.pdfTopPadding) setPdfTopPadding(record.payload.pdfTopPadding);
+      if (record.payload.pdfBottomPadding) setPdfBottomPadding(record.payload.pdfBottomPadding);
+      if (record.payload.globalGstRate) setGlobalGstRate(record.payload.globalGstRate);
+      if (record.payload.docDate) setDocDate(record.payload.docDate);
+      if (record.payload.validUntilDate) setValidUntilDate(record.payload.validUntilDate);
+    }
+    setHistoryDrawerOpen(false);
+  };
+
+  const handleNewQuoteReset = () => {
+    setDocNo(`EST-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    setItems([
+      {
+        id: `item-${Date.now()}`,
+        productName: 'Executive Work Station',
+        description: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
+        showDescription: true,
+        hsnCode: '998313',
+        customValues: { 'col-1': 'Aarna Modular', 'col-2': '1 Year Full Warranty' },
+        showImage: false,
+        unit: 'Nos',
+        qty: 1,
+        unitPrice: 22500,
+        taxRate: 18,
+        discountType: 'flat',
+        discountVal: 0,
+        total: 22500
+      }
+    ]);
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__resetQuoteBuilder = handleNewQuoteReset;
+    }
+  }, [handleNewQuoteReset]);
 
   // Smooth Slidable Accordion Sections State
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     gst: true,
     pdf: true,
+    layout: true,
     company: true,
     party: true,
     metadata: true,
@@ -385,12 +699,254 @@ export function QuotationBuilder() {
     }
   };
 
+  // Render Individual Section Content based on Section ID
+  const renderSectionContent = (secId: SectionId) => {
+    switch (secId) {
+      case 'HEADER':
+        return (
+          <div key="HEADER" style={{ marginBottom: `${sectionGap}px` }} className={`border-b border-slate-200 ${pdfMargin >= 15 ? 'pb-2 pt-0.5' : 'pb-2.5 pt-1'} flex justify-between items-start gap-3`}>
+            {/* Header: Company Info + Document Title Block */}
+            <div className="flex items-center gap-3.5 max-w-[65%]">
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
+                <img
+                  src={activeCompany.logoUrl}
+                  alt="Logo"
+                  onError={(e) => {
+                    const target = e.target as HTMLElement;
+                    target.style.display = 'none';
+                    if (target.nextElementSibling) {
+                      (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                    }
+                  }}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover border border-slate-200 shadow-sm"
+                />
+                <div
+                  style={{ display: 'none', backgroundColor: '#002060', color: '#ffffff' }}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-md items-center justify-center font-black text-xs sm:text-sm border border-slate-200 shadow-sm uppercase"
+                >
+                  {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
+                </div>
+              </div>
+              <div className="space-y-0.5 min-w-0">
+                <h1 className="text-[12px] sm:text-[14px] font-black text-[#002060] tracking-tight uppercase leading-snug break-words">{activeCompany.name}</h1>
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug break-words">{activeCompany.address}</p>
+                <p className="text-[9px] sm:text-[9.5px] font-extrabold text-[#002060] mt-0.5">
+                  GSTIN: <span className="font-mono">{activeCompany.gstNo}</span> • PAN: <span className="font-mono">{activeCompany.panNo}</span>
+                </p>
+                {activeCompany.email && (
+                  <p className="text-[8.5px] sm:text-[9px] text-slate-500">Email: {activeCompany.email}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="text-right space-y-0.5 flex-shrink-0">
+              <span style={{ backgroundColor: '#002060', color: '#ffffff' }} className="inline-block text-[9.5px] sm:text-[11px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded border border-[#00153e] shadow-sm">
+                {getDocTitle()}
+              </span>
+              <p className="text-[11px] sm:text-xs font-black text-[#002060] pt-0.5 font-mono font-extrabold">
+                {docNo}
+              </p>
+              <p className="text-[9px] sm:text-[9.5px] text-slate-600">Date: <strong className="text-slate-900">{docDate}</strong></p>
+              {showValidUntil && validUntilDate && validUntilDate.trim() !== '' && (
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600">Valid Until: <strong className="text-slate-900">{validUntilDate}</strong></p>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'PARTY_INFO':
+        return (
+          <div key="PARTY_INFO" style={{ marginBottom: `${sectionGap}px` }} className={`bg-slate-50 border border-slate-200 rounded-lg ${pdfMargin >= 15 ? 'p-2' : 'p-2.5'} grid ${useSeparateShipping ? 'grid-cols-3' : 'grid-cols-2'} gap-2 sm:gap-3`}>
+            {/* Billing Address Column */}
+            <div>
+              <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Billed To (Buyer)</span>
+              <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty.name}</h4>
+              {activeParty.contactPerson && (
+                <p className="text-[9px] sm:text-[9.5px] font-medium text-slate-700 mt-0.5">Attn: {activeParty.contactPerson}</p>
+              )}
+              <p className="text-[9px] sm:text-[9.5px] text-slate-600 mt-0.5 leading-snug break-words">{activeParty.address}</p>
+            </div>
+
+            {/* Separate Shipping Address Column (if enabled) */}
+            {useSeparateShipping && (
+              <div className="border-l border-slate-200 pl-2 sm:pl-3">
+                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-[#002060] block mb-0.5 flex items-center gap-1">
+                  🚚 Shipped To (Consignee)
+                </span>
+                <h4 className="text-[11px] sm:text-[12px] font-black text-slate-900 leading-snug break-words">{activeParty.name}</h4>
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600 mt-0.5 leading-snug break-words">
+                  {customShippingAddress || activeParty.shippingAddress || activeParty.address}
+                </p>
+              </div>
+            )}
+
+            {/* Tax & Contact Column */}
+            <div className="text-right space-y-0.5">
+              <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Tax &amp; Identifiers</span>
+              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">GSTIN: <span className="font-mono text-[#002060]">{activeParty.gstNo}</span></p>
+              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">PAN: <span className="font-mono">{activeParty.panNo}</span></p>
+              <p className="text-[9px] sm:text-[9.5px] text-slate-600">📞 {activeParty.phone}</p>
+              <p className="text-[8.5px] sm:text-[9px] font-semibold text-slate-500">Place of Supply: <span className="text-slate-800 font-bold">Uttar Pradesh</span></p>
+            </div>
+          </div>
+        );
+
+      case 'ITEMS_TABLE':
+        return (
+          <div key="ITEMS_TABLE" style={{ marginBottom: `${sectionGap}px` }} className="overflow-hidden border border-slate-200 rounded-lg">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr style={{ backgroundColor: '#002060', color: '#ffffff' }} className="text-[8.5px] sm:text-[9px] uppercase font-black tracking-wider border-b border-[#00153e]">
+                  <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-center w-6 sm:w-7">#</th>
+                  <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2">Item &amp; Description</th>
+                  {showHsnColumn && <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-center">HSN/SAC</th>}
+                  {customColumns.map(col => (
+                    <th key={col.id} style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-center">{col.name}</th>
+                  ))}
+                  <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-center">Qty</th>
+                  <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-right">Rate (₹)</th>
+                  {showGstColumn && <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-center">GST %</th>}
+                  <th style={{ color: '#ffffff' }} className="py-1.5 px-1.5 sm:px-2 text-right">Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white text-[10px] sm:text-[10.5px]">
+                {items.map((it, idx) => {
+                  const baseRowTotal = it.qty * it.unitPrice;
+                  const rowTax = baseRowTotal * (it.taxRate / 100);
+                  const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
+                  return (
+                    <tr key={it.id} className={idx % 2 === 1 ? 'bg-slate-50/70 text-slate-800' : 'text-slate-800'}>
+                      <td className="py-1.5 px-1.5 sm:px-2 text-center font-bold text-slate-400 text-[9.5px] sm:text-[10px]">{idx + 1}</td>
+                      <td className="py-1.5 px-1.5 sm:px-2">
+                        <div className="flex items-start gap-1.5 sm:gap-2">
+                          {it.showImage && it.imageUrl && (
+                            <img src={it.imageUrl} alt="Prod" className="w-4 h-4 sm:w-5 sm:h-5 rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-slate-900 leading-snug block text-[10px] sm:text-[10.5px] break-words">{it.productName}</span>
+                            {it.showDescription && it.description && it.description.trim() !== '' && (
+                              <p className="text-[8.5px] sm:text-[9px] text-slate-600 leading-snug font-normal break-words">{it.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      {showHsnColumn && (
+                        <td className="py-1.5 px-1.5 sm:px-2 text-center font-mono text-[9px] sm:text-[9.5px] text-slate-600">{it.hsnCode || '998313'}</td>
+                      )}
+                      {customColumns.map(col => (
+                        <td key={col.id} className="py-1.5 px-1.5 sm:px-2 text-center font-medium text-[9px] sm:text-[9.5px] text-slate-700">
+                          {it.customValues?.[col.id] || '—'}
+                        </td>
+                      ))}
+                      <td className="py-1.5 px-1.5 sm:px-2 text-center font-semibold text-[9.5px] sm:text-[10px]">{it.qty} {it.unit}</td>
+                      <td className="py-1.5 px-1.5 sm:px-2 text-right font-semibold text-[9.5px] sm:text-[10px]">₹{it.unitPrice.toLocaleString('en-IN')}</td>
+                      {showGstColumn && (
+                        <td style={{ color: '#002060' }} className="py-1.5 px-1.5 sm:px-2 text-center font-bold text-[9.5px] sm:text-[10px]">{it.taxRate}%</td>
+                      )}
+                      <td className="py-1.5 px-1.5 sm:px-2 text-right font-black text-slate-900 text-[10px] sm:text-[10.5px]">
+                        ₹{displayedRowTotal.toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+
+      case 'SUMMARY_AND_BANK':
+        return (
+          <div key="SUMMARY_AND_BANK" style={{ marginBottom: `${sectionGap}px` }} className={`grid grid-cols-2 gap-2 sm:gap-3 border-t border-slate-200 ${pdfMargin >= 15 ? 'pt-2' : 'pt-2.5'}`}>
+            {/* Bank Details & Amount in Words */}
+            <div className="space-y-1.5">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-0.5">
+                <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Bank Payment Details</span>
+                <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-800">Bank: {activeCompany.bankName}</p>
+                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-bold font-mono">A/C No: {activeCompany.accountNo}</p>
+                <p className="text-[9px] sm:text-[9.5px] text-slate-600">IFSC: <span className="font-mono">{activeCompany.ifscCode}</span> • Branch: {activeCompany.branch}</p>
+                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[9.5px] font-extrabold">UPI ID: {activeCompany.upiId}</p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                <span style={{ color: '#002060' }} className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider block">Total Amount (in words)</span>
+                <p style={{ color: '#002060' }} className="text-[9px] sm:text-[10px] font-extrabold italic mt-0.5 leading-snug">
+                  {numberToWordsINR(grandTotal)}
+                </p>
+              </div>
+            </div>
+
+            {/* Totals Calculation Box */}
+            <div className="space-y-1 text-xs text-right bg-slate-50 border border-slate-200 rounded-lg p-2">
+              <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                <span>Subtotal (Base Value):</span>
+                <span className="font-bold text-slate-800">₹{subtotal.toLocaleString('en-IN')}</span>
+              </div>
+              {totalItemDiscounts > 0 && (
+                <div className="flex justify-between text-slate-700 text-[9px] sm:text-[9.5px]">
+                  <span>Item Discounts:</span>
+                  <span className="font-bold">-₹{totalItemDiscounts.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {overallDiscAmount > 0 && (
+                <div className="flex justify-between text-slate-700 text-[9px] sm:text-[9.5px]">
+                  <span>Overall Discount:</span>
+                  <span className="font-bold">-₹{overallDiscAmount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                <span>CGST ({globalGstRate / 2}%):</span>
+                <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 text-[9px] sm:text-[9.5px]">
+                <span>SGST ({globalGstRate / 2}%):</span>
+                <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
+              </div>
+              <div style={{ color: '#002060' }} className="flex justify-between font-bold border-t border-slate-200 pt-0.5 text-[9.5px] sm:text-[10px]">
+                <span>Total Tax ({globalGstRate}% GST):</span>
+                <span>₹{gstTaxTotal.toLocaleString('en-IN')}</span>
+              </div>
+
+              <div style={{ backgroundColor: '#002060', color: '#ffffff' }} className="rounded-lg p-1.5 mt-1 flex justify-between items-center font-black text-xs shadow-md border border-[#00153e]">
+                <span style={{ color: '#e2e8f0' }} className="uppercase tracking-wider text-[9px] sm:text-[10px] font-bold">Grand Total</span>
+                <span style={{ color: '#ffffff' }} className="text-xs sm:text-sm font-mono font-black">₹{grandTotal.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'FOOTER_TERMS':
+        return (
+          <div key="FOOTER_TERMS" className="border-t border-slate-200 pt-1.5 grid grid-cols-2 gap-4 items-end mt-auto">
+            <div className="space-y-0.5">
+              <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">Terms &amp; Conditions</span>
+              <p className="text-[8.5px] sm:text-[9px] text-slate-600 whitespace-pre-line leading-snug break-words">{termsText}</p>
+              <p className="text-[7.5px] text-slate-400 italic pt-0.5">E. &amp; O.E. • Computer Generated Document</p>
+            </div>
+            <div className="text-right space-y-2">
+              <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-800">For {activeCompany.name}</p>
+              <div className="inline-block border-b border-slate-400 w-32 pb-0.5 text-center">
+                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Authorized Signatory</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   // Render Spectro Executive Navy Blue (#002060) Unified A4 Document (Zero Color Conflict)
   const renderA4SheetDocument = () => (
     <div
-      style={{ padding: `${pdfMargin}mm` }}
+      style={{
+        paddingTop: `${pdfMargin}mm`,
+        paddingBottom: `${pdfBottomPadding}px`,
+        paddingLeft: `${pdfMargin}mm`,
+        paddingRight: `${pdfMargin}mm`,
+      }}
       className={`a4-document bg-white text-slate-900 shadow-2xl font-sans relative text-xs w-full max-w-[210mm] flex flex-col justify-between box-border border-2 border-[#002060] ${
-        pdfPageMode === 'SINGLE' ? 'h-[297mm] min-h-[297mm] max-h-[297mm] overflow-hidden' : 'min-h-[297mm] h-auto overflow-visible'
+        pdfPageMode === 'SINGLE' ? 'min-h-[297mm] h-auto overflow-hidden' : 'min-h-[297mm] h-auto overflow-visible'
       }`}
     >
       {/* Top Official Spectro Navy Blue (#002060) Brand Color Bar */}
@@ -399,245 +955,90 @@ export function QuotationBuilder() {
           marginTop: `-${pdfMargin}mm`,
           marginLeft: `-${pdfMargin}mm`,
           marginRight: `-${pdfMargin}mm`,
-          marginBottom: pdfMargin >= 15 ? '10px' : '14px'
+          marginBottom: `${pdfTopPadding}px`
         }}
         className="h-2.5 bg-[#002060]"
       ></div>
 
-      {/* Header: Company Info + Document Title Block */}
-      <div className={`border-b border-slate-200 ${pdfMargin >= 15 ? 'pb-2 mb-2 pt-1' : 'pb-3 mb-3 pt-1.5'} flex justify-between items-start gap-4`}>
-        <div className="flex items-start gap-3 max-w-[62%]">
-          <img src={activeCompany.logoUrl} alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover border border-slate-200 shadow-sm flex-shrink-0" />
-          <div className="space-y-0.5 min-w-0">
-            <h1 className="text-[11px] sm:text-sm font-black text-[#002060] tracking-tight uppercase leading-tight truncate">{activeCompany.name}</h1>
-            <p className="text-[8.5px] sm:text-[9px] text-slate-600 leading-tight">{activeCompany.address}</p>
-            <p className="text-[8.5px] sm:text-[9px] font-extrabold text-[#002060] mt-0.5">
-              GSTIN: <span className="font-mono">{activeCompany.gstNo}</span> • PAN: <span className="font-mono">{activeCompany.panNo}</span>
-            </p>
-            {activeCompany.email && (
-              <p className="text-[8px] sm:text-[8.5px] text-slate-500">Email: {activeCompany.email}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="text-right space-y-0.5 flex-shrink-0">
-          <span className="inline-block text-[9px] sm:text-[10.5px] font-black tracking-wider uppercase px-2.5 py-0.5 bg-[#002060] text-white rounded border border-[#00153e] shadow-sm">
-            {getDocTitle()}
-          </span>
-          <p className="text-[10.5px] sm:text-xs font-black text-[#002060] pt-0.5 font-mono font-extrabold">
-            {docNo}
-          </p>
-          <p className="text-[8.5px] sm:text-[9.5px] text-slate-600">Date: <strong className="text-slate-900">{docDate}</strong></p>
-          {showValidUntil && validUntilDate && validUntilDate.trim() !== '' && (
-            <p className="text-[8.5px] sm:text-[9.5px] text-slate-600">Valid Until: <strong className="text-slate-900">{validUntilDate}</strong></p>
-          )}
-        </div>
-      </div>
-
-      {/* Billed To / Buyer Party & Optional Separate Shipping Box (Harmonized Spectro Colors) */}
-      <div className={`bg-slate-50 border border-slate-200 rounded-lg ${pdfMargin >= 15 ? 'p-2 mb-2' : 'p-2.5 mb-3'} grid ${useSeparateShipping ? 'grid-cols-3' : 'grid-cols-2'} gap-2 sm:gap-3`}>
-        {/* Billing Address Column */}
-        <div>
-          <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Billed To (Buyer)</span>
-          <h4 className="text-[10px] sm:text-[11.5px] font-black text-slate-900 leading-tight">{activeParty.name}</h4>
-          {activeParty.contactPerson && (
-            <p className="text-[8.5px] sm:text-[9px] font-medium text-slate-700 mt-0.5">Attn: {activeParty.contactPerson}</p>
-          )}
-          <p className="text-[8.5px] sm:text-[9px] text-slate-600 mt-0.5 leading-snug">{activeParty.address}</p>
-        </div>
-
-        {/* Separate Shipping Address Column (if enabled) */}
-        {useSeparateShipping && (
-          <div className="border-l border-slate-200 pl-2 sm:pl-3">
-            <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-[#002060] block mb-0.5 flex items-center gap-1">
-              🚚 Shipped To (Consignee)
-            </span>
-            <h4 className="text-[10px] sm:text-[11.5px] font-black text-slate-900 leading-tight">{activeParty.name}</h4>
-            <p className="text-[8.5px] sm:text-[9px] text-slate-600 mt-0.5 leading-snug">
-              {customShippingAddress || activeParty.shippingAddress || activeParty.address}
-            </p>
-          </div>
-        )}
-
-        {/* Tax & Contact Column */}
-        <div className="text-right space-y-0.5">
-          <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">Tax &amp; Identifiers</span>
-          <p className="text-[8.5px] sm:text-[9px] font-bold text-slate-800">GSTIN: <span className="font-mono text-[#002060]">{activeParty.gstNo}</span></p>
-          <p className="text-[8.5px] sm:text-[9px] font-bold text-slate-800">PAN: <span className="font-mono">{activeParty.panNo}</span></p>
-          <p className="text-[8.5px] sm:text-[9px] text-slate-600">📞 {activeParty.phone}</p>
-          <p className="text-[8px] sm:text-[8.5px] font-semibold text-slate-500">Place of Supply: <span className="text-slate-800 font-bold">Uttar Pradesh</span></p>
-        </div>
-      </div>
-
-      {/* Line Items Table (Spectro Navy Blue Header & Unified Borders) */}
-      <div className={`overflow-hidden border border-slate-200 rounded-lg ${pdfMargin >= 15 ? 'mb-2' : 'mb-3'}`}>
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-[#002060] text-white text-[8px] sm:text-[8.5px] uppercase font-black tracking-wider border-b border-[#00153e]">
-              <th className="py-1.5 px-1.5 sm:px-2 text-center w-6 sm:w-7">#</th>
-              <th className="py-1.5 px-1.5 sm:px-2">Item &amp; Description</th>
-              {showHsnColumn && <th className="py-1.5 px-1.5 sm:px-2 text-center">HSN/SAC</th>}
-              <th className="py-1.5 px-1.5 sm:px-2 text-center">Qty</th>
-              <th className="py-1.5 px-1.5 sm:px-2 text-right">Rate (₹)</th>
-              {showGstColumn && <th className="py-1.5 px-1.5 sm:px-2 text-center">GST %</th>}
-              <th className="py-1.5 px-1.5 sm:px-2 text-right">Amount (₹)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 bg-white text-[9.5px] sm:text-[10px]">
-            {items.map((it, idx) => {
-              const baseRowTotal = it.qty * it.unitPrice;
-              const rowTax = baseRowTotal * (it.taxRate / 100);
-              const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
-              return (
-                <tr key={it.id} className={idx % 2 === 1 ? 'bg-slate-50/70 text-slate-800' : 'text-slate-800'}>
-                  <td className="py-1.5 px-1.5 sm:px-2 text-center font-bold text-slate-400 text-[9px] sm:text-[9.5px]">{idx + 1}</td>
-                  <td className="py-1.5 px-1.5 sm:px-2">
-                    <div className="flex items-start gap-1.5 sm:gap-2">
-                      {it.showImage && it.imageUrl && (
-                        <img src={it.imageUrl} alt="Prod" className="w-4 h-4 sm:w-5 sm:h-5 rounded border border-slate-200 object-cover flex-shrink-0 mt-0.5" />
-                      )}
-                      <div>
-                        <span className="font-bold text-slate-900 leading-snug block text-[9.5px] sm:text-[10px]">{it.productName}</span>
-                        {it.showDescription && it.description && it.description.trim() !== '' && (
-                          <p className="text-[7.5px] sm:text-[8px] text-slate-500 leading-tight mt-0.5 font-normal">{it.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  {showHsnColumn && (
-                    <td className="py-1.5 px-1.5 sm:px-2 text-center font-mono text-[8.5px] sm:text-[9px] text-slate-500">{it.hsnCode || '998313'}</td>
-                  )}
-                  <td className="py-1.5 px-1.5 sm:px-2 text-center font-semibold text-[9px] sm:text-[9.5px]">{it.qty} {it.unit}</td>
-                  <td className="py-1.5 px-1.5 sm:px-2 text-right font-semibold text-[9px] sm:text-[9.5px]">₹{it.unitPrice.toLocaleString('en-IN')}</td>
-                  {showGstColumn && (
-                    <td className="py-1.5 px-1.5 sm:px-2 text-center font-bold text-[#002060] text-[9px] sm:text-[9.5px]">{it.taxRate}%</td>
-                  )}
-                  <td className="py-1.5 px-1.5 sm:px-2 text-right font-black text-slate-900 text-[9.5px] sm:text-[10px]">
-                    ₹{displayedRowTotal.toLocaleString('en-IN')}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Financial Summary & Bank Details Section (Harmonized Spectro Colors) */}
-      <div className={`grid grid-cols-2 gap-2 sm:gap-3 border-t border-slate-200 ${pdfMargin >= 15 ? 'pt-2 mb-2' : 'pt-2.5 mb-3'}`}>
-        {/* Bank Details & Amount in Words */}
-        <div className="space-y-1.5">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-0.5">
-            <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-slate-400 block mb-0.5">Bank Payment Details</span>
-            <p className="text-[8.5px] sm:text-[9px] font-bold text-slate-800">Bank: {activeCompany.bankName}</p>
-            <p className="text-[8.5px] sm:text-[9px] font-bold text-[#002060] font-mono">A/C No: {activeCompany.accountNo}</p>
-            <p className="text-[8.5px] sm:text-[9px] text-slate-600">IFSC: <span className="font-mono">{activeCompany.ifscCode}</span> • Branch: {activeCompany.branch}</p>
-            <p className="text-[8.5px] sm:text-[9px] font-extrabold text-[#002060]">UPI ID: {activeCompany.upiId}</p>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
-            <span className="text-[7px] sm:text-[7.5px] font-black uppercase tracking-wider text-[#002060] block">Total Amount (in words)</span>
-            <p className="text-[8.5px] sm:text-[9.5px] font-extrabold text-[#002060] italic mt-0.5">
-              {numberToWordsINR(grandTotal)}
-            </p>
-          </div>
-        </div>
-
-        {/* Totals Calculation Box */}
-        <div className="space-y-1 text-xs text-right bg-slate-50 border border-slate-200 rounded-lg p-2">
-          <div className="flex justify-between text-slate-600 text-[8.5px] sm:text-[9.5px]">
-            <span>Subtotal (Base Value):</span>
-            <span className="font-bold text-slate-800">₹{subtotal.toLocaleString('en-IN')}</span>
-          </div>
-          {totalItemDiscounts > 0 && (
-            <div className="flex justify-between text-slate-700 text-[8.5px] sm:text-[9.5px]">
-              <span>Item Discounts:</span>
-              <span className="font-bold">-₹{totalItemDiscounts.toLocaleString('en-IN')}</span>
-            </div>
-          )}
-          {overallDiscAmount > 0 && (
-            <div className="flex justify-between text-slate-700 text-[8.5px] sm:text-[9.5px]">
-              <span>Overall Discount:</span>
-              <span className="font-bold">-₹{overallDiscAmount.toLocaleString('en-IN')}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-slate-600 text-[8.5px] sm:text-[9.5px]">
-            <span>CGST ({globalGstRate / 2}%):</span>
-            <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
-          </div>
-          <div className="flex justify-between text-slate-600 text-[8.5px] sm:text-[9.5px]">
-            <span>SGST ({globalGstRate / 2}%):</span>
-            <span className="font-semibold text-slate-700">₹{(gstTaxTotal / 2).toLocaleString('en-IN')}</span>
-          </div>
-          <div className="flex justify-between text-[#002060] font-bold border-t border-slate-200 pt-0.5 text-[9px] sm:text-[10px]">
-            <span>Total Tax ({globalGstRate}% GST):</span>
-            <span>₹{gstTaxTotal.toLocaleString('en-IN')}</span>
-          </div>
-
-          <div className="bg-[#002060] text-white rounded-lg p-1.5 mt-1 flex justify-between items-center font-black text-xs shadow-md border border-[#00153e]">
-            <span className="uppercase tracking-wider text-[8.5px] sm:text-[9.5px] font-bold text-slate-200">Grand Total</span>
-            <span className="text-xs sm:text-sm text-white font-mono font-black">₹{grandTotal.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Terms & Conditions + Authorized Signatory Footer */}
-      <div className="border-t border-slate-200 pt-1.5 grid grid-cols-2 gap-4 items-end mt-auto">
-        <div className="space-y-0.5">
-          <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400 block">Terms &amp; Conditions</span>
-          <p className="text-[7.5px] text-slate-500 whitespace-pre-line leading-tight">{termsText}</p>
-          <p className="text-[7px] text-slate-400 italic pt-0.5">E. &amp; O.E. • Computer Generated Document</p>
-        </div>
-        <div className="text-right space-y-2">
-          <p className="text-[9px] font-bold text-slate-800">For {activeCompany.name}</p>
-          <div className="inline-block border-b border-slate-400 w-28 pb-0.5 text-center">
-            <span className="text-[7.5px] font-bold text-slate-500 uppercase tracking-wider">Authorized Signatory</span>
-          </div>
-        </div>
-      </div>
+      {/* Dynamic Ordered & Filtered Document Sections */}
+      {sectionOrder.map(secId => visibleSections[secId] ? renderSectionContent(secId) : null)}
     </div>
   );
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto pb-12 font-sans text-slate-900 dark:text-white px-2 sm:px-4">
       {/* ── TOP ACTION BAR & DOCUMENT TYPE FLOW SELECTOR ── */}
-      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 print-hide">
-        <div>
-          <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded">
-            PROCESS FLOW ENGINE
+      <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3.5 print-hide">
+        {/* Top Header Row: Title, View Switcher & Primary Action Buttons */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          <div className="min-w-0">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded">
+              PROCESS FLOW ENGINE
+            </span>
+            <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2 truncate">
+              <FileText className="text-indigo-400 flex-shrink-0" size={18} />
+              <span className="truncate">{getDocTitle()} GENERATOR &amp; CONVERTER</span>
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* View Mode Switcher Controls */}
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 p-1 rounded-xl">
+              <button
+                onClick={() => setViewMode('SPLIT')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  viewMode === 'SPLIT' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Columns size={14} /> Split Builder
+              </button>
+              <button
+                onClick={() => setViewMode('FULL_PREVIEW')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  viewMode === 'FULL_PREVIEW' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Maximize2 size={14} /> Full A4 Preview
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleSaveCurrentDraft}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+              >
+                {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <RefreshCw size={14} />}
+                {savedSuccess ? 'Draft Saved' : 'Save Draft'}
+              </button>
+
+              <button
+                onClick={() => setHistoryDrawerOpen(true)}
+                className="px-3.5 py-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 text-xs font-extrabold rounded-xl border border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+              >
+                <History size={14} className="text-indigo-400" /> All Quotes ({savedQuotes.length})
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+              >
+                <Download size={14} /> Print / Export PDF (A4)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Row: Document Type Flow Selector Pills */}
+        <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar">
+          <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex-shrink-0 mr-1">
+            Convert Document:
           </span>
-          <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
-            <FileText className="text-indigo-400" size={18} />
-            {getDocTitle()} GENERATOR &amp; CONVERTER
-          </h2>
-        </div>
-
-        {/* View Mode Switcher Controls */}
-        <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-1 rounded-xl self-start md:self-auto">
-          <button
-            onClick={() => setViewMode('SPLIT')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              viewMode === 'SPLIT' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Columns size={14} /> Split Builder
-          </button>
-          <button
-            onClick={() => setViewMode('FULL_PREVIEW')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              viewMode === 'FULL_PREVIEW' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Maximize2 size={14} /> Full A4 Preview
-          </button>
-        </div>
-
-        {/* Process Flow Selector Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
           {(['QUOTATION', 'PROFORMA_INVOICE', 'TAX_INVOICE', 'PAYMENT_RECEIPT', 'CREDIT_NOTE'] as const).map(type => (
             <button
               key={type}
               onClick={() => handleConvertDoc(type)}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
                 docType === type
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                   : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
@@ -647,24 +1048,6 @@ export function QuotationBuilder() {
               {type.replace('_', ' ')}
             </button>
           ))}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setSavedSuccess(true); setTimeout(() => setSavedSuccess(false), 2000); }}
-            className="flex-1 md:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5"
-          >
-            {savedSuccess ? <Check size={14} className="text-emerald-400" /> : <RefreshCw size={14} />}
-            {savedSuccess ? 'Draft Saved' : 'Save Draft'}
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5"
-          >
-            <Download size={14} /> Print / Export PDF (A4)
-          </button>
         </div>
       </div>
 
@@ -693,19 +1076,40 @@ export function QuotationBuilder() {
       {/* ── FULL PREVIEW MODE ── */}
       {viewMode === 'FULL_PREVIEW' ? (
         <div className="flex flex-col items-center space-y-4 print-hide">
-          <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-xs font-bold text-white">
-            <span>Zoom Scale:</span>
-            {[0.5, 0.75, 0.85, 1.0].map(s => (
-              <button
-                key={s}
-                onClick={() => setZoomScale(s)}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-bold ${
-                  zoomScale === s ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'
-                }`}
-              >
-                {Math.round(s * 100)}%
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-center gap-3 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
+            <div className="flex items-center gap-2">
+              <ZoomOut size={15} className="text-slate-400" />
+              <span className="text-slate-300 font-extrabold">Zoom Scale:</span>
+              <input
+                type="range"
+                min="0.10"
+                max="1.00"
+                step="0.05"
+                value={zoomScale}
+                onChange={e => setZoomScale(Number(e.target.value))}
+                className="w-32 sm:w-48 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+              <ZoomIn size={15} className="text-slate-400" />
+              <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+                {Math.round(zoomScale * 100)}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {[0.25, 0.50, 0.75, 0.85, 1.0].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setZoomScale(s)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
+                    zoomScale === s
+                      ? 'bg-indigo-600 text-white shadow'
+                      : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {Math.round(s * 100)}%
+                </button>
+              ))}
+            </div>
           </div>
 
           <div
@@ -896,6 +1300,231 @@ export function QuotationBuilder() {
               </div>
             </div>
 
+            {/* 🎨 3. SECTION LAYOUT, GAPS & POSITIONING ENGINE */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+              <div
+                onClick={() => toggleSection('layout')}
+                className="flex items-center justify-between cursor-pointer select-none"
+              >
+                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
+                  <Layers size={16} /> Section Layout, Gaps &amp; Positioning Engine
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); resetSectionLayout(); }}
+                    className="text-[10.5px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg hover:bg-amber-400/20 flex items-center gap-1"
+                    title="Reset Layout to Default"
+                  >
+                    <RotateCcw size={11} /> Reset
+                  </button>
+                  <button className="text-slate-400 hover:text-white p-1">
+                    {openSections.layout ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  openSections.layout
+                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                }`}
+              >
+                <div className="overflow-hidden space-y-4">
+                  {/* Section Gap Slider & Presets */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">Gap Between Sections</label>
+                      <span className="text-[11px] font-black font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                        {sectionGap}px Spacing
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="60"
+                      step="1"
+                      value={sectionGap}
+                      onChange={e => setSectionGap(Number(e.target.value))}
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                    />
+
+                    <div className="grid grid-cols-5 gap-1">
+                      {[
+                        { label: '4px Tight', val: 4 },
+                        { label: '10px Std', val: 10 },
+                        { label: '18px Wide', val: 18 },
+                        { label: '30px Max', val: 30 },
+                        { label: '50px Jumbo', val: 50 },
+                      ].map(g => (
+                        <button
+                          key={g.val}
+                          type="button"
+                          onClick={() => setSectionGap(g.val)}
+                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all truncate ${
+                            sectionGap === g.val
+                              ? 'bg-amber-500 text-slate-950 shadow font-black'
+                              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          {g.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Top & Bottom Page Margin Padding Controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Top Padding Control */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">Top Page Space</label>
+                        <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
+                          {pdfTopPadding}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="50"
+                        step="2"
+                        value={pdfTopPadding}
+                        onChange={e => setPdfTopPadding(Number(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
+                      />
+                      <div className="flex gap-1">
+                        {[
+                          { label: '15px', val: 15 },
+                          { label: '32px Std', val: 32 },
+                          { label: '45px Max', val: 45 },
+                        ].map(t => (
+                          <button
+                            key={t.val}
+                            type="button"
+                            onClick={() => setPdfTopPadding(t.val)}
+                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
+                              pdfTopPadding === t.val ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Bottom Padding Control */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">Bottom Page Space</label>
+                        <span className="text-[11px] font-black font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
+                          {pdfBottomPadding}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="50"
+                        step="2"
+                        value={pdfBottomPadding}
+                        onChange={e => setPdfBottomPadding(Number(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                      />
+                      <div className="flex gap-1">
+                        {[
+                          { label: '12px', val: 12 },
+                          { label: '28px Std', val: 28 },
+                          { label: '40px Max', val: 40 },
+                        ].map(b => (
+                          <button
+                            key={b.val}
+                            type="button"
+                            onClick={() => setPdfBottomPadding(b.val)}
+                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
+                              pdfBottomPadding === b.val ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            }`}
+                          >
+                            {b.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section Position Re-ordering List */}
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                      Section Sequence &amp; Visibility Controls
+                    </label>
+                    <div className="space-y-1.5">
+                      {sectionOrder.map((secId, idx) => {
+                        const meta = SECTION_METADATA.find(m => m.id === secId);
+                        const isVisible = visibleSections[secId];
+                        return (
+                          <div
+                            key={secId}
+                            className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                              isVisible
+                                ? 'bg-slate-950 border-slate-800 text-white'
+                                : 'bg-slate-950/40 border-slate-900 text-slate-500 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-5 h-5 rounded bg-slate-900 border border-slate-800 text-[10px] font-black text-amber-400 flex items-center justify-center flex-shrink-0 font-mono">
+                                #{idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate leading-tight">{meta?.label}</p>
+                                <p className="text-[10px] text-slate-500 truncate leading-tight">{meta?.desc}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {/* Move Up */}
+                              <button
+                                type="button"
+                                onClick={() => moveSectionUp(secId)}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
+                                title="Move Section Up"
+                              >
+                                <ArrowUp size={13} />
+                              </button>
+
+                              {/* Move Down */}
+                              <button
+                                type="button"
+                                onClick={() => moveSectionDown(secId)}
+                                disabled={idx === sectionOrder.length - 1}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
+                                title="Move Section Down"
+                              >
+                                <ArrowDown size={13} />
+                              </button>
+
+                              {/* Visibility Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => toggleSectionVisibility(secId)}
+                                className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  isVisible
+                                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
+                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                }`}
+                                title={isVisible ? 'Hide Section' : 'Show Section'}
+                              >
+                                {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* 🏢 3. SELLER / COMPANY SELECTOR (SMOOTH HEIGHT SLIDER) */}
             <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
               <div
@@ -940,7 +1569,26 @@ export function QuotationBuilder() {
 
                   {activeCompany && (
                     <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 flex items-start gap-3">
-                      <img src={activeCompany.logoUrl} alt="Logo" className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40" />
+                      <div className="relative w-9 h-9 flex-shrink-0">
+                        <img
+                          src={activeCompany.logoUrl}
+                          alt="Logo"
+                          onError={(e) => {
+                            const target = e.target as HTMLElement;
+                            target.style.display = 'none';
+                            if (target.nextElementSibling) {
+                              (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                            }
+                          }}
+                          className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40"
+                        />
+                        <div
+                          style={{ display: 'none' }}
+                          className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-black text-xs items-center justify-center border border-indigo-500/40 uppercase"
+                        >
+                          {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
+                        </div>
+                      </div>
                       <div className="text-xs space-y-0.5 min-w-0 flex-1">
                         <p className="font-extrabold text-white truncate">{activeCompany.name}</p>
                         <p className="text-[11px] text-slate-400 truncate">{activeCompany.address}</p>
@@ -1142,6 +1790,51 @@ export function QuotationBuilder() {
                 }`}
               >
                 <div className="overflow-hidden space-y-3">
+                  {/* 🛠️ MULTIPLE DYNAMIC CUSTOM COLUMNS MANAGER */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
+                        <Sliders size={13} /> Custom Table Columns ({customColumns.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={addCustomColumn}
+                        className="text-[10.5px] font-extrabold text-purple-300 bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 rounded-lg hover:bg-purple-500/30 flex items-center gap-1"
+                      >
+                        <Plus size={11} /> Add Custom Column
+                      </button>
+                    </div>
+
+                    {customColumns.length === 0 ? (
+                      <p className="text-[10.5px] text-slate-500 italic">No custom columns added yet. Click "+ Add Custom Column" to insert custom fields into the table.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {customColumns.map((col, cIdx) => (
+                          <div key={col.id} className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg p-1.5">
+                            <span className="text-[10px] font-mono text-purple-400 font-bold px-1.5 py-0.5 bg-purple-500/10 rounded">
+                              Col {cIdx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              value={col.name}
+                              onChange={e => updateCustomColumnName(col.id, e.target.value)}
+                              placeholder="Column Heading Name..."
+                              className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-white font-bold focus:border-purple-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeCustomColumn(col.id)}
+                              className="p-1 text-slate-500 hover:text-rose-400"
+                              title="Delete Column"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {items.map((item, idx) => (
                     <div key={item.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-2">
@@ -1285,6 +1978,34 @@ export function QuotationBuilder() {
                           />
                         </div>
                       </div>
+
+                      {/* Dynamic Custom Column Inputs for this Item */}
+                      {customColumns.length > 0 && (
+                        <div className="pt-2.5 border-t border-slate-800/80 space-y-2">
+                          <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider block">
+                            Custom Column Values:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {customColumns.map(col => (
+                              <div key={col.id} className="space-y-0.5">
+                                <label className="block text-[10px] font-bold text-slate-400 truncate">
+                                  {col.name || 'Custom Column'}:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={item.customValues?.[col.id] || ''}
+                                  onChange={e => {
+                                    const updated = { ...(item.customValues || {}), [col.id]: e.target.value };
+                                    updateLineItem(item.id, { customValues: updated });
+                                  }}
+                                  placeholder={`Enter value for ${col.name}...`}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-purple-200 focus:border-purple-500 focus:outline-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1333,9 +2054,41 @@ export function QuotationBuilder() {
                 Spectro A4 Live Preview ({pdfMargin}mm Margin · {globalGstRate}% GST)
               </span>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className="text-slate-400 font-mono text-[9px] bg-slate-800 px-2 py-0.5 rounded">Scale: {Math.round(zoomScale * 100)}%</span>
-                <button onClick={() => setZoomScale(Math.max(0.45, zoomScale - 0.05))} className="p-1 hover:text-white"><ZoomOut size={13} /></button>
-                <button onClick={() => setZoomScale(Math.min(1.0, zoomScale + 0.05))} className="p-1 hover:text-white"><ZoomIn size={13} /></button>
+                <button onClick={() => setZoomScale(Math.max(0.10, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom Out">
+                  <ZoomOut size={13} />
+                </button>
+                
+                <input
+                  type="range"
+                  min="0.10"
+                  max="1.00"
+                  step="0.05"
+                  value={zoomScale}
+                  onChange={e => setZoomScale(Number(e.target.value))}
+                  className="w-16 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+
+                <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom In">
+                  <ZoomIn size={13} />
+                </button>
+
+                <span className="text-indigo-400 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+
+                <div className="hidden sm:flex items-center gap-1 ml-1">
+                  {[0.50, 0.75, 1.0].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setZoomScale(s)}
+                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${
+                        zoomScale === s ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {Math.round(s * 100)}%
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -1350,7 +2103,7 @@ export function QuotationBuilder() {
       )}
 
       {/* Printable Sheet Element (Hidden on Screen, Active on Print) */}
-      <div className="hidden print:block">
+      <div className="printable-pdf-area hidden print:block">
         {renderA4SheetDocument()}
       </div>
 
@@ -1532,6 +2285,105 @@ export function QuotationBuilder() {
               >
                 Save Party
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📜 RECENT QUOTES & SAVED DRAFTS ENGINE MODAL / DRAWER */}
+      {historyDrawerOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex justify-end transition-all">
+          <div className="bg-slate-900 border-l border-slate-800 w-full max-w-2xl h-full flex flex-col p-4 sm:p-6 shadow-2xl text-white animate-slide-in-right overflow-hidden">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 flex-shrink-0">
+              <div>
+                <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-400/10 border border-indigo-400/30 px-2 py-0.5 rounded">
+                  PERSISTENT STORAGE ENGINE
+                </span>
+                <h2 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
+                  <History className="text-indigo-400" size={20} /> All Quotes &amp; Saved Drafts ({savedQuotes.length})
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleNewQuoteReset}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <Plus size={13} /> New Quote
+                </button>
+                <button
+                  onClick={() => setHistoryDrawerOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stats Summary */}
+            <div className="grid grid-cols-3 gap-3 py-3 border-b border-slate-800/80 text-xs flex-shrink-0">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Quotes</p>
+                <p className="text-base font-black text-white">{savedQuotes.length}</p>
+              </div>
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Saved Drafts</p>
+                <p className="text-base font-black text-amber-400">{savedQuotes.filter(q => q.status === 'DRAFT').length}</p>
+              </div>
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Approved Value</p>
+                <p className="text-base font-black text-emerald-400">
+                  ₹{savedQuotes.reduce((acc, q) => acc + (q.status === 'APPROVED' ? q.totalAmount : 0), 0).toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+
+            {/* Quote Records List */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-3">
+              {savedQuotes.map(record => (
+                <div key={record.id} className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-mono font-black text-indigo-400">{record.docNo}</span>
+                        <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                          {record.docType.replace('_', ' ')}
+                        </span>
+                        <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded ${
+                          record.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                          record.status === 'SENT' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                          'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}>
+                          {record.status}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-white mt-1.5 truncate">{record.partyName}</h4>
+                      <p className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Clock size={11} className="text-slate-500" /> Saved on: <strong className="text-slate-300">{record.savedAt}</strong>
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-black font-mono text-emerald-400">₹{record.totalAmount.toLocaleString('en-IN')}</p>
+                      <p className="text-[10px] text-slate-500">{record.itemsCount} Line Items</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-900">
+                    <button
+                      onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
+                      className="px-2.5 py-1 text-slate-500 hover:text-rose-400 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                    <button
+                      onClick={() => handleLoadSavedQuote(record)}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer"
+                    >
+                      <FolderOpen size={13} /> Load into Builder
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -884,6 +884,54 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
   width: 210mm;
   min-height: 297mm;
   box-sizing: border-box;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Force light paper theme context inside .a4-document regardless of app dark mode */
+.dark .a4-document {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.dark .a4-document .bg-slate-50 {
+  background-color: #f8fafc !important;
+}
+
+.dark .a4-document .bg-white {
+  background-color: #ffffff !important;
+}
+
+.dark .a4-document .border-slate-200 {
+  border-color: #e2e8f0 !important;
+}
+
+.dark .a4-document .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+.dark .a4-document .text-slate-900 {
+  color: #0f172a !important;
+}
+
+.dark .a4-document .text-slate-800 {
+  color: #1e293b !important;
+}
+
+.dark .a4-document .text-slate-700 {
+  color: #334155 !important;
+}
+
+.dark .a4-document .text-slate-600 {
+  color: #475569 !important;
+}
+
+.dark .a4-document .text-slate-500 {
+  color: #64748b !important;
+}
+
+.dark .a4-document .text-slate-400 {
+  color: #94a3b8 !important;
 }
 
 @page {
@@ -894,7 +942,7 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 0mm;
   }
 
   html, body {
@@ -903,12 +951,32 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
     margin: 0 !important;
     padding: 0 !important;
     width: 210mm !important;
-    height: 297mm !important;
-    max-height: 297mm !important;
-    overflow: hidden !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* Hide everything except the PDF container during print */
+  /* Reset all outer containers so sidebar margins/flex do not shift or clip the printable area */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .printable-pdf-area,
+  .printable-pdf-area * {
+    visibility: visible !important;
+  }
+
+  .printable-pdf-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    display: block !important;
+  }
+
   .sidebar,
   .topbar,
   .print-hide,
@@ -926,20 +994,31 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
   }
 
   .a4-document {
-    width: 209mm !important;
-    max-width: 209mm !important;
-    height: 296mm !important;
-    max-height: 296mm !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    min-height: 297mm !important;
+    height: auto !important;
     box-sizing: border-box !important;
-    margin: 0.5mm auto !important;
+    margin: 0 auto !important;
     box-shadow: none !important;
     border: 2px solid #002060 !important;
     border-radius: 0 !important;
     background: #ffffff !important;
     color: #0f172a !important;
-    page-break-after: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Multi-page Table Pagination Rules */
+  .a4-document table tr {
     page-break-inside: avoid !important;
-    overflow: hidden !important;
+    break-inside: avoid !important;
+  }
+
+  .a4-document thead {
+    display: table-header-group !important;
   }
 }
+
 
