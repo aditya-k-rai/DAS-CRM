@@ -285,7 +285,7 @@ class SettingsView(QFrame):
         token_row = QHBoxLayout()
         token_row.addWidget(QLabel("API Token:"))
         le2 = QLineEdit()
-        le2.setText("sk_live_xxxxxxxxxxxxxxxxxxxxxxxx")
+        le2.setText("your-api-token-here")
         le2.setEchoMode(QLineEdit.EchoMode.Password)
         le2.setStyleSheet("background: #0D1117; color: #E2E8F0; border: 1px solid #2A3A5C; border-radius: 6px; padding: 8px;")
         token_row.addWidget(le2)
