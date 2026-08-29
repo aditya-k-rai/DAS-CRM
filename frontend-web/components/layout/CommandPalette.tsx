@@ -18,7 +18,7 @@ const QUICK_ACTIONS = [
   { label: 'Add Deal to Pipeline', icon: Briefcase, href: '/deals?action=new', color: '#8b5cf6' },
   { label: 'Create Follow-up Task', icon: CheckSquare, href: '/tasks?action=new', color: '#f59e0b' },
   { label: 'New Quotation', icon: FileText, href: '/quotes?action=new', color: '#ec4899' },
-  { label: 'View HR Attendance', icon: UserCog, href: '/hr/attendance', color: '#22c55e' },
+  { label: 'View HR Attendance', icon: UserCog, href: '/attendance', color: '#22c55e' },
 ];
 
 const RECENT_ITEMS = [

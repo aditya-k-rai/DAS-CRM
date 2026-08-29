@@ -571,7 +571,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
                   onPress={() => {
                     setInDepthReportOpen(false);
                     try {
-                      navigation?.navigate('More', { initialModule: 'REPORTS' });
+                      navigation?.navigate('Menu', { initialModule: 'REPORTS' });
                     } catch {}
                   }}
                 >

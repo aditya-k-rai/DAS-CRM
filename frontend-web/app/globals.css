@@ -892,14 +892,20 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #0f172a !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    overflow: visible !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-height: 297mm !important;
+    overflow: hidden !important;
   }
 
   /* Hide everything except the PDF container during print */
@@ -916,20 +922,24 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
 
   .a4-document {
-    width: 210mm !important;
-    min-height: 297mm !important;
-    margin: 0 auto !important;
-    padding: 12mm 15mm !important;
+    width: 209mm !important;
+    max-width: 209mm !important;
+    height: 296mm !important;
+    max-height: 296mm !important;
+    box-sizing: border-box !important;
+    margin: 0.5mm auto !important;
     box-shadow: none !important;
-    border: none !important;
+    border: 2px solid #002060 !important;
     border-radius: 0 !important;
     background: #ffffff !important;
     color: #0f172a !important;
-    page-break-after: avoid;
-    page-break-inside: avoid;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    overflow: hidden !important;
   }
 }
 

@@ -257,7 +257,7 @@ function MainTabNavigator({
           }}
         />
         <Tab.Screen
-          name="More"
+          name="Menu"
           children={(navProps) => (
             <MoreControlsScreen
               {...navProps}
@@ -270,12 +270,12 @@ function MainTabNavigator({
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(251,191,36,0.25)', borderColor: '#fbbf24' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>⚡</Text>
+                <Text style={{ fontSize: 17, lineHeight: 22 }}>☰</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
               <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#fbbf24' : '#64748b', marginTop: 1 }}>
-                {focused ? 'More ●' : 'More'}
+                {focused ? 'Menu ●' : 'Menu'}
               </Text>
             ),
           }}
@@ -504,8 +504,8 @@ export default function App() {
                       items: [
                         { icon: '🎯', label: 'All Ingested Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                         { icon: '👥', label: 'Staff Directory & Hierarchy', badge: 'ADMIN', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
-                        { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
                         { icon: '📦', label: 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
                       ]
                     },
@@ -513,8 +513,8 @@ export default function App() {
                       title: 'COMMUNICATIONS & AUDIT',
                       items: [
                         { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
-                        { icon: '📊', label: 'In-Depth Telemetry Reports', badge: 'REPORTS', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'REPORTS' })) },
+                        { icon: '💬', label: 'Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                        { icon: '📊', label: 'In-Depth Telemetry Reports', badge: 'REPORTS', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
                         { icon: '⏱️', label: 'Workforce Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                       ]
                     }
@@ -526,8 +526,8 @@ export default function App() {
                       items: [
                         { icon: '🎯', label: 'Department Team Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                         { icon: '👥', label: 'Supervised Staff Members', badge: 'TEAM', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
-                        { icon: '💼', label: 'Department Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'Quotation Approvals', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '💼', label: 'Department Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'Quotation Approvals', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
                         { icon: '📦', label: 'Products Catalog', badge: '', action: () => closeDrawer(() => setProductsModalOpen(true)) },
                       ]
                     },
@@ -535,7 +535,7 @@ export default function App() {
                       title: 'COMMUNICATIONS & AUDIT',
                       items: [
                         { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Team Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '💬', label: 'Team Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
                         { icon: '⏱️', label: 'Team Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                       ]
                     }
@@ -555,7 +555,7 @@ export default function App() {
                       title: 'COMMUNICATIONS & NOTIFICATIONS',
                       items: [
                         { icon: '🔔', label: 'HR Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'HR Directives & Announcements', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '💬', label: 'HR Directives & Announcements', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
                       ]
                     }
                   ];
@@ -565,8 +565,8 @@ export default function App() {
                       title: '🛡️ TEAM LEADER UNIT CONTROL',
                       items: [
                         { icon: '🎯', label: 'Unit Lead Queue Allocation', badge: 'UNIT', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '💼', label: 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
-                        { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'REPORTS' })) },
+                        { icon: '💼', label: 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                        { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
                         { icon: '⏱️', label: 'Unit Punch Log Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                       ]
                     },
@@ -574,7 +574,7 @@ export default function App() {
                       title: 'COMMUNICATIONS & ALERTS',
                       items: [
                         { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Team WhatsApp Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '💬', label: 'Team WhatsApp Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
                       ]
                     }
                   ];
@@ -584,8 +584,8 @@ export default function App() {
                       title: '🎯 MY SALES WORKSPACE',
                       items: [
                         { icon: '📞', label: 'My Assigned Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '💼', label: 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'QUOTATIONS' })) },
+                        { icon: '💼', label: 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                        { icon: '📝', label: 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
                         { icon: '⏱️', label: 'Daily Attendance Punch', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
                       ]
                     },
@@ -593,7 +593,7 @@ export default function App() {
                       title: 'COMMUNICATIONS & ALERTS',
                       items: [
                         { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'WhatsApp Inbox & Comms', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('More', { initialModule: 'COMMS' })) },
+                        { icon: '💬', label: 'WhatsApp Inbox & Comms', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
                       ]
                     }
                   ];

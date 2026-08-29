@@ -61,6 +61,20 @@ interface QuotationsInvoicesScreenProps {
 const INITIAL_COMPANIES: CompanyDetails[] = [
   {
     id: 'comp-1',
+    name: 'Aarna Construction & Interiors',
+    logoUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
+    address: 'Plot1, Ats-kasnaroad, Bindalenclave, Greater Noida, Uttar Pradesh, 201310',
+    email: 'info@aarnaconstructions.com',
+    gstNo: '09APMPL1329Q1Z8',
+    panNo: 'APML1329Q',
+    bankName: 'Punjab National Bank',
+    accountNo: '6198002100003189',
+    ifscCode: 'PUNB0619800',
+    branch: 'DAV TIRAHA, Greater Noida',
+    upiId: 'aarna@pnb',
+  },
+  {
+    id: 'comp-2',
     name: 'Spectro Tech India Pvt Ltd',
     logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=60',
     address: 'Plot No. 42, Sector 18, Cyber City, Gurugram, HR - 122002',
@@ -73,25 +87,21 @@ const INITIAL_COMPANIES: CompanyDetails[] = [
     branch: 'Cyber City',
     upiId: 'spectro@hdfcbank',
   },
-  {
-    id: 'comp-2',
-    name: 'DAS CRM Technologies',
-    logoUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=200&auto=format&fit=crop&q=60',
-    address: 'Suite 900, Whitefield, Bengaluru, KA - 560066',
-    email: 'accounts@dascrm.com',
-    gstNo: '29AAAAA0000A1Z5',
-    panNo: 'AAAAA0000A',
-    bankName: 'ICICI Bank',
-    accountNo: '0004050112233',
-    ifscCode: 'ICIC0000004',
-    branch: 'Whitefield',
-    upiId: 'dascrm@icici',
-  },
 ];
 
 const INITIAL_PARTIES: PartyDetails[] = [
   {
     id: 'party-1',
+    name: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
+    contactPerson: 'Site Procurement Manager',
+    email: 'info@spectro.in',
+    phone: '+91 93194 95000',
+    address: 'S 1, SITE GNEPIP KASNA ROAD, SURAJPUR INDUSTRIAL AREA V Gautam Buddha Nagar 201310, GREATER NOIDA, Uttar Pradesh, 201310',
+    gstNo: '09APMPL1329Q1Z8',
+    panNo: 'APML1329Q',
+  },
+  {
+    id: 'party-2',
     name: 'TechCorp Solutions Pvt Ltd',
     contactPerson: 'Rajesh Varma',
     email: 'rajesh@techcorp.com',
@@ -100,22 +110,12 @@ const INITIAL_PARTIES: PartyDetails[] = [
     gstNo: '36AAACT9988K1ZP',
     panNo: 'AAACT9988K',
   },
-  {
-    id: 'party-2',
-    name: 'LogiTech Freight Systems',
-    contactPerson: 'Sunita Kapoor',
-    email: 'accounts@logitechfreight.in',
-    phone: '+91 98123 45678',
-    address: 'JNPT Logistics Hub, Navi Mumbai, MH - 400707',
-    gstNo: '27AAACL4455M1Z2',
-    panNo: 'AAACL4455M',
-  },
 ];
 
 const CATALOG_PRODUCTS = [
+  { name: 'Executive Work Station', price: 22500, tax: 18, unit: 'Nos', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60' },
   { name: 'DAS CRM Enterprise Suite (50 Seats)', price: 500000, tax: 18, unit: 'Set', image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&auto=format&fit=crop&q=60' },
   { name: 'AI Lead Scoring Engine Pro', price: 120000, tax: 18, unit: 'License', image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&auto=format&fit=crop&q=60' },
-  { name: 'WhatsApp Cloud API Gateway Setup', price: 45000, tax: 18, unit: 'Setup', image: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?w=200&auto=format&fit=crop&q=60' },
 ];
 
 export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> = ({ onClose }) => {
@@ -126,22 +126,22 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [parties, setParties] = useState<PartyDetails[]>(INITIAL_PARTIES);
   const [selectedPartyId, setSelectedPartyId] = useState<string>(INITIAL_PARTIES[0].id);
 
-  const [docNo, setDocNo] = useState('QT-2026-0891');
-  const [docDate, setDocDate] = useState('Aug 29, 2026');
+  const [docNo, setDocNo] = useState('EST-2026-0891');
+  const [docDate, setDocDate] = useState('13/01/2026');
 
   const [items, setItems] = useState<LineItem[]>([
     {
       id: 'item-1',
-      productName: 'DAS CRM Enterprise Suite (50 Seats)',
-      imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&auto=format&fit=crop&q=60',
-      showImage: true,
-      unit: 'Set',
-      qty: 1,
-      unitPrice: 500000,
+      productName: 'Executive Work Station',
+      imageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60',
+      showImage: false,
+      unit: 'Nos',
+      qty: 9,
+      unitPrice: 22500,
       taxRate: 18,
-      discountType: 'percent',
-      discountVal: 5,
-      total: 560500,
+      discountType: 'flat',
+      discountVal: 0,
+      total: 238950,
     },
   ]);
 

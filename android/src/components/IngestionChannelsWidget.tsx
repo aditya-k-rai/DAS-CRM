@@ -129,7 +129,7 @@ export default function IngestionChannelsWidget({ navigation, title = '🟢 Live
           'Official WhatsApp Business API connected.\n\nOpening Communications Hub...',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Communications →', onPress: () => navigation?.navigate('More', { initialModule: 'COMMUNICATIONS' }) },
+            { text: 'Open Communications →', onPress: () => navigation?.navigate('Menu', { initialModule: 'COMMUNICATIONS' }) },
           ]
         );
         break;

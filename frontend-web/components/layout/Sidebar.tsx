@@ -7,7 +7,7 @@ import {
   MessageCircle, Mail, Sparkles, FileText, GitBranch,
   BarChart3, Zap, Database, Briefcase, TrendingUp,
   UserCheck, Radio, Settings, Building2, HelpCircle,
-  Shield, LogOut, PanelLeftClose, PanelLeft, X
+  Shield, LogOut, PanelLeftClose, PanelLeft, X, Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail, UserRole } from '@/context/AuthContext';
@@ -40,10 +40,11 @@ const adminNavigation: NavItem[] = [
   { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
   { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Lead Import History', href: '/imports', icon: Database, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Attendance', href: '/attendance', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
   { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck, roles: ['ADMIN', 'MANAGER', 'HR'] },
-  { label: 'Communicate with Employees', href: '/communicate', icon: Radio, upcoming: true, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'The Notice Board', href: '/communicate', icon: Radio, dividerAfter: true, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },

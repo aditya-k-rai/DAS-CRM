@@ -48,10 +48,10 @@ export function TenantAdminHeaderBanner({
   let btn1Text = '🛡️ Structure Builder';
   let btn2Text = '⚡ Workflow Rules';
   let defaultBtn1Handler = () => {
-    try { navigation?.navigate('More', { initialModule: 'TEAM_LEADERS' }); } catch { navigation?.navigate('MoreControls'); }
+    try { navigation?.navigate('Menu', { initialModule: 'TEAM_LEADERS' }); } catch { navigation?.navigate('Menu'); }
   };
   let defaultBtn2Handler = () => {
-    try { navigation?.navigate('WorkflowAutomations'); } catch { navigation?.navigate('MoreControls'); }
+    try { navigation?.navigate('WorkflowAutomations'); } catch { navigation?.navigate('Menu'); }
   };
 
   if (activeRole === 'MANAGER') {
@@ -67,8 +67,8 @@ export function TenantAdminHeaderBanner({
     badgeTextColor = '#e9d5ff';
     btn1Text = '📊 Team Targets';
     btn2Text = '📋 Work Reports';
-    defaultBtn1Handler = () => { try { navigation?.navigate('More', { initialModule: 'GOALS' }); } catch {} };
-    defaultBtn2Handler = () => { try { navigation?.navigate('More', { initialModule: 'REPORTS' }); } catch {} };
+    defaultBtn1Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'GOALS' }); } catch {} };
+    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'REPORTS' }); } catch {} };
   } else if (activeRole === 'HR') {
     title = 'HUMAN RESOURCES & PAYROLL HUB';
     badgeText = `💼 HR MANAGER`;
@@ -83,7 +83,7 @@ export function TenantAdminHeaderBanner({
     btn1Text = '📅 Attendance Audit';
     btn2Text = '💰 Payroll Builder';
     defaultBtn1Handler = () => { try { navigation?.navigate('Attendance'); } catch {} };
-    defaultBtn2Handler = () => { try { navigation?.navigate('More', { initialModule: 'SALARY' }); } catch {} };
+    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'SALARY' }); } catch {} };
   } else if (activeRole === 'TEAM_LEADER') {
     title = 'TEAM LEADER COMMAND CENTER';
     badgeText = `⚡ TEAM LEADER`;
@@ -98,7 +98,7 @@ export function TenantAdminHeaderBanner({
     btn1Text = '🎯 Lead Handover';
     btn2Text = '👥 Team Roster';
     defaultBtn1Handler = () => { try { navigation?.navigate('Leads'); } catch {} };
-    defaultBtn2Handler = () => { try { navigation?.navigate('More', { initialModule: 'EMPLOYEES' }); } catch {} };
+    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'EMPLOYEES' }); } catch {} };
   } else if (activeRole === 'SALES_EXEC') {
     title = 'EMPLOYEE SALES WORKSPACE';
     badgeText = `🚀 SALES REP`;
@@ -113,7 +113,7 @@ export function TenantAdminHeaderBanner({
     btn1Text = '📞 Call Logs';
     btn2Text = '🎯 Deals Pipeline';
     defaultBtn1Handler = () => { try { navigation?.navigate('Leads'); } catch {} };
-    defaultBtn2Handler = () => { try { navigation?.navigate('More', { initialModule: 'PIPELINE' }); } catch {} };
+    defaultBtn2Handler = () => { try { navigation?.navigate('Menu', { initialModule: 'PIPELINE' }); } catch {} };
   }
 
   const handleBtn1 = onButton1Press || defaultBtn1Handler;

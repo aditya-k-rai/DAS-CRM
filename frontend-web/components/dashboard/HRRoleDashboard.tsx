@@ -31,7 +31,7 @@ export function HRRoleDashboard() {
           </div>
 
           <div className="flex gap-2">
-            <Link href="/hr/attendance" className="btn-secondary text-xs gap-1.5 flex items-center">
+            <Link href="/attendance" className="btn-secondary text-xs gap-1.5 flex items-center">
               <Calendar size={13} /> Mark Attendance
             </Link>
             <Link href="/hr/salary" className="btn-primary text-xs gap-1.5 flex items-center">
@@ -71,7 +71,7 @@ export function HRRoleDashboard() {
           <h3 className="font-bold text-base text-white flex items-center gap-2">
             <Calendar size={16} className="text-emerald-400" /> Today's Attendance Overview (Managers & Employees)
           </h3>
-          <Link href="/hr/attendance" className="text-xs text-brand-400 font-semibold hover:underline">
+          <Link href="/attendance" className="text-xs text-brand-400 font-semibold hover:underline">
             View All Attendance →
           </Link>
         </div>

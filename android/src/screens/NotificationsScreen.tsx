@@ -429,11 +429,11 @@ export default function NotificationsScreen({
       if (onNavigateToRoute) onNavigateToRoute('Leads');
       else navigation.navigate('Leads');
     } else if (notif.routeTarget === 'Products') {
-      if (onNavigateToRoute) onNavigateToRoute('Products');
-      else navigation.navigate('More');
+      if (onNavigateToRoute) onNavigateToRoute('Menu');
+      else navigation.navigate('Menu');
     } else {
-      if (onNavigateToRoute) onNavigateToRoute('More');
-      else navigation.navigate('More');
+      if (onNavigateToRoute) onNavigateToRoute('Menu');
+      else navigation.navigate('Menu');
     }
   };
 
