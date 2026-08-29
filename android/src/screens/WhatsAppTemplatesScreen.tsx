@@ -286,11 +286,11 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
               <View style={{ gap: 4 }}>
                 <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700' }}>Insert Placeholder Variables:</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {['{name}', '{company}', '{value}', '{product}'].map((ph) => (
+                  {['{name}', '{company}', '{value}', '{product}', '{price}', '{catalog_link}'].map((ph) => (
                     <TouchableOpacity
                       key={ph}
                       style={{ backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}
-                      onPress={() => setTplFormText((prev) => prev + ' ' + ph)}
+                      onPress={() => setTplFormText((prev) => (prev ? prev + ' ' + ph : ph))}
                     >
                       <Text style={{ fontSize: 10, fontWeight: '900', color: '#38bdf8' }}>+ {ph}</Text>
                     </TouchableOpacity>

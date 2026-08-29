@@ -1,4 +1,4 @@
-package com.nexcrm.app
+package com.dascrm.app
 
 import android.os.Build
 import android.os.Bundle

@@ -5,7 +5,8 @@ import {
   UserCheck, RefreshCw, Image as ImageIcon, ShieldCheck, CreditCard, ChevronRight,
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
-  Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User
+  Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User,
+  Mail, MessageSquare, Share2, Upload
 } from 'lucide-react';
 
 // ─── Interfaces & Section Layout Definitions ──────────────────
@@ -33,7 +34,9 @@ export interface SavedQuoteRecord {
   companyName: string;
   savedAt: string;
   totalAmount: number;
-  status: 'DRAFT' | 'SENT' | 'APPROVED';
+  status: 'DRAFT' | 'GENERATED_SENT' | 'SENT';
+  sentVia?: 'EMAIL' | 'WHATSAPP_DIRECT' | 'WHATSAPP_CLOUD';
+  sentToLead?: string;
   itemsCount: number;
   createdByName?: string;
   createdByRole?: string;
@@ -56,7 +59,8 @@ export interface CompanyDetails {
   name: string;
   logoUrl: string;
   address: string;
-  email?: string;
+  email: string;
+  phone: string;
   gstNo: string;
   panNo: string;
   bankName: string;
@@ -70,7 +74,7 @@ export interface PartyDetails {
   id: string;
   name: string;
   contactPerson?: string;
-  email?: string;
+  email: string;
   phone: string;
   address: string;
   shippingAddress?: string;
@@ -104,6 +108,7 @@ const INITIAL_COMPANIES: CompanyDetails[] = [
     logoUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
     address: 'Plot1, Ats-kasnaroad, Bindalenclave, Greater Noida, Uttar Pradesh, 201310',
     email: 'info@aarnaconstructions.com',
+    phone: '+91 98102 34567',
     gstNo: '09APMPL1329Q1Z8',
     panNo: 'APML1329Q',
     bankName: 'Punjab National Bank',
@@ -118,6 +123,7 @@ const INITIAL_COMPANIES: CompanyDetails[] = [
     logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=60',
     address: 'Plot No. 42, Sector 18, Cyber City, Gurugram, HR - 122002',
     email: 'billing@spectrotech.in',
+    phone: '+91 124 4567890',
     gstNo: '06AAAAC1234F1Z9',
     panNo: 'AAAAC1234F',
     bankName: 'HDFC Bank Ltd',
@@ -211,7 +217,9 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
     companyName: 'Aarna Construction & Interiors',
     savedAt: '29/08/2026, 07:45 PM',
     totalAmount: 238950,
-    status: 'APPROVED',
+    status: 'GENERATED_SENT',
+    sentVia: 'EMAIL',
+    sentToLead: 'billing@spectroanalytical.com',
     itemsCount: 1,
     createdByName: 'Aditya Kumar Rai',
     createdByRole: 'Tenant Admin',
@@ -255,7 +263,9 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
     companyName: 'Aarna Construction & Interiors',
     savedAt: '29/08/2026, 06:15 PM',
     totalAmount: 540000,
-    status: 'SENT',
+    status: 'GENERATED_SENT',
+    sentVia: 'WHATSAPP_DIRECT',
+    sentToLead: '+91 9810234567 (Infosys Lead)',
     itemsCount: 2,
     createdByName: 'Priya Sharma',
     createdByRole: 'Sales Manager',
@@ -330,6 +340,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState<boolean>(false);
   const [historySearch, setHistorySearch] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'GENERATED_SENT'>('ALL');
 
   useEffect(() => {
     if (externalOpenHistory) {
@@ -338,9 +349,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, [externalOpenHistory, onExternalOpenHistoryHandled]);
 
-  // View Mode & Zoom Scale State
+  // View Mode & Zoom Scale State (With Auto-responsive scaling for Mobile Viewports)
   const [viewMode, setViewMode] = useState<'SPLIT' | 'FULL_PREVIEW'>('SPLIT');
   const [zoomScale, setZoomScale] = useState<number>(0.78);
+
+  const calculateFitScale = () => {
+    if (typeof window !== 'undefined') {
+      const availableWidth = Math.max(280, Math.min(window.innerWidth - 32, 794));
+      const fit = Math.round((availableWidth / 794) * 100) / 100;
+      return Math.max(0.25, Math.min(1.0, fit));
+    }
+    return 0.78;
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setZoomScale(calculateFitScale());
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Mobile Tab State (BUILDER vs PREVIEW for Smartphone Viewports)
   const [mobileActiveTab, setMobileActiveTab] = useState<'BUILDER' | 'PREVIEW'>('BUILDER');
@@ -480,6 +511,51 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       if (record.payload.validUntilDate) setValidUntilDate(record.payload.validUntilDate);
     }
     setHistoryDrawerOpen(false);
+  };
+
+  const handleDirectSendQuote = (record: SavedQuoteRecord, channel: 'EMAIL' | 'WHATSAPP_DIRECT' | 'WHATSAPP_CLOUD') => {
+    if (channel === 'WHATSAPP_CLOUD') {
+      alert('☁️ WhatsApp Cloud Integration is coming soon! Direct WhatsApp Web message is enabled now.');
+      return;
+    }
+
+    const leadContact = record.sentToLead || (activeParty ? (activeParty.email || activeParty.phone) : '');
+
+    setSavedQuotes(prev => prev.map(q => {
+      if (q.id === record.id) {
+        return {
+          ...q,
+          status: 'GENERATED_SENT',
+          sentVia: channel,
+          sentToLead: leadContact || (channel === 'EMAIL' ? 'lead@client.com' : '+91 9876543210')
+        };
+      }
+      return q;
+    }));
+
+    const buyerName = record.partyName;
+    const sellerName = record.companyName;
+    const docNo = record.docNo;
+    const docTypeLabel = record.docType.replace('_', ' ');
+    const totalFormatted = `₹${record.totalAmount.toLocaleString('en-IN')}`;
+
+    if (channel === 'EMAIL') {
+      const subject = encodeURIComponent(`${docTypeLabel} #${docNo} from ${sellerName}`);
+      const body = encodeURIComponent(
+        `Dear ${buyerName},\n\nPlease find attached the ${docTypeLabel} #${docNo} for total amount ${totalFormatted}.\n\n` +
+        `Document Details:\n- Document #: ${docNo}\n- Total Amount: ${totalFormatted}\n- Issuer: ${sellerName}\n\n` +
+        `Generated via DAS CRM (www.dascrm.com)\n\nBest regards,\n${record.createdByName || 'Sales Team'}`
+      );
+      window.open(`mailto:${leadContact || ''}?subject=${subject}&body=${body}`, '_blank');
+    } else if (channel === 'WHATSAPP_DIRECT') {
+      const message = encodeURIComponent(
+        `Hello *${buyerName}*,\n\nHere is your official *${docTypeLabel} #${docNo}* from *${sellerName}*.\n\n` +
+        `Total Amount: *${totalFormatted}*\n\n` +
+        `Generated with DAS CRM — www.dascrm.com`
+      );
+      const cleanPhone = (leadContact || '').replace(/[^0-9]/g, '');
+      window.open(`https://wa.me/${cleanPhone ? cleanPhone : ''}?text=${message}`, '_blank');
+    }
   };
 
   const handleNewQuoteReset = () => {
@@ -658,13 +734,42 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
   const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
 
+  const handleImageFileUpload = (file: File, onSuccess: (dataUrl: string) => void) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image file size should be less than 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        onSuccess(e.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveNewCompany = () => {
-    if (!newComp.name) return;
+    if (!newComp.name || !newComp.name.trim()) {
+      alert('Company Name is required.');
+      return;
+    }
+    if (!newComp.email || !newComp.email.trim()) {
+      alert('Company Email Address is required.');
+      return;
+    }
+    if (!newComp.phone || !newComp.phone.trim()) {
+      alert('Company Contact Number is required.');
+      return;
+    }
+
     const comp: CompanyDetails = {
       id: `comp-${Date.now()}`,
-      name: newComp.name,
+      name: newComp.name.trim(),
       logoUrl: newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
       address: newComp.address || 'Address',
+      email: newComp.email.trim(),
+      phone: newComp.phone.trim(),
       gstNo: newComp.gstNo || 'GSTIN',
       panNo: newComp.panNo || 'PAN',
       bankName: newComp.bankName || 'Bank',
@@ -680,13 +785,25 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   const handleSaveNewParty = () => {
-    if (!newParty.name) return;
+    if (!newParty.name || !newParty.name.trim()) {
+      alert('Client Party Name is required.');
+      return;
+    }
+    if (!newParty.email || !newParty.email.trim()) {
+      alert('Client Email Address is required.');
+      return;
+    }
+    if (!newParty.phone || !newParty.phone.trim()) {
+      alert('Client Phone Number is required.');
+      return;
+    }
+
     const party: PartyDetails = {
       id: `party-${Date.now()}`,
-      name: newParty.name,
+      name: newParty.name.trim(),
       contactPerson: newParty.contactPerson,
-      email: newParty.email,
-      phone: newParty.phone || 'Phone',
+      email: newParty.email.trim(),
+      phone: newParty.phone.trim(),
       address: newParty.address || 'Address',
       shippingAddress: newParty.shippingAddress,
       gstNo: newParty.gstNo || 'GSTIN',
@@ -744,7 +861,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 </div>
               </div>
               <div className="space-y-0.5 min-w-0">
-                <h1 className="text-[12px] sm:text-[14px] font-black text-[#002060] tracking-tight uppercase leading-snug break-words">{activeCompany.name}</h1>
+                <h1 style={{ color: '#002060' }} className="text-[12px] sm:text-[14px] font-black tracking-tight uppercase leading-snug break-words">{activeCompany.name}</h1>
                 <p className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug break-words">{activeCompany.address}</p>
                 <p className="text-[9px] sm:text-[9.5px] font-extrabold text-[#002060] mt-0.5">
                   GSTIN: <span className="font-mono">{activeCompany.gstNo}</span> • PAN: <span className="font-mono">{activeCompany.panNo}</span>
@@ -959,13 +1076,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       case 'FOOTER_TERMS':
         return (
-          <div key="FOOTER_TERMS" className="border-t border-slate-200 pt-1.5 grid grid-cols-2 gap-4 items-end mt-auto">
+          <div key="FOOTER_TERMS" style={{ marginTop: `${sectionGap * 1.5}px` }} className="border-t border-slate-200 pt-2 grid grid-cols-2 gap-4 items-end">
             <div className="space-y-0.5">
               <span className="text-[8px] sm:text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">Terms &amp; Conditions</span>
               <p className="text-[8.5px] sm:text-[9px] text-slate-600 whitespace-pre-line leading-snug break-words">{termsText}</p>
-              <p className="text-[10px] text-slate-400 italic pt-0.5">
-                E. &amp; O.E. • Generated by DAS CRM • <a href="https://dascrm.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline font-semibold">www.dascrm.com</a>
-              </p>
             </div>
             <div className="text-right space-y-2">
               <p className="text-[9.5px] sm:text-[10px] font-bold text-slate-800">For {activeCompany.name}</p>
@@ -982,55 +1096,54 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   // Render Spectro Executive Navy Blue (#002060) Unified A4 Document (Zero Color Conflict)
-  const renderA4SheetDocument = () => (
-    <div
-      style={{
-        paddingTop: `${pdfMargin}mm`,
-        paddingBottom: `${pdfBottomPadding}px`,
-        paddingLeft: `${pdfMargin}mm`,
-        paddingRight: `${pdfMargin}mm`,
-      }}
-      className={`a4-document bg-white text-slate-900 shadow-2xl font-sans relative text-xs w-full max-w-[210mm] flex flex-col justify-between box-border border-2 border-[#002060] ${
-        pdfPageMode === 'SINGLE' ? 'min-h-[297mm] h-auto overflow-hidden' : 'min-h-[297mm] h-auto overflow-visible'
-      }`}
-    >
-      {/* Top Official Spectro Navy Blue (#002060) Brand Color Bar */}
+  const renderA4SheetDocument = () => {
+    const bodySections = sectionOrder.filter(secId => secId !== 'FOOTER_TERMS' && visibleSections[secId]);
+    const showFooterTerms = visibleSections['FOOTER_TERMS'];
+
+    return (
       <div
         style={{
-          marginTop: `-${pdfMargin}mm`,
-          marginLeft: `-${pdfMargin}mm`,
-          marginRight: `-${pdfMargin}mm`,
-          marginBottom: `${pdfTopPadding}px`
+          paddingTop: `${pdfTopPadding}px`,
+          paddingBottom: `${pdfBottomPadding + 28}px`,
+          paddingLeft: `${pdfMargin}mm`,
+          paddingRight: `${pdfMargin}mm`,
         }}
-        className="h-2.5 bg-[#002060]"
-      ></div>
-
-      {/* Dynamic Ordered & Filtered Document Sections */}
-      {sectionOrder.map(secId => visibleSections[secId] ? renderSectionContent(secId) : null)}
-
-      {/* Official 10px Bottom Mention with DAS CRM Website Link */}
-      <div
-        style={{
-          marginLeft: `-${pdfMargin}mm`,
-          marginRight: `-${pdfMargin}mm`,
-          marginBottom: `-${pdfBottomPadding}px`,
-        }}
-        className="mt-auto pt-2 pb-1.5 px-4 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-500 font-medium flex items-center justify-between"
+        className={`a4-document bg-white text-slate-900 shadow-2xl font-sans relative text-xs w-[210mm] min-w-[210mm] max-w-[210mm] flex flex-col justify-between box-border border-2 border-[#002060] ${
+          pdfPageMode === 'SINGLE' ? 'min-h-[297mm] h-auto overflow-hidden' : 'min-h-[297mm] h-auto overflow-visible'
+        }`}
       >
-        <span className="text-[10px] text-slate-500 font-medium">
-          Generated by <strong className="text-slate-700 font-bold">DAS CRM</strong>
-        </span>
-        <a
-          href="https://dascrm.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[10px] text-indigo-600 hover:text-indigo-800 underline font-semibold transition-colors flex items-center gap-1"
-        >
-          www.dascrm.com
-        </a>
+        {/* Top Official Spectro Navy Blue (#002060) Brand Color Bar */}
+        <div className="absolute top-0 left-0 right-0 h-2.5 bg-[#002060]"></div>
+
+        {/* Body Content Sections (Header, Client Info, Items Table, Grand Totals & Bank) */}
+        <div className="flex-1 flex flex-col">
+          {bodySections.map(secId => renderSectionContent(secId))}
+        </div>
+
+        {/* 🏢 OFFICIAL FOOTER: Terms & Conditions + Authorized Signatory Block */}
+        {showFooterTerms && (
+          <div className="mt-auto mb-2">
+            {renderSectionContent('FOOTER_TERMS')}
+          </div>
+        )}
+
+        {/* 🔒 IMMUTABLE FIXED BOTTOM MENTION STRIP (Fixed at bottom edge of PDF, unaffected by spacing controls) */}
+        <div className="absolute bottom-0 left-0 right-0 h-6 bg-slate-50 border-t border-slate-200 px-4 text-center text-[10px] text-slate-500 font-medium flex items-center justify-between z-10">
+          <span className="text-[10px] text-slate-500 font-medium">
+            Generated by <strong className="text-slate-700 font-bold">DAS CRM</strong>
+          </span>
+          <a
+            href="https://dascrm.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-indigo-600 hover:text-indigo-800 underline font-semibold transition-colors flex items-center gap-1"
+          >
+            www.dascrm.com
+          </a>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto pb-12 font-sans text-slate-900 dark:text-white px-2 sm:px-4">
@@ -1052,7 +1165,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             {/* View Mode Switcher Controls */}
             <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 p-1 rounded-xl">
               <button
-                onClick={() => setViewMode('SPLIT')}
+                onClick={() => {
+                  setViewMode('SPLIT');
+                  setZoomScale(calculateFitScale());
+                }}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   viewMode === 'SPLIT' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
@@ -1060,7 +1176,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 <Columns size={14} /> Split Builder
               </button>
               <button
-                onClick={() => setViewMode('FULL_PREVIEW')}
+                onClick={() => {
+                  setViewMode('FULL_PREVIEW');
+                  setZoomScale(calculateFitScale());
+                }}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   viewMode === 'FULL_PREVIEW' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
@@ -1130,7 +1249,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             <Sliders size={14} /> 🛠️ Form Builder Inputs
           </button>
           <button
-            onClick={() => setMobileActiveTab('PREVIEW')}
+            onClick={() => {
+              setMobileActiveTab('PREVIEW');
+              setZoomScale(calculateFitScale());
+            }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
               mobileActiveTab === 'PREVIEW' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
             }`}
@@ -1142,19 +1264,25 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       {/* ── FULL PREVIEW MODE ── */}
       {viewMode === 'FULL_PREVIEW' ? (
-        <div className="flex flex-col items-center space-y-4 print-hide">
-          <div className="flex flex-wrap items-center justify-center gap-3 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
+        <div className="flex flex-col items-center space-y-4 print-hide w-full max-w-full overflow-hidden">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-slate-900 border border-slate-800 px-3 py-2 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
+            <button
+              onClick={() => setZoomScale(calculateFitScale())}
+              className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
+            >
+              <Smartphone size={13} /> 📱 Fit Screen
+            </button>
+
             <div className="flex items-center gap-2">
               <ZoomOut size={15} className="text-slate-400" />
-              <span className="text-slate-300 font-extrabold">Zoom Scale:</span>
               <input
                 type="range"
-                min="0.10"
+                min="0.20"
                 max="1.00"
                 step="0.05"
                 value={zoomScale}
                 onChange={e => setZoomScale(Number(e.target.value))}
-                className="w-32 sm:w-48 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="w-24 sm:w-44 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
               <ZoomIn size={15} className="text-slate-400" />
               <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
@@ -1162,8 +1290,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
-              {[0.25, 0.50, 0.75, 0.85, 1.0].map(s => (
+            <div className="hidden sm:flex items-center gap-1">
+              {[0.42, 0.50, 0.75, 1.0].map(s => (
                 <button
                   key={s}
                   onClick={() => setZoomScale(s)}
@@ -1179,11 +1307,26 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             </div>
           </div>
 
-          <div
-            style={{ transform: `scale(${zoomScale})`, transformOrigin: 'top center' }}
-            className="transition-transform duration-200 shadow-2xl rounded-xl overflow-hidden p-2 bg-slate-950 flex justify-center w-full max-w-[210mm]"
-          >
-            {renderA4SheetDocument()}
+          <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-2 sm:p-4 bg-slate-950 rounded-2xl border border-slate-800">
+            <div
+              style={{
+                width: `${Math.round(794 * zoomScale)}px`,
+                minHeight: `${Math.round(1123 * zoomScale)}px`,
+                position: 'relative',
+              }}
+              className="flex-shrink-0 transition-all duration-200 shadow-2xl rounded-xl mx-auto"
+            >
+              <div
+                style={{
+                  transform: `scale(${zoomScale})`,
+                  transformOrigin: 'top left',
+                  width: '794px',
+                }}
+                className="absolute top-0 left-0"
+              >
+                {renderA4SheetDocument()}
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -1192,6 +1335,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           {/* ── LEFT PANE: CONTROLS & FORM BUILDER (SLIDABLE ACCORDION SECTIONS) ── */}
           <div className={`lg:col-span-6 space-y-4 sm:space-y-6 print-hide ${mobileActiveTab === 'PREVIEW' ? 'hidden lg:block' : 'block'}`}>
             {/* 🏢 1. SELLER / COMPANY SELECTOR (SMOOTH HEIGHT SLIDER) */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
               <div
                 onClick={() => toggleSection('company')}
                 className="flex items-center justify-between cursor-pointer select-none"
@@ -1568,6 +1712,51 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           </div>
                         </div>
 
+                        {/* 📁 DIRECT PRODUCT IMAGE FILE UPLOAD PICKER */}
+                        {item.showImage && (
+                          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10.5px] font-bold text-sky-300 flex items-center gap-1">
+                                <Upload size={12} /> Product Image File Upload (Direct device upload)
+                              </label>
+                              {item.imageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateLineItem(item.id, { imageUrl: '' })}
+                                  className="text-[9.5px] font-bold text-rose-400 hover:underline"
+                                >
+                                  Remove Image
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <label className="cursor-pointer bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all">
+                                <Upload size={13} /> 📁 Pick &amp; Upload Image File
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => {
+                                    if (e.target.files?.[0]) {
+                                      handleImageFileUpload(e.target.files[0], dataUrl =>
+                                        updateLineItem(item.id, { imageUrl: dataUrl, showImage: true })
+                                      );
+                                    }
+                                  }}
+                                />
+                              </label>
+                              {item.imageUrl ? (
+                                <div className="flex items-center gap-2 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                                  <img src={item.imageUrl} alt="Prod preview" className="w-6 h-6 rounded object-cover border border-slate-700" />
+                                  <span className="text-[10px] text-emerald-400 font-bold">✓ Image Loaded</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 italic">No image file chosen</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Product Description Input & Toggle */}
                         <div className="space-y-1 bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5">
                           <div className="flex items-center justify-between mb-1">
@@ -1707,6 +1896,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   />
                 </div>
               </div>
+            </div>
+
             {/* 🎚️ 6. GST TAX RATE, TAX TYPE & COLUMN CONTROLS */}
             <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
               <div
@@ -2167,38 +2358,47 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           </div>
 
           {/* ── RIGHT PANE: LIVE STALWART A4 PREVIEW (STICKY & RESPONSIVE FOR SMARTPHONES) ── */}
-          <div className={`lg:col-span-6 sticky top-6 flex flex-col items-center print-hide ${mobileActiveTab === 'BUILDER' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className={`lg:col-span-6 sticky top-6 flex flex-col items-center print-hide w-full max-w-full ${mobileActiveTab === 'BUILDER' ? 'hidden lg:flex' : 'flex'}`}>
             {/* Header Toolbar */}
-            <div className="w-full max-w-[210mm] flex items-center justify-between px-3 sm:px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold shadow-md">
+            <div className="w-full max-w-[210mm] flex items-center justify-between px-3 sm:px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold shadow-md flex-wrap gap-1.5">
               <span className="flex items-center gap-1.5 text-[#002060] bg-white/90 px-2 py-0.5 rounded font-black truncate">
                 <span className="w-2 h-2 rounded-full bg-[#002060] animate-pulse flex-shrink-0"></span>
-                Spectro A4 Live Preview ({pdfMargin}mm Margin · {globalGstRate}% GST)
+                Spectro A4 Live Preview ({pdfMargin}mm Margin)
               </span>
+
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button onClick={() => setZoomScale(Math.max(0.10, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom Out">
+                <button
+                  onClick={() => setZoomScale(calculateFitScale())}
+                  className="px-2 py-0.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded text-[9.5px] font-extrabold flex items-center gap-1 cursor-pointer transition-all"
+                  title="Fit Screen Width"
+                >
+                  <Smartphone size={11} /> Fit Screen
+                </button>
+
+                <button onClick={() => setZoomScale(Math.max(0.20, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom Out">
                   <ZoomOut size={13} />
                 </button>
                 
                 <input
                   type="range"
-                  min="0.10"
+                  min="0.20"
                   max="1.00"
                   step="0.05"
                   value={zoomScale}
                   onChange={e => setZoomScale(Number(e.target.value))}
-                  className="w-16 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  className="w-14 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
 
                 <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom In">
                   <ZoomIn size={13} />
                 </button>
 
-                <span className="text-indigo-400 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+                <span className="text-indigo-400 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded">
                   {Math.round(zoomScale * 100)}%
                 </span>
 
                 <div className="hidden sm:flex items-center gap-1 ml-1">
-                  {[0.50, 0.75, 1.0].map(s => (
+                  {[0.42, 0.50, 0.75, 1.0].map(s => (
                     <button
                       key={s}
                       onClick={() => setZoomScale(s)}
@@ -2213,10 +2413,26 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </div>
             </div>
 
-            {/* Scaled Preview Wrapper */}
-            <div className="w-full overflow-x-auto flex justify-center bg-slate-950 p-2 sm:p-4 rounded-b-xl border border-t-0 border-slate-800">
-              <div style={{ transform: `scale(${zoomScale})`, transformOrigin: 'top center' }} className="transition-transform duration-150 flex justify-center">
-                {renderA4SheetDocument()}
+            {/* Scaled Preview Wrapper with Bounding Box Calculation */}
+            <div className="w-full max-w-full overflow-x-auto overflow-y-visible p-2 sm:p-4 bg-slate-950 rounded-b-xl border border-t-0 border-slate-800">
+              <div
+                style={{
+                  width: `${Math.round(794 * zoomScale)}px`,
+                  minHeight: `${Math.round(1123 * zoomScale)}px`,
+                  position: 'relative',
+                }}
+                className="flex-shrink-0 transition-all duration-150 shadow-2xl rounded-xl mx-auto"
+              >
+                <div
+                  style={{
+                    transform: `scale(${zoomScale})`,
+                    transformOrigin: 'top left',
+                    width: '794px',
+                  }}
+                  className="absolute top-0 left-0"
+                >
+                  {renderA4SheetDocument()}
+                </div>
               </div>
             </div>
           </div>
@@ -2241,15 +2457,59 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 placeholder="Company Name *"
                 value={newComp.name || ''}
                 onChange={e => setNewComp({ ...newComp, name: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-indigo-500 focus:outline-none"
+                required
               />
-              <input
-                type="text"
-                placeholder="Logo Image URL"
-                value={newComp.logoUrl || ''}
-                onChange={e => setNewComp({ ...newComp, logoUrl: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
-              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="email"
+                  placeholder="Email Address *"
+                  value={newComp.email || ''}
+                  onChange={e => setNewComp({ ...newComp, email: e.target.value })}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-indigo-500 focus:outline-none"
+                  required
+                />
+                <input
+                  type="tel"
+                  placeholder="Contact Phone Number *"
+                  value={newComp.phone || ''}
+                  onChange={e => setNewComp({ ...newComp, phone: e.target.value })}
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-indigo-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              {/* 📁 DIRECT FILE UPLOAD FOR COMPANY LOGO */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                <label className="block text-[11px] font-bold text-slate-300">
+                  Company Logo (Upload File)
+                </label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all">
+                    <Upload size={14} /> Upload Logo File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        if (e.target.files?.[0]) {
+                          handleImageFileUpload(e.target.files[0], dataUrl => setNewComp({ ...newComp, logoUrl: dataUrl }));
+                        }
+                      }}
+                    />
+                  </label>
+                  {newComp.logoUrl ? (
+                    <div className="flex items-center gap-2">
+                      <img src={newComp.logoUrl} alt="Logo preview" className="w-7 h-7 rounded border border-slate-700 object-cover" />
+                      <span className="text-[10px] text-emerald-400 font-bold">✓ Logo Uploaded</span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 italic">No file chosen</span>
+                  )}
+                </div>
+              </div>
+
               <input
                 type="text"
                 placeholder="Company Address"
@@ -2337,7 +2597,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 placeholder="Party / Company Name *"
                 value={newParty.name || ''}
                 onChange={e => setNewParty({ ...newParty, name: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-emerald-500 focus:outline-none"
+                required
               />
               <input
                 type="text"
@@ -2349,17 +2610,19 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="email"
-                  placeholder="Email Address (Optional)"
+                  placeholder="Email Address *"
                   value={newParty.email || ''}
                   onChange={e => setNewParty({ ...newParty, email: e.target.value })}
-                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-emerald-500 focus:outline-none"
+                  required
                 />
                 <input
-                  type="text"
-                  placeholder="Phone Number"
+                  type="tel"
+                  placeholder="Phone Number *"
                   value={newParty.phone || ''}
                   onChange={e => setNewParty({ ...newParty, phone: e.target.value })}
-                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white"
+                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:border-emerald-500 focus:outline-none"
+                  required
                 />
               </div>
               <input
@@ -2442,34 +2705,57 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             </div>
 
             {/* Quick Stats Summary */}
-            <div className="grid grid-cols-3 gap-3 py-3 border-b border-slate-800/80 text-xs flex-shrink-0">
+            <div className="grid grid-cols-3 gap-2.5 py-3 border-b border-slate-800/80 text-xs flex-shrink-0">
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Quotes</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Quotes &amp; Drafts</p>
                 <p className="text-base font-black text-white">{savedQuotes.length}</p>
               </div>
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Saved Drafts</p>
-                <p className="text-base font-black text-amber-400">{savedQuotes.filter(q => q.status === 'DRAFT').length}</p>
+                <p className="text-base font-black text-amber-400">
+                  {savedQuotes.filter(q => q.status === 'DRAFT').length}
+                </p>
               </div>
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Approved Value</p>
-                <p className="text-base font-black text-emerald-400">
-                  ₹{savedQuotes.reduce((acc, q) => acc + (q.status === 'APPROVED' ? q.totalAmount : 0), 0).toLocaleString('en-IN')}
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Generated &amp; Sent</p>
+                <p className="text-base font-black text-sky-400">
+                  {savedQuotes.filter(q => q.status === 'GENERATED_SENT' || q.status === 'SENT').length}
                 </p>
               </div>
             </div>
 
             {/* Search & Filter Bar */}
-            <div className="py-2.5 border-b border-slate-800 flex-shrink-0">
+            <div className="py-3 border-b border-slate-800 space-y-2.5 flex-shrink-0">
               <div className="relative">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={historySearch}
                   onChange={e => setHistorySearch(e.target.value)}
-                  placeholder="Filter by quote #, client party, or generated by user..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Search by Code (PI-2026-0412), Buyer Name, Seller, Amount, Date, or Creator..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none font-medium"
                 />
+              </div>
+
+              {/* Status Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                {[
+                  { id: 'ALL', label: `All (${savedQuotes.length})` },
+                  { id: 'DRAFT', label: `Drafts (${savedQuotes.filter(q => q.status === 'DRAFT').length})` },
+                  { id: 'GENERATED_SENT', label: `Generated & Sent (${savedQuotes.filter(q => q.status === 'GENERATED_SENT' || q.status === 'SENT').length})` },
+                ].map(filter => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setStatusFilter(filter.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      statusFilter === filter.id
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2477,77 +2763,134 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             <div className="flex-1 overflow-y-auto py-4 space-y-3">
               {savedQuotes
                 .filter(record => {
+                  if (statusFilter === 'DRAFT' && record.status !== 'DRAFT') return false;
+                  if (statusFilter === 'GENERATED_SENT' && (record.status !== 'GENERATED_SENT' && record.status !== 'SENT')) return false;
+
                   if (!historySearch.trim()) return true;
-                  const term = historySearch.toLowerCase();
+                  const term = historySearch.toLowerCase().trim();
+                  const totalStr = record.totalAmount.toString();
+                  const totalFormatted = `₹${record.totalAmount.toLocaleString('en-IN')}`;
+
                   return (
                     record.docNo.toLowerCase().includes(term) ||
                     record.partyName.toLowerCase().includes(term) ||
+                    record.companyName.toLowerCase().includes(term) ||
+                    record.savedAt.toLowerCase().includes(term) ||
+                    (record.payload.docDate && record.payload.docDate.toLowerCase().includes(term)) ||
+                    totalStr.includes(term) ||
+                    totalFormatted.toLowerCase().includes(term) ||
                     (record.createdByName && record.createdByName.toLowerCase().includes(term)) ||
-                    (record.createdByRole && record.createdByRole.toLowerCase().includes(term))
+                    (record.createdByRole && record.createdByRole.toLowerCase().includes(term)) ||
+                    (record.sentToLead && record.sentToLead.toLowerCase().includes(term))
                   );
                 })
-                .map(record => (
-                  <div key={record.id} className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all space-y-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-mono font-black text-indigo-400">{record.docNo}</span>
-                          <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                            {record.docType.replace('_', ' ')}
-                          </span>
-                          <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded ${
-                            record.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                            record.status === 'SENT' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
-                            'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          }`}>
-                            {record.status}
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-bold text-white mt-1.5 truncate">{record.partyName}</h4>
-                        <p className="text-[10.5px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Clock size={11} className="text-slate-500" /> Saved on: <strong className="text-slate-300">{record.savedAt}</strong>
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-black font-mono text-emerald-400">₹{record.totalAmount.toLocaleString('en-IN')}</p>
-                        <p className="text-[10px] text-slate-500">{record.itemsCount} Line Items</p>
-                      </div>
-                    </div>
-
-                    {/* Generated By Creator Badge & Card Action Buttons */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-900">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-black text-indigo-400 flex-shrink-0">
-                          {record.createdByName ? record.createdByName.charAt(0) : 'A'}
-                        </div>
-                        <div className="text-[11px] truncate flex items-center gap-1">
-                          <span className="text-slate-500">Generated by:</span>
-                          <strong className="text-indigo-300 font-bold">{record.createdByName || 'Aditya Kumar Rai'}</strong>
-                          {record.createdByRole && (
-                            <span className="text-[9.5px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.2 rounded">
-                              {record.createdByRole}
+                .map(record => {
+                  const isSent = record.status === 'GENERATED_SENT' || record.status === 'SENT';
+                  return (
+                    <div key={record.id} className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all space-y-3">
+                      {/* Top Row: Doc No, Doc Type, Status Badge, Amount */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-mono font-black text-indigo-400">{record.docNo}</span>
+                            <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                              {record.docType.replace('_', ' ')}
                             </span>
+                            <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded ${
+                              isSent ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}>
+                              {isSent ? 'GENERATED & SENT' : 'DRAFT'}
+                            </span>
+                          </div>
+
+                          {/* 👤 BUYER & 🏢 SELLER DISPLAY */}
+                          <div className="text-xs space-y-0.5 pt-1">
+                            <p className="text-[11.5px] font-bold text-slate-300 flex items-center gap-1.5 flex-wrap">
+                              <span className="text-emerald-400 font-extrabold flex-shrink-0">👤 Buyer (Client):</span>
+                              <strong className="text-white font-extrabold truncate">{record.partyName}</strong>
+                            </p>
+                            <p className="text-[10.5px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                              <span className="text-indigo-400 font-bold flex-shrink-0">🏢 Seller (Company):</span>
+                              <span className="text-slate-300 font-semibold truncate">{record.companyName}</span>
+                            </p>
+                          </div>
+
+                          {/* 📧 / 💬 SENT VIA CHANNEL BADGE */}
+                          {isSent && (
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-300 mt-1">
+                              {record.sentVia === 'EMAIL' ? (
+                                <><span>📧</span> Sent via Email {record.sentToLead ? `to ${record.sentToLead}` : ''}</>
+                              ) : record.sentVia === 'WHATSAPP_DIRECT' ? (
+                                <><span>💬</span> Sent via WhatsApp Direct {record.sentToLead ? `to ${record.sentToLead}` : ''}</>
+                              ) : (
+                                <><span>☁️</span> Sent via WhatsApp Cloud</>
+                              )}
+                            </div>
                           )}
+
+                          <p className="text-[10.5px] text-slate-400 flex items-center gap-1 pt-0.5">
+                            <Clock size={11} className="text-slate-500" /> Saved on: <strong className="text-slate-300">{record.savedAt}</strong>
+                          </p>
+                        </div>
+
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-black font-mono text-emerald-400">₹{record.totalAmount.toLocaleString('en-IN')}</p>
+                          <p className="text-[10px] text-slate-500">{record.itemsCount} Line Items</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
-                          className="px-2.5 py-1 text-slate-500 hover:text-rose-400 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
-                        <button
-                          onClick={() => handleLoadSavedQuote(record)}
-                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer transition-all"
-                        >
-                          <FolderOpen size={13} /> Load into Builder
-                        </button>
+                      {/* Generated By Creator & Quick Sharing Action Bar */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-900">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-black text-indigo-400 flex-shrink-0">
+                            {record.createdByName ? record.createdByName.charAt(0) : 'A'}
+                          </div>
+                          <div className="text-[11px] truncate flex items-center gap-1">
+                            <span className="text-slate-500">Generated by:</span>
+                            <strong className="text-indigo-300 font-bold">{record.createdByName || 'Aditya Kumar Rai'}</strong>
+                            {record.createdByRole && (
+                              <span className="text-[9.5px] font-semibold text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.2 rounded">
+                                {record.createdByRole}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Direct Channel Send & Load Controls */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => handleDirectSendQuote(record, 'EMAIL')}
+                            className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            title="Send Quote via Email"
+                          >
+                            <Mail size={12} /> Email
+                          </button>
+                          <button
+                            onClick={() => handleDirectSendQuote(record, 'WHATSAPP_DIRECT')}
+                            className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10.5px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+                            title="Send Quote via WhatsApp Direct"
+                          >
+                            <MessageSquare size={12} /> WhatsApp
+                          </button>
+
+                          <button
+                            onClick={() => handleLoadSavedQuote(record)}
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 shadow cursor-pointer transition-all"
+                          >
+                            <FolderOpen size={12} /> Load
+                          </button>
+                          <button
+                            onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
+                            className="p-1 text-slate-500 hover:text-rose-400 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                            title="Delete Quote Record"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </div>
         </div>

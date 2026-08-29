@@ -882,16 +882,43 @@ button, a, input, select, .btn, .btn-primary, .btn-secondary, .sidebar-item {
    ───────────────────────────────────── */
 .a4-document {
   width: 210mm;
+  min-width: 210mm;
+  max-width: 210mm;
   min-height: 297mm;
   box-sizing: border-box;
   background-color: #ffffff !important;
   color: #0f172a !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Force light paper theme context inside .a4-document regardless of app dark mode */
 .dark .a4-document {
   background-color: #ffffff !important;
   color: #0f172a !important;
+}
+
+.dark .a4-document h1,
+[data-theme="dark"] .a4-document h1 {
+  color: #002060 !important;
+}
+
+.dark .a4-document h2,
+.dark .a4-document h3,
+.dark .a4-document h4,
+.dark .a4-document h5,
+.dark .a4-document h6,
+[data-theme="dark"] .a4-document h2,
+[data-theme="dark"] .a4-document h3,
+[data-theme="dark"] .a4-document h4,
+[data-theme="dark"] .a4-document h5,
+[data-theme="dark"] .a4-document h6 {
+  color: #0f172a !important;
+}
+
+.dark .a4-document .text-\[\#002060\],
+[data-theme="dark"] .a4-document .text-\[\#002060\] {
+  color: #002060 !important;
 }
 
 .dark .a4-document .bg-slate-50 {

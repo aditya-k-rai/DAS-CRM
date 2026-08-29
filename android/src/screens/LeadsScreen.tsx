@@ -33,6 +33,7 @@ import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
+import { FileImportEngineModal, ImportedLead, FileAuditRecord } from '../components/FileImportEngineModal';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
@@ -156,6 +157,30 @@ export default function LeadsScreen() {
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+
+  const handleImportSuccess = (leads: ImportedLead[], audit: FileAuditRecord) => {
+    const converted: LeadItem[] = leads.map((l, i) => ({
+      id: l.id || `lead_${Date.now()}_${i}`,
+      name: l.name,
+      company: l.company,
+      email: l.email,
+      phone: l.phone,
+      status: l.status,
+      value: l.value,
+      source: l.source,
+      priority: 'High',
+      assignedRep: l.assignedRep,
+      city: l.city,
+      budget: l.budget,
+      requirement: l.requirement,
+      callSyncStatus: l.callSyncStatus,
+    }));
+    setLeadsList(prev => [...converted, ...prev]);
+    Alert.alert(
+      `📥 Import Complete — ${audit.count} Leads`,
+      `File: ${audit.filename}\nPlatform: ${audit.platform}\nIngested: ${audit.date}`,
+    );
+  };
 
   const [insertModalOpen, setInsertModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -979,74 +1004,12 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         </View>
       </Modal>
 
-      {/* ── MODAL 6: UNIVERSAL MULTI-FORMAT IMPORT ENGINE (CSV, XLSX, XLS, TSV, TXT, JSON, XML) ── */}
-      <Modal visible={importModalOpen} transparent animationType="slide" onRequestClose={() => setImportModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 440 }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.modalTitle}>📥 Universal Multi-Format Import Engine</Text>
-              <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setImportModalOpen(false)}>
-                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSub}>Supports CSV, XLSX, XLS, TSV, TXT, JSON &amp; XML file structures into CRM Table.</Text>
-
-            {/* Format Chips Selector */}
-            <Text style={styles.label}>Select File Format Source:</Text>
-            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-              {['CSV', 'XLSX', 'XLS', 'TSV', 'TXT', 'JSON', 'XML'].map((fmt) => (
-                <TouchableOpacity
-                  key={fmt}
-                  style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, fmt === 'CSV' && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
-                >
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: fmt === 'CSV' ? '#ffffff' : '#94a3b8' }}>{fmt}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Header Line Selector */}
-            <Text style={styles.label}>Header Row Index (1-based):</Text>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-              {[
-                { idx: 0, label: 'Line 1 (Default)' },
-                { idx: 1, label: 'Line 2' },
-                { idx: 2, label: 'Line 3' },
-              ].map((r) => (
-                <TouchableOpacity
-                  key={r.idx}
-                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 5, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.15)' }]}
-                  onPress={() => setHeaderRowIdx(r.idx)}
-                >
-                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, headerRowIdx === r.idx && { color: '#818cf8' }]}>
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Raw Data Input */}
-            <Text style={styles.label}>Data Contents (Paste CSV / JSON / XML):</Text>
-            <TextInput
-              style={[styles.modalInput, { height: 80, textAlignVertical: 'top', fontSize: 10 }]}
-              placeholder="Full Name, Phone Number, Company, Email, Value, Status&#10;Rajesh Kumar, +91 98765 43210, TechCorp, rajesh@techcorp.com, ₹5,20,000, QUALIFIED&#10;Priya Sharma, +91 98123 45678, LogiTech, priya@logitech.com, ₹3,10,000, NEW LEAD"
-              placeholderTextColor="#64748b"
-              multiline
-              value={rawCsvInput}
-              onChangeText={setRawCsvInput}
-            />
-
-            {/* Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
-                <Text style={{ color: '#38bdf8', fontWeight: '800' }}>⚡ Run Sample Data</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#10b981', flex: 1 }]} onPress={() => handleProcessCsvTextImport()}>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>📥 Import File Data →</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* ── MODAL 6: FILE IMPORT ENGINE (CSV / Excel / XLSX) ────────────── */}
+      <FileImportEngineModal
+        visible={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImportSuccess={handleImportSuccess}
+      />
 
       {/* ── MODAL 7: POST-CALL OUTCOME MODAL ───────────────────────────────── */}
       <PostCallOutcomeModal

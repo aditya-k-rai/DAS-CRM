@@ -471,6 +471,45 @@ class ApiService {
     } catch {}
     return { success: true, timestamp: new Date().toISOString() };
   }
+
+  /** Import leads from CSV/Excel file — sends structured data + audit metadata to backend */
+  async importLeadsFromFile(
+    token: string | null,
+    payload: {
+      leads: any[];
+      fileName: string;
+      fileSize: string;
+      platform: string;
+      importedAt: string;
+      sheetCount: number;
+      totalRows: number;
+      blockedSheets: number;
+    }
+  ) {
+    try {
+      const res = await fetch(`${API_BASE}/leads/import-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          leads: payload.leads,
+          audit: {
+            fileName: payload.fileName,
+            fileSize: payload.fileSize,
+            platform: payload.platform,
+            importedAt: payload.importedAt,
+            sheetCount: payload.sheetCount,
+            totalRows: payload.totalRows,
+            blockedSheets: payload.blockedSheets,
+          },
+        }),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return { success: true, importedCount: payload.leads.length };
+  }
 }
 
 export const apiService = new ApiService();

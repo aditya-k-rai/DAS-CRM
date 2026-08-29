@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
   mentionBadge: { backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)' },
   mentionBadgeText: { color: '#a5b4fc', fontSize: 10, fontWeight: '800' },
 
-  cardFooterRow: { flexDirection: 'row', alignItems: 'center', justify: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  cardFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
   timerText: { color: '#fbbf24', fontSize: 10, fontWeight: '800' },
 
   deleteBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(239,68,68,0.1)' },

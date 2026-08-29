@@ -7,14 +7,8 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# react-native-reanimated & Hermes
+# react-native-reanimated
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
--keep class com.facebook.react.bridge.** { *; }
--keep class com.facebook.hermes.unicode.** { *; }
--keep class com.reactnativecommunity.asyncstorage.** { *; }
--keep class expo.modules.** { *; }
 
--dontwarn com.facebook.react.**
--dontwarn expo.modules.**
--dontwarn javax.annotation.**
+# Add any project specific keep options here:

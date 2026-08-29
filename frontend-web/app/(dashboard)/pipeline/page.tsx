@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
 import { DealsKanban } from '@/components/deals/DealsKanban';
+import { FileImportEngineModal } from '@/components/ingestion/FileImportEngineModal';
 import {
   Shield, Zap, DollarSign, TrendingUp, Users, Target, Building2, Briefcase,
   CheckSquare, Layers, Lock, ArrowRight, Plus, Database, ClipboardList,
@@ -75,6 +76,14 @@ function sanitizeCellString(input: any, fallback: string = '—'): string {
 
 export default function LeadPipelinePage() {
   const { currentUser } = useAuth();
+
+  const rawRole = (currentUser?.role || '').toString().toUpperCase();
+  const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER' || !currentUser;
+
+  // Widget 4: AI, WhatsApp & Email Marketing State
+  const [pathMode, setPathMode] = useState<'PAID_AI' | 'MANUAL_DIALER'>('PAID_AI');
+  const [whatsAppConnected, setWhatsAppConnected] = useState(true);
+  const [emailCampaignDelegated, setEmailCampaignDelegated] = useState(true);
 
   // Widget 1: Ingestion & Routing State
   const [routingStrategy, setRoutingStrategy] = useState<'BATCH_QUOTA' | 'VANISH_POOL' | 'MANUAL'>('BATCH_QUOTA');
@@ -184,13 +193,130 @@ export default function LeadPipelinePage() {
   // Custom Column Form
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<'TEXT' | 'NUMBER' | 'SELECT'>('TEXT');
+  const [newColOptionsStr, setNewColOptionsStr] = useState('Hot Lead, Warm Lead, Cold Lead');
 
-  // Dynamic Custom Columns Array
-  const [customColumns, setCustomColumns] = useState<Array<{ id: string; name: string; type: string }>>([
+  // Dynamic Custom Columns & Excel Table Config State
+  const [customColumns, setCustomColumns] = useState<Array<{ id: string; name: string; type: string; options?: string[] }>>([
     { id: 'col_city', name: 'City', type: 'TEXT' },
     { id: 'col_budget', name: 'Budget', type: 'TEXT' },
+    { id: 'col_rating', name: 'Lead Rating', type: 'SELECT', options: ['Hot Lead 🔥', 'Warm Lead ⚡', 'Cold Lead ❄️'] },
     { id: 'col_requirement', name: 'Requirement', type: 'TEXT' },
   ]);
+
+  interface TableColumnConfig {
+    id: string;
+    label: string;
+    isRestricted?: boolean; // If true, appends '*' and restricts to Admin & Manager only
+    hidden?: boolean;
+  }
+
+  const [tableColumns, setTableColumns] = useState<TableColumnConfig[]>([
+    { id: 'name', label: 'Name' },
+    { id: 'email', label: 'Email' },
+    { id: 'phone', label: 'Phone' },
+    { id: 'company', label: 'Company' },
+    { id: 'source', label: 'Source' },
+    { id: 'stage', label: 'Stage' },
+    { id: 'value', label: 'Value', isRestricted: true },
+    { id: 'assignedRep', label: 'Assigned Rep' },
+    { id: 'col_city', label: 'City' },
+    { id: 'col_budget', label: 'Budget', isRestricted: true },
+    { id: 'col_rating', label: 'Lead Rating' },
+    { id: 'col_requirement', label: 'Requirement' },
+  ]);
+
+  const [columnConfigModalOpen, setColumnConfigModalOpen] = useState(false);
+
+  // Excel Column Resizing (Hold & Drag Divider Line) State
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    name: 180,
+    email: 180,
+    phone: 150,
+    company: 180,
+    source: 130,
+    stage: 130,
+    value: 120,
+    assignedRep: 150,
+    col_city: 130,
+    col_budget: 130,
+    col_rating: 140,
+    col_requirement: 180,
+  });
+
+  const [resizingColId, setResizingColId] = useState<string | null>(null);
+  const startXRef = useRef<number>(0);
+  const startWidthRef = useRef<number>(0);
+
+  const handleMouseDownResize = (e: React.MouseEvent, colId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColId(colId);
+    startXRef.current = e.clientX;
+    startWidthRef.current = columnWidths[colId] || 140;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startXRef.current;
+      const newWidth = Math.max(70, startWidthRef.current + deltaX);
+      setColumnWidths(prev => ({ ...prev, [colId]: newWidth }));
+    };
+
+    const onMouseUp = () => {
+      setResizingColId(null);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Column Reorder Helpers
+  const moveColumnLeft = (index: number) => {
+    if (index <= 0) return;
+    setTableColumns(prev => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[index - 1];
+      copy[index - 1] = temp;
+      return copy;
+    });
+  };
+
+  const moveColumnRight = (index: number) => {
+    if (index >= tableColumns.length - 1) return;
+    setTableColumns(prev => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[index + 1];
+      copy[index + 1] = temp;
+      return copy;
+    });
+  };
+
+  // Excel Row Up / Down Shifting
+  const moveRowUp = (leadId: string) => {
+    const idx = leadDirectory.findIndex(l => l.id === leadId);
+    if (idx <= 0) return;
+    setLeadDirectory(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[idx - 1];
+      copy[idx - 1] = temp;
+      return copy;
+    });
+  };
+
+  const moveRowDown = (leadId: string) => {
+    const idx = leadDirectory.findIndex(l => l.id === leadId);
+    if (idx < 0 || idx >= leadDirectory.length - 1) return;
+    setLeadDirectory(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[idx + 1];
+      copy[idx + 1] = temp;
+      return copy;
+    });
+  };
 
   // Master Lead Directory List
   const [leadDirectory, setLeadDirectory] = useState<DashboardLeadRecord[]>([
@@ -200,7 +326,7 @@ export default function LeadPipelinePage() {
       email: 'aditya.s@techcorp.in',
       phone: '+91 98765 43210',
       company: 'TechCorp India',
-      source: 'Facebook Ads',
+      source: 'Meta Ads (FB & Insta)',
       stage: 'Prospecting',
       value: 45000,
       assignedRep: 'Rajesh Kumar',
@@ -226,7 +352,7 @@ export default function LeadPipelinePage() {
       email: 'vikram.m@apexind.com',
       phone: '+91 99887 11223',
       company: 'Apex Global',
-      source: 'WhatsApp',
+      source: 'IndiaMART',
       stage: 'Negotiation',
       value: 85000,
       assignedRep: 'Amit Shah (TL)',
@@ -239,7 +365,7 @@ export default function LeadPipelinePage() {
       email: 'neha.j@logitech.org',
       phone: '+91 97654 32109',
       company: 'LogiTech Systems',
-      source: 'Google Sheets',
+      source: 'TradeIndia',
       stage: 'Qualification',
       value: 65000,
       assignedRep: 'Meera Kapoor',
@@ -278,9 +404,26 @@ export default function LeadPipelinePage() {
   const handleAddCustomColumn = () => {
     if (!newColName.trim()) return;
     const colId = `col_${newColName.toLowerCase().replace(/\s+/g, '_')}`;
-    setCustomColumns(prev => [...prev, { id: colId, name: newColName.trim(), type: newColType }]);
+    const opts = newColType === 'SELECT'
+      ? newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean)
+      : undefined;
+
+    setCustomColumns(prev => [
+      ...prev,
+      {
+        id: colId,
+        name: newColName.trim(),
+        type: newColType,
+        options: opts && opts.length > 0 ? opts : ['Option 1', 'Option 2', 'Option 3'],
+      }
+    ]);
+    setTableColumns(prev => [
+      ...prev,
+      { id: colId, label: newColName.trim(), isRestricted: false, hidden: false }
+    ]);
     setCustomColumnModalOpen(false);
     setNewColName('');
+    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
   };
 
   const filteredLeadDirectory = leadDirectory.filter(lead => {
@@ -319,14 +462,14 @@ export default function LeadPipelinePage() {
                   ⚡ INTEGRATION & DATA HUB
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  5 ACTIVE CHANNELS
+                  12 ACTIVE PLATFORM CHANNELS
                 </span>
               </div>
               <h2 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
-                <Database size={20} className="text-indigo-400" /> Lead Integration & Ingestion Control Center
+                <Database size={20} className="text-indigo-400" /> Lead Integration &amp; Ingestion Control Center
               </h2>
               <p className="text-xs text-muted mt-0.5">
-                Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+                Integrate Ad Gateways, B2B Portals, Insert Single Lead, Import CSV/Excel &amp; Manage Custom Columns
               </p>
             </div>
 
@@ -345,12 +488,6 @@ export default function LeadPipelinePage() {
                 <Upload size={14} className="text-indigo-400" /> Import CSV / Excel
               </button>
               <button
-                onClick={() => setGoogleSheetsModalOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                <FileSpreadsheet size={14} /> Google Sheets Sync
-              </button>
-              <button
                 onClick={() => setCustomColumnModalOpen(true)}
                 className="px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold text-xs flex items-center gap-1.5 transition-all"
               >
@@ -359,87 +496,208 @@ export default function LeadPipelinePage() {
             </div>
           </div>
 
-          {/* Connected Ingestion Channel Cards */}
+          {/* Connected Ingestion Platform Channel Cards (12 Platforms) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { title: 'Google Sheets', count: '1890 Syncing', status: 'Live Range A2:F', tag: 'FAST BLINK', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'Facebook Ads', count: '1,240 Ingested', status: 'Active Hook', tag: 'SLOW', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
-              { title: 'WhatsApp Web', count: '410 Ingested', status: 'Connected', tag: 'SLOW', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'Google Ads', count: '650 Ingested', status: 'Auto-Sync', tag: 'SLOW', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
-              { title: 'Website Form', count: '230 Ingested', status: 'Webhook Live', tag: 'OFFLINE', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
-              { title: 'Zapier API', count: '890 Ingested', status: 'Key Active', tag: 'OFFLINE', bg: 'border-slate-800 bg-slate-900/60', color: 'text-slate-400' },
+              { title: 'Google Ads', count: '1,450 Ingested', status: 'Auto-Sync Active', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
+              { title: 'Meta Ads (FB & Insta)', count: '2,890 Ingested', status: 'Webhook Live', bg: 'border-blue-500/30 bg-blue-500/5', color: 'text-blue-400' },
+              { title: 'LinkedIn Ads', count: '620 Ingested', status: 'OAuth 2.0 Connected', bg: 'border-cyan-500/30 bg-cyan-500/5', color: 'text-cyan-400' },
+              { title: 'Microsoft Ads (Bing)', count: '380 Ingested', status: 'API Connected', bg: 'border-teal-500/30 bg-teal-500/5', color: 'text-teal-400' },
+              { title: 'Pinterest Ads', count: '240 Ingested', status: 'Pixel Tag Active', bg: 'border-rose-500/30 bg-rose-500/5', color: 'text-rose-400' },
+              { title: 'X (Twitter) Ads', count: '190 Ingested', status: 'API v2 Live', bg: 'border-sky-500/30 bg-sky-500/5', color: 'text-sky-400' },
+              { title: 'IndiaMART', count: '1,120 Ingested', status: 'Lead Push Hook', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'TradeIndia', count: '890 Ingested', status: 'Instant Alert Sync', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
+              { title: 'Justdial', count: '740 Ingested', status: 'HTTP Webhook', bg: 'border-orange-500/30 bg-orange-500/5', color: 'text-orange-400' },
+              { title: 'Lotwaala', count: '510 Ingested', status: 'B2B Marketplace API', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
+              { title: 'Website Forms', count: '960 Ingested', status: 'Embed Form Live', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'Custom Channel', count: '430 Ingested', status: 'Custom Webhook / API', bg: 'border-slate-700 bg-slate-900/60', color: 'text-slate-300' },
             ].map(ch => (
-              <div key={ch.title} className={`p-3 rounded-xl border ${ch.bg} space-y-1`}>
+              <div key={ch.title} className={`p-3 rounded-xl border ${ch.bg} space-y-1 hover:border-slate-600 transition-all`}>
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-bold text-white truncate">{ch.title}</p>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </div>
                 <p className={`text-sm font-extrabold ${ch.color}`}>{ch.count}</p>
-                <p className="text-[10px] text-muted">{ch.status}</p>
+                <p className="text-[10px] text-muted truncate">{ch.status}</p>
               </div>
             ))}
           </div>
 
-          {/* Directory Table with Search & Columns */}
+          {/* Directory Table with Search, Column Manager & Excel Controls */}
           <div className="space-y-3 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Database size={15} className="text-indigo-400" />
-                Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
-              </h3>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                <input
-                  type="text"
-                  value={leadSearchQuery}
-                  onChange={e => setLeadSearchQuery(e.target.value)}
-                  placeholder="Search leads, emails, or phone..."
-                  className="crm-input pl-9 w-full sm:w-64 text-xs h-8"
-                />
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Database size={15} className="text-indigo-400" />
+                  Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
+                </h3>
+                <p className="text-[10px] text-muted">
+                  Use ▲/▼ to shift rows, ◀/▶ to re-order columns. Columns with <span className="text-amber-400 font-bold">*</span> are restricted to Admin &amp; Managers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setColumnConfigModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                >
+                  <Sliders size={13} /> ⚙️ Column Manager &amp; Visibility (* Admin/Mgr)
+                </button>
+
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    type="text"
+                    value={leadSearchQuery}
+                    onChange={e => setLeadSearchQuery(e.target.value)}
+                    placeholder="Search leads, emails, or phone..."
+                    className="crm-input pl-9 w-full sm:w-64 text-xs h-8"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-border/80">
+            <div className="overflow-x-auto rounded-xl border border-border/80 shadow-2xl">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/80 text-muted uppercase font-bold text-[10px] border-b border-border">
+                <thead className="bg-slate-950 text-muted uppercase font-bold text-[10px] border-b border-border select-none">
                   <tr>
-                    <th className="p-3">Name</th>
-                    <th className="p-3">Email</th>
-                    <th className="p-3">Phone</th>
-                    <th className="p-3">Company</th>
-                    <th className="p-3">Source</th>
-                    <th className="p-3">Stage</th>
-                    <th className="p-3">Value</th>
-                    <th className="p-3">Assigned Rep</th>
-                    {customColumns.map(col => (
-                      <th key={col.id} className="p-3 text-indigo-400">{col.name} (Custom)</th>
+                    {/* Excel Row Move Column Header */}
+                    <th className="p-2.5 text-center text-slate-500 w-16">Row Shift</th>
+
+                    {/* Dynamic Table Columns */}
+                    {tableColumns.filter(c => !c.hidden).map((col, cIdx) => (
+                      <th
+                        key={col.id}
+                        style={{
+                          width: columnWidths[col.id] ? `${columnWidths[col.id]}px` : 'auto',
+                          minWidth: `${columnWidths[col.id] || 110}px`,
+                        }}
+                        className="p-3 font-extrabold text-slate-200 border-r border-border/40 last:border-0 hover:bg-slate-900/90 transition-all relative group select-none"
+                      >
+                        <div className="flex items-center justify-between gap-1.5 pr-2">
+                          <span className="truncate flex items-center gap-0.5">
+                            {col.label}
+                            {col.isRestricted && (
+                              <span className="text-amber-400 font-black text-xs ml-0.5" title="Restricted to Admin & Manager only">*</span>
+                            )}
+                          </span>
+
+                          {/* Column Order Left / Right Control Buttons */}
+                          <div className="flex items-center gap-0.5 bg-slate-900/90 p-0.5 rounded border border-slate-800 flex-shrink-0">
+                            <button
+                              onClick={() => moveColumnLeft(cIdx)}
+                              disabled={cIdx === 0}
+                              title="Move Column Left"
+                              className="px-1 py-0.2 rounded hover:bg-indigo-600 hover:text-white text-slate-400 disabled:opacity-20 text-[9px] font-bold"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              onClick={() => moveColumnRight(cIdx)}
+                              disabled={cIdx === tableColumns.filter(c => !c.hidden).length - 1}
+                              title="Move Column Right"
+                              className="px-1 py-0.2 rounded hover:bg-indigo-600 hover:text-white text-slate-400 disabled:opacity-20 text-[9px] font-bold"
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* ↕️ EXCEL HOLD & DRAG COLUMN DIVIDER LINE RESIZER */}
+                        <div
+                          onMouseDown={(e) => handleMouseDownResize(e, col.id)}
+                          title="Hold & Drag Line to Resize Column Width"
+                          className={`absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 hover:bg-cyan-400/80 flex items-center justify-center transition-colors group-hover:bg-cyan-500/30 ${resizingColId === col.id ? 'bg-cyan-400 w-3' : ''}`}
+                        >
+                          <div className="w-[2px] h-full bg-slate-700/80 group-hover:bg-cyan-300" />
+                        </div>
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredLeadDirectory.map(lead => (
-                    <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="p-3 font-bold text-white">{lead.name}</td>
-                      <td className="p-3 text-muted">{lead.email}</td>
-                      <td className="p-3 text-emerald-400 font-mono font-medium">{lead.phone}</td>
-                      <td className="p-3 text-slate-300">{lead.company}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                          {lead.source}
-                        </span>
+                <tbody className="divide-y divide-border/40 bg-slate-900/40">
+                  {filteredLeadDirectory.map((lead, rIdx) => (
+                    <tr key={lead.id} className="hover:bg-slate-800/60 transition-colors group">
+                      {/* Excel Row Up / Down Control Cell */}
+                      <td className="p-2 text-center border-r border-border/40">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => moveRowUp(lead.id)}
+                            disabled={rIdx === 0}
+                            title="Shift Row Up"
+                            className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            onClick={() => moveRowDown(lead.id)}
+                            disabled={rIdx === filteredLeadDirectory.length - 1}
+                            title="Shift Row Down"
+                            className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
+                          >
+                            ▼
+                          </button>
+                        </div>
                       </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          {lead.stage}
-                        </span>
-                      </td>
-                      <td className="p-3 font-bold text-white">₹{lead.value.toLocaleString('en-IN')}</td>
-                      <td className="p-3 text-slate-300 font-semibold">{lead.assignedRep}</td>
-                      {customColumns.map(col => (
-                        <td key={col.id} className="p-3 text-indigo-300 font-medium">
-                          {lead.customFields[col.id] || '—'}
-                        </td>
-                      ))}
+
+                      {/* Dynamic Cell Values based on Column Order & Restrictions */}
+                      {tableColumns.filter(c => !c.hidden).map(col => {
+                        // Check if column is restricted with '*' and user is NOT Admin or Manager
+                        if (col.isRestricted && !isAdminOrManager) {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                *** Restricted (Admin/Mgr Only)
+                              </span>
+                            </td>
+                          );
+                        }
+
+                        // Render Cell Values
+                        if (col.id === 'name') {
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">{lead.name}</td>;
+                        }
+                        if (col.id === 'email') {
+                          return <td key={col.id} className="p-3 text-muted border-r border-border/40 last:border-0">{lead.email}</td>;
+                        }
+                        if (col.id === 'phone') {
+                          return <td key={col.id} className="p-3 text-emerald-400 font-mono font-medium border-r border-border/40 last:border-0">{lead.phone}</td>;
+                        }
+                        if (col.id === 'company') {
+                          return <td key={col.id} className="p-3 text-slate-300 border-r border-border/40 last:border-0">{lead.company}</td>;
+                        }
+                        if (col.id === 'source') {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                {lead.source}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (col.id === 'stage') {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                {lead.stage}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (col.id === 'value') {
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{lead.value.toLocaleString('en-IN')}</td>;
+                        }
+                        if (col.id === 'assignedRep') {
+                          return <td key={col.id} className="p-3 text-slate-300 font-semibold border-r border-border/40 last:border-0">{lead.assignedRep}</td>;
+                        }
+
+                        // Custom Fields Cell
+                        return (
+                          <td key={col.id} className="p-3 text-indigo-300 font-medium border-r border-border/40 last:border-0">
+                            {lead.customFields[col.id] || '—'}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -480,7 +738,7 @@ export default function LeadPipelinePage() {
                 onClick={() => setHistoryActiveTab('GSHEETS_SYNC')}
                 className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'GSHEETS_SYNC' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
               >
-                📊 Google Sheets History ({googleSheetHistory.length})
+                🌐 Webhook &amp; Gateway Logs ({googleSheetHistory.length})
               </button>
             </div>
           </div>
@@ -493,11 +751,11 @@ export default function LeadPipelinePage() {
                   <tr>
                     <th className="p-3">Date Window</th>
                     <th className="p-3 text-cyan-300">Total Leads Ingested</th>
-                    <th className="p-3 text-emerald-400">Google Sheets Sync</th>
+                    <th className="p-3 text-emerald-400">Meta &amp; Google Ads</th>
                     <th className="p-3 text-purple-300">File Uploads (CSV/Excel)</th>
-                    <th className="p-3 text-blue-400">Facebook Ads</th>
-                    <th className="p-3 text-red-400">Google Ads</th>
-                    <th className="p-3 text-emerald-300">WhatsApp / Direct</th>
+                    <th className="p-3 text-blue-400">B2B Portals (IndiaMART/TradeIndia)</th>
+                    <th className="p-3 text-amber-400">Microsoft &amp; LinkedIn Ads</th>
+                    <th className="p-3 text-emerald-300">Website &amp; Custom Webhooks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -777,6 +1035,94 @@ export default function LeadPipelinePage() {
 
         </div>
 
+        {/* ------------------------------------------------------------ */}
+        {/* WIDGET 4: AI, WHATSAPP & EMAIL MARKETING MODULES             */}
+        {/* ------------------------------------------------------------ */}
+        <div className="crm-card p-5 space-y-4 border border-emerald-500/40 bg-gradient-to-r from-slate-900 via-emerald-950/20 to-slate-900 rounded-2xl shadow-xl mb-6">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-black text-xs border border-emerald-500/30">
+                W4
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <Bot size={16} className="text-emerald-400" /> WIDGET 4: AI, WHATSAPP &amp; EMAIL MARKETING MODULES
+                </h3>
+                <p className="text-[11px] text-muted">Configure Communication Gateways &amp; AI Operation Path Mode</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+              Lead Pipeline Active
+            </span>
+          </div>
+
+          {/* Path Mode Toggle */}
+          <div>
+            <label className="text-[11px] font-bold text-muted uppercase tracking-wider block mb-1.5">
+              Operation Path Mode
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPathMode('PAID_AI')}
+                className={`p-3.5 rounded-xl border text-left transition-all ${pathMode === 'PAID_AI' ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500/50' : 'bg-background border-border text-muted hover:text-white'}`}
+              >
+                <p className="font-bold text-xs flex items-center gap-1.5">
+                  <Bot size={14} className="text-emerald-400" /> Paid AI &amp; Automations
+                </p>
+                <p className="text-[10px] text-muted mt-0.5">Automated AI Lead Scoring, Instant Auto-Responders &amp; Webhook Triggers</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPathMode('MANUAL_DIALER')}
+                className={`p-3.5 rounded-xl border text-left transition-all ${pathMode === 'MANUAL_DIALER' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-md ring-1 ring-indigo-500/50' : 'bg-background border-border text-muted hover:text-white'}`}
+              >
+                <p className="font-bold text-xs flex items-center gap-1.5">
+                  <PhoneCall size={14} className="text-indigo-400" /> Manual Dialer
+                </p>
+                <p className="text-[10px] text-muted mt-0.5">Standard Telephony Calling, Manual Follow-ups &amp; Rep Assignment</p>
+              </button>
+            </div>
+          </div>
+
+          {/* WhatsApp Co-Existence Gateway & Email Campaign Delegation */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-3.5 rounded-xl bg-background/80 border border-border flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                  <MessageSquare size={16} className="text-emerald-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-white">WhatsApp Co-Existence Gateway</p>
+                  <p className="text-[10px] text-muted">Simultaneous Official Cloud API + Web Session Status</p>
+                </div>
+              </div>
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${whatsAppConnected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}`}>
+                {whatsAppConnected ? 'ONLINE · CONNECTED' : 'OFFLINE'}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-background/80 border border-border flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                  <Mail size={16} className="text-purple-400" />
+                </div>
+                <div>
+                  <p className="font-bold text-white">Delegate Email Campaigns to Managers</p>
+                  <p className="text-[10px] text-muted">Allows department managers to broadcast email campaigns directly</p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={emailCampaignDelegated}
+                onChange={e => setEmailCampaignDelegated(e.target.checked)}
+                className="w-4 h-4 rounded accent-indigo-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* ============================================================ */}
         {/* MASTER SALES PIPELINE & DEALS KANBAN BOARD                   */}
         {/* ============================================================ */}
@@ -826,14 +1172,31 @@ export default function LeadPipelinePage() {
                   <input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+91 98765 43210" className="crm-input w-full" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-muted block mb-1">Company</label>
+                  <label className="text-muted block mb-1 font-semibold">Company</label>
                   <input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} placeholder="TechCorp Ltd" className="crm-input w-full" />
                 </div>
                 <div>
-                  <label className="text-muted block mb-1">Estimated Value (₹)</label>
+                  <label className="text-muted block mb-1 font-semibold">Value (₹)</label>
                   <input type="number" value={newLeadValue} onChange={e => setNewLeadValue(e.target.value)} className="crm-input w-full" />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-semibold">Source Platform *</label>
+                  <select value={newLeadSource} onChange={e => setNewLeadSource(e.target.value)} className="crm-input w-full font-bold text-xs">
+                    <option value="Google Ads">Google Ads</option>
+                    <option value="Meta Ads (FB & Insta)">Meta Ads (Facebook & Instagram)</option>
+                    <option value="LinkedIn Ads">LinkedIn Ads</option>
+                    <option value="Microsoft Ads (Bing)">Microsoft Ads (Bing)</option>
+                    <option value="Pinterest Ads">Pinterest Ads</option>
+                    <option value="X (Twitter) Ads">X (Twitter) Ads</option>
+                    <option value="IndiaMART">IndiaMART</option>
+                    <option value="TradeIndia">TradeIndia</option>
+                    <option value="Justdial">Justdial</option>
+                    <option value="Lotwaala">Lotwaala</option>
+                    <option value="Website Forms">Website Forms</option>
+                    <option value="Custom Channel">Custom Channel</option>
+                  </select>
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
@@ -857,21 +1220,150 @@ export default function LeadPipelinePage() {
             </div>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-muted block mb-1">Column Label *</label>
-                <input value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="e.g. GST Number, City, Budget Band" className="crm-input w-full" autoFocus />
+                <label className="text-muted block mb-1 font-semibold">Column Label *</label>
+                <input value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="e.g. Lead Rating, GST Number, City, Budget Band" className="crm-input w-full" autoFocus />
               </div>
               <div>
-                <label className="text-muted block mb-1">Data Type</label>
-                <select value={newColType} onChange={e => setNewColType(e.target.value as any)} className="crm-input w-full">
+                <label className="text-muted block mb-1 font-semibold">Data Type</label>
+                <select value={newColType} onChange={e => setNewColType(e.target.value as any)} className="crm-input w-full font-semibold">
                   <option value="TEXT">Text String</option>
                   <option value="NUMBER">Numeric Value</option>
                   <option value="SELECT">Dropdown Options</option>
                 </select>
               </div>
+
+              {/* Dropdown Options Builder when Data Type = SELECT */}
+              {newColType === 'SELECT' && (
+                <div className="space-y-2 bg-slate-900/90 p-3 rounded-xl border border-cyan-500/40 animate-fade-in">
+                  <label className="text-cyan-400 font-bold block text-xs flex items-center gap-1.5">
+                    <Sliders size={13} /> Dropdown Options (Comma-Separated) *
+                  </label>
+                  <input
+                    value={newColOptionsStr}
+                    onChange={e => setNewColOptionsStr(e.target.value)}
+                    placeholder="e.g. Hot Lead, Warm Lead, Cold Lead"
+                    className="crm-input w-full text-xs font-semibold text-white bg-slate-950"
+                  />
+                  {newColOptionsStr.trim() && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] text-muted font-semibold">Options Preview:</span>
+                      {newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean).map((opt, i) => (
+                        <span key={i} className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                          {opt}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setCustomColumnModalOpen(false)} className="btn-secondary flex-1 py-2 text-xs">Cancel</button>
                 <button onClick={handleAddCustomColumn} disabled={!newColName.trim()} className="btn-primary flex-1 py-2 text-xs gap-1.5 disabled:opacity-40"><Plus size={13} /> Add Column</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV / Excel Modal */}
+      {importCsvModalOpen && (
+        <FileImportEngineModal
+          isOpen={importCsvModalOpen}
+          onClose={() => setImportCsvModalOpen(false)}
+          onImportLeads={(leads, audit) => {
+            setLeadDirectory(prev => {
+              const newLeads = leads.map((lead, i) => ({
+                ...lead,
+                id: `lead_${Date.now()}_${i}`,
+              }));
+              return [...newLeads, ...prev];
+            });
+            const newAudit: FileUploadHistoryItem = {
+              id: `file_hist_${Date.now()}`,
+              fileName: audit.filename,
+              fileSize: audit.fileSize || '—',
+              uploadedAt: audit.date,
+              leadsCount: audit.count,
+              uploadedBy: currentUser?.name ? `${currentUser.name} (${currentUser.role})` : 'Admin',
+              status: 'SUCCESS' as const,
+            };
+            setFileUploadHistory(prev => [newAudit, ...prev]);
+          }}
+        />
+      )}
+
+      {/* ⚙️ Column & Excel Manager Modal */}
+      {columnConfigModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crm-card max-w-xl w-full p-6 animate-scale-in space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sliders size={16} className="text-indigo-400" /> ⚙️ Lead Directory Column &amp; Visibility Manager
+                </h3>
+                <p className="text-[10px] text-muted mt-0.5">
+                  Re-order columns, toggle visibility &amp; set <span className="text-amber-400 font-bold">* Admin &amp; Manager Only</span> restriction.
+                </p>
+              </div>
+              <button onClick={() => setColumnConfigModalOpen(false)} className="p-1 rounded text-muted hover:text-white"><X size={16} /></button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-extrabold uppercase text-muted px-2 py-1 bg-slate-900 rounded-lg">
+                <span className="col-span-2 text-center">Order</span>
+                <span className="col-span-4">Column Name</span>
+                <span className="col-span-3 text-center">Visibility</span>
+                <span className="col-span-3 text-center">Restricted (*)</span>
+              </div>
+
+              {tableColumns.map((col, idx) => (
+                <div key={col.id} className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-all">
+                  <div className="col-span-2 flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => moveColumnLeft(idx)}
+                      disabled={idx === 0}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[10px] font-bold"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveColumnRight(idx)}
+                      disabled={idx === tableColumns.length - 1}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[10px] font-bold"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  <div className="col-span-4 font-bold text-white flex items-center gap-1 truncate">
+                    <span>{col.label}</span>
+                    {col.isRestricted && <span className="text-amber-400 font-black text-xs">*</span>}
+                  </div>
+
+                  <div className="col-span-3 flex justify-center">
+                    <button
+                      onClick={() => setTableColumns(prev => prev.map(c => c.id === col.id ? { ...c, hidden: !c.hidden } : c))}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${!col.hidden ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                    >
+                      {!col.hidden ? '👁️ Shown' : '🙈 Hidden'}
+                    </button>
+                  </div>
+
+                  <div className="col-span-3 flex justify-center">
+                    <button
+                      onClick={() => setTableColumns(prev => prev.map(c => c.id === col.id ? { ...c, isRestricted: !c.isRestricted } : c))}
+                      className={`px-2.5 py-1 rounded text-[10px] font-extrabold transition-all ${col.isRestricted ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                    >
+                      {col.isRestricted ? '⭐ Admin/Mgr (*)' : '🌐 Public'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-border flex justify-end">
+              <button onClick={() => setColumnConfigModalOpen(false)} className="btn-primary px-5 py-2 text-xs">Done &amp; Save Table Layout</button>
             </div>
           </div>
         </div>

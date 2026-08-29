@@ -37,8 +37,16 @@ const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
   { id: 'tpl_4', title: '🎉 Q3 Festival Discount Offer',  category: 'PROMOTION', isDefault: true, usageCount: 132, text: "Exciting news {name}! Get 20% off on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!" },
 ];
 
-// ── Placeholder variables (from whatsappTemplateEngine.ts) ─
-const PLACEHOLDERS = ['{name}', '{company}', '{value}', '{product}'];
+// ── Placeholder variables & Catalog Products ──
+const PLACEHOLDERS = ['{name}', '{company}', '{value}', '{product}', '{price}', '{catalog_link}'];
+
+const CATALOG_PRODUCTS = [
+  { name: 'Executive Work Station', price: '₹22,500' },
+  { name: 'DAS CRM Enterprise License (50 Seats)', price: '₹5,90,000 (Incl. 18% GST)' },
+  { name: 'AI Lead Scoring Engine Pro', price: '₹1,41,600 (Incl. 18% GST)' },
+  { name: 'Modular Conference Table (12 Seater)', price: '₹1,00,300 (Incl. 18% GST)' },
+  { name: 'Custom Commercial Proposal Quote', price: '₹2,38,950' },
+];
 
 // ── Live variable interpolation ───────────────────────────
 function interpolate(text: string, vars: Record<string, string>): string {
@@ -46,7 +54,9 @@ function interpolate(text: string, vars: Record<string, string>): string {
     .replace(/\{name\}/gi, vars.name || '{name}')
     .replace(/\{company\}/gi, vars.company || '{company}')
     .replace(/\{value\}/gi, vars.value || '{value}')
-    .replace(/\{product\}/gi, vars.product || '{product}');
+    .replace(/\{price\}/gi, vars.value || '{price}')
+    .replace(/\{product\}/gi, vars.product || '{product}')
+    .replace(/\{catalog_link\}/gi, 'https://dascrm.com/catalog');
 }
 
 // ── Template Form Modal ───────────────────────────────────
@@ -60,8 +70,9 @@ function TemplateModal({
   const [title, setTitle] = useState(template?.title ?? '');
   const [category, setCategory] = useState<TemplateCategory>(template?.category ?? 'OUTREACH');
   const [text, setText] = useState(template?.text ?? '');
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState('');
 
-  const insertPlaceholder = (ph: string) => setText(prev => prev + ' ' + ph);
+  const insertPlaceholder = (ph: string) => setText(prev => (prev ? prev + ' ' + ph : ph));
 
   const handleSave = () => {
     if (!title.trim() || !text.trim()) return;
@@ -128,15 +139,41 @@ function TemplateModal({
             </div>
           </div>
 
+          {/* 📦 SELECT PRODUCT WITH PRICE OPTIONS (CATALOG PICKER) */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2">
+            <label className="text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+              <Tag size={14} className="text-emerald-400" /> 📦 Select Product with Price Options (Catalog Quick Insert)
+            </label>
+            <select
+              value={selectedCatalogProduct}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCatalogProduct(val);
+                const picked = CATALOG_PRODUCTS.find(p => p.name === val);
+                if (picked) {
+                  insertPlaceholder(`for ${picked.name} priced at ${picked.price}`);
+                }
+              }}
+              className="crm-input w-full text-xs font-semibold text-white bg-slate-950 cursor-pointer focus:border-emerald-500"
+            >
+              <option value="">Choose Catalog Product &amp; Pricing to Insert...</option>
+              {CATALOG_PRODUCTS.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name} — {p.price}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Message text */}
           <div>
             <label className="text-muted text-xs font-semibold block mb-1.5">📝 Template Message</label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="Type message with {name}, {company}, {value}, {product} placeholders..."
+              placeholder="Type message with {name}, {company}, {value}, {product}, {price} placeholders..."
               rows={5}
-              className="crm-input w-full resize-none"
+              className="crm-input w-full resize-none font-sans"
             />
           </div>
 
@@ -163,7 +200,7 @@ function TemplateModal({
                 <CheckCircle2 size={12} /> Live Preview (with default values)
               </p>
               <p className="text-white text-xs leading-relaxed whitespace-pre-wrap">
-                {interpolate(text, { name: 'Rajesh Kumar', company: 'TechCorp Solutions', value: '₹5,90,000', product: 'Enterprise Suite' })}
+                {interpolate(text, { name: 'Rajesh Kumar', company: 'TechCorp Solutions', value: '₹5,90,000', product: 'Executive Work Station' })}
               </p>
             </div>
           )}
@@ -446,6 +483,30 @@ export default function WhatsAppTemplatesPage() {
               </p>
 
               <div className="space-y-3">
+                {/* Catalog Product & Price Quick Pick Selector */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                  <label className="text-cyan-400 text-xs font-bold block">
+                    📦 Select Product with Price Options:
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const picked = CATALOG_PRODUCTS.find(p => p.name === e.target.value);
+                      if (picked) {
+                        setSandboxProduct(picked.name);
+                        setSandboxValue(picked.price);
+                      }
+                    }}
+                    className="crm-input w-full text-xs font-semibold bg-slate-950 text-white cursor-pointer"
+                  >
+                    <option value="">Choose Catalog Product to Test...</option>
+                    {CATALOG_PRODUCTS.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name} ({p.price})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {[
                   { label: 'Client Name', key: 'name', value: sandboxName, set: setSandboxName, placeholder: 'e.g. Rajesh Kumar' },
                   { label: 'Company',     key: 'company', value: sandboxCompany, set: setSandboxCompany, placeholder: 'e.g. TechCorp Solutions' },

@@ -86,9 +86,9 @@ export function LeadsTable() {
     score: 'Score',
     value: 'Lead Value',
     owner: 'Assigned Rep',
-    city: 'City (Custom)',
-    budget: 'Budget (Custom)',
-    requirement: 'Requirement (Custom)',
+    city: 'City',
+    budget: 'Budget',
+    requirement: 'Requirement',
     source: 'Source',
     created: 'Created Date',
   });

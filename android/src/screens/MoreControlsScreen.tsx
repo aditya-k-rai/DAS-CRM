@@ -362,9 +362,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1e293b',
     padding: 12,
-    justify: 'space-between',
+    justifyContent: 'space-between',
   },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justify: 'space-between', width: '100%' },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
   cardIcon: { fontSize: 22, marginBottom: 4 },
   cardLabel: { fontSize: 11.5, fontWeight: '800', color: '#e2e8f0', lineHeight: 15 },
 
