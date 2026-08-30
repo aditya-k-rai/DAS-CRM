@@ -1,0 +1,17 @@
+# DAS CRM Windows — Local environment secrets
+.env
+.env.local
+.env.secret
+*.local
+
+# Build outputs
+dist/
+build/
+build_specs/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

@@ -2,6 +2,7 @@
 views_settings.py — DAS CRM Settings View
 App preferences, notifications, appearance, security.
 """
+import os
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -285,7 +286,7 @@ class SettingsView(QFrame):
         token_row = QHBoxLayout()
         token_row.addWidget(QLabel("API Token:"))
         le2 = QLineEdit()
-        le2.setText("your-api-token-here")
+        le2.setText(os.getenv("DASCRM_API_TOKEN", ""))
         le2.setEchoMode(QLineEdit.EchoMode.Password)
         le2.setStyleSheet("background: #0D1117; color: #E2E8F0; border: 1px solid #2A3A5C; border-radius: 6px; padding: 8px;")
         token_row.addWidget(le2)
