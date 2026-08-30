@@ -1,10 +1,11 @@
 /**
  * FileImportEngineModal.tsx — DAS CRM Android
  * Interactive CSV / Excel Extraction & Ingestion Engine.
- * Parses files on-device via xlsx, sends structured data + metadata to NestJS backend.
+ * Smooth grid matching web LeadsTable controls: reorder columns, rename headers,
+ * cycle widths, block rows/cols — responsive for phone + tablet.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +16,8 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Platform,
+  useWindowDimensions,
+  Keyboard,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
@@ -52,14 +54,22 @@ export interface FileAuditRecord {
   date: string;
 }
 
+export interface ColumnDef {
+  key: string;       // stable identity key (col_0, col_1, ...)
+  header: string;    // display name (editable)
+  index: number;     // original column index in file
+  role: string;      // field mapping role
+  blocked: boolean;  // col excluded from import
+  width: number;     // display width in px
+}
+
 export interface ParsedSheet {
   name: string;
   isBlocked: boolean;
-  data: string[][]; // [row][col]
-  columnMappings: string[];
-  blockedColumns: boolean[];
+  headers: string[];
+  data: string[][];        // [row][col]
+  columns: ColumnDef[];    // ordered, with roles
   blockedRows: boolean[];
-  columnWidths: number[];
 }
 
 export interface FileImportEngineModalProps {
@@ -74,37 +84,26 @@ export interface FileImportEngineModalProps {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PLATFORMS = [
-  'Google Ads',
-  'Meta Ads (FB & Insta)',
-  'LinkedIn Ads',
-  'Microsoft Ads (Bing)',
-  'Pinterest Ads',
-  'X (Twitter) Ads',
-  'IndiaMART',
-  'TradeIndia',
-  'Justdial',
-  'Lotwaala',
-  'Website Forms',
-  'Custom Channel',
+  'Google Ads', 'Meta Ads (FB & Insta)', 'LinkedIn Ads', 'Microsoft Ads (Bing)',
+  'Pinterest Ads', 'X (Twitter) Ads', 'IndiaMART', 'TradeIndia',
+  'Justdial', 'Lotwaala', 'Website Forms', 'Custom Channel',
 ];
 
-const FIELD_OPTIONS: { value: string; label: string }[] = [
-  { value: 'name', label: '👤 Name' },
-  { value: 'email', label: '📧 Email' },
-  { value: 'phone', label: '📞 Phone' },
-  { value: 'company', label: '🏢 Company' },
-  { value: 'value', label: '💰 Value' },
-  { value: 'city', label: '📍 City' },
-  { value: 'budget', label: '💵 Budget' },
-  { value: 'custom', label: '📋 Custom Field' },
-  { value: 'block', label: '🚫 Block Column' },
+const FIELD_ROLE_OPTIONS: { value: string; label: string; color: string }[] = [
+  { value: 'name',     label: '👤 Name',      color: '#818cf8' },
+  { value: 'email',    label: '📧 Email',     color: '#f59e0b' },
+  { value: 'phone',    label: '📞 Phone',     color: '#34d399' },
+  { value: 'company',   label: '🏢 Company',   color: '#f472b6' },
+  { value: 'value',    label: '💰 Value',      color: '#fb923c' },
+  { value: 'city',      label: '📍 City',      color: '#38bdf8' },
+  { value: 'budget',   label: '💵 Budget',    color: '#a78bfa' },
+  { value: 'custom',   label: '📋 Custom',   color: '#94a3b8' },
+  { value: 'block',    label: '🚫 Block',     color: '#ef4444' },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+const WIDTH_CYCLE = [100, 140, 190]; // 3 width states
 
-const inferFieldRole = (header: string): string => {
+const inferRole = (header: string): string => {
   const h = (header || '').toLowerCase();
   if (h.includes('name') || h.includes('client') || h.includes('contact') || h.includes('full')) return 'name';
   if (h.includes('email') || h.includes('mail')) return 'email';
@@ -116,31 +115,26 @@ const inferFieldRole = (header: string): string => {
   return 'custom';
 };
 
-const sanitizeNumericValue = (val: string): string => {
+const getRoleColor = (role: string): string =>
+  FIELD_ROLE_OPTIONS.find(o => o.value === role)?.color ?? '#94a3b8';
+
+const getRoleLabel = (role: string): string =>
+  FIELD_ROLE_OPTIONS.find(o => o.value === role)?.label ?? role;
+
+const sanitizeNumeric = (val: string): string => {
   if (!val) return '₹0';
-  let clean = val.replace(/[^0-9.]/g, '');
+  const clean = val.replace(/[^0-9.]/g, '');
   if (!clean) return '₹0';
-  const parts = clean.split('.');
-  if (parts.length > 2) clean = parts.join('');
   const num = parseFloat(clean);
   if (isNaN(num)) return '₹0';
   return `₹${num.toLocaleString('en-IN')}`;
 };
 
-const sanitizePhoneValue = (val: string): string => {
+const sanitizePhone = (val: string): string => {
   if (!val) return '';
-  let clean = val.replace(/[^0-9+]/g, '');
-  if (!clean.startsWith('+') && clean.length === 10) clean = '+91' + clean;
+  const clean = val.replace(/[^0-9+]/g, '');
+  if (!clean.startsWith('+') && clean.length === 10) return '+91' + clean;
   return clean;
-};
-
-const getFileFormat = (uri: string, name: string): string => {
-  const ext = (name || uri.split('.').pop() || 'FILE').toUpperCase();
-  if (['CSV'].includes(ext)) return 'CSV';
-  if (['XLS'].includes(ext)) return 'XLS';
-  if (['XLSX', 'XLSM', 'XLTX', 'XLTM'].includes(ext)) return 'XLSX';
-  if (['XML'].includes(ext)) return 'XML';
-  return ext;
 };
 
 const formatBytes = (bytes: number): string => {
@@ -165,633 +159,673 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   onImportError,
 }) => {
   const { token } = useAuthStore();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isTablet = screenWidth >= 600;
 
-  // File State
-  const [fileName, setFileName] = useState('');
-  const [fileSize, setFileSize] = useState('');
-  const [detectedFormat, setDetectedFormat] = useState('');
-  const [sheets, setSheets] = useState<ParsedSheet[]>([]);
-  const [activeSheetIdx, setActiveSheetIdx] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  // ── State ────────────────────────────────────────────────────────────────
+  const [fileName, setFileName]       = useState('');
+  const [fileSize, setFileSize]       = useState('');
+  const [format, setFormat]           = useState('');
+  const [sheets, setSheets]           = useState<ParsedSheet[]>([]);
+  const [activeIdx, setActiveIdx]     = useState(0);
+  const [loading, setLoading]         = useState(false);
 
-  // Validation State
+  const [inputFileName, setInputFileName]     = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
-  const [inputFileName, setInputFileName] = useState('');
 
-  // ── Pick & Parse File ────────────────────────────────────────────────────
+  // Column rename modal
+  const [renameColKey, setRenameColKey]       = useState<string | null>(null);
+  const [renameValue, setRenameValue]         = useState('');
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  const activeSheet = sheets[activeIdx];
+
+  const totalRows = sheets.reduce((a, s) => a + s.data.length, 0);
+  const totalCols  = activeSheet?.columns.length ?? 0;
+  const totalDataRows = activeSheet?.data.length ?? 0;
+
+  // ── File Pick ───────────────────────────────────────────────────────────
 
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel',
-               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-               'application/vnd.ms-excel.sheet.macroEnabled.12',
-               'text/xml', 'application/xml'],
+        type: [
+          'text/csv', 'text/comma-separated-values',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel.sheet.macroEnabled.12',
+          'text/xml', 'application/xml',
+        ],
         copyToCacheDirectory: true,
       });
 
       if (result.canceled || !result.assets?.length) return;
-
-      const asset = result.assets[0];
+      const asset   = result.assets[0];
       const rawName = asset.name || 'Imported_File';
-      const ext = rawName.split('.').pop()?.toUpperCase() || 'FILE';
+      const ext     = (rawName.split('.').pop() || 'FILE').toUpperCase();
 
-      setDetectedFormat(ext);
+      setFormat(rawName.split('.').pop()?.toUpperCase() || '');
       setFileName(rawName);
       setInputFileName(rawName.replace(/\.[^/.]+$/, ''));
       setFileSize(formatBytes(asset.size || 0));
 
-      // Read file content as binary ArrayBuffer
       let response: ArrayBuffer | null = null;
-
       if (asset.uri) {
         const fr = await fetch(asset.uri);
         response = await fr.arrayBuffer();
       }
+      if (!response) { Alert.alert('Error', 'Could not read file.'); return; }
 
-      if (!response) {
-        Alert.alert('Error', 'Could not read file content.');
-        return;
-      }
-
-      let parsedSheets: ParsedSheet[] = [];
+      let parsed: ParsedSheet[] = [];
 
       if (ext === 'CSV' || ext === 'TSV' || ext === 'TXT') {
-        // Parse CSV directly
-        const text = new TextDecoder().decode(response);
-        parsedSheets = parseCSVText(text, rawName);
+        parsed = parseCSV(new TextDecoder().decode(response), rawName);
       } else {
-        // Parse Excel binary via xlsx
-        const workbook = XLSX.read(response, { type: 'array', cellDates: true, cellNF: true });
-        parsedSheets = workbook.SheetNames.map((sheetName, idx) => {
-          const ws = workbook.Sheets[sheetName];
-          const rawMatrix: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
+        const wb = XLSX.read(response, { type: 'array', cellDates: true, cellNF: true });
+        parsed = wb.SheetNames.map(sheetName => {
+          const ws  = wb.Sheets[sheetName];
+          const raw: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][];
 
-          let maxCols = 0;
-          rawMatrix.forEach(row => { if (row.length > maxCols) maxCols = row.length; });
-          if (maxCols === 0) maxCols = 5;
+          let maxC = 0;
+          raw.forEach(r => { if (r.length > maxC) maxC = r.length; });
+          if (maxC === 0) maxC = 5;
 
-          const normalizedMatrix = rawMatrix.map(row => {
+          const matrix = raw.map(row => {
             const copy = [...row].map(v => String(v ?? '').trim());
-            while (copy.length < maxCols) copy.push('');
+            while (copy.length < maxC) copy.push('');
             return copy;
           });
 
-          if (normalizedMatrix.length === 0) {
-            normalizedMatrix.push(['Name', 'Email', 'Phone', 'Company', 'Value']);
-          }
+          if (matrix.length === 0) matrix.push(['Name', 'Email', 'Phone', 'Company', 'Value']);
 
-          const firstRow = normalizedMatrix[0] || [];
-          const colMappings = firstRow.map((h: string) => inferFieldRole(h));
-          const blockedCols = new Array(maxCols).fill(false);
-          const blockedRows = new Array(normalizedMatrix.length).fill(false);
-          const colWidths = new Array(maxCols).fill(130);
+          const headers = matrix[0] || [];
+          const columns: ColumnDef[] = headers.map((h, i) => ({
+            key:    `col_${i}`,
+            header:  String(h),
+            index:  i,
+            role:   inferRole(h),
+            blocked: false,
+            width:  WIDTH_CYCLE[1],
+          }));
 
           return {
-            name: sheetName,
-            isBlocked: false,
-            data: normalizedMatrix,
-            columnMappings: colMappings,
-            blockedColumns: blockedCols,
-            blockedRows,
-            columnWidths: colWidths,
+            name:        sheetName,
+            isBlocked:   false,
+            headers,
+            data:        matrix.slice(1),
+            columns,
+            blockedRows: new Array(matrix.length - 1).fill(false),
           };
         });
       }
 
-      setSheets(parsedSheets);
-      setActiveSheetIdx(0);
+      setSheets(parsed);
+      setActiveIdx(0);
     } catch (err) {
-      Alert.alert('Parse Error', 'Could not read or parse the selected file. Please try again.');
-      console.error('File parse error:', err);
+      Alert.alert('Parse Error', 'Could not read or parse the selected file.');
+      console.error(err);
     }
   };
 
-  const parseCSVText = (text: string, sheetName: string): ParsedSheet[] => {
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    const delimiter = (lines[0] || '').includes('\t') ? '\t' : ',';
-    const maxCols = Math.max(...lines.map(l => l.split(delimiter).length));
-    const normalized = lines.map(line => {
-      const cols = line.split(delimiter).map(v => v.trim().replace(/^["']|["']$/g, ''));
-      while (cols.length < maxCols) cols.push('');
+  const parseCSV = (text: string, name: string): ParsedSheet[] => {
+    const lines     = text.split(/\r?\n/).filter(l => l.trim());
+    const delim     = (lines[0] || '').includes('\t') ? '\t' : ',';
+    const maxC      = Math.max(0, ...lines.map(l => l.split(delim).length));
+    const matrix    = lines.map(l => {
+      const cols = l.split(delim).map(v => v.trim().replace(/^["']|["']$/g, ''));
+      while (cols.length < maxC) cols.push('');
       return cols;
     });
 
-    if (normalized.length === 0) normalized.push(['Name', 'Email', 'Phone', 'Company', 'Value']);
+    if (matrix.length === 0) matrix.push(['Name', 'Email', 'Phone', 'Company', 'Value']);
 
-    const firstRow = normalized[0] || [];
-    const colMappings = firstRow.map(h => inferFieldRole(h));
+    const headers  = matrix[0] || [];
+    const columns: ColumnDef[] = headers.map((h, i) => ({
+      key:    `col_${i}`,
+      header:  String(h),
+      index:  i,
+      role:   inferRole(h),
+      blocked: false,
+      width:  WIDTH_CYCLE[1],
+    }));
 
     return [{
-      name: sheetName.replace(/\.[^/.]+$/, ''),
-      isBlocked: false,
-      data: normalized,
-      columnMappings: colMappings,
-      blockedColumns: new Array(maxCols).fill(false),
-      blockedRows: new Array(normalized.length).fill(false),
-      columnWidths: new Array(maxCols).fill(130),
+      name:        name.replace(/\.[^/.]+$/, ''),
+      isBlocked:   false,
+      headers,
+      data:        matrix.slice(1),
+      columns,
+      blockedRows: new Array(matrix.length - 1).fill(false),
     }];
   };
 
-  // ── Sheet Controls ───────────────────────────────────────────────────────
+  // ── Column Controls ─────────────────────────────────────────────────────
 
-  const moveSheetLeft = (idx: number) => {
-    if (idx <= 0) return;
-    setSheets(prev => {
-      const copy = [...prev];
-      [copy[idx - 1], copy[idx]] = [copy[idx], copy[idx - 1]];
-      return copy;
-    });
-    if (activeSheetIdx === idx) setActiveSheetIdx(idx - 1);
-    else if (activeSheetIdx === idx - 1) setActiveSheetIdx(idx);
-  };
-
-  const moveSheetRight = (idx: number) => {
-    if (idx >= sheets.length - 1) return;
-    setSheets(prev => {
-      const copy = [...prev];
-      [copy[idx], copy[idx + 1]] = [copy[idx + 1], copy[idx]];
-      return copy;
-    });
-    if (activeSheetIdx === idx) setActiveSheetIdx(idx + 1);
-    else if (activeSheetIdx === idx + 1) setActiveSheetIdx(idx);
-  };
-
-  const toggleBlockSheet = (idx: number) => {
-    setSheets(prev => prev.map((s, i) => i === idx ? { ...s, isBlocked: !s.isBlocked } : s));
-  };
-
-  // ── Column & Row Controls ────────────────────────────────────────────────
-
-  const updateColumnMapping = (cIdx: number, role: string) => {
-    setSheets(prev => prev.map((s, sIdx) => {
-      if (sIdx !== activeSheetIdx) return s;
-      const copy = [...s.columnMappings];
-      copy[cIdx] = role;
-      return { ...s, columnMappings: copy };
+  const moveCol = useCallback((key: string, dir: 'left' | 'right') => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      const idx = s.columns.findIndex(c => c.key === key);
+      if (idx < 0) return s;
+      const target = dir === 'left' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= s.columns.length) return s;
+      const cols = [...s.columns];
+      [cols[idx], cols[target]] = [cols[target], cols[idx]];
+      return { ...s, columns: cols };
     }));
-  };
+  }, [activeIdx]);
 
-  const toggleBlockColumn = (cIdx: number) => {
-    setSheets(prev => prev.map((s, sIdx) => {
-      if (sIdx !== activeSheetIdx) return s;
-      const copy = [...s.blockedColumns];
-      copy[cIdx] = !copy[cIdx];
-      return { ...s, blockedColumns: copy };
+  const setColRole = useCallback((key: string, role: string) => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      return {
+        ...s,
+        columns: s.columns.map(c => c.key === key ? { ...c, role } : c),
+      };
     }));
+  }, [activeIdx]);
+
+  const cycleColWidth = useCallback((key: string) => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      return {
+        ...s,
+        columns: s.columns.map(c => {
+          if (c.key !== key) return c;
+          const nextIdx = (WIDTH_CYCLE.indexOf(c.width) + 1) % WIDTH_CYCLE.length;
+          return { ...c, width: WIDTH_CYCLE[nextIdx] };
+        }),
+      };
+    }));
+  }, [activeIdx]);
+
+  const toggleBlockCol = useCallback((key: string) => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      return {
+        ...s,
+        columns: s.columns.map(c =>
+          c.key === key ? { ...c, blocked: !c.blocked, role: !c.blocked ? 'block' : inferRole(c.header) } : c
+        ),
+      };
+    }));
+  }, [activeIdx]);
+
+  const openRenameCol = (key: string) => {
+    const col = activeSheet?.columns.find(c => c.key === key);
+    if (!col) return;
+    setRenameColKey(key);
+    setRenameValue(col.header);
   };
 
-  const toggleBlockRow = (rIdx: number) => {
-    setSheets(prev => prev.map((s, sIdx) => {
-      if (sIdx !== activeSheetIdx) return s;
+  const saveColRename = () => {
+    if (!renameColKey || !renameValue.trim()) { setRenameColKey(null); return; }
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      return {
+        ...s,
+        columns: s.columns.map(c =>
+          c.key === renameColKey ? { ...c, header: renameValue.trim() } : c
+        ),
+      };
+    }));
+    setRenameColKey(null);
+  };
+
+  // ── Row Controls ────────────────────────────────────────────────────────
+
+  const toggleBlockRow = useCallback((rIdx: number) => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
       const copy = [...s.blockedRows];
       copy[rIdx] = !copy[rIdx];
       return { ...s, blockedRows: copy };
     }));
-  };
+  }, [activeIdx]);
 
-  const updateCell = (rIdx: number, cIdx: number, val: string) => {
-    setSheets(prev => prev.map((s, sIdx) => {
-      if (sIdx !== activeSheetIdx) return s;
-      const copyData = s.data.map((r, i) => i === rIdx ? [...r] : r);
-      copyData[rIdx][cIdx] = val;
-      return { ...s, data: copyData };
+  const updateCell = useCallback((rIdx: number, key: string, val: string) => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      const colDef = s.columns.find(c => c.key === key);
+      if (!colDef) return s;
+      const dataCopy = s.data.map((r, ri) => ri === rIdx ? [...r] : r);
+      dataCopy[rIdx][colDef.index] = val;
+      return { ...s, data: dataCopy };
     }));
-  };
+  }, [activeIdx]);
 
-  const addRow = () => {
-    setSheets(prev => prev.map((s, sIdx) => {
-      if (sIdx !== activeSheetIdx) return s;
-      const newRow = new Array(s.data[0]?.length || 5).fill('');
+  const addRow = useCallback(() => {
+    setSheets(prev => prev.map((s, i) => {
+      if (i !== activeIdx) return s;
+      const newRow = new Array(s.columns.length).fill('');
       return {
         ...s,
         data: [...s.data, newRow],
         blockedRows: [...s.blockedRows, false],
       };
     }));
+  }, [activeIdx]);
+
+  // ── Sheet Controls ───────────────────────────────────────────────────────
+
+  const toggleBlockSheet = (idx: number) => {
+    setSheets(prev => prev.map((s, i) => i === idx ? { ...s, isBlocked: !s.isBlocked } : s));
   };
 
-  // ── Inject & Commit to Backend ───────────────────────────────────────────
+  // ── Commit ──────────────────────────────────────────────────────────────
 
-  const handleCommitIngestion = async () => {
-    if (!inputFileName.trim()) {
-      Alert.alert('Missing File Name', 'Please enter a File Name to save this import record.');
-      return;
-    }
-    if (!selectedPlatform) {
-      Alert.alert('Missing Platform', 'Please select a Source Platform from the dropdown.');
-      return;
-    }
+  const handleCommit = async () => {
+    if (!inputFileName.trim()) { Alert.alert('Missing', 'Enter a File Name.'); return; }
+    if (!selectedPlatform) { Alert.alert('Missing', 'Select a Source Platform.'); return; }
 
-    setIsLoading(true);
-
+    setLoading(true);
     try {
-      const extractedLeads: ImportedLead[] = [];
+      const leads: ImportedLead[] = [];
 
       sheets.forEach(sheet => {
         if (sheet.isBlocked) return;
-
         sheet.data.forEach((row, rIdx) => {
-          if (rIdx === 0) return; // skip header row
           if (sheet.blockedRows[rIdx]) return;
 
           const lead: ImportedLead = {
             id: `lead_${Date.now()}_${rIdx}`,
-            name: '',
-            email: 'No Email Provided',
-            phone: '',
-            company: 'Independent Prospect',
-            source: selectedPlatform,
-            status: 'NEW LEAD',
-            value: '₹25,000',
-            assignedRep: 'Rajesh Kumar',
-            city: '',
-            budget: '',
-            requirement: '',
+            name: '', email: 'No Email Provided', phone: '',
+            company: 'Independent Prospect', source: selectedPlatform,
+            status: 'NEW LEAD', value: '₹25,000', assignedRep: 'Rajesh Kumar',
+            city: '', budget: '', requirement: '',
             callSyncStatus: 'Synced: Just Now • Pending',
-            customFields: {},
-            createdAt: 'Just now',
+            customFields: {}, createdAt: 'Just now',
           };
 
           let hasData = false;
-
-          row.forEach((cellVal, cIdx) => {
-            if (sheet.blockedColumns[cIdx]) return;
-            const role = sheet.columnMappings[cIdx];
-            if (role === 'block') return;
-
-            const v = cellVal.trim();
-            if (!v) return;
-
-            if (role === 'name') { lead.name = v; hasData = true; }
-            else if (role === 'email') { lead.email = v.toLowerCase(); hasData = true; }
-            else if (role === 'phone') { lead.phone = sanitizePhoneValue(v); hasData = true; }
-            else if (role === 'company') { lead.company = v; }
-            else if (role === 'value') { lead.value = sanitizeNumericValue(v); }
-            else if (role === 'city') { lead.city = v; }
-            else if (role === 'budget') { lead.budget = v; }
-            else if (role === 'custom') {
-              const headerName = sheet.data[0]?.[cIdx] || `Col_${cIdx + 1}`;
-              const fieldKey = `col_${headerName.toLowerCase().replace(/\s+/g, '_')}`;
-              lead.customFields[fieldKey] = v;
+          sheet.columns.forEach(col => {
+            if (col.blocked) return;
+            const raw = (row[col.index] || '').trim();
+            if (!raw) return;
+            switch (col.role) {
+              case 'name':    lead.name = raw; hasData = true; break;
+              case 'email':   lead.email = raw.toLowerCase(); hasData = true; break;
+              case 'phone':   lead.phone = sanitizePhone(raw); hasData = true; break;
+              case 'company': lead.company = raw; break;
+              case 'value':   lead.value = sanitizeNumeric(raw); break;
+              case 'city':    lead.city = raw; break;
+              case 'budget':  lead.budget = raw; break;
+              case 'custom': {
+                const fk = `col_${col.header.toLowerCase().replace(/\s+/g, '_')}`;
+                lead.customFields[fk] = raw;
+                break;
+              }
             }
           });
 
-          // Fallback name
           if (!lead.name && (lead.email !== 'No Email Provided' || lead.phone)) {
             lead.name = lead.email !== 'No Email Provided'
               ? lead.email.split('@')[0]
-              : `Lead ${extractedLeads.length + 1}`;
+              : `Lead ${leads.length + 1}`;
             hasData = true;
           }
 
-          if (hasData) extractedLeads.push(lead);
+          if (hasData) leads.push(lead);
         });
       });
 
-      if (extractedLeads.length === 0) {
-        Alert.alert('No Data', 'No valid lead records found to import. Check column mappings.');
-        setIsLoading(false);
-        return;
+      if (leads.length === 0) {
+        Alert.alert('No Data', 'No valid records found. Check column mappings.');
+        setLoading(false); return;
       }
 
-      // ── Send structured data + metadata to NestJS backend ──────────────
       const audit: FileAuditRecord = {
-        filename: `${inputFileName.trim()} (${detectedFormat || 'FILE'})`,
+        filename: `${inputFileName.trim()} (${format || 'FILE'})`,
         fileSize: fileSize || '—',
         platform: selectedPlatform,
-        count: extractedLeads.length,
+        count: leads.length,
         date: formatDate(),
       };
 
-      // Attempt API call (graceful fallback to local-only if offline)
       try {
         await apiService.importLeadsFromFile(token || '', {
-          leads: extractedLeads,
-          fileName: audit.filename,
-          fileSize: audit.fileSize,
-          platform: audit.platform,
-          importedAt: audit.date,
+          leads, fileName: audit.filename, fileSize: audit.fileSize,
+          platform: audit.platform, importedAt: audit.date,
           sheetCount: sheets.filter(s => !s.isBlocked).length,
           totalRows: sheets.reduce((a, s) => a + s.data.length, 0),
           blockedSheets: sheets.filter(s => s.isBlocked).length,
         });
-      } catch (_apiErr) {
-        // Backend unavailable — continue with local import
-        console.warn('Backend sync unavailable, importing locally:', _apiErr);
-      }
+      } catch (_) { /* offline fallback */ }
 
-      onImportSuccess(extractedLeads, audit);
+      onImportSuccess(leads, audit);
       handleClose();
     } catch (err) {
-      const msg = (err as Error).message || 'Unknown error during ingestion.';
+      const msg = (err as Error).message || 'Unknown error';
       Alert.alert('Ingestion Failed', msg);
       onImportError?.(msg);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setSheets([]);
-    setActiveSheetIdx(0);
-    setFileName('');
-    setFileSize('');
-    setDetectedFormat('');
-    setInputFileName('');
-    setSelectedPlatform('');
-    setIsLoading(false);
-    onClose();
+    setSheets([]); setActiveIdx(0); setFileName(''); setFileSize('');
+    setFormat(''); setInputFileName(''); setSelectedPlatform('');
+    setLoading(false); setRenameColKey(null); onClose();
   };
 
-  const activeSheet = sheets[activeSheetIdx];
   const isReady = inputFileName.trim().length > 0 && selectedPlatform.length > 0 && sheets.length > 0;
-  const totalRows = sheets.reduce((a, s) => a + s.data.length, 0);
-  const totalCols = sheets[0]?.data[0]?.length || 0;
+  const ROW_H   = 44;
+  const HDR_H   = 56;
+  const ROW_CTRL_W = 48;
+  const MAX_VISIBLE_ROWS = Math.floor((screenHeight - 480) / ROW_H);
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose} statusBarTranslucent>
       <View style={styles.container}>
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <View style={styles.header}>
+
+        {/* ── HEADER ──────────────────────────────────────────────────── */}
+        <View style={[styles.header, isTablet && styles.headerTablet]}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>📥 Import CSV / Excel</Text>
-            <Text style={styles.headerSub}>Parse on-device • Send to backend</Text>
+            <Text style={styles.headerSub}>
+              {sheets.length > 0
+                ? `${sheets.length} sheet${sheets.length > 1 ? 's' : ''} · ${totalDataRows} row${totalDataRows !== 1 ? 's' : ''} · ${totalCols} col${totalCols !== 1 ? 's' : ''}`
+                : 'Parse on-device · Send to backend'}
+            </Text>
           </View>
-          {detectedFormat ? (
-            <View style={styles.formatBadge}>
-              <Text style={styles.formatBadgeText}>{detectedFormat}</Text>
-            </View>
+          {format ? (
+            <View style={styles.formatBadge}><Text style={styles.formatBadgeText}>{format}</Text></View>
           ) : null}
-          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Upload Bar ─────────────────────────────────────────────────── */}
-        <View style={styles.uploadBar}>
-          <TouchableOpacity style={styles.pickBtn} onPress={handlePickFile} disabled={isLoading}>
+        {/* ── UPLOAD BAR ────────────────────────────────────────────────── */}
+        <View style={[styles.uploadBar, isTablet && styles.uploadBarTablet]}>
+          <TouchableOpacity
+            style={[styles.pickBtn, isTablet && styles.pickBtnTablet]}
+            onPress={handlePickFile}
+            disabled={loading}
+          >
             <Text style={styles.pickBtnText}>📁 {fileName ? 'Change File' : 'Select File'}</Text>
           </TouchableOpacity>
 
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>File Name *</Text>
-              <TextInput
-                style={styles.metaInput}
-                value={inputFileName}
-                onChangeText={setInputFileName}
-                placeholder="e.g. Q3_Aug_Leads"
-                placeholderTextColor="#475569"
-              />
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Source Platform *</Text>
-              <View style={styles.selectWrapper}>
+          {fileName ? (
+            <View style={[styles.metaGrid, isTablet && styles.metaGridTablet]}>
+              {/* File Name */}
+              <View style={styles.metaField}>
+                <Text style={styles.metaLabel}>File Name *</Text>
+                <TextInput
+                  style={[styles.metaInput, isTablet && styles.metaInputTablet]}
+                  value={inputFileName}
+                  onChangeText={setInputFileName}
+                  placeholder="e.g. Q3_Aug_Leads"
+                  placeholderTextColor="#475569"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {/* Source Platform */}
+              <View style={[styles.metaField, { flex: 2 }]}>
+                <Text style={styles.metaLabel}>Source Platform *</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <TouchableOpacity
-                    style={[styles.platformChip, selectedPlatform === '' && styles.platformChipActive]}
-                    onPress={() => setSelectedPlatform('')}
-                  >
-                    <Text style={[styles.platformChipText, selectedPlatform === '' && styles.platformChipTextActive]}>—</Text>
-                  </TouchableOpacity>
-                  {PLATFORMS.map(p => (
-                    <TouchableOpacity
-                      key={p}
-                      style={[styles.platformChip, selectedPlatform === p && styles.platformChipActive]}
-                      onPress={() => setSelectedPlatform(p)}
-                    >
-                      <Text style={[styles.platformChipText, selectedPlatform === p && styles.platformChipTextActive]}>{p}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  <View style={styles.platformRow}>
+                    {PLATFORMS.map(p => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[styles.platformChip, selectedPlatform === p && styles.platformChipActive]}
+                        onPress={() => setSelectedPlatform(p)}
+                      >
+                        <Text style={[styles.platformChipText, selectedPlatform === p && styles.platformChipTextActive]}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </ScrollView>
               </View>
             </View>
-          </View>
+          ) : null}
 
-          {/* Analytics Row */}
-          <View style={styles.analyticsRow}>
-            <View style={styles.analyticItem}>
-              <Text style={styles.analyticValue}>{sheets.length}</Text>
-              <Text style={styles.analyticLabel}>Sheets</Text>
+          {/* Analytics strip */}
+          {sheets.length > 0 && (
+            <View style={[styles.analyticsRow, isTablet && styles.analyticsRowTablet]}>
+              {[
+                { v: sheets.length,           l: 'Sheets' },
+                { v: totalDataRows,           l: 'Rows' },
+                { v: totalCols,                l: 'Cols' },
+                { v: fileSize,                l: 'Size' },
+              ].map(({ v, l }, i) => (
+                <React.Fragment key={l}>
+                  {i > 0 && <View style={styles.analyticDivider} />}
+                  <View style={styles.analyticItem}>
+                    <Text style={styles.analyticValue}>{v}</Text>
+                    <Text style={styles.analyticLabel}>{l}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
             </View>
-            <View style={styles.analyticDivider} />
-            <View style={styles.analyticItem}>
-              <Text style={styles.analyticValue}>{totalRows}</Text>
-              <Text style={styles.analyticLabel}>Rows</Text>
-            </View>
-            <View style={styles.analyticDivider} />
-            <View style={styles.analyticItem}>
-              <Text style={styles.analyticValue}>{totalCols}</Text>
-              <Text style={styles.analyticLabel}>Cols</Text>
-            </View>
-            {fileSize ? (
-              <>
-                <View style={styles.analyticDivider} />
-                <View style={styles.analyticItem}>
-                  <Text style={styles.analyticValue}>{fileSize}</Text>
-                  <Text style={styles.analyticLabel}>Size</Text>
-                </View>
-              </>
-            ) : null}
-          </View>
+          )}
         </View>
 
-        {/* ── Sheet Tab Bar ──────────────────────────────────────────────── */}
-        {sheets.length > 0 && (
-          <View style={styles.sheetTabBar}>
+        {/* ── SHEET TABS ───────────────────────────────────────────────── */}
+        {sheets.length > 1 && (
+          <View style={[styles.sheetTabBar, isTablet && styles.sheetTabBarTablet]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-              {sheets.map((s, idx) => (
-                <View key={idx} style={styles.sheetTabRow}>
+              <View style={styles.sheetTabRow}>
+                {sheets.map((s, idx) => (
                   <TouchableOpacity
+                    key={idx}
                     style={[
                       styles.sheetTab,
-                      activeSheetIdx === idx && styles.sheetTabActive,
+                      activeIdx === idx && styles.sheetTabActive,
                       s.isBlocked && styles.sheetTabBlocked,
                     ]}
-                    onPress={() => setActiveSheetIdx(idx)}
+                    onPress={() => setActiveIdx(idx)}
                   >
-                    <Text style={[
-                      styles.sheetTabText,
-                      activeSheetIdx === idx && styles.sheetTabTextActive,
-                      s.isBlocked && styles.sheetTabTextBlocked,
-                    ]} numberOfLines={1}>
+                    <Text style={[styles.sheetTabText, activeIdx === idx && styles.sheetTabTextActive, s.isBlocked && styles.sheetTabTextBlocked]} numberOfLines={1}>
                       {s.name}
                     </Text>
-                    {s.isBlocked && (
-                      <View style={styles.blockedBadge}>
-                        <Text style={styles.blockedBadgeText}>BLOCKED</Text>
-                      </View>
-                    )}
+                    {s.isBlocked && <Text style={styles.blockedDot}>●</Text>}
                   </TouchableOpacity>
-
-                  <View style={styles.sheetControls}>
-                    <TouchableOpacity style={styles.sheetCtrlBtn} onPress={() => moveSheetLeft(idx)} disabled={idx === 0}>
-                      <Text style={styles.sheetCtrlBtnText}>◀</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.sheetCtrlBtn} onPress={() => moveSheetRight(idx)} disabled={idx === sheets.length - 1}>
-                      <Text style={styles.sheetCtrlBtnText}>▶</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.sheetCtrlBtn, s.isBlocked && styles.sheetCtrlBtnUnblock]}
-                      onPress={() => toggleBlockSheet(idx)}
-                    >
-                      <Text style={styles.sheetCtrlBtnText}>{s.isBlocked ? '👁' : '🚫'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+                ))}
+              </View>
             </ScrollView>
-
-            <TouchableOpacity style={styles.addRowBtn} onPress={addRow}>
-              <Text style={styles.addRowBtnText}>+ Row</Text>
+            <TouchableOpacity style={styles.sheetBlockBtn} onPress={() => toggleBlockSheet(activeIdx)}>
+              <Text style={styles.sheetBlockBtnText}>{sheets[activeIdx]?.isBlocked ? '👁' : '🚫'}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── Grid Editor ────────────────────────────────────────────────── */}
-        <ScrollView style={styles.gridArea} contentContainerStyle={styles.gridContent}>
+        {/* ── GRID AREA ────────────────────────────────────────────────── */}
+        <View style={styles.gridContainer}>
           {sheets.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📂</Text>
               <Text style={styles.emptyTitle}>No File Loaded</Text>
-              <Text style={styles.emptySub}>Tap "Select File" to upload CSV / Excel</Text>
+              <Text style={styles.emptySub}>Tap "Select File" to upload CSV or Excel</Text>
             </View>
           ) : activeSheet?.isBlocked ? (
-            <View style={styles.blockedState}>
+            <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>🚫</Text>
               <Text style={styles.emptyTitle}>Sheet Blocked</Text>
-              <Text style={styles.emptySub}>Tap 👁 in the tab bar to unblock</Text>
+              <Text style={styles.emptySub}>Tap the eye icon above to unblock</Text>
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <View>
-                {/* Column Mapping Header */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.colHeaderRow}>
-                    <View style={[styles.rowControlCell, styles.cornerCell]}>
-                      <Text style={styles.cornerLabel}>Row</Text>
-                    </View>
-                    {activeSheet.data[0]?.map((_, cIdx) => (
-                      <View key={cIdx} style={[styles.colHeaderCell, activeSheet.blockedColumns[cIdx] && styles.colHeaderCellBlocked]}>
+            <View style={styles.gridInner}>
+              {/* ── COLUMN HEADER ROW ────────────────────────────────── */}
+              <View style={styles.gridHeaderRow}>
+                {/* Row-num corner cell */}
+                <View style={[styles.rowNumCorner, { width: ROW_CTRL_W }]}>
+                  <Text style={styles.cornerLabel}>Row</Text>
+                </View>
+
+                {/* Scrollable column headers */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row' }}>
+                    {activeSheet.columns.map(col => (
+                      <View key={col.key} style={[styles.colHeader, { width: col.width }]}>
+                        {/* Column top bar: label + controls */}
                         <View style={styles.colHeaderTop}>
-                          <Text style={styles.colHeaderLabel}>Col {cIdx + 1}</Text>
+                          <TextInput
+                            style={[styles.colHeaderLabel, col.blocked && styles.colHeaderLabelBlocked]}
+                            value={col.header}
+                            onChangeText={txt => {
+                              setSheets(prev => prev.map((s, i) => i !== activeIdx ? s : {
+                                ...s,
+                                columns: s.columns.map(c => c.key === col.key ? { ...c, header: txt } : c),
+                              }));
+                            }}
+                            editable={!col.blocked}
+                            placeholder="Column name"
+                            placeholderTextColor="#475569"
+                          />
+                          {/* Block col */}
                           <TouchableOpacity
-                            style={[styles.blockColBtn, activeSheet.blockedColumns[cIdx] && styles.blockColBtnActive]}
-                            onPress={() => toggleBlockColumn(cIdx)}
+                            style={[styles.colActionBtn, col.blocked && styles.colActionBtnActive]}
+                            onPress={() => toggleBlockCol(col.key)}
                           >
-                            <Text style={[styles.blockColBtnText, activeSheet.blockedColumns[cIdx] && styles.blockColBtnTextActive]}>
-                              {activeSheet.blockedColumns[cIdx] ? '👁' : '🚫'}
-                            </Text>
+                            <Text style={styles.colActionBtnText}>{col.blocked ? '👁' : '🚫'}</Text>
                           </TouchableOpacity>
                         </View>
 
-                        <View style={styles.selectWrapper}>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {FIELD_OPTIONS.map(opt => (
-                              <TouchableOpacity
-                                key={opt.value}
-                                style={[
-                                  styles.fieldChip,
-                                  activeSheet.columnMappings[cIdx] === opt.value && styles.fieldChipActive,
-                                  activeSheet.blockedColumns[cIdx] && styles.fieldChipDisabled,
-                                ]}
-                                disabled={activeSheet.blockedColumns[cIdx]}
-                                onPress={() => updateColumnMapping(cIdx, opt.value)}
-                              >
-                                <Text style={[
-                                  styles.fieldChipText,
-                                  activeSheet.columnMappings[cIdx] === opt.value && styles.fieldChipTextActive,
-                                ]}>
-                                  {opt.label}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        </View>
+                        {/* Field role selector */}
+                        {!col.blocked && (
+                          <View style={styles.roleSelector}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                              {FIELD_ROLE_OPTIONS.map(opt => (
+                                <TouchableOpacity
+                                  key={opt.value}
+                                  style={[
+                                    styles.roleChip,
+                                    col.role === opt.value && styles.roleChipActive,
+                                    { borderColor: opt.color + '60' },
+                                    col.role === opt.value && { backgroundColor: opt.color + '30', borderColor: opt.color },
+                                  ]}
+                                  onPress={() => setColRole(col.key, opt.value)}
+                                >
+                                  <Text style={[
+                                    styles.roleChipText,
+                                    col.role === opt.value && { color: opt.color },
+                                  ]}>
+                                    {opt.label}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        )}
                       </View>
                     ))}
                   </View>
                 </ScrollView>
+              </View>
 
-                {/* Data Rows */}
-                <ScrollView style={{ maxHeight: 340 }}>
+              {/* ── DATA ROWS ─────────────────────────────────────────── */}
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
+                <View style={{ paddingBottom: 80 }}>
                   {activeSheet.data.map((row, rIdx) => {
-                    const isHeader = rIdx === 0;
                     const isBlocked = activeSheet.blockedRows[rIdx];
                     return (
-                      <View key={rIdx} style={[styles.dataRow, isHeader && styles.headerRow, isBlocked && styles.blockedRow]}>
-                        {/* Row Controls */}
-                        <View style={[styles.rowControlCell, isBlocked && styles.rowControlCellBlocked]}>
-                          <Text style={styles.rowNumText}>#{rIdx + 1}</Text>
+                      <View key={rIdx} style={[styles.gridRow, isBlocked && styles.gridRowBlocked]}>
+                        {/* Row number + block */}
+                        <View style={[styles.rowNumCell, { width: ROW_CTRL_W }]}>
+                          <Text style={[styles.rowNumText, isBlocked && styles.rowNumTextBlocked]}>{rIdx + 1}</Text>
                           <TouchableOpacity
-                            style={[styles.blockRowBtn, isBlocked && styles.blockRowBtnActive]}
+                            style={[styles.rowBlockBtn, isBlocked && styles.rowBlockBtnActive]}
                             onPress={() => toggleBlockRow(rIdx)}
                           >
-                            <Text style={[styles.blockRowBtnText, isBlocked && styles.blockRowBtnTextActive]}>
-                              {isBlocked ? '👁' : '🚫'}
-                            </Text>
+                            <Text style={styles.rowBlockBtnText}>{isBlocked ? '👁' : '🚫'}</Text>
                           </TouchableOpacity>
                         </View>
 
-                        {/* Data Cells */}
-                        {row.map((cellVal, cIdx) => {
-                          const isColBlocked = activeSheet.blockedColumns[cIdx];
-                          const isCellBlocked = isColBlocked || isBlocked;
-                          return (
-                            <View key={cIdx} style={[styles.dataCell, isCellBlocked && styles.dataCellBlocked]}>
-                              <TextInput
-                                style={[styles.cellInput, isHeader && styles.cellInputHeader, isCellBlocked && styles.cellInputBlocked]}
-                                value={cellVal}
-                                editable={!isCellBlocked}
-                                onChangeText={v => updateCell(rIdx, cIdx, v)}
-                                placeholder="—"
-                                placeholderTextColor="#334155"
-                              />
-                            </View>
-                          );
-                        })}
+                        {/* Scrollable cells */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={{ flexDirection: 'row' }}>
+                            {activeSheet.columns.map(col => {
+                              const cellBlocked = col.blocked || isBlocked;
+                              return (
+                                <View key={col.key} style={[styles.gridCell, { width: col.width }, cellBlocked && styles.gridCellBlocked]}>
+                                  <TextInput
+                                    style={[
+                                      styles.cellInput,
+                                      col.role !== 'custom' && { color: getRoleColor(col.role) },
+                                      cellBlocked && styles.cellInputBlocked,
+                                    ]}
+                                    value={row[col.index] || ''}
+                                    editable={!cellBlocked}
+                                    onChangeText={v => updateCell(rIdx, col.key, v)}
+                                    placeholder="—"
+                                    placeholderTextColor="#1e293b"
+                                    multiline={false}
+                                  />
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </ScrollView>
                       </View>
                     );
                   })}
-                </ScrollView>
-              </View>
-            </ScrollView>
-          )}
-        </ScrollView>
 
-        {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <View style={styles.footer}>
-          <View style={styles.validationMsg}>
-            {!inputFileName.trim() && (
-              <Text style={styles.validationText}>⚠️ Enter File Name to unlock injection</Text>
-            )}
-            {!selectedPlatform && inputFileName.trim() && (
-              <Text style={styles.validationText}>⚠️ Select Source Platform to unlock injection</Text>
-            )}
-            {isReady && (
-              <Text style={[styles.validationText, { color: '#34d399' }]}>✅ Ready to inject {totalRows - sheets.length} records</Text>
-            )}
+                  {/* Add row button */}
+                  <TouchableOpacity style={styles.addRowBtn} onPress={addRow}>
+                    <Text style={styles.addRowBtnText}>+ Add Row</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        {/* ── FOOTER ──────────────────────────────────────────────────── */}
+        <View style={[styles.footer, isTablet && styles.footerTablet]}>
+          {/* Validation status */}
+          <View style={styles.validationRow}>
+            {!inputFileName.trim() && <Text style={styles.warnText}>⚠️ Enter File Name</Text>}
+            {!selectedPlatform && inputFileName.trim() && <Text style={styles.warnText}>⚠️ Select Source Platform</Text>}
+            {isReady && <Text style={styles.readyText}>✅ Ready to import {totalDataRows} record{totalDataRows !== 1 ? 's' : ''}</Text>}
           </View>
 
-          <View style={styles.footerActions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={isLoading}>
+          {/* Actions */}
+          <View style={[styles.footerActions, isTablet && styles.footerActionsTablet]}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={loading}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.injectBtn, !isReady && styles.injectBtnDisabled]}
-              onPress={handleCommitIngestion}
-              disabled={!isReady || isLoading}
+              onPress={handleCommit}
+              disabled={!isReady || loading}
             >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.injectBtnText}>✅ Confirm &amp; Inject Leads</Text>
-              )}
+              {loading
+                ? <ActivityIndicator size="small" color="#ffffff" />
+                : <Text style={styles.injectBtnText}>✅ Confirm &amp; Import</Text>}
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── RENAME COLUMN MODAL ──────────────────────────────────────── */}
+        {renameColKey && (
+          <View style={styles.renameOverlay}>
+            <View style={[styles.renameCard, isTablet && styles.renameCardTablet]}>
+              <Text style={styles.renameTitle}>✏️ Rename Column</Text>
+              <TextInput
+                style={styles.renameInput}
+                value={renameValue}
+                onChangeText={setRenameValue}
+                placeholder="Column name"
+                placeholderTextColor="#64748b"
+                autoFocus
+                onSubmitEditing={saveColRename}
+              />
+              <View style={styles.renameActions}>
+                <TouchableOpacity style={styles.renameCancelBtn} onPress={() => setRenameColKey(null)}>
+                  <Text style={styles.renameCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.renameSaveBtn} onPress={saveColRename}>
+                  <Text style={styles.renameSaveBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -802,140 +836,221 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
+  container: {
+    flex: 1, backgroundColor: '#090d16',
+    paddingTop: 52, paddingBottom: 34,
+  },
 
-  // Header
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 12,
     backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b',
   },
+  headerTablet: { paddingHorizontal: 24 },
   headerLeft: { flex: 1 },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
-  headerSub: { fontSize: 10, color: '#64748b', marginTop: 1 },
+  headerTitle: { fontSize: 17, fontWeight: '900', color: '#ffffff' },
+  headerSub: { fontSize: 10, color: '#64748b', marginTop: 2 },
   formatBadge: {
-    backgroundColor: '#0ea5e9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-    marginRight: 10,
+    backgroundColor: '#0ea5e9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 10,
   },
   formatBadgeText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
-  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center',
+  },
   closeBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
 
-  // Upload Bar
+  // ── Upload Bar ──────────────────────────────────────────────────────────
   uploadBar: { backgroundColor: '#0f172a', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  pickBtn: { backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 12, alignItems: 'center', marginBottom: 8 },
+  uploadBarTablet: { paddingHorizontal: 24 },
+  pickBtn: { backgroundColor: '#4f46e5', paddingVertical: 11, borderRadius: 12, alignItems: 'center', marginBottom: 10 },
+  pickBtnTablet: { paddingVertical: 13, borderRadius: 14 },
   pickBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
-  metaRow: { gap: 8 },
-  metaItem: { marginBottom: 6 },
-  metaLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 3 },
+
+  metaGrid: { gap: 8 },
+  metaGridTablet: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  metaField: { marginBottom: 6 },
+  metaLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 },
   metaInput: {
     backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 7, color: '#ffffff', fontSize: 12, fontWeight: '700',
+    paddingHorizontal: 12, paddingVertical: 8, color: '#ffffff', fontSize: 12, fontWeight: '700',
   },
-  selectWrapper: { flexDirection: 'row' },
+  metaInputTablet: { fontSize: 13, paddingVertical: 9 },
+
+  platformRow: { flexDirection: 'row', gap: 6 },
   platformChip: {
     backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 5, marginRight: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
   platformChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
-  platformChipText: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
+  platformChipText: { fontSize: 11, color: '#94a3b8', fontWeight: '700' },
   platformChipTextActive: { color: '#ffffff' },
 
-  // Analytics Row
   analyticsRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    backgroundColor: '#020617', borderRadius: 12, paddingVertical: 8, marginTop: 6,
+    backgroundColor: '#020617', borderRadius: 12, paddingVertical: 8, marginTop: 8,
     borderWidth: 1, borderColor: '#1e293b',
   },
-  analyticItem: { alignItems: 'center' },
-  analyticValue: { fontSize: 15, fontWeight: '900', color: '#38bdf8' },
-  analyticLabel: { fontSize: 9, color: '#64748b', fontWeight: '700' },
+  analyticsRowTablet: { marginTop: 12, paddingVertical: 10, borderRadius: 14 },
+  analyticItem: { alignItems: 'center', flex: 1 },
+  analyticValue: { fontSize: 16, fontWeight: '900', color: '#38bdf8' },
+  analyticLabel: { fontSize: 9, color: '#64748b', fontWeight: '700', marginTop: 1 },
   analyticDivider: { width: 1, height: 28, backgroundColor: '#1e293b' },
 
-  // Sheet Tab Bar
+  // ── Sheet Tabs ──────────────────────────────────────────────────────────
   sheetTabBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 8,
     backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b',
   },
-  sheetTabRow: { flexDirection: 'row', alignItems: 'center', marginRight: 8 },
+  sheetTabBarTablet: { paddingHorizontal: 24 },
+  sheetTabRow: { flexDirection: 'row', gap: 6 },
   sheetTab: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617',
-    borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
-    marginRight: 4,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7,
   },
   sheetTabActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
   sheetTabBlocked: { backgroundColor: '#1e293b', borderColor: '#334155' },
-  sheetTabText: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
+  sheetTabText: { fontSize: 12, fontWeight: '700', color: '#94a3b8' },
   sheetTabTextActive: { color: '#ffffff' },
   sheetTabTextBlocked: { color: '#475569', textDecorationLine: 'line-through' },
-  blockedBadge: { backgroundColor: '#ef4444', borderRadius: 4, paddingHorizontal: 4, marginLeft: 4 },
-  blockedBadgeText: { fontSize: 7, fontWeight: '900', color: '#ffffff' },
-  sheetControls: { flexDirection: 'row', marginLeft: 2 },
-  sheetCtrlBtn: { width: 22, height: 22, borderRadius: 6, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center', marginHorizontal: 1 },
-  sheetCtrlBtnUnblock: { backgroundColor: '#065f46' },
-  sheetCtrlBtnText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
-  addRowBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginLeft: 6 },
-  addRowBtnText: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
+  blockedDot: { color: '#ef4444', fontSize: 8, marginLeft: 4 },
+  sheetBlockBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#1e293b',
+    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
+  },
+  sheetBlockBtnText: { fontSize: 16 },
 
-  // Grid Area
-  gridArea: { flex: 1, backgroundColor: '#030712', padding: 4 },
-  gridContent: { flexGrow: 1 },
+  // ── Grid ────────────────────────────────────────────────────────────────
+  gridContainer: { flex: 1, backgroundColor: '#030712', padding: 4 },
+  gridInner: { flex: 1 },
 
-  // Empty / Blocked States
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
-  blockedState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 4 },
+  emptyIcon: { fontSize: 52, marginBottom: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '900', color: '#ffffff', marginBottom: 4 },
   emptySub: { fontSize: 12, color: '#64748b', textAlign: 'center' },
 
   // Column Header Row
-  colHeaderRow: { flexDirection: 'row' },
-  cornerCell: { width: 60, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0b1329', borderRightWidth: 1, borderRightColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  cornerLabel: { fontSize: 9, fontWeight: '900', color: '#64748b' },
-  colHeaderCell: { borderRightWidth: 1, borderRightColor: '#1e293b', borderBottomWidth: 1, borderBottomColor: '#1e293b', padding: 4, minWidth: 110, backgroundColor: '#0b1329' },
-  colHeaderCellBlocked: { backgroundColor: '#1e293b' },
-  colHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  colHeaderLabel: { fontSize: 9, fontWeight: '800', color: '#64748b' },
-  blockColBtn: { width: 20, height: 20, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  blockColBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
-  blockColBtnText: { fontSize: 10 },
-  blockColBtnTextActive: {},
-  fieldChip: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginRight: 4 },
-  fieldChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
-  fieldChipDisabled: { opacity: 0.4 },
-  fieldChipText: { fontSize: 8, color: '#94a3b8', fontWeight: '700' },
-  fieldChipTextActive: { color: '#ffffff' },
+  gridHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  rowNumCorner: {
+    height: 64, backgroundColor: '#0b1329',
+    borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#1e293b',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cornerLabel: { fontSize: 10, fontWeight: '800', color: '#475569', marginTop: 2 },
 
-  // Data Rows
-  dataRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b', backgroundColor: '#090d16', minHeight: 42 },
-  headerRow: { backgroundColor: '#0f172a' },
-  blockedRow: { backgroundColor: '#1e1b1b', opacity: 0.7 },
-  rowControlCell: { width: 60, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', backgroundColor: '#0b1329' },
-  rowControlCellBlocked: { backgroundColor: '#1e293b' },
-  rowNumText: { fontSize: 8, fontWeight: '800', color: '#475569', marginBottom: 2 },
-  blockRowBtn: { width: 20, height: 20, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  blockRowBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
-  blockRowBtnText: { fontSize: 10 },
-  blockRowBtnTextActive: {},
-  dataCell: { borderRightWidth: 1, borderRightColor: '#1e293b', minWidth: 110, justifyContent: 'center' },
-  dataCellBlocked: { backgroundColor: '#1e293b', opacity: 0.6 },
+  colHeader: {
+    backgroundColor: '#0b1329', borderRightWidth: 1, borderBottomWidth: 2, borderColor: '#1e293b',
+    paddingVertical: 6, paddingHorizontal: 4, minWidth: 100,
+  },
+  colHeaderTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  colHeaderLabel: {
+    flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b',
+    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4,
+    color: '#e2e8f0', fontSize: 11, fontWeight: '700',
+  },
+  colHeaderLabelBlocked: { color: '#475569', textDecorationLine: 'line-through', backgroundColor: '#1e293b' },
+  colActionBtn: {
+    width: 28, height: 28, borderRadius: 8, backgroundColor: '#020617',
+    borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center',
+  },
+  colActionBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
+  colActionBtnText: { fontSize: 13 },
+
+  roleSelector: { gap: 3 },
+  roleChip: {
+    backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b',
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, marginRight: 3,
+  },
+  roleChipActive: {},
+  roleChipText: { fontSize: 9, color: '#94a3b8', fontWeight: '700' },
+
+  // Grid Rows
+  gridRow: { flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: 1, borderColor: '#1e293b', minHeight: 44 },
+  gridRowBlocked: { backgroundColor: '#1e1111', opacity: 0.7 },
+
+  rowNumCell: {
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0b1329', borderRightWidth: 1, borderColor: '#1e293b',
+    gap: 2, paddingVertical: 6,
+  },
+  rowNumText: { fontSize: 10, fontWeight: '800', color: '#475569' },
+  rowNumTextBlocked: { color: '#ef4444' },
+  rowBlockBtn: {
+    width: 24, height: 24, borderRadius: 7, backgroundColor: '#020617',
+    borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center',
+  },
+  rowBlockBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
+  rowBlockBtnText: { fontSize: 12 },
+
+  gridCell: {
+    borderRightWidth: 1, borderColor: '#1e293b',
+    justifyContent: 'center', minWidth: 100,
+  },
+  gridCellBlocked: { backgroundColor: '#1e293b', opacity: 0.6 },
   cellInput: {
-    paddingHorizontal: 6, paddingVertical: 6, color: '#e2e8f0', fontSize: 11,
+    paddingHorizontal: 6, paddingVertical: 8, color: '#e2e8f0', fontSize: 12,
     fontWeight: '500', backgroundColor: 'transparent',
   },
-  cellInputHeader: { fontWeight: '900', color: '#818cf8' },
-  cellInputBlocked: { color: '#475569', textDecorationLine: 'line-through' },
+  cellInputBlocked: { color: '#475569' },
 
-  // Footer
+  addRowBtn: {
+    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+    borderRadius: 10, paddingVertical: 10, alignItems: 'center', justifyContent: 'center',
+    marginTop: 8, marginHorizontal: 4,
+  },
+  addRowBtnText: { fontSize: 12, fontWeight: '800', color: '#818cf8' },
+
+  // ── Footer ──────────────────────────────────────────────────────────────
   footer: {
     backgroundColor: '#0f172a', borderTopWidth: 1, borderTopColor: '#1e293b',
-    paddingHorizontal: 14, paddingVertical: 10, paddingBottom: 34,
+    paddingHorizontal: 14, paddingTop: 10, paddingBottom: 34,
   },
-  validationMsg: { marginBottom: 8 },
-  validationText: { fontSize: 11, fontWeight: '700', color: '#f59e0b' },
+  footerTablet: { paddingHorizontal: 24 },
+  validationRow: { marginBottom: 8 },
+  warnText: { fontSize: 11, fontWeight: '700', color: '#f59e0b' },
+  readyText: { fontSize: 11, fontWeight: '700', color: '#34d399' },
   footerActions: { flexDirection: 'row', gap: 8 },
-  cancelBtn: { flex: 1, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  footerActionsTablet: { gap: 12 },
+  cancelBtn: {
+    flex: 1, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+    paddingVertical: 13, borderRadius: 12, alignItems: 'center',
+  },
   cancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
-  injectBtn: { flex: 2, backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  injectBtn: {
+    flex: 2, backgroundColor: '#4f46e5', paddingVertical: 13,
+    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+  },
   injectBtnDisabled: { opacity: 0.4 },
   injectBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+
+  // ── Rename Modal ───────────────────────────────────────────────────────
+  renameOverlay: {
+    position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  renameCard: {
+    backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+    borderRadius: 16, padding: 20, width: '85%', maxWidth: 360,
+  },
+  renameCardTablet: { maxWidth: 420, padding: 24 },
+  renameTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff', marginBottom: 12 },
+  renameInput: {
+    backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    color: '#ffffff', fontSize: 13, fontWeight: '600', marginBottom: 16,
+  },
+  renameActions: { flexDirection: 'row', gap: 10 },
+  renameCancelBtn: {
+    flex: 1, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+    paddingVertical: 11, borderRadius: 10, alignItems: 'center',
+  },
+  renameCancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
+  renameSaveBtn: {
+    flex: 1, backgroundColor: '#4f46e5', paddingVertical: 11,
+    borderRadius: 10, alignItems: 'center',
+  },
+  renameSaveBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 });
