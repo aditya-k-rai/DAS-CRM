@@ -18,9 +18,11 @@ HIDDEN_IMPORTS = [
     # Core
     'core.api_client',
     'core.sync_engine',
+    'core.permissions',
 
-    # UI — sidebar
+    # UI — sidebar + login
     'ui.sidebar',
+    'ui.login_window',
 
     # UI — views (all in ui/ directory)
     'ui.views',
@@ -51,10 +53,6 @@ HIDDEN_IMPORTS = [
     # Third-party
     'httpx',
     'pydantic',
-    'pydantic_settings',
-    'pydantic-settings',
-    'aiofiles',
-    'python_dotenv',
 ]
 
 
@@ -71,7 +69,7 @@ def build_exe(debug=False):
     ]
 
     # Collect all for heavy deps
-    for pkg in ['PyQt6', 'httpx', 'pydantic', 'pydantic_settings', 'aiofiles']:
+    for pkg in ['PyQt6', 'httpx', 'pydantic']:
         args.append(f'--collect-all={pkg}')
 
     # Icon

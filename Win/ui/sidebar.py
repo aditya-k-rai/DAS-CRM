@@ -1,12 +1,17 @@
 """
 sidebar.py — DAS CRM Windows Sidebar Navigation
-Implements collapsible sidebar with icons, labels, tooltips, and user profile.
+Role-based menu items that change based on logged-in user role.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QPushButton, QToolButton, QFrame, QSizePolicy,
-                              QScrollArea)
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPainter, QColor, QIcon, QPixmap, QFont
+                              QPushButton, QFrame, QScrollArea)
+from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QPainter, QColor, QFont
+
+from core.permissions import (
+    NAV_MENU, BOTTOM_MENU, get_visible_nav_items,
+    get_visible_bottom_items, get_role_badge_color,
+    normalize_role, UserRole
+)
 
 
 class SidebarButton(QPushButton):
@@ -19,19 +24,18 @@ class SidebarButton(QPushButton):
         self.setFixedHeight(44)
         self.setCheckable(True)
         self._is_collapsed = False
+        self._icon = icon
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 0, 12, 0)
         layout.setSpacing(12)
 
-        # Icon label (emoji or text)
         self.icon_label = QLabel(icon, self)
         self.icon_label.setFont(QFont("Segoe UI Emoji", 14))
         self.icon_label.setFixedWidth(28)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.icon_label)
 
-        # Label
         self.label = QLabel(label, self)
         self.label.setFont(QFont("Segoe UI", 10))
         self.label.setStyleSheet("color: #B0B8C8; background: transparent; border: none;")
@@ -76,36 +80,24 @@ class SidebarButton(QPushButton):
 
 
 class Sidebar(QFrame):
-    """Collapsible sidebar with navigation, collapse toggle, and user profile."""
+    """Collapsible sidebar with role-based navigation, collapse toggle, and user profile."""
 
     view_requested = pyqtSignal(str)  # view_id
-
-    NAV_ITEMS = [
-        ("📊", "Dashboard", "dashboard"),
-        ("👥", "Leads", "leads"),
-        ("🤝", "Deals & Pipeline", "deals"),
-        ("📋", "Quotations", "quotations"),
-        ("📦", "Products", "products"),
-        ("📞", "Contacts", "contacts"),
-        ("📈", "Reports", "reports"),
-        ("🔧", "Automation", "automation"),
-        ("💬", "Communications", "communications"),
-        ("👔", "HR & Attendance", "hr"),
-        ("🔗", "Integrations", "integrations"),
-        ("🛠️", "Admin", "admin"),
-    ]
-
-    BOTTOM_ITEMS = [
-        ("⚙️", "Settings", "settings"),
-        ("❓", "Help", "help"),
-    ]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._collapsed = False
         self._active_view = "dashboard"
         self._buttons: dict[str, SidebarButton] = {}
+        self._user_role = UserRole.ADMIN
+        self._nav_items = []
+        self._bottom_items = []
         self._setup_ui()
+
+    def _build_nav_widget(self):
+        """Rebuild nav buttons from current role's visible items."""
+        self._nav_items = get_visible_nav_items(self._user_role)
+        self._bottom_items = get_visible_bottom_items(self._user_role)
 
     def _setup_ui(self):
         self.setFixedWidth(200)
@@ -116,7 +108,7 @@ class Sidebar(QFrame):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # ── Header ────────────────────────────────────────────────────────
+        # ── Header ─────────────────────────────────────────────────────────
         header = QFrame()
         header.setFixedHeight(64)
         header_layout = QHBoxLayout(header)
@@ -159,57 +151,51 @@ class Sidebar(QFrame):
 
         main_layout.addWidget(header)
 
-        # ── Separator ────────────────────────────────────────────────────
+        # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet("background: #1E2A3C; max-height: 1px;")
         main_layout.addWidget(sep)
 
-        # ── Navigation Scroll Area ──────────────────────────────────────────
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("background: transparent; border: none;")
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # ── Navigation Scroll Area ─────────────────────────────────────────
+        self.nav_scroll = QScrollArea()
+        self.nav_scroll.setWidgetResizable(True)
+        self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_scroll.setStyleSheet("background: transparent; border: none;")
+        self.nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        nav_widget = QWidget()
-        nav_layout = QVBoxLayout(nav_widget)
-        nav_layout.setContentsMargins(8, 12, 8, 12)
-        nav_layout.setSpacing(4)
-        nav_layout.addStretch()
+        self.nav_widget = QWidget()
+        self.nav_layout = QVBoxLayout(self.nav_widget)
+        self.nav_layout.setContentsMargins(8, 12, 8, 12)
+        self.nav_layout.setSpacing(4)
 
-        for icon, label, vid in self.NAV_ITEMS:
-            btn = SidebarButton(icon, label, vid)
-            btn.clicked.connect(lambda checked, v=vid: self._on_nav_click(v))
-            nav_layout.insertWidget(nav_layout.count() - 1, btn)
-            self._buttons[vid] = btn
+        self._build_nav_widget()
+        self._rebuild_nav_buttons()
 
-        nav_layout.addStretch()
+        self.nav_layout.addStretch()
+        self.nav_scroll.setWidget(self.nav_widget)
+        main_layout.addWidget(self.nav_scroll, stretch=1)
 
-        scroll.setWidget(nav_widget)
-        main_layout.addWidget(scroll, stretch=1)
-
-        # ── Bottom Items ───────────────────────────────────────────────────
+        # ── Bottom Items ──────────────────────────────────────────────────
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet("background: #1E2A3C; max-height: 1px;")
         main_layout.addWidget(sep2)
 
-        bottom = QWidget()
-        bottom.setFixedHeight(90)
-        bottom_layout = QVBoxLayout(bottom)
-        bottom_layout.setContentsMargins(8, 8, 8, 8)
-        bottom_layout.setSpacing(4)
+        self.bottom_widget = QWidget()
+        self.bottom_layout = QVBoxLayout(self.bottom_widget)
+        self.bottom_layout.setContentsMargins(8, 8, 8, 8)
+        self.bottom_layout.setSpacing(4)
 
-        for icon, label, vid in self.BOTTOM_ITEMS:
-            btn = SidebarButton(icon, label, vid)
-            btn.clicked.connect(lambda checked, v=vid: self._on_nav_click(v))
-            bottom_layout.addWidget(btn)
-            self._buttons[vid] = btn
+        for item in self._bottom_items:
+            btn = SidebarButton(item.icon, item.label, item.view_id)
+            btn.clicked.connect(lambda checked, v=item.view_id: self._on_nav_click(v))
+            self.bottom_layout.addWidget(btn)
+            self._buttons[item.view_id] = btn
 
-        main_layout.addWidget(bottom)
+        main_layout.addWidget(self.bottom_widget)
 
-        # ── User Profile ──────────────────────────────────────────────────
+        # ── User Profile ─────────────────────────────────────────────────
         user_frame = QFrame()
         user_frame.setFixedHeight(60)
         user_frame.setStyleSheet("background: #0A1020; border-top: 1px solid #1E2A3C;")
@@ -260,6 +246,27 @@ class Sidebar(QFrame):
         # Set initial active
         self._buttons.get(self._active_view, None).setChecked(True)
 
+    def _rebuild_nav_buttons(self):
+        """Clear and rebuild nav buttons based on current role's visible items."""
+        # Remove existing nav buttons
+        while self.nav_layout.count():
+            item = self.nav_layout.takeAt(0)
+            if item.widget() and item.widget() not in (self.nav_widget,):
+                item.widget().deleteLater()
+
+        self._buttons.clear()
+        for item in self._nav_items:
+            btn = SidebarButton(item.icon, item.label, item.view_id)
+            btn.clicked.connect(lambda checked, v=item.view_id: self._on_nav_click(v))
+            self.nav_layout.insertWidget(self.nav_layout.count() - 1, btn)
+            self._buttons[item.view_id] = btn
+
+        # Set active if current view still visible, else first
+        if self._active_view not in self._buttons:
+            self._active_view = self._nav_items[0].view_id if self._nav_items else "dashboard"
+
+        self.set_active(self._active_view)
+
     def _on_nav_click(self, view_id: str):
         self._active_view = view_id
         for vid, btn in self._buttons.items():
@@ -300,7 +307,36 @@ class Sidebar(QFrame):
         for btn in self._buttons.values():
             btn.set_collapsed(self._collapsed)
 
-    def update_user(self, name: str, role: str, tenant: str):
+    def update_user(self, name: str, role: str, tenant: str, role_key: str = "ADMIN"):
+        """Update user info and rebuild menus based on role."""
+        self._user_role = normalize_role(role_key)
+
+        # Rebuild nav if role changed
+        old_nav = [i.view_id for i in self._nav_items]
+        self._build_nav_widget()
+        new_nav = [i.view_id for i in self._nav_items]
+
+        if old_nav != new_nav:
+            self._rebuild_nav_buttons()
+
         self.user_name_label.setText(name)
         self.user_role_label.setText(role)
         self.tenant_label.setText(tenant)
+
+        # Avatar gradient based on role
+        color = get_role_badge_color(role_key)
+        self.avatar_label.setStyleSheet(f"""
+            background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {color}, stop:1 #6366F1);
+            border-radius: 18px;
+        """)
+
+        # Route to correct default view for role
+        from core.permissions import get_default_route
+        default = get_default_route(role_key)
+        if default in self._buttons:
+            self._on_nav_click(default)
+        else:
+            self._on_nav_click(self._active_view)
+
+    def get_user_role(self) -> str:
+        return self._user_role
