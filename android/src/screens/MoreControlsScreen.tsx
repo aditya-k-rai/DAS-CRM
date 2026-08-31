@@ -14,6 +14,7 @@ import ProductsCatalogScreen from './ProductsCatalogScreen';
 import CommunicationScreen from './CommunicationScreen';
 import { WhatsAppTemplatesScreen } from './WhatsAppTemplatesScreen';
 import { AiCustomizationScreen } from './AiCustomizationScreen';
+import { AIHubScreen } from './AIHubScreen';
 import { QuotationsInvoicesScreen } from './QuotationsInvoicesScreen';
 import { PdfCatalogueScreen } from './PdfCatalogueScreen';
 import { DealsPipelineScreen } from './DealsPipelineScreen';
@@ -32,6 +33,7 @@ export type ModuleKey =
   | 'WA_TEMPLATES'
   | 'EXTRA_EMAIL'
   | 'AI_CONTROL'
+  | 'AI_HUB'
   | 'PDF_CATALOG'
   | 'REPORTS'
   | 'AUTOMATIONS'
@@ -86,7 +88,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     }
   };
 
-  // 18 Navigation Items in Exact Specified Order
+  // 19 Navigation Items in Exact Specified Order
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string; upcoming?: boolean }[] = [
     { key: 'PRODUCTS', icon: '📦', label: 'Product Catalogue' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
@@ -94,6 +96,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'WA_TEMPLATES', icon: '✏️', label: 'WhatsApp Direct Templates' },
     { key: 'EXTRA_EMAIL', icon: '🚀', label: 'Email Marketing' },
     { key: 'AI_CONTROL', icon: '🤖', label: 'AI Customization' },
+    { key: 'AI_HUB', icon: '🧠', label: 'AI Hub' },
     { key: 'PDF_CATALOG', icon: '📄', label: 'PDF Catalogue' },
     { key: 'REPORTS', icon: '📊', label: 'Reports & Analytics' },
     { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations' },
@@ -126,6 +129,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'AI_CONTROL' && <AiCustomizationScreen onClose={() => setActiveModal(null)} />}
+        {activeModal === 'AI_HUB' && <AIHubScreen />}
         {activeModal === 'QUOTES' && <QuotationsInvoicesScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'PDF_CATALOG' && <PdfCatalogueScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'DEALS' && <DealsPipelineScreen onClose={() => setActiveModal(null)} />}
