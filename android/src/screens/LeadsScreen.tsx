@@ -11,7 +11,7 @@
  *   3. 🎯 Leads Collections (Directory, Filters, Search & Lead Record Editing)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,6 @@ import {
   Modal,
   Alert,
   ScrollView,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -60,6 +59,20 @@ export default function LeadsScreen() {
   const [editingColKey, setEditingColKey] = useState<string | null>(null);
   const [editingColTitle, setEditingColTitle] = useState('');
 
+  // ── EXCEL GRID CONSTANTS & REF ────────────────────────────────────────────
+  const EXCEL_ROW_H = 50;
+  const headerHScrollRef = useRef<ScrollView>(null);
+  const bodyFlatListRef   = useRef<FlatList<LeadItem>>(null);
+
+  const handleHeaderHScroll = (e: any) => {
+    bodyFlatListRef.current?.scrollToOffset({ offset: e.nativeEvent.contentOffset.x, animated: false });
+  };
+
+  const getExcelItemLayout = useCallback((_: any, index: number) => ({
+    length: EXCEL_ROW_H, offset: EXCEL_ROW_H * index, index,
+  }), []);
+
+  // ── COLUMN ORDER STATE ────────────────────────────────────────────────────
   const [columnOrder, setColumnOrder] = useState<string[]>([
     'name',
     'email',
@@ -351,7 +364,25 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     return item.status.toUpperCase() === activeFilter.toUpperCase();
   });
 
-  // Render Excel Cell by Column Key
+  // ── MEMOIZED EXCEL ROW COMPONENT ───────────────────────────────────────────
+  // Skips re-render for rows whose data + column config didn't change.
+  const ExcelRow = React.memo(({ item, index }: { item: LeadItem; index: number }) => {
+    return (
+      <View style={[styles.excelDataRow, index % 2 === 1 && styles.excelRowAlt]}>
+        {columnOrder.map((colKey) => {
+          const colWidth = columnWidths[colKey] || 140;
+          return renderExcelCell(item, colKey, colWidth);
+        })}
+      </View>
+    );
+  }, (prev, next) => prev.item === next.item && prev.index === next.index);
+
+  // ── VIRTUALIZED FLATLIST RENDER CALLBACK ───────────────────────────────────
+  const renderExcelRow = useCallback(({ item, index }: { item: LeadItem; index: number }) => (
+    <ExcelRow item={item} index={index} />
+  ), []);
+
+  // ── RENDER EXCEL CELL BY COLUMN KEY ────────────────────────────────────────
   const renderExcelCell = (item: LeadItem, colKey: string, width: number) => {
     switch (colKey) {
       case 'name':
@@ -616,11 +647,19 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           {/* 📊 EXCEL SPREADSHEET TABLE GRID VIEW                                      */}
           {/* ─────────────────────────────────────────────────────────────────────────── */}
           {viewMode === 'EXCEL_GRID' ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.excelScrollView}>
+            <View style={styles.excelScrollView}>
               <View style={styles.excelTableContainer}>
 
                 {/* 📊 EXCEL HEADER ROW WITH SHIFT ARROWS, INLINE RENAME & LINE EXTENDER */}
-                <View style={styles.excelHeaderRow}>
+                <ScrollView
+                  ref={headerHScrollRef}
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  scrollEventThrottle={16}
+                  onScroll={handleHeaderHScroll}
+                  style={styles.excelHeaderScrollWrap}
+                  contentContainerStyle={styles.excelHeaderContent}
+                >
                   {columnOrder.map((colKey, colIdx) => {
                     const colWidth = columnWidths[colKey] || 140;
                     const colName = columnNames[colKey] || colKey;
@@ -663,22 +702,27 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       </View>
                     );
                   })}
-                </View>
-
-                {/* 📊 EXCEL DATA ROWS */}
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                  {filteredLeads.map((leadItem, rowIdx) => (
-                    <View key={leadItem.id} style={[styles.excelDataRow, rowIdx % 2 === 1 && styles.excelRowAlt]}>
-                      {columnOrder.map((colKey) => {
-                        const colWidth = columnWidths[colKey] || 140;
-                        return renderExcelCell(leadItem, colKey, colWidth);
-                      })}
-                    </View>
-                  ))}
                 </ScrollView>
 
+                {/* 📊 EXCEL DATA ROWS — VIRTUALIZED FlatList (smooth scroll, no flicker) */}
+                <FlatList
+                  ref={bodyFlatListRef}
+                  data={filteredLeads}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderExcelRow}
+                  getItemLayout={getExcelItemLayout}
+                  initialNumToRender={20}
+                  maxToRenderPerBatch={20}
+                  windowSize={11}
+                  removeClippedSubviews={true}
+                  updateCellsBatchingPeriod={50}
+                  showsVerticalScrollIndicator={true}
+                  style={styles.excelBodyList}
+                  contentContainerStyle={styles.excelBodyContent}
+                />
+
               </View>
-            </ScrollView>
+            </View>
           ) : (
 
             /* 📱 CLASSIC CARD FEED VIEW */
@@ -1075,7 +1119,11 @@ const styles = StyleSheet.create({
 
   // 📊 EXCEL SPREADSHEET TABLE STYLES (MATCHES USER SCREENSHOT)
   excelScrollView: { flex: 1, backgroundColor: '#030712' },
-  excelTableContainer: { minWidth: 1400, paddingBottom: 20 },
+  excelTableContainer: { flex: 1 },
+  excelHeaderScrollWrap: { flexGrow: 0 },
+  excelHeaderContent: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: '#0b1329', minWidth: 1400 },
+  excelBodyList: { flex: 1 },
+  excelBodyContent: { minWidth: 1400 },
 
   excelHeaderRow: { flexDirection: 'row', backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 6 },
   excelHeaderCell: {
@@ -1097,7 +1145,7 @@ const styles = StyleSheet.create({
   colWidthExtenderBtn: { marginLeft: 4, paddingHorizontal: 3, paddingVertical: 2, borderRadius: 4, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
   colWidthExtenderText: { color: '#64748b', fontSize: 8, fontWeight: '800' },
 
-  excelDataRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b', backgroundColor: '#090d16', minHeight: 48 },
+  excelDataRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b', backgroundColor: '#090d16', height: 50 },
   excelRowAlt: { backgroundColor: '#0b1120' },
   excelDataCell: { paddingHorizontal: 8, paddingVertical: 8, borderRightWidth: 1, borderRightColor: '#1e293b', justifyContent: 'center' },
 
