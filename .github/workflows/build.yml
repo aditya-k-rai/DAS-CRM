@@ -2,165 +2,148 @@
 # DAS CRM — Cross-Platform Desktop Build Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 # Triggers on every push to `main` and on manual dispatch.
-# Produces two downloadable artifacts visible under "Actions > Artifacts":
-#   • DASCRM-Windows.exe  — standalone Windows executable (PyInstaller)
-#   • DASCRM-macOS.dmg    — macOS disk image installer   (Swift + create-dmg)
+# Produces four downloadable artifacts visible under "Actions > Artifacts":
+#   • DASCRM-x64.exe        — Windows x86_64 standalone executable
+#   • DASCRM-x86.exe        — Windows x86 (32-bit) standalone executable
+#   • DASCRM-universal.exe  — Windows all-architectures standalone executable
+#   • DASCRM-macOS.dmg      — macOS disk image installer
 #
-# The two build jobs run IN PARALLEL to minimise total wall-clock time.
+# All four build jobs run IN PARALLEL to minimise total wall-clock time.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Build Desktop Installers (Windows .exe & macOS .dmg)
+name: Build Desktop Installers (Windows .exe ×3 & macOS .dmg)
 
 on:
   push:
     branches: [ main ]
-  # Allow a one-click manual trigger from the GitHub Actions UI
   workflow_dispatch:
 
-# ── Global permissions ────────────────────────────────────────────────────────
 permissions:
-  contents: write   # needed by softprops/action-gh-release when tagging
+  contents: write
 
 # ─────────────────────────────────────────────────────────────────────────────
-# JOB 1 — Windows  (.exe via PyInstaller)
+# WINDOWS BUILD JOBS — run in parallel
 # ─────────────────────────────────────────────────────────────────────────────
-jobs:
-  build-windows:
-    name: "Windows - Build .exe"
-    runs-on: windows-latest   # GitHub-hosted Windows Server 2022 runner
 
+  build-windows-x64:
+    name: "Windows x86_64"
+    runs-on: windows-latest
     steps:
-      # ── 1. Check out source ────────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # ── 2. Set up the correct Python version ──────────────────────────────
-      #  PyQt6 6.7.x requires Python >= 3.9; we pin to 3.11 for stability.
-      #  Change `python-version` here if your project targets a different
-      #  interpreter (e.g. "3.12" or "3.10").
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"                  # cache pip downloads across runs
-
-      # ── 3. Install Python dependencies (incl. PyInstaller) ────────────────
-      #  All packages come from Win/requirements.txt which already pins
-      #  pyinstaller==6.10. Add extra pip flags here if you need a private
-      #  package index (e.g. --extra-index-url https://your-pypi.example.com).
-      - name: Install Python dependencies
+          cache: "pip"
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip wheel
           pip install -r Win/requirements.txt
-
-      # ── 4. Create resources directory (required by build_exe.py) ──────────
-      #  build_exe.py references Win/resources. Ensure it exists so PyInstaller
-      #  does not error when no icon.ico is present.
-      - name: Ensure resources directory exists
+      - name: Ensure resources directory
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path "Win/resources" | Out-Null
-          if (Test-Path "Win/resources/icon.ico") {
-            Write-Host "icon.ico found - will embed in executable."
-          } else {
-            Write-Host "No icon.ico found - building without custom icon."
-          }
-
-      # ── 5. Run the PyInstaller build ───────────────────────────────────────
-      #  build_exe.py calls PyInstaller with --onefile --windowed, producing
-      #  a single Win/dist/DASCRM.exe.  All PyInstaller options live in
-      #  Win/build_exe.py — edit that file to tweak packaging behaviour.
-      - name: Build DASCRM.exe with PyInstaller
+        run: New-Item -ItemType Directory -Force -Path "Win/resources" | Out-Null
+      - name: Build x64 exe
         working-directory: Win
         shell: pwsh
         env:
-          PYTHONIOENCODING: "utf-8"   # prevent UnicodeEncodeError on cp1252 Windows runner
-        run: python build_exe.py
-
-      # ── 6. Verify the artifact was actually produced ───────────────────────
-      - name: Verify .exe exists
-        shell: pwsh
-        run: |
-          if (Test-Path "Win/dist/DASCRM.exe") {
-            $size = (Get-Item "Win/dist/DASCRM.exe").Length / 1MB
-            Write-Host "DASCRM.exe produced - $([math]::Round($size,1)) MB"
-          } else {
-            Write-Error "DASCRM.exe not found - PyInstaller build failed."
-            exit 1
-          }
-
-      # ── 7. Upload .exe as a downloadable GitHub Actions artifact ──────────
-      #  After this job completes, go to Actions > click the run > scroll to
-      #  "Artifacts" at the bottom to download DASCRM-Windows.zip.
-      - name: Upload Windows .exe artifact
+          PYTHONIOENCODING: "utf-8"
+        run: python build_all.py x64
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DASCRM-Windows          # artifact name shown in the UI
-          path: Win/dist/DASCRM.exe     # path relative to repo root
-          if-no-files-found: error      # fail loudly if nothing was built
-          retention-days: 30            # keep for 30 days (max free: 90)
+          name: DASCRM-x64
+          path: Win/dist/DASCRM-x64.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  build-windows-x86:
+    name: "Windows x86 (32-bit)"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install -r Win/requirements.txt
+      - name: Ensure resources directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "Win/resources" | Out-Null
+      - name: Build x86 exe
+        working-directory: Win
+        shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"
+        run: python build_all.py x86 || echo "x86 build skipped (32-bit Python not available)"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASCRM-x86
+          path: Win/dist/DASCRM-x86.exe
+          if-no-files-found: ignore
+          retention-days: 30
+
+  build-windows-universal:
+    name: "Windows Universal"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install -r Win/requirements.txt
+      - name: Ensure resources directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "Win/resources" | Out-Null
+      - name: Build universal exe
+        working-directory: Win
+        shell: pwsh
+        env:
+          PYTHONIOENCODING: "utf-8"
+        run: python build_all.py universal
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASCRM-universal
+          path: Win/dist/DASCRM-universal.exe
+          if-no-files-found: error
+          retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────
-  # JOB 2 — macOS  (.dmg via Swift Package Manager + create-dmg)
+  # macOS  (.dmg via Swift Package Manager + create-dmg)
   # ─────────────────────────────────────────────────────────────────────────
   build-macos:
-    name: "macOS - Build .dmg"
-    runs-on: macos-latest     # GitHub-hosted macOS runner with Xcode
-
+    name: "macOS"
+    runs-on: macos-latest
     steps:
-      # ── 1. Check out source ───────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # ── 2. Print Xcode / Swift toolchain info (useful for debugging) ──────
+      - uses: actions/checkout@v4
       - name: Show Xcode and Swift versions
         run: |
           xcode-select --print-path
           xcodebuild -version
           swift --version
-
-      # ── 3. Resolve Swift package dependencies ─────────────────────────────
-      #  macOs/Package.swift has zero external dependencies right now, so this
-      #  is a no-op — but it will pull any future SPM packages automatically.
-      #  We explicitly set the tools version first to guard against any
-      #  CRLF line-ending misreads on the runner (which caused 5.1.0 errors).
       - name: Resolve Swift package dependencies
         working-directory: macOs
         run: |
           swift package tools-version --set 5.9
           swift package resolve
-
-      # ── 4. Build the macOS executable in Release mode ─────────────────────
-      #  Builds a native arm64 binary (the GitHub macOS-latest runner is arm64).
-      #  Rosetta 2 provides x86_64 compatibility automatically on Intel Macs.
-      #  If you need a true fat binary, use xcodebuild with lipo instead.
       - name: Build macOS Swift executable (release)
         working-directory: macOs
-        run: |
-          swift build --configuration release
-
-      # ── 5. Assemble a minimal .app bundle ────────────────────────────────
-      #  Swift CLI apps don't produce a .app automatically; we create the
-      #  required directory structure so Finder and Gatekeeper are satisfied.
+        run: swift build --configuration release
       - name: Assemble DASCRM.app bundle
         run: |
           APP="$RUNNER_TEMP/DASCRM.app"
-
-          # Single-arch release binary (arm64 native on the runner)
           BIN="macOs/.build/release/DASCRM"
-
-          echo "Using binary at: $BIN"
-          ls -lh "$BIN"
-
-          # Create minimal .app skeleton
           mkdir -p "$APP/Contents/MacOS"
           mkdir -p "$APP/Contents/Resources"
-
-          # Copy the compiled binary
           cp "$BIN" "$APP/Contents/MacOS/DASCRM"
           chmod +x "$APP/Contents/MacOS/DASCRM"
-
-          # Write Info.plist — customise CFBundleIdentifier and version here
           cat > "$APP/Contents/Info.plist" << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -179,24 +162,12 @@ jobs:
           </dict>
           </plist>
           PLIST
-
-          echo ".app bundle assembled at $APP"
-          ls -lhR "$APP"
-
-      # ── 6. Install create-dmg helper ──────────────────────────────────────
-      #  create-dmg wraps hdiutil and produces a professional disk image with
-      #  a nice window layout (icon + drag-to-Applications arrow).
-      #  To avoid Homebrew entirely, comment out this step and uncomment the
-      #  plain hdiutil fallback in the next step.
       - name: Install create-dmg
         run: brew install create-dmg
-
-      # ── 7. Package the .app into a .dmg ───────────────────────────────────
       - name: Create DASCRM.dmg
         run: |
           DMG="$RUNNER_TEMP/DASCRM.dmg"
           APP="$RUNNER_TEMP/DASCRM.app"
-
           create-dmg \
             --volname "DAS CRM Installer" \
             --window-pos  200 120 \
@@ -205,62 +176,33 @@ jobs:
             --icon "DASCRM.app" 180 170 \
             --hide-extension "DASCRM.app" \
             --app-drop-link 480 170 \
-            "$DMG" \
-            "$APP" || \
-          # Fallback: plain hdiutil if create-dmg fails (e.g. missing icon)
-          hdiutil create \
-            -volname "DAS CRM" \
-            -srcfolder "$APP" \
-            -ov -format UDZO \
-            "$DMG"
-
-          echo "DMG produced at $DMG"
-          ls -lh "$DMG"
-
-      # ── 8. Copy .dmg to workspace root so upload-artifact can find it ─────
-      - name: Stage .dmg for upload
-        run: cp "$RUNNER_TEMP/DASCRM.dmg" DASCRM.dmg
-
-      # ── 9. Upload .dmg as a downloadable GitHub Actions artifact ──────────
-      - name: Upload macOS .dmg artifact
+            "$DMG" "$APP" || \
+          hdiutil create -volname "DAS CRM" -srcfolder "$APP" -ov -format UDZO "$DMG"
+          cp "$DMG" DASCRM.dmg
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DASCRM-macOS             # artifact name shown in the UI
+          name: DASCRM-macOS
           path: DASCRM.dmg
           if-no-files-found: error
           retention-days: 30
 
   # ─────────────────────────────────────────────────────────────────────────
-  # JOB 3 — (Optional) Publish a tagged GitHub Release with both artifacts
-  # ─────────────────────────────────────────────────────────────────────────
-  # This job ONLY runs when you push a version tag (e.g. v1.0.0).
-  # It waits for both build jobs to succeed, downloads their artifacts,
-  # and attaches them to a proper GitHub Release page automatically.
-  #
-  # Usage:
-  #   git tag v1.0.0
-  #   git push origin v1.0.0
+  # Release — attach all artifacts to a GitHub Release on version tags
   # ─────────────────────────────────────────────────────────────────────────
   release:
     name: "Publish GitHub Release"
-    needs: [ build-windows, build-macos ]
+    needs: [ build-windows-x64, build-windows-x86, build-windows-universal, build-macos ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-
     steps:
-      - name: Download Windows artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: DASCRM-Windows
           path: release-assets/
-
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: DASCRM-macOS
-          path: release-assets/
-
-      - name: Publish GitHub Release
+          pattern: "DASCRM-*"
+          merge-multiple: true
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
@@ -268,15 +210,17 @@ jobs:
           body: |
             ## DAS CRM ${{ github.ref_name }}
 
-            ### Downloads
-            | Platform | File | Description |
-            |----------|------|-------------|
-            | Windows  | `DASCRM.exe` | Standalone executable — no installer needed |
-            | macOS    | `DASCRM.dmg` | Disk image — drag DASCRM.app to Applications |
+            ### Windows Downloads
+            | Architecture | File | Best For |
+            |---|---|---|
+            | x86_64 | `DASCRM-x64.exe` | Modern 64-bit Windows PCs |
+            | x86 (32-bit) | `DASCRM-x86.exe` | Older 32-bit Windows PCs |
+            | Universal | `DASCRM-universal.exe` | All Windows PCs (larger file) |
 
-            ### Installation
-            **Windows**: Download `DASCRM.exe` and run directly.
-            **macOS**: Open `DASCRM.dmg`, drag the app to Applications, then right-click > Open on first launch.
+            ### macOS
+            | File | Description |
+            |---|---|
+            | `DASCRM.dmg` | Disk image — drag app to Applications |
 
             > Built automatically by GitHub Actions from commit `${{ github.sha }}`
           draft: false

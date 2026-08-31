@@ -78,9 +78,9 @@ jobs:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
           DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/dascrm?schema=public"
 
-  # Job 4: Build Android Mobile APK (Gradle + React Native)
+  # Job 4: Build Android Mobile APKs — 3 architectures (Gradle + React Native)
   build-android:
-    name: Build Android Mobile APK
+    name: Build Android APKs (3 architectures)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,33 +99,87 @@ jobs:
       - name: Install Mobile Dependencies
         run: cd android && npm install --legacy-peer-deps
 
-      - name: Build APK via Gradle
+      - name: Build APK 1/3 — arm64-v8a
         run: |
           cd android/android
           chmod +x gradlew
-          # Build only arm64 to reduce memory pressure (faster build + less RAM)
-          # Metaspace OOM fix: increase heap to 4g and metaspace to 1g
           export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
           ./gradlew assembleRelease --no-daemon \
-            -PreactNativeArchitectures=arm64-v8a
+            -PreactNativeArchitectures=arm64-v8a \
+            -PreactNativeArchitecturesOnly=true
+          cp app/build/outputs/apk/release/*.apk ../app-arm64-v8a-release.apk
+          echo "✓ arm64-v8a APK built"
 
-      - name: Upload Android APK Artifact
+      - name: Build APK 2/3 — armeabi-v7a
+        run: |
+          cd android/android
+          chmod +x gradlew
+          export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
+          ./gradlew assembleRelease --no-daemon \
+            -PreactNativeArchitectures=armeabi-v7a \
+            -PreactNativeArchitecturesOnly=true
+          cp app/build/outputs/apk/release/*.apk ../app-armeabi-v7a-release.apk
+          echo "✓ armeabi-v7a APK built"
+
+      - name: Build APK 3/3 — Universal (all architectures)
+        run: |
+          cd android/android
+          chmod +x gradlew
+          export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
+          ./gradlew assembleRelease --no-daemon \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86,x86_64
+          cp app/build/outputs/apk/release/*.apk ../app-universal-release.apk
+          echo "✓ universal APK built"
+
+      - name: List built APKs
+        run: |
+          echo "=== Built APKs ==="
+          ls -lh android/*.apk
+
+      - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: android/android/app/build/outputs/apk/release/*.apk
+          name: DASCRM-arm64-v8a
+          path: android/app-arm64-v8a-release.apk
+          retention-days: 30
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASCRM-armeabi-v7a
+          path: android/app-armeabi-v7a-release.apk
+          retention-days: 30
+
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASCRM-universal
+          path: android/app-universal-release.apk
+          retention-days: 30
 
       - name: Publish Official GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: android/android/app/build/outputs/apk/release/*.apk
+          files: |
+            android/app-arm64-v8a-release.apk
+            android/app-armeabi-v7a-release.apk
+            android/app-universal-release.apk
           name: '${{ github.ref_name }} — Official Release'
           body: |
             ### 🚀 DAS CRM Mobile App Production Release (${{ github.ref_name }})
             - **Mobile Stack**: Expo / React Native (Android Native Build)
             - **Build Source**: Compiled via GitHub Actions Automated CI/CD
-            - **Installation**: Download `app-release.apk` below under **Assets** and install on your Android device.
+
+            ### Downloads
+            | Architecture | File | Best For |
+            |---|---|---|
+            | arm64-v8a | `app-arm64-v8a-release.apk` | Modern 64-bit Android devices (most phones) |
+            | armeabi-v7a | `app-armeabi-v7a-release.apk` | 32-bit ARM devices |
+            | Universal | `app-universal-release.apk` | All Android devices (larger file size) |
+
+            ### Installation
+            Download any APK from **Assets** below and install on your Android device.
           draft: false
           prerelease: false
         env:
