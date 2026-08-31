@@ -34,6 +34,7 @@ import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
 import { FileImportEngineModal, ImportedLead, FileAuditRecord } from '../components/FileImportEngineModal';
+import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
@@ -692,7 +693,12 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                   activeOpacity={0.7}
                 >
                   <View style={styles.cardHeader}>
-                    <Text style={styles.leadName}>{item.name}</Text>
+                    <View style={styles.cardHeaderLeft}>
+                      <Text style={styles.leadName}>{item.name}</Text>
+                      {item.aiScore && (
+                        <AIScoreBadge score={item.aiScore} compact />
+                      )}
+                    </View>
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                       <TouchableOpacity style={styles.editRowBtn} onPress={() => setEditingLead(item)}>
                         <Text style={styles.editRowBtnText}>✏️ Edit</Text>
@@ -1113,7 +1119,8 @@ const styles = StyleSheet.create({
 
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   leadCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   leadName: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   statusText: { fontSize: 9, fontWeight: '800' },

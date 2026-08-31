@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
+import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
 
 interface LeadDataWeb {
   id: string;
@@ -15,6 +16,7 @@ interface LeadDataWeb {
   statusColor: string;
   source: string;
   score: number;
+  aiScore?: AIScoreData;
   owner: string;
   value: string;
   created: string;
@@ -35,6 +37,7 @@ const LEADS: LeadDataWeb[] = [
   {
     id: '1', name: 'Rajesh Kumar', email: 'rajesh@example.com', phone: '+91 98765 43210',
     status: 'Qualified', statusColor: '#3b82f6', source: 'Website', score: 85,
+    aiScore: generateMockAIScore(8.7),
     owner: 'Rajesh K.', value: '₹2,40,000', created: 'Aug 9, 2026',
     tags: ['hot', 'real-estate'], city: 'Delhi NCR', budget: '₹2.5L - ₹5L', requirement: '50-Seat Enterprise CRM',
     currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
@@ -48,6 +51,7 @@ const LEADS: LeadDataWeb[] = [
   {
     id: '2', name: 'Priya Sharma', email: 'priya@example.com', phone: '+91 87654 32109',
     status: 'New', statusColor: '#6366f1', source: 'LinkedIn', score: 72,
+    aiScore: generateMockAIScore(7.5),
     owner: 'Priya S.', value: '₹1,80,000', created: 'Aug 9, 2026',
     tags: ['warm'], city: 'Mumbai', budget: '₹1.5L - ₹3L', requirement: 'WhatsApp Bot Integration',
     currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
@@ -57,11 +61,11 @@ const LEADS: LeadDataWeb[] = [
       { id: 'b2', fromRole: 'MANAGER', fromName: 'Anil Kumar (Manager B)', toRole: 'SALES_EXEC', toName: 'Priya S. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T11:00:00+05:30', note: 'Direct assignment — small ticket, no TL needed.' },
     ],
   },
-  { id: '3', name: 'TechCorp Ltd', email: 'contact@techcorp.com', phone: '+91 22 1234 5678', status: 'Proposal', statusColor: '#8b5cf6', source: 'Referral', score: 91, owner: 'Rajesh K.', value: '₹5,20,000', created: 'Aug 8, 2026', tags: ['hot', 'enterprise'], city: 'Bengaluru', budget: '₹5L+', requirement: 'AI Scoring Engine Pro', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '4', name: 'Amit Patel', email: 'amit@example.com', phone: '+91 76543 21098', status: 'Contacted', statusColor: '#f59e0b', source: 'Cold Call', score: 58, owner: 'Amit P.', value: '₹90,000', created: 'Aug 8, 2026', tags: [], city: 'Ahmedabad', budget: '₹50k - ₹1L', requirement: 'Cloud Telemetry License', currentAssignee: 'Amit P. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '5', name: 'Sunita Real Estate', email: 'info@sunita.com', phone: '+91 44 9876 5432', status: 'Negotiation', statusColor: '#ec4899', source: 'Events', score: 77, owner: 'Rajesh K.', value: '₹8,50,000', created: 'Aug 7, 2026', tags: ['warm'], city: 'Chennai', budget: '₹7L - ₹10L', requirement: 'Full CRM Suite + Mobile App', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '6', name: 'Construkt Inc.', email: 'bd@construkt.in', phone: '+91 80 1111 2222', status: 'New', statusColor: '#6366f1', source: 'Website', score: 63, owner: 'Priya S.', value: '₹3,60,000', created: 'Aug 7, 2026', tags: ['construction'], city: 'Pune', budget: '₹3L - ₹5L', requirement: 'Lead Scoring Engine', currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '3', name: 'TechCorp Ltd', email: 'contact@techcorp.com', phone: '+91 22 1234 5678', status: 'Proposal', statusColor: '#8b5cf6', source: 'Referral', score: 91, aiScore: generateMockAIScore(9.2), owner: 'Rajesh K.', value: '₹5,20,000', created: 'Aug 8, 2026', tags: ['hot', 'enterprise'], city: 'Bengaluru', budget: '₹5L+', requirement: 'AI Scoring Engine Pro', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '4', name: 'Amit Patel', email: 'amit@example.com', phone: '+91 76543 21098', status: 'Contacted', statusColor: '#f59e0b', source: 'Cold Call', score: 58, aiScore: generateMockAIScore(5.2), owner: 'Amit P.', value: '₹90,000', created: 'Aug 8, 2026', tags: [], city: 'Ahmedabad', budget: '₹50k - ₹1L', requirement: 'Cloud Telemetry License', currentAssignee: 'Amit P. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '5', name: 'Sunita Real Estate', email: 'info@sunita.com', phone: '+91 44 9876 5432', status: 'Negotiation', statusColor: '#ec4899', source: 'Events', score: 77, aiScore: generateMockAIScore(8.4), owner: 'Rajesh K.', value: '₹8,50,000', created: 'Aug 7, 2026', tags: ['warm'], city: 'Chennai', budget: '₹7L - ₹10L', requirement: 'Full CRM Suite + Mobile App', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '6', name: 'Construkt Inc.', email: 'bd@construkt.in', phone: '+91 80 1111 2222', status: 'New', statusColor: '#6366f1', source: 'Website', score: 63, aiScore: generateMockAIScore(6.1), owner: 'Priya S.', value: '₹3,60,000', created: 'Aug 7, 2026', tags: ['construction'], city: 'Pune', budget: '₹3L - ₹5L', requirement: 'Lead Scoring Engine', currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
+  { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, aiScore: generateMockAIScore(9.8), owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
 ];
 
 const STATUSES = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
@@ -76,14 +80,14 @@ export function LeadsTable() {
 
   // Excel Interactive Column Order State
   const [columnOrder, setColumnOrder] = useState<string[]>([
-    'name', 'status', 'score', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
+    'name', 'status', 'aiScore', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
   ]);
 
   // Dynamic Column Names (Renameable)
   const [columnTitles, setColumnTitles] = useState<Record<string, string>>({
     name: 'Lead Name / Client',
     status: 'Status',
-    score: 'Score',
+    aiScore: 'AI Score',
     value: 'Lead Value',
     owner: 'Assigned Rep',
     city: 'City',
@@ -97,7 +101,7 @@ export function LeadsTable() {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     name: 240,
     status: 130,
-    score: 90,
+    aiScore: 110,
     value: 130,
     owner: 140,
     city: 120,
@@ -436,13 +440,17 @@ export function LeadsTable() {
                       </span>
                     )}
 
-                    {colKey === 'score' && (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded" style={{
-                        background: lead.score > 80 ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: lead.score > 80 ? '#22c55e' : '#f59e0b',
-                      }}>
-                        {lead.score}
-                      </span>
+                    {colKey === 'aiScore' && (
+                      <div className="flex items-center gap-2">
+                        {lead.aiScore ? (
+                          <AILeadScoreCell score={lead.aiScore} />
+                        ) : (
+                          <div className="flex items-center gap-1 text-xs text-slate-500">
+                            <Brain size={12} />
+                            <span>No Score</span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {colKey === 'value' && (

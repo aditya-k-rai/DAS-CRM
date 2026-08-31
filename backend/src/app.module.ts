@@ -27,6 +27,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { DriveModule } from './modules/drive/drive.module';
 import { EmailModule } from './modules/email/email.module';
+import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { EmailModule } from './modules/email/email.module';
     WhatsappModule,
     DriveModule,
     EmailModule,
+    AIScoringModule,
   ],
 })
 export class AppModule {}

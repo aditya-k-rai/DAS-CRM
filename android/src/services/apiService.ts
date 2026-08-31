@@ -23,6 +23,41 @@ export interface LeadItem {
   budget?: string;
   requirement?: string;
   callSyncStatus?: string;
+
+  // AI Lead Score
+  aiScore?: AIScoreData;
+}
+
+// AI Lead Score Types
+export type ScoreTier = 'HOT' | 'WARM' | 'COLD' | 'LOW';
+
+export interface AIScoreData {
+  totalScore: number;
+  tier: ScoreTier;
+  budgetScore: number;
+  intentScore: number;
+  engagementScore: number;
+  productFitScore: number;
+  responseScore: number;
+  analysisSummary?: string;
+  topFactors?: string[];
+  riskFactors?: string[];
+  recommendations?: string[];
+  lastCalculatedAt?: string;
+}
+
+export interface AIScoreConfig {
+  budgetWeight: number;
+  intentWeight: number;
+  engagementWeight: number;
+  productFitWeight: number;
+  responseWeight: number;
+  hotThresholdMin: number;
+  warmThresholdMin: number;
+  coldThresholdMin: number;
+  showOnLeadsTable: boolean;
+  showBreakdownDetail: boolean;
+  autoRecalculate: boolean;
 }
 
 export const FALLBACK_LEADS: LeadItem[] = [
@@ -41,6 +76,7 @@ export const FALLBACK_LEADS: LeadItem[] = [
     budget: '50k-1L',
     requirement: 'CRM Enterprise',
     callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+    aiScore: { totalScore: 8.7, tier: 'HOT', budgetScore: 92, intentScore: 85, engagementScore: 88, productFitScore: 90, responseScore: 86, analysisSummary: 'High-priority lead with strong engagement signals.', topFactors: ['Website visit', 'Demo attended', 'Quotation viewed'], riskFactors: [], recommendations: ['Schedule follow-up call today', 'Share enterprise case studies'] },
   },
   {
     id: '2',
@@ -57,6 +93,7 @@ export const FALLBACK_LEADS: LeadItem[] = [
     budget: '1L-2L',
     requirement: 'Call Automation Bot',
     callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+    aiScore: { totalScore: 7.5, tier: 'WARM', budgetScore: 78, intentScore: 72, engagementScore: 80, productFitScore: 74, responseScore: 70, analysisSummary: 'Moderate engagement with good product interest.', topFactors: ['Multiple email opens', 'Website visit'], riskFactors: ['No response in 2 days'], recommendations: ['Send follow-up email', 'Offer free trial'] },
   },
   {
     id: '3',
@@ -73,6 +110,7 @@ export const FALLBACK_LEADS: LeadItem[] = [
     budget: '80k-1L',
     requirement: 'Multi-Tenant SLA',
     callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+    aiScore: { totalScore: 9.2, tier: 'HOT', budgetScore: 95, intentScore: 92, engagementScore: 90, productFitScore: 94, responseScore: 88, analysisSummary: 'Excellent lead with high conversion probability.', topFactors: ['Multiple touchpoints', 'High budget fit', 'Decision maker'], riskFactors: [], recommendations: ['Prioritize this lead', 'Prepare custom proposal'] },
   },
   {
     id: '4',
@@ -89,6 +127,7 @@ export const FALLBACK_LEADS: LeadItem[] = [
     budget: '2L+',
     requirement: 'Payroll Engine',
     callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
+    aiScore: { totalScore: 5.2, tier: 'COLD', budgetScore: 55, intentScore: 48, engagementScore: 52, productFitScore: 58, responseScore: 42, analysisSummary: 'Lead needs more nurturing and engagement.', topFactors: ['Website form fill'], riskFactors: ['No engagement', 'No calls answered'], recommendations: ['Extend nurture sequence', 'Consider different outreach channel'] },
   },
 ];
 
@@ -509,6 +548,131 @@ class ApiService {
       if (res.ok) return await res.json();
     } catch {}
     return { success: true, importedCount: payload.leads.length };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // 🤖 AI LEAD SCORING API METHODS
+  // ══════════════════════════════════════════════════════════════
+
+  /** Get AI Score configuration for organization */
+  async getAIScoreConfig(token: string | null): Promise<AIScoreConfig | null> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/config`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  /** Update AI Score configuration */
+  async updateAIScoreConfig(token: string | null, config: Partial<AIScoreConfig>): Promise<boolean> {
+    if (!token) return true;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/config`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(config),
+      });
+      return res.ok;
+    } catch {}
+    return true;
+  }
+
+  /** Get AI Score for a specific lead */
+  async getLeadAIScore(token: string | null, leadId: string): Promise<AIScoreData | null> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/scores/${leadId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  /** Get all lead scores for the organization */
+  async getAllAIScores(token: string | null, tier?: ScoreTier): Promise<AIScoreData[]> {
+    if (!token) return [];
+    try {
+      const url = tier ? `${API_BASE}/ai-scoring/scores?tier=${tier}` : `${API_BASE}/ai-scoring/scores`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.scores || []);
+      }
+    } catch {}
+    return [];
+  }
+
+  /** Calculate/recalculate AI score for a specific lead */
+  async calculateLeadAIScore(token: string | null, leadId: string): Promise<AIScoreData | null> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/scores/${leadId}/calculate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
+  }
+
+  /** Recalculate all AI scores for the organization */
+  async recalculateAllAIScores(token: string | null): Promise<boolean> {
+    if (!token) return true;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/scores/recalculate-all`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return res.ok;
+    } catch {}
+    return true;
+  }
+
+  /** Get AI Score summary/distribution for dashboard */
+  async getAIScoreSummary(token: string | null): Promise<{
+    distribution: { hot: number; warm: number; cold: number; low: number; total: number };
+    topLeads: Array<{ id: string; name: string; score: number; tier: ScoreTier }>;
+    config: { hotThresholdMin: number; warmThresholdMin: number; coldThresholdMin: number };
+  } | null> {
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai-scoring/summary`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+    return null;
   }
 }
 

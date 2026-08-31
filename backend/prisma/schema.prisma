@@ -191,6 +191,8 @@ model Organization {
   leaveRequests         LeaveRequest[]
   salaryConfigs         SalaryConfig[]
   salaryRecords         SalaryRecord[]
+  leadAIScores          LeadAIScore[]
+  aiScoreConfig         AIScoreConfig?
 
   @@map("organizations")
 }
@@ -417,6 +419,76 @@ model CustomFieldDefinition {
 // LEAD MANAGEMENT
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+
+// ─────────────────────────────────────────────────────────────────────
+// AI LEAD SCORING
+// ─────────────────────────────────────────────────────────────────────
+
+enum ScoreTier {
+  HOT
+  WARM
+  COLD
+  LOW
+}
+
+model LeadAIScore {
+  id                String    @id @default(cuid())
+  leadId            String
+  organizationId    String
+  // Overall Score (0-10)
+  totalScore        Float     @default(0)
+  tier              ScoreTier @default(LOW)
+  // Score Breakdown Components (0-100 each, displayed as 0-10 scale)
+  budgetScore       Float     @default(0)
+  intentScore       Float     @default(0)
+  engagementScore   Float     @default(0)
+  productFitScore   Float     @default(0)
+  responseScore     Float     @default(0)
+  // Analysis metadata
+  analysisSummary   String?
+  topFactors        Json      @default("[]")
+  riskFactors       Json      @default("[]")
+  recommendations   Json      @default("[]")
+  // Timestamps
+  lastCalculatedAt  DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId])
+  @@index([organizationId, tier])
+  @@index([organizationId, totalScore])
+  @@map("lead_ai_scores")
+}
+
+model AIScoreConfig {
+  id                   String   @id @default(cuid())
+  organizationId       String   @unique
+  // Weight configuration for each metric (must sum to 100)
+  budgetWeight         Float    @default(20)
+  intentWeight         Float    @default(25)
+  engagementWeight     Float    @default(20)
+  productFitWeight     Float    @default(20)
+  responseWeight       Float    @default(15)
+  // Tier thresholds (in 0-10 scale)
+  hotThresholdMin      Float    @default(9)
+  warmThresholdMin     Float    @default(7)
+  coldThresholdMin     Float    @default(4)
+  // Display settings
+  showOnLeadsTable     Boolean  @default(true)
+  showBreakdownDetail  Boolean  @default(true)
+  // Auto-recalculate on activity
+  autoRecalculate      Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_score_configs")
+}
+
 model LeadSource {
   id             String   @id @default(cuid())
   organizationId String
@@ -489,6 +561,7 @@ model Lead {
   deals         Deal[]
   quotations    Quotation[]
   statusHistory LeadStatusHistory[]
+  aiScore       LeadAIScore?
 
   @@index([organizationId, statusId])
   @@index([organizationId, ownerId])
