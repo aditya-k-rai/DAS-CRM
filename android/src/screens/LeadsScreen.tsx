@@ -369,6 +369,11 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
   const ExcelRow = React.memo(({ item, index }: { item: LeadItem; index: number }) => {
     return (
       <View style={[styles.excelDataRow, index % 2 === 1 && styles.excelRowAlt]}>
+        {/* Sticky row number */}
+        <View style={styles.excelRowNum}>
+          <Text style={styles.excelRowNumText}>{index + 1}</Text>
+        </View>
+        {/* Data columns */}
         {columnOrder.map((colKey) => {
           const colWidth = columnWidths[colKey] || 140;
           return renderExcelCell(item, colKey, colWidth);
@@ -647,81 +652,79 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           {/* 📊 EXCEL SPREADSHEET TABLE GRID VIEW                                      */}
           {/* ─────────────────────────────────────────────────────────────────────────── */}
           {viewMode === 'EXCEL_GRID' ? (
-            <View style={styles.excelScrollView}>
-              <View style={styles.excelTableContainer}>
-
-                {/* 📊 EXCEL HEADER ROW WITH SHIFT ARROWS, INLINE RENAME & LINE EXTENDER */}
+            <View style={styles.excelOuter}>
+              {/* ── TOP TOOLBAR: Column Shift & Width Controls ────────────────────── */}
+              <View style={styles.excelToolbar}>
                 <ScrollView
-                  ref={headerHScrollRef}
                   horizontal
-                  showsHorizontalScrollIndicator={true}
-                  scrollEventThrottle={16}
-                  onScroll={handleHeaderHScroll}
-                  style={styles.excelHeaderScrollWrap}
-                  contentContainerStyle={styles.excelHeaderContent}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.excelToolbarInner}
                 >
+                  {/* Sticky Row# corner */}
+                  <View style={styles.excelRowNumCorner}>
+                    <Text style={styles.excelRowNumCornerText}>#</Text>
+                  </View>
+
+                  {/* One control chip per column */}
                   {columnOrder.map((colKey, colIdx) => {
                     const colWidth = columnWidths[colKey] || 140;
                     const colName = columnNames[colKey] || colKey;
-
                     return (
-                      <View key={colKey} style={[styles.excelHeaderCell, { width: colWidth }]}>
-                        {/* Header Title + Inline Rename Action */}
-                        <TouchableOpacity onPress={() => openHeaderRenameModal(colKey)} style={{ flex: 1 }}>
-                          <Text style={styles.excelHeaderTitle} numberOfLines={1}>
-                            {colName}
-                          </Text>
+                      <View key={colKey} style={[styles.excelColControl, { width: colWidth }]}>
+                        {/* Column title — tap to rename */}
+                        <TouchableOpacity
+                          style={styles.excelColTitleBtn}
+                          onPress={() => openHeaderRenameModal(colKey)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.excelColTitleText} numberOfLines={1}>{colName}</Text>
                         </TouchableOpacity>
 
-                        {/* Shift Forward / Backward Arrow Controls */}
-                        <View style={styles.excelShiftControlsRow}>
+                        {/* Controls row: ←  →  ↔ */}
+                        <View style={styles.excelColControls}>
                           <TouchableOpacity
-                            style={[styles.arrowBtn, colIdx === 0 && { opacity: 0.3 }]}
+                            style={[styles.excelColBtn, colIdx === 0 && styles.excelColBtnDisabled]}
                             disabled={colIdx === 0}
                             onPress={() => moveColumnLeft(colKey)}
                           >
-                            <Text style={styles.arrowBtnText}>←</Text>
+                            <Text style={styles.excelColBtnText}>←</Text>
                           </TouchableOpacity>
-
                           <TouchableOpacity
-                            style={[styles.arrowBtn, colIdx === columnOrder.length - 1 && { opacity: 0.3 }]}
+                            style={[styles.excelColBtn, colIdx === columnOrder.length - 1 && styles.excelColBtnDisabled]}
                             disabled={colIdx === columnOrder.length - 1}
                             onPress={() => moveColumnRight(colKey)}
                           >
-                            <Text style={styles.arrowBtnText}>→</Text>
+                            <Text style={styles.excelColBtnText}>→</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.excelColBtn}
+                            onPress={() => toggleColumnWidth(colKey)}
+                          >
+                            <Text style={styles.excelColBtnText}>↔</Text>
                           </TouchableOpacity>
                         </View>
-
-                        {/* Line Separator Extender Button (Column Width Resizer) */}
-                        <TouchableOpacity
-                          style={styles.colWidthExtenderBtn}
-                          onPress={() => toggleColumnWidth(colKey)}
-                        >
-                          <Text style={styles.colWidthExtenderText}>│↔│</Text>
-                        </TouchableOpacity>
                       </View>
                     );
                   })}
                 </ScrollView>
-
-                {/* 📊 EXCEL DATA ROWS — VIRTUALIZED FlatList (smooth scroll, no flicker) */}
-                <FlatList
-                  ref={bodyFlatListRef}
-                  data={filteredLeads}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderExcelRow}
-                  getItemLayout={getExcelItemLayout}
-                  initialNumToRender={20}
-                  maxToRenderPerBatch={20}
-                  windowSize={11}
-                  removeClippedSubviews={true}
-                  updateCellsBatchingPeriod={50}
-                  showsVerticalScrollIndicator={true}
-                  style={styles.excelBodyList}
-                  contentContainerStyle={styles.excelBodyContent}
-                />
-
               </View>
+
+              {/* ── TABLE BODY: Virtualized FlatList with sticky row numbers ──────── */}
+              <FlatList
+                ref={bodyFlatListRef}
+                data={filteredLeads}
+                keyExtractor={(item) => item.id}
+                renderItem={renderExcelRow}
+                getItemLayout={getExcelItemLayout}
+                initialNumToRender={25}
+                maxToRenderPerBatch={25}
+                windowSize={10}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={50}
+                showsVerticalScrollIndicator={true}
+                style={styles.excelBodyList}
+                contentContainerStyle={styles.excelBodyContent}
+              />
             </View>
           ) : (
 
@@ -1117,11 +1120,27 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
   filterTextActive: { color: '#818cf8', fontWeight: '900' },
 
-  // 📊 EXCEL SPREADSHEET TABLE STYLES (MATCHES USER SCREENSHOT)
-  excelScrollView: { flex: 1, backgroundColor: '#030712' },
-  excelTableContainer: { flex: 1 },
-  excelHeaderScrollWrap: { flexGrow: 0 },
-  excelHeaderContent: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: '#0b1329', minWidth: 1400 },
+  // 📊 EXCEL SPREADSHEET TABLE STYLES
+  excelOuter: { flex: 1, backgroundColor: '#030712' },
+
+  // Toolbar row
+  excelToolbar: { backgroundColor: '#0b1329', borderBottomWidth: 2, borderBottomColor: '#1e293b' },
+  excelToolbarInner: { flexDirection: 'row', alignItems: 'stretch', minWidth: 1400 },
+
+  // Row# corner cell
+  excelRowNumCorner: { width: 44, height: 56, backgroundColor: '#0b1329', borderRightWidth: 1, borderRightColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  excelRowNumCornerText: { fontSize: 11, fontWeight: '900', color: '#475569' },
+
+  // Column control cell (title + ← → ↔ in one row)
+  excelColControl: { height: 56, flexDirection: 'row', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 6 },
+  excelColTitleBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5, justifyContent: 'center' },
+  excelColTitleText: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
+  excelColControls: { flexDirection: 'row', gap: 3, marginLeft: 4 },
+  excelColBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 6, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  excelColBtnDisabled: { opacity: 0.3 },
+  excelColBtnText: { fontSize: 11, fontWeight: '900', color: '#38bdf8' },
+
+  // Data body
   excelBodyList: { flex: 1 },
   excelBodyContent: { minWidth: 1400 },
 
@@ -1146,6 +1165,8 @@ const styles = StyleSheet.create({
   colWidthExtenderText: { color: '#64748b', fontSize: 8, fontWeight: '800' },
 
   excelDataRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1e293b', backgroundColor: '#090d16', height: 50 },
+  excelRowNum: { width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329', borderRightWidth: 1, borderRightColor: '#1e293b' },
+  excelRowNumText: { fontSize: 10, fontWeight: '700', color: '#475569' },
   excelRowAlt: { backgroundColor: '#0b1120' },
   excelDataCell: { paddingHorizontal: 8, paddingVertical: 8, borderRightWidth: 1, borderRightColor: '#1e293b', justifyContent: 'center' },
 
