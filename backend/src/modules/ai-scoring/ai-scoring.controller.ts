@@ -9,13 +9,13 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 import { AIScoringService } from './ai-scoring.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ScoreTier } from '@prisma/client';
 
 @Controller('ai-scoring')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AuthGuard('jwt'))
 export class AIScoringController {
   constructor(
     private readonly aiScoringService: AIScoringService,

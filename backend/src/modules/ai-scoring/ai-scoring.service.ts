@@ -214,12 +214,12 @@ export class AIScoringService {
     },
   ) {
     // Validate weights sum to 100
-    const weights = ['budgetWeight', 'intentWeight', 'engagementWeight', 'productFitWeight', 'responseWeight'];
+    const weights = ['budgetWeight', 'intentWeight', 'engagementWeight', 'productFitWeight', 'responseWeight'] as const;
     const currentConfig = await this.getScoreConfig(organizationId);
     const newWeights = weights.reduce((acc, w) => {
-      acc[w] = data[w as keyof typeof data] ?? currentConfig[w as keyof typeof currentConfig];
+      acc[w] = data[w] ?? currentConfig[w];
       return acc;
-    }, {} as Record<string, number>);
+    }, {} as Record<typeof weights[number], number>);
 
     // Validate threshold order
     if (data.hotThresholdMin !== undefined && data.hotThresholdMin <= (data.warmThresholdMin ?? currentConfig.warmThresholdMin)) {

@@ -5,7 +5,7 @@ import { ChevronDown, TrendingUp, Target, DollarSign, MessageCircle, Zap, AlertT
 
 export type ScoreTier = 'HOT' | 'WARM' | 'COLD' | 'LOW';
 
-interface AIScoreData {
+export interface AIScoreData {
   totalScore: number;
   tier: ScoreTier;
   budgetScore: number;
