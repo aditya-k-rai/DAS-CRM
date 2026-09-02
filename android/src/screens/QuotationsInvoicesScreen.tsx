@@ -2,9 +2,11 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Linking, Modal, Image, Dimensions, Switch, SafeAreaView,
-  StatusBar, FlatList, KeyboardAvoidingView, Platform,
+  StatusBar, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -259,6 +261,199 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes:['images'], allowsEditing:true, quality:0.8, base64:true });
     if (!result.canceled && result.assets[0]) {
       onSuccess(result.assets[0].base64 ? `data:image/jpeg;base64,${result.assets[0].base64}` : result.assets[0].uri);
+    }
+  };
+
+  // ─── Print & Share ──────────────────────────────────────────────────────────
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const buildPrintHTML = (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
+    const partyName   = overridePartyName || activeParty.name;
+    const documentNo  = overrideDocNo    || docNo;
+    const totalAmt    = overrideAmount   !== undefined ? overrideAmount : grandTotal;
+    const taxRows = gstType === 'IGST'
+      ? `<tr><td>IGST (${globalGstRate}%)</td><td style="text-align:right">₹${igst.toLocaleString('en-IN')}</td></tr>`
+      : gstType === 'EXEMPT' || globalGstRate === 0
+      ? `<tr><td>GST</td><td style="text-align:right;color:#059669">NIL / EXEMPT</td></tr>`
+      : `<tr><td>CGST (${(globalGstRate/2).toFixed(1)}%)</td><td style="text-align:right">₹${cgst.toLocaleString('en-IN')}</td></tr>
+         <tr><td>SGST (${(globalGstRate/2).toFixed(1)}%)</td><td style="text-align:right">₹${sgst.toLocaleString('en-IN')}</td></tr>`;
+
+    const itemRows = items.map((it, idx) => {
+      const rowTotal = it.qty * it.unitPrice;
+      return `<tr style="background:${idx%2===0?'#f8fafc':'#fff'}">
+        <td style="text-align:center;color:#94a3b8">${idx+1}</td>
+        <td><strong>${it.productName}</strong>${it.showDescription && it.description ? `<br/><small style="color:#64748b">${it.description}</small>` : ''}</td>
+        ${showHsnColumn ? `<td style="text-align:center;font-family:monospace;font-size:11px">${it.hsnCode||'998313'}</td>` : ''}
+        ${customColumns.map(col => `<td style="text-align:center;font-size:11px">${it.customValues?.[col.id]||'—'}</td>`).join('')}
+        <td style="text-align:center">${it.qty} ${it.unit}</td>
+        <td style="text-align:right">₹${it.unitPrice.toLocaleString('en-IN')}</td>
+        ${showGstColumn ? `<td style="text-align:center;color:#002060">${it.taxRate}%</td>` : ''}
+        <td style="text-align:right;font-weight:900">₹${rowTotal.toLocaleString('en-IN')}</td>
+      </tr>`;
+    }).join('');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>${getDocTitle()} ${documentNo}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size:12px; color:#0f172a; background:#fff; }
+  .page { padding:${pdfTopPadding}px ${pdfMargin * 3}px ${pdfBottomPadding}px; max-width:794px; margin:0 auto; position:relative; }
+  .navy-bar { height:6px; background:#002060; margin:-${pdfTopPadding}px -${pdfMargin*3}px ${pdfTopPadding/2}px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:12px; border-bottom:2px solid #e2e8f0; margin-bottom:${sectionGap}px; }
+  .company-name { font-size:16px; font-weight:900; color:#002060; }
+  .company-detail { font-size:10px; color:#475569; margin-top:2px; }
+  .doc-badge { background:#002060; color:#fff; font-size:9px; font-weight:900; padding:3px 8px; border-radius:4px; display:inline-block; margin-bottom:4px; }
+  .doc-no { font-size:14px; font-weight:900; color:#002060; }
+  .doc-date { font-size:10px; color:#64748b; }
+  .party-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:${sectionGap}px; }
+  .party-label { font-size:9px; font-weight:900; color:#64748b; text-transform:uppercase; margin-bottom:3px; }
+  .party-name { font-size:12px; font-weight:900; color:#0f172a; }
+  .party-detail { font-size:10px; color:#475569; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  .items-table { border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; margin-bottom:${sectionGap}px; }
+  thead tr { background:#002060; color:#fff; }
+  thead th { padding:8px 6px; text-align:left; font-size:10px; font-weight:900; }
+  tbody tr td { padding:7px 6px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+  .totals-section { display:flex; gap:16px; margin-bottom:${sectionGap}px; }
+  .bank-box { flex:1; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }
+  .totals-box { width:220px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }
+  .sum-row { display:flex; justify-content:space-between; padding:3px 0; font-size:11px; border-bottom:1px solid #f1f5f9; }
+  .grand-row { display:flex; justify-content:space-between; background:#002060; color:#fff; padding:8px 10px; border-radius:6px; margin-top:6px; font-weight:900; }
+  .box-label { font-size:9px; font-weight:900; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
+  .bank-val { font-size:11px; color:#334155; margin-top:2px; }
+  .footer { display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:12px; }
+  .sign-block { text-align:right; }
+  .sign-line { border-top:1px solid #94a3b8; width:120px; margin-top:36px; padding-top:4px; margin-left:auto; }
+  .sign-label { font-size:9px; color:#64748b; text-transform:uppercase; }
+  .bottom-strip { text-align:center; font-size:9px; color:#64748b; margin-top:${sectionGap}px; padding-top:8px; border-top:1px solid #e2e8f0; }
+  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="navy-bar"></div>
+  <div class="header">
+    <div>
+      <div class="company-name">${activeCompany.name}</div>
+      <div class="company-detail">${activeCompany.address}</div>
+      <div class="company-detail">GSTIN: ${activeCompany.gstNo} | PAN: ${activeCompany.panNo}</div>
+      <div class="company-detail">${activeCompany.email} | ${activeCompany.phone}</div>
+    </div>
+    <div style="text-align:right">
+      <div class="doc-badge">${getDocTitle()}</div>
+      <div class="doc-no">${documentNo}</div>
+      <div class="doc-date">Date: ${docDate}</div>
+      ${showValidUntil && validUntilDate ? `<div class="doc-date">Valid Until: ${validUntilDate}</div>` : ''}
+    </div>
+  </div>
+
+  <div class="party-grid">
+    <div>
+      <div class="party-label">Billed To (Buyer)</div>
+      <div class="party-name">${partyName}</div>
+      ${activeParty.contactPerson ? `<div class="party-detail">Attn: ${activeParty.contactPerson}</div>` : ''}
+      <div class="party-detail">${activeParty.address}</div>
+    </div>
+    <div>
+      <div class="party-label">Tax & Identifiers</div>
+      <div class="party-detail">GSTIN: <strong style="color:#002060">${activeParty.gstNo}</strong></div>
+      <div class="party-detail">PAN: <strong style="color:#002060">${activeParty.panNo}</strong></div>
+      <div class="party-detail">${activeParty.phone}</div>
+      <div class="party-detail">Place of Supply: <strong>Uttar Pradesh</strong></div>
+    </div>
+  </div>
+
+  <div class="items-table">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;text-align:center">#</th>
+          <th>Item & Description</th>
+          ${showHsnColumn ? '<th style="width:60px;text-align:center">HSN/SAC</th>' : ''}
+          ${customColumns.map(col => `<th style="width:70px;text-align:center">${col.name}</th>`).join('')}
+          <th style="width:50px;text-align:center">Qty</th>
+          <th style="width:80px;text-align:right">Rate (₹)</th>
+          ${showGstColumn ? '<th style="width:50px;text-align:center">GST %</th>' : ''}
+          <th style="width:90px;text-align:right">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+  </div>
+
+  <div class="totals-section">
+    <div class="bank-box">
+      <div class="box-label">Bank Payment Details</div>
+      <div class="bank-val"><strong>${activeCompany.bankName}</strong></div>
+      <div class="bank-val" style="font-family:monospace;color:#002060">A/C: ${activeCompany.accountNo}</div>
+      <div class="bank-val">IFSC: ${activeCompany.ifscCode} | Branch: ${activeCompany.branch}</div>
+      <div class="bank-val" style="color:#002060;font-weight:700">UPI: ${activeCompany.upiId}</div>
+      <div style="margin-top:8px;padding:6px;background:#eff6ff;border-radius:6px;font-size:10px;color:#002060;font-style:italic">
+        <strong>Amount in Words:</strong><br/>${numberToWordsINR(totalAmt)}
+      </div>
+    </div>
+    <div class="totals-box">
+      <div class="box-label">Summary</div>
+      <div class="sum-row"><span>Subtotal</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
+      ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Item Discounts</span><span style="color:#dc2626">-₹${totalItemDiscounts.toLocaleString('en-IN')}</span></div>` : ''}
+      ${overallDiscAmount > 0 ? `<div class="sum-row"><span>Overall Discount</span><span style="color:#dc2626">-₹${overallDiscAmount.toLocaleString('en-IN')}</span></div>` : ''}
+      ${taxRows}
+      <div class="grand-row"><span>GRAND TOTAL</span><span>₹${totalAmt.toLocaleString('en-IN')}</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div style="flex:1">
+      <div class="box-label">Terms & Conditions</div>
+      <div style="font-size:10px;color:#475569;margin-top:4px;white-space:pre-line">${termsText}</div>
+      <div style="font-size:9px;color:#94a3b8;margin-top:6px;font-style:italic">E.&amp;O.E.</div>
+    </div>
+    <div class="sign-block">
+      <div style="font-size:10px;font-weight:700;color:#0f172a">For ${activeCompany.name}</div>
+      <div class="sign-line"><div class="sign-label">Authorized Signatory</div></div>
+    </div>
+  </div>
+
+  <div class="bottom-strip">
+    Generated by <strong style="color:#4f46e5">DAS CRM</strong> — www.dascrm.com
+  </div>
+</div>
+</body>
+</html>`;
+  };
+
+  const handlePrintPDF = async (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
+    setIsPrinting(true);
+    try {
+      const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
+      await Print.printAsync({ html });
+    } catch (err: any) {
+      if (err?.message && !err.message.includes('cancel')) {
+        Alert.alert('Print Error', 'Could not open print dialog. Please try again.');
+      }
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleSharePDF = async (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
+    setIsPrinting(true);
+    try {
+      const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
+      const { uri } = await Print.printToFileAsync({ html });
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) { Alert.alert('Share not available', 'This device does not support sharing files.'); return; }
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Share ${overrideDocNo || docNo}.pdf`, UTI: 'com.adobe.pdf' });
+    } catch (err: any) {
+      if (err?.message && !err.message.includes('cancel')) {
+        Alert.alert('Share Error', 'Could not generate PDF for sharing.');
+      }
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -574,24 +769,25 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <StatusBar barStyle="light-content" backgroundColor="#060b18" />
 
-      {/* Top Header */}
+      {/* ── TOP HEADER BAR ─────────────────────────────────────────────── */}
       <View style={styles.topHeader}>
         {onClose && (
-          <TouchableOpacity style={styles.backBtn} onPress={onClose}>
+          <TouchableOpacity style={styles.backBtn} onPress={onClose} hitSlop={{top:8,bottom:8,left:8,right:8}}>
             <Text style={styles.backBtnText}>← Back</Text>
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>📝 {getDocTitle()} Generator</Text>
-        <View style={{ flexDirection:'row', gap:6 }}>
-          <TouchableOpacity style={styles.topActionBtn} onPress={() => setHistoryModalOpen(true)}>
-            <Text style={styles.topActionBtnText}>📁 All ({savedQuotes.length})</Text>
-          </TouchableOpacity>
+        <View style={{ flex:1, alignItems:'center' }}>
+          <Text style={styles.headerTitle}>📝 {getDocTitle()}</Text>
+          <Text style={styles.headerSub}>{docNo} • {activeParty.name.slice(0, 22)}{activeParty.name.length > 22 ? '…' : ''}</Text>
         </View>
+        <TouchableOpacity style={styles.topActionBtn} onPress={() => setHistoryModalOpen(true)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+          <Text style={styles.topActionBtnText}>📁 {savedQuotes.length}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Top Action Bar */}
+      {/* ── TOP ACTION BAR ─────────────────────────────────────────────── */}
       <View style={styles.topActionBar}>
         <View style={styles.topBarRow}>
           {/* View Mode Switch */}
@@ -604,13 +800,25 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             </TouchableOpacity>
           </View>
 
-          {/* Action Buttons */}
+          {/* Quick Actions */}
           <View style={styles.topBarActions}>
-            <TouchableOpacity style={[styles.topBarBtn, savedSuccess && styles.topBarBtnSuccess]} onPress={handleSaveCurrentDraft}>
-              <Text style={styles.topBarBtnText}>{savedSuccess ? '✓ Saved' : '💾 Save Draft'}</Text>
+            <TouchableOpacity
+              style={[styles.topBarBtn, savedSuccess && styles.topBarBtnSuccess]}
+              onPress={handleSaveCurrentDraft}
+              hitSlop={{top:6,bottom:6,left:4,right:4}}
+            >
+              <Text style={styles.topBarBtnText}>{savedSuccess ? '✓ Saved' : '💾 Save'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.topBarBtnPrimary]} onPress={() => setHistoryModalOpen(true)}>
-              <Text style={styles.topBarBtnTextPrimary}>📁 All ({savedQuotes.length})</Text>
+            <TouchableOpacity
+              style={styles.topBarBtnPrint}
+              onPress={() => handlePrintPDF()}
+              disabled={isPrinting}
+              hitSlop={{top:6,bottom:6,left:4,right:4}}
+            >
+              {isPrinting
+                ? <ActivityIndicator size="small" color="#ffffff" />
+                : <Text style={styles.topBarBtnPrintText}>🖨 Print</Text>
+              }
             </TouchableOpacity>
           </View>
         </View>
@@ -618,10 +826,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         {/* Convert Document Pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:8 }}>
           <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-            <Text style={{ fontSize:9, fontWeight:'900', color:'#64748b', marginRight:2 }}>CONVERT:</Text>
+            <Text style={{ fontSize:9, fontWeight:'900', color:'#64748b', marginRight:2 }}>CONVERT TO:</Text>
             {(['QUOTATION','PROFORMA_INVOICE','TAX_INVOICE','PAYMENT_RECEIPT','CREDIT_NOTE'] as DocumentType[]).map(t => (
               <TouchableOpacity key={t} style={[styles.convertPill, docType===t && styles.convertPillActive]} onPress={() => handleConvertDoc(t)}>
-                <Text style={[styles.convertPillText, docType===t && styles.convertPillTextActive]}>{t.replace('_',' ')}</Text>
+                <Text style={[styles.convertPillText, docType===t && styles.convertPillTextActive]}>{t.replace(/_/g,' ')}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -1005,36 +1213,147 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* Bottom Actions */}
-          <View style={{ flexDirection:'row', gap:8, marginTop:16, marginBottom:32 }}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor:'#38bdf8' }]} onPress={() => handleSaveCurrentDraft()}>
-              <Text style={styles.actionBtnText}>💾 Save Draft</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor:'#10b981' }]} onPress={() => {
-              const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString()}.\n\nItems: ${items.map(i=>`• ${i.productName} x${i.qty} = ₹${(i.qty*i.unitPrice).toLocaleString()}`).join('\n')}\n\nTotal: ₹${grandTotal.toLocaleString()}\n\nGenerated by DAS CRM`;
-              Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
-            }}>
-              <Text style={styles.actionBtnText}>💬 WhatsApp</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor:'#6366f1' }]} onPress={() => {
-              Linking.openURL(`mailto:${activeParty.email}?subject=${encodeURIComponent(`${getDocTitle()} #${docNo}`)}&body=${encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString()}.\n\nRegards,\n${activeCompany.name}`)}`);
-            }}>
-              <Text style={styles.actionBtnText}>✉️ Email</Text>
-            </TouchableOpacity>
+          {/* ── BOTTOM ACTION BAR ──────────────────────────────────────── */}
+          <View style={styles.bottomActionBar}>
+            {/* Grand Total Summary Strip */}
+            <View style={styles.totalSummaryStrip}>
+              <View>
+                <Text style={styles.totalSummaryLabel}>Grand Total</Text>
+                <Text style={styles.totalSummaryAmount}>₹{grandTotal.toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={{ alignItems:'flex-end' }}>
+                <Text style={styles.totalSummaryLabel}>{items.length} item{items.length!==1?'s':''} • GST {globalGstRate}%</Text>
+                <Text style={styles.totalSummaryAmountWords} numberOfLines={1}>{numberToWordsINR(grandTotal).slice(0,40)}…</Text>
+              </View>
+            </View>
+
+            {/* 5-Action Button Row */}
+            <View style={styles.bottomActionsRow}>
+              {/* Save */}
+              <TouchableOpacity
+                style={[styles.bottomAction, savedSuccess && styles.bottomActionSuccess]}
+                onPress={handleSaveCurrentDraft}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bottomActionIcon}>{savedSuccess ? '✓' : '💾'}</Text>
+                <Text style={[styles.bottomActionLabel, savedSuccess && { color:'#34d399' }]}>
+                  {savedSuccess ? 'Saved' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Print PDF */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionPrint]}
+                onPress={() => handlePrintPDF()}
+                disabled={isPrinting}
+                activeOpacity={0.8}
+              >
+                {isPrinting
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.bottomActionIcon}>🖨</Text>
+                }
+                <Text style={[styles.bottomActionLabel, { color:'#fff' }]}>Print PDF</Text>
+              </TouchableOpacity>
+
+              {/* Share PDF */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionShare]}
+                onPress={() => handleSharePDF()}
+                disabled={isPrinting}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bottomActionIcon}>📤</Text>
+                <Text style={[styles.bottomActionLabel, { color:'#a5b4fc' }]}>Share</Text>
+              </TouchableOpacity>
+
+              {/* WhatsApp */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionWA]}
+                onPress={() => {
+                  const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n${items.map(i=>`• ${i.productName} x${i.qty} — ₹${(i.qty*i.unitPrice).toLocaleString('en-IN')}`).join('\n')}\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
+                  Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bottomActionIcon}>💬</Text>
+                <Text style={[styles.bottomActionLabel, { color:'#4ade80' }]}>WhatsApp</Text>
+              </TouchableOpacity>
+
+              {/* Email */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionEmail]}
+                onPress={() => {
+                  const sub = encodeURIComponent(`${getDocTitle()} #${docNo} from ${activeCompany.name}`);
+                  const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nTotal: ₹${grandTotal.toLocaleString('en-IN')}\nIssuer: ${activeCompany.name}\n\nGenerated via DAS CRM\n\nRegards,\n${activeCompany.name}`);
+                  Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bottomActionIcon}>✉️</Text>
+                <Text style={[styles.bottomActionLabel, { color:'#60a5fa' }]}>Email</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       ) : (
         /* ── LIVE A4 PREVIEW ── */
         <View style={styles.previewContainer}>
+          {/* Preview Toolbar */}
           <View style={styles.previewToolbar}>
-            <Text style={styles.previewToolbarText}>📄 Live A4 Preview ({pdfMargin}mm Margin)</Text>
-            <TouchableOpacity style={styles.splitToggleBtn} onPress={() => setViewMode('BUILDER')}>
-              <Text style={styles.splitToggleBtnText}>← Back to Builder</Text>
+            <TouchableOpacity style={styles.splitToggleBtn} onPress={() => setViewMode('BUILDER')} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+              <Text style={styles.splitToggleBtnText}>← Builder</Text>
             </TouchableOpacity>
+            <Text style={styles.previewToolbarText}>📄 {docNo}</Text>
+            <View style={{ flexDirection:'row', gap:6 }}>
+              <TouchableOpacity
+                style={styles.previewActionBtn}
+                onPress={() => handleSharePDF()}
+                disabled={isPrinting}
+                hitSlop={{top:8,bottom:8,left:4,right:4}}
+              >
+                <Text style={styles.previewActionBtnText}>📤 Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.previewActionBtn, styles.previewPrintBtn]}
+                onPress={() => handlePrintPDF()}
+                disabled={isPrinting}
+                hitSlop={{top:8,bottom:8,left:4,right:4}}
+              >
+                {isPrinting
+                  ? <ActivityIndicator size="small" color="#fff" style={{ transform:[{scale:0.7}] }} />
+                  : <Text style={[styles.previewActionBtnText, { color:'#fff' }]}>🖨 Print</Text>
+                }
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* Preview Scroll */}
           <ScrollView contentContainerStyle={styles.previewScroll} showsVerticalScrollIndicator={false}>
             {renderA4Preview()}
           </ScrollView>
+
+          {/* Preview Bottom Bar */}
+          <View style={styles.previewBottomBar}>
+            <TouchableOpacity
+              style={styles.previewBottomBtn}
+              onPress={() => {
+                const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
+                Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
+              }}
+            >
+              <Text style={styles.previewBottomBtnText}>💬 Send on WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.previewBottomBtn, { backgroundColor:'rgba(99,102,241,0.2)', borderColor:'rgba(99,102,241,0.4)' }]}
+              onPress={() => {
+                const sub = encodeURIComponent(`${getDocTitle()} #${docNo}`);
+                const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nRegards,\n${activeCompany.name}`);
+                Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
+              }}
+            >
+              <Text style={[styles.previewBottomBtnText, { color:'#a5b4fc' }]}>✉️ Send via Email</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -1176,11 +1495,25 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                     <TouchableOpacity style={styles.historyActionBtn} onPress={() => handleLoadSavedQuote(item)}>
                       <Text style={styles.historyActionBtnText}>📂 Load</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.historyActionBtn, styles.historyPrintBtn]}
+                      onPress={() => handlePrintPDF(item.partyName, item.docNo, item.totalAmount)}
+                      disabled={isPrinting}
+                    >
+                      <Text style={[styles.historyActionBtnText, { color:'#fff' }]}>🖨 Print</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.historyActionBtn, styles.historyShareBtn]}
+                      onPress={() => handleSharePDF(item.partyName, item.docNo, item.totalAmount)}
+                      disabled={isPrinting}
+                    >
+                      <Text style={[styles.historyActionBtnText, { color:'#a5b4fc' }]}>📤 Share</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(52,211,153,0.15)', borderColor:'rgba(52,211,153,0.3)' }]} onPress={() => handleDirectSendQuote(item, 'EMAIL')}>
-                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>✉️ Email</Text>
+                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>✉️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(52,211,153,0.15)', borderColor:'rgba(52,211,153,0.3)' }]} onPress={() => handleDirectSendQuote(item, 'WHATSAPP_DIRECT')}>
-                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>💬 WhatsApp</Text>
+                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>💬</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(244,63,94,0.1)', borderColor:'rgba(244,63,94,0.3)' }]} onPress={() => {
                       Alert.alert('Delete Quote', `Delete ${item.docNo}?`, [
@@ -1214,29 +1547,34 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex:1, backgroundColor:'#090d16' },
-  topHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingVertical:10, backgroundColor:'#0f172a', borderBottomWidth:1, borderBottomColor:'#1e293b' },
-  backBtn: { backgroundColor:'#1e293b', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#334155' },
-  backBtnText: { color:'#38bdf8', fontWeight:'900', fontSize:11 },
-  headerTitle: { fontSize:12, fontWeight:'900', color:'#ffffff', flex:1, textAlign:'center' },
-  topActionBtn: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:8, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)' },
-  topActionBtnText: { color:'#818cf8', fontWeight:'900', fontSize:10 },
-  topActionBar: { backgroundColor:'#020617', padding:10, borderBottomWidth:1, borderBottomColor:'#1e293b' },
+  container: { flex:1, backgroundColor:'#060b18' },
+
+  // Header
+  topHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingVertical:10, backgroundColor:'#060b18', borderBottomWidth:1, borderBottomColor:'#1a2335' },
+  backBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#1e293b', minWidth:52 },
+  backBtnText: { color:'#38bdf8', fontWeight:'900', fontSize:11, textAlign:'center' },
+  headerTitle: { fontSize:13, fontWeight:'900', color:'#ffffff', textAlign:'center' },
+  headerSub: { fontSize:9, color:'#475569', fontWeight:'700', marginTop:2, textAlign:'center' },
+  topActionBtn: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)', minWidth:52, alignItems:'center' },
+  topActionBtnText: { color:'#818cf8', fontWeight:'900', fontSize:11 },
+
+  // Action Bar
+  topActionBar: { backgroundColor:'#060b18', padding:10, borderBottomWidth:1, borderBottomColor:'#1a2335' },
   topBarRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
-  viewModeSwitcher: { flexDirection:'row', backgroundColor:'#1e293b', borderRadius:10, padding:3 },
+  viewModeSwitcher: { flexDirection:'row', backgroundColor:'#0d1526', borderRadius:10, padding:3, borderWidth:1, borderColor:'#1a2335' },
   vmTab: { paddingHorizontal:12, paddingVertical:5, borderRadius:8 },
   vmTabActive: { backgroundColor:'#4f46e5' },
-  vmTabText: { fontSize:10, fontWeight:'900', color:'#94a3b8' },
+  vmTabText: { fontSize:10, fontWeight:'900', color:'#64748b' },
   vmTabTextActive: { color:'#ffffff' },
   topBarActions: { flexDirection:'row', gap:6 },
-  topBarBtn: { backgroundColor:'#1e293b', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#334155' },
+  topBarBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#1e293b' },
   topBarBtnSuccess: { backgroundColor:'rgba(16,185,129,0.2)', borderColor:'rgba(16,185,129,0.4)' },
-  topBarBtnPrimary: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)' },
+  topBarBtnPrint: { backgroundColor:'#4f46e5', paddingHorizontal:12, paddingVertical:6, borderRadius:8, minWidth:68, alignItems:'center', justifyContent:'center' },
   topBarBtnText: { fontSize:10, fontWeight:'900', color:'#e2e8f0' },
-  topBarBtnTextPrimary: { fontSize:10, fontWeight:'900', color:'#818cf8' },
-  convertPill: { paddingHorizontal:10, paddingVertical:5, borderRadius:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#334155' },
+  topBarBtnPrintText: { fontSize:10, fontWeight:'900', color:'#ffffff' },
+  convertPill: { paddingHorizontal:10, paddingVertical:5, borderRadius:8, backgroundColor:'#0d1526', borderWidth:1, borderColor:'#1e293b' },
   convertPillActive: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
-  convertPillText: { fontSize:9, fontWeight:'900', color:'#94a3b8' },
+  convertPillText: { fontSize:9, fontWeight:'900', color:'#64748b' },
   convertPillTextActive: { color:'#ffffff' },
   scrollContent: { padding:10, paddingBottom:40 },
   accCard: { backgroundColor:'#0f172a', borderRadius:14, borderWidth:1, borderColor:'#1e293b', marginBottom:8, overflow:'hidden' },
@@ -1321,11 +1659,35 @@ const styles = StyleSheet.create({
   resetBtnText: { color:'#fbbf24', fontWeight:'900', fontSize:12 },
   actionBtn: { flex:1, paddingVertical:10, borderRadius:10, alignItems:'center' },
   actionBtnText: { color:'#ffffff', fontWeight:'900', fontSize:11 },
+
+  // Bottom Action Bar (Builder)
+  bottomActionBar: { backgroundColor:'#060b18', borderTopWidth:1, borderTopColor:'#1a2335', paddingBottom:4 },
+  totalSummaryStrip: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:14, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#0d1526' },
+  totalSummaryLabel: { fontSize:9, fontWeight:'700', color:'#475569', textTransform:'uppercase', letterSpacing:0.5 },
+  totalSummaryAmount: { fontSize:18, fontWeight:'900', color:'#ffffff', marginTop:1 },
+  totalSummaryAmountWords: { fontSize:8, color:'#475569', fontWeight:'600', maxWidth:180 },
+  bottomActionsRow: { flexDirection:'row', paddingHorizontal:8, paddingVertical:6, gap:4 },
+  bottomAction: { flex:1, alignItems:'center', paddingVertical:8, borderRadius:12, backgroundColor:'#0d1526', borderWidth:1, borderColor:'#1a2335', gap:2 },
+  bottomActionSuccess: { backgroundColor:'rgba(16,185,129,0.15)', borderColor:'rgba(16,185,129,0.4)' },
+  bottomActionPrint: { backgroundColor:'#4f46e5', borderColor:'#4f46e5', flex:1.3 },
+  bottomActionShare: { backgroundColor:'rgba(99,102,241,0.15)', borderColor:'rgba(99,102,241,0.3)' },
+  bottomActionWA: { backgroundColor:'rgba(74,222,128,0.1)', borderColor:'rgba(74,222,128,0.3)' },
+  bottomActionEmail: { backgroundColor:'rgba(96,165,250,0.1)', borderColor:'rgba(96,165,250,0.3)' },
+  bottomActionIcon: { fontSize:18, lineHeight:22 },
+  bottomActionLabel: { fontSize:9, fontWeight:'900', color:'#64748b', textAlign:'center' },
+
+  // Preview Screen
   previewContainer: { flex:1 },
-  previewToolbar: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#020617', paddingHorizontal:12, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#1e293b' },
-  previewToolbarText: { fontSize:11, fontWeight:'900', color:'#4f46e5' },
-  splitToggleBtn: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:10, paddingVertical:4, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)' },
-  splitToggleBtnText: { fontSize:10, fontWeight:'900', color:'#818cf8' },
+  previewToolbar: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#060b18', paddingHorizontal:12, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#1a2335' },
+  previewToolbarText: { fontSize:11, fontWeight:'900', color:'#a5b4fc', flex:1, textAlign:'center' },
+  splitToggleBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#1e293b' },
+  splitToggleBtnText: { fontSize:10, fontWeight:'900', color:'#64748b' },
+  previewActionBtn: { backgroundColor:'rgba(99,102,241,0.15)', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)' },
+  previewActionBtnText: { fontSize:10, fontWeight:'900', color:'#818cf8' },
+  previewPrintBtn: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
+  previewBottomBar: { flexDirection:'row', gap:8, padding:10, backgroundColor:'#060b18', borderTopWidth:1, borderTopColor:'#1a2335' },
+  previewBottomBtn: { flex:1, backgroundColor:'rgba(74,222,128,0.1)', borderWidth:1, borderColor:'rgba(74,222,128,0.3)', paddingVertical:10, borderRadius:12, alignItems:'center' },
+  previewBottomBtnText: { fontSize:12, fontWeight:'900', color:'#4ade80' },
   previewScroll: { padding:8, alignItems:'center' },
 
   // A4 Preview Styles
@@ -1423,8 +1785,10 @@ const styles = StyleSheet.create({
   historyParty: { fontSize:11, color:'#e2e8f0', marginBottom:2 },
   historyMeta: { fontSize:9, color:'#64748b', marginBottom:8 },
   historyActions: { flexDirection:'row', gap:6, flexWrap:'wrap' },
-  historyActionBtn: { backgroundColor:'rgba(56,189,248,0.1)', borderWidth:1, borderColor:'rgba(56,189,248,0.3)', paddingHorizontal:10, paddingVertical:4, borderRadius:8 },
+  historyActionBtn: { backgroundColor:'rgba(56,189,248,0.1)', borderWidth:1, borderColor:'rgba(56,189,248,0.3)', paddingHorizontal:10, paddingVertical:5, borderRadius:8 },
   historyActionBtnText: { fontSize:10, fontWeight:'900', color:'#38bdf8' },
-  newQuoteBtn: { backgroundColor:'#4f46e5', paddingVertical:12, borderRadius:12, alignItems:'center', marginTop:10 },
+  historyPrintBtn: { backgroundColor:'#4f46e5', borderColor:'#4f46e5', paddingHorizontal:12 },
+  historyShareBtn: { backgroundColor:'rgba(99,102,241,0.15)', borderColor:'rgba(99,102,241,0.4)' },
+  newQuoteBtn: { backgroundColor:'#4f46e5', paddingVertical:13, borderRadius:12, alignItems:'center', marginTop:10 },
   newQuoteBtnText: { color:'#ffffff', fontWeight:'900', fontSize:13 },
 });
