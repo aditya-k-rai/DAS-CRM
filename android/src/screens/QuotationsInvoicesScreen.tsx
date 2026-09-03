@@ -1,36 +1,63 @@
-import React, { useState, useCallback } from 'react';
+/**
+ * QuotationsInvoicesScreen.tsx — DAS CRM Android
+ * Complete Web Parity Quotation & Invoice Engine.
+ * Features:
+ *   1. Full Document Types: Quotation, Proforma Invoice, Tax Invoice, Receipt, Credit Note, Delivery Challan
+ *   2. Responsive Safe Area Layout with Dynamic Insets & Auto-Fit A4 Zoom Preview
+ *   3. Interactive Builder Hub with Collapsible Accordion Sections:
+ *      - Seller Company Manager (Logo Picker, Bank Details, GSTIN, PAN)
+ *      - Client Buyer Party Manager (Billing, Tax ID, Separate Shipping Address)
+ *      - Document Reference & Expiry Dates
+ *      - Line Items Table Engine (Catalog Lookup, Custom Columns, HSN, Tax %, Discounts, Image Toggle)
+ *      - GST Tax Engine (CGST+SGST, IGST, UTGST, Exempt, Global GST % chips)
+ *      - Custom Table Column Manager (Make/Brand, Warranty, Serial No)
+ *      - PDF Layout & Section Order Engine (Reorder ▲▼, Hide 👁, Gap, Padding, Margins)
+ *      - Terms & Conditions & Signatory Footer
+ *   4. High-Fidelity A4 Live Preview with Zoom Scale & PDF Export / Print / Share
+ *   5. Saved Quotation History Drawer with Search, Status Filters & Direct WhatsApp/Email Launchers
+ */
+
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Linking, Modal, Image, Dimensions, Switch, SafeAreaView,
+  Alert, Linking, Modal, Image, Dimensions, Switch,
   StatusBar, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type DocumentType = 'QUOTATION' | 'PROFORMA_INVOICE' | 'TAX_INVOICE' | 'PAYMENT_RECEIPT' | 'CREDIT_NOTE' | 'DELIVERY_CHALLAN';
-export type SectionId = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
-export type GstType = 'CGST_SGST' | 'IGST' | 'CGST_UTGST' | 'EXEMPT';
+export type SectionId    = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
+export type GstType      = 'CGST_SGST' | 'IGST' | 'CGST_UTGST' | 'EXEMPT';
 
 export interface CompanyDetails {
   id: string; name: string; logoUrl: string; address: string;
   email: string; phone: string; gstNo: string; panNo: string;
   bankName: string; accountNo: string; ifscCode: string; branch: string; upiId: string;
 }
+
 export interface PartyDetails {
   id: string; name: string; contactPerson?: string; email: string;
   phone: string; address: string; shippingAddress?: string; gstNo: string; panNo: string;
 }
+
 export interface CustomColumn { id: string; name: string; }
+
 export interface LineItem {
   id: string; productName: string; description?: string; showDescription: boolean;
   hsnCode?: string; customValues?: { [colId: string]: string }; imageUrl?: string;
   showImage: boolean; unit: string; qty: number; unitPrice: number;
   taxRate: number; discountType: 'flat' | 'percent'; discountVal: number; total: number;
 }
+
 export interface SavedQuoteRecord {
   id: string; docNo: string; docType: DocumentType; partyName: string;
   companyName: string; savedAt: string; totalAmount: number;
@@ -45,20 +72,25 @@ export interface SavedQuoteRecord {
 }
 
 const SECTION_META: { id: SectionId; label: string; desc: string }[] = [
-  { id: 'HEADER', label: 'Header & Company Details', desc: 'Logo, Address, GSTIN, Title, Date & Doc #' },
-  { id: 'PARTY_INFO', label: 'Buyer & Shipping Addresses', desc: 'Billed To, Shipped To Consignee, Tax Identifiers' },
-  { id: 'ITEMS_TABLE', label: 'Line Items Table', desc: 'Product List, HSN Codes, Quantities, Rates & Tax' },
-  { id: 'SUMMARY_AND_BANK', label: 'Bank Details & Financial Totals', desc: 'Bank A/C, Amount in Words, Tax & Grand Total' },
-  { id: 'FOOTER_TERMS', label: 'Terms & Signatory Footer', desc: 'Terms & Conditions, E.&O.E., Authorized Signature' },
+  { id: 'HEADER',           label: 'Header & Company Details',     desc: 'Logo, Address, GSTIN, Title, Date & Doc #' },
+  { id: 'PARTY_INFO',       label: 'Buyer & Shipping Addresses',  desc: 'Billed To, Shipped To Consignee, Tax Identifiers' },
+  { id: 'ITEMS_TABLE',      label: 'Line Items Table',            desc: 'Product List, HSN Codes, Quantities, Rates & Tax' },
+  { id: 'SUMMARY_AND_BANK', label: 'Bank Details & Totals',       desc: 'Bank A/C, Amount in Words, Tax & Grand Total' },
+  { id: 'FOOTER_TERMS',     label: 'Terms & Signatory Footer',    desc: 'Terms & Conditions, E.&O.E., Authorized Signature' },
 ];
 
 const CATALOG_PRODUCTS = [
   { name: 'Executive Work Station', price: 22500, tax: 18, unit: 'Nos', hsn: '998313', desc: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60' },
   { name: 'DAS CRM Enterprise License (50 Seats)', price: 500000, tax: 18, unit: 'Set', hsn: '998314', desc: 'Annual Enterprise SaaS License with WhatsApp Cloud & AI Lead Scoring Engine', image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&auto=format&fit=crop&q=60' },
   { name: 'AI Lead Scoring Engine Pro', price: 120000, tax: 18, unit: 'License', hsn: '998315', desc: 'Custom ML Lead Qualification & Predictive Analytics Module', image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&auto=format&fit=crop&q=60' },
+  { name: 'Industrial HVAC Air Filter Unit', price: 85000, tax: 18, unit: 'Unit', hsn: '842139', desc: 'HEPA High Efficiency Air Ingestion & Dust Separation System', image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=200&auto=format&fit=crop&q=60' },
+  { name: 'Commercial Solar PV Inverter 50kW', price: 340000, tax: 12, unit: 'Nos', hsn: '850440', desc: 'Three Phase On-Grid Solar Inverter with Realtime Telemetry Monitoring', image: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=200&auto=format&fit=crop&q=60' },
 ];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 const numberToWordsINR = (amount: number): string => {
   if (!amount || isNaN(amount) || amount === 0) return 'Rupees Zero Only';
   const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -80,16 +112,21 @@ const fmtDate = () => {
   const d = new Date();
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 };
+
 const fmtTime = () => {
   const d = new Date();
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Default Mock Data
+// ─────────────────────────────────────────────────────────────────────────────
+
 const INITIAL_COMPANIES: CompanyDetails[] = [
   { id:'comp-1', name:'Aarna Construction & Interiors', logoUrl:'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60', address:'Plot1, Ats-kasnaroad, Bindalenclave, Greater Noida, Uttar Pradesh, 201310', email:'info@aarnaconstructions.com', phone:'+91 98102 34567', gstNo:'09APMPL1329Q1Z8', panNo:'APML1329Q', bankName:'Punjab National Bank', accountNo:'6198002100003189', ifscCode:'PUNB0619800', branch:'DAV TIRAHA, Greater Noida', upiId:'aarna@pnb' },
   { id:'comp-2', name:'Spectro Tech India Pvt Ltd', logoUrl:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=60', address:'Plot No. 42, Sector 18, Cyber City, Gurugram, HR - 122002', email:'billing@spectrotech.in', phone:'+91 124 4567890', gstNo:'06AAAAC1234F1Z9', panNo:'AAAAC1234F', bankName:'HDFC Bank Ltd', accountNo:'50200044556677', ifscCode:'HDFC0000123', branch:'Cyber City', upiId:'spectro@hdfcbank' },
 ];
+
 const INITIAL_PARTIES: PartyDetails[] = [
   { id:'party-1', name:'SPECTRO ANALYTICAL LABS PRIVATE LIMITED', contactPerson:'Site Procurement Manager', email:'info@spectro.in', phone:'+91 93194 95000', address:'S 1, SITE GNEPIP KASNA ROAD, SURAJPUR INDUSTRIAL AREA V Gautam Buddha Nagar 201310, GREATER NOIDA, Uttar Pradesh, 201310', shippingAddress:'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310', gstNo:'09APMPL1329Q1Z8', panNo:'APML1329Q' },
   { id:'party-2', name:'TechCorp Solutions Pvt Ltd', contactPerson:'Rajesh Varma', email:'rajesh@techcorp.com', phone:'+91 98765 43210', address:'Building 7, Mindspace IT Park, Madhapur, Hyderabad, TS - 500081', shippingAddress:'Warehouse 12, Mindspace Park, Hyderabad, TS - 500081', gstNo:'36AAACT9988K1ZP', panNo:'AAACT9988K' },
@@ -101,25 +138,32 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
   { id:'sq-3', docNo:'EST-2026-0892', docType:'QUOTATION', partyName:'TATA CONSULTANCY SERVICES', companyName:'Aarna Construction & Interiors', savedAt:'28/08/2026, 03:20 PM', totalAmount:185000, status:'DRAFT', itemsCount:1, createdByName:'Rajesh Kumar', createdByRole:'Sales Executive' },
 ];
 
-// ─── Screen Component ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen Component
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface QuotationsInvoicesScreenProps { onClose?: () => void; }
 
 export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> = ({ onClose }) => {
+  const insets = useSafeAreaInsets();
   const [viewMode, setViewMode] = useState<'BUILDER' | 'LIVE_PREVIEW'>('BUILDER');
-  const [docType, setDocType] = useState<DocumentType>('QUOTATION');
-  const [docNo, setDocNo] = useState('EST-2026-0891');
-  const [docDate, setDocDate] = useState(fmtDate());
+  const [docType, setDocType]   = useState<DocumentType>('QUOTATION');
+  const [docNo, setDocNo]       = useState('EST-2026-0891');
+  const [docDate, setDocDate]   = useState(fmtDate());
   const [validUntilDate, setValidUntilDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 18);
     return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
   });
   const [showValidUntil, setShowValidUntil] = useState(true);
 
+  // Zoom scale state for preview
+  const [zoomScale, setZoomScale] = useState<number>(0.85);
+
   // Company & Party
-  const [companies, setCompanies] = useState<CompanyDetails[]>(INITIAL_COMPANIES);
-  const [selectedCompanyId, setSelectedCompanyId] = useState(INITIAL_COMPANIES[0].id);
-  const [parties, setParties] = useState<PartyDetails[]>(INITIAL_PARTIES);
-  const [selectedPartyId, setSelectedPartyId] = useState(INITIAL_PARTIES[0].id);
+  const [companies, setCompanies]                   = useState<CompanyDetails[]>(INITIAL_COMPANIES);
+  const [selectedCompanyId, setSelectedCompanyId]   = useState(INITIAL_COMPANIES[0].id);
+  const [parties, setParties]                       = useState<PartyDetails[]>(INITIAL_PARTIES);
+  const [selectedPartyId, setSelectedPartyId]       = useState(INITIAL_PARTIES[0].id);
   const [useSeparateShipping, setUseSeparateShipping] = useState(false);
   const [customShippingAddress, setCustomShippingAddress] = useState('Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310');
 
@@ -130,51 +174,53 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     imageUrl:'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60',
     showImage:false, unit:'Nos', qty:9, unitPrice:22500, taxRate:18, discountType:'flat', discountVal:0, total:202500,
   }]);
+
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([
     { id:'col-1', name:'Make / Brand' }, { id:'col-2', name:'Warranty Period' },
   ]);
 
   // GST & Tax
-  const [globalGstRate, setGlobalGstRate] = useState(18);
-  const [gstType, setGstType] = useState<GstType>('CGST_SGST');
-  const [showGstColumn, setShowGstColumn] = useState(true);
-  const [showHsnColumn, setShowHsnColumn] = useState(true);
+  const [globalGstRate, setGlobalGstRate]             = useState(18);
+  const [gstType, setGstType]                         = useState<GstType>('CGST_SGST');
+  const [showGstColumn, setShowGstColumn]             = useState(true);
+  const [showHsnColumn, setShowHsnColumn]             = useState(true);
   const [overallDiscountType, setOverallDiscountType] = useState<'flat'|'percent'>('flat');
-  const [overallDiscountVal, setOverallDiscountVal] = useState(0);
-  const [termsText, setTermsText] = useState('1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.');
+  const [overallDiscountVal, setOverallDiscountVal]   = useState(0);
+  const [termsText, setTermsText]                     = useState('1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.');
 
   // Layout Controls
-  const [sectionGap, setSectionGap] = useState(10);
-  const [pdfTopPadding, setPdfTopPadding] = useState(32);
+  const [sectionGap, setSectionGap]             = useState(10);
+  const [pdfTopPadding, setPdfTopPadding]       = useState(32);
   const [pdfBottomPadding, setPdfBottomPadding] = useState(28);
-  const [pdfMargin, setPdfMargin] = useState(10);
-  const [pdfPageMode, setPdfPageMode] = useState<'SINGLE'|'MULTI'>('SINGLE');
-  const [sectionOrder, setSectionOrder] = useState<SectionId[]>(['HEADER','PARTY_INFO','ITEMS_TABLE','SUMMARY_AND_BANK','FOOTER_TERMS']);
-  const [visibleSections, setVisibleSections] = useState<{[k in SectionId]: boolean}>({
+  const [pdfMargin, setPdfMargin]               = useState(10);
+  const [pdfPageMode, setPdfPageMode]           = useState<'SINGLE'|'MULTI'>('SINGLE');
+  const [sectionOrder, setSectionOrder]         = useState<SectionId[]>(['HEADER','PARTY_INFO','ITEMS_TABLE','SUMMARY_AND_BANK','FOOTER_TERMS']);
+  const [visibleSections, setVisibleSections]   = useState<{[k in SectionId]: boolean}>({
     HEADER:true, PARTY_INFO:true, ITEMS_TABLE:true, SUMMARY_AND_BANK:true, FOOTER_TERMS:true,
   });
 
   // Accordion state
   const [openSections, setOpenSections] = useState<{[k:string]: boolean}>({
-    gst:true, pdf:true, layout:true, company:true, party:true, metadata:true, items:true, terms:true,
+    gst:true, pdf:false, layout:false, company:true, party:true, metadata:true, items:true, terms:false,
   });
 
   // History & Drafts
-  const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
+  const [savedQuotes, setSavedQuotes]         = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [historySearch, setHistorySearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL'|'DRAFT'|'GENERATED_SENT'>('ALL');
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [historySearch, setHistorySearch]     = useState('');
+  const [statusFilter, setStatusFilter]       = useState<'ALL'|'DRAFT'|'GENERATED_SENT'>('ALL');
+  const [savedSuccess, setSavedSuccess]       = useState(false);
 
   // Modals
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
-  const [partyModalOpen, setPartyModalOpen] = useState(false);
-  const [newComp, setNewComp] = useState<Partial<CompanyDetails>>({});
-  const [newParty, setNewParty] = useState<Partial<PartyDetails>>({});
+  const [partyModalOpen, setPartyModalOpen]     = useState(false);
+  const [catalogModalOpen, setCatalogModalOpen] = useState<string | null>(null); // target line item ID or 'NEW'
+  const [newComp, setNewComp]                   = useState<Partial<CompanyDetails>>({});
+  const [newParty, setNewParty]                 = useState<Partial<PartyDetails>>({});
 
-  // ─── Derived ─────────────────────────────────────────────────────────────────
+  // ─── Derived Calculations ──────────────────────────────────────────────────
   const activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
-  const activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
+  const activeParty   = parties.find(p => p.id === selectedPartyId) || parties[0];
 
   const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   const totalItemDiscounts = items.reduce((s, i) => {
@@ -199,11 +245,11 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   const getDocTitle = () => {
     switch(docType) {
-      case 'QUOTATION': return 'ESTIMATE / QUOTATION';
+      case 'QUOTATION':        return 'ESTIMATE / QUOTATION';
       case 'PROFORMA_INVOICE': return 'PROFORMA INVOICE';
-      case 'TAX_INVOICE': return 'TAX INVOICE';
-      case 'PAYMENT_RECEIPT': return 'OFFICIAL RECEIPT';
-      case 'CREDIT_NOTE': return 'CREDIT NOTE';
+      case 'TAX_INVOICE':      return 'TAX INVOICE';
+      case 'PAYMENT_RECEIPT':  return 'OFFICIAL RECEIPT';
+      case 'CREDIT_NOTE':      return 'CREDIT NOTE';
       case 'DELIVERY_CHALLAN': return 'DELIVERY CHALLAN';
     }
   };
@@ -255,6 +301,40 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     setItems(prev => prev.filter(it => it.id !== id));
   };
 
+  const handleSelectCatalogProduct = (product: typeof CATALOG_PRODUCTS[number], targetItemId: string | null) => {
+    if (targetItemId === 'NEW' || !targetItemId) {
+      const newItem: LineItem = {
+        id: `item-${Date.now()}`,
+        productName: product.name,
+        description: product.desc,
+        showDescription: true,
+        hsnCode: product.hsn,
+        showImage: !!product.image,
+        imageUrl: product.image,
+        unit: product.unit,
+        qty: 1,
+        unitPrice: product.price,
+        taxRate: product.tax,
+        discountType: 'flat',
+        discountVal: 0,
+        total: product.price,
+      };
+      setItems(prev => [...prev, newItem]);
+    } else {
+      updateLineItem(targetItemId, {
+        productName: product.name,
+        description: product.desc,
+        hsnCode: product.hsn,
+        unitPrice: product.price,
+        taxRate: product.tax,
+        unit: product.unit,
+        imageUrl: product.image,
+        showImage: !!product.image,
+      });
+    }
+    setCatalogModalOpen(null);
+  };
+
   const handlePickImage = async (onSuccess: (uri: string) => void) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert('Permission Denied', 'Gallery access required.'); return; }
@@ -264,19 +344,13 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     }
   };
 
-  // ─── Print & Share ──────────────────────────────────────────────────────────
+  // ─── Print & Share HTML Generation ──────────────────────────────────────────
   const [isPrinting, setIsPrinting] = useState(false);
 
   const buildPrintHTML = (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
     const partyName   = overridePartyName || activeParty.name;
     const documentNo  = overrideDocNo    || docNo;
     const totalAmt    = overrideAmount   !== undefined ? overrideAmount : grandTotal;
-    const taxRows = gstType === 'IGST'
-      ? `<tr><td>IGST (${globalGstRate}%)</td><td style="text-align:right">₹${igst.toLocaleString('en-IN')}</td></tr>`
-      : gstType === 'EXEMPT' || globalGstRate === 0
-      ? `<tr><td>GST</td><td style="text-align:right;color:#059669">NIL / EXEMPT</td></tr>`
-      : `<tr><td>CGST (${(globalGstRate/2).toFixed(1)}%)</td><td style="text-align:right">₹${cgst.toLocaleString('en-IN')}</td></tr>
-         <tr><td>SGST (${(globalGstRate/2).toFixed(1)}%)</td><td style="text-align:right">₹${sgst.toLocaleString('en-IN')}</td></tr>`;
 
     const itemRows = items.map((it, idx) => {
       const rowTotal = it.qty * it.unitPrice;
@@ -330,7 +404,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   .sign-line { border-top:1px solid #94a3b8; width:120px; margin-top:36px; padding-top:4px; margin-left:auto; }
   .sign-label { font-size:9px; color:#64748b; text-transform:uppercase; }
   .bottom-strip { text-align:center; font-size:9px; color:#64748b; margin-top:${sectionGap}px; padding-top:8px; border-top:1px solid #e2e8f0; }
-  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style>
 </head>
 <body>
@@ -397,29 +470,23 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       </div>
     </div>
     <div class="totals-box">
-      <div class="box-label">Summary</div>
-      <div class="sum-row"><span>Subtotal</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
-      ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Item Discounts</span><span style="color:#dc2626">-₹${totalItemDiscounts.toLocaleString('en-IN')}</span></div>` : ''}
-      ${overallDiscAmount > 0 ? `<div class="sum-row"><span>Overall Discount</span><span style="color:#dc2626">-₹${overallDiscAmount.toLocaleString('en-IN')}</span></div>` : ''}
-      ${taxRows}
-      <div class="grand-row"><span>GRAND TOTAL</span><span>₹${totalAmt.toLocaleString('en-IN')}</span></div>
+      <div class="sum-row"><span>Subtotal:</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
+      ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Discounts:</span><span>-₹${totalItemDiscounts.toLocaleString('en-IN')}</span></div>` : ''}
+      <div class="sum-row"><span>GST (${globalGstRate}%):</span><span>₹${effectiveGstTaxTotal.toLocaleString('en-IN')}</span></div>
+      <div class="grand-row"><span>Grand Total:</span><span>₹${totalAmt.toLocaleString('en-IN')}</span></div>
     </div>
   </div>
 
   <div class="footer">
-    <div style="flex:1">
+    <div>
       <div class="box-label">Terms & Conditions</div>
-      <div style="font-size:10px;color:#475569;margin-top:4px;white-space:pre-line">${termsText}</div>
-      <div style="font-size:9px;color:#94a3b8;margin-top:6px;font-style:italic">E.&amp;O.E.</div>
+      <div style="font-size:10px;color:#475569;white-space:pre-line">${termsText}</div>
     </div>
     <div class="sign-block">
-      <div style="font-size:10px;font-weight:700;color:#0f172a">For ${activeCompany.name}</div>
-      <div class="sign-line"><div class="sign-label">Authorized Signatory</div></div>
+      <div style="font-weight:900;color:#002060">For ${activeCompany.name}</div>
+      <div class="sign-line"></div>
+      <div class="sign-label">Authorized Signatory</div>
     </div>
-  </div>
-
-  <div class="bottom-strip">
-    Generated by <strong style="color:#4f46e5">DAS CRM</strong> — www.dascrm.com
   </div>
 </div>
 </body>
@@ -432,9 +499,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
       await Print.printAsync({ html });
     } catch (err: any) {
-      if (err?.message && !err.message.includes('cancel')) {
-        Alert.alert('Print Error', 'Could not open print dialog. Please try again.');
-      }
+      Alert.alert('Print Error', err?.message || 'Could not print document.');
     } finally {
       setIsPrinting(false);
     }
@@ -445,8 +510,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     try {
       const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
       const { uri } = await Print.printToFileAsync({ html });
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) { Alert.alert('Share not available', 'This device does not support sharing files.'); return; }
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Share ${overrideDocNo || docNo}.pdf`, UTI: 'com.adobe.pdf' });
     } catch (err: any) {
       if (err?.message && !err.message.includes('cancel')) {
@@ -468,6 +531,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
     setSectionOrder(newOrder);
   };
+
   const moveSectionDown = (id: SectionId) => {
     const idx = sectionOrder.indexOf(id);
     if (idx === -1 || idx >= sectionOrder.length - 1) return;
@@ -475,7 +539,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
     setSectionOrder(newOrder);
   };
+
   const toggleSectionVisibility = (id: SectionId) => setVisibleSections(p => ({ ...p, [id]: !p[id] }));
+
   const resetSectionLayout = () => {
     setSectionGap(10); setPdfTopPadding(32); setPdfBottomPadding(28);
     setSectionOrder(['HEADER','PARTY_INFO','ITEMS_TABLE','SUMMARY_AND_BANK','FOOTER_TERMS']);
@@ -526,11 +592,11 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     setSavedQuotes(prev => prev.map(q => q.id === record.id ? { ...q, status:'GENERATED_SENT', sentVia:channel, sentToLead:leadContact } : q));
     if (channel === 'EMAIL') {
       const subject = encodeURIComponent(`${record.docType.replace('_',' ')} #${record.docNo} from ${record.companyName}`);
-      const body = encodeURIComponent(`Dear ${record.partyName},\n\nPlease find attached the ${record.docType.replace('_',' ')} #${record.docNo} for total amount ₹${record.totalAmount.toLocaleString()}.\n\nDocument Details:\n- Doc #: ${record.docNo}\n- Total: ₹${record.totalAmount.toLocaleString()}\n- Issuer: ${record.companyName}\n\nGenerated via DAS CRM (www.dascrm.com)\n\nBest regards,\n${record.createdByName || 'Sales Team'}`);
+      const body = encodeURIComponent(`Dear ${record.partyName},\n\nPlease find attached the ${record.docType.replace('_',' ')} #${record.docNo} for total amount ₹${record.totalAmount.toLocaleString()}.\n\nBest regards,\n${record.createdByName || 'Sales Team'}`);
       Linking.openURL(`mailto:${leadContact}?subject=${subject}&body=${body}`);
     } else if (channel === 'WHATSAPP_DIRECT') {
       const cleanPhone = String(leadContact).replace(/\D/g, '');
-      const text = encodeURIComponent(`Hello *${record.partyName}*,\n\nHere is your official *${record.docType.replace('_',' ')} #${record.docNo}* from *${record.companyName}*.\n\nTotal Amount: *₹${record.totalAmount.toLocaleString()}*\n\nGenerated with DAS CRM — www.dascrm.com`);
+      const text = encodeURIComponent(`Hello *${record.partyName}*,\n\nHere is your official *${record.docType.replace('_',' ')} #${record.docNo}* from *${record.companyName}*.\n\nTotal Amount: *₹${record.totalAmount.toLocaleString()}*`);
       Linking.openURL(`whatsapp://send?phone=${cleanPhone}&text=${text}`);
     }
   };
@@ -559,12 +625,12 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   const filteredQuotes = savedQuotes.filter(q => {
     const qry = historySearch.toLowerCase();
-    const matchSearch = !qry || q.docNo.toLowerCase().includes(qry) || q.partyName.toLowerCase().includes(qry) || q.companyName.toLowerCase().includes(qry) || String(q.totalAmount).includes(qry) || (q.createdByName?.toLowerCase().includes(qry));
+    const matchSearch = !qry || q.docNo.toLowerCase().includes(qry) || q.partyName.toLowerCase().includes(qry) || q.companyName.toLowerCase().includes(qry) || String(q.totalAmount).includes(qry);
     const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  // ─── Accordion Section Helper ───────────────────────────────────────────────
+  // ─── Accordion Section Component ───────────────────────────────────────────
   const AccordionHeader = ({ label, color, sectionKey, badge }: { label: string; color: string; sectionKey: string; badge?: string }) => (
     <TouchableOpacity onPress={() => toggleSection(sectionKey)} activeOpacity={0.7} style={styles.accHeader}>
       <Text style={[styles.accHeaderText, { color }]}>{label}</Text>
@@ -575,13 +641,21 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     </TouchableOpacity>
   );
 
-  // ─── A4 Preview ─────────────────────────────────────────────────────────────
+  // ─── Live Rendered Document Preview ─────────────────────────────────────────
   const renderA4Preview = () => {
     const bodySections = sectionOrder.filter(secId => secId !== 'FOOTER_TERMS' && visibleSections[secId]);
-    const showFooter = visibleSections['FOOTER_TERMS'];
+    const showFooter   = visibleSections['FOOTER_TERMS'];
 
     return (
-      <View style={[styles.a4Paper, { paddingTop: pdfTopPadding, paddingBottom: pdfBottomPadding + 28, paddingHorizontal: pdfMargin }]}>
+      <View style={[
+        styles.a4Paper,
+        {
+          paddingTop: pdfTopPadding,
+          paddingBottom: pdfBottomPadding + 28,
+          paddingHorizontal: pdfMargin * 2,
+          transform: [{ scale: zoomScale }],
+        },
+      ]}>
         {/* Navy Brand Bar */}
         <View style={styles.a4NavyBar} />
 
@@ -693,7 +767,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         {bodySections.includes('SUMMARY_AND_BANK') && visibleSections['SUMMARY_AND_BANK'] && (
           <View style={[styles.a4Section, { marginBottom: sectionGap }]}>
             <View style={styles.a4SummaryGrid}>
-              {/* Bank & Amount in Words */}
               <View style={{ flex:1, gap:6 }}>
                 <View style={styles.a4BankBox}>
                   <Text style={styles.a4BoxLabel}>Bank Payment Details</Text>
@@ -708,30 +781,20 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 </View>
               </View>
 
-              {/* Totals Calculation */}
               <View style={styles.a4TotalsBox}>
-                <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Subtotal (Base Value):</Text><Text style={styles.a4SumVal}>{fmt(subtotal)}</Text></View>
-                {totalItemDiscounts > 0 && <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Item Discounts:</Text><Text style={styles.a4SumVal}>-{fmt(totalItemDiscounts)}</Text></View>}
-                {overallDiscAmount > 0 && <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Overall Discount:</Text><Text style={styles.a4SumVal}>-{fmt(overallDiscAmount)}</Text></View>}
+                <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Subtotal (Base):</Text><Text style={styles.a4SumVal}>{fmt(subtotal)}</Text></View>
+                {totalItemDiscounts > 0 && <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Discounts:</Text><Text style={styles.a4SumVal}>-{fmt(totalItemDiscounts)}</Text></View>}
+                {overallDiscAmount > 0 && <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>Overall Disc:</Text><Text style={styles.a4SumVal}>-{fmt(overallDiscAmount)}</Text></View>}
                 {gstType === 'EXEMPT' || globalGstRate === 0 ? (
-                  <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>GST Tax Rate:</Text><Text style={{ color:'#059669', fontSize:8 }}>0% (Nil Rated / Exempt)</Text></View>
+                  <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>GST Tax Rate:</Text><Text style={{ color:'#059669', fontSize:8 }}>0% (Exempt)</Text></View>
                 ) : gstType === 'IGST' ? (
                   <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>IGST ({globalGstRate}%):</Text><Text style={styles.a4SumVal}>{fmt(igst)}</Text></View>
-                ) : gstType === 'CGST_UTGST' ? (
-                  <>
-                    <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>CGST ({(globalGstRate/2).toFixed(1)}%):</Text><Text style={styles.a4SumVal}>{fmt(cgst)}</Text></View>
-                    <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>UTGST ({(globalGstRate/2).toFixed(1)}%):</Text><Text style={styles.a4SumVal}>{fmt(utgst)}</Text></View>
-                  </>
                 ) : (
                   <>
                     <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>CGST ({(globalGstRate/2).toFixed(1)}%):</Text><Text style={styles.a4SumVal}>{fmt(cgst)}</Text></View>
                     <View style={styles.a4SumRow}><Text style={styles.a4SumLbl}>SGST ({(globalGstRate/2).toFixed(1)}%):</Text><Text style={styles.a4SumVal}>{fmt(sgst)}</Text></View>
                   </>
                 )}
-                <View style={[styles.a4SumRow, { borderTopWidth:1, borderTopColor:'#e2e8f0', paddingTop:2 }]}>
-                  <Text style={styles.a4TaxTotalLbl}>Total Tax ({gstType === 'EXEMPT' || globalGstRate === 0 ? '0% Exempt' : `${globalGstRate}% ${gstType === 'IGST' ? 'IGST' : gstType === 'CGST_UTGST' ? 'CGST+UTGST' : 'CGST+SGST'}`}):</Text>
-                  <Text style={styles.a4SumVal}>{fmt(gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal)}</Text>
-                </View>
                 <View style={styles.a4GrandRow}>
                   <Text style={styles.a4GrandLbl}>Grand Total</Text>
                   <Text style={styles.a4GrandVal}>{fmt(grandTotal)}</Text>
@@ -766,9 +829,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     );
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // ─── Render Screen ──────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 36) }]}>
       <StatusBar barStyle="light-content" backgroundColor="#060b18" />
 
       {/* ── TOP HEADER BAR ─────────────────────────────────────────────── */}
@@ -787,10 +850,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         </TouchableOpacity>
       </View>
 
-      {/* ── TOP ACTION BAR ─────────────────────────────────────────────── */}
+      {/* ── TOP ACTION & CONVERT BAR ───────────────────────────────────── */}
       <View style={styles.topActionBar}>
         <View style={styles.topBarRow}>
-          {/* View Mode Switch */}
+          {/* View Mode Switcher */}
           <View style={styles.viewModeSwitcher}>
             <TouchableOpacity style={[styles.vmTab, viewMode==='BUILDER' && styles.vmTabActive]} onPress={() => setViewMode('BUILDER')}>
               <Text style={[styles.vmTabText, viewMode==='BUILDER' && styles.vmTabTextActive]}>⚙️ Builder</Text>
@@ -800,7 +863,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             </TouchableOpacity>
           </View>
 
-          {/* Quick Actions */}
+          {/* Quick Action Buttons */}
           <View style={styles.topBarActions}>
             <TouchableOpacity
               style={[styles.topBarBtn, savedSuccess && styles.topBarBtnSuccess]}
@@ -823,7 +886,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           </View>
         </View>
 
-        {/* Convert Document Pills */}
+        {/* Convert Document Type Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:8 }}>
           <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
             <Text style={{ fontSize:9, fontWeight:'900', color:'#64748b', marginRight:2 }}>CONVERT TO:</Text>
@@ -836,7 +899,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         </ScrollView>
       </View>
 
-      {/* Content */}
+      {/* Content Area */}
       {viewMode === 'BUILDER' ? (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* ── 1. Company Selector ── */}
@@ -909,7 +972,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 3. Document Metadata ── */}
+          {/* ── 3. Document Reference & Dates ── */}
           <View style={[styles.accCard, openSections.metadata && styles.accCardOpen]}>
             <AccordionHeader label="📅 3. Document Reference & Dates" color="#fbbf24" sectionKey="metadata" />
             {openSections.metadata && (
@@ -936,7 +999,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 4. Line Items ── */}
+          {/* ── 4. Line Items Table Engine ── */}
           <View style={[styles.accCard, openSections.items && styles.accCardOpen]}>
             <AccordionHeader label={`📦 4. Line Items (${items.length})`} color="#a78bfa" sectionKey="items" badge={`${items.length} items`} />
             {openSections.items && (
@@ -960,41 +1023,30 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   </View>
                 )}
 
+                {/* Line Items List */}
                 {items.map((it, idx) => (
                   <View key={it.id} style={styles.itemBox}>
                     <View style={styles.itemHeader}>
                       <Text style={styles.itemIdx}>#{idx + 1} Line Item</Text>
                       <View style={{ flexDirection:'row', gap:6 }}>
-                        <TouchableOpacity style={styles.catalogBtn} onPress={() => {}}>
-                          <Text style={styles.catalogBtnText}>📦 Catalog</Text>
+                        <TouchableOpacity style={styles.catalogBtn} onPress={() => setCatalogModalOpen(it.id)}>
+                          <Text style={styles.catalogBtnText}>📦 Add from Catalog</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => removeLineItem(it.id)}><Text style={styles.removeBtn}>Remove</Text></TouchableOpacity>
                       </View>
                     </View>
 
-                    {/* Catalog Product Picker */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:6 }}>
-                      <View style={{ flexDirection:'row', gap:6 }}>
-                        {CATALOG_PRODUCTS.map(p => (
-                          <TouchableOpacity key={p.name} style={[styles.catalogProductChip, it.productName === p.name && styles.catalogProductChipActive]} onPress={() => updateLineItem(it.id, { productName:p.name, description:p.desc, hsnCode:p.hsn, unitPrice:p.price, taxRate:p.tax, unit:p.unit, imageUrl:p.image })}>
-                            <Text style={[styles.catalogProductChipText, it.productName === p.name && styles.catalogProductChipTextActive]}>{p.name.slice(0,20)}</Text>
-                            <Text style={styles.catalogProductChipPrice}>₹{p.price.toLocaleString()}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-
                     <TextInput style={[styles.inputField, { marginTop:8, fontWeight:'900' }]} placeholder="Product Title *" placeholderTextColor="#64748b" value={it.productName} onChangeText={v => updateLineItem(it.id, { productName:v })} />
 
                     {/* Description Toggle */}
                     <View style={styles.toggleRow}>
-                      <Text style={styles.toggleText}>📝 Description Visible</Text>
+                      <Text style={styles.toggleText}>📝 Description Visible in PDF</Text>
                       <TouchableOpacity style={[styles.toggleBtn, it.showDescription && styles.toggleBtnOn]} onPress={() => updateLineItem(it.id, { showDescription:!it.showDescription })}>
                         <Text style={[styles.toggleBtnText, it.showDescription && styles.toggleBtnTextOn]}>{it.showDescription ? '✓ Shown' : 'Hidden'}</Text>
                       </TouchableOpacity>
                     </View>
                     {it.showDescription && (
-                      <TextInput style={[styles.inputField, { marginTop:4 }]} placeholder="Enter product description, specs..." placeholderTextColor="#64748b" value={it.description || ''} onChangeText={v => updateLineItem(it.id, { description:v })} />
+                      <TextInput style={[styles.inputField, { marginTop:4 }]} placeholder="Enter product description, specs..." placeholderTextColor="#64748b" value={it.description || ''} onChangeText={v => updateLineItem(it.id, { description:v })} multiline />
                     )}
 
                     {/* Image */}
@@ -1002,7 +1054,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                       <Text style={styles.toggleText}>🖼️ Show Image in PDF</Text>
                       <View style={{ flexDirection:'row', gap:6 }}>
                         <TouchableOpacity style={styles.uploadBtn} onPress={() => handlePickImage(uri => updateLineItem(it.id, { imageUrl:uri }))}>
-                          <Text style={styles.uploadBtnText}>📁 Pick</Text>
+                          <Text style={styles.uploadBtnText}>📁 Pick Image</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.toggleBtn, it.showImage && styles.toggleBtnOn]} onPress={() => updateLineItem(it.id, { showImage:!it.showImage })}>
                           <Text style={[styles.toggleBtnText, it.showImage && styles.toggleBtnTextOn]}>{it.showImage ? '✓ Shown' : 'Hidden'}</Text>
@@ -1051,14 +1103,19 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   </View>
                 ))}
 
-                <TouchableOpacity style={styles.addItemBtn} onPress={addLineItem}>
-                  <Text style={styles.addItemBtnText}>+ Add Line Item</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <TouchableOpacity style={[styles.addItemBtn, { flex: 1 }]} onPress={addLineItem}>
+                    <Text style={styles.addItemBtnText}>+ Add Line Item</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.addItemBtn, { flex: 1, backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]} onPress={() => setCatalogModalOpen('NEW')}>
+                    <Text style={[styles.addItemBtnText, { color: '#38bdf8' }]}>📦 Pick from Catalog</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
 
-          {/* ── 5. Terms ── */}
+          {/* ── 5. Terms & Conditions ── */}
           <View style={[styles.accCard, openSections.terms && styles.accCardOpen]}>
             <AccordionHeader label="📄 5. Terms & Conditions" color="#38bdf8" sectionKey="terms" />
             {openSections.terms && (
@@ -1068,7 +1125,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 6. GST Controls ── */}
+          {/* ── 6. GST Tax Controls ── */}
           <View style={[styles.accCard, openSections.gst && styles.accCardOpen]}>
             <AccordionHeader
               label="🎚️ 6. GST Tax Rate & Column Controls"
@@ -1117,7 +1174,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 7. PDF Controls ── */}
+          {/* ── 7. PDF Page & Margin Controls ── */}
           <View style={[styles.accCard, openSections.pdf && styles.accCardOpen]}>
             <AccordionHeader label="⚙️ 7. PDF Page & Margin Controls" color="#818cf8" sectionKey="pdf" />
             {openSections.pdf && (
@@ -1159,26 +1216,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   ))}
                 </View>
 
-                {/* Top/Bottom Padding */}
-                <View style={{ flexDirection:'row', gap:8, marginBottom:10 }}>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.fieldLabel}>Top Page Space: {pdfTopPadding}px</Text>
-                    {[15, 32, 45].map(v => (
-                      <TouchableOpacity key={v} style={[styles.gapBtn, pdfTopPadding===v && styles.gapBtnActive, { marginTop:4 }]} onPress={() => setPdfTopPadding(v)}>
-                        <Text style={[styles.gapBtnText, pdfTopPadding===v && styles.gapBtnTextActive]}>{v}px</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.fieldLabel}>Bottom Space: {pdfBottomPadding}px</Text>
-                    {[12, 28, 40].map(v => (
-                      <TouchableOpacity key={v} style={[styles.gapBtn, pdfBottomPadding===v && styles.gapBtnActive, { marginTop:4 }]} onPress={() => setPdfBottomPadding(v)}>
-                        <Text style={[styles.gapBtnText, pdfBottomPadding===v && styles.gapBtnTextActive]}>{v}px</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
                 {/* Section Order & Visibility */}
                 <Text style={[styles.fieldLabel, { marginBottom:6 }]}>Section Sequence & Visibility</Text>
                 {sectionOrder.map((secId, idx) => {
@@ -1213,8 +1250,11 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── BOTTOM ACTION BAR ──────────────────────────────────────── */}
-          <View style={styles.bottomActionBar}>
+          {/* ── BOTTOM ACTION BAR ── */}
+          <View style={[
+            styles.bottomActionBar,
+            { paddingBottom: Math.max(insets.bottom + 8, 16) },
+          ]}>
             {/* Grand Total Summary Strip */}
             <View style={styles.totalSummaryStrip}>
               <View>
@@ -1229,7 +1269,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
             {/* 5-Action Button Row */}
             <View style={styles.bottomActionsRow}>
-              {/* Save */}
               <TouchableOpacity
                 style={[styles.bottomAction, savedSuccess && styles.bottomActionSuccess]}
                 onPress={handleSaveCurrentDraft}
@@ -1241,7 +1280,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 </Text>
               </TouchableOpacity>
 
-              {/* Print PDF */}
               <TouchableOpacity
                 style={[styles.bottomAction, styles.bottomActionPrint]}
                 onPress={() => handlePrintPDF()}
@@ -1255,7 +1293,6 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 <Text style={[styles.bottomActionLabel, { color:'#fff' }]}>Print PDF</Text>
               </TouchableOpacity>
 
-              {/* Share PDF */}
               <TouchableOpacity
                 style={[styles.bottomAction, styles.bottomActionShare]}
                 onPress={() => handleSharePDF()}
@@ -1266,11 +1303,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 <Text style={[styles.bottomActionLabel, { color:'#a5b4fc' }]}>Share</Text>
               </TouchableOpacity>
 
-              {/* WhatsApp */}
               <TouchableOpacity
                 style={[styles.bottomAction, styles.bottomActionWA]}
                 onPress={() => {
-                  const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n${items.map(i=>`• ${i.productName} x${i.qty} — ₹${(i.qty*i.unitPrice).toLocaleString('en-IN')}`).join('\n')}\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
+                  const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
                   Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
                 }}
                 activeOpacity={0.8}
@@ -1279,12 +1315,11 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 <Text style={[styles.bottomActionLabel, { color:'#4ade80' }]}>WhatsApp</Text>
               </TouchableOpacity>
 
-              {/* Email */}
               <TouchableOpacity
                 style={[styles.bottomAction, styles.bottomActionEmail]}
                 onPress={() => {
                   const sub = encodeURIComponent(`${getDocTitle()} #${docNo} from ${activeCompany.name}`);
-                  const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nTotal: ₹${grandTotal.toLocaleString('en-IN')}\nIssuer: ${activeCompany.name}\n\nGenerated via DAS CRM\n\nRegards,\n${activeCompany.name}`);
+                  const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nRegards,\n${activeCompany.name}`);
                   Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
                 }}
                 activeOpacity={0.8}
@@ -1296,14 +1331,31 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           </View>
         </ScrollView>
       ) : (
-        /* ── LIVE A4 PREVIEW ── */
+        /* ── LIVE A4 DOCUMENT PREVIEW ── */
         <View style={styles.previewContainer}>
           {/* Preview Toolbar */}
           <View style={styles.previewToolbar}>
             <TouchableOpacity style={styles.splitToggleBtn} onPress={() => setViewMode('BUILDER')} hitSlop={{top:8,bottom:8,left:8,right:8}}>
               <Text style={styles.splitToggleBtnText}>← Builder</Text>
             </TouchableOpacity>
-            <Text style={styles.previewToolbarText}>📄 {docNo}</Text>
+
+            {/* Zoom Controls */}
+            <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+              {[
+                { scale: 0.65, label: '65%' },
+                { scale: 0.85, label: '85%' },
+                { scale: 1.0,  label: '100%' },
+              ].map(z => (
+                <TouchableOpacity
+                  key={z.label}
+                  style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#0d1526' }, zoomScale === z.scale && { backgroundColor: '#4f46e5' }]}
+                  onPress={() => setZoomScale(z.scale)}
+                >
+                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, zoomScale === z.scale && { color: '#ffffff' }]}>{z.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={{ flexDirection:'row', gap:6 }}>
               <TouchableOpacity
                 style={styles.previewActionBtn}
@@ -1333,7 +1385,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           </ScrollView>
 
           {/* Preview Bottom Bar */}
-          <View style={styles.previewBottomBar}>
+          <View style={[
+            styles.previewBottomBar,
+            { paddingBottom: Math.max(insets.bottom + 8, 16) },
+          ]}>
             <TouchableOpacity
               style={styles.previewBottomBtn}
               onPress={() => {
@@ -1355,6 +1410,45 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {/* ── MODAL: CATALOG PRODUCT LOOKUP ── */}
+      {catalogModalOpen && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setCatalogModalOpen(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>📦 Pick Product from CRM Catalog</Text>
+                <TouchableOpacity onPress={() => setCatalogModalOpen(null)}>
+                  <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ gap: 8 }}>
+                  {CATALOG_PRODUCTS.map((prod) => (
+                    <TouchableOpacity
+                      key={prod.name}
+                      style={styles.catalogCard}
+                      onPress={() => handleSelectCatalogProduct(prod, catalogModalOpen)}
+                    >
+                      <Image source={{ uri: prod.image }} style={styles.catalogImg} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.catalogName}>{prod.name}</Text>
+                        <Text style={styles.catalogDesc} numberOfLines={2}>{prod.desc}</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                          <Text style={styles.catalogPrice}>₹{prod.price.toLocaleString('en-IN')}</Text>
+                          <Text style={styles.catalogMeta}>HSN: {prod.hsn} • GST: {prod.tax}%</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.catalogAddBtn}>+ Select</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       )}
 
       {/* ── MODAL: ADD COMPANY ── */}
@@ -1541,254 +1635,271 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex:1, backgroundColor:'#060b18' },
+  container: { flex: 1, backgroundColor: '#060b18' },
 
-  // Header
-  topHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingVertical:10, backgroundColor:'#060b18', borderBottomWidth:1, borderBottomColor:'#1a2335' },
-  backBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#1e293b', minWidth:52 },
-  backBtnText: { color:'#38bdf8', fontWeight:'900', fontSize:11, textAlign:'center' },
-  headerTitle: { fontSize:13, fontWeight:'900', color:'#ffffff', textAlign:'center' },
-  headerSub: { fontSize:9, color:'#475569', fontWeight:'700', marginTop:2, textAlign:'center' },
-  topActionBtn: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)', minWidth:52, alignItems:'center' },
-  topActionBtnText: { color:'#818cf8', fontWeight:'900', fontSize:11 },
+  // Top Header
+  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#060b18', borderBottomWidth: 1, borderBottomColor: '#1a2335' },
+  backBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', minWidth: 52 },
+  backBtnText: { color: '#38bdf8', fontWeight: '900', fontSize: 11, textAlign: 'center' },
+  headerTitle: { fontSize: 13, fontWeight: '900', color: '#ffffff', textAlign: 'center' },
+  headerSub: { fontSize: 9, color: '#475569', fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  topActionBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)', minWidth: 52, alignItems: 'center' },
+  topActionBtnText: { color: '#818cf8', fontWeight: '900', fontSize: 11 },
 
-  // Action Bar
-  topActionBar: { backgroundColor:'#060b18', padding:10, borderBottomWidth:1, borderBottomColor:'#1a2335' },
-  topBarRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
-  viewModeSwitcher: { flexDirection:'row', backgroundColor:'#0d1526', borderRadius:10, padding:3, borderWidth:1, borderColor:'#1a2335' },
-  vmTab: { paddingHorizontal:12, paddingVertical:5, borderRadius:8 },
-  vmTabActive: { backgroundColor:'#4f46e5' },
-  vmTabText: { fontSize:10, fontWeight:'900', color:'#64748b' },
-  vmTabTextActive: { color:'#ffffff' },
-  topBarActions: { flexDirection:'row', gap:6 },
-  topBarBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:'#1e293b' },
-  topBarBtnSuccess: { backgroundColor:'rgba(16,185,129,0.2)', borderColor:'rgba(16,185,129,0.4)' },
-  topBarBtnPrint: { backgroundColor:'#4f46e5', paddingHorizontal:12, paddingVertical:6, borderRadius:8, minWidth:68, alignItems:'center', justifyContent:'center' },
-  topBarBtnText: { fontSize:10, fontWeight:'900', color:'#e2e8f0' },
-  topBarBtnPrintText: { fontSize:10, fontWeight:'900', color:'#ffffff' },
-  convertPill: { paddingHorizontal:10, paddingVertical:5, borderRadius:8, backgroundColor:'#0d1526', borderWidth:1, borderColor:'#1e293b' },
-  convertPillActive: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
-  convertPillText: { fontSize:9, fontWeight:'900', color:'#64748b' },
-  convertPillTextActive: { color:'#ffffff' },
-  scrollContent: { padding:10, paddingBottom:40 },
-  accCard: { backgroundColor:'#0f172a', borderRadius:14, borderWidth:1, borderColor:'#1e293b', marginBottom:8, overflow:'hidden' },
-  accCardOpen: { borderColor:'#334155' },
-  accHeader: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:12 },
-  accHeaderText: { fontSize:12, fontWeight:'900', flex:1 },
-  accHeaderRight: { flexDirection:'row', alignItems:'center', gap:8 },
-  accBadge: { paddingHorizontal:6, paddingVertical:2, borderRadius:6, borderWidth:1 },
-  accBadgeText: { fontSize:9, fontWeight:'900' },
-  accChevron: { fontSize:10, color:'#64748b' },
-  accBody: { padding:12, paddingTop:0, borderTopWidth:1, borderTopColor:'#1e293b' },
-  companyRow: { flexDirection:'row', justifyContent:'flex-end' },
-  addBtn: { backgroundColor:'rgba(56,189,248,0.15)', borderWidth:1, borderColor:'rgba(56,189,248,0.4)', paddingHorizontal:8, paddingVertical:4, borderRadius:8 },
-  addBtnText: { color:'#38bdf8', fontSize:10, fontWeight:'900' },
-  selBox: { backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b', paddingHorizontal:10, paddingVertical:8, borderRadius:10, minWidth:140 },
-  selBoxActive: { borderColor:'#38bdf8' },
-  selBoxName: { fontSize:11, fontWeight:'900', color:'#ffffff' },
-  selBoxSub: { fontSize:9, color:'#64748b', marginTop:2 },
-  detailCard: { backgroundColor:'rgba(99,102,241,0.1)', borderWidth:1, borderColor:'rgba(99,102,241,0.3)', borderRadius:12, padding:10, marginTop:8 },
-  detailName: { fontSize:12, fontWeight:'900', color:'#ffffff' },
-  detailSub: { fontSize:10, color:'#94a3b8', marginTop:2 },
-  detailContact: { fontSize:10, color:'#818cf8', marginTop:2 },
-  toggleRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:10, paddingTop:8, borderTopWidth:1, borderTopColor:'#1e293b' },
-  toggleText: { fontSize:11, fontWeight:'800', color:'#cbd5e1', flex:1 },
-  fieldLabel: { fontSize:10, fontWeight:'800', color:'#94a3b8', marginBottom:4 },
-  inputField: { backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:6, fontSize:11, color:'#ffffff' },
-  itemBox: { backgroundColor:'#020617', borderRadius:12, borderWidth:1, borderColor:'#1e293b', padding:10, marginBottom:10 },
-  itemHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
-  itemIdx: { fontSize:11, fontWeight:'900', color:'#94a3b8' },
-  removeBtn: { color:'#f43f5e', fontSize:11, fontWeight:'900' },
-  catalogBtn: { backgroundColor:'rgba(167,139,250,0.15)', borderWidth:1, borderColor:'rgba(167,139,250,0.3)', paddingHorizontal:8, paddingVertical:3, borderRadius:8 },
-  catalogBtnText: { color:'#a78bfa', fontSize:10, fontWeight:'900' },
-  catalogProductChip: { backgroundColor:'#1e293b', borderWidth:1, borderColor:'#334155', paddingHorizontal:8, paddingVertical:4, borderRadius:8 },
-  catalogProductChipActive: { backgroundColor:'rgba(167,139,250,0.2)', borderColor:'rgba(167,139,250,0.5)' },
-  catalogProductChipText: { fontSize:9, fontWeight:'900', color:'#94a3b8' },
-  catalogProductChipTextActive: { color:'#e9d5ff' },
-  catalogProductChipPrice: { fontSize:9, color:'#64748b' },
-  toggleBtn: { backgroundColor:'#1e293b', paddingHorizontal:8, paddingVertical:4, borderRadius:6, borderWidth:1, borderColor:'#334155' },
-  toggleBtnOn: { backgroundColor:'rgba(16,185,129,0.2)', borderColor:'rgba(16,185,129,0.4)' },
-  toggleBtnText: { fontSize:10, fontWeight:'900', color:'#64748b' },
-  toggleBtnTextOn: { color:'#34d399' },
-  uploadBtn: { backgroundColor:'rgba(56,189,248,0.15)', borderWidth:1, borderColor:'rgba(56,189,248,0.4)', paddingHorizontal:8, paddingVertical:4, borderRadius:8 },
-  uploadBtnText: { color:'#38bdf8', fontSize:10, fontWeight:'900' },
-  customColManager: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:8 },
-  customColTitle: { fontSize:11, fontWeight:'900', color:'#a78bfa' },
-  customColAddBtn: { backgroundColor:'rgba(167,139,250,0.15)', borderWidth:1, borderColor:'rgba(167,139,250,0.3)', paddingHorizontal:8, paddingVertical:4, borderRadius:8 },
-  customColAddBtnText: { color:'#a78bfa', fontSize:10, fontWeight:'900' },
-  customColRow: { flexDirection:'row', alignItems:'center', gap:6 },
-  customColIdx: { width:24, height:24, borderRadius:12, backgroundColor:'rgba(167,139,250,0.2)', alignItems:'center', justifyContent:'center' },
-  customColIdxText: { fontSize:10, fontWeight:'900', color:'#a78bfa' },
-  customColDel: { width:24, height:24, borderRadius:12, backgroundColor:'rgba(244,63,94,0.1)', borderWidth:1, borderColor:'rgba(244,63,94,0.3)', alignItems:'center', justifyContent:'center' },
-  customColDelText: { fontSize:10, fontWeight:'900', color:'#f43f5e' },
-  addItemBtn: { backgroundColor:'rgba(167,139,250,0.15)', borderWidth:1, borderColor:'rgba(167,139,250,0.3)', paddingVertical:10, borderRadius:10, alignItems:'center', marginTop:4 },
-  addItemBtnText: { color:'#a78bfa', fontWeight:'900', fontSize:12 },
-  gstTypeBtn: { flex:1, backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b', borderRadius:10, padding:8, minWidth:70 },
-  gstTypeBtnActive: { backgroundColor:'#f59e0b', borderColor:'#f59e0b' },
-  gstTypeBtnText: { fontSize:10, fontWeight:'900', color:'#e2e8f0' },
-  gstTypeBtnSub: { fontSize:8, color:'#64748b', marginTop:2 },
-  gstTypeBtnTextActive: { color:'#0f172a' },
-  gstPill: { paddingHorizontal:12, paddingVertical:6, borderRadius:8, backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b' },
-  gstPillActive: { backgroundColor:'#f59e0b', borderColor:'#f59e0b' },
-  gstPillText: { fontSize:11, fontWeight:'900', color:'#94a3b8' },
-  gstPillTextActive: { color:'#0f172a' },
-  marginBtn: { flex:1, paddingVertical:8, borderRadius:8, backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b', alignItems:'center' },
-  marginBtnActive: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
-  marginBtnText: { fontSize:10, fontWeight:'900', color:'#94a3b8' },
-  marginBtnTextActive: { color:'#ffffff' },
-  gapBtn: { paddingHorizontal:10, paddingVertical:5, borderRadius:8, backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b' },
-  gapBtnActive: { backgroundColor:'#f59e0b', borderColor:'#f59e0b' },
-  gapBtnText: { fontSize:10, fontWeight:'900', color:'#94a3b8' },
-  gapBtnTextActive: { color:'#0f172a' },
-  sectionRow: { flexDirection:'row', alignItems:'center', backgroundColor:'#020617', borderRadius:10, padding:8, marginBottom:6, borderWidth:1, borderColor:'#1e293b', gap:8 },
-  sectionRowHidden: { opacity:0.5, borderColor:'#1e293b' },
-  sectionRowIdx: { fontSize:11, fontWeight:'900', color:'#f59e0b', width:24, textAlign:'center' },
-  sectionRowLabel: { fontSize:11, fontWeight:'900', color:'#e2e8f0' },
-  sectionRowDesc: { fontSize:9, color:'#64748b', marginTop:1 },
-  secArrowBtn: { width:28, height:28, borderRadius:6, backgroundColor:'#1e293b', alignItems:'center', justifyContent:'center' },
-  secArrowBtnOn: { backgroundColor:'rgba(99,102,241,0.3)' },
-  secArrowText: { fontSize:12, color:'#94a3b8' },
-  secArrowTextOn: { color:'#818cf8' },
-  resetBtn: { backgroundColor:'rgba(245,158,11,0.15)', borderWidth:1, borderColor:'rgba(245,158,11,0.3)', paddingVertical:8, borderRadius:10, alignItems:'center', marginTop:8 },
-  resetBtnText: { color:'#fbbf24', fontWeight:'900', fontSize:12 },
-  actionBtn: { flex:1, paddingVertical:10, borderRadius:10, alignItems:'center' },
-  actionBtnText: { color:'#ffffff', fontWeight:'900', fontSize:11 },
+  // Top Action Bar
+  topActionBar: { backgroundColor: '#060b18', padding: 10, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
+  topBarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  viewModeSwitcher: { flexDirection: 'row', backgroundColor: '#0d1526', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#1a2335' },
+  vmTab: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
+  vmTabActive: { backgroundColor: '#4f46e5' },
+  vmTabText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
+  vmTabTextActive: { color: '#ffffff' },
+  topBarActions: { flexDirection: 'row', gap: 6 },
+  topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
+  topBarBtnSuccess: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
+  topBarBtnPrint: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 68, alignItems: 'center', justifyContent: 'center' },
+  topBarBtnText: { fontSize: 10, fontWeight: '900', color: '#e2e8f0' },
+  topBarBtnPrintText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
+  convertPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1e293b' },
+  convertPillActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  convertPillText: { fontSize: 9, fontWeight: '900', color: '#64748b' },
+  convertPillTextActive: { color: '#ffffff' },
+
+  // Scroll Content
+  scrollContent: { padding: 10, paddingBottom: 40 },
+  accCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', marginBottom: 8, overflow: 'hidden' },
+  accCardOpen: { borderColor: '#334155' },
+  accHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  accHeaderText: { fontSize: 12, fontWeight: '900', flex: 1 },
+  accHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  accBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  accBadgeText: { fontSize: 9, fontWeight: '900' },
+  accChevron: { fontSize: 10, color: '#64748b' },
+  accBody: { padding: 12, paddingTop: 0, borderTopWidth: 1, borderTopColor: '#1e293b' },
+
+  // Controls
+  companyRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  addBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  addBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '900' },
+  selBox: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, minWidth: 140 },
+  selBoxActive: { borderColor: '#38bdf8' },
+  selBoxName: { fontSize: 11, fontWeight: '900', color: '#ffffff' },
+  selBoxSub: { fontSize: 9, color: '#64748b', marginTop: 2 },
+  detailCard: { backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 12, padding: 10, marginTop: 8 },
+  detailName: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  detailSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  detailContact: { fontSize: 10, color: '#818cf8', marginTop: 2 },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  toggleText: { fontSize: 11, fontWeight: '800', color: '#cbd5e1', flex: 1 },
+  fieldLabel: { fontSize: 10, fontWeight: '800', color: '#94a3b8', marginBottom: 4 },
+  inputField: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, color: '#ffffff' },
+
+  // Item Box
+  itemBox: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
+  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemIdx: { fontSize: 11, fontWeight: '900', color: '#94a3b8' },
+  removeBtn: { color: '#f43f5e', fontSize: 11, fontWeight: '900' },
+  catalogBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  catalogBtnText: { color: '#a78bfa', fontSize: 10, fontWeight: '900' },
+
+  // Catalog Modal Cards
+  catalogCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10 },
+  catalogImg: { width: 44, height: 44, borderRadius: 6, backgroundColor: '#0f172a' },
+  catalogName: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  catalogDesc: { fontSize: 9, color: '#64748b', marginTop: 1 },
+  catalogPrice: { fontSize: 11, fontWeight: '900', color: '#34d399' },
+  catalogMeta: { fontSize: 9, color: '#94a3b8' },
+  catalogAddBtn: { backgroundColor: '#4f46e5', color: '#ffffff', fontSize: 10, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+
+  toggleBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
+  toggleBtnOn: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
+  toggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
+  toggleBtnTextOn: { color: '#34d399' },
+  uploadBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  uploadBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '900' },
+
+  customColManager: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  customColTitle: { fontSize: 11, fontWeight: '900', color: '#a78bfa' },
+  customColAddBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  customColAddBtnText: { color: '#a78bfa', fontSize: 10, fontWeight: '900' },
+  customColRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  customColIdx: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(167,139,250,0.2)', alignItems: 'center', justifyContent: 'center' },
+  customColIdxText: { fontSize: 10, fontWeight: '900', color: '#a78bfa' },
+  customColDel: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(244,63,94,0.1)', borderWidth: 1, borderColor: 'rgba(244,63,94,0.3)', alignItems: 'center', justifyContent: 'center' },
+  customColDelText: { fontSize: 10, fontWeight: '900', color: '#f43f5e' },
+  addItemBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  addItemBtnText: { color: '#a78bfa', fontWeight: '900', fontSize: 11 },
+
+  gstTypeBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, padding: 8, minWidth: 70 },
+  gstTypeBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  gstTypeBtnText: { fontSize: 10, fontWeight: '900', color: '#e2e8f0' },
+  gstTypeBtnSub: { fontSize: 8, color: '#64748b', marginTop: 2 },
+  gstTypeBtnTextActive: { color: '#0f172a' },
+  gstPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
+  gstPillActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  gstPillText: { fontSize: 11, fontWeight: '900', color: '#94a3b8' },
+  gstPillTextActive: { color: '#0f172a' },
+
+  marginBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  marginBtnActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  marginBtnText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  marginBtnTextActive: { color: '#ffffff' },
+
+  gapBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
+  gapBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  gapBtnText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  gapBtnTextActive: { color: '#0f172a' },
+
+  sectionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10, padding: 8, marginBottom: 6, borderWidth: 1, borderColor: '#1e293b', gap: 8 },
+  sectionRowHidden: { opacity: 0.5, borderColor: '#1e293b' },
+  sectionRowIdx: { fontSize: 11, fontWeight: '900', color: '#f59e0b', width: 24, textAlign: 'center' },
+  sectionRowLabel: { fontSize: 11, fontWeight: '900', color: '#e2e8f0' },
+  sectionRowDesc: { fontSize: 9, color: '#64748b', marginTop: 1 },
+  secArrowBtn: { width: 28, height: 28, borderRadius: 6, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  secArrowBtnOn: { backgroundColor: 'rgba(99,102,241,0.3)' },
+  secArrowText: { fontSize: 12, color: '#94a3b8' },
+  secArrowTextOn: { color: '#818cf8' },
+  resetBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', paddingVertical: 8, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+  resetBtnText: { color: '#fbbf24', fontWeight: '900', fontSize: 12 },
 
   // Bottom Action Bar (Builder)
-  bottomActionBar: { backgroundColor:'#060b18', borderTopWidth:1, borderTopColor:'#1a2335', paddingBottom:4 },
-  totalSummaryStrip: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:14, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#0d1526' },
-  totalSummaryLabel: { fontSize:9, fontWeight:'700', color:'#475569', textTransform:'uppercase', letterSpacing:0.5 },
-  totalSummaryAmount: { fontSize:18, fontWeight:'900', color:'#ffffff', marginTop:1 },
-  totalSummaryAmountWords: { fontSize:8, color:'#475569', fontWeight:'600', maxWidth:180 },
-  bottomActionsRow: { flexDirection:'row', paddingHorizontal:8, paddingVertical:6, gap:4 },
-  bottomAction: { flex:1, alignItems:'center', paddingVertical:8, borderRadius:12, backgroundColor:'#0d1526', borderWidth:1, borderColor:'#1a2335', gap:2 },
-  bottomActionSuccess: { backgroundColor:'rgba(16,185,129,0.15)', borderColor:'rgba(16,185,129,0.4)' },
-  bottomActionPrint: { backgroundColor:'#4f46e5', borderColor:'#4f46e5', flex:1.3 },
-  bottomActionShare: { backgroundColor:'rgba(99,102,241,0.15)', borderColor:'rgba(99,102,241,0.3)' },
-  bottomActionWA: { backgroundColor:'rgba(74,222,128,0.1)', borderColor:'rgba(74,222,128,0.3)' },
-  bottomActionEmail: { backgroundColor:'rgba(96,165,250,0.1)', borderColor:'rgba(96,165,250,0.3)' },
-  bottomActionIcon: { fontSize:18, lineHeight:22 },
-  bottomActionLabel: { fontSize:9, fontWeight:'900', color:'#64748b', textAlign:'center' },
+  bottomActionBar: { backgroundColor: '#060b18', borderTopWidth: 1, borderTopColor: '#1a2335' },
+  totalSummaryStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0d1526' },
+  totalSummaryLabel: { fontSize: 9, fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 },
+  totalSummaryAmount: { fontSize: 18, fontWeight: '900', color: '#ffffff', marginTop: 1 },
+  totalSummaryAmountWords: { fontSize: 8, color: '#475569', fontWeight: '600', maxWidth: 180 },
+  bottomActionsRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
+  bottomAction: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2335', gap: 2 },
+  bottomActionSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  bottomActionPrint: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', flex: 1.3 },
+  bottomActionShare: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' },
+  bottomActionWA: { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: 'rgba(74,222,128,0.3)' },
+  bottomActionEmail: { backgroundColor: 'rgba(96,165,250,0.1)', borderColor: 'rgba(96,165,250,0.3)' },
+  bottomActionIcon: { fontSize: 18, lineHeight: 22 },
+  bottomActionLabel: { fontSize: 9, fontWeight: '900', color: '#64748b', textAlign: 'center' },
 
   // Preview Screen
-  previewContainer: { flex:1 },
-  previewToolbar: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#060b18', paddingHorizontal:12, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'#1a2335' },
-  previewToolbarText: { fontSize:11, fontWeight:'900', color:'#a5b4fc', flex:1, textAlign:'center' },
-  splitToggleBtn: { backgroundColor:'#0d1526', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'#1e293b' },
-  splitToggleBtnText: { fontSize:10, fontWeight:'900', color:'#64748b' },
-  previewActionBtn: { backgroundColor:'rgba(99,102,241,0.15)', paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1, borderColor:'rgba(99,102,241,0.4)' },
-  previewActionBtnText: { fontSize:10, fontWeight:'900', color:'#818cf8' },
-  previewPrintBtn: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
-  previewBottomBar: { flexDirection:'row', gap:8, padding:10, backgroundColor:'#060b18', borderTopWidth:1, borderTopColor:'#1a2335' },
-  previewBottomBtn: { flex:1, backgroundColor:'rgba(74,222,128,0.1)', borderWidth:1, borderColor:'rgba(74,222,128,0.3)', paddingVertical:10, borderRadius:12, alignItems:'center' },
-  previewBottomBtnText: { fontSize:12, fontWeight:'900', color:'#4ade80' },
-  previewScroll: { padding:8, alignItems:'center' },
+  previewContainer: { flex: 1 },
+  previewToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#060b18', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
+  previewToolbarText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc' },
+  splitToggleBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
+  splitToggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
+  previewActionBtn: { backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },
+  previewActionBtnText: { fontSize: 10, fontWeight: '900', color: '#818cf8' },
+  previewPrintBtn: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  previewBottomBar: { flexDirection: 'row', gap: 8, padding: 10, backgroundColor: '#060b18', borderTopWidth: 1, borderTopColor: '#1a2335' },
+  previewBottomBtn: { flex: 1, backgroundColor: 'rgba(74,222,128,0.1)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  previewBottomBtnText: { fontSize: 12, fontWeight: '900', color: '#4ade80' },
+  previewScroll: { padding: 12, alignItems: 'center' },
 
   // A4 Preview Styles
-  a4Paper: { width:Math.min(SCREEN_WIDTH - 16, 380), minHeight:500, backgroundColor:'#ffffff', borderRadius:6, paddingBottom:32, borderWidth:2, borderColor:'#002060', position:'relative' },
-  a4NavyBar: { height:4, backgroundColor:'#002060', marginTop:-12, marginHorizontal:-9999, marginBottom:8 },
+  a4Paper: { width: Math.min(SCREEN_WIDTH - 20, 380), minHeight: 500, backgroundColor: '#ffffff', borderRadius: 6, paddingBottom: 32, borderWidth: 2, borderColor: '#002060', position: 'relative' },
+  a4NavyBar: { height: 4, backgroundColor: '#002060', marginTop: -12, marginHorizontal: -9999, marginBottom: 8 },
   a4Section: {},
-  a4HeaderRow: { flexDirection:'row', justifyContent:'space-between', borderBottomWidth:1, borderBottomColor:'#e2e8f0', paddingBottom:6 },
-  a4HeaderLeft: { flexDirection:'row', alignItems:'flex-start', flex:1, gap:8 },
-  a4Logo: { width:44, height:44, borderRadius:6, borderWidth:1, borderColor:'#e2e8f0' },
-  a4LogoFallback: { width:44, height:44, borderRadius:6, backgroundColor:'#002060', alignItems:'center', justifyContent:'center' },
-  a4LogoFallbackText: { color:'#ffffff', fontWeight:'900', fontSize:14 },
-  a4CompName: { fontSize:11, fontWeight:'900', color:'#002060' },
-  a4CompSub: { fontSize:8, color:'#475569', marginTop:1 },
-  a4CompTax: { fontSize:8, fontWeight:'800', color:'#002060', marginTop:1 },
-  a4HeaderRight: { alignItems:'flex-end', gap:2 },
-  a4Badge: { backgroundColor:'#002060', paddingHorizontal:6, paddingVertical:2, borderRadius:4 },
-  a4BadgeText: { color:'#ffffff', fontSize:7.5, fontWeight:'900' },
-  a4DocNo: { fontSize:9.5, fontWeight:'900', color:'#002060', marginTop:2 },
-  a4DateText: { fontSize:8, color:'#475569' },
-  a4PartyGrid: { backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:8, padding:8 },
-  a4PartyBilling: { flex:1 },
-  a4PartyShipping: { flex:1, borderLeftWidth:1, borderLeftColor:'#e2e8f0', paddingLeft:8 },
-  a4PartyRight: { alignItems:'flex-end' },
-  a4PartyLabel: { fontSize:7.5, fontWeight:'900', color:'#64748b', textTransform:'uppercase' },
-  a4PartyLabelBlue: { fontSize:7.5, fontWeight:'900', color:'#002060', textTransform:'uppercase' },
-  a4PartyName: { fontSize:10, fontWeight:'900', color:'#0f172a', marginTop:1 },
-  a4PartySub: { fontSize:8, color:'#475569', marginTop:1 },
-  a4PartyValue: { fontFamily:'monospace', color:'#002060' },
-  a4Table: { borderWidth:1, borderColor:'#e2e8f0', borderRadius:8, overflow:'hidden' },
-  a4TableHeader: { flexDirection:'row', backgroundColor:'#002060', paddingVertical:5, paddingHorizontal:4, alignItems:'center' },
-  a4Th: { fontSize:7.5, fontWeight:'900', color:'#ffffff' },
-  a4TableRow: { flexDirection:'row', paddingVertical:5, paddingHorizontal:4, borderBottomWidth:1, borderBottomColor:'#f1f5f9', alignItems:'center' },
-  a4TdNum: { fontSize:8, fontWeight:'900', color:'#94a3b8', textAlign:'center' },
-  a4TdName: { fontSize:9, fontWeight:'900', color:'#0f172a' },
-  a4TdDesc: { fontSize:7.5, color:'#64748b', marginTop:1 },
-  a4TdMono: { fontSize:8, color:'#64748b', fontFamily:'monospace' },
-  a4Td: { fontSize:8, color:'#334155' },
-  a4TdBold: { fontSize:8.5, fontWeight:'900', color:'#0f172a' },
-  a4TdGst: { fontSize:8, fontWeight:'900', color:'#002060' },
-  a4SummaryGrid: { flexDirection:'row', gap:8 },
-  a4BankBox: { backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:8, padding:8 },
-  a4AmountWordsBox: { backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:8, padding:8 },
-  a4BoxLabel: { fontSize:7.5, fontWeight:'900', color:'#64748b', textTransform:'uppercase', marginBottom:4 },
-  a4BankText: { fontSize:8, color:'#334155', marginTop:1 },
-  a4BankAcc: { fontSize:8, fontWeight:'800', color:'#002060', fontFamily:'monospace', marginTop:1 },
-  a4BankUpi: { fontSize:8, fontWeight:'800', color:'#002060', marginTop:1 },
-  a4AmountWordsLabel: { fontSize:7.5, fontWeight:'900', color:'#002060', marginBottom:2 },
-  a4AmountWords: { fontSize:8.5, fontWeight:'800', color:'#002060', fontStyle:'italic' },
-  a4TotalsBox: { width:155, backgroundColor:'#f8fafc', borderWidth:1, borderColor:'#e2e8f0', borderRadius:8, padding:8, gap:3 },
-  a4SumRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
-  a4SumLbl: { fontSize:8, color:'#64748b' },
-  a4SumVal: { fontSize:8, fontWeight:'800', color:'#0f172a' },
-  a4TaxTotalLbl: { fontSize:8, fontWeight:'800', color:'#002060' },
-  a4GrandRow: { flexDirection:'row', justifyContent:'space-between', backgroundColor:'#002060', borderRadius:6, padding:5, marginTop:2 },
-  a4GrandLbl: { fontSize:8.5, fontWeight:'900', color:'#e2e8f0', textTransform:'uppercase' },
-  a4GrandVal: { fontSize:10, fontWeight:'900', color:'#ffffff' },
-  a4FooterRow: { flexDirection:'row', justifyContent:'space-between', borderTopWidth:1, borderTopColor:'#e2e8f0', paddingTop:8 },
-  a4TermsBody: { fontSize:8, color:'#475569', marginTop:2 },
-  a4SignFor: { fontSize:9, fontWeight:'800', color:'#0f172a', textAlign:'right' },
-  a4SignLine: { borderTopWidth:1, borderTopColor:'#94a3b8', width:80, marginTop:16, alignItems:'center', paddingTop:2 },
-  a4SignText: { fontSize:7, fontWeight:'800', color:'#64748b', textTransform:'uppercase' },
-  a4FixedBottomStrip: { position:'absolute', bottom:0, left:0, right:0, height:22, backgroundColor:'#f8fafc', borderTopWidth:1, borderTopColor:'#e2e8f0', flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:10 },
-  a4BottomText: { fontSize:7.5, color:'#64748b' },
-  a4BottomLink: { fontSize:7.5, fontWeight:'800', color:'#4f46e5' },
+  a4HeaderRow: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 6 },
+  a4HeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, gap: 8 },
+  a4Logo: { width: 44, height: 44, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' },
+  a4LogoFallback: { width: 44, height: 44, borderRadius: 6, backgroundColor: '#002060', alignItems: 'center', justifyContent: 'center' },
+  a4LogoFallbackText: { color: '#ffffff', fontWeight: '900', fontSize: 14 },
+  a4CompName: { fontSize: 11, fontWeight: '900', color: '#002060' },
+  a4CompSub: { fontSize: 8, color: '#475569', marginTop: 1 },
+  a4CompTax: { fontSize: 8, fontWeight: '800', color: '#002060', marginTop: 1 },
+  a4HeaderRight: { alignItems: 'flex-end', gap: 2 },
+  a4Badge: { backgroundColor: '#002060', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  a4BadgeText: { color: '#ffffff', fontSize: 7.5, fontWeight: '900' },
+  a4DocNo: { fontSize: 9.5, fontWeight: '900', color: '#002060', marginTop: 2 },
+  a4DateText: { fontSize: 8, color: '#475569' },
+  a4PartyGrid: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8 },
+  a4PartyBilling: { flex: 1 },
+  a4PartyShipping: { flex: 1, borderLeftWidth: 1, borderLeftColor: '#e2e8f0', paddingLeft: 8 },
+  a4PartyRight: { alignItems: 'flex-end' },
+  a4PartyLabel: { fontSize: 7.5, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' },
+  a4PartyLabelBlue: { fontSize: 7.5, fontWeight: '900', color: '#002060', textTransform: 'uppercase' },
+  a4PartyName: { fontSize: 10, fontWeight: '900', color: '#0f172a', marginTop: 1 },
+  a4PartySub: { fontSize: 8, color: '#475569', marginTop: 1 },
+  a4PartyValue: { fontFamily: 'monospace', color: '#002060' },
+  a4Table: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' },
+  a4TableHeader: { flexDirection: 'row', backgroundColor: '#002060', paddingVertical: 5, paddingHorizontal: 4, alignItems: 'center' },
+  a4Th: { fontSize: 7.5, fontWeight: '900', color: '#ffffff' },
+  a4TableRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', alignItems: 'center' },
+  a4TdNum: { fontSize: 8, fontWeight: '900', color: '#94a3b8', textAlign: 'center' },
+  a4TdName: { fontSize: 9, fontWeight: '900', color: '#0f172a' },
+  a4TdDesc: { fontSize: 7.5, color: '#64748b', marginTop: 1 },
+  a4TdMono: { fontSize: 8, color: '#64748b', fontFamily: 'monospace' },
+  a4Td: { fontSize: 8, color: '#334155' },
+  a4TdBold: { fontSize: 8.5, fontWeight: '900', color: '#0f172a' },
+  a4TdGst: { fontSize: 8, fontWeight: '900', color: '#002060' },
+  a4SummaryGrid: { flexDirection: 'row', gap: 8 },
+  a4BankBox: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8 },
+  a4AmountWordsBox: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8 },
+  a4BoxLabel: { fontSize: 7.5, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', marginBottom: 4 },
+  a4BankText: { fontSize: 8, color: '#334155', marginTop: 1 },
+  a4BankAcc: { fontSize: 8, fontWeight: '800', color: '#002060', fontFamily: 'monospace', marginTop: 1 },
+  a4BankUpi: { fontSize: 8, fontWeight: '800', color: '#002060', marginTop: 1 },
+  a4AmountWordsLabel: { fontSize: 7.5, fontWeight: '900', color: '#002060', marginBottom: 2 },
+  a4AmountWords: { fontSize: 8.5, fontWeight: '800', color: '#002060', fontStyle: 'italic' },
+  a4TotalsBox: { width: 155, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, gap: 3 },
+  a4SumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  a4SumLbl: { fontSize: 8, color: '#64748b' },
+  a4SumVal: { fontSize: 8, fontWeight: '800', color: '#0f172a' },
+  a4TaxTotalLbl: { fontSize: 8, fontWeight: '800', color: '#002060' },
+  a4GrandRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#002060', borderRadius: 6, padding: 5, marginTop: 2 },
+  a4GrandLbl: { fontSize: 8.5, fontWeight: '900', color: '#e2e8f0', textTransform: 'uppercase' },
+  a4GrandVal: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
+  a4FooterRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8 },
+  a4TermsBody: { fontSize: 8, color: '#475569', marginTop: 2 },
+  a4SignFor: { fontSize: 9, fontWeight: '800', color: '#0f172a', textAlign: 'right' },
+  a4SignLine: { borderTopWidth: 1, borderTopColor: '#94a3b8', width: 80, marginTop: 16, alignItems: 'center', paddingTop: 2 },
+  a4SignText: { fontSize: 7, fontWeight: '800', color: '#64748b', textTransform: 'uppercase' },
+  a4FixedBottomStrip: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 22, backgroundColor: '#f8fafc', borderTopWidth: 1, borderTopColor: '#e2e8f0', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 10 },
+  a4BottomText: { fontSize: 7.5, color: '#64748b' },
+  a4BottomLink: { fontSize: 7.5, fontWeight: '800', color: '#4f46e5' },
 
   // Modal Styles
-  modalOverlay: { flex:1, backgroundColor:'rgba(2,6,23,0.85)', justifyContent:'center', padding:16 },
-  modalContent: { backgroundColor:'#0f172a', borderRadius:16, borderWidth:1, borderColor:'#1e293b', padding:16 },
-  modalHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
-  modalTitle: { fontSize:14, fontWeight:'900', color:'#ffffff' },
-  modalInput: { backgroundColor:'#020617', borderWidth:1, borderColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, fontSize:12, color:'#ffffff' },
-  cancelBtn: { flex:1, backgroundColor:'#1e293b', paddingVertical:10, borderRadius:10, alignItems:'center' },
-  cancelBtnText: { color:'#94a3b8', fontWeight:'900', fontSize:12 },
-  saveBtn: { flex:1, backgroundColor:'#4f46e5', paddingVertical:10, borderRadius:10, alignItems:'center' },
-  saveBtnText: { color:'#ffffff', fontWeight:'900', fontSize:12 },
-  historyStatsRow: { flexDirection:'row', gap:16, marginTop:10 },
-  historyStat: { fontSize:11, color:'#64748b' },
-  historyStatVal: { fontWeight:'900', color:'#e2e8f0' },
-  statusChip: { paddingHorizontal:10, paddingVertical:4, borderRadius:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:'#334155' },
-  statusChipActive: { backgroundColor:'#4f46e5', borderColor:'#4f46e5' },
-  statusChipText: { fontSize:10, fontWeight:'900', color:'#94a3b8' },
-  statusChipTextActive: { color:'#ffffff' },
-  historyCard: { backgroundColor:'#020617', borderRadius:12, borderWidth:1, borderColor:'#1e293b', padding:12, marginBottom:10 },
-  historyCardHeader: { flexDirection:'row', justifyContent:'space-between', marginBottom:6 },
-  historyDocNo: { fontSize:12, fontWeight:'900', color:'#38bdf8' },
-  historyTypeBadge: { backgroundColor:'rgba(99,102,241,0.2)', paddingHorizontal:6, paddingVertical:1, borderRadius:4, marginTop:2, alignSelf:'flex-start' },
-  historyTypeBadgeText: { fontSize:8, fontWeight:'900', color:'#818cf8' },
-  historyAmount: { fontSize:13, fontWeight:'900', color:'#34d399' },
-  historyStatusBadge: { paddingHorizontal:6, paddingVertical:1, borderRadius:4, marginTop:2 },
-  historyStatusDraft: { backgroundColor:'rgba(245,158,11,0.2)' },
-  historyStatusSent: { backgroundColor:'rgba(16,185,129,0.2)' },
-  historyStatusText: { fontSize:9, fontWeight:'900' },
-  historyStatusTextDraft: { color:'#fbbf24' },
-  historyStatusTextSent: { color:'#34d399' },
-  historyParty: { fontSize:11, color:'#e2e8f0', marginBottom:2 },
-  historyMeta: { fontSize:9, color:'#64748b', marginBottom:8 },
-  historyActions: { flexDirection:'row', gap:6, flexWrap:'wrap' },
-  historyActionBtn: { backgroundColor:'rgba(56,189,248,0.1)', borderWidth:1, borderColor:'rgba(56,189,248,0.3)', paddingHorizontal:10, paddingVertical:5, borderRadius:8 },
-  historyActionBtnText: { fontSize:10, fontWeight:'900', color:'#38bdf8' },
-  historyPrintBtn: { backgroundColor:'#4f46e5', borderColor:'#4f46e5', paddingHorizontal:12 },
-  historyShareBtn: { backgroundColor:'rgba(99,102,241,0.15)', borderColor:'rgba(99,102,241,0.4)' },
-  newQuoteBtn: { backgroundColor:'#4f46e5', paddingVertical:13, borderRadius:12, alignItems:'center', marginTop:10 },
-  newQuoteBtnText: { color:'#ffffff', fontWeight:'900', fontSize:13 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', padding: 16 },
+  modalContent: { backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  modalInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, color: '#ffffff' },
+  cancelBtn: { flex: 1, backgroundColor: '#1e293b', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  cancelBtnText: { color: '#94a3b8', fontWeight: '900', fontSize: 12 },
+  saveBtn: { flex: 1, backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  saveBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
+  historyStatsRow: { flexDirection: 'row', gap: 16, marginTop: 10 },
+  historyStat: { fontSize: 11, color: '#64748b' },
+  historyStatVal: { fontWeight: '900', color: '#e2e8f0' },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' },
+  statusChipActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
+  statusChipText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  statusChipTextActive: { color: '#ffffff' },
+  historyCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
+  historyCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  historyDocNo: { fontSize: 12, fontWeight: '900', color: '#38bdf8' },
+  historyTypeBadge: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginTop: 2, alignSelf: 'flex-start' },
+  historyTypeBadgeText: { fontSize: 8, fontWeight: '900', color: '#818cf8' },
+  historyAmount: { fontSize: 13, fontWeight: '900', color: '#34d399' },
+  historyStatusBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginTop: 2 },
+  historyStatusDraft: { backgroundColor: 'rgba(245,158,11,0.2)' },
+  historyStatusSent: { backgroundColor: 'rgba(16,185,129,0.2)' },
+  historyStatusText: { fontSize: 9, fontWeight: '900' },
+  historyStatusTextDraft: { color: '#fbbf24' },
+  historyStatusTextSent: { color: '#34d399' },
+  historyParty: { fontSize: 11, color: '#e2e8f0', marginBottom: 2 },
+  historyMeta: { fontSize: 9, color: '#64748b', marginBottom: 8 },
+  historyActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  historyActionBtn: { backgroundColor: 'rgba(56,189,248,0.1)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  historyActionBtnText: { fontSize: 10, fontWeight: '900', color: '#38bdf8' },
+  historyPrintBtn: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', paddingHorizontal: 12 },
+  historyShareBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.4)' },
+  newQuoteBtn: { backgroundColor: '#4f46e5', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  newQuoteBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 13 },
 });

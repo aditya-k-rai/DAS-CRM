@@ -1,16 +1,23 @@
 /**
  * FileImportEngineModal.tsx — DAS CRM Android
- * Redesigned CSV/Excel Ingestion Portal & Multi-Sheet Interactive Grid.
- * Web-inspired UI + Smooth 2-Axis Zero-Flicker Scroll Engine.
+ * Web-Inspired CSV/Excel Data Ingestion Portal & Interactive Grid.
+ * Features:
+ *  - Responsive Safe Area Insets (Prevents Top Notch & Bottom System Nav overlap)
+ *  - Web-Inspired Column Headers (COL X title, Block pill, Sleek Dropdown Pill)
+ *  - Interactive Role Picker Bottom Sheet with Custom Field Naming
+ *  - Row Controls Column ("Row Controls" sticky left header matching web)
+ *  - Zero-Flicker 2-Axis Scroll Engine
  */
 
 import React, {
-  useState, useRef, useCallback, memo, useMemo,
+  useState, useCallback, memo, useMemo,
 } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
   ScrollView, FlatList, Alert, ActivityIndicator, useWindowDimensions,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 import { apiService } from '../services/apiService';
@@ -20,21 +27,20 @@ import { useAuthStore } from '../store/authStore';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ROW_H      = 46;   // px — data row height
-const ROW_CTRL_W = 52;  // px — row-number / block column width
+const ROW_H        = 46;  // px — data row height
+const ROW_CTRL_W   = 78;  // px — Row Controls column width (matches web "#1 / Block")
+const WIDTH_CYCLE  = [120, 170, 240]; // 3-state column width cycle
 
-const WIDTH_CYCLE = [110, 160, 220]; // 3-state column width cycle
-
-const FIELD_ROLE_OPTIONS: { value: string; label: string; color: string }[] = [
-  { value: 'name',    label: 'Name',    color: '#818cf8' },
-  { value: 'email',   label: 'Email',   color: '#f59e0b' },
-  { value: 'phone',   label: 'Phone',   color: '#34d399' },
-  { value: 'company', label: 'Company', color: '#f472b6' },
-  { value: 'value',   label: 'Value',   color: '#fb923c' },
-  { value: 'city',    label: 'City',    color: '#38bdf8' },
-  { value: 'budget',  label: 'Budget',  color: '#a78bfa' },
-  { value: 'custom',  label: 'Custom',  color: '#94a3b8' },
-  { value: 'block',   label: 'Block',   color: '#ef4444' },
+const FIELD_ROLE_OPTIONS: { value: string; label: string; icon: string; color: string }[] = [
+  { value: 'name',    label: 'Name (Lead / Contact)', icon: '👤', color: '#818cf8' },
+  { value: 'email',   label: 'Email Address',         icon: '📧', color: '#f59e0b' },
+  { value: 'phone',   label: 'Phone Number',          icon: '📱', color: '#34d399' },
+  { value: 'company', label: 'Company Name',          icon: '🏢', color: '#f472b6' },
+  { value: 'value',   label: 'Lead Value (₹)',        icon: '💰', color: '#fb923c' },
+  { value: 'city',    label: 'City / Location',       icon: '📍', color: '#38bdf8' },
+  { value: 'budget',  label: 'Budget Range',          icon: '📊', color: '#a78bfa' },
+  { value: 'custom',  label: 'Custom Field',          icon: '✏️', color: '#94a3b8' },
+  { value: 'block',   label: 'Block Column',          icon: '🚫', color: '#ef4444' },
 ];
 
 const PLATFORMS = [
@@ -59,7 +65,8 @@ const inferRole = (h: string): string => {
   return 'custom';
 };
 
-const getRoleColor  = (r: string) => FIELD_ROLE_OPTIONS.find(o => o.value === r)?.color  ?? '#94a3b8';
+const getRoleColor = (r: string) => FIELD_ROLE_OPTIONS.find(o => o.value === r)?.color ?? '#94a3b8';
+const getRoleIcon  = (r: string) => FIELD_ROLE_OPTIONS.find(o => o.value === r)?.icon  ?? '📌';
 const sanitizeNum   = (v: string) => { if (!v) return '₹0'; const c = v.replace(/[^0-9.]/g,''); if (!c) return '₹0'; const n = parseFloat(c); return isNaN(n) ? '₹0' : `₹${n.toLocaleString('en-IN')}`; };
 const sanitizePhone  = (v: string) => { if (!v) return ''; const c = v.replace(/[^0-9+]/g,''); if (!c.startsWith('+') && c.length===10) return '+91'+c; return c; };
 const fmtBytes      = (b: number) => b < 1024 ? `${b} B` : b < 1024*1024 ? `${(b/1024).toFixed(1)} KB` : `${(b/(1024*1024)).toFixed(1)} MB`;
@@ -148,7 +155,7 @@ const RowNumCell = memo(({
   index: number; blocked: boolean; onToggle: () => void;
 }) => (
   <View style={cellStyle.rowNumCell}>
-    <Text style={[cellStyle.rowNumText, blocked && cellStyle.rowNumTextBlocked]}>{index + 1}</Text>
+    <Text style={[cellStyle.rowNumText, blocked && cellStyle.rowNumTextBlocked]}>#{index + 1}</Text>
     <TouchableOpacity style={[cellStyle.blockBtn, blocked && cellStyle.blockBtnActive]} onPress={onToggle}>
       <Text style={cellStyle.blockBtnText}>{blocked ? '👁' : '🚫'}</Text>
     </TouchableOpacity>
@@ -159,8 +166,8 @@ const cellStyle = StyleSheet.create({
   cell:        { borderRightWidth: 1, borderColor: '#1e293b', justifyContent: 'center', minWidth: 100 },
   cellBlocked: { backgroundColor: '#1e293b', opacity: 0.5 },
   input:       { paddingHorizontal: 8, paddingVertical: 8, fontSize: 12, fontWeight: '500', backgroundColor: 'transparent' },
-  rowNumCell:  { width: ROW_CTRL_W, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329', borderRightWidth: 1, borderColor: '#1e293b', flexDirection: 'row', gap: 4, paddingHorizontal: 4 },
-  rowNumText:  { fontSize: 11, fontWeight: '700', color: '#64748b', minWidth: 18 },
+  rowNumCell:  { width: ROW_CTRL_W, alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0b1329', borderRightWidth: 1, borderColor: '#1e293b', flexDirection: 'row', paddingHorizontal: 6 },
+  rowNumText:  { fontSize: 10, fontWeight: '800', color: '#64748b' },
   rowNumTextBlocked: { color: '#ef4444' },
   blockBtn:    { width: 22, height: 22, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   blockBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
@@ -175,6 +182,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   visible, onClose, onImportSuccess, onImportError,
 }) => {
   const { token } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const { width: SW } = useWindowDimensions();
   const isTablet = SW >= 600;
 
@@ -187,8 +195,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [loading,   setLoading]           = useState(false);
   const [inputFileName, setInputFileName] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
-  const [renameKey, setRenameKey]         = useState<string | null>(null);
-  const [renameVal, setRenameVal]         = useState('');
+
+  // Role / Custom Name Modal State
+  const [pickerColKey, setPickerColKey]   = useState<string | null>(null);
+  const [customNameInput, setCustomNameInput] = useState('');
 
   const activeSheet   = sheets[activeIdx];
   const totalDataRows = activeSheet?.data.length ?? 0;
@@ -324,10 +334,23 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     }));
   }, [activeIdx]);
 
-  const setColRole = useCallback((key: string, role: string) => {
+  const setColRole = useCallback((key: string, role: string, customHeaderName?: string) => {
     setSheets(prev => prev.map((s, i) =>
-      i !== activeIdx ? s : { ...s, columns: s.columns.map(c => c.key === key ? { ...c, role } : c) }
+      i !== activeIdx ? s : {
+        ...s,
+        columns: s.columns.map(c => {
+          if (c.key !== key) return c;
+          const nextHeader = customHeaderName !== undefined ? customHeaderName : c.header;
+          return {
+            ...c,
+            role,
+            header: nextHeader,
+            blocked: role === 'block',
+          };
+        }),
+      }
     ));
+    setPickerColKey(null);
   }, [activeIdx]);
 
   const cycleColWidth = useCallback((key: string) => {
@@ -358,19 +381,17 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     }));
   }, [activeIdx]);
 
-  const openRenameCol = (key: string) => {
+  const openPickerModal = (key: string) => {
     const col = activeSheet?.columns.find(c => c.key === key);
     if (!col) return;
-    setRenameKey(key);
-    setRenameVal(col.header);
+    setCustomNameInput(col.header || '');
+    setPickerColKey(key);
   };
 
-  const saveRenameCol = () => {
-    if (!renameKey || !renameVal.trim()) { setRenameKey(null); return; }
-    setSheets(prev => prev.map((s, i) =>
-      i !== activeIdx ? s : { ...s, columns: s.columns.map(c => c.key === renameKey ? { ...c, header: renameVal.trim() } : c) }
-    ));
-    setRenameKey(null);
+  const handleSaveCustomName = () => {
+    if (!pickerColKey) return;
+    const name = customNameInput.trim() || 'Custom Field';
+    setColRole(pickerColKey, 'custom', name);
   };
 
   // ── Row Controls ────────────────────────────────────────────────────────
@@ -474,7 +495,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const handleClose = () => {
     setSheets([]); setActiveIdx(0); setFileName(''); setFileSize('');
     setFmt(''); setInputFileName(''); setSelectedPlatform('');
-    setLoading(false); setRenameKey(null); onClose();
+    setLoading(false); setPickerColKey(null); onClose();
   };
 
   // ── Row Renderer (Zero-Flicker Flex Row) ─────────────────────────
@@ -507,9 +528,17 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
   const PADX = isTablet ? 24 : 14;
 
+  const currentPickerCol = useMemo(() => {
+    if (!pickerColKey || !activeSheet) return null;
+    return activeSheet.columns.find(c => c.key === pickerColKey) || null;
+  }, [pickerColKey, activeSheet]);
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose} statusBarTranslucent>
-      <View style={[styles.container, { paddingTop: 48 }]}>
+      <View style={[
+        styles.container,
+        { paddingTop: Math.max(insets.top, 36) },
+      ]}>
 
         {/* ── HEADER ──────────────────────────────────────────────────── */}
         <View style={[styles.header, { paddingHorizontal: PADX }]}>
@@ -532,7 +561,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         {/* ── UPLOAD BAR & METADATA SECTION ──────────────────────────── */}
         <View style={[styles.uploadBar, { paddingHorizontal: PADX }]}>
           <TouchableOpacity style={[styles.pickBtn, isTablet && styles.pickBtnTablet]} onPress={handlePickFile} disabled={loading} activeOpacity={0.85}>
-            <Text style={styles.pickBtnText}>📁 {fileName ? 'Change File' : 'Select Spreadsheet File'}</Text>
+            <Text style={styles.pickBtnText}>📁 {fileName ? 'Change Spreadsheet File' : 'Select Spreadsheet File'}</Text>
           </TouchableOpacity>
 
           {fileName ? (
@@ -628,59 +657,70 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 nestedScrollEnabled
               >
                 <View style={{ minWidth: totalTableWidth, flex: 1 }}>
-                  {/* ── COLUMN HEADERS ────────────────────────────────────── */}
-                  <View style={styles.headerRow}>
-                    <View style={[styles.rowNumCorner, { width: ROW_CTRL_W }]}>
-                      <Text style={styles.cornerLabel}>Row</Text>
-                    </View>
-                    {activeSheet.columns.map(col => (
-                      <View key={col.key} style={[styles.colHeader, { width: col.width }]}>
-                        {/* Header Name + Block button */}
-                        <View style={styles.colHeaderTop}>
-                          <TouchableOpacity
-                            style={styles.colNameBtn}
-                            onPress={() => openRenameCol(col.key)}
-                            disabled={col.blocked}
-                          >
-                            <Text style={[styles.colHeaderName, col.blocked && styles.colHeaderNameBlocked]} numberOfLines={1}>
-                              {col.header || `Col ${col.index+1}`}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={[styles.colBlockBtn, col.blocked && styles.colBlockBtnActive]} onPress={() => toggleBlockCol(col.key)}>
-                            <Text style={styles.colBlockBtnText}>{col.blocked ? '👁' : '🚫'}</Text>
-                          </TouchableOpacity>
-                        </View>
 
-                        {/* Field Role Chips Row */}
-                        <View style={styles.roleRow}>
-                          {FIELD_ROLE_OPTIONS.map(opt => (
+                  {/* ── WEB-INSPIRED COLUMN HEADERS ───────────────────────── */}
+                  <View style={styles.headerRow}>
+                    {/* Row Controls Sticky Header Cell */}
+                    <View style={[styles.rowNumCorner, { width: ROW_CTRL_W }]}>
+                      <Text style={styles.cornerLabel}>Row Controls</Text>
+                    </View>
+
+                    {activeSheet.columns.map(col => {
+                      const currentRoleOpt = FIELD_ROLE_OPTIONS.find(o => o.value === col.role) || FIELD_ROLE_OPTIONS[7];
+                      const roleDisplayLabel = col.role === 'custom'
+                        ? (col.header ? `✏️ ${col.header}` : 'Custom Field')
+                        : `${currentRoleOpt.icon} ${currentRoleOpt.label}`;
+
+                      return (
+                        <View key={col.key} style={[styles.colHeader, { width: col.width }]}>
+                          {/* 1. Header Top Row: COL X + Web Block Pill */}
+                          <View style={styles.colHeaderTop}>
+                            <Text style={[styles.colIndexLabel, col.blocked && styles.colIndexLabelBlocked]} numberOfLines={1}>
+                              {`COL ${col.index + 1}`}
+                            </Text>
                             <TouchableOpacity
-                              key={opt.value}
-                              style={[
-                                styles.roleChip,
-                                col.role === opt.value && { backgroundColor: opt.color + '30', borderColor: opt.color },
-                              ]}
-                              onPress={() => setColRole(col.key, opt.value)}
-                              disabled={col.blocked}
+                              style={[styles.webBlockBtn, col.blocked && styles.webBlockBtnActive]}
+                              onPress={() => toggleBlockCol(col.key)}
+                              activeOpacity={0.7}
                             >
-                              <Text style={[styles.roleChipText, col.role === opt.value && { color: opt.color }]}>
-                                {opt.label}
+                              <Text style={[styles.webBlockBtnText, col.blocked && styles.webBlockBtnTextActive]}>
+                                {col.blocked ? '👁 Unblock' : '🚫 Block'}
                               </Text>
                             </TouchableOpacity>
-                          ))}
-                          {/* Reorder & resize */}
-                          <TouchableOpacity style={styles.colCtrlBtn} onPress={() => moveCol(col.key, 'left')} disabled={col.index === 0}>
-                            <Text style={[styles.colCtrlBtnText, col.index===0 && styles.colCtrlBtnTextDisabled]}>←</Text>
+                          </View>
+
+                          {/* 2. Middle Row: Web Dropdown Selector Pill */}
+                          <TouchableOpacity
+                            style={[
+                              styles.roleDropdownPill,
+                              col.blocked && styles.roleDropdownPillBlocked,
+                              { borderColor: col.blocked ? '#334155' : currentRoleOpt.color },
+                            ]}
+                            onPress={() => openPickerModal(col.key)}
+                            disabled={col.blocked}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.roleDropdownText, { color: col.blocked ? '#64748b' : currentRoleOpt.color }]} numberOfLines={1}>
+                              {col.blocked ? '🚫 Blocked' : roleDisplayLabel}
+                            </Text>
+                            <Text style={{ fontSize: 9, color: col.blocked ? '#475569' : currentRoleOpt.color }}>▼</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.colCtrlBtn} onPress={() => moveCol(col.key, 'right')} disabled={col.index === activeSheet.columns.length - 1 && activeSheet.columns.findIndex(c=>c.key===col.key) === activeSheet.columns.length - 1}>
-                            <Text style={styles.colCtrlBtnText}>→</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={[styles.colCtrlBtn, styles.colCtrlBtnWidth]} onPress={() => cycleColWidth(col.key)}>
-                            <Text style={[styles.colCtrlBtnText, {fontSize:10}]}>↔</Text>
-                          </TouchableOpacity>
+
+                          {/* 3. Bottom Controls: (←, →, ↔) */}
+                          <View style={styles.colActionRow}>
+                            <TouchableOpacity style={styles.colCtrlBtn} onPress={() => moveCol(col.key, 'left')} disabled={col.index === 0}>
+                              <Text style={[styles.colCtrlBtnText, col.index===0 && styles.colCtrlBtnTextDisabled]}>←</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.colCtrlBtn} onPress={() => moveCol(col.key, 'right')} disabled={col.index === activeSheet.columns.length - 1}>
+                              <Text style={styles.colCtrlBtnText}>→</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.colCtrlBtn, styles.colCtrlBtnWidth]} onPress={() => cycleColWidth(col.key)}>
+                              <Text style={[styles.colCtrlBtnText, {fontSize:9}]}>↔ {col.width}px</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
 
                   {/* ── VIRTUALIZED DATA ROWS ───────────────────────────────── */}
@@ -704,8 +744,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           )}
         </View>
 
-        {/* ── FOOTER ──────────────────────────────────────────────────── */}
-        <View style={[styles.footer, { paddingHorizontal: PADX, paddingBottom: 28 }]}>
+        {/* ── FOOTER (SAFE AREA INSETS ELEVATED) ───────────────────────── */}
+        <View style={[
+          styles.footer,
+          { paddingHorizontal: PADX, paddingBottom: Math.max(insets.bottom + 10, 20) },
+        ]}>
           <View style={styles.validationRow}>
             {!inputFileName.trim() && <Text style={styles.warnText}>⚠️ Enter File Name above</Text>}
             {!selectedPlatform && inputFileName.trim() && <Text style={styles.warnText}>⚠️ Select Source Platform above</Text>}
@@ -721,31 +764,85 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </View>
         </View>
 
-        {/* ── RENAME COLUMN MODAL ──────────────────────────────────────── */}
-        {renameKey && (
-          <View style={styles.renameOverlay}>
-            <View style={[styles.renameCard, isTablet && styles.renameCardTablet]}>
-              <Text style={styles.renameTitle}>✏️ Rename Column Header</Text>
-              <TextInput
-                style={styles.renameInput}
-                value={renameVal}
-                onChangeText={setRenameVal}
-                placeholder="Column header title"
-                placeholderTextColor="#64748b"
-                autoFocus
-                onSubmitEditing={saveRenameCol}
-              />
-              <View style={styles.renameActions}>
-                <TouchableOpacity style={styles.renameCancelBtn} onPress={() => setRenameKey(null)}>
-                  <Text style={styles.renameCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.renameSaveBtn} onPress={saveRenameCol}>
-                  <Text style={styles.renameSaveBtnText}>Save Title ✓</Text>
+        {/* ── ROLE PICKER & CUSTOM FIELD NAMING MODAL ─────────────────── */}
+        {pickerColKey && currentPickerCol && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setPickerColKey(null)}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.pickerOverlay}
+            >
+              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet]}>
+                <View style={styles.pickerCardHeader}>
+                  <View>
+                    <Text style={styles.pickerTitle}>🎯 Map Field for COL {currentPickerCol.index + 1}</Text>
+                    <Text style={styles.pickerSub}>Original Header: "{currentPickerCol.header || 'Untitled'}"</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setPickerColKey(null)}>
+                    <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Role List */}
+                <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+                  <View style={styles.roleGrid}>
+                    {FIELD_ROLE_OPTIONS.map(opt => {
+                      const isSelected = currentPickerCol.role === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.roleCard,
+                            isSelected && { backgroundColor: opt.color + '22', borderColor: opt.color },
+                          ]}
+                          onPress={() => {
+                            if (opt.value === 'custom') {
+                              // keep picker open to edit custom name below
+                              setSheets(prev => prev.map((s, i) =>
+                                i !== activeIdx ? s : { ...s, columns: s.columns.map(c => c.key === pickerColKey ? { ...c, role: 'custom' } : c) }
+                              ));
+                            } else {
+                              setColRole(pickerColKey, opt.value);
+                            }
+                          }}
+                        >
+                          <Text style={{ fontSize: 14 }}>{opt.icon}</Text>
+                          <Text style={[styles.roleCardText, isSelected && { color: opt.color, fontWeight: '900' }]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Custom Name Editor (When Custom is selected) */}
+                {currentPickerCol.role === 'custom' && (
+                  <View style={styles.customFieldBox}>
+                    <Text style={styles.customFieldLabel}>✏️ Enter Custom Field Name:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TextInput
+                        style={styles.customFieldInput}
+                        value={customNameInput}
+                        onChangeText={setCustomNameInput}
+                        placeholder="e.g. GST Number, Requirements..."
+                        placeholderTextColor="#64748b"
+                        autoFocus
+                      />
+                      <TouchableOpacity style={styles.customSaveBtn} onPress={handleSaveCustomName}>
+                        <Text style={styles.customSaveBtnText}>Save ✓</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity style={styles.pickerCloseDoneBtn} onPress={() => setPickerColKey(null)}>
+                  <Text style={styles.pickerCloseDoneBtnText}>Done</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </KeyboardAvoidingView>
+          </Modal>
         )}
+
       </View>
     </Modal>
   );
@@ -812,7 +909,7 @@ const styles = StyleSheet.create({
   sheetBlockBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   sheetBlockBtnText: { fontSize: 14 },
 
-  // Grid
+  // Grid Container
   gridContainer: { flex: 1, backgroundColor: '#030712' },
   gridInner:     { flex: 1 },
   emptyState:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
@@ -820,37 +917,38 @@ const styles = StyleSheet.create({
   emptyTitle:    { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 4 },
   emptySub:      { fontSize: 12, color: '#64748b', textAlign: 'center', paddingHorizontal: 20 },
 
-  // Column Header Row
+  // Column Header Row (Web-Inspired)
   headerRow:    { flexDirection: 'row', alignItems: 'stretch', backgroundColor: '#0b1329', borderBottomWidth: 2, borderBottomColor: '#1e293b' },
-  rowNumCorner: { width: ROW_CTRL_W, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: '#1e293b', backgroundColor: '#0b1329' },
-  cornerLabel:  { fontSize: 10, fontWeight: '800', color: '#475569' },
+  rowNumCorner: { width: ROW_CTRL_W, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: '#1e293b', backgroundColor: '#0b1329', paddingHorizontal: 4 },
+  cornerLabel:  { fontSize: 9, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
 
-  // Column Header Cell
-  colHeader:    { backgroundColor: '#0b1329', borderRightWidth: 1, borderBottomWidth: 2, borderColor: '#1e293b', paddingVertical: 6, paddingHorizontal: 4, minWidth: 100 },
-  colHeaderTop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-  colNameBtn:   { flex: 1, minWidth: 40, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, justifyContent: 'center' },
-  colHeaderName:     { fontSize: 11, fontWeight: '700', color: '#e2e8f0' },
-  colHeaderNameBlocked: { color: '#475569', textDecorationLine: 'line-through' },
-  colBlockBtn:  { width: 26, height: 26, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  colBlockBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
-  colBlockBtnText:   { fontSize: 11 },
+  // Web Column Header Cell
+  colHeader:       { backgroundColor: '#0b1329', borderRightWidth: 1, borderBottomWidth: 2, borderColor: '#1e293b', paddingVertical: 8, paddingHorizontal: 6, justifyContent: 'space-between' },
+  colHeaderTop:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  colIndexLabel:   { fontSize: 11, fontWeight: '900', color: '#94a3b8', letterSpacing: 0.5 },
+  colIndexLabelBlocked: { color: '#ef4444', textDecorationLine: 'line-through' },
+  webBlockBtn:     { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  webBlockBtnActive: { backgroundColor: '#065f46', borderColor: '#34d399' },
+  webBlockBtnText:   { fontSize: 9, fontWeight: '800', color: '#f87171' },
+  webBlockBtnTextActive: { color: '#34d399' },
 
-  // Role Chips
-  roleRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
-  roleChip:    { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  roleChipText:    { fontSize: 9, color: '#94a3b8', fontWeight: '700' },
+  // Web Dropdown Pill Selector
+  roleDropdownPill: { backgroundColor: '#020617', borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  roleDropdownPillBlocked: { backgroundColor: '#1e293b', opacity: 0.6 },
+  roleDropdownText: { fontSize: 11, fontWeight: '800', flex: 1, marginRight: 4 },
 
-  // Column Control Buttons
-  colCtrlBtn:    { width: 22, height: 22, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
-  colCtrlBtnWidth: { width: 24 },
-  colCtrlBtnText:    { fontSize: 11, fontWeight: '800', color: '#94a3b8' },
+  // Action Bar
+  colActionRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  colCtrlBtn:      { width: 24, height: 24, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  colCtrlBtnWidth: { flex: 1, height: 24, width: undefined, paddingHorizontal: 6 },
+  colCtrlBtnText:  { fontSize: 11, fontWeight: '800', color: '#94a3b8' },
   colCtrlBtnTextDisabled: { color: '#334155' },
 
   // Body List
-  rowList:   { flex: 1 },
+  rowList: { flex: 1 },
 
   // Footer
-  footer:       { backgroundColor: '#0f172a', borderTopWidth: 1, borderTopColor: '#1e293b', paddingTop: 10 },
+  footer:        { backgroundColor: '#0f172a', borderTopWidth: 1, borderTopColor: '#1e293b', paddingTop: 10 },
   validationRow: { marginBottom: 8 },
   warnText:      { fontSize: 11, fontWeight: '700', color: '#f59e0b' },
   readyText:      { fontSize: 11, fontWeight: '700', color: '#34d399' },
@@ -861,15 +959,23 @@ const styles = StyleSheet.create({
   injectBtnDisabled: { opacity: 0.4 },
   injectBtnText:     { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 
-  // Rename Modal
-  renameOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
-  renameCard:    { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 16, padding: 20, width: '85%', maxWidth: 360 },
-  renameCardTablet: { maxWidth: 420, padding: 24 },
-  renameTitle:   { fontSize: 15, fontWeight: '900', color: '#ffffff', marginBottom: 12 },
-  renameInput:   { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: '#ffffff', fontSize: 13, fontWeight: '600', marginBottom: 16 },
-  renameActions: { flexDirection: 'row', gap: 10 },
-  renameCancelBtn: { flex: 1, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', paddingVertical: 11, borderRadius: 10, alignItems: 'center' },
-  renameCancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
-  renameSaveBtn:  { flex: 1, backgroundColor: '#4f46e5', paddingVertical: 11, borderRadius: 10, alignItems: 'center' },
-  renameSaveBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+  // Role Picker Sheet Modal
+  pickerOverlay:    { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'flex-end', alignItems: 'center' },
+  pickerCard:       { width: '100%', backgroundColor: '#0f172a', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 18 },
+  pickerCardTablet: { maxWidth: 480, borderRadius: 20, alignSelf: 'center', marginBottom: 40 },
+  pickerCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  pickerTitle:      { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  pickerSub:        { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  roleGrid:         { gap: 6 },
+  roleCard:         { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  roleCardText:     { fontSize: 12, color: '#cbd5e1', fontWeight: '700' },
+
+  customFieldBox:   { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 12, marginTop: 10 },
+  customFieldLabel: { fontSize: 11, fontWeight: '800', color: '#818cf8', marginBottom: 6 },
+  customFieldInput: { flex: 1, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: '#ffffff', fontSize: 12, fontWeight: '700' },
+  customSaveBtn:    { backgroundColor: '#4f46e5', paddingHorizontal: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  customSaveBtnText:{ color: '#ffffff', fontSize: 12, fontWeight: '900' },
+
+  pickerCloseDoneBtn: { backgroundColor: '#1e293b', paddingVertical: 11, borderRadius: 10, alignItems: 'center', marginTop: 12 },
+  pickerCloseDoneBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
 });
