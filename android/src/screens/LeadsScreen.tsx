@@ -34,6 +34,7 @@ import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOut
 import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
 import { FileImportEngineModal, ImportedLead, FileAuditRecord } from '../components/FileImportEngineModal';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
+import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
@@ -982,90 +983,14 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         </View>
       </Modal>
 
-      {/* ── MODAL 5: GOOGLE SHEETS LIVE SYNC MODAL ───────────────────────── */}
-      <Modal visible={sheetModalOpen} transparent animationType="slide" onRequestClose={() => setSheetModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.modalTitle}>🟢 Google Sheets Live Multi-Tab Sync</Text>
-              <TouchableOpacity style={{ backgroundColor: '#1e293b', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }} onPress={() => setSheetModalOpen(false)}>
-                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSub}>Select workbook tabs &amp; header row index to ingest live leads into spreadsheet table.</Text>
-
-            <Text style={styles.label}>Google Sheet URL *</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              placeholderTextColor="#64748b"
-              value={sheetUrl}
-              onChangeText={setSheetUrl}
-            />
-
-            {/* Header Row Index Selector */}
-            <Text style={styles.label}>Header Row Index:</Text>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {[
-                { idx: 0, label: 'Row 1 (Default)' },
-                { idx: 1, label: 'Row 2' },
-                { idx: 2, label: 'Row 3' },
-              ].map((r) => (
-                <TouchableOpacity
-                  key={r.idx}
-                  style={[{ flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingVertical: 6, alignItems: 'center', borderRadius: 8 }, headerRowIdx === r.idx && { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)' }]}
-                  onPress={() => setHeaderRowIdx(r.idx)}
-                >
-                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, headerRowIdx === r.idx && { color: '#38bdf8' }]}>
-                    {r.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Multi-Tab Selector */}
-            <Text style={styles.label}>Select Workbook Tabs to Import:</Text>
-            <View style={{ gap: 6 }}>
-              {[
-                'Sheet1 - Web Leads',
-                'Sheet2 - Cold Outreach',
-                'Sheet3 - West Territory',
-              ].map((tab) => {
-                const isSelected = selectedSheets.includes(tab);
-                return (
-                  <TouchableOpacity
-                    key={tab}
-                    style={[{ backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, isSelected && { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.12)' }]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedSheets((prev) => prev.filter((s) => s !== tab));
-                      } else {
-                        setSelectedSheets((prev) => [...prev, tab]);
-                      }
-                    }}
-                  >
-                    <Text style={[{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }, isSelected && { color: '#34d399' }]}>
-                      📊 {tab}
-                    </Text>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: isSelected ? '#34d399' : '#64748b' }}>
-                      {isSelected ? '✓ INCLUDED' : '+ INCLUDE'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', flex: 1 }]} onPress={() => setSheetModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#0284c7', flex: 1 }]} onPress={handleSyncGoogleSheet}>
-                <Text style={{ color: '#ffffff', fontWeight: '800' }}>🚀 Connect &amp; Sync →</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* ── MODAL 5: GOOGLE SHEETS LIVE SYNC PORTAL MODAL ───────────────── */}
+      <GoogleSheetsLiveSyncModal
+        visible={sheetModalOpen}
+        onClose={() => setSheetModalOpen(false)}
+        onSyncComplete={(count) => {
+          Alert.alert('🟢 Live Sync Active', `Ingested ${count} live lead records from Google Sheets API.`);
+        }}
+      />
 
       {/* ── MODAL 6: FILE IMPORT ENGINE (CSV / Excel / XLSX) ────────────── */}
       <FileImportEngineModal

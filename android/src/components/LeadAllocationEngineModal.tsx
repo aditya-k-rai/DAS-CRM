@@ -89,6 +89,16 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     }
   }, [totalLeadsCount]);
 
+  useEffect(() => {
+    if (visible) {
+      if (sourceType === 'EXCEL_CSV' || isTeamLeaderMode) {
+        setMode('BATCHWISE');
+      } else if (sourceType === 'GOOGLE_SHEETS') {
+        setMode('LEAD_POOL');
+      }
+    }
+  }, [visible, sourceType, isTeamLeaderMode]);
+
   const handleAddBatchRule = () => {
     const lastTo = batchRules[batchRules.length - 1]?.toRow || 0;
     if (lastTo >= totalLeadsCount) {
@@ -147,7 +157,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       } else if (mode === 'DIRECT_ASSIGN') {
         Alert.alert('👤 Direct Assignment Complete', `All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role}).`);
       } else if (mode === 'LEAD_POOL') {
-        Alert.alert('⏱️ Lead Pool Configured', `Lead Pool ${poolEnabled ? 'ENABLED' : 'DISABLED'}.\nClaim Window set to ${poolTimeMinutes} minutes.`);
+        Alert.alert('⏱️ Live Lead Pool Configured', `Google Sheets Live Lead Pool ${poolEnabled ? 'ENABLED' : 'DISABLED'}.\nClaim Window set to ${poolTimeMinutes} minutes.`);
       }
 
       onAllocationComplete?.({
@@ -164,7 +174,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     setPoolClaimedSuccess(true);
     setTimeout(() => {
       setPoolClaimedSuccess(false);
-      Alert.alert('🎯 Lead Claimed!', 'Lead #L-9041 (Spectro Labs) claimed & added to your pipeline!');
+      Alert.alert('🎯 Live Lead Claimed!', 'Google Sheets Inbound Lead #L-9041 (Spectro Labs) claimed & added to your pipeline!');
     }, 1500);
   };
 
@@ -177,7 +187,11 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={styles.headerTitle}>
-                {isTeamLeaderMode ? '⚡ TL Sub-Allocation Engine (TL Got Leads)' : '⚡ Lead Allocation & Pool Engine'}
+                {isTeamLeaderMode
+                  ? '⚡ TL Sub-Allocation Engine (TL Got Leads)'
+                  : sourceType === 'EXCEL_CSV'
+                  ? '⚡ Excel / CSV Bulk Lead Allocation'
+                  : '⚡ Google Sheets Live Routing Engine'}
               </Text>
               <View style={styles.badge}><Text style={styles.badgeText}>{totalLeadsCount} Leads</Text></View>
             </View>
@@ -185,8 +199,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
               {isTeamLeaderMode
                 ? 'TL Got Leads from any Way ➔ Sub-Allocate Batchwise to Sales Reps or Assign Directly'
                 : sourceType === 'EXCEL_CSV'
-                ? 'Excel / CSV Post-Import Allocation Flow'
-                : 'Google Sheets Live Sync Lead Strategy Flow'}
+                ? 'One-Time Bulk File Import Allocation Flow (Batchwise or Direct Assign)'
+                : 'Continuous Live Incoming Stream Strategy & Real-Time Pool Claim Window'}
             </Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
@@ -196,11 +210,17 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
 
         {/* ── MODE SELECTOR TABS ─────────────────────────────────────────── */}
         <View style={styles.modeTabBar}>
-          {[
-            { id: 'BATCHWISE' as AllocationMode, label: '📦 Batchwise', icon: '📦' },
-            { id: 'DIRECT_ASSIGN' as AllocationMode, label: '👤 Direct Assign', icon: '👤' },
-            { id: 'LEAD_POOL' as AllocationMode, label: '⏱️ Lead Pool & Claim', icon: '⏱️' },
-          ].map(tab => (
+          {(isTeamLeaderMode || sourceType === 'EXCEL_CSV'
+            ? [
+                { id: 'BATCHWISE' as AllocationMode, label: '📦 Batchwise', icon: '📦' },
+                { id: 'DIRECT_ASSIGN' as AllocationMode, label: '👤 Direct Assign', icon: '👤' },
+              ]
+            : [
+                { id: 'LEAD_POOL' as AllocationMode, label: '⏱️ Lead Pool & Claim', icon: '⏱️' },
+                { id: 'BATCHWISE' as AllocationMode, label: '📦 Batch Wise', icon: '📦' },
+                { id: 'DIRECT_ASSIGN' as AllocationMode, label: '👤 Direct Assign', icon: '👤' },
+              ]
+          ).map(tab => (
             <TouchableOpacity
               key={tab.id}
               style={[styles.modeTab, mode === tab.id && styles.modeTabActive]}
@@ -367,7 +387,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                     </View>
 
                     <Text style={styles.poolExplainer}>
-                      ℹ️ When new leads arrive via Google Sheets or CSV, a Claim Window will pop up on every online user's screen. If a user taps "Claim Lead" within {poolTimeMinutes} minutes, the lead is directly assigned to them. If unclaimed after {poolTimeMinutes} minutes, the lead automatically escalates or rotates to the next rep.
+                      ℹ️ Google Sheets Live Sync Stream: Whenever a new lead is generated in connected Google Sheets, a Claim Window will pop up on eligible users' screens. If a user claims within {poolTimeMinutes} minutes, it is assigned directly to them; if unclaimed after {poolTimeMinutes} minutes, it auto-rotates to the next rep.
                     </Text>
                   </View>
                 )}

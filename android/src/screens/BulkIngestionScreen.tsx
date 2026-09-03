@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
+import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -172,9 +173,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
   // History
   const [syncLogs, setSyncLogs] = useState<SyncRunLog[]>(INITIAL_SYNC_LOGS);
 
-  // ⚡ Lead Allocation Modal State
+  // ⚡ Lead Allocation & Google Sheets Portal State
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
+  const [googleLiveModalOpen, setGoogleLiveModalOpen] = useState(false);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handlePickFile = async () => {
@@ -656,11 +658,19 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[S.executeBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]}
+        onPress={() => setGoogleLiveModalOpen(true)}
+        activeOpacity={0.85}
+      >
+        <Text style={S.executeBtnText}>🟢 Open Live Google Sheets Portal &amp; Mapping Grid →</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={[S.executeBtn, { backgroundColor: '#3b82f6', marginTop: 8 }]}
         onPress={() => { setAllocationSourceType('GOOGLE_SHEETS'); setAllocationModalOpen(true); }}
         activeOpacity={0.85}
       >
-        <Text style={S.executeBtnText}>⏱️ Configure Lead Pool & Claim Window →</Text>
+        <Text style={S.executeBtnText}>⏱️ Configure Live Lead Pool &amp; Claim Window →</Text>
       </TouchableOpacity>
     </View>
   );
@@ -938,6 +948,12 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         onClose={() => setAllocationModalOpen(false)}
         totalLeadsCount={214}
         sourceType={allocationSourceType}
+      />
+
+      {/* ══ MODAL: Google Sheets Live Sync Portal & Mapping Grid ════════ */}
+      <GoogleSheetsLiveSyncModal
+        visible={googleLiveModalOpen}
+        onClose={() => setGoogleLiveModalOpen(false)}
       />
     </View>
   );
