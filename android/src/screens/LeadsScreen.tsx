@@ -11,7 +11,7 @@
  *   3. 🎯 Leads Collections (Directory, Filters, Search & Lead Record Editing)
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -61,15 +61,18 @@ export default function LeadsScreen() {
 
   // ── EXCEL GRID CONSTANTS & REFS ────────────────────────────────────────────
   const EXCEL_ROW_H = 50;
-  const EXCEL_ROW_NUM_W = 44; // width of the sticky row-number column
 
-  // Shared horizontal scroll ref — header row & body rows stay in sync automatically
-  // because they both live inside the SAME horizontal ScrollView.
-  const hScrollRef = useRef<ScrollView>(null);
+  // bodyScrollRef: drives vertical scrolling of the data area.
+  // rowNumScrollRef: row-number column mirrors it via onScroll offset.
+  const bodyScrollRef   = useRef<ScrollView>(null);
+  const rowNumScrollRef = useRef<ScrollView>(null);
 
-  const getExcelItemLayout = useCallback((_: any, index: number) => ({
-    length: EXCEL_ROW_H, offset: EXCEL_ROW_H * index, index,
-  }), []);
+  const handleBodyScroll = useCallback((e: any) => {
+    rowNumScrollRef.current?.scrollTo({
+      y: e.nativeEvent.contentOffset.y,
+      animated: false,
+    });
+  }, []);
 
   // ── COLUMN ORDER STATE ────────────────────────────────────────────────────
   const [columnOrder, setColumnOrder] = useState<string[]>([
@@ -113,6 +116,10 @@ export default function LeadsScreen() {
     budget: 100,
     requirement: 150,
   });
+
+  const totalExcelWidth = useMemo(() => {
+    return 44 + columnOrder.reduce((acc, colKey) => acc + (columnWidths[colKey] || 140), 0);
+  }, [columnOrder, columnWidths]);
 
   const moveColumnLeft = (colKey: string) => {
     const idx = columnOrder.indexOf(colKey);
@@ -363,37 +370,22 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     return item.status.toUpperCase() === activeFilter.toUpperCase();
   });
 
-  // ── MEMOIZED EXCEL ROW COMPONENT ───────────────────────────────────────────
-  // Receives column config as explicit props to avoid stale-closure issues.
-  const ExcelRow = React.memo((
-    { item, index, colOrder, colWidths, colNames }: {
-      item: LeadItem;
-      index: number;
-      colOrder: string[];
-      colWidths: Record<string, number>;
-      colNames: Record<string, string>;
-    }
-  ) => {
-    return (
-      <View style={[styles.excelDataRow, index % 2 === 1 && styles.excelRowAlt]}>
-        {colOrder.map((colKey) => {
-          const colWidth = colWidths[colKey] || 140;
-          return renderExcelCell(item, colKey, colWidth);
-        })}
+  // renderExcelRow inline — used directly inside vertical ScrollView
+  const renderExcelRows = useCallback(() =>
+    filteredLeads.map((item, index) => (
+      <View
+        key={item.id}
+        style={[styles.excelDataRow, index % 2 === 1 && styles.excelRowAlt]}
+      >
+        <View style={styles.excelRowNum}>
+          <Text style={styles.excelRowNumText}>{index + 1}</Text>
+        </View>
+        {columnOrder.map((colKey) =>
+          renderExcelCell(item, colKey, columnWidths[colKey] || 140)
+        )}
       </View>
-    );
-  });
-
-  // ── VIRTUALIZED FLATLIST RENDER CALLBACK ───────────────────────────────────
-  const renderExcelRow = useCallback(({ item, index }: { item: LeadItem; index: number }) => (
-    <ExcelRow
-      item={item}
-      index={index}
-      colOrder={columnOrder}
-      colWidths={columnWidths}
-      colNames={columnNames}
-    />
-  ), [columnOrder, columnWidths, columnNames]);
+    ))
+  , [filteredLeads, columnOrder, columnWidths]);
 
   // ── RENDER EXCEL CELL BY COLUMN KEY ────────────────────────────────────────
   const renderExcelCell = (item: LeadItem, colKey: string, width: number) => {
@@ -661,72 +653,28 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           {/* ─────────────────────────────────────────────────────────────────────────── */}
           {viewMode === 'EXCEL_GRID' ? (
             /*
-             * TWO-AXIS SCROLL ARCHITECTURE
-             * ┌─────────────────────────────────────────────────────┐
-             * │ [sticky #] │ ←── single horizontal ScrollView ───→  │
-             * │            │  [col toolbar] [col toolbar] ...        │
-             * │  row nums  │  [data row  ] [data row  ] ...  (vert) │
-             * └─────────────────────────────────────────────────────┘
-             *
-             * The sticky row-number column (44px wide) sits OUTSIDE the
-             * horizontal ScrollView so it never scrolls horizontally.
-             * Header row + data rows BOTH live inside ONE shared
-             * horizontal ScrollView (hScrollRef), so they always stay
-             * in perfect horizontal sync — no JS-bridge sync needed,
-             * zero flicker on Android.
+             * UNIFIED 2-AXIS SCROLL ARCHITECTURE — ZERO FLICKER
+             * Single outer horizontal ScrollView contains Header + Data Rows.
+             * Inner container sets minWidth = totalExcelWidth and flex = 1 vertically.
              */
             <View style={styles.excelOuter}>
-              <View style={{ flexDirection: 'row', flex: 1 }}>
-
-                {/* ── LEFT: Sticky row-number column ─────────────────── */}
-                <View style={styles.excelStickyCol}>
-                  {/* Corner cell */}
-                  <View style={styles.excelRowNumCorner}>
-                    <Text style={styles.excelRowNumCornerText}>#</Text>
-                  </View>
-                  {/* Row number list — mirrors the FlatList vertically */}
-                  <FlatList
-                    data={filteredLeads}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ index }) => (
-                      <View style={[
-                        styles.excelRowNumCell,
-                        index % 2 === 1 && styles.excelRowAlt,
-                      ]}>
-                        <Text style={styles.excelRowNumText}>{index + 1}</Text>
-                      </View>
-                    )}
-                    getItemLayout={getExcelItemLayout}
-                    initialNumToRender={25}
-                    maxToRenderPerBatch={25}
-                    windowSize={10}
-                    removeClippedSubviews={false}
-                    showsVerticalScrollIndicator={false}
-                    scrollEnabled={false}   /* vertical scroll driven by body FlatList below */
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 0 }}
-                  />
-                </View>
-
-                {/* ── RIGHT: Single horizontal ScrollView wrapping header + body ── */}
-                <ScrollView
-                  ref={hScrollRef}
-                  horizontal
-                  showsHorizontalScrollIndicator={true}
-                  bounces={false}
-                  overScrollMode="never"
-                  scrollEventThrottle={16}
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ flexDirection: 'column' }}
-                >
-                  {/* ── HEADER / TOOLBAR ROW ──────────────────────────── */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={true}
+                contentContainerStyle={{ flexDirection: 'column', flexGrow: 1 }}
+                nestedScrollEnabled
+              >
+                <View style={{ minWidth: totalExcelWidth, flex: 1 }}>
+                  {/* ── STICKY HEADER TOOLBAR ─────────────────────────── */}
                   <View style={styles.excelToolbar}>
+                    <View style={styles.excelRowNumCorner}>
+                      <Text style={styles.excelRowNumCornerText}>#</Text>
+                    </View>
                     {columnOrder.map((colKey, colIdx) => {
                       const colWidth = columnWidths[colKey] || 140;
                       const colName  = columnNames[colKey] || colKey;
                       return (
                         <View key={colKey} style={[styles.excelColControl, { width: colWidth }]}>
-                          {/* Column title — tap to rename */}
                           <TouchableOpacity
                             style={styles.excelColTitleBtn}
                             onPress={() => openHeaderRenameModal(colKey)}
@@ -734,8 +682,6 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                           >
                             <Text style={styles.excelColTitleText} numberOfLines={1}>{colName}</Text>
                           </TouchableOpacity>
-
-                          {/* Controls: ← → ↔ */}
                           <View style={styles.excelColControls}>
                             <TouchableOpacity
                               style={[styles.excelColBtn, colIdx === 0 && styles.excelColBtnDisabled]}
@@ -766,25 +712,16 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     })}
                   </View>
 
-                  {/* ── DATA BODY ─────────────────────────────────────── */}
-                  <FlatList
-                    data={filteredLeads}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderExcelRow}
-                    getItemLayout={getExcelItemLayout}
-                    initialNumToRender={25}
-                    maxToRenderPerBatch={20}
-                    windowSize={8}
-                    removeClippedSubviews={false}
-                    updateCellsBatchingPeriod={50}
+                  {/* ── DATA BODY: VERTICAL SCROLLVIEW ─────────────────── */}
+                  <ScrollView
                     showsVerticalScrollIndicator={true}
-                    showsHorizontalScrollIndicator={false}
                     nestedScrollEnabled
                     style={styles.excelBodyList}
-                    contentContainerStyle={styles.excelBodyContent}
-                  />
-                </ScrollView>
-              </View>
+                  >
+                    {renderExcelRows()}
+                  </ScrollView>
+                </View>
+              </ScrollView>
             </View>
           ) : (
 
