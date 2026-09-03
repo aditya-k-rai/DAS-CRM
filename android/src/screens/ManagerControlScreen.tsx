@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { EmployeeProfile } from './EmployeesScreen';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
+import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 
 interface Props {
   employee: EmployeeProfile;
@@ -71,6 +72,10 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
   // 📄 Docs & Bank Details Modals
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
+
+  // ⚡ Lead Allocation Engine Modal State
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
   const SUPERVISORS = [
     'Tenant Admin (Vikram Singh)',
@@ -360,6 +365,20 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
           </TouchableOpacity>
         </View>
 
+        {/* ⚡ Manager Lead Flow Controls (Matching Admin/Manager Diagram) */}
+        <Text style={styles.sectionTitle}>⚡ Manager Lead Flow &amp; Allocation Controls</Text>
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity style={[styles.actionCard, { borderColor: '#818cf8' }]} onPress={() => { setAllocationSourceType('EXCEL_CSV'); setAllocationModalOpen(true); }}>
+            <Text style={[styles.actionCardTitle, { color: '#818cf8' }]}>📦 Allocated Leads (Excel / Imported Lead Flow) →</Text>
+            <Text style={styles.actionCardSub}>Batchwise Allocation (Rows 1-100 to TL A, 101-300 to Sales Rep C, custom batch rules)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.actionCard, { borderColor: '#34d399' }]} onPress={() => { setAllocationSourceType('GOOGLE_SHEETS'); setAllocationModalOpen(true); }}>
+            <Text style={[styles.actionCardTitle, { color: '#34d399' }]}>🟢 Upcoming Leads (Google Sheet Lead Flow) →</Text>
+            <Text style={styles.actionCardSub}>Direct User Assignment &amp; Live Lead Pool Claim Window settings</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Compliance Buttons */}
         <Text style={styles.sectionTitle}>📄 Documents &amp; Bank Details Telemetry</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -372,6 +391,14 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ── MODAL: LEAD ALLOCATION & DISTRIBUTION ENGINE ────────────── */}
+      <LeadAllocationEngineModal
+        visible={allocationModalOpen}
+        onClose={() => setAllocationModalOpen(false)}
+        totalLeadsCount={214}
+        sourceType={allocationSourceType}
+      />
 
       {/* ── MODAL: DEPARTMENT STAFF ALLOCATION ────────────────────────────── */}
       <Modal visible={staffModalOpen} transparent animationType="slide" onRequestClose={() => setStaffModalOpen(false)}>

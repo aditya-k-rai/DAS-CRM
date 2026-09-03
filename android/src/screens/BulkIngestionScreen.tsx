@@ -29,6 +29,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
+import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -170,6 +171,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
   // History
   const [syncLogs, setSyncLogs] = useState<SyncRunLog[]>(INITIAL_SYNC_LOGS);
+
+  // ⚡ Lead Allocation Modal State
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handlePickFile = async () => {
@@ -456,6 +461,14 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         </Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[S.executeBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]}
+        onPress={() => { setAllocationSourceType('EXCEL_CSV'); setAllocationModalOpen(true); }}
+        activeOpacity={0.85}
+      >
+        <Text style={S.executeBtnText}>⚡ Configure Batchwise Allocation →</Text>
+      </TouchableOpacity>
+
       {/* Info footer */}
       <View style={S.infoFooter}>
         <Text style={S.infoFooterText}>⚡ Row-level error isolation: single invalid row will NOT fail entire batch.</Text>
@@ -640,6 +653,14 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         <Text style={S.executeBtnText}>
           {isSyncing ? '⏳ BullMQ Incremental Sync Running...' : '🚀 Execute Live Google Sheets Sync →'}
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[S.executeBtn, { backgroundColor: '#3b82f6', marginTop: 8 }]}
+        onPress={() => { setAllocationSourceType('GOOGLE_SHEETS'); setAllocationModalOpen(true); }}
+        activeOpacity={0.85}
+      >
+        <Text style={S.executeBtnText}>⏱️ Configure Lead Pool & Claim Window →</Text>
       </TouchableOpacity>
     </View>
   );
@@ -910,6 +931,14 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
           </View>
         </View>
       </Modal>
+
+      {/* ══ MODAL: Lead Allocation Engine ════════════════════════════════ */}
+      <LeadAllocationEngineModal
+        visible={allocationModalOpen}
+        onClose={() => setAllocationModalOpen(false)}
+        totalLeadsCount={214}
+        sourceType={allocationSourceType}
+      />
     </View>
   );
 };

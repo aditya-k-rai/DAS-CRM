@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { EmployeeProfile } from './EmployeesScreen';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
+import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 
 interface Props {
   employee: EmployeeProfile;
@@ -70,6 +71,9 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
   // 📄 Docs & Bank Details Modals
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
+
+  // ⚡ Lead Sub-Allocation Engine Modal State (TL Got Leads)
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
 
   const SUPERVISORS = [
     'Tenant Admin (Vikram Singh)',
@@ -361,6 +365,20 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
           </TouchableOpacity>
         </View>
 
+        {/* ⚡ TL Lead Sub-Allocation Controls (TL Got Leads from any Way) */}
+        <Text style={styles.sectionTitle}>⚡ TL Lead Sub-Allocation Controls (TL Got Leads)</Text>
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity style={[styles.actionCard, { borderColor: '#34d399' }]} onPress={() => setAllocationModalOpen(true)}>
+            <Text style={[styles.actionCardTitle, { color: '#34d399' }]}>📦 Allocate Batchwise to Sales Rep →</Text>
+            <Text style={styles.actionCardSub}>Set row ranges for team sales reps (1-25 to Rep A, 26-50 to Rep B, loop option)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.actionCard, { borderColor: '#38bdf8' }]} onPress={() => setAllocationModalOpen(true)}>
+            <Text style={[styles.actionCardTitle, { color: '#38bdf8' }]}>👤 Assign Sales Rep →</Text>
+            <Text style={styles.actionCardSub}>Assign all received leads directly to a single Sales Exec</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Compliance Buttons */}
         <Text style={styles.sectionTitle}>📄 Documents &amp; Bank Details Telemetry</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -373,6 +391,14 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ── MODAL: LEAD SUB-ALLOCATION ENGINE ──────────────────────────── */}
+      <LeadAllocationEngineModal
+        visible={allocationModalOpen}
+        onClose={() => setAllocationModalOpen(false)}
+        totalLeadsCount={120}
+        isTeamLeaderMode={true}
+      />
 
       {/* ── MODAL: SUBORDINATES ALLOCATION ───────────────────────────────── */}
       <Modal visible={subordinatesModalOpen} transparent animationType="slide" onRequestClose={() => setSubordinatesModalOpen(false)}>

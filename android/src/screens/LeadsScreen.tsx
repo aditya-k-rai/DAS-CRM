@@ -33,6 +33,7 @@ import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
 import { FileImportEngineModal, ImportedLead, FileAuditRecord } from '../components/FileImportEngineModal';
+import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
@@ -196,9 +197,16 @@ export default function LeadsScreen() {
       callSyncStatus: l.callSyncStatus,
     }));
     setLeadsList(prev => [...converted, ...prev]);
+    setAllocatedLeadsCount(leads.length);
+    setAllocationSourceType('EXCEL_CSV');
+
     Alert.alert(
       `📥 Import Complete — ${audit.count} Leads`,
-      `File: ${audit.filename}\nPlatform: ${audit.platform}\nIngested: ${audit.date}`,
+      `File: ${audit.filename}\nPlatform: ${audit.platform}\nIngested: ${audit.date}\n\nConfigure Batchwise Allocation or Assign to Team Members now?`,
+      [
+        { text: 'Later', style: 'cancel' },
+        { text: '⚡ Allocate Leads Now', onPress: () => setAllocationModalOpen(true) },
+      ]
     );
   };
 
@@ -215,6 +223,11 @@ export default function LeadsScreen() {
   // Post-Call Outcome Modal State
   const [postCallModalOpen, setPostCallModalOpen] = useState(false);
   const [callingLeadData, setCallingLeadData] = useState<{ id: string; name: string; phone: string } | null>(null);
+
+  // Lead Allocation & Strategy Engine Modal State
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [allocatedLeadsCount, setAllocatedLeadsCount] = useState(214);
+  const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
   useEffect(() => {
     loadLeads();
@@ -1069,6 +1082,14 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         phone={callingLeadData?.phone || ''}
         onSaveOutcome={handleSaveCallOutcome}
         onClose={() => setPostCallModalOpen(false)}
+      />
+
+      {/* ── MODAL 8: LEAD ALLOCATION & DISTRIBUTION ENGINE ────────────── */}
+      <LeadAllocationEngineModal
+        visible={allocationModalOpen}
+        onClose={() => setAllocationModalOpen(false)}
+        totalLeadsCount={allocatedLeadsCount}
+        sourceType={allocationSourceType}
       />
     </SafeAreaView>
   );

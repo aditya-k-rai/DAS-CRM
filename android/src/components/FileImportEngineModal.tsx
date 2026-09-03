@@ -5,6 +5,7 @@
  *  - Responsive Safe Area Insets (Prevents Top Notch & Bottom System Nav overlap)
  *  - Web-Inspired Column Headers (COL X title, Block pill, Sleek Dropdown Pill)
  *  - Interactive Role Picker Bottom Sheet with Custom Field Naming
+ *  - Interactive Source Platform Selection Modal & Quick Chips
  *  - Row Controls Column ("Row Controls" sticky left header matching web)
  *  - Zero-Flicker 2-Axis Scroll Engine
  */
@@ -44,7 +45,7 @@ const FIELD_ROLE_OPTIONS: { value: string; label: string; icon: string; color: s
 ];
 
 const PLATFORMS = [
-  'Google Ads', 'Meta Ads', 'LinkedIn Ads', 'Microsoft Ads',
+  'Google Ads', 'Meta Ads (FB & Insta)', 'LinkedIn Ads', 'Microsoft Ads (Bing)',
   'Pinterest Ads', 'X (Twitter) Ads', 'IndiaMART', 'TradeIndia',
   'Justdial', 'Lotwaala', 'Website Forms', 'Custom Channel',
 ];
@@ -195,6 +196,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [loading,   setLoading]           = useState(false);
   const [inputFileName, setInputFileName] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
 
   // Role / Custom Name Modal State
   const [pickerColKey, setPickerColKey]   = useState<string | null>(null);
@@ -495,7 +497,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const handleClose = () => {
     setSheets([]); setActiveIdx(0); setFileName(''); setFileSize('');
     setFmt(''); setInputFileName(''); setSelectedPlatform('');
-    setLoading(false); setPickerColKey(null); onClose();
+    setLoading(false); setPickerColKey(null); setPlatformPickerOpen(false); onClose();
   };
 
   // ── Row Renderer (Zero-Flicker Flex Row) ─────────────────────────
@@ -565,9 +567,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </TouchableOpacity>
 
           {fileName ? (
-            <View style={{ marginTop: 8 }}>
+            <View style={{ marginTop: 10 }}>
+              {/* File Name & Platform Row (Stack on Mobile, Row on Tablet) */}
               <View style={[styles.metaRow, isTablet && styles.metaRowTablet]}>
-                <View style={styles.metaField}>
+                <View style={styles.metaFieldBlock}>
                   <Text style={styles.metaLabel}>File Name *</Text>
                   <TextInput
                     style={[styles.metaInput, isTablet && styles.metaInputTablet]}
@@ -578,9 +581,28 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                     autoCorrect={false}
                   />
                 </View>
-                <View style={[styles.metaField, { flex: 2 }]}>
+
+                {/* Source Platform Selector Block */}
+                <View style={styles.metaFieldBlock}>
                   <Text style={styles.metaLabel}>Source Platform *</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  
+                  {/* Dropdown Select Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.platformDropdownPill,
+                      !selectedPlatform && styles.platformDropdownPillWarning,
+                    ]}
+                    onPress={() => setPlatformPickerOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.platformDropdownText, !selectedPlatform && { color: '#f59e0b' }]} numberOfLines={1}>
+                      {selectedPlatform ? `📢 ${selectedPlatform}` : '⚠️ Select Source Platform...'}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: selectedPlatform ? '#818cf8' : '#f59e0b' }}>▼</Text>
+                  </TouchableOpacity>
+
+                  {/* Quick Horizontal Chip Bar */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
                     <View style={styles.platformRow}>
                       {PLATFORMS.map(p => (
                         <TouchableOpacity
@@ -596,6 +618,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 </View>
               </View>
 
+              {/* Stats Bar */}
               <View style={[styles.analyticsRow, isTablet && styles.analyticsRowTablet]}>
                 {[{v:sheets.length,l:'Sheets'},{v:totalDataRows,l:'Rows'},{v:totalCols,l:'Cols'},{v:fileSize,l:'Size'}].map(({v,l},i) => (
                   <React.Fragment key={l}>
@@ -764,6 +787,51 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </View>
         </View>
 
+        {/* ── SOURCE PLATFORM SELECTION MODAL ───────────────────────── */}
+        {platformPickerOpen && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setPlatformPickerOpen(false)}>
+            <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPlatformPickerOpen(false)}>
+              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet]} onStartShouldSetResponder={() => true}>
+                <View style={styles.pickerCardHeader}>
+                  <View>
+                    <Text style={styles.pickerTitle}>🌐 Select Source Lead Platform</Text>
+                    <Text style={styles.pickerSub}>Select the channel where this lead spreadsheet originated from</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setPlatformPickerOpen(false)}>
+                    <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  <View style={{ gap: 6 }}>
+                    {PLATFORMS.map(p => {
+                      const isSelected = selectedPlatform === p;
+                      return (
+                        <TouchableOpacity
+                          key={p}
+                          style={[
+                            styles.roleCard,
+                            isSelected && { backgroundColor: 'rgba(79,70,229,0.2)', borderColor: '#818cf8' },
+                          ]}
+                          onPress={() => {
+                            setSelectedPlatform(p);
+                            setPlatformPickerOpen(false);
+                          }}
+                        >
+                          <Text style={{ fontSize: 14 }}>{isSelected ? '✅' : '📢'}</Text>
+                          <Text style={[styles.roleCardText, isSelected && { color: '#818cf8', fontWeight: '900' }]}>
+                            {p}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
         {/* ── ROLE PICKER & CUSTOM FIELD NAMING MODAL ─────────────────── */}
         {pickerColKey && currentPickerCol && (
           <Modal visible transparent animationType="fade" onRequestClose={() => setPickerColKey(null)}>
@@ -871,17 +939,24 @@ const styles = StyleSheet.create({
   closeBtn:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   closeBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
 
-  // Upload Bar
+  // Upload Bar & Metadata
   uploadBar:       { backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 10 },
   pickBtn:         { backgroundColor: '#4f46e5', paddingVertical: 11, borderRadius: 12, alignItems: 'center' },
   pickBtnTablet:   { paddingVertical: 13, borderRadius: 14 },
   pickBtnText:     { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+  
   metaRow:         { gap: 8 },
   metaRowTablet:   { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
-  metaField:       { marginBottom: 6 },
+  metaFieldBlock:  { marginBottom: 4 },
   metaLabel:       { fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 },
   metaInput:       { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, color: '#ffffff', fontSize: 12, fontWeight: '700' },
   metaInputTablet: { fontSize: 13, paddingVertical: 9 },
+
+  // Platform Dropdown & Chips
+  platformDropdownPill: { backgroundColor: '#020617', borderWidth: 1.5, borderColor: '#4f46e5', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  platformDropdownPillWarning: { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)' },
+  platformDropdownText: { fontSize: 12, fontWeight: '800', color: '#ffffff', flex: 1, marginRight: 6 },
+
   platformRow:     { flexDirection: 'row', gap: 6 },
   platformChip:    { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   platformChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
@@ -959,7 +1034,7 @@ const styles = StyleSheet.create({
   injectBtnDisabled: { opacity: 0.4 },
   injectBtnText:     { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 
-  // Role Picker Sheet Modal
+  // Role / Platform Picker Sheet Modal
   pickerOverlay:    { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'flex-end', alignItems: 'center' },
   pickerCard:       { width: '100%', backgroundColor: '#0f172a', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 18 },
   pickerCardTablet: { maxWidth: 480, borderRadius: 20, alignSelf: 'center', marginBottom: 40 },

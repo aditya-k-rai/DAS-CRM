@@ -1,0 +1,493 @@
+/**
+ * LeadAllocationEngineModal.tsx — DAS CRM Android
+ * Post-Ingestion Lead Distribution, Batchwise Allocation & Lead Pool Claim Engine.
+ * Formulated from Admin & Manager Flow Specifications:
+ *   1. Batchwise Allocation (Set row ranges 1-100 to TL A, 101-300 to Rep C, loop option)
+ *   2. Direct Assignment (Assign all leads directly to a selected Team Leader/Sales Rep)
+ *   3. Google Sheet Lead Pool & Claim Window (Pool ON/OFF, Claim Timer, Realtime Claim button)
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
+  ScrollView, Alert, Switch, ActivityIndicator, useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN' | 'LEAD_POOL';
+
+export interface BatchRule {
+  id: string;
+  fromRow: number;
+  toRow: number;
+  assigneeId: string;
+  assigneeName: string;
+  role: string;
+}
+
+export interface LeadAllocationEngineModalProps {
+  visible: boolean;
+  onClose: () => void;
+  totalLeadsCount?: number;
+  sourceType?: 'EXCEL_CSV' | 'GOOGLE_SHEETS';
+  isTeamLeaderMode?: boolean;
+  onAllocationComplete?: (result: {
+    mode: AllocationMode;
+    batchRules?: BatchRule[];
+    assignedUser?: { id: string; name: string };
+    poolSettings?: { enabled: boolean; timeMinutes: number };
+  }) => void;
+}
+
+const MOCK_TEAM = [
+  { id: 'usr-1', name: 'Priya Sharma', role: 'Team Leader', leadsCount: 42, color: '#818cf8' },
+  { id: 'usr-2', name: 'Rohan Kumar', role: 'Sales Exec', leadsCount: 28, color: '#34d399' },
+  { id: 'usr-3', name: 'Amit Shah', role: 'Sales Exec', leadsCount: 19, color: '#f59e0b' },
+  { id: 'usr-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
+];
+
+const MOCK_TL_REPS = [
+  { id: 'sub-1', name: 'Amit Patel', role: 'Sales Exec', leadsCount: 25, color: '#34d399' },
+  { id: 'sub-2', name: 'Meera Kapoor', role: 'Sales Exec', leadsCount: 15, color: '#f59e0b' },
+  { id: 'sub-3', name: 'Rohan Kumar', role: 'Sales Exec', leadsCount: 28, color: '#38bdf8' },
+  { id: 'sub-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
+];
+
+export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps> = ({
+  visible, onClose, totalLeadsCount = 214, sourceType = 'EXCEL_CSV', isTeamLeaderMode = false, onAllocationComplete,
+}) => {
+  const insets = useSafeAreaInsets();
+  const { width: SW } = useWindowDimensions();
+  const activeTeam = isTeamLeaderMode ? MOCK_TL_REPS : MOCK_TEAM;
+
+  const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
+
+  // Batchwise Allocation State
+  const [batchRules, setBatchRules] = useState<BatchRule[]>([
+    { id: 'b-1', fromRow: 1, toRow: Math.min(100, totalLeadsCount), assigneeId: activeTeam[0].id, assigneeName: `${activeTeam[0].name} (${activeTeam[0].role})`, role: activeTeam[0].role },
+    { id: 'b-2', fromRow: Math.min(101, totalLeadsCount), toRow: totalLeadsCount, assigneeId: activeTeam[1].id, assigneeName: `${activeTeam[1].name} (${activeTeam[1].role})`, role: activeTeam[1].role },
+  ]);
+  const [runLoop, setRunLoop] = useState(true);
+
+  // Direct Assign State
+  const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
+
+  // Lead Pool State
+  const [poolEnabled, setPoolEnabled] = useState(true);
+  const [poolTimeMinutes, setPoolTimeMinutes] = useState(30);
+  const [poolClaimedSuccess, setPoolClaimedSuccess] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (totalLeadsCount > 0 && batchRules.length === 2) {
+      const half = Math.floor(totalLeadsCount / 2);
+      setBatchRules([
+        { id: 'b-1', fromRow: 1, toRow: half, assigneeId: 'usr-1', assigneeName: 'Priya Sharma (TL A)', role: 'Team Leader' },
+        { id: 'b-2', fromRow: half + 1, toRow: totalLeadsCount, assigneeId: 'usr-2', assigneeName: 'Rohan Kumar (Sales Rep C)', role: 'Sales Exec' },
+      ]);
+    }
+  }, [totalLeadsCount]);
+
+  const handleAddBatchRule = () => {
+    const lastTo = batchRules[batchRules.length - 1]?.toRow || 0;
+    if (lastTo >= totalLeadsCount) {
+      Alert.alert('Limit Reached', `All ${totalLeadsCount} rows are already covered by existing batch rules.`);
+      return;
+    }
+    const nextFrom = lastTo + 1;
+    const nextTo = Math.min(nextFrom + 50, totalLeadsCount);
+    const nextUser = MOCK_TEAM[batchRules.length % MOCK_TEAM.length];
+
+    setBatchRules(prev => [
+      ...prev,
+      {
+        id: `b-${Date.now()}`,
+        fromRow: nextFrom,
+        toRow: nextTo,
+        assigneeId: nextUser.id,
+        assigneeName: `${nextUser.name} (${nextUser.role})`,
+        role: nextUser.role,
+      },
+    ]);
+  };
+
+  const handleUpdateBatchRule = (id: string, patch: Partial<BatchRule>) => {
+    setBatchRules(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
+
+  const handleRemoveBatchRule = (id: string) => {
+    if (batchRules.length <= 1) {
+      Alert.alert('Required', 'At least 1 batch rule is required.');
+      return;
+    }
+    setBatchRules(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleConfirmAllocation = () => {
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      if (mode === 'BATCHWISE') {
+        // Validate batch amounts
+        for (const r of batchRules) {
+          if (r.fromRow > totalLeadsCount || r.toRow > totalLeadsCount) {
+            Alert.alert('Invalid Range', `Row numbers cannot exceed total dataset count of ${totalLeadsCount}.`);
+            return;
+          }
+          if (r.fromRow > r.toRow) {
+            Alert.alert('Invalid Range', `Start row (${r.fromRow}) cannot be greater than End row (${r.toRow}).`);
+            return;
+          }
+        }
+        Alert.alert(
+          '⚡ Batches Allocated',
+          `Successfully allocated ${totalLeadsCount} leads across ${batchRules.length} user batches.\n\n${batchRules.map(r => `• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`).join('\n')}${runLoop ? '\n• Loop Routing: Enabled' : ''}`
+        );
+      } else if (mode === 'DIRECT_ASSIGN') {
+        Alert.alert('👤 Direct Assignment Complete', `All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role}).`);
+      } else if (mode === 'LEAD_POOL') {
+        Alert.alert('⏱️ Lead Pool Configured', `Lead Pool ${poolEnabled ? 'ENABLED' : 'DISABLED'}.\nClaim Window set to ${poolTimeMinutes} minutes.`);
+      }
+
+      onAllocationComplete?.({
+        mode,
+        batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
+        assignedUser: mode === 'DIRECT_ASSIGN' ? { id: selectedUser.id, name: selectedUser.name } : undefined,
+        poolSettings: mode === 'LEAD_POOL' ? { enabled: poolEnabled, timeMinutes: poolTimeMinutes } : undefined,
+      });
+      onClose();
+    }, 800);
+  };
+
+  const handleSimulateClaimLead = () => {
+    setPoolClaimedSuccess(true);
+    setTimeout(() => {
+      setPoolClaimedSuccess(false);
+      Alert.alert('🎯 Lead Claimed!', 'Lead #L-9041 (Spectro Labs) claimed & added to your pipeline!');
+    }, 1500);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={[styles.container, { paddingTop: Math.max(insets.top, 36) }]}>
+
+        {/* ── HEADER ──────────────────────────────────────────────────────── */}
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.headerTitle}>
+                {isTeamLeaderMode ? '⚡ TL Sub-Allocation Engine (TL Got Leads)' : '⚡ Lead Allocation & Pool Engine'}
+              </Text>
+              <View style={styles.badge}><Text style={styles.badgeText}>{totalLeadsCount} Leads</Text></View>
+            </View>
+            <Text style={styles.headerSub}>
+              {isTeamLeaderMode
+                ? 'TL Got Leads from any Way ➔ Sub-Allocate Batchwise to Sales Reps or Assign Directly'
+                : sourceType === 'EXCEL_CSV'
+                ? 'Excel / CSV Post-Import Allocation Flow'
+                : 'Google Sheets Live Sync Lead Strategy Flow'}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <Text style={styles.closeBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── MODE SELECTOR TABS ─────────────────────────────────────────── */}
+        <View style={styles.modeTabBar}>
+          {[
+            { id: 'BATCHWISE' as AllocationMode, label: '📦 Batchwise', icon: '📦' },
+            { id: 'DIRECT_ASSIGN' as AllocationMode, label: '👤 Direct Assign', icon: '👤' },
+            { id: 'LEAD_POOL' as AllocationMode, label: '⏱️ Lead Pool & Claim', icon: '⏱️' },
+          ].map(tab => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.modeTab, mode === tab.id && styles.modeTabActive]}
+              onPress={() => setMode(tab.id)}
+            >
+              <Text style={[styles.modeTabText, mode === tab.id && styles.modeTabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ── CONTENT AREA ────────────────────────────────────────────────── */}
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+          {/* 📦 1. BATCHWISE ALLOCATION FLOW */}
+          {mode === 'BATCHWISE' && (
+            <View>
+              <View style={styles.card}>
+                <View style={S.cardHeaderRow}>
+                  <Text style={styles.cardTitle}>📦 Batchwise Lead Allocation</Text>
+                  <Text style={styles.cardSub}>Set custom row ranges to distribute dataset across sales team</Text>
+                </View>
+
+                <View style={styles.totalBadgeBox}>
+                  <Text style={styles.totalBadgeLabel}>Total Dataset Size:</Text>
+                  <Text style={styles.totalBadgeValue}>{totalLeadsCount} Rows</Text>
+                </View>
+
+                {/* Batch Rules List */}
+                {batchRules.map((rule, idx) => (
+                  <View key={rule.id} style={styles.ruleCard}>
+                    <View style={styles.ruleCardHeader}>
+                      <Text style={styles.ruleIdx}>Batch Rule #{idx + 1}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveBatchRule(rule.id)}>
+                        <Text style={{ color: '#f43f5e', fontSize: 11, fontWeight: '800' }}>Remove ✕</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Range Inputs */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>From Row</Text>
+                        <TextInput
+                          style={styles.inputField}
+                          value={String(rule.fromRow)}
+                          onChangeText={v => handleUpdateBatchRule(rule.id, { fromRow: Number(v) || 1 })}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.fieldLabel}>To Row (Max {totalLeadsCount})</Text>
+                        <TextInput
+                          style={styles.inputField}
+                          value={String(rule.toRow)}
+                          onChangeText={v => handleUpdateBatchRule(rule.id, { toRow: Number(v) || 1 })}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Assignee Selector */}
+                    <Text style={styles.fieldLabel}>Assignee (TL / Sales Rep)</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {activeTeam.map(usr => {
+                          const isSel = rule.assigneeId === usr.id;
+                          return (
+                            <TouchableOpacity
+                              key={usr.id}
+                              style={[
+                                styles.userChip,
+                                isSel && { backgroundColor: usr.color + '22', borderColor: usr.color },
+                              ]}
+                              onPress={() => handleUpdateBatchRule(rule.id, { assigneeId: usr.id, assigneeName: `${usr.name} (${usr.role})`, role: usr.role })}
+                            >
+                              <Text style={[styles.userChipText, isSel && { color: usr.color, fontWeight: '900' }]}>
+                                {usr.name} ({usr.role})
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ))}
+
+                <TouchableOpacity style={styles.addRuleBtn} onPress={handleAddBatchRule}>
+                  <Text style={styles.addRuleBtnText}>+ Add Custom Batch Range</Text>
+                </TouchableOpacity>
+
+                {/* Loop Option Toggle */}
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleTitle}>🔄 Run Loop Batching</Text>
+                    <Text style={styles.toggleSub}>Automatically cycle batch rules continuously for new leads</Text>
+                  </View>
+                  <Switch value={runLoop} onValueChange={setRunLoop} trackColor={{ false: '#1e293b', true: '#4f46e5' }} />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 👤 2. DIRECT ASSIGNMENT FLOW */}
+          {mode === 'DIRECT_ASSIGN' && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>👤 Direct Single User Assignment</Text>
+              <Text style={styles.cardSub}>Assign all {totalLeadsCount} incoming leads to a single Team Leader or Sales Rep</Text>
+
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {activeTeam.map(usr => {
+                  const isSel = selectedUser.id === usr.id;
+                  return (
+                    <TouchableOpacity
+                      key={usr.id}
+                      style={[
+                        styles.assigneeCard,
+                        isSel && { backgroundColor: usr.color + '22', borderColor: usr.color },
+                      ]}
+                      onPress={() => setSelectedUser(usr)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.assigneeName, isSel && { color: usr.color }]}>{usr.name}</Text>
+                        <Text style={styles.assigneeRole}>{usr.role} • {usr.leadsCount} Active Leads</Text>
+                      </View>
+                      {isSel && <Text style={{ color: usr.color, fontWeight: '900', fontSize: 16 }}>✓ Selected</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* ⏱️ 3. LEAD POOL & REALTIME CLAIM WINDOW FLOW */}
+          {mode === 'LEAD_POOL' && (
+            <View>
+              <View style={styles.card}>
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>⏱️ Lead Pool Engine (Claim Window)</Text>
+                    <Text style={styles.cardSub}>Enable real-time claim popup for all eligible Team Leaders &amp; Sales Reps</Text>
+                  </View>
+                  <Switch value={poolEnabled} onValueChange={setPoolEnabled} trackColor={{ false: '#1e293b', true: '#10b981' }} />
+                </View>
+
+                {poolEnabled && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.fieldLabel}>Claim Window Time Limit (Minutes)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                      {[5, 15, 30, 60].map(mins => (
+                        <TouchableOpacity
+                          key={mins}
+                          style={[
+                            styles.timeChip,
+                            poolTimeMinutes === mins && styles.timeChipActive,
+                          ]}
+                          onPress={() => setPoolTimeMinutes(mins)}
+                        >
+                          <Text style={[styles.timeChipText, poolTimeMinutes === mins && styles.timeChipTextActive]}>
+                            {mins} mins
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={styles.poolExplainer}>
+                      ℹ️ When new leads arrive via Google Sheets or CSV, a Claim Window will pop up on every online user's screen. If a user taps "Claim Lead" within {poolTimeMinutes} minutes, the lead is directly assigned to them. If unclaimed after {poolTimeMinutes} minutes, the lead automatically escalates or rotates to the next rep.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Real-time Claim Window Simulator Card */}
+              <View style={styles.claimWindowCard}>
+                <View style={styles.claimHeaderRow}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.claimHeaderTitle}>LIVE POOL CLAIM WINDOW</Text>
+                  <Text style={styles.claimTimerText}>⏱️ 14m 32s left</Text>
+                </View>
+                <Text style={styles.claimLeadName}>Spectro Analytical Labs Pvt Ltd</Text>
+                <Text style={styles.claimLeadSub}>Value: ₹2,38,950 • Source: Google Sheets Live • City: Greater Noida</Text>
+
+                <TouchableOpacity
+                  style={[styles.claimBtn, poolClaimedSuccess && { backgroundColor: '#10b981' }]}
+                  onPress={handleSimulateClaimLead}
+                  disabled={poolClaimedSuccess}
+                >
+                  <Text style={styles.claimBtnText}>
+                    {poolClaimedSuccess ? '✓ Lead Claimed & Added to Pipeline!' : '✋ Claim Lead Now →'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+        </ScrollView>
+
+        {/* ── FOOTER ACTIONS ───────────────────────────────────────────── */}
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmAllocation} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.confirmBtnText}>
+                {mode === 'BATCHWISE' ? '🚀 Confirm Batch Allocation →' : mode === 'DIRECT_ASSIGN' ? `👤 Assign to ${selectedUser.name} →` : '⏱️ Save Lead Pool Settings →'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+      </View>
+    </Modal>
+  );
+};
+
+const S = StyleSheet.create({
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+});
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#030712' },
+
+  header: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingHorizontal: 16, paddingVertical: 12 },
+  headerTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
+  headerSub: { fontSize: 10, color: '#64748b', marginTop: 2 },
+  badge: { backgroundColor: 'rgba(79,70,229,0.2)', borderWidth: 1, borderColor: '#818cf8', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeText: { fontSize: 9, fontWeight: '900', color: '#818cf8' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
+
+  modeTabBar: { flexDirection: 'row', backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  modeTab: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  modeTabActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
+  modeTabText: { fontSize: 11, fontWeight: '800', color: '#64748b' },
+  modeTabTextActive: { color: '#ffffff' },
+
+  scrollContent: { padding: 14, paddingBottom: 40 },
+  card: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 14, marginBottom: 12 },
+  cardTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  cardSub: { fontSize: 10, color: '#64748b', marginTop: 2 },
+
+  totalBadgeBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginVertical: 10 },
+  totalBadgeLabel: { fontSize: 11, color: '#94a3b8', fontWeight: '700' },
+  totalBadgeValue: { fontSize: 14, fontWeight: '900', color: '#38bdf8' },
+
+  ruleCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 8 },
+  ruleCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  ruleIdx: { fontSize: 11, fontWeight: '900', color: '#818cf8' },
+  fieldLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 },
+  inputField: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, color: '#ffffff', fontWeight: '700' },
+  userChip: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  userChipText: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
+
+  addRuleBtn: { backgroundColor: 'rgba(79,70,229,0.15)', borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginVertical: 6 },
+  addRuleBtnText: { color: '#818cf8', fontSize: 11, fontWeight: '900' },
+
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  toggleTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  toggleSub: { fontSize: 10, color: '#64748b', marginTop: 1 },
+
+  assigneeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12 },
+  assigneeName: { fontSize: 13, fontWeight: '900', color: '#ffffff' },
+  assigneeRole: { fontSize: 10, color: '#64748b', marginTop: 2 },
+
+  timeChip: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  timeChipActive: { backgroundColor: '#10b981', borderColor: '#34d399' },
+  timeChipText: { fontSize: 11, fontWeight: '800', color: '#94a3b8' },
+  timeChipTextActive: { color: '#ffffff' },
+
+  poolExplainer: { fontSize: 10, color: '#94a3b8', lineHeight: 15, backgroundColor: '#020617', borderRadius: 10, padding: 10, marginTop: 10, borderWidth: 1, borderColor: '#1e293b' },
+
+  claimWindowCard: { backgroundColor: '#090d16', borderRadius: 14, borderWidth: 1.5, borderColor: '#34d399', padding: 14, marginTop: 4 },
+  claimHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' },
+  claimHeaderTitle: { fontSize: 10, fontWeight: '900', color: '#34d399', letterSpacing: 0.5, flex: 1 },
+  claimTimerText: { fontSize: 11, fontWeight: '900', color: '#fbbf24' },
+  claimLeadName: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  claimLeadSub: { fontSize: 10, color: '#64748b', marginTop: 2, marginBottom: 10 },
+  claimBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  claimBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+
+  footer: { flexDirection: 'row', gap: 8, backgroundColor: '#0f172a', borderTopWidth: 1, borderTopColor: '#1e293b', paddingHorizontal: 14, paddingTop: 10 },
+  cancelBtn: { flex: 1, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  cancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
+  confirmBtn: { flex: 2, backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  confirmBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+});
