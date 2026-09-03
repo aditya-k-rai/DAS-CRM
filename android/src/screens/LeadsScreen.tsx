@@ -122,7 +122,7 @@ export default function LeadsScreen() {
 
   // bodyScrollRef: drives vertical scrolling of the data area.
   // rowNumScrollRef: row-number column mirrors it via onScroll offset.
-  const bodyScrollRef   = useRef<ScrollView>(null);
+  const bodyScrollRef = useRef<ScrollView>(null);
   const rowNumScrollRef = useRef<ScrollView>(null);
 
   const handleBodyScroll = useCallback((e: any) => {
@@ -222,6 +222,8 @@ export default function LeadsScreen() {
   const [strategy, setStrategy] = useState<'BATCH_QUOTA' | 'VANISH_POOL' | 'MANUAL'>('BATCH_QUOTA');
   const [quotaCap, setQuotaCap] = useState(25);
   const [vanishTimeout, setVanishTimeout] = useState(30);
+
+  const [auditDetailRecord, setAuditDetailRecord] = useState<IngestionAuditRecord | null>(null);
 
   // ── MODAL STATES ─────────────────────────────────────────────────────────────
   const [sheetModalOpen, setSheetModalOpen] = useState(false);
@@ -395,8 +397,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     setPostCallModalOpen(false);
     Alert.alert(
       'Outcome Logged',
-      `Call result "${outcome.outcome}" saved for ${callingLeadData?.name || 'Lead'}.\n${
-        outcome.scheduledTime ? `Callback scheduled for ${outcome.scheduledTime}` : ''
+      `Call result "${outcome.outcome}" saved for ${callingLeadData?.name || 'Lead'}.\n${outcome.scheduledTime ? `Callback scheduled for ${outcome.scheduledTime}` : ''
       }`
     );
   };
@@ -460,7 +461,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         )}
       </View>
     ))
-  , [filteredLeads, columnOrder, columnWidths]);
+    , [filteredLeads, columnOrder, columnWidths]);
 
   // ── RENDER EXCEL CELL BY COLUMN KEY ────────────────────────────────────────
   const renderExcelCell = (item: LeadItem, colKey: string, width: number) => {
@@ -689,23 +690,33 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       ]}
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>📄 {item.fileName}</Text>
+                        <TouchableOpacity
+                          style={{ flex: 1, paddingRight: 8 }}
+                          onPress={() => setAuditDetailRecord(item)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '900', color: '#818cf8', textDecorationLine: 'underline' }}>
+                            📄 {item.fileName} <Text style={{ fontSize: 10, textDecorationLine: 'none', color: '#6366f1' }}>🔍 (Tap for Assigned To)</Text>
+                          </Text>
                           <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748b', marginTop: 3 }}>
                             🕒 Injected At: <Text style={{ color: '#cbd5e1', fontWeight: '800' }}>{item.injectedAt}</Text> • Platform: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{item.platform}</Text>
                           </Text>
                           <Text style={{ fontSize: 10, fontWeight: '700', color: '#38bdf8', marginTop: 2 }}>
-                            📊 Extracted: <Text style={{ color: '#34d399', fontWeight: '900' }}>{item.leadsCount} Rows</Text> • <Text style={{ color: '#818cf8', fontWeight: '900' }}>{item.colsCount || 6} Columns</Text>
+                            📊 Extracted Size: <Text style={{ color: '#34d399', fontWeight: '900' }}>{item.leadsCount} Rows</Text> • <Text style={{ color: '#818cf8', fontWeight: '900' }}>{item.colsCount || 6} Columns</Text>
                           </Text>
-                        </View>
-                        <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#1e293b' }, isPending ? { backgroundColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(34,197,94,0.15)' }]}>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#1e293b' }, isPending ? { backgroundColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(34,197,94,0.15)' }]}
+                          onPress={() => setAuditDetailRecord(item)}
+                        >
                           <Text style={[{ fontSize: 9, fontWeight: '900', color: '#94a3b8' }, isPending ? { color: '#fbbf24' } : { color: '#4ade80' }]}>
-                            {isPending ? '⏳ UNASSIGNED PENDING' : '✓ ALLOCATED'}
+                            {isPending ? '⏳ UNASSIGNED PENDING' : '✓ ALLOCATED ℹ️'}
                           </Text>
-                        </View>
+                        </TouchableOpacity>
                       </View>
 
-                      {isPending ? (
+                      {isPending && (
                         <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.2)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>⚠️ {item.leadsCount} Rows ({item.colsCount || 6} Cols) Unassigned</Text>
                           <TouchableOpacity
@@ -718,13 +729,48 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>⚡ Allocate Leads Now →</Text>
                           </TouchableOpacity>
                         </View>
-                      ) : (
-                        <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#cbd5e1' }}>
-                            👤 <Text style={{ fontWeight: '900', color: '#818cf8' }}>Assigned To:</Text> {item.allocationSummary}
-                          </Text>
-                        </View>
                       )}
+
+                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          <TouchableOpacity
+                            style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' }}
+                            onPress={() => {
+                              setAllocationSourceType('EXCEL_CSV');
+                              setAllocationModalOpen(true);
+                            }}
+                          >
+                            <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '800' }}>👁️ Preview &amp; Edit Sheet</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}
+                            onPress={() => {
+                              Alert.alert(
+                                '🗑️ Delete Sheet Allocation',
+                                `Are you sure you want to delete the allocation record for ${item.fileName}?\n\nℹ️ 7-Day Retention Policy: Historical allocation logs automatically auto-delete after 7 days.`,
+                                [
+                                  { text: 'Cancel', style: 'cancel' },
+                                  {
+                                    text: 'Delete',
+                                    style: 'destructive',
+                                    onPress: () => {
+                                      setAuditLogs(prev => prev.filter(a => a.id !== item.id));
+                                      Alert.alert('Purged', `Sheet allocation record ${item.fileName} deleted.`);
+                                    },
+                                  },
+                                ]
+                              );
+                            }}
+                          >
+                            <Text style={{ color: '#f87171', fontSize: 10, fontWeight: '800' }}>🗑️ Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '800' }}>⏳ Auto-Deletes in 7 Days</Text>
+                        </View>
+                      </View>
                     </View>
                   );
                 })}
@@ -860,7 +906,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     </View>
                     {columnOrder.map((colKey, colIdx) => {
                       const colWidth = columnWidths[colKey] || 140;
-                      const colName  = columnNames[colKey] || colKey;
+                      const colName = columnNames[colKey] || colKey;
                       return (
                         <View key={colKey} style={[styles.excelColControl, { width: colWidth }]}>
                           <TouchableOpacity
@@ -1024,6 +1070,54 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
         </View>
       )}
+
+      {/* ── MODAL: SHEET AUDIT ALLOCATION BREAKDOWN MODAL ────────────────── */}
+      <Modal visible={!!auditDetailRecord} transparent animationType="fade" onRequestClose={() => setAuditDetailRecord(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContentSmall, { width: '92%', maxWidth: 420, backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 }}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: '#ffffff' }}>📄 Sheet Ingestion &amp; Allocation Audit</Text>
+                <Text style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>Assigned employee quota breakdown telemetry</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAuditDetailRecord(null)} style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {auditDetailRecord && (
+              <View style={{ gap: 12 }}>
+                <View style={{ backgroundColor: '#020617', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', gap: 6 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#818cf8' }}>📄 Sheet File Name: {auditDetailRecord.fileName}</Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>🕒 Date &amp; Time of Import: <Text style={{ color: '#f8fafc', fontWeight: '800' }}>{auditDetailRecord.injectedAt}</Text></Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>📊 No. of Rows &amp; Columns: <Text style={{ color: '#34d399', fontWeight: '900' }}>{auditDetailRecord.leadsCount} Rows</Text> • <Text style={{ color: '#38bdf8', fontWeight: '900' }}>{auditDetailRecord.colsCount || 6} Columns</Text></Text>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>📡 Source Platform: <Text style={{ color: '#a5b4fc', fontWeight: '800' }}>{auditDetailRecord.platform}</Text></Text>
+                </View>
+
+                <View style={{ backgroundColor: 'rgba(99,102,241,0.1)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(99,102,241,0.35)', gap: 6 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#818cf8' }}>👤 Assigned To Whom (Employee Allocation):</Text>
+                  {auditDetailRecord.status === 'PENDING_ALLOCATION' ? (
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#fbbf24' }}>
+                      ⚠️ Unassigned / Pending Allocation (Tap 'Allocate Leads Now' on the audit card to assign sales reps).
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#f8fafc', lineHeight: 18 }}>
+                      {auditDetailRecord.allocationSummary || 'Assigned to sales reps upon spreadsheet ingestion.'}
+                    </Text>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 4 }}
+                  onPress={() => setAuditDetailRecord(null)}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>Close Breakdown</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* ── MODAL 1: INLINE HEADER RENAME MODAL ─────────────────────────────── */}
       <Modal visible={!!editingColKey} transparent animationType="fade" onRequestClose={() => setEditingColKey(null)}>

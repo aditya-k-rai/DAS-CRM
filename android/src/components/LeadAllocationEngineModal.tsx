@@ -139,12 +139,29 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (totalLeadsCount > 0 && batchRules.length === 2) {
-      const half = Math.floor(totalLeadsCount / 2);
-      setBatchRules([
-        { id: 'b-1', fromRow: 1, toRow: half, assigneeId: 'usr-1', assigneeName: 'Priya Sharma (TL A)', role: 'Team Leader' },
-        { id: 'b-2', fromRow: half + 1, toRow: totalLeadsCount, assigneeId: 'usr-2', assigneeName: 'Rohan Kumar (Sales Rep C)', role: 'Sales Exec' },
-      ]);
+    if (totalLeadsCount > 0) {
+      setBatchRules(prev => {
+        if (prev.length === 0 || prev.length === 2) {
+          const half = Math.max(1, Math.floor(totalLeadsCount / 2));
+          return [
+            { id: 'b-1', fromRow: 1, toRow: half, assigneeId: 'usr-1', assigneeName: 'Priya Sharma (TL A)', role: 'Team Leader' },
+            { id: 'b-2', fromRow: Math.min(half + 1, totalLeadsCount), toRow: totalLeadsCount, assigneeId: 'usr-2', assigneeName: 'Rohan Kumar (Sales Rep C)', role: 'Sales Exec' },
+          ];
+        }
+        let start = 1;
+        const countPerRule = Math.max(1, Math.floor(totalLeadsCount / prev.length));
+        return prev.map((rule, idx) => {
+          const isLast = idx === prev.length - 1;
+          const end = isLast ? totalLeadsCount : Math.min(start + countPerRule - 1, totalLeadsCount);
+          const res = {
+            ...rule,
+            fromRow: start,
+            toRow: Math.max(start, end),
+          };
+          start = Math.min(end + 1, totalLeadsCount);
+          return res;
+        });
+      });
     }
   }, [totalLeadsCount]);
 
@@ -166,8 +183,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       Alert.alert('Limit Reached', `All ${totalLeadsCount} rows are already covered by existing batch rules.`);
       return;
     }
-    const nextFrom = lastTo + 1;
-    const nextTo = Math.min(nextFrom + 50, totalLeadsCount);
+    const nextFrom = Math.min(lastTo + 1, totalLeadsCount);
+    const nextTo = totalLeadsCount;
     const nextUser = MOCK_TEAM[batchRules.length % MOCK_TEAM.length];
 
     setBatchRules(prev => [
@@ -184,7 +201,33 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   };
 
   const handleUpdateBatchRule = (id: string, patch: Partial<BatchRule>) => {
-    setBatchRules(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+    setBatchRules(prev => {
+      const targetIndex = prev.findIndex(r => r.id === id);
+      if (targetIndex === -1) return prev;
+
+      const rawUpdated = prev.map(r => r.id === id ? { ...r, ...patch } : r);
+
+      // Cascade rule adjustments to keep ranges valid & contiguous
+      return rawUpdated.map((rule, idx) => {
+        let f = Math.min(Math.max(1, rule.fromRow), totalLeadsCount);
+        let t = Math.min(Math.max(f, rule.toRow), totalLeadsCount);
+
+        // If target rule's toRow was updated, auto-sync subsequent rule's fromRow & toRow
+        if (idx > 0) {
+          const prevRule = rawUpdated[idx - 1];
+          if (prevRule.toRow < totalLeadsCount) {
+            f = Math.min(prevRule.toRow + 1, totalLeadsCount);
+            if (t < f) t = Math.min(f + 10, totalLeadsCount);
+          }
+        }
+
+        return {
+          ...rule,
+          fromRow: f,
+          toRow: Math.max(f, t),
+        };
+      });
+    });
   };
 
   const handleRemoveBatchRule = (id: string) => {
@@ -206,43 +249,68 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       const updatedRule = {
         ...rule,
         fromRow: currentStart,
-        toRow: endRow,
+        toRow: Math.max(currentStart, endRow),
       };
-      currentStart = endRow + 1;
+      currentStart = Math.min(endRow + 1, totalLeadsCount);
       return updatedRule;
     });
 
     setBatchRules(fixed);
   };
 
+  // 👁️ Preview & Edit Sheet State
+  const [isSheetPreviewMode, setIsSheetPreviewMode] = useState(false);
+  const [sheetRows, setSheetRows] = useState([
+    { id: '1', name: 'Rajesh Kumar', email: 'rajesh@acme.com', phone: '+91 98765 43210', company: 'Acme Solutions', city: 'Delhi NCR' },
+    { id: '2', name: 'Priya Sharma', email: 'priya@techcorp.in', phone: '+91 87654 32109', company: 'TechCorp India', city: 'Mumbai' },
+    { id: '3', name: 'Amit Shah', email: 'amit@westreach.com', phone: '+91 76543 21098', company: 'West Reach Pvt', city: 'Ahmedabad' },
+    { id: '4', name: 'Neha Gupta', email: 'neha@lotwaala.org', phone: '+91 65432 10987', company: 'Lotwaala Work Plan', city: 'Bengaluru' },
+  ]);
+
+  const [allocationSuccessModalOpen, setAllocationSuccessModalOpen] = useState(false);
+  const [successDetails, setSuccessDetails] = useState<{ title: string; items: string[] }>({
+    title: '',
+    items: [],
+  });
+
   const handleConfirmAllocation = () => {
     if (mode === 'BATCHWISE' && validation.hasConflict) {
-      Alert.alert('Allocation Conflict', validation.message);
       return;
     }
 
     setSubmitting(true);
     setTimeout(() => {
       setSubmitting(false);
+      const items: string[] = [];
+
       if (mode === 'BATCHWISE') {
-        Alert.alert(
-          '⚡ Batches Allocated',
-          `Successfully allocated ${totalLeadsCount} leads across ${batchRules.length} user batches.\n\n${batchRules.map(r => `• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`).join('\n')}${runLoop ? '\n• Loop Routing: Enabled' : ''}`
-        );
+        batchRules.forEach(r => items.push(`• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`));
+        if (runLoop) items.push('• Continuous Loop Routing: Enabled');
       } else if (mode === 'DIRECT_ASSIGN') {
-        Alert.alert('👤 Direct Assignment Complete', `All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role}).`);
+        items.push(`• All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role})`);
       } else if (mode === 'LEAD_POOL') {
-        Alert.alert('⏱️ Live Lead Pool Configured', `Google Sheets Live Lead Pool ${poolEnabled ? 'ENABLED' : 'DISABLED'}.\nClaim Window set to ${poolTimeMinutes} minutes.`);
+        items.push(`• Live Lead Pool: ${poolEnabled ? 'ENABLED' : 'DISABLED'}`);
+        items.push(`• Claim Window: ${poolTimeMinutes} minutes`);
       }
 
-      onAllocationComplete?.({
-        mode,
-        batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
-        assignedUser: mode === 'DIRECT_ASSIGN' ? { id: selectedUser.id, name: selectedUser.name } : undefined,
-        poolSettings: mode === 'LEAD_POOL' ? { enabled: poolEnabled, timeMinutes: poolTimeMinutes } : undefined,
+      setSuccessDetails({
+        title: mode === 'BATCHWISE' ? '⚡ Batches Allocated Successfully!' : mode === 'DIRECT_ASSIGN' ? '👤 Direct Assignment Complete!' : '⏱️ Live Lead Pool Active!',
+        items,
       });
-      onClose();
-    }, 800);
+
+      setAllocationSuccessModalOpen(true);
+    }, 400);
+  };
+
+  const handleDoneSuccessModal = () => {
+    setAllocationSuccessModalOpen(false);
+    onAllocationComplete?.({
+      mode,
+      batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
+      assignedUser: mode === 'DIRECT_ASSIGN' ? { id: selectedUser.id, name: selectedUser.name } : undefined,
+      poolSettings: mode === 'LEAD_POOL' ? { enabled: poolEnabled, timeMinutes: poolTimeMinutes } : undefined,
+    });
+    onClose();
   };
 
   const handleSimulateClaimLead = () => {
@@ -260,23 +328,29 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
         {/* ── HEADER ──────────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Text style={styles.headerTitle}>
                 {isTeamLeaderMode
-                  ? '⚡ TL Sub-Allocation Engine (TL Got Leads)'
+                  ? '⚡ TL Sub-Allocation Engine'
                   : sourceType === 'EXCEL_CSV'
                   ? '⚡ Excel / CSV Bulk Lead Allocation'
                   : '⚡ Google Sheets Live Routing Engine'}
               </Text>
               <View style={styles.badge}><Text style={styles.badgeText}>{totalLeadsCount} Leads</Text></View>
+              <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' }}>
+                <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '800' }}>⏳ Auto-Deletes in 7 Days</Text>
+              </View>
             </View>
-            <Text style={styles.headerSub}>
-              {isTeamLeaderMode
-                ? 'TL Got Leads from any Way ➔ Sub-Allocate Batchwise to Sales Reps or Assign Directly'
-                : sourceType === 'EXCEL_CSV'
-                ? 'One-Time Bulk File Import Allocation Flow (Batchwise or Direct Assign)'
-                : 'Continuous Live Incoming Stream Strategy & Real-Time Pool Claim Window'}
-            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' }}>
+              <TouchableOpacity
+                style={{ backgroundColor: isSheetPreviewMode ? 'rgba(6,182,212,0.2)' : '#1e293b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: isSheetPreviewMode ? '#06b6d4' : '#334155' }}
+                onPress={() => setIsSheetPreviewMode(!isSheetPreviewMode)}
+              >
+                <Text style={{ color: isSheetPreviewMode ? '#22d3ee' : '#cbd5e1', fontSize: 10, fontWeight: '900' }}>
+                  {isSheetPreviewMode ? 'Close Sheet Editor' : '👁️ Preview & Edit Sheet'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeBtnText}>✕</Text>
@@ -542,6 +616,38 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
             )}
           </TouchableOpacity>
         </View>
+
+        {/* ⚡ SLEEK NATIVE SUCCESS MODAL */}
+        <Modal visible={allocationSuccessModalOpen} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(3,7,18,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{ backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 2, borderColor: '#10b981', padding: 20, width: '100%', maxWidth: 360, alignItems: 'center' }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(16,185,129,0.2)', borderWidth: 1, borderColor: '#34d399', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 28, color: '#34d399', fontWeight: '900' }}>✓</Text>
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff', textAlign: 'center', marginBottom: 4 }}>
+                {successDetails.title}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginBottom: 14 }}>
+                Lead distribution rules committed to database.
+              </Text>
+
+              <View style={{ backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, width: '100%', marginBottom: 16 }}>
+                {successDetails.items.map((line, i) => (
+                  <Text key={i} style={{ fontSize: 11, color: '#34d399', fontWeight: '700', marginVertical: 2, fontFamily: 'monospace' }}>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={{ backgroundColor: '#10b981', width: '100%', paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+                onPress={handleDoneSuccessModal}
+              >
+                <Text style={{ color: '#030712', fontSize: 13, fontWeight: '900' }}>Done &amp; Continue →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
       </View>
     </Modal>
