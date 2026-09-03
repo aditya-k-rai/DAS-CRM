@@ -329,23 +329,27 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         </View>
         <Text style={S.cardSub}>Tap a CRM Field to remap. Toggle "Ignore" to skip a column entirely.</Text>
 
-        {/* Horizontally scrollable mapping table */}
+        {/* Horizontally scrollable mapping table
+             NOTE: Fixed px widths REQUIRED — flex doesn't work inside
+             a horizontal ScrollView (unbounded width content). */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={true}
           style={S.tableScrollH}
-          contentContainerStyle={{ minWidth: SCREEN_W > 400 ? 600 : 560 }}
+          contentContainerStyle={S.tableScrollHContent}
           nestedScrollEnabled
+          bounces={false}
+          overScrollMode="never"
         >
-          <View style={{ width: '100%' }}>
+          <View>
             {/* Table Header */}
             <View style={[S.tableRow, S.tableHeader]}>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 1.4 }]}>Sheet Column</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.4 }]}>→</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 1.4 }]}>CRM Field</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.8 }]}>Transform</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.6 }]}>Required</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.7 }]}>Ignore</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 120 }]}>Sheet Column</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 28, textAlign: 'center' }]}>→</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 110 }]}>CRM Field</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 90, textAlign: 'center' }]}>Transform</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 56, textAlign: 'center' }]}>Req</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 56, textAlign: 'center' }]}>Ignore</Text>
             </View>
 
             {/* Table Rows */}
@@ -359,20 +363,20 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
                 ]}
               >
                 {/* Sheet Header */}
-                <View style={{ flex: 1.4 }}>
-                  <Text style={S.tableCellBold}>{col.sheetHeader}</Text>
+                <View style={{ width: 120 }}>
+                  <Text style={S.tableCellBold} numberOfLines={1}>{col.sheetHeader}</Text>
                 </View>
 
                 {/* Arrow */}
-                <Text style={[S.tableCell, { flex: 0.4, color: '#475569', textAlign: 'center' }]}>→</Text>
+                <Text style={[S.tableCell, { width: 28, color: '#475569', textAlign: 'center' }]}>→</Text>
 
                 {/* CRM Field — tap to open picker */}
                 <TouchableOpacity
-                  style={{ flex: 1.4 }}
+                  style={{ width: 110 }}
                   onPress={() => { setActiveMappingCol(col); setMappingModalOpen(true); }}
                 >
                   <View style={[S.fieldPill, col.isIgnored && { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.4)' }]}>
-                    <Text style={[S.fieldPillText, col.isIgnored && { color: '#f87171' }]}>
+                    <Text style={[S.fieldPillText, col.isIgnored && { color: '#f87171' }]} numberOfLines={1}>
                       {col.isIgnored ? 'IGNORED' : col.crmField}
                     </Text>
                     <Text style={{ fontSize: 8, color: '#64748b' }}>▼</Text>
@@ -380,10 +384,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
                 </TouchableOpacity>
 
                 {/* Transform */}
-                <Text style={[S.tableCell, { flex: 0.8, color: '#94a3b8', fontSize: 9 }]}>{col.transformType}</Text>
+                <Text style={[S.tableCell, { width: 90, color: '#94a3b8', fontSize: 9, textAlign: 'center' }]} numberOfLines={1}>{col.transformType}</Text>
 
                 {/* Required */}
-                <View style={{ flex: 0.6, alignItems: 'center' }}>
+                <View style={{ width: 56, alignItems: 'center' }}>
                   {col.isRequired && (
                     <View style={S.requiredDot}>
                       <Text style={{ fontSize: 7, color: '#fbbf24', fontWeight: '900' }}>REQ</Text>
@@ -393,7 +397,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
                 {/* Ignore Toggle */}
                 <TouchableOpacity
-                  style={{ flex: 0.7, alignItems: 'center' }}
+                  style={{ width: 56, alignItems: 'center' }}
                   onPress={() => handleToggleIgnore(col.sheetHeader)}
                 >
                   <View style={[S.ignoreToggle, col.isIgnored && S.ignoreToggleActive]}>
@@ -572,16 +576,18 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
           horizontal
           showsHorizontalScrollIndicator={true}
           style={S.tableScrollH}
-          contentContainerStyle={{ minWidth: 560 }}
+          contentContainerStyle={S.tableScrollHContent}
           nestedScrollEnabled
+          bounces={false}
+          overScrollMode="never"
         >
-          <View style={{ width: '100%' }}>
+          <View>
             <View style={[S.tableRow, S.tableHeader]}>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 1.4 }]}>Sheet Column</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.4 }]}>→</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 1.4 }]}>CRM Field</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.8 }]}>Transform</Text>
-              <Text style={[S.tableCell, S.tableCellHeader, { flex: 0.7 }]}>Ignore</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 120 }]}>Sheet Column</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 28, textAlign: 'center' }]}>→</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 110 }]}>CRM Field</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 90, textAlign: 'center' }]}>Transform</Text>
+              <Text style={[S.tableCell, S.tableCellHeader, { width: 56, textAlign: 'center' }]}>Ignore</Text>
             </View>
             {columnMappings.map((col, idx) => (
               <View
@@ -592,24 +598,24 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
                   col.isIgnored && { opacity: 0.5 },
                 ]}
               >
-                <View style={{ flex: 1.4 }}>
-                  <Text style={S.tableCellBold}>{col.sheetHeader}</Text>
+                <View style={{ width: 120 }}>
+                  <Text style={S.tableCellBold} numberOfLines={1}>{col.sheetHeader}</Text>
                 </View>
-                <Text style={[S.tableCell, { flex: 0.4, color: '#475569', textAlign: 'center' }]}>→</Text>
+                <Text style={[S.tableCell, { width: 28, color: '#475569', textAlign: 'center' }]}>→</Text>
                 <TouchableOpacity
-                  style={{ flex: 1.4 }}
+                  style={{ width: 110 }}
                   onPress={() => { setActiveMappingCol(col); setMappingModalOpen(true); }}
                 >
                   <View style={[S.fieldPill, col.isIgnored && { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.4)' }]}>
-                    <Text style={[S.fieldPillText, col.isIgnored && { color: '#f87171' }]}>
+                    <Text style={[S.fieldPillText, col.isIgnored && { color: '#f87171' }]} numberOfLines={1}>
                       {col.isIgnored ? 'IGNORED' : col.crmField}
                     </Text>
                     <Text style={{ fontSize: 8, color: '#64748b' }}>▼</Text>
                   </View>
                 </TouchableOpacity>
-                <Text style={[S.tableCell, { flex: 0.8, color: '#94a3b8', fontSize: 9 }]}>{col.transformType}</Text>
+                <Text style={[S.tableCell, { width: 90, color: '#94a3b8', fontSize: 9, textAlign: 'center' }]} numberOfLines={1}>{col.transformType}</Text>
                 <TouchableOpacity
-                  style={{ flex: 0.7, alignItems: 'center' }}
+                  style={{ width: 56, alignItems: 'center' }}
                   onPress={() => handleToggleIgnore(col.sheetHeader)}
                 >
                   <View style={[S.ignoreToggle, col.isIgnored && S.ignoreToggleActive]}>
@@ -745,6 +751,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
+        nestedScrollEnabled
       >
         {activeTab === 'CSV_EXCEL'     && renderCSVTab()}
         {activeTab === 'GOOGLE_SHEETS' && renderGoogleSheetsTab()}
@@ -1102,6 +1109,13 @@ const S = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1a2335',
     backgroundColor: '#080f1e',
+    // DO NOT add flex:1 or height — let the horizontal ScrollView measure its own content
+  },
+  // contentContainerStyle for the horizontal table ScrollView
+  tableScrollHContent: {
+    // no minWidth needed — total width is sum of fixed column widths
+    // padding allows a small right gutter for visual breathing room
+    paddingRight: 8,
   },
   tableRow: {
     flexDirection: 'row',
@@ -1110,7 +1124,7 @@ const S = StyleSheet.create({
     paddingVertical: 9,
     borderBottomWidth: 1,
     borderBottomColor: '#0f172a',
-    minWidth: 560,
+    // NOTE: minWidth removed — row width = sum of fixed cell widths set inline
   },
   tableHeader: {
     backgroundColor: '#0b1428',
