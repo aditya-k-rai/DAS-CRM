@@ -7,6 +7,8 @@ import {
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle
 } from 'lucide-react';
 
+import { LeadAllocationModal } from './LeadAllocationModal';
+
 export interface FileImportEngineModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -330,6 +332,9 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     window.addEventListener('mouseup', onMouseUp);
   };
 
+  const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
+  const [committedLeadsCount, setCommittedLeadsCount] = useState(0);
+
   // Final Ingestion Commit Handler
   const handleCommitIngestion = () => {
     if (!fileName.trim()) {
@@ -366,29 +371,44 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         };
 
         let hasValidData = false;
+        let firstCustomCell = '';
 
         row.forEach((cellVal, cIdx) => {
           if (sheet.blockedColumns[cIdx]) return; // Skip blocked columns
           const role = sheet.columnMappings[cIdx];
           if (role === 'block') return;
 
-          if (role === 'name' && cellVal) { leadObj.name = cellVal; hasValidData = true; }
-          else if (role === 'email' && cellVal) { leadObj.email = cellVal; hasValidData = true; }
-          else if (role === 'phone' && cellVal) { leadObj.phone = sanitizePhoneValue(cellVal); hasValidData = true; }
-          else if (role === 'company' && cellVal) { leadObj.company = cellVal; }
-          else if (role === 'value' && cellVal) { leadObj.value = sanitizeNumericValue(cellVal); }
-          else if (role === 'city' && cellVal) { leadObj.customFields['col_city'] = cellVal; }
-          else if (role === 'budget' && cellVal) { leadObj.customFields['col_budget'] = cellVal; }
-          else if (role === 'custom' && cellVal) {
+          const trimmed = (cellVal || '').toString().trim();
+          if (!trimmed) return;
+
+          hasValidData = true; // Any non-empty cell in unblocked columns makes row valid!
+
+          if (role === 'name') { leadObj.name = trimmed; }
+          else if (role === 'email') { leadObj.email = trimmed; }
+          else if (role === 'phone') { leadObj.phone = sanitizePhoneValue(trimmed); }
+          else if (role === 'company') { leadObj.company = trimmed; }
+          else if (role === 'value') { leadObj.value = sanitizeNumericValue(trimmed); }
+          else if (role === 'city') { leadObj.customFields['col_city'] = trimmed; }
+          else if (role === 'budget') { leadObj.customFields['col_budget'] = trimmed; }
+          else {
             const headerName = sheet.data[0]?.[cIdx] || `Col ${cIdx + 1}`;
-            leadObj.customFields[`col_${headerName.toLowerCase().replace(/\s+/g, '_')}`] = cellVal;
+            const cleanHeader = headerName.toLowerCase().replace(/\s+/g, '_');
+            leadObj.customFields[`col_${cleanHeader}`] = trimmed;
+            if (!firstCustomCell) firstCustomCell = trimmed;
           }
         });
 
         // Fallback for name if missing
-        if (!leadObj.name && (leadObj.email !== '—' || leadObj.phone)) {
-          leadObj.name = leadObj.email !== '—' ? leadObj.email.split('@')[0] : `Lead ${extractedLeads.length + 1}`;
-          hasValidData = true;
+        if (!leadObj.name) {
+          if (leadObj.email && leadObj.email !== '—') {
+            leadObj.name = leadObj.email.split('@')[0];
+          } else if (leadObj.company && leadObj.company !== 'Individual Lead') {
+            leadObj.name = leadObj.company;
+          } else if (firstCustomCell) {
+            leadObj.name = firstCustomCell;
+          } else {
+            leadObj.name = `Lead Record #${extractedLeads.length + 1}`;
+          }
         }
 
         if (hasValidData) {
@@ -413,7 +433,8 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       date: formattedDate,
     });
 
-    onClose();
+    setCommittedLeadsCount(extractedLeads.length);
+    setIsAllocationModalOpen(true);
   };
 
   if (!isOpen) return null;
@@ -787,6 +808,19 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         </div>
 
       </div>
+
+      {/* Post-Import Lead Allocation Modal (Parity with Android) */}
+      {isAllocationModalOpen && (
+        <LeadAllocationModal
+          isOpen={isAllocationModalOpen}
+          onClose={() => {
+            setIsAllocationModalOpen(false);
+            onClose();
+          }}
+          totalLeadsCount={committedLeadsCount}
+          fileName={fileName}
+        />
+      )}
     </div>
   );
 };
