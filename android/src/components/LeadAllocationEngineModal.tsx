@@ -53,6 +53,65 @@ const MOCK_TL_REPS = [
   { id: 'sub-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
 ];
 
+export interface ValidationConflict {
+  hasConflict: boolean;
+  message: string;
+  conflictingRuleIds: string[];
+}
+
+export const validateBatchRules = (
+  rules: BatchRule[],
+  totalCount: number
+): ValidationConflict => {
+  const conflictingRuleIds: string[] = [];
+
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    if (r.fromRow < 1 || r.fromRow > totalCount) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) must be between 1 and ${totalCount}.`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+    if (r.toRow < 1 || r.toRow > totalCount) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} To Row (${r.toRow}) must be between 1 and ${totalCount}.`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+    if (r.fromRow > r.toRow) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) cannot be greater than To Row (${r.toRow}).`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+  }
+
+  for (let i = 0; i < rules.length; i++) {
+    for (let j = i + 1; j < rules.length; j++) {
+      const r1 = rules[i];
+      const r2 = rules[j];
+
+      const overlapStart = Math.max(r1.fromRow, r2.fromRow);
+      const overlapEnd = Math.min(r1.toRow, r2.toRow);
+
+      if (overlapStart <= overlapEnd) {
+        const overlapCount = overlapEnd - overlapStart + 1;
+        return {
+          hasConflict: true,
+          message: `⚠️ Overlap Conflict Error: Rows ${overlapStart} to ${overlapEnd} (${overlapCount} rows) are assigned to both Batch Rule #${i + 1} (${r1.assigneeName}) and Batch Rule #${j + 1} (${r2.assigneeName}). A single row cannot be assigned to multiple users. Please edit row ranges or auto-adjust.`,
+          conflictingRuleIds: [r1.id, r2.id],
+        };
+      }
+    }
+  }
+
+  return { hasConflict: false, message: '', conflictingRuleIds: [] };
+};
+
 export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps> = ({
   visible, onClose, totalLeadsCount = 214, sourceType = 'EXCEL_CSV', isTeamLeaderMode = false, onAllocationComplete,
 }) => {
@@ -99,6 +158,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     }
   }, [visible, sourceType, isTeamLeaderMode]);
 
+  const validation = validateBatchRules(batchRules, totalLeadsCount);
+
   const handleAddBatchRule = () => {
     const lastTo = batchRules[batchRules.length - 1]?.toRow || 0;
     if (lastTo >= totalLeadsCount) {
@@ -134,22 +195,36 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     setBatchRules(prev => prev.filter(r => r.id !== id));
   };
 
+  const handleAutoFixRanges = () => {
+    if (batchRules.length === 0) return;
+    const countPerRule = Math.max(1, Math.floor(totalLeadsCount / batchRules.length));
+    let currentStart = 1;
+
+    const fixed = batchRules.map((rule, idx) => {
+      const isLast = idx === batchRules.length - 1;
+      const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerRule - 1, totalLeadsCount);
+      const updatedRule = {
+        ...rule,
+        fromRow: currentStart,
+        toRow: endRow,
+      };
+      currentStart = endRow + 1;
+      return updatedRule;
+    });
+
+    setBatchRules(fixed);
+  };
+
   const handleConfirmAllocation = () => {
+    if (mode === 'BATCHWISE' && validation.hasConflict) {
+      Alert.alert('Allocation Conflict', validation.message);
+      return;
+    }
+
     setSubmitting(true);
     setTimeout(() => {
       setSubmitting(false);
       if (mode === 'BATCHWISE') {
-        // Validate batch amounts
-        for (const r of batchRules) {
-          if (r.fromRow > totalLeadsCount || r.toRow > totalLeadsCount) {
-            Alert.alert('Invalid Range', `Row numbers cannot exceed total dataset count of ${totalLeadsCount}.`);
-            return;
-          }
-          if (r.fromRow > r.toRow) {
-            Alert.alert('Invalid Range', `Start row (${r.fromRow}) cannot be greater than End row (${r.toRow}).`);
-            return;
-          }
-        }
         Alert.alert(
           '⚡ Batches Allocated',
           `Successfully allocated ${totalLeadsCount} leads across ${batchRules.length} user batches.\n\n${batchRules.map(r => `• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`).join('\n')}${runLoop ? '\n• Loop Routing: Enabled' : ''}`
@@ -250,37 +325,66 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                   <Text style={styles.totalBadgeValue}>{totalLeadsCount} Rows</Text>
                 </View>
 
-                {/* Batch Rules List */}
-                {batchRules.map((rule, idx) => (
-                  <View key={rule.id} style={styles.ruleCard}>
-                    <View style={styles.ruleCardHeader}>
-                      <Text style={styles.ruleIdx}>Batch Rule #{idx + 1}</Text>
-                      <TouchableOpacity onPress={() => handleRemoveBatchRule(rule.id)}>
-                        <Text style={{ color: '#f43f5e', fontSize: 11, fontWeight: '800' }}>Remove ✕</Text>
-                      </TouchableOpacity>
-                    </View>
+                {/* ERROR NOTIFICATION BANNER */}
+                {validation.hasConflict && (
+                  <View style={{ backgroundColor: 'rgba(244,63,94,0.15)', borderWidth: 1.5, borderColor: '#f43f5e', padding: 12, borderRadius: 12, marginVertical: 10 }}>
+                    <Text style={{ color: '#fda4af', fontSize: 12, fontWeight: '900', marginBottom: 4 }}>
+                      ⚠️ BATCH ALLOCATION CONFLICT ERROR
+                    </Text>
+                    <Text style={{ color: '#fecdd3', fontSize: 11, fontWeight: '600', lineHeight: 16 }}>
+                      {validation.message}
+                    </Text>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#f43f5e', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-end', marginTop: 8 }}
+                      onPress={handleAutoFixRanges}
+                    >
+                      <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '900' }}>
+                        ✨ Auto-Adjust Non-Overlapping Ranges
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
-                    {/* Range Inputs */}
-                    <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>From Row</Text>
-                        <TextInput
-                          style={styles.inputField}
-                          value={String(rule.fromRow)}
-                          onChangeText={v => handleUpdateBatchRule(rule.id, { fromRow: Number(v) || 1 })}
-                          keyboardType="numeric"
-                        />
+                {/* Batch Rules List */}
+                {batchRules.map((rule, idx) => {
+                  const isConflicting = validation.conflictingRuleIds.includes(rule.id);
+                  return (
+                    <View key={rule.id} style={[styles.ruleCard, isConflicting && { borderColor: '#f43f5e', borderWidth: 2, backgroundColor: 'rgba(244,63,94,0.08)' }]}>
+                      <View style={styles.ruleCardHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.ruleIdx, isConflicting && { color: '#f43f5e' }]}>Batch Rule #{idx + 1}</Text>
+                          {isConflicting && (
+                            <View style={{ backgroundColor: 'rgba(244,63,94,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ color: '#f43f5e', fontSize: 9, fontWeight: '900' }}>⚠️ CONFLICT</Text>
+                            </View>
+                          )}
+                        </View>
+                        <TouchableOpacity onPress={() => handleRemoveBatchRule(rule.id)}>
+                          <Text style={{ color: '#f43f5e', fontSize: 11, fontWeight: '800' }}>Remove ✕</Text>
+                        </TouchableOpacity>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>To Row (Max {totalLeadsCount})</Text>
-                        <TextInput
-                          style={styles.inputField}
-                          value={String(rule.toRow)}
-                          onChangeText={v => handleUpdateBatchRule(rule.id, { toRow: Number(v) || 1 })}
-                          keyboardType="numeric"
-                        />
+
+                      {/* Range Inputs */}
+                      <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>From Row</Text>
+                          <TextInput
+                            style={[styles.inputField, isConflicting && { borderColor: '#f43f5e' }]}
+                            value={String(rule.fromRow)}
+                            onChangeText={v => handleUpdateBatchRule(rule.id, { fromRow: Number(v) || 1 })}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.fieldLabel}>To Row (Max {totalLeadsCount})</Text>
+                          <TextInput
+                            style={[styles.inputField, isConflicting && { borderColor: '#f43f5e' }]}
+                            value={String(rule.toRow)}
+                            onChangeText={v => handleUpdateBatchRule(rule.id, { toRow: Number(v) || 1 })}
+                            keyboardType="numeric"
+                          />
+                        </View>
                       </View>
-                    </View>
 
                     {/* Assignee Selector */}
                     <Text style={styles.fieldLabel}>Assignee (TL / Sales Rep)</Text>
@@ -306,7 +410,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                       </View>
                     </ScrollView>
                   </View>
-                ))}
+                );
+              })}
 
                 <TouchableOpacity style={styles.addRuleBtn} onPress={handleAddBatchRule}>
                   <Text style={styles.addRuleBtnText}>+ Add Custom Batch Range</Text>
@@ -423,7 +528,11 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmAllocation} disabled={submitting}>
+          <TouchableOpacity
+            style={[styles.confirmBtn, (mode === 'BATCHWISE' && validation.hasConflict) && { opacity: 0.45 }]}
+            onPress={handleConfirmAllocation}
+            disabled={submitting || (mode === 'BATCHWISE' && validation.hasConflict)}
+          >
             {submitting ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (

@@ -68,9 +68,20 @@ const LEADS: LeadDataWeb[] = [
   { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, aiScore: generateMockAIScore(9.8), owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
 ];
 
+export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string; totalCalls?: number; lastCalledAt?: string }) => {
+  if ((lead.totalCalls || 0) > 0) return true;
+  if (lead.lastCalledAt && lead.lastCalledAt !== 'Never' && lead.lastCalledAt !== '—') return true;
+  const s = (lead.status || lead.stage || '').toUpperCase();
+  if (s.includes('CONTACT') || s.includes('QUALIFIED') || s.includes('NEGOTIAT') || s.includes('PROPOSAL') || s.includes('WON') || s.includes('FOLLOW')) {
+    return true;
+  }
+  return false;
+};
+
 const STATUSES = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 
 export function LeadsTable() {
+  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>(LEADS);
   const [search, setSearch] = useState('');
   const [activeStatus, setActiveStatus] = useState('All');
   const [selected, setSelected] = useState<string[]>([]);
@@ -119,7 +130,7 @@ export function LeadsTable() {
   const userName = currentUser?.name || 'Mighty Rai';
   const isRep = !userRole.includes('ADMIN');
 
-  const filtered = LEADS.filter((l) => {
+  const filtered = leadsList.filter((l) => {
     // 🔒 Role-Based Data Isolation Scoping (Except Admin)
     if (!userRole.includes('ADMIN')) {
       if (userRole.includes('MANAGER')) {
@@ -457,12 +468,44 @@ export function LeadsTable() {
                       <span className="font-bold text-indigo-400">{lead.value}</span>
                     )}
 
-                    {colKey === 'owner' && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <div className="avatar w-6 h-6 text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">{lead.owner.split(' ').map(n=>n[0]).join('')}</div>
-                        <span className="font-semibold text-slate-200">{lead.owner}</span>
-                      </div>
-                    )}
+                    {colKey === 'owner' && (() => {
+                      const isLocked = isLeadContactedAndLocked(lead);
+                      const isUnassigned = !lead.owner || lead.owner === 'Unassigned' || lead.owner === '—';
+
+                      if (isLocked) {
+                        return (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
+                            <Lock size={12} className="text-amber-400" />
+                            <span className="font-bold text-slate-300 text-xs">{lead.owner}</span>
+                            <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">LOCKED</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={lead.owner || 'Unassigned'}
+                            onChange={(e) => {
+                              const newOwner = e.target.value;
+                              setLeadsList(prev => prev.map(item => item.id === lead.id ? { ...item, owner: newOwner, currentAssignee: newOwner } : item));
+                            }}
+                            className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
+                              isUnassigned
+                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
+                                : 'bg-slate-900 border-slate-700 text-indigo-300 hover:border-indigo-500'
+                            }`}
+                          >
+                            <option value="Unassigned">⚠️ Unassigned</option>
+                            <option value="Rajesh K.">Rajesh K. (Sales Rep)</option>
+                            <option value="Priya S.">Priya S. (TL A)</option>
+                            <option value="Rohan Kumar">Rohan Kumar (Sales Exec)</option>
+                            <option value="Amit P.">Amit P. (Sales Exec)</option>
+                            <option value="Neha Gupta">Neha Gupta (Sales Exec)</option>
+                          </select>
+                        </div>
+                      );
+                    })()}
 
                     {colKey === 'city' && <span className="text-slate-300 font-medium">{lead.city}</span>}
                     {colKey === 'budget' && <span className="text-emerald-400 font-mono font-semibold">{lead.budget}</span>}

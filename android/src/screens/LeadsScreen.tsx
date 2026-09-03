@@ -39,11 +39,67 @@ import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponen
 
 type LeadsNavProp = StackNavigationProp<LeadsStackParamList, 'LeadsList'>;
 
+export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string; totalCalls?: number; callSyncStatus?: string }) => {
+  if ((lead.totalCalls || 0) > 0) return true;
+  if (lead.callSyncStatus && lead.callSyncStatus !== 'Never') return true;
+  const s = (lead.status || lead.stage || '').toUpperCase();
+  if (s.includes('CONTACT') || s.includes('QUALIFIED') || s.includes('NEGOTIAT') || s.includes('PROPOSAL') || s.includes('WON') || s.includes('FOLLOW')) {
+    return true;
+  }
+  return false;
+};
+
 const FILTERS = ['ALL', 'NEW LEAD', 'QUALIFIED', 'IN NEGOTIATION', 'WON'];
+
+interface IngestionAuditRecord {
+  id: string;
+  fileName: string;
+  injectedAt: string;
+  leadsCount: number;
+  colsCount: number;
+  platform: string;
+  status: 'PENDING_ALLOCATION' | 'ALLOCATED';
+  allocationSummary?: string;
+}
+
+const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
+  {
+    id: 'aud-1',
+    fileName: 'Q3_Enterprise_Prospects_Import.csv',
+    injectedAt: '03 Sep 2026, 07:45 PM',
+    leadsCount: 124,
+    colsCount: 8,
+    platform: 'Google Ads',
+    status: 'PENDING_ALLOCATION',
+  },
+  {
+    id: 'aud-2',
+    fileName: 'Lotwaala_August_2026_Work_Plan.xlsx',
+    injectedAt: '03 Sep 2026, 08:14 PM',
+    leadsCount: 32,
+    colsCount: 6,
+    platform: 'Google Ads',
+    status: 'ALLOCATED',
+    allocationSummary: 'Assigned to Priya Sharma (TL A) [Rows 1-16], Rohan Kumar [Rows 17-32]',
+  },
+  {
+    id: 'aud-3',
+    fileName: 'West_Territory_Cold_Outreach.xlsx',
+    injectedAt: '02 Sep 2026, 04:30 PM',
+    leadsCount: 214,
+    colsCount: 10,
+    platform: 'Meta Ads',
+    status: 'ALLOCATED',
+    allocationSummary: 'Assigned to Amit Shah (Sales Exec) [Direct]',
+  },
+];
 
 export default function LeadsScreen() {
   const navigation = useNavigation<LeadsNavProp>();
   const { token } = useAuthStore();
+
+  const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
+  const [auditFilter, setAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
 
   // ── SEGMENTED SLIDER STATE ──────────────────────────────────────────────────
   const [activeSegment, setActiveSegment] = useState<'FUNNEL' | 'COLLECTIONS'>('COLLECTIONS');
@@ -345,6 +401,11 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     );
   };
 
+  const handleReassignLeadItem = (leadId: string, newAssignee: string) => {
+    setLeadsList(prev => prev.map(item => item.id === leadId ? { ...item, assignedRep: newAssignee } : item));
+    Alert.alert('👤 Assignee Updated', `Lead successfully assigned to ${newAssignee}.`);
+  };
+
   const { currentUser } = useAuthStore();
   const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userName = currentUser?.name || 'Mighty Rai';
@@ -462,12 +523,56 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             <Text style={styles.excelCellValue}>{item.value}</Text>
           </View>
         );
-      case 'assignedRep':
+      case 'assignedRep': {
+        const isLocked = isLeadContactedAndLocked({ status: item.status, stage: item.status, totalCalls: item.callSyncStatus ? 1 : 0 });
+        const isUnassigned = !item.assignedRep || item.assignedRep === 'Unassigned' || item.assignedRep === '—';
+
+        if (isLocked) {
+          return (
+            <View key={colKey} style={[styles.excelDataCell, { width }]}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#020617', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1e293b' }}
+                onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
+              >
+                <Text style={{ fontSize: 10 }}>🔒</Text>
+                <Text style={[styles.excelCellRep, { fontSize: 10, color: '#cbd5e1' }]} numberOfLines={1}>{item.assignedRep}</Text>
+                <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellRep}>{item.assignedRep || 'Unassigned'}</Text>
+            <TouchableOpacity
+              style={[
+                { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
+                isUnassigned && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b' },
+              ]}
+              onPress={() => {
+                Alert.alert(
+                  '👤 Reassign Lead',
+                  `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
+                  [
+                    { text: 'Priya Sharma (TL A)', onPress: () => handleReassignLeadItem(item.id, 'Priya Sharma (TL A)') },
+                    { text: 'Rajesh Kumar (Sales Rep)', onPress: () => handleReassignLeadItem(item.id, 'Rajesh Kumar (Sales Rep)') },
+                    { text: 'Rohan Kumar (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Rohan Kumar (Sales Exec)') },
+                    { text: 'Amit Shah (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Amit Shah (Sales Exec)') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              }}
+            >
+              <Text style={[{ fontSize: 10, fontWeight: '800', color: '#818cf8' }, isUnassigned && { color: '#fbbf24' }]} numberOfLines={1}>
+                {isUnassigned ? '⚠️ Unassigned' : item.assignedRep}
+              </Text>
+              <Text style={{ color: '#64748b', fontSize: 9 }}>▼</Text>
+            </TouchableOpacity>
           </View>
         );
+      }
       case 'city':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
@@ -536,24 +641,93 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             columnCount={columnOrder.length}
           />
 
+          {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
           <View style={styles.cardBox}>
-            <Text style={styles.cardTitle}>🔄 Lead Distribution Strategy Engine</Text>
-            <Text style={styles.cardSub}>Choose how incoming lead traffic is routed across rep quotas.</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={styles.cardTitle}>📊 Spreadsheet Ingestion &amp; Allocation Log</Text>
+              <TouchableOpacity style={{ backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => setImportModalOpen(true)}>
+                <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>+ Import New Sheet</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.cardSub}>Audit history of when, at what time, which sheets were injected, and employee assignments.</Text>
 
-            <View style={styles.strategyRow}>
+            {/* Filter Pills */}
+            <View style={{ flexDirection: 'row', gap: 6, marginVertical: 10 }}>
               {[
-                { id: 'BATCH_QUOTA', label: '📦 Batch Quota (25 Leads/Rep)' },
-                { id: 'VANISH_POOL', label: '⏱️ Vanishing Pool (30m Claim)' },
-                { id: 'MANUAL', label: '👤 Manual Allocation Only' },
-              ].map((s) => (
+                { id: 'ALL', label: `ALL (${auditLogs.length})` },
+                { id: 'PENDING', label: `⏳ PENDING (${auditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length})` },
+                { id: 'ALLOCATED', label: `✓ COMPLETED (${auditLogs.filter(a => a.status === 'ALLOCATED').length})` },
+              ].map(tab => (
                 <TouchableOpacity
-                  key={s.id}
-                  style={[styles.strategyChip, strategy === s.id && styles.strategyChipActive]}
-                  onPress={() => setStrategy(s.id as any)}
+                  key={tab.id}
+                  style={[{ backgroundColor: '#020617', borderBottomWidth: 2, borderBottomColor: 'transparent', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }, auditFilter === tab.id && { backgroundColor: 'rgba(79,70,229,0.15)', borderBottomColor: '#6366f1' }]}
+                  onPress={() => setAuditFilter(tab.id as any)}
                 >
-                  <Text style={[styles.strategyText, strategy === s.id && styles.strategyTextActive]}>{s.label}</Text>
+                  <Text style={[{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }, auditFilter === tab.id && { color: '#818cf8' }]}>
+                    {tab.label}
+                  </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            {/* Audit Log Cards */}
+            <View style={{ gap: 8 }}>
+              {auditLogs
+                .filter(item => {
+                  if (auditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                  if (auditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                  return true;
+                })
+                .map(item => {
+                  const isPending = item.status === 'PENDING_ALLOCATION';
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        { backgroundColor: '#020617', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#1e293b' },
+                        isPending && { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)' },
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>📄 {item.fileName}</Text>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748b', marginTop: 3 }}>
+                            🕒 Injected At: <Text style={{ color: '#cbd5e1', fontWeight: '800' }}>{item.injectedAt}</Text> • Platform: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{item.platform}</Text>
+                          </Text>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#38bdf8', marginTop: 2 }}>
+                            📊 Extracted: <Text style={{ color: '#34d399', fontWeight: '900' }}>{item.leadsCount} Rows</Text> • <Text style={{ color: '#818cf8', fontWeight: '900' }}>{item.colsCount || 6} Columns</Text>
+                          </Text>
+                        </View>
+                        <View style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#1e293b' }, isPending ? { backgroundColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(34,197,94,0.15)' }]}>
+                          <Text style={[{ fontSize: 9, fontWeight: '900', color: '#94a3b8' }, isPending ? { color: '#fbbf24' } : { color: '#4ade80' }]}>
+                            {isPending ? '⏳ UNASSIGNED PENDING' : '✓ ALLOCATED'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {isPending ? (
+                        <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.2)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>⚠️ {item.leadsCount} Rows ({item.colsCount || 6} Cols) Unassigned</Text>
+                          <TouchableOpacity
+                            style={{ backgroundColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}
+                            onPress={() => {
+                              setAllocationSourceType('EXCEL_CSV');
+                              setAllocationModalOpen(true);
+                            }}
+                          >
+                            <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>⚡ Allocate Leads Now →</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#cbd5e1' }}>
+                            👤 <Text style={{ fontWeight: '900', color: '#818cf8' }}>Assigned To:</Text> {item.allocationSummary}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
             </View>
           </View>
 
@@ -777,6 +951,55 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       <Text style={styles.leadVal}>{item.value}</Text>
                       <Text style={styles.leadPhone}>{item.phone}</Text>
                     </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                    {(() => {
+                      const isLocked = isLeadContactedAndLocked({ status: item.status, stage: item.status, totalCalls: item.callSyncStatus ? 1 : 0 });
+                      const isUnassigned = !item.assignedRep || item.assignedRep === 'Unassigned' || item.assignedRep === '—';
+
+                      if (isLocked) {
+                        return (
+                          <TouchableOpacity
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#020617', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1e293b' }}
+                            onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
+                          >
+                            <Text style={{ fontSize: 10 }}>🔒</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#cbd5e1' }}>{item.assignedRep}</Text>
+                            <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }
+
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0f172a', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
+                            isUnassigned && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b' },
+                          ]}
+                          onPress={() => {
+                            Alert.alert(
+                              '👤 Reassign Lead',
+                              `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
+                              [
+                                { text: 'Priya Sharma (TL A)', onPress: () => handleReassignLeadItem(item.id, 'Priya Sharma (TL A)') },
+                                { text: 'Rajesh Kumar (Sales Rep)', onPress: () => handleReassignLeadItem(item.id, 'Rajesh Kumar (Sales Rep)') },
+                                { text: 'Rohan Kumar (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Rohan Kumar (Sales Exec)') },
+                                { text: 'Amit Shah (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Amit Shah (Sales Exec)') },
+                                { text: 'Cancel', style: 'cancel' },
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={[{ fontSize: 11, fontWeight: '800', color: '#818cf8' }, isUnassigned && { color: '#fbbf24' }]}>
+                            👤 {isUnassigned ? '⚠️ Unassigned' : item.assignedRep}
+                          </Text>
+                          <Text style={{ color: '#64748b', fontSize: 9 }}>▼</Text>
+                        </TouchableOpacity>
+                      );
+                    })()}
 
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       <TouchableOpacity

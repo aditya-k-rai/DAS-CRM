@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
 import { DealsKanban } from '@/components/deals/DealsKanban';
 import { FileImportEngineModal } from '@/components/ingestion/FileImportEngineModal';
+import { LeadAllocationModal } from '@/components/ingestion/LeadAllocationModal';
+import { isLeadContactedAndLocked } from '@/components/leads/LeadsTable';
 import {
   Shield, Zap, DollarSign, TrendingUp, Users, Target, Building2, Briefcase,
   CheckSquare, Layers, Lock, ArrowRight, Plus, Database, ClipboardList,
@@ -194,6 +196,46 @@ export default function LeadPipelinePage() {
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<'TEXT' | 'NUMBER' | 'SELECT'>('TEXT');
   const [newColOptionsStr, setNewColOptionsStr] = useState('Hot Lead, Warm Lead, Cold Lead');
+
+  // 📊 Spreadsheet Ingestion & Employee Allocation Audit History State
+  const [webAuditLogs, setWebAuditLogs] = useState([
+    {
+      id: 'aud-1',
+      fileName: 'Q3_Enterprise_Prospects_Import.csv',
+      injectedAt: '03 Sep 2026, 07:45 PM',
+      leadsCount: 124,
+      colsCount: 8,
+      platform: 'Google Ads',
+      status: 'PENDING_ALLOCATION' as const,
+    },
+    {
+      id: 'aud-2',
+      fileName: 'Lotwaala_August_2026_Work_Plan.xlsx',
+      injectedAt: '03 Sep 2026, 08:14 PM',
+      leadsCount: 32,
+      colsCount: 6,
+      platform: 'Google Ads',
+      status: 'ALLOCATED' as const,
+      allocationSummary: 'Assigned to Priya Sharma (TL A) [Rows 1-16], Rohan Kumar [Rows 17-32]',
+    },
+    {
+      id: 'aud-3',
+      fileName: 'West_Territory_Cold_Outreach.xlsx',
+      injectedAt: '02 Sep 2026, 04:30 PM',
+      leadsCount: 214,
+      colsCount: 10,
+      platform: 'Meta Ads',
+      status: 'ALLOCATED' as const,
+      allocationSummary: 'Assigned to Amit Shah (Sales Exec) [Direct]',
+    },
+  ]);
+
+  const [webAuditFilter, setWebAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
+  const [pendingAllocationSheet, setPendingAllocationSheet] = useState<{ isOpen: boolean; fileName: string; leadsCount: number }>({
+    isOpen: false,
+    fileName: '',
+    leadsCount: 0,
+  });
 
   // Dynamic Custom Columns & Excel Table Config State
   const [customColumns, setCustomColumns] = useState<Array<{ id: string; name: string; type: string; options?: string[] }>>([
@@ -523,6 +565,124 @@ export default function LeadPipelinePage() {
             ))}
           </div>
 
+          {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
+          <div className="crm-card p-5 bg-slate-900/90 border-slate-800 rounded-2xl space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <Database size={16} className="text-indigo-400" />
+                  📊 Spreadsheet Ingestion &amp; Employee Allocation Audit Log
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Real-time audit log of when &amp; what time spreadsheet files were injected, employee allocations, and pending unassigned sheets.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                >
+                  <Upload size={13} /> + Import New Sheet
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 border-b border-slate-800/60 pb-2 overflow-x-auto">
+              {[
+                { id: 'ALL', label: `ALL (${webAuditLogs.length})` },
+                { id: 'PENDING', label: `⏳ UNASSIGNED PENDING (${webAuditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length})` },
+                { id: 'ALLOCATED', label: `✓ COMPLETED ALLOCATIONS (${webAuditLogs.filter(a => a.status === 'ALLOCATED').length})` },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setWebAuditFilter(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${
+                    webAuditFilter === tab.id
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
+                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Audit Log Cards List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {webAuditLogs
+                .filter(item => {
+                  if (webAuditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                  if (webAuditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                  return true;
+                })
+                .map(item => {
+                  const isPending = item.status === 'PENDING_ALLOCATION';
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
+                        isPending
+                          ? 'bg-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/5 hover:border-amber-500/60'
+                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-xs font-black text-white truncate flex items-center gap-1.5">
+                            <FileSpreadsheet size={14} className={isPending ? 'text-amber-400' : 'text-indigo-400'} />
+                            {item.fileName}
+                          </h4>
+                          <span
+                            className={`px-2 py-0.5 text-[9px] font-black rounded-md border uppercase tracking-wider ${
+                              isPending
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                            }`}
+                          >
+                            {isPending ? '⏳ PENDING' : '✓ ALLOCATED'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-[11px] text-slate-400">
+                          <p className="flex items-center gap-1">
+                            <Clock size={12} className="text-slate-500" />
+                            Injected At: <span className="text-slate-200 font-bold">{item.injectedAt}</span>
+                          </p>
+                          <p className="flex items-center gap-1">
+                            <Zap size={12} className="text-slate-500" />
+                            Extracted Size: <span className="text-emerald-400 font-extrabold">{item.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{item.colsCount || 6} Columns</span>
+                          </p>
+                          <p className="flex items-center gap-1">
+                            <Radio size={12} className="text-slate-500" />
+                            Source Platform: <span className="text-sky-300 font-bold">{item.platform}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {isPending ? (
+                        <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-amber-300">⚠️ {item.leadsCount} Rows ({item.colsCount || 6} Cols) Unassigned</span>
+                          <button
+                            onClick={() => setPendingAllocationSheet({ isOpen: true, fileName: item.fileName, leadsCount: item.leadsCount })}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md flex items-center gap-1 transition-all"
+                          >
+                            ⚡ Allocate Leads Now →
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-slate-800/80 text-[11px]">
+                          <span className="font-extrabold text-indigo-400 block mb-0.5">👤 Assigned To:</span>
+                          <p className="text-slate-300 font-medium text-[10px] leading-relaxed">{item.allocationSummary}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
           {/* Directory Table with Search, Column Manager & Excel Controls */}
           <div className="space-y-3 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -688,7 +848,44 @@ export default function LeadPipelinePage() {
                           return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{lead.value.toLocaleString('en-IN')}</td>;
                         }
                         if (col.id === 'assignedRep') {
-                          return <td key={col.id} className="p-3 text-slate-300 font-semibold border-r border-border/40 last:border-0">{lead.assignedRep}</td>;
+                          const isLocked = isLeadContactedAndLocked({ status: lead.stage, stage: lead.stage });
+                          const isUnassigned = !lead.assignedRep || lead.assignedRep === 'Unassigned' || lead.assignedRep === '—';
+
+                          if (isLocked) {
+                            return (
+                              <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950 border border-slate-800" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
+                                  <Lock size={12} className="text-amber-400" />
+                                  <span className="font-bold text-slate-300 text-xs">{lead.assignedRep}</span>
+                                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20">LOCKED</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <select
+                                value={lead.assignedRep || 'Unassigned'}
+                                onChange={(e) => {
+                                  const newRep = e.target.value;
+                                  setLeadDirectory(prev => prev.map(item => item.id === lead.id ? { ...item, assignedRep: newRep } : item));
+                                }}
+                                className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
+                                  isUnassigned
+                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
+                                    : 'bg-slate-950 border-slate-700 text-indigo-300 hover:border-indigo-500'
+                                }`}
+                              >
+                                <option value="Unassigned">⚠️ Unassigned</option>
+                                <option value="Rajesh Kumar">Rajesh Kumar (Sales Rep)</option>
+                                <option value="Priya Sharma">Priya Sharma (TL A)</option>
+                                <option value="Rohan Kumar">Rohan Kumar (Sales Exec)</option>
+                                <option value="Amit Shah">Amit Shah (Sales Exec)</option>
+                                <option value="Neha Gupta">Neha Gupta (Sales Exec)</option>
+                              </select>
+                            </td>
+                          );
                         }
 
                         // Custom Fields Cell
@@ -1367,6 +1564,16 @@ export default function LeadPipelinePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Pending Sheet Allocation Modal */}
+      {pendingAllocationSheet.isOpen && (
+        <LeadAllocationModal
+          isOpen={pendingAllocationSheet.isOpen}
+          onClose={() => setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 })}
+          totalLeadsCount={pendingAllocationSheet.leadsCount}
+          fileName={pendingAllocationSheet.fileName}
+        />
       )}
     </div>
   );

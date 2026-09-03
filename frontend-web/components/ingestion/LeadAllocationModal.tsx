@@ -34,6 +34,67 @@ const MOCK_TEAM = [
   { id: 'usr-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
 ];
 
+export interface ValidationConflict {
+  hasConflict: boolean;
+  message: string;
+  conflictingRuleIds: string[];
+}
+
+export const validateBatchRules = (
+  rules: WebBatchRule[],
+  totalCount: number
+): ValidationConflict => {
+  const conflictingRuleIds: string[] = [];
+
+  // 1. Check individual rule boundaries
+  for (let i = 0; i < rules.length; i++) {
+    const r = rules[i];
+    if (r.fromRow < 1 || r.fromRow > totalCount) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) must be between 1 and ${totalCount}.`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+    if (r.toRow < 1 || r.toRow > totalCount) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} To Row (${r.toRow}) must be between 1 and ${totalCount}.`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+    if (r.fromRow > r.toRow) {
+      return {
+        hasConflict: true,
+        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) cannot be greater than To Row (${r.toRow}).`,
+        conflictingRuleIds: [r.id],
+      };
+    }
+  }
+
+  // 2. Check pairwise overlaps (cannot assign same row to two or more users)
+  for (let i = 0; i < rules.length; i++) {
+    for (let j = i + 1; j < rules.length; j++) {
+      const r1 = rules[i];
+      const r2 = rules[j];
+
+      const overlapStart = Math.max(r1.fromRow, r2.fromRow);
+      const overlapEnd = Math.min(r1.toRow, r2.toRow);
+
+      if (overlapStart <= overlapEnd) {
+        const overlapCount = overlapEnd - overlapStart + 1;
+        return {
+          hasConflict: true,
+          message: `⚠️ Overlap Conflict Error: Rows ${overlapStart} to ${overlapEnd} (${overlapCount} rows) are assigned to both Batch Rule #${i + 1} (${r1.assigneeName}) and Batch Rule #${j + 1} (${r2.assigneeName}). A single row cannot be assigned to multiple users. Please edit row ranges or auto-adjust.`,
+          conflictingRuleIds: [r1.id, r2.id],
+        };
+      }
+    }
+  }
+
+  return { hasConflict: false, message: '', conflictingRuleIds: [] };
+};
+
 export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   isOpen,
   onClose,
@@ -62,6 +123,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   }, [totalLeadsCount]);
 
   if (!isOpen) return null;
+
+  const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
     const lastTo = batchRules[batchRules.length - 1]?.toRow || 0;
@@ -98,22 +161,37 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     setBatchRules(prev => prev.filter(r => r.id !== id));
   };
 
+  const handleAutoFixRanges = () => {
+    if (batchRules.length === 0) return;
+    const countPerRule = Math.max(1, Math.floor(totalLeadsCount / batchRules.length));
+    let currentStart = 1;
+
+    const fixed = batchRules.map((rule, idx) => {
+      const isLast = idx === batchRules.length - 1;
+      const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerRule - 1, totalLeadsCount);
+      const updatedRule = {
+        ...rule,
+        fromRow: currentStart,
+        toRow: endRow,
+      };
+      currentStart = endRow + 1;
+      return updatedRule;
+    });
+
+    setBatchRules(fixed);
+  };
+
   const handleConfirmAllocation = () => {
+    if (mode === 'BATCHWISE' && validation.hasConflict) {
+      alert(validation.message);
+      return;
+    }
+
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
 
       if (mode === 'BATCHWISE') {
-        for (const r of batchRules) {
-          if (r.fromRow > totalLeadsCount || r.toRow > totalLeadsCount) {
-            alert(`Row numbers cannot exceed total dataset count of ${totalLeadsCount}.`);
-            return;
-          }
-          if (r.fromRow > r.toRow) {
-            alert(`Start row (${r.fromRow}) cannot be greater than End row (${r.toRow}).`);
-            return;
-          }
-        }
         alert(`⚡ Batches Allocated Successfully!\n\n${batchRules.map(r => `• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`).join('\n')}${runLoop ? '\n• Continuous Loop Routing: Enabled' : ''}`);
       } else {
         alert(`👤 Direct Assignment Complete!\nAll ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role}).`);
@@ -195,40 +273,90 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                 <span className="text-sm font-black text-sky-400">{totalLeadsCount} Rows</span>
               </div>
 
+              {/* ERROR NOTIFICATION BANNER (When overlap or boundary conflict occurs) */}
+              {validation.hasConflict && (
+                <div className="p-4 bg-rose-950/40 border-2 border-rose-500/80 rounded-xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1 rounded-lg bg-rose-500/20 text-rose-400 mt-0.5">
+                      <Sparkles size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-black text-rose-300 uppercase tracking-wide">
+                        Batch Allocation Conflict Error
+                      </h4>
+                      <p className="text-xs text-rose-200/90 font-medium mt-1 leading-relaxed">
+                        {validation.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleAutoFixRanges}
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-black flex items-center gap-1.5 shadow-md transition-all"
+                    >
+                      <Sparkles size={13} /> ✨ Auto-Adjust Non-Overlapping Ranges
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Batch Rules */}
               <div className="space-y-3">
-                {batchRules.map((rule, idx) => (
-                  <div key={rule.id} className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-indigo-400">Batch Rule #{idx + 1}</span>
-                      <button
-                        onClick={() => handleRemoveBatchRule(rule.id)}
-                        className="text-xs font-extrabold text-rose-400 hover:text-rose-300"
-                      >
-                        Remove ✕
-                      </button>
-                    </div>
+                {batchRules.map((rule, idx) => {
+                  const isConflicting = validation.conflictingRuleIds.includes(rule.id);
+                  return (
+                    <div
+                      key={rule.id}
+                      className={`p-4 rounded-xl space-y-3 transition-all ${
+                        isConflicting
+                          ? 'bg-rose-950/20 border-2 border-rose-500/90 shadow-lg shadow-rose-950/40'
+                          : 'bg-slate-950/80 border border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-black ${isConflicting ? 'text-rose-400' : 'text-indigo-400'}`}>
+                            Batch Rule #{idx + 1}
+                          </span>
+                          {isConflicting && (
+                            <span className="px-2 py-0.5 text-[9px] font-black text-rose-400 bg-rose-500/20 border border-rose-500/40 rounded-md uppercase">
+                              ⚠️ Conflict
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveBatchRule(rule.id)}
+                          className="text-xs font-extrabold text-rose-400 hover:text-rose-300"
+                        >
+                          Remove ✕
+                        </button>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">From Row</label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                          value={rule.fromRow}
-                          onChange={e => handleUpdateBatchRule(rule.id, { fromRow: Number(e.target.value) || 1 })}
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">From Row</label>
+                          <input
+                            type="number"
+                            className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
+                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
+                            }`}
+                            value={rule.fromRow}
+                            onChange={e => handleUpdateBatchRule(rule.id, { fromRow: Number(e.target.value) || 1 })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">To Row (Max {totalLeadsCount})</label>
+                          <input
+                            type="number"
+                            className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
+                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
+                            }`}
+                            value={rule.toRow}
+                            onChange={e => handleUpdateBatchRule(rule.id, { toRow: Number(e.target.value) || 1 })}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">To Row (Max {totalLeadsCount})</label>
-                        <input
-                          type="number"
-                          className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                          value={rule.toRow}
-                          onChange={e => handleUpdateBatchRule(rule.id, { toRow: Number(e.target.value) || 1 })}
-                        />
-                      </div>
-                    </div>
 
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 block mb-1">Assignee (TL / Sales Rep)</label>
@@ -252,7 +380,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
               </div>
 
               <button
