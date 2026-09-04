@@ -172,7 +172,7 @@ export const NoticeBoardScreen: React.FC<NoticeBoardScreenProps> = ({ onClose })
   };
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: onClose ? 0 : topPadding }]}>
       {/* Top Header Bar */}
       <View style={styles.header}>
         {onClose && (

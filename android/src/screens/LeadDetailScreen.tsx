@@ -387,7 +387,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: 10 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 24 }]} showsVerticalScrollIndicator={false}>
 
         {/* Back Button */}

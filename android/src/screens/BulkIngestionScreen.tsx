@@ -732,7 +732,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
   // ── Main Render ────────────────────────────────────────────────────────────
   return (
-    <View style={[S.root, { paddingTop: topPadding }]}>
+    <View style={[S.root, { paddingTop: onClose ? 0 : topPadding }]}>
 
       {/* ── HEADER BAR ──────────────────────────────────────────────────── */}
       <View style={S.header}>

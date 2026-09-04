@@ -35,11 +35,13 @@ import {
 interface ProductsCatalogScreenProps {
   onClose?: () => void;
   onSelectProductForQuote?: (product: CatalogProductItem) => void;
+  isModal?: boolean;
 }
 
 export default function ProductsCatalogScreen({
   onClose,
   onSelectProductForQuote,
+  isModal = false,
 }: ProductsCatalogScreenProps) {
   const [products, setProducts] = useState<CatalogProductItem[]>([]);
   const [categories, setCategories] = useState<CategoryTree[]>([]);
@@ -316,7 +318,7 @@ export default function ProductsCatalogScreen({
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: isModal ? topPadding : 8 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 36 }]} showsVerticalScrollIndicator={false}>
 
         {/* Top Navigation Sub-Header (Matched to CommunicationScreen.tsx) */}

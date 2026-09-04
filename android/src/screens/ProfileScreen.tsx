@@ -33,9 +33,10 @@ interface ProfileScreenProps {
   onLogout?: () => void;
   onOpenUpdate?: () => void;
   onClose?: () => void;
+  isModal?: boolean;
 }
 
-export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: ProfileScreenProps) {
+export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal = !!onLogout }: ProfileScreenProps) {
   const { currentUser, subscription, logout } = useAuthStore();
   const role: UserRole = currentUser.role || 'SALES_EXEC';
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
@@ -174,7 +175,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose }: Profi
   const planColor = subscription.planType === 'FREE_TRIAL' ? '#fbbf24' : '#34d399';
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: isModal ? topPadding : 8 }]}>
       {/* Scrollable Container with Smooth Inner Padding */}
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 36 }]} showsVerticalScrollIndicator={false}>
 

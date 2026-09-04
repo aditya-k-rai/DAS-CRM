@@ -671,11 +671,13 @@ export default function LeadPipelinePage() {
                       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[11px]">
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => setPendingAllocationSheet({ isOpen: true, fileName: item.fileName, leadsCount: item.leadsCount })}
+                            onClick={() => {
+                              document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
                             className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[10px] flex items-center gap-1 transition-all"
                             title="Open Sheet Editor to preview and edit row/column contents"
                           >
-                            <Eye size={12} /> Preview &amp; Edit
+                            <Eye size={12} /> Preview &amp; Edit Sheet
                           </button>
                           <button
                             onClick={() => {
@@ -700,7 +702,7 @@ export default function LeadPipelinePage() {
           </div>
 
           {/* Directory Table with Search, Column Manager & Excel Controls */}
-          <div className="space-y-3 pt-2">
+          <div id="lead-directory-section" className="space-y-3 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1589,6 +1591,12 @@ export default function LeadPipelinePage() {
           onClose={() => setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 })}
           totalLeadsCount={pendingAllocationSheet.leadsCount}
           fileName={pendingAllocationSheet.fileName}
+          onPreviewSheet={() => {
+            setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
+            setTimeout(() => {
+              document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+          }}
         />
       )}
       {/* Web Sheet Audit Allocation Breakdown Modal */}

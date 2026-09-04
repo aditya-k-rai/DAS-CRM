@@ -237,7 +237,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: 0 }]}>
       {/* Top Navigation Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>

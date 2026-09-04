@@ -124,7 +124,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   // Active Screen Renderer
   if (activeModal !== null) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#090d16', paddingTop: topPadding }}>
+      <View style={{ flex: 1, backgroundColor: '#090d16', paddingTop: 0 }}>
         {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={() => setActiveModal(null)} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={() => setActiveModal(null)} />}
@@ -305,7 +305,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   }
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: 10 }]}>
       {/* Header Bar */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>

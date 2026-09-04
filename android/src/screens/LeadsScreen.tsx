@@ -654,7 +654,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* ── TOP SEGMENTED SLIDER (FUNNEL vs COLLECTIONS) ───────────────────── */}
       <View style={styles.sliderContainer}>
         <View style={styles.sliderTrack}>
@@ -786,10 +786,13 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                         <View style={{ flexDirection: 'row', gap: 6 }}>
                           <TouchableOpacity
-                            style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' }}
+                            style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#0ea5e9' }}
                             onPress={() => {
-                              setAllocationSourceType('EXCEL_CSV');
-                              setAllocationModalOpen(true);
+                              // Close allocation detail + switch to the COLLECTIONS / EXCEL_GRID tab
+                              setAuditDetailRecord(null);
+                              setAllocationModalOpen(false);
+                              setActiveSegment('COLLECTIONS');
+                              setViewMode('EXCEL_GRID');
                             }}
                           >
                             <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '800' }}>👁️ Preview &amp; Edit Sheet</Text>
@@ -826,30 +829,6 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     </View>
                   );
                 })}
-            </View>
-          </View>
-
-          <View style={styles.ingestCard}>
-            <View style={styles.ingestRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.ingestTitle}>🟢 Google Sheets Live Sync</Text>
-                <Text style={styles.ingestSub}>1,890 Leads Ingested • Active 2-Way Sync</Text>
-              </View>
-              <TouchableOpacity style={styles.ingestActionBtn} onPress={() => setSheetModalOpen(true)}>
-                <Text style={styles.ingestActionBtnText}>Connect Sheet →</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.ingestCard}>
-            <View style={styles.ingestRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.ingestTitle}>📥 CSV / Excel Spreadsheet Uploads</Text>
-                <Text style={styles.ingestSub}>1,240 Leads Processed • SheetJS Engine</Text>
-              </View>
-              <TouchableOpacity style={styles.ingestActionBtn} onPress={() => setImportModalOpen(true)}>
-                <Text style={styles.ingestActionBtnText}>Import File →</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>

@@ -21,6 +21,7 @@ export interface LeadAllocationModalProps {
   totalLeadsCount?: number;
   fileName?: string;
   onDeleteAllocation?: () => void;
+  onPreviewSheet?: () => void;
   onAllocationComplete?: (result: {
     mode: AllocationMode;
     batchRules?: WebBatchRule[];
@@ -102,6 +103,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   totalLeadsCount = 32,
   fileName = 'Lotwaala_August_2026_Work_Plan',
   onDeleteAllocation,
+  onPreviewSheet,
   onAllocationComplete,
 }) => {
   const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
@@ -321,7 +323,14 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsSheetPreviewMode(!isSheetPreviewMode)}
+              onClick={() => {
+                if (onPreviewSheet) {
+                  onClose();
+                  onPreviewSheet();
+                } else {
+                  setIsSheetPreviewMode(!isSheetPreviewMode);
+                }
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border ${
                 isSheetPreviewMode
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'

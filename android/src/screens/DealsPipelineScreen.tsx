@@ -121,7 +121,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   const goalProgressPercent = Math.min(100, Math.round((totalWonValue / monthlyGoal) * 100));
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: onClose ? 0 : topPadding }]}>
       {/* Top Header Navigation Bar */}
       <View style={styles.topHeader}>
         {onClose ? (

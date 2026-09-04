@@ -353,16 +353,21 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     const totalAmt    = overrideAmount   !== undefined ? overrideAmount : grandTotal;
 
     const itemRows = items.map((it, idx) => {
-      const rowTotal = it.qty * it.unitPrice;
-      return `<tr style="background:${idx%2===0?'#f8fafc':'#fff'}">
-        <td style="text-align:center;color:#94a3b8">${idx+1}</td>
-        <td><strong>${it.productName}</strong>${it.showDescription && it.description ? `<br/><small style="color:#64748b">${it.description}</small>` : ''}</td>
-        ${showHsnColumn ? `<td style="text-align:center;font-family:monospace;font-size:11px">${it.hsnCode||'998313'}</td>` : ''}
-        ${customColumns.map(col => `<td style="text-align:center;font-size:11px">${it.customValues?.[col.id]||'—'}</td>`).join('')}
-        <td style="text-align:center">${it.qty} ${it.unit}</td>
-        <td style="text-align:right">₹${it.unitPrice.toLocaleString('en-IN')}</td>
-        ${showGstColumn ? `<td style="text-align:center;color:#002060">${it.taxRate}%</td>` : ''}
-        <td style="text-align:right;font-weight:900">₹${rowTotal.toLocaleString('en-IN')}</td>
+      const baseRowTotal = it.qty * it.unitPrice;
+      const rowTax = baseRowTotal * it.taxRate / 100;
+      const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
+      return `<tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}">
+        <td style="text-align:center; color:#64748b; white-space:nowrap;">${idx + 1}</td>
+        <td style="text-align:left; word-break:break-word; overflow-wrap:anywhere;">
+          <strong style="color:#0f172a; font-size:10.5px;">${it.productName}</strong>
+          ${it.showDescription && it.description ? `<br/><small style="color:#64748b; font-size:9px; line-height:1.3;">${it.description}</small>` : ''}
+        </td>
+        ${showHsnColumn ? `<td style="text-align:center; font-family:monospace; font-size:10px; white-space:nowrap;">${it.hsnCode || '998313'}</td>` : ''}
+        ${customColumns.map(col => `<td style="text-align:center; font-size:10px; word-break:break-word;">${it.customValues?.[col.id] || '—'}</td>`).join('')}
+        <td style="text-align:center; white-space:nowrap; font-weight:600;">${it.qty} ${it.unit}</td>
+        <td style="text-align:right; white-space:nowrap; font-weight:600;">₹${it.unitPrice.toLocaleString('en-IN')}</td>
+        ${showGstColumn ? `<td style="text-align:center; color:#002060; white-space:nowrap; font-weight:700;">${it.taxRate}%</td>` : ''}
+        <td style="text-align:right; font-weight:900; white-space:nowrap; color:#0f172a;">₹${displayedRowTotal.toLocaleString('en-IN')}</td>
       </tr>`;
     }).join('');
 
@@ -370,67 +375,78 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 <html>
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=794, initial-scale=1.0"/>
 <title>${getDocTitle()} ${documentNo}</title>
 <style>
   @page {
-    size: A4 portrait;
+    size: 210mm 297mm;
     margin: 0;
   }
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    font-size: 11px;
-    line-height: 1.4;
-    color: #0f172a;
-    background: #ffffff;
-    padding: 0;
+  *, *::before, *::after {
     margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  html, body {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    line-height: 1.35;
+    color: #0f172a;
   }
   .page {
-    width: 100%;
-    max-width: 794px;
-    padding: ${pdfTopPadding}px ${pdfMargin * 3}px ${pdfBottomPadding}px;
+    width: 210mm;
+    min-height: 297mm;
+    box-sizing: border-box;
+    padding: ${pdfTopPadding * 0.4}mm ${pdfMargin}mm ${pdfBottomPadding * 0.4}mm;
     margin: 0 auto;
     background: #ffffff;
     position: relative;
   }
   .navy-bar {
-    height: 8px;
+    height: 6px;
     background: #002060;
-    margin: -${pdfTopPadding}px -${pdfMargin * 3}px ${pdfTopPadding / 2}px;
+    margin: -${pdfTopPadding * 0.4}mm -${pdfMargin}mm 14px;
   }
   
   .layout-table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: ${sectionGap}px;
+    table-layout: fixed;
   }
   .layout-table td {
     vertical-align: top;
   }
   
-  .company-name { font-size: 18px; font-weight: 900; color: #002060; letter-spacing: -0.3px; }
-  .company-detail { font-size: 10px; color: #475569; margin-top: 2px; }
+  .company-name { font-size: 16px; font-weight: 900; color: #002060; letter-spacing: -0.3px; }
+  .company-detail { font-size: 9.5px; color: #475569; margin-top: 2px; }
   
-  .doc-badge { background: #002060; color: #ffffff; font-size: 10px; font-weight: 900; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 4px; text-transform: uppercase; }
-  .doc-no { font-size: 15px; font-weight: 900; color: #002060; }
-  .doc-date { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .doc-badge { background: #002060; color: #ffffff; font-size: 9.5px; font-weight: 900; padding: 4px 9px; border-radius: 4px; display: inline-block; margin-bottom: 4px; text-transform: uppercase; }
+  .doc-no { font-size: 14px; font-weight: 900; color: #002060; }
+  .doc-date { font-size: 9.5px; color: #64748b; margin-top: 2px; }
   
   .party-card {
     background: #f8fafc;
     border: 1.5px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 12px;
-    min-height: 90px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    min-height: 85px;
+    box-sizing: border-box;
   }
-  .party-label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
-  .party-name { font-size: 13px; font-weight: 900; color: #0f172a; }
-  .party-detail { font-size: 10px; color: #475569; margin-top: 2px; }
+  .party-label { font-size: 8.5px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .party-name { font-size: 12px; font-weight: 900; color: #0f172a; }
+  .party-detail { font-size: 9.5px; color: #475569; margin-top: 2px; }
 
   .items-table-wrap {
     border: 1.5px solid #cbd5e1;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
     margin-bottom: ${sectionGap}px;
     page-break-inside: avoid;
@@ -439,46 +455,53 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   table.items-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    table-layout: fixed;
+    font-size: 10px;
   }
   table.items-table th {
     background: #002060 !important;
     color: #ffffff !important;
-    padding: 9px 8px;
-    text-align: left;
-    font-size: 10px;
+    padding: 8px 6px;
+    font-size: 9px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     border: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
   }
   table.items-table td {
-    padding: 8px 8px;
+    padding: 6px 6px;
     border-bottom: 1px solid #e2e8f0;
-    vertical-align: top;
+    vertical-align: middle;
     color: #1e293b;
+    font-size: 9.5px;
   }
-  table.items-table tr:nth-child(even) {
-    background: #f8fafc;
+  table.items-table tr:last-child td {
+    border-bottom: none;
   }
   
   .bank-card {
     background: #f8fafc;
     border: 1.5px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    box-sizing: border-box;
   }
   .totals-card {
     background: #f8fafc;
     border: 1.5px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 10px 12px;
+    box-sizing: border-box;
   }
   .sum-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
-    font-size: 11px;
+    padding: 3px 0;
+    font-size: 10px;
     border-bottom: 1px dashed #cbd5e1;
     color: #334155;
   }
@@ -486,14 +509,14 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     width: 100%;
     background: #002060 !important;
     color: #ffffff !important;
-    border-radius: 6px;
-    margin-top: 8px;
-    padding: 8px 10px;
+    border-radius: 5px;
+    margin-top: 6px;
+    padding: 6px 8px;
   }
   
   .footer-row {
     border-top: 1.5px solid #cbd5e1;
-    padding-top: 12px;
+    padding-top: 10px;
     margin-top: ${sectionGap}px;
     page-break-inside: avoid;
     break-inside: avoid;
@@ -501,17 +524,17 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   .sign-line {
     border-top: 1.5px solid #475569;
     width: 140px;
-    margin-top: 40px;
+    margin-top: 36px;
     padding-top: 4px;
     margin-left: auto;
     text-align: center;
   }
   .bottom-strip {
     text-align: center;
-    font-size: 9px;
+    font-size: 8.5px;
     color: #64748b;
-    margin-top: 16px;
-    padding-top: 8px;
+    margin-top: 14px;
+    padding-top: 6px;
     border-top: 1px solid #e2e8f0;
   }
 </style>
@@ -520,10 +543,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 <div class="page">
   <div class="navy-bar"></div>
   
-  <table class="layout-table" style="border-bottom: 2px solid #cbd5e1; padding-bottom: 12px;">
+  <table class="layout-table" style="border-bottom: 2px solid #cbd5e1; padding-bottom: 10px;">
     <tr>
       <td style="width: 65%;">
-        ${activeCompany.logoUrl ? `<img src="${activeCompany.logoUrl}" style="height:44px;max-width:140px;margin-bottom:6px;object-fit:contain;" />` : ''}
+        ${activeCompany.logoUrl ? `<img src="${activeCompany.logoUrl}" style="height:40px;max-width:130px;margin-bottom:6px;object-fit:contain;" />` : ''}
         <div class="company-name">${activeCompany.name}</div>
         <div class="company-detail">${activeCompany.address}</div>
         <div class="company-detail">GSTIN: <strong>${activeCompany.gstNo}</strong> | PAN: <strong>${activeCompany.panNo}</strong></div>
@@ -540,7 +563,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   <table class="layout-table">
     <tr>
-      <td style="width: 50%; padding-right: 6px;">
+      <td style="width: ${useSeparateShipping ? '34%' : '50%'}; padding-right: 5px;">
         <div class="party-card">
           <div class="party-label">Billed To (Buyer)</div>
           <div class="party-name">${partyName}</div>
@@ -548,7 +571,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           <div class="party-detail">${activeParty.address}</div>
         </div>
       </td>
-      <td style="width: 50%; padding-left: 6px;">
+      ${useSeparateShipping ? `
+      <td style="width: 33%; padding-left: 3px; padding-right: 3px;">
+        <div class="party-card">
+          <div class="party-label" style="color:#002060;">🚚 Shipped To (Consignee)</div>
+          <div class="party-name">${partyName}</div>
+          <div class="party-detail">${customShippingAddress || activeParty.shippingAddress || activeParty.address}</div>
+        </div>
+      </td>` : ''}
+      <td style="width: ${useSeparateShipping ? '33%' : '50%'}; padding-left: 5px;">
         <div class="party-card">
           <div class="party-label">Tax & Identifiers</div>
           <div class="party-detail">GSTIN: <strong style="color:#002060">${activeParty.gstNo}</strong></div>
@@ -562,16 +593,26 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   <div class="items-table-wrap">
     <table class="items-table">
+      <colgroup>
+        <col style="width: 28px;" />
+        <col style="width: auto;" />
+        ${showHsnColumn ? '<col style="width: 65px;" />' : ''}
+        ${customColumns.map(() => '<col style="width: 75px;" />').join('')}
+        <col style="width: 55px;" />
+        <col style="width: 85px;" />
+        ${showGstColumn ? '<col style="width: 55px;" />' : ''}
+        <col style="width: 95px;" />
+      </colgroup>
       <thead>
         <tr>
-          <th style="width:32px;text-align:center">#</th>
-          <th>Item & Description</th>
-          ${showHsnColumn ? '<th style="width:65px;text-align:center">HSN/SAC</th>' : ''}
-          ${customColumns.map(col => `<th style="width:75px;text-align:center">${col.name}</th>`).join('')}
-          <th style="width:55px;text-align:center">Qty</th>
-          <th style="width:85px;text-align:right">Rate (₹)</th>
-          ${showGstColumn ? '<th style="width:55px;text-align:center">GST %</th>' : ''}
-          <th style="width:95px;text-align:right">Amount (₹)</th>
+          <th style="text-align:center;">#</th>
+          <th style="text-align:left;">Item & Description</th>
+          ${showHsnColumn ? '<th style="text-align:center;">HSN/SAC</th>' : ''}
+          ${customColumns.map(col => `<th style="text-align:center;">${col.name}</th>`).join('')}
+          <th style="text-align:center;">Qty</th>
+          <th style="text-align:right;">Rate (₹)</th>
+          ${showGstColumn ? '<th style="text-align:center;">GST %</th>' : ''}
+          <th style="text-align:right;">Amount (₹)</th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
@@ -587,7 +628,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           <div class="party-detail" style="font-family:monospace;color:#002060;font-weight:700">A/C: ${activeCompany.accountNo}</div>
           <div class="party-detail">IFSC: ${activeCompany.ifscCode} | Branch: ${activeCompany.branch}</div>
           <div class="party-detail" style="color:#002060;font-weight:700">UPI: ${activeCompany.upiId}</div>
-          <div style="margin-top:8px;padding:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:10px;color:#1e40af">
+          <div style="margin-top:6px;padding:6px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;font-size:9.5px;color:#1e40af">
             <strong>Amount in Words:</strong><br/>${numberToWordsINR(totalAmt)}
           </div>
         </div>
@@ -596,11 +637,18 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         <div class="totals-card">
           <div class="sum-row"><span>Subtotal:</span><strong>₹${subtotal.toLocaleString('en-IN')}</strong></div>
           ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Discounts:</span><strong style="color:#dc2626">-₹${totalItemDiscounts.toLocaleString('en-IN')}</strong></div>` : ''}
-          <div class="sum-row"><span>GST (${globalGstRate}%):</span><strong>₹${effectiveGstTaxTotal.toLocaleString('en-IN')}</strong></div>
+          ${overallDiscAmount > 0 ? `<div class="sum-row"><span>Overall Disc:</span><strong style="color:#dc2626">-₹${overallDiscAmount.toLocaleString('en-IN')}</strong></div>` : ''}
+          ${gstType === 'EXEMPT' || globalGstRate === 0
+            ? `<div class="sum-row"><span>GST Rate:</span><strong style="color:#059669">0% (Exempt)</strong></div>`
+            : gstType === 'IGST'
+              ? `<div class="sum-row"><span>IGST (${globalGstRate}%):</span><strong>₹${igst.toLocaleString('en-IN')}</strong></div>`
+              : `<div class="sum-row"><span>CGST (${(globalGstRate/2).toFixed(1)}%):</span><strong>₹${cgst.toLocaleString('en-IN')}</strong></div>
+                 <div class="sum-row"><span>SGST (${(globalGstRate/2).toFixed(1)}%):</span><strong>₹${sgst.toLocaleString('en-IN')}</strong></div>`
+          }
           <table class="grand-row-table">
             <tr>
-              <td style="font-weight:900;color:#fff;font-size:12px;">Grand Total:</td>
-              <td style="text-align:right;font-weight:900;color:#fff;font-size:12px;">₹${totalAmt.toLocaleString('en-IN')}</td>
+              <td style="font-weight:900;color:#fff;font-size:11px;">Grand Total:</td>
+              <td style="text-align:right;font-weight:900;color:#fff;font-size:11px;">₹${totalAmt.toLocaleString('en-IN')}</td>
             </tr>
           </table>
         </div>
@@ -612,12 +660,12 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     <tr>
       <td style="width: 60%;">
         <div class="party-label">Terms & Conditions</div>
-        <div style="font-size:10px;color:#475569;white-space:pre-line">${termsText}</div>
+        <div style="font-size:9.5px;color:#475569;white-space:pre-line;line-height:1.35;">${termsText}</div>
       </td>
       <td style="width: 40%; text-align: right;">
-        <div style="font-weight:900;color:#002060">For ${activeCompany.name}</div>
+        <div style="font-weight:900;color:#002060;font-size:10.5px;">For ${activeCompany.name}</div>
         <div class="sign-line">
-          <div style="font-size:9px;color:#64748b;text-transform:uppercase;font-weight:700">Authorized Signatory</div>
+          <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700">Authorized Signatory</div>
         </div>
       </td>
     </tr>
@@ -647,7 +695,11 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     setIsPrinting(true);
     try {
       const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({
+        html,
+        width: 595,  // ISO A4 points width
+        height: 842, // ISO A4 points height
+      });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Share ${overrideDocNo || docNo}.pdf`, UTI: 'com.adobe.pdf' });
     } catch (err: any) {
       if (err?.message && !err.message.includes('cancel')) {
@@ -784,10 +836,28 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     const bodySections = sectionOrder.filter(secId => secId !== 'FOOTER_TERMS' && visibleSections[secId]);
     const showFooter   = visibleSections['FOOTER_TERMS'];
 
+    const paperWidth = Math.min(SCREEN_WIDTH - 20, 390);
+    const a4MinHeight = Math.round(paperWidth * 1.4142);
+    const paperInnerWidth = paperWidth - (pdfMargin * 4);
+
+    const colW = {
+      num: 22,
+      item: 110,
+      hsn: 46,
+      custom: 62,
+      qty: 32,
+      rate: 58,
+      gst: 38,
+      amount: 64,
+    };
+    const totalTableWidth = colW.num + colW.item + (showHsnColumn ? colW.hsn : 0) + (customColumns.length * colW.custom) + colW.qty + colW.rate + (showGstColumn ? colW.gst : 0) + colW.amount;
+
     return (
       <View style={[
         styles.a4Paper,
         {
+          width: paperWidth,
+          minHeight: a4MinHeight,
           paddingTop: pdfTopPadding,
           paddingBottom: pdfBottomPadding + 28,
           paddingHorizontal: pdfMargin * 2,
@@ -795,7 +865,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         },
       ]}>
         {/* Navy Brand Bar */}
-        <View style={styles.a4NavyBar} />
+        <View style={[styles.a4NavyBar, { marginHorizontal: -(pdfMargin * 2), marginTop: -pdfTopPadding }]} />
 
         {/* HEADER */}
         {bodySections.includes('HEADER') && visibleSections['HEADER'] && (
@@ -855,49 +925,56 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
         {/* ITEMS_TABLE */}
         {bodySections.includes('ITEMS_TABLE') && visibleSections['ITEMS_TABLE'] && (
           <View style={[styles.a4Section, { marginBottom: sectionGap }]}>
-            <View style={styles.a4Table}>
-              {/* Table Header */}
-              <View style={styles.a4TableHeader}>
-                <Text style={[styles.a4Th, { width:22 }]}>#</Text>
-                <Text style={[styles.a4Th, { flex:1 }]}>Item & Description</Text>
-                {showHsnColumn && <Text style={[styles.a4Th, { width:45, textAlign:'center' }]}>HSN/SAC</Text>}
-                {customColumns.map(col => (
-                  <Text key={col.id} style={[styles.a4Th, { width:55, textAlign:'center' }]}>{col.name}</Text>
-                ))}
-                <Text style={[styles.a4Th, { width:30, textAlign:'center' }]}>Qty</Text>
-                <Text style={[styles.a4Th, { width:65, textAlign:'right' }]}>Rate (₹)</Text>
-                {showGstColumn && <Text style={[styles.a4Th, { width:40, textAlign:'center' }]}>GST %</Text>}
-                <Text style={[styles.a4Th, { width:70, textAlign:'right' }]}>Amount (₹)</Text>
-              </View>
-              {/* Table Rows */}
-              {items.map((it, idx) => {
-                const baseRowTotal = it.qty * it.unitPrice;
-                const rowTax = baseRowTotal * it.taxRate / 100;
-                const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
-                return (
-                  <View key={it.id} style={[styles.a4TableRow, idx % 2 === 1 && { backgroundColor:'#f8fafc' }]}>
-                    <Text style={[styles.a4TdNum, { width:22 }]}>{idx + 1}</Text>
-                    <View style={{ flex:1 }}>
-                      <View style={{ flexDirection:'row', alignItems:'flex-start', gap:4 }}>
-                        {it.showImage && it.imageUrl ? <Image source={{ uri: it.imageUrl }} style={{ width:20, height:20, borderRadius:2, marginTop:1 }} /> : null}
-                        <View style={{ flex:1 }}>
-                          <Text style={styles.a4TdName}>{it.productName}</Text>
-                          {it.showDescription && it.description ? <Text style={styles.a4TdDesc}>{it.description}</Text> : null}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled
+              contentContainerStyle={{ minWidth: '100%' }}
+            >
+              <View style={[styles.a4Table, { minWidth: Math.max(totalTableWidth, paperInnerWidth) }]}>
+                {/* Table Header */}
+                <View style={styles.a4TableHeader}>
+                  <Text style={[styles.a4Th, { width: colW.num }]} numberOfLines={1}>#</Text>
+                  <Text style={[styles.a4Th, { width: colW.item, flex: 1, minWidth: colW.item }]} numberOfLines={1}>Item & Description</Text>
+                  {showHsnColumn && <Text style={[styles.a4Th, { width: colW.hsn, textAlign: 'center' }]} numberOfLines={1}>HSN/SAC</Text>}
+                  {customColumns.map(col => (
+                    <Text key={col.id} style={[styles.a4Th, { width: colW.custom, textAlign: 'center' }]} numberOfLines={1}>{col.name}</Text>
+                  ))}
+                  <Text style={[styles.a4Th, { width: colW.qty, textAlign: 'center' }]} numberOfLines={1}>Qty</Text>
+                  <Text style={[styles.a4Th, { width: colW.rate, textAlign: 'right' }]} numberOfLines={1}>Rate (₹)</Text>
+                  {showGstColumn && <Text style={[styles.a4Th, { width: colW.gst, textAlign: 'center' }]} numberOfLines={1}>GST %</Text>}
+                  <Text style={[styles.a4Th, { width: colW.amount, textAlign: 'right' }]} numberOfLines={1}>Amount (₹)</Text>
+                </View>
+                {/* Table Rows */}
+                {items.map((it, idx) => {
+                  const baseRowTotal = it.qty * it.unitPrice;
+                  const rowTax = baseRowTotal * it.taxRate / 100;
+                  const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
+                  return (
+                    <View key={it.id} style={[styles.a4TableRow, idx % 2 === 1 && { backgroundColor: '#f8fafc' }]}>
+                      <Text style={[styles.a4TdNum, { width: colW.num }]}>{idx + 1}</Text>
+                      <View style={{ width: colW.item, flex: 1, minWidth: colW.item, paddingRight: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+                          {it.showImage && it.imageUrl ? <Image source={{ uri: it.imageUrl }} style={{ width: 18, height: 18, borderRadius: 2, marginTop: 1 }} /> : null}
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.a4TdName} numberOfLines={2}>{it.productName}</Text>
+                            {it.showDescription && it.description ? <Text style={styles.a4TdDesc} numberOfLines={2}>{it.description}</Text> : null}
+                          </View>
                         </View>
                       </View>
+                      {showHsnColumn && <Text style={[styles.a4TdMono, { width: colW.hsn, textAlign: 'center' }]}>{it.hsnCode || '998313'}</Text>}
+                      {customColumns.map(col => (
+                        <Text key={col.id} style={[styles.a4Td, { width: colW.custom, textAlign: 'center' }]} numberOfLines={2}>{it.customValues?.[col.id] || '—'}</Text>
+                      ))}
+                      <Text style={[styles.a4Td, { width: colW.qty, textAlign: 'center' }]}>{it.qty} {it.unit}</Text>
+                      <Text style={[styles.a4TdBold, { width: colW.rate, textAlign: 'right' }]}>₹{it.unitPrice.toLocaleString('en-IN')}</Text>
+                      {showGstColumn && <Text style={[styles.a4TdGst, { width: colW.gst, textAlign: 'center' }]}>{it.taxRate}%</Text>}
+                      <Text style={[styles.a4TdBold, { width: colW.amount, textAlign: 'right' }]}>₹{displayedRowTotal.toLocaleString('en-IN')}</Text>
                     </View>
-                    {showHsnColumn && <Text style={[styles.a4TdMono, { width:45, textAlign:'center' }]}>{it.hsnCode || '998313'}</Text>}
-                    {customColumns.map(col => (
-                      <Text key={col.id} style={[styles.a4Td, { width:55, textAlign:'center' }]}>{it.customValues?.[col.id] || '—'}</Text>
-                    ))}
-                    <Text style={[styles.a4Td, { width:30, textAlign:'center' }]}>{it.qty} {it.unit}</Text>
-                    <Text style={[styles.a4TdBold, { width:65, textAlign:'right' }]}>₹{it.unitPrice.toLocaleString('en-IN')}</Text>
-                    {showGstColumn && <Text style={[styles.a4TdGst, { width:40, textAlign:'center' }]}>{it.taxRate}%</Text>}
-                    <Text style={[styles.a4TdBold, { width:70, textAlign:'right' }]}>₹{displayedRowTotal.toLocaleString('en-IN')}</Text>
-                  </View>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
           </View>
         )}
 
@@ -969,7 +1046,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   // ─── Render Screen ──────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 36) }]}>
+    <View style={[styles.container, { paddingTop: onClose ? 0 : Math.max(insets.top, 12) }]}>
       <StatusBar barStyle="light-content" backgroundColor="#060b18" />
 
       {/* ── TOP HEADER BAR ─────────────────────────────────────────────── */}
@@ -1942,8 +2019,8 @@ const styles = StyleSheet.create({
   previewScroll: { padding: 12, alignItems: 'center' },
 
   // A4 Preview Styles
-  a4Paper: { width: Math.min(SCREEN_WIDTH - 20, 380), minHeight: 500, backgroundColor: '#ffffff', borderRadius: 6, paddingBottom: 32, borderWidth: 2, borderColor: '#002060', position: 'relative' },
-  a4NavyBar: { height: 4, backgroundColor: '#002060', marginTop: -12, marginHorizontal: -9999, marginBottom: 8 },
+  a4Paper: { backgroundColor: '#ffffff', borderRadius: 6, paddingBottom: 32, borderWidth: 1.5, borderColor: '#002060', position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
+  a4NavyBar: { height: 5, backgroundColor: '#002060', marginBottom: 8 },
   a4Section: {},
   a4HeaderRow: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 6 },
   a4HeaderLeft: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, gap: 8 },
@@ -1958,17 +2035,17 @@ const styles = StyleSheet.create({
   a4BadgeText: { color: '#ffffff', fontSize: 7.5, fontWeight: '900' },
   a4DocNo: { fontSize: 9.5, fontWeight: '900', color: '#002060', marginTop: 2 },
   a4DateText: { fontSize: 8, color: '#475569' },
-  a4PartyGrid: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8 },
+  a4PartyGrid: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, gap: 8 },
   a4PartyBilling: { flex: 1 },
   a4PartyShipping: { flex: 1, borderLeftWidth: 1, borderLeftColor: '#e2e8f0', paddingLeft: 8 },
-  a4PartyRight: { alignItems: 'flex-end' },
+  a4PartyRight: { flex: 1, alignItems: 'flex-end' },
   a4PartyLabel: { fontSize: 7.5, fontWeight: '900', color: '#64748b', textTransform: 'uppercase' },
   a4PartyLabelBlue: { fontSize: 7.5, fontWeight: '900', color: '#002060', textTransform: 'uppercase' },
   a4PartyName: { fontSize: 10, fontWeight: '900', color: '#0f172a', marginTop: 1 },
   a4PartySub: { fontSize: 8, color: '#475569', marginTop: 1 },
   a4PartyValue: { fontFamily: 'monospace', color: '#002060' },
-  a4Table: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' },
-  a4TableHeader: { flexDirection: 'row', backgroundColor: '#002060', paddingVertical: 5, paddingHorizontal: 4, alignItems: 'center' },
+  a4Table: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, overflow: 'hidden' },
+  a4TableHeader: { flexDirection: 'row', backgroundColor: '#002060', paddingVertical: 4, paddingHorizontal: 4, minHeight: 26, maxHeight: 32, alignItems: 'center' },
   a4Th: { fontSize: 7.5, fontWeight: '900', color: '#ffffff' },
   a4TableRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', alignItems: 'center' },
   a4TdNum: { fontSize: 8, fontWeight: '900', color: '#94a3b8', textAlign: 'center' },

@@ -81,7 +81,7 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
   };
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: onClose ? 0 : topPadding }]}>
       {/* Header */}
       <View style={styles.topHeader}>
         {onClose ? (

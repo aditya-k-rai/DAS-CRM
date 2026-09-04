@@ -1,12 +1,11 @@
 /**
  * EmployeesScreen.tsx — DAS CRM Android
- * Router & Directory Screen for Employees, Team Leaders, Department Managers & HR.
- * Lists all staff members with Name, Role Badge, Assigned Under, and [Inspect & Control →] button.
- * Routes to 4 dedicated full-screen role control screens:
- * 1. SalesExecControlScreen
- * 2. TeamLeaderControlScreen
- * 3. ManagerControlScreen
- * 4. HrControlScreen
+ * Structure & Staff Directory with Assigned / Unassigned segmented tabs.
+ *
+ * ASSIGNED  → Users who have a CRM role (MANAGER, TEAM_LEADER, HR, SALES_EXEC).
+ *             Full Inspect & Control routing to dedicated role screens.
+ * UNASSIGNED → Users who have only registered in the system but have no role
+ *              allocated yet. Admin can assign a role directly from this screen.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,6 +16,8 @@ import {
   ScrollView,
   TouchableOpacity,
   BackHandler,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
@@ -90,6 +91,23 @@ export interface EmployeeProfile {
     salaryReportsCount: number;
   };
 }
+
+/** Users who registered but have NOT yet been assigned a CRM role */
+interface UnassignedUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  registeredAt: string;
+  deviceInfo: string;
+}
+
+const AVAILABLE_ROLES: { key: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; label: string; color: string }[] = [
+  { key: 'MANAGER', label: 'Manager', color: '#c084fc' },
+  { key: 'TEAM_LEADER', label: 'Team Leader', color: '#fbbf24' },
+  { key: 'HR', label: 'HR', color: '#38bdf8' },
+  { key: 'SALES_EXEC', label: 'Sales Executive', color: '#34d399' },
+];
 
 export default function EmployeesScreen() {
   const insets = useSafeAreaInsets();
@@ -226,6 +244,30 @@ export default function EmployeesScreen() {
   ]);
 
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
+  const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | null>(null);
+
+  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([
+    { id: 'ua-1', name: 'Deepak Malhotra', email: 'deepak.malhotra@gmail.com', phone: '+91 98444 11223', registeredAt: 'Today, 07:42 AM', deviceInfo: 'Android 14 · Samsung Galaxy A55' },
+    { id: 'ua-2', name: 'Simran Kaur', email: 'simran.k@hotmail.com', phone: '+91 99100 55678', registeredAt: 'Today, 09:15 AM', deviceInfo: 'Android 13 · Redmi Note 12' },
+    { id: 'ua-3', name: 'Yusuf Ansari', email: 'yusuf.ansari@yahoo.com', phone: '+91 97345 88902', registeredAt: 'Yesterday, 06:30 PM', deviceInfo: 'Android 14 · OnePlus 12R' },
+    { id: 'ua-4', name: 'Meera Pillai', email: 'meera.pillai@outlook.com', phone: '+91 98765 00112', registeredAt: '02 Sep 2026, 11:00 AM', deviceInfo: 'iOS 17 · iPhone 14' },
+    { id: 'ua-5', name: 'Kiran Nair', email: 'kiran.nair@gmail.com', phone: '+91 96543 21099', registeredAt: '01 Sep 2026, 04:22 PM', deviceInfo: 'Android 12 · Realme 11' },
+  ]);
+
+  const handleAssignRole = () => {
+    if (!assignRoleTarget || !selectedRole) return;
+    const roleConf = AVAILABLE_ROLES.find(r => r.key === selectedRole);
+    Alert.alert(
+      'Role Assigned',
+      `${assignRoleTarget.name} has been assigned as ${roleConf?.label}. They will appear in the Assigned list shortly.`,
+      [{ text: 'OK' }]
+    );
+    setUnassignedUsers(prev => prev.filter(u => u.id !== assignRoleTarget.id));
+    setAssignRoleTarget(null);
+    setSelectedRole(null);
+  };
 
   useEffect(() => {
     const onBackPress = () => {
@@ -275,43 +317,218 @@ export default function EmployeesScreen() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 👥 MAIN STAFF DIRECTORY LIST VIEW
+  // 👥 MAIN STAFF DIRECTORY — ASSIGNED / UNASSIGNED TABS
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerBox}>
-          <Text style={styles.headerTitle}>Organization Hierarchy &amp; Profile Control</Text>
-          <Text style={styles.headerSubtitle}>
-            Tap [Inspect &amp; Control →] on any staff card to open their dedicated role screen.
-          </Text>
+    <View style={[styles.container, { paddingTop: 0 }]}>
+
+      {/* ── Page Header ── */}
+      <View style={styles.pageHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.pageTitle}>👥 Employee Structure</Text>
+          <Text style={styles.pageSub}>Manage staff roles, access & onboarding</Text>
         </View>
+        <View style={styles.countPill}>
+          <Text style={styles.countPillText}>{employeesList.length} Active</Text>
+        </View>
+      </View>
 
-        <Text style={styles.sectionHeaderTitle}>All Staff Members ({employeesList.length})</Text>
+      {/* ── Segmented Tab Bar ── */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'ASSIGNED' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('ASSIGNED')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.tabDot, { backgroundColor: activeTab === 'ASSIGNED' ? '#34d399' : '#334155' }]} />
+          <Text style={[styles.tabBtnText, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}>
+            Assigned ({employeesList.length})
+          </Text>
+        </TouchableOpacity>
 
-        <View style={styles.cardBox}>
-          {employeesList.map((emp, index) => {
-            const roleStyle = getRoleBadgeStyle(emp.role);
-            return (
-              <View key={emp.id} style={[styles.empRow, index !== employeesList.length - 1 && styles.borderBottom]}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.empName}>{emp.name}</Text>
-                    <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
-                      <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
-                    </View>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'UNASSIGNED' && styles.tabBtnUnassignedActive]}
+          onPress={() => setActiveTab('UNASSIGNED')}
+          activeOpacity={0.8}
+        >
+          {unassignedUsers.length > 0 && (
+            <View style={styles.unassignedBadge}>
+              <Text style={styles.unassignedBadgeText}>{unassignedUsers.length}</Text>
+            </View>
+          )}
+          <Text style={[styles.tabBtnText, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}>
+            Unassigned ({unassignedUsers.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Assigned Tab Content ── */}
+      {activeTab === 'ASSIGNED' && (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.tabInfoBanner}>
+            <Text style={styles.tabInfoText}>
+              ✅ These users have an active CRM role. Tap <Text style={{ color: '#818cf8' }}>Inspect & Control</Text> to manage their profile, documents, and performance.
+            </Text>
+          </View>
+
+          <View style={styles.cardBox}>
+            {employeesList.map((emp, index) => {
+              const roleStyle = getRoleBadgeStyle(emp.role);
+              return (
+                <View
+                  key={emp.id}
+                  style={[styles.empRow, index !== employeesList.length - 1 && styles.borderBottom]}
+                >
+                  {/* Avatar Initials */}
+                  <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                    <Text style={[styles.avatarInitials, { color: roleStyle.text }]}>
+                      {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </Text>
+                    <View style={[
+                      styles.statusDot,
+                      emp.status === 'ONLINE' ? { backgroundColor: '#34d399' }
+                      : emp.status === 'IN_CALL' ? { backgroundColor: '#fbbf24' }
+                      : { backgroundColor: '#64748b' }
+                    ]} />
                   </View>
-                  <Text style={styles.supervisorText}>👤 Assigned under: <Text style={{ color: '#cbd5e1', fontWeight: '700' }}>{emp.assignedManager}</Text></Text>
-                </View>
 
-                <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
-                  <Text style={styles.inspectBtnText}>Inspect &amp; Control →</Text>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={styles.empName}>{emp.name}</Text>
+                      <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                        <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.supervisorText}>
+                      {emp.email}
+                    </Text>
+                    <Text style={styles.supervisorText}>
+                      Under: <Text style={{ color: '#cbd5e1', fontWeight: '700' }}>{emp.assignedManager}</Text>
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
+                    <Text style={styles.inspectBtnText}>Inspect →</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ── Unassigned Tab Content ── */}
+      {activeTab === 'UNASSIGNED' && (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: 'rgba(251,191,36,0.07)' }]}>
+            <Text style={[styles.tabInfoText, { color: '#fde68a' }]}>
+              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. Assign a role to activate their workspace access.
+            </Text>
+          </View>
+
+          {unassignedUsers.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateIcon}>🎉</Text>
+              <Text style={styles.emptyStateTitle}>All Caught Up!</Text>
+              <Text style={styles.emptyStateSub}>No pending role assignments. All registered users have been activated.</Text>
+            </View>
+          ) : (
+            <View style={styles.cardBox}>
+              {unassignedUsers.map((user, index) => (
+                <View
+                  key={user.id}
+                  style={[styles.empRow, index !== unassignedUsers.length - 1 && styles.borderBottom]}
+                >
+                  {/* Avatar */}
+                  <View style={[styles.avatarCircle, { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)' }]}>
+                    <Text style={[styles.avatarInitials, { color: '#fbbf24' }]}>
+                      {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </Text>
+                    <View style={[styles.statusDot, { backgroundColor: '#64748b' }]} />
+                  </View>
+
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.empName}>{user.name}</Text>
+                    <Text style={styles.supervisorText}>{user.email}</Text>
+                    <Text style={styles.supervisorText}>{user.phone}</Text>
+                    <View style={styles.registeredBadge}>
+                      <Text style={styles.registeredBadgeText}>Registered: {user.registeredAt}</Text>
+                    </View>
+                    <Text style={[styles.supervisorText, { marginTop: 2 }]}>{user.deviceInfo}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.assignBtn}
+                    onPress={() => { setAssignRoleTarget(user); setSelectedRole(null); }}
+                  >
+                    <Text style={styles.assignBtnText}>Assign Role</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* ── Assign Role Modal ── */}
+      <Modal visible={!!assignRoleTarget} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {assignRoleTarget && (
+            <View style={styles.modalBox}>
+              {/* Modal Header */}
+              <View style={styles.modalHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>Assign Role</Text>
+                  <Text style={styles.modalSub}>{assignRoleTarget.name} · {assignRoleTarget.email}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => { setAssignRoleTarget(null); setSelectedRole(null); }}
+                >
+                  <Text style={styles.modalCloseBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
-            );
-          })}
+
+              <Text style={styles.modalSectionLbl}>SELECT ROLE</Text>
+
+              {AVAILABLE_ROLES.map(r => (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[
+                    styles.roleOption,
+                    selectedRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}18` },
+                  ]}
+                  onPress={() => setSelectedRole(r.key)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.roleOptionDot, { backgroundColor: selectedRole === r.key ? r.color : '#334155' }]} />
+                  <Text style={[styles.roleOptionText, selectedRole === r.key && { color: r.color }]}>
+                    {r.label}
+                  </Text>
+                  {selectedRole === r.key && (
+                    <Text style={[styles.roleOptionCheck, { color: r.color }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, !selectedRole && { opacity: 0.35 }]}
+                disabled={!selectedRole}
+                onPress={handleAssignRole}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmBtnText}>Confirm & Activate Access →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -320,22 +537,78 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
   content: { padding: 16, alignItems: 'center' },
 
-  headerBox: { width: '100%', maxWidth: 600, marginBottom: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
-  headerSubtitle: { fontSize: 11, color: '#94a3b8' },
+  // Page Header
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  pageTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', letterSpacing: 0.3 },
+  pageSub: { fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 2 },
+  countPill: { backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  countPillText: { fontSize: 11, fontWeight: '900', color: '#34d399' },
 
-  sectionHeaderTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
+  // Tab Bar
+  tabBar: { flexDirection: 'row', gap: 0, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0c1322' },
+  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtnActive: { borderBottomColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.05)' },
+  tabBtnUnassignedActive: { borderBottomColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.05)' },
+  tabDot: { width: 7, height: 7, borderRadius: 4 },
+  tabBtnText: { fontSize: 12, fontWeight: '800', color: '#64748b' },
+  tabBtnTextActive: { color: '#34d399' },
+  tabBtnTextUnassigned: { color: '#fbbf24' },
+  unassignedBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  unassignedBadgeText: { fontSize: 9, fontWeight: '900', color: '#ffffff' },
 
-  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.3)', padding: 14, marginBottom: 16, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
-  empRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  borderBottom: { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
+  // Info Banner
+  tabInfoBanner: { width: '100%', maxWidth: 600, backgroundColor: 'rgba(52,211,153,0.06)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)', borderRadius: 12, padding: 12, marginBottom: 14 },
+  tabInfoText: { fontSize: 11, color: '#a7f3d0', fontWeight: '500', lineHeight: 16 },
 
-  empName: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
-  supervisorText: { fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: '500' },
+  // Cards
+  cardBox: { width: '100%', maxWidth: 600, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.25)', padding: 14, marginBottom: 16, elevation: 5 },
+  empRow: { paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  borderBottom: { borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.06)' },
 
-  roleTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1.5 },
-  roleTagText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.3 },
+  // Avatar
+  avatarCircle: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  avatarInitials: { fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
+  statusDot: { position: 'absolute', bottom: 1, right: 1, width: 9, height: 9, borderRadius: 5, borderWidth: 1.5, borderColor: '#090d16' },
 
-  inspectBtn: { backgroundColor: 'rgba(99, 102, 241, 0.22)', borderWidth: 1.5, borderColor: '#6366f1', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  inspectBtnText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc', letterSpacing: 0.3 },
+  // Employee info
+  empName: { fontSize: 13, fontWeight: '900', color: '#ffffff' },
+  supervisorText: { fontSize: 10, color: '#64748b', marginTop: 2, fontWeight: '500' },
+  roleTag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1.5 },
+  roleTagText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.3 },
+
+  // Registered badge (unassigned)
+  registeredBadge: { backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 },
+  registeredBadgeText: { fontSize: 8, fontWeight: '900', color: '#fbbf24' },
+
+  // Buttons
+  inspectBtn: { backgroundColor: 'rgba(99, 102, 241, 0.18)', borderWidth: 1.5, borderColor: '#6366f1', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, elevation: 2 },
+  inspectBtnText: { fontSize: 10, fontWeight: '900', color: '#a5b4fc' },
+  assignBtn: { backgroundColor: 'rgba(251,191,36,0.15)', borderWidth: 1.5, borderColor: '#fbbf24', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, elevation: 2 },
+  assignBtnText: { fontSize: 10, fontWeight: '900', color: '#fbbf24' },
+
+  // Empty State
+  emptyState: { width: '100%', maxWidth: 600, alignItems: 'center', paddingVertical: 60 },
+  emptyStateIcon: { fontSize: 42, marginBottom: 12 },
+  emptyStateTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 6 },
+  emptyStateSub: { fontSize: 12, color: '#64748b', fontWeight: '500', textAlign: 'center', lineHeight: 18 },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  modalBox: { backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 20 },
+  modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  modalTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', marginBottom: 2 },
+  modalSub: { fontSize: 10, color: '#64748b', fontWeight: '600' },
+  modalCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  modalCloseBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '900' },
+  modalSectionLbl: { fontSize: 10, fontWeight: '900', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+
+  // Role Options
+  roleOption: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 13, marginBottom: 9 },
+  roleOptionDot: { width: 10, height: 10, borderRadius: 5 },
+  roleOptionText: { flex: 1, fontSize: 13, fontWeight: '800', color: '#94a3b8' },
+  roleOptionCheck: { fontSize: 16, fontWeight: '900' },
+
+  // Confirm Button
+  confirmBtn: { backgroundColor: 'rgba(99,102,241,0.22)', borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.55)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
+  confirmBtnText: { color: '#818cf8', fontSize: 13, fontWeight: '900' },
 });

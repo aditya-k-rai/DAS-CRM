@@ -31,6 +31,8 @@ export interface LeadAllocationEngineModalProps {
   totalLeadsCount?: number;
   sourceType?: 'EXCEL_CSV' | 'GOOGLE_SHEETS';
   isTeamLeaderMode?: boolean;
+  /** Called when user taps Preview & Edit Sheet — closes modal and navigates to the spreadsheet grid */
+  onPreviewSheet?: () => void;
   onAllocationComplete?: (result: {
     mode: AllocationMode;
     batchRules?: BatchRule[];
@@ -113,7 +115,13 @@ export const validateBatchRules = (
 };
 
 export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps> = ({
-  visible, onClose, totalLeadsCount = 214, sourceType = 'EXCEL_CSV', isTeamLeaderMode = false, onAllocationComplete,
+  visible,
+  onClose,
+  totalLeadsCount = 214,
+  sourceType = 'EXCEL_CSV',
+  isTeamLeaderMode = false,
+  onPreviewSheet,
+  onAllocationComplete,
 }) => {
   const insets = useSafeAreaInsets();
   const { width: SW } = useWindowDimensions();
@@ -343,11 +351,17 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' }}>
               <TouchableOpacity
-                style={{ backgroundColor: isSheetPreviewMode ? 'rgba(6,182,212,0.2)' : '#1e293b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: isSheetPreviewMode ? '#06b6d4' : '#334155' }}
-                onPress={() => setIsSheetPreviewMode(!isSheetPreviewMode)}
+                style={[
+                  styles.previewSheetBtn,
+                  onPreviewSheet && { borderColor: '#0ea5e9' },
+                ]}
+                onPress={() => {
+                  onClose();
+                  onPreviewSheet?.();
+                }}
               >
-                <Text style={{ color: isSheetPreviewMode ? '#22d3ee' : '#cbd5e1', fontSize: 10, fontWeight: '900' }}>
-                  {isSheetPreviewMode ? 'Close Sheet Editor' : '👁️ Preview & Edit Sheet'}
+                <Text style={styles.previewSheetBtnText}>
+                  👁️ Preview & Edit Sheet
                 </Text>
               </TouchableOpacity>
             </View>
@@ -725,4 +739,8 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
   confirmBtn: { flex: 2, backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   confirmBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
+
+  previewSheetBtn: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, borderWidth: 1.5, borderColor: '#334155' },
+  previewSheetBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '900' },
 });
+

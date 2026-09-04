@@ -48,10 +48,12 @@ export function TenantAdminHeaderBanner({
   let btn1Text = '🛡️ Structure Builder';
   let btn2Text = '⚡ Workflow Rules';
   let defaultBtn1Handler = () => {
-    try { navigation?.navigate('Menu', { initialModule: 'TEAM_LEADERS' }); } catch { navigation?.navigate('Menu'); }
+    // Structure -> Employees screen (Assigned / Unassigned)
+    try { navigation?.navigate('Employees'); } catch { navigation?.navigate('Menu'); }
   };
   let defaultBtn2Handler = () => {
-    try { navigation?.navigate('WorkflowAutomations'); } catch { navigation?.navigate('Menu'); }
+    // Workflow -> WorkflowBuilder screen
+    try { navigation?.navigate('WorkflowBuilder'); } catch { navigation?.navigate('Menu'); }
   };
 
   if (activeRole === 'MANAGER') {
@@ -141,6 +143,25 @@ export function TenantAdminHeaderBanner({
             {subtitle}
           </Text>
         </View>
+      </View>
+
+      {/* ── Action Buttons Row ── */}
+      <View style={styles.actionButtonsRow}>
+        <TouchableOpacity
+          style={[styles.btnSecondary, { borderColor: themeColor }]}
+          onPress={handleBtn1}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.btnSecondaryText, { color: avatarTextColor }]}>{btn1Text}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.btnPrimary, { backgroundColor: themeColor }]}
+          onPress={handleBtn2}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.btnPrimaryText}>{btn2Text}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

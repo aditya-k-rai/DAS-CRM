@@ -46,6 +46,7 @@ import AttendanceScreen from './src/screens/AttendanceScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import ProductsCatalogScreen from './src/screens/ProductsCatalogScreen';
 import MoreControlsScreen from './src/screens/MoreControlsScreen';
+import WorkflowBuilderScreen from './src/screens/WorkflowBuilderScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.82, 320);
@@ -298,6 +299,18 @@ function MainTabNavigator({
                 {focused ? 'Attendance ●' : 'Attendance'}
               </Text>
             ),
+          }}
+        />
+
+        {/* ⚡ WorkflowBuilder — Hidden from tab bar, navigable via navigation.navigate('WorkflowBuilder') */}
+        <Tab.Screen
+          name="WorkflowBuilder"
+          children={(navProps) => (
+            <WorkflowBuilderScreen {...navProps} />
+          )}
+          options={{
+            tabBarButton: () => null,
+            tabBarStyle: { display: 'none' },
           }}
         />
       </Tab.Navigator>
@@ -679,7 +692,7 @@ export default function App() {
 
       {/* 📦 PRODUCTS & SERVICES CATALOG MANAGEMENT PORTAL MODAL */}
       <Modal visible={productsModalOpen} transparent animationType="slide">
-        <ProductsCatalogScreen onClose={() => setProductsModalOpen(false)} />
+        <ProductsCatalogScreen isModal onClose={() => setProductsModalOpen(false)} />
       </Modal>
 
       {/* 🔔 NOTIFICATIONS CENTER & REAL-TIME ROUTING SCREEN MODAL */}

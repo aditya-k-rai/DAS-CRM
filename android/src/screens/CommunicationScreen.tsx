@@ -100,7 +100,7 @@ export default function CommunicationScreen({ onClose }: CommunicationScreenProp
   };
 
   return (
-    <View style={[styles.container, { paddingTop: topPadding }]}>
+    <View style={[styles.container, { paddingTop: onClose ? 8 : topPadding }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
 
         {/* ── TOP SUB-HEADER BAR ─────────────────────────────────────────── */}
