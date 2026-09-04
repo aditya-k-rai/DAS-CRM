@@ -269,12 +269,16 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(251,191,36,0.25)', borderColor: '#fbbf24' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>☰</Text>
+              <View style={[styles.tabIconBox, { backgroundColor: focused ? 'rgba(251,191,36,0.25)' : 'rgba(251,191,36,0.12)', borderColor: focused ? '#fbbf24' : 'rgba(251,191,36,0.35)' }]}>
+                <View style={{ width: 16, height: 12, justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
+                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
+                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
+                </View>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#fbbf24' : '#64748b', marginTop: 1 }}>
+              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '800', color: focused ? '#fbbf24' : '#f59e0b', marginTop: 1 }}>
                 {focused ? 'Menu ●' : 'Menu'}
               </Text>
             ),

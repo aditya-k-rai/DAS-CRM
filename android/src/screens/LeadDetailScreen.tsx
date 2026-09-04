@@ -365,16 +365,22 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     Alert.alert('Template Saved', 'New Admin WhatsApp Template saved successfully!');
   };
 
-  const statusColor =
-    lead?.status === 'WON'
-      ? '#34d399'
-      : lead?.status === 'IN NEGOTIATION'
-      ? '#818cf8'
-      : lead?.status === 'QUALIFIED'
-      ? '#38bdf8'
-      : lead?.status === 'CONTACTED'
-      ? '#fbbf24'
-      : '#94a3b8';
+  // Dynamic Status Picker Modal State
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+
+  const getStatusColor = (st: string) => {
+    const s = (st || '').toUpperCase();
+    if (s.includes('WON')) return '#34d399';
+    if (s.includes('NEGOTIAT') || s.includes('PROPOSAL') || s.includes('MEETING')) return '#818cf8';
+    if (s.includes('QUALIFIED')) return '#38bdf8';
+    if (s.includes('CONTACT')) return '#fbbf24';
+    if (s.includes('LOST')) return '#ef4444';
+    return '#6366f1';
+  };
+  const statusColor = getStatusColor(leadStatusState || lead?.status || 'NEW LEAD');
+
+  const rawAiScore = lead?.score || lead?.aiScore?.overall || 8.7;
+  const aiScoreDisplay = typeof rawAiScore === 'number' ? rawAiScore.toFixed(1) : String(rawAiScore);
 
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
@@ -399,16 +405,24 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{leadName}</Text>
-              <Text style={styles.company}>{lead?.company || 'Acme Partner'}</Text>
+              <Text style={styles.company}>{lead?.company || 'Acme Partner'} • {leadValue}</Text>
             </View>
-            <View style={styles.valueBadge}>
-              <Text style={styles.valueText}>{lead?.value || '$14,200'}</Text>
+            {/* 🔥 AI SCORE BADGE IN PLACE OF CURRENCY OPTION */}
+            <View style={styles.aiScoreBadgeHeader}>
+              <Text style={styles.aiScoreTextHeader}>🔥 {aiScoreDisplay} AI Score</Text>
             </View>
           </View>
 
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}>
+          {/* DYNAMIC INTERACTIVE LEAD STATUS BUTTON (Updates dynamically when status is updated) */}
+          <TouchableOpacity
+            style={[styles.statusBadgeButton, { backgroundColor: statusColor + '20', borderColor: statusColor + '60' }]}
+            onPress={() => setStatusPickerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statusText, { color: statusColor }]}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
-          </View>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: statusColor, opacity: 0.8, marginLeft: 4 }}>✏️ Change</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Action Buttons Toolbar (6 Glassmorphism Cards: Call, WhatsApp, WA Cloud, Direct Email, Email Mktg, Update Status) */}
@@ -463,7 +477,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: 'rgba(251,191,36,0.15)', borderWidth: 1, borderColor: '#fbbf24', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setPostCallModalOpen(true)}
+              onPress={() => setStatusPickerOpen(true)}
               activeOpacity={0.8}
             >
               <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>📝 Update Status</Text>
@@ -895,6 +909,72 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         onConfirmPaymentOutcome={handleConfirmPaymentOutcome}
       />
 
+      {/* 📝 QUICK LEAD STATUS SELECTOR MODAL */}
+      <Modal
+        visible={statusPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStatusPickerOpen(false)}
+      >
+        <View style={styles.waModalOverlay}>
+          <View style={[styles.waModalCard, { maxWidth: 360 }]}>
+            <View style={styles.waModalHeaderRow}>
+              <View>
+                <Text style={styles.waModalTitle}>📝 Update Lead Status</Text>
+                <Text style={styles.waModalSub}>Select current stage for {leadName}</Text>
+              </View>
+              <TouchableOpacity style={styles.waCloseBtn} onPress={() => setStatusPickerOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 8, marginVertical: 8 }}>
+              {[
+                { status: 'NEW LEAD', color: '#6366f1', icon: '✨' },
+                { status: 'CONTACTED', color: '#fbbf24', icon: '📞' },
+                { status: 'QUALIFIED', color: '#38bdf8', icon: '🎯' },
+                { status: 'PROPOSAL', color: '#818cf8', icon: '📄' },
+                { status: 'IN NEGOTIATION', color: '#a855f7', icon: '🤝' },
+                { status: 'MEETING SCHEDULED', color: '#ec4899', icon: '📅' },
+                { status: 'WON', color: '#34d399', icon: '🎉' },
+                { status: 'LOST', color: '#ef4444', icon: '❌' },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.status}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: leadStatusState === item.status ? item.color + '25' : '#020617',
+                    borderWidth: 1,
+                    borderColor: leadStatusState === item.status ? item.color : '#1e293b',
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                  onPress={() => {
+                    setLeadStatusState(item.status);
+                    setStatusPickerOpen(false);
+                    setToastConfig({ id: String(Date.now()), title: 'Stage Updated', message: `Status updated to ${item.status}!`, type: 'SUCCESS' });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: leadStatusState === item.status ? item.color : '#ffffff' }}>
+                      {item.status}
+                    </Text>
+                  </View>
+                  {leadStatusState === item.status && (
+                    <Text style={{ color: item.color, fontSize: 11, fontWeight: '900' }}>✓ Active</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ToastBanner toast={toastConfig} onDismiss={() => setToastConfig(null)} />
       <CustomAlertModal alert={customAlertConfig} onClose={() => setCustomAlertConfig(null)} />
     </View>
@@ -925,17 +1005,27 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 16, fontWeight: '900' },
   title: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
   company: { fontSize: 12, color: '#94a3b8', marginTop: 1 },
-  valueBadge: {
-    backgroundColor: 'rgba(52,211,153,0.15)',
+  aiScoreBadgeHeader: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(52,211,153,0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
-  valueText: { fontSize: 12, fontWeight: '900', color: '#34d399' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, alignSelf: 'flex-start' },
-  statusText: { fontSize: 10, fontWeight: '800' },
+  aiScoreTextHeader: { fontSize: 12, fontWeight: '900', color: '#f87171' },
+  statusBadgeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusText: { fontSize: 11, fontWeight: '900' },
 
   actionsRow: { flexDirection: 'row', gap: 8, marginBottom: 16, width: '100%', maxWidth: 500 },
   callBtn: {

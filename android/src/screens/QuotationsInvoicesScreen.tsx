@@ -373,120 +373,258 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>${getDocTitle()} ${documentNo}</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size:12px; color:#0f172a; background:#fff; }
-  .page { padding:${pdfTopPadding}px ${pdfMargin * 3}px ${pdfBottomPadding}px; max-width:794px; margin:0 auto; position:relative; }
-  .navy-bar { height:6px; background:#002060; margin:-${pdfTopPadding}px -${pdfMargin*3}px ${pdfTopPadding/2}px; }
-  .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:12px; border-bottom:2px solid #e2e8f0; margin-bottom:${sectionGap}px; }
-  .company-name { font-size:16px; font-weight:900; color:#002060; }
-  .company-detail { font-size:10px; color:#475569; margin-top:2px; }
-  .doc-badge { background:#002060; color:#fff; font-size:9px; font-weight:900; padding:3px 8px; border-radius:4px; display:inline-block; margin-bottom:4px; }
-  .doc-no { font-size:14px; font-weight:900; color:#002060; }
-  .doc-date { font-size:10px; color:#64748b; }
-  .party-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:${sectionGap}px; }
-  .party-label { font-size:9px; font-weight:900; color:#64748b; text-transform:uppercase; margin-bottom:3px; }
-  .party-name { font-size:12px; font-weight:900; color:#0f172a; }
-  .party-detail { font-size:10px; color:#475569; margin-top:2px; }
-  table { width:100%; border-collapse:collapse; font-size:11px; }
-  .items-table { border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; margin-bottom:${sectionGap}px; }
-  thead tr { background:#002060; color:#fff; }
-  thead th { padding:8px 6px; text-align:left; font-size:10px; font-weight:900; }
-  tbody tr td { padding:7px 6px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
-  .totals-section { display:flex; gap:16px; margin-bottom:${sectionGap}px; }
-  .bank-box { flex:1; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }
-  .totals-box { width:220px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px; }
-  .sum-row { display:flex; justify-content:space-between; padding:3px 0; font-size:11px; border-bottom:1px solid #f1f5f9; }
-  .grand-row { display:flex; justify-content:space-between; background:#002060; color:#fff; padding:8px 10px; border-radius:6px; margin-top:6px; font-weight:900; }
-  .box-label { font-size:9px; font-weight:900; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
-  .bank-val { font-size:11px; color:#334155; margin-top:2px; }
-  .footer { display:flex; justify-content:space-between; border-top:1px solid #e2e8f0; padding-top:12px; }
-  .sign-block { text-align:right; }
-  .sign-line { border-top:1px solid #94a3b8; width:120px; margin-top:36px; padding-top:4px; margin-left:auto; }
-  .sign-label { font-size:9px; color:#64748b; text-transform:uppercase; }
-  .bottom-strip { text-align:center; font-size:9px; color:#64748b; margin-top:${sectionGap}px; padding-top:8px; border-top:1px solid #e2e8f0; }
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #0f172a;
+    background: #ffffff;
+    padding: 0;
+    margin: 0;
+  }
+  .page {
+    width: 100%;
+    max-width: 794px;
+    padding: ${pdfTopPadding}px ${pdfMargin * 3}px ${pdfBottomPadding}px;
+    margin: 0 auto;
+    background: #ffffff;
+    position: relative;
+  }
+  .navy-bar {
+    height: 8px;
+    background: #002060;
+    margin: -${pdfTopPadding}px -${pdfMargin * 3}px ${pdfTopPadding / 2}px;
+  }
+  
+  .layout-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: ${sectionGap}px;
+  }
+  .layout-table td {
+    vertical-align: top;
+  }
+  
+  .company-name { font-size: 18px; font-weight: 900; color: #002060; letter-spacing: -0.3px; }
+  .company-detail { font-size: 10px; color: #475569; margin-top: 2px; }
+  
+  .doc-badge { background: #002060; color: #ffffff; font-size: 10px; font-weight: 900; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 4px; text-transform: uppercase; }
+  .doc-no { font-size: 15px; font-weight: 900; color: #002060; }
+  .doc-date { font-size: 10px; color: #64748b; margin-top: 2px; }
+  
+  .party-card {
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 90px;
+  }
+  .party-label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .party-name { font-size: 13px; font-weight: 900; color: #0f172a; }
+  .party-detail { font-size: 10px; color: #475569; margin-top: 2px; }
+
+  .items-table-wrap {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: ${sectionGap}px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  table.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  table.items-table th {
+    background: #002060 !important;
+    color: #ffffff !important;
+    padding: 9px 8px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: none;
+  }
+  table.items-table td {
+    padding: 8px 8px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+    color: #1e293b;
+  }
+  table.items-table tr:nth-child(even) {
+    background: #f8fafc;
+  }
+  
+  .bank-card {
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .totals-card {
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .sum-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 11px;
+    border-bottom: 1px dashed #cbd5e1;
+    color: #334155;
+  }
+  .grand-row-table {
+    width: 100%;
+    background: #002060 !important;
+    color: #ffffff !important;
+    border-radius: 6px;
+    margin-top: 8px;
+    padding: 8px 10px;
+  }
+  
+  .footer-row {
+    border-top: 1.5px solid #cbd5e1;
+    padding-top: 12px;
+    margin-top: ${sectionGap}px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .sign-line {
+    border-top: 1.5px solid #475569;
+    width: 140px;
+    margin-top: 40px;
+    padding-top: 4px;
+    margin-left: auto;
+    text-align: center;
+  }
+  .bottom-strip {
+    text-align: center;
+    font-size: 9px;
+    color: #64748b;
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+  }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="navy-bar"></div>
-  <div class="header">
-    <div>
-      <div class="company-name">${activeCompany.name}</div>
-      <div class="company-detail">${activeCompany.address}</div>
-      <div class="company-detail">GSTIN: ${activeCompany.gstNo} | PAN: ${activeCompany.panNo}</div>
-      <div class="company-detail">${activeCompany.email} | ${activeCompany.phone}</div>
-    </div>
-    <div style="text-align:right">
-      <div class="doc-badge">${getDocTitle()}</div>
-      <div class="doc-no">${documentNo}</div>
-      <div class="doc-date">Date: ${docDate}</div>
-      ${showValidUntil && validUntilDate ? `<div class="doc-date">Valid Until: ${validUntilDate}</div>` : ''}
-    </div>
-  </div>
+  
+  <table class="layout-table" style="border-bottom: 2px solid #cbd5e1; padding-bottom: 12px;">
+    <tr>
+      <td style="width: 65%;">
+        ${activeCompany.logoUrl ? `<img src="${activeCompany.logoUrl}" style="height:44px;max-width:140px;margin-bottom:6px;object-fit:contain;" />` : ''}
+        <div class="company-name">${activeCompany.name}</div>
+        <div class="company-detail">${activeCompany.address}</div>
+        <div class="company-detail">GSTIN: <strong>${activeCompany.gstNo}</strong> | PAN: <strong>${activeCompany.panNo}</strong></div>
+        <div class="company-detail">${activeCompany.email} | ${activeCompany.phone}</div>
+      </td>
+      <td style="width: 35%; text-align: right;">
+        <div class="doc-badge">${getDocTitle()}</div>
+        <div class="doc-no">${documentNo}</div>
+        <div class="doc-date">Date: <strong>${docDate}</strong></div>
+        ${showValidUntil && validUntilDate ? `<div class="doc-date">Valid Until: <strong>${validUntilDate}</strong></div>` : ''}
+      </td>
+    </tr>
+  </table>
 
-  <div class="party-grid">
-    <div>
-      <div class="party-label">Billed To (Buyer)</div>
-      <div class="party-name">${partyName}</div>
-      ${activeParty.contactPerson ? `<div class="party-detail">Attn: ${activeParty.contactPerson}</div>` : ''}
-      <div class="party-detail">${activeParty.address}</div>
-    </div>
-    <div>
-      <div class="party-label">Tax & Identifiers</div>
-      <div class="party-detail">GSTIN: <strong style="color:#002060">${activeParty.gstNo}</strong></div>
-      <div class="party-detail">PAN: <strong style="color:#002060">${activeParty.panNo}</strong></div>
-      <div class="party-detail">${activeParty.phone}</div>
-      <div class="party-detail">Place of Supply: <strong>Uttar Pradesh</strong></div>
-    </div>
-  </div>
+  <table class="layout-table">
+    <tr>
+      <td style="width: 50%; padding-right: 6px;">
+        <div class="party-card">
+          <div class="party-label">Billed To (Buyer)</div>
+          <div class="party-name">${partyName}</div>
+          ${activeParty.contactPerson ? `<div class="party-detail">Attn: ${activeParty.contactPerson}</div>` : ''}
+          <div class="party-detail">${activeParty.address}</div>
+        </div>
+      </td>
+      <td style="width: 50%; padding-left: 6px;">
+        <div class="party-card">
+          <div class="party-label">Tax & Identifiers</div>
+          <div class="party-detail">GSTIN: <strong style="color:#002060">${activeParty.gstNo}</strong></div>
+          <div class="party-detail">PAN: <strong style="color:#002060">${activeParty.panNo}</strong></div>
+          <div class="party-detail">Phone: ${activeParty.phone}</div>
+          <div class="party-detail">Place of Supply: <strong>Uttar Pradesh</strong></div>
+        </div>
+      </td>
+    </tr>
+  </table>
 
-  <div class="items-table">
-    <table>
+  <div class="items-table-wrap">
+    <table class="items-table">
       <thead>
         <tr>
-          <th style="width:30px;text-align:center">#</th>
+          <th style="width:32px;text-align:center">#</th>
           <th>Item & Description</th>
-          ${showHsnColumn ? '<th style="width:60px;text-align:center">HSN/SAC</th>' : ''}
-          ${customColumns.map(col => `<th style="width:70px;text-align:center">${col.name}</th>`).join('')}
-          <th style="width:50px;text-align:center">Qty</th>
-          <th style="width:80px;text-align:right">Rate (₹)</th>
-          ${showGstColumn ? '<th style="width:50px;text-align:center">GST %</th>' : ''}
-          <th style="width:90px;text-align:right">Amount (₹)</th>
+          ${showHsnColumn ? '<th style="width:65px;text-align:center">HSN/SAC</th>' : ''}
+          ${customColumns.map(col => `<th style="width:75px;text-align:center">${col.name}</th>`).join('')}
+          <th style="width:55px;text-align:center">Qty</th>
+          <th style="width:85px;text-align:right">Rate (₹)</th>
+          ${showGstColumn ? '<th style="width:55px;text-align:center">GST %</th>' : ''}
+          <th style="width:95px;text-align:right">Amount (₹)</th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
     </table>
   </div>
 
-  <div class="totals-section">
-    <div class="bank-box">
-      <div class="box-label">Bank Payment Details</div>
-      <div class="bank-val"><strong>${activeCompany.bankName}</strong></div>
-      <div class="bank-val" style="font-family:monospace;color:#002060">A/C: ${activeCompany.accountNo}</div>
-      <div class="bank-val">IFSC: ${activeCompany.ifscCode} | Branch: ${activeCompany.branch}</div>
-      <div class="bank-val" style="color:#002060;font-weight:700">UPI: ${activeCompany.upiId}</div>
-      <div style="margin-top:8px;padding:6px;background:#eff6ff;border-radius:6px;font-size:10px;color:#002060;font-style:italic">
-        <strong>Amount in Words:</strong><br/>${numberToWordsINR(totalAmt)}
-      </div>
-    </div>
-    <div class="totals-box">
-      <div class="sum-row"><span>Subtotal:</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
-      ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Discounts:</span><span>-₹${totalItemDiscounts.toLocaleString('en-IN')}</span></div>` : ''}
-      <div class="sum-row"><span>GST (${globalGstRate}%):</span><span>₹${effectiveGstTaxTotal.toLocaleString('en-IN')}</span></div>
-      <div class="grand-row"><span>Grand Total:</span><span>₹${totalAmt.toLocaleString('en-IN')}</span></div>
-    </div>
-  </div>
+  <table class="layout-table">
+    <tr>
+      <td style="width: 58%; padding-right: 8px;">
+        <div class="bank-card">
+          <div class="party-label">Bank Payment Details</div>
+          <div class="party-detail"><strong>${activeCompany.bankName}</strong></div>
+          <div class="party-detail" style="font-family:monospace;color:#002060;font-weight:700">A/C: ${activeCompany.accountNo}</div>
+          <div class="party-detail">IFSC: ${activeCompany.ifscCode} | Branch: ${activeCompany.branch}</div>
+          <div class="party-detail" style="color:#002060;font-weight:700">UPI: ${activeCompany.upiId}</div>
+          <div style="margin-top:8px;padding:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:10px;color:#1e40af">
+            <strong>Amount in Words:</strong><br/>${numberToWordsINR(totalAmt)}
+          </div>
+        </div>
+      </td>
+      <td style="width: 42%; padding-left: 8px;">
+        <div class="totals-card">
+          <div class="sum-row"><span>Subtotal:</span><strong>₹${subtotal.toLocaleString('en-IN')}</strong></div>
+          ${totalItemDiscounts > 0 ? `<div class="sum-row"><span>Discounts:</span><strong style="color:#dc2626">-₹${totalItemDiscounts.toLocaleString('en-IN')}</strong></div>` : ''}
+          <div class="sum-row"><span>GST (${globalGstRate}%):</span><strong>₹${effectiveGstTaxTotal.toLocaleString('en-IN')}</strong></div>
+          <table class="grand-row-table">
+            <tr>
+              <td style="font-weight:900;color:#fff;font-size:12px;">Grand Total:</td>
+              <td style="text-align:right;font-weight:900;color:#fff;font-size:12px;">₹${totalAmt.toLocaleString('en-IN')}</td>
+            </tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+  </table>
 
-  <div class="footer">
-    <div>
-      <div class="box-label">Terms & Conditions</div>
-      <div style="font-size:10px;color:#475569;white-space:pre-line">${termsText}</div>
-    </div>
-    <div class="sign-block">
-      <div style="font-weight:900;color:#002060">For ${activeCompany.name}</div>
-      <div class="sign-line"></div>
-      <div class="sign-label">Authorized Signatory</div>
-    </div>
+  <table class="layout-table footer-row">
+    <tr>
+      <td style="width: 60%;">
+        <div class="party-label">Terms & Conditions</div>
+        <div style="font-size:10px;color:#475569;white-space:pre-line">${termsText}</div>
+      </td>
+      <td style="width: 40%; text-align: right;">
+        <div style="font-weight:900;color:#002060">For ${activeCompany.name}</div>
+        <div class="sign-line">
+          <div style="font-size:9px;color:#64748b;text-transform:uppercase;font-weight:700">Authorized Signatory</div>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="bottom-strip">
+    Generated by <strong>DAS CRM</strong> • www.dascrm.com
   </div>
 </div>
 </body>
@@ -872,17 +1010,19 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             >
               <Text style={styles.topBarBtnText}>{savedSuccess ? '✓ Saved' : '💾 Save'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.topBarBtnPrint}
-              onPress={() => handlePrintPDF()}
-              disabled={isPrinting}
-              hitSlop={{top:6,bottom:6,left:4,right:4}}
-            >
-              {isPrinting
-                ? <ActivityIndicator size="small" color="#ffffff" />
-                : <Text style={styles.topBarBtnPrintText}>🖨 Print</Text>
-              }
-            </TouchableOpacity>
+            {viewMode === 'BUILDER' && (
+              <TouchableOpacity
+                style={styles.topBarBtnPrint}
+                onPress={() => handlePrintPDF()}
+                disabled={isPrinting}
+                hitSlop={{top:6,bottom:6,left:4,right:4}}
+              >
+                {isPrinting
+                  ? <ActivityIndicator size="small" color="#ffffff" />
+                  : <Text style={styles.topBarBtnPrintText}>🖨 Print</Text>
+                }
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

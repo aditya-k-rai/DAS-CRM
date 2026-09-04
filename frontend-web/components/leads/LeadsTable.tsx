@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
@@ -89,6 +89,13 @@ export function LeadsTable() {
   const [expandedTrailLeadId, setExpandedTrailLeadId] = useState<string | null>(null);
   const { currentUser } = useAuth();
 
+  // Multi-Dimensional Filtering State
+  const [filterPerson, setFilterPerson] = useState<string>('ALL');
+  const [filterRole, setFilterRole] = useState<string>('ALL');
+  const [filterDate, setFilterDate] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
   // Excel Interactive Column Order State
   const [columnOrder, setColumnOrder] = useState<string[]>([
     'name', 'status', 'aiScore', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
@@ -152,6 +159,44 @@ export function LeadsTable() {
       }
     }
 
+    // 👤 Person-Wise Filtering
+    if (filterPerson !== 'ALL') {
+      if (filterPerson === 'UNASSIGNED') {
+        const isUnassigned = !l.owner || l.owner === 'Unassigned' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
+        if (!isUnassigned) return false;
+      } else {
+        const matchesOwner = l.owner.toLowerCase().includes(filterPerson.toLowerCase());
+        const matchesAssignee = l.currentAssignee ? l.currentAssignee.toLowerCase().includes(filterPerson.toLowerCase()) : false;
+        if (!matchesOwner && !matchesAssignee) return false;
+      }
+    }
+
+    // 🛡️ Role-Wise Filtering
+    if (filterRole !== 'ALL') {
+      if (filterRole === 'UNASSIGNED') {
+        if (l.currentAssigneeRole) return false;
+      } else {
+        if (l.currentAssigneeRole !== filterRole) return false;
+      }
+    }
+
+    // 📅 Date-Wise Filtering
+    if (filterDate !== 'ALL') {
+      const createdStr = l.created.toLowerCase();
+      if (filterDate === 'TODAY' && (!createdStr.includes('today') && !createdStr.includes('aug 9'))) return false;
+      if (filterDate === 'YESTERDAY' && (!createdStr.includes('yesterday') && !createdStr.includes('aug 8'))) return false;
+      if (filterDate === 'THIS_MONTH' && !createdStr.includes('aug')) return false;
+    }
+
+    // 📌 Status/Stage Filtering (Tabs or Modal)
+    if (filterStatus !== 'ALL') {
+      if (l.status.toLowerCase() !== filterStatus.toLowerCase()) return false;
+    }
+
+    // Status tab filter
+    const matchStatusTab = activeStatus === 'All' || l.status === activeStatus;
+    if (!matchStatusTab) return false;
+
     // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -172,10 +217,22 @@ export function LeadsTable() {
       if (!matchSearch) return false;
     }
 
-    // Status tab filter
-    const matchStatus = activeStatus === 'All' || l.status === activeStatus;
-    return matchStatus;
+    return true;
   });
+
+  const activeFilterCount =
+    (filterPerson !== 'ALL' ? 1 : 0) +
+    (filterRole !== 'ALL' ? 1 : 0) +
+    (filterDate !== 'ALL' ? 1 : 0) +
+    (filterStatus !== 'ALL' ? 1 : 0);
+
+  const resetFilters = () => {
+    setFilterPerson('ALL');
+    setFilterRole('ALL');
+    setFilterDate('ALL');
+    setFilterStatus('ALL');
+    setActiveStatus('All');
+  };
 
   const toggleSelect = (id: string) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
@@ -225,31 +282,83 @@ export function LeadsTable() {
 
       {/* Toolbar */}
       <div className="p-4 border-b flex flex-col gap-3" style={{ borderColor: 'rgb(var(--border))' }}>
-        {/* Top Control Bar: View Toggle & Status Pills */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex gap-1 flex-wrap">
-            {STATUSES.map((s) => (
-              <button key={s} onClick={() => setActiveStatus(s)} className={`pill-tab text-xs py-1 px-3 ${activeStatus === s ? 'active' : ''}`}>
-                {s}
+          {/* View Toggle, Multi-Filter Launcher & Status Pills */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-1 flex-wrap items-center">
+              {STATUSES.map((s) => (
+                <button key={s} onClick={() => setActiveStatus(s)} className={`pill-tab text-xs py-1 px-3 ${activeStatus === s ? 'active' : ''}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {/* Right Action Tools: Multi-Filter Trigger & Data Grid Toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsFilterModalOpen(true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                  activeFilterCount > 0
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
+                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white hover:border-slate-700'
+                }`}
+              >
+                <Filter size={14} className={activeFilterCount > 0 ? 'text-indigo-400' : 'text-slate-400'} />
+                <span>🎛️ Multi-Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="bg-indigo-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                    {activeFilterCount}
+                  </span>
+                )}
               </button>
-            ))}
+
+              <button
+                onClick={() => setIsExcelMode(!isExcelMode)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                  isExcelMode
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                    : 'bg-slate-900 text-muted border-slate-800 hover:text-white'
+                }`}
+              >
+                <Table size={14} />
+                <span>{isExcelMode ? '📊 Interactive Excel Data Grid' : '📋 Standard List View'}</span>
+              </button>
+            </div>
           </div>
 
-          {/* Interactive Excel Spreadsheet Grid Toggle */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsExcelMode(!isExcelMode)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
-                isExcelMode
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                  : 'bg-slate-900 text-muted border-slate-800 hover:text-white'
-              }`}
-            >
-              <Table size={14} />
-              <span>{isExcelMode ? '📊 Interactive Excel Data Grid (Active)' : '📋 Standard List View'}</span>
-            </button>
+          {/* Quick Person Filter Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-800/60 text-xs">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 pr-1">
+              <User size={12} className="text-slate-500" /> Person:
+            </span>
+            {[
+              { id: 'ALL', label: 'All Persons' },
+              { id: 'Rajesh', label: 'Rajesh K. (Sales)' },
+              { id: 'Priya', label: 'Priya S. (Sales)' },
+              { id: 'Amit', label: 'Amit P. (Sales)' },
+              { id: 'UNASSIGNED', label: 'Unassigned Leads' },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setFilterPerson(item.id)}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
+                  filterPerson === item.id
+                    ? 'bg-indigo-500/25 border-indigo-400 text-indigo-300'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+
+            {activeFilterCount > 0 && (
+              <button
+                onClick={resetFilters}
+                className="ml-auto text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 pl-2"
+              >
+                <RotateCcw size={11} /> Reset All ({activeFilterCount})
+              </button>
+            )}
           </div>
-        </div>
 
         {/* Search row — full-width, multi-field, works in both Excel & Standard view */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -629,6 +738,168 @@ export function LeadsTable() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button onClick={() => setEditingColKey(null)} className="btn-secondary text-xs">Cancel</button>
               <button onClick={handleSaveHeaderTitle} className="btn-primary text-xs">Save Column Title</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎛️ Advanced Lead Multi-Filter Modal */}
+      {isFilterModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  <Filter size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">🎛️ Multi-Dimensional Lead Filter</h3>
+                  <p className="text-xs text-slate-400">Filter by assigned person, role, date range & stage status</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-5 overflow-y-auto">
+              {/* 1. Person Wise Filter */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <User size={14} className="text-indigo-400" />
+                  Assigned Employee / Person
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: '👥 All Persons' },
+                    { id: 'Rajesh', label: '👤 Rajesh K. (Sales)' },
+                    { id: 'Priya', label: '👤 Priya S. (Sales)' },
+                    { id: 'Amit', label: '👤 Amit P. (Sales)' },
+                    { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setFilterPerson(item.id)}
+                      className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                        filterPerson === item.id
+                          ? 'bg-indigo-500/20 border-indigo-500 text-indigo-200 shadow-sm'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {filterPerson === item.id && <Check size={14} className="text-indigo-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Person Role Filter */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Shield size={14} className="text-emerald-400" />
+                  Assignee Role Scoping
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: '🌐 All Roles' },
+                    { id: 'SALES_EXEC', label: '💼 Sales Executive' },
+                    { id: 'TEAM_LEADER', label: '👑 Team Leader (TL)' },
+                    { id: 'MANAGER', label: '📊 Manager' },
+                    { id: 'ADMIN', label: '⚡ Admin / HQ' },
+                    { id: 'UNASSIGNED', label: '🔓 Unassigned' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setFilterRole(item.id)}
+                      className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                        filterRole === item.id
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-sm'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {filterRole === item.id && <Check size={14} className="text-emerald-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Date Range Filter */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-amber-400" />
+                  Lead Created Date
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'ALL', label: '📆 All Dates' },
+                    { id: 'TODAY', label: '⚡ Today' },
+                    { id: 'YESTERDAY', label: '🕒 Yesterday' },
+                    { id: 'THIS_MONTH', label: '📅 This Month' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setFilterDate(item.id)}
+                      className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                        filterDate === item.id
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-200 shadow-sm'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {filterDate === item.id && <Check size={14} className="text-amber-400" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Status Filter */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Star size={14} className="text-purple-400" />
+                  Stage / Status
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {STATUSES.map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => {
+                        const val = st === 'All' ? 'ALL' : st;
+                        setFilterStatus(val);
+                        if (st !== 'All') setActiveStatus('All');
+                      }}
+                      className={`p-2 rounded-lg text-xs font-semibold text-center border transition-all ${
+                        (filterStatus === 'ALL' && st === 'All') || filterStatus === st
+                          ? 'bg-purple-500/20 border-purple-500 text-purple-200'
+                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between">
+              <button
+                onClick={resetFilters}
+                className="text-xs font-bold text-slate-400 hover:text-amber-400 flex items-center gap-1 transition-colors"
+              >
+                <RotateCcw size={13} /> Reset Filters
+              </button>
+              <button
+                onClick={() => setIsFilterModalOpen(false)}
+                className="btn-primary text-xs py-2 px-5 font-bold shadow-lg"
+              >
+                Apply Filters ({filtered.length} Leads Matching)
+              </button>
             </div>
           </div>
         </div>

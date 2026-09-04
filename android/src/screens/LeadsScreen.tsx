@@ -112,6 +112,13 @@ export default function LeadsScreen() {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
 
+  // ── MULTI-DIMENSIONAL ADVANCED FILTER STATE ──────────────────────────────────
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [filterPerson, setFilterPerson] = useState('ALL');
+  const [filterRole, setFilterRole] = useState('ALL');
+  const [filterDate, setFilterDate] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+
   // ── DYNAMIC COLUMN REORDER, RENAME & EXCEL RESIZING STATE ────────────────
   const [colOrderModalOpen, setColOrderModalOpen] = useState(false);
   const [editingColKey, setEditingColKey] = useState<string | null>(null);
@@ -411,6 +418,20 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
   const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userName = currentUser?.name || 'Mighty Rai';
 
+  const activeFiltersCount = (filterPerson !== 'ALL' ? 1 : 0) +
+    (filterRole !== 'ALL' ? 1 : 0) +
+    (filterDate !== 'ALL' ? 1 : 0) +
+    (filterStatus !== 'ALL' ? 1 : 0);
+
+  const resetAllFilters = () => {
+    setFilterPerson('ALL');
+    setFilterRole('ALL');
+    setFilterDate('ALL');
+    setFilterStatus('ALL');
+    setActiveFilter('ALL');
+    setSearch('');
+  };
+
   const filteredLeads = leadsList.filter((item) => {
     // 🔒 Role-Based Data Isolation Scoping (Except Admin)
     if (!userRole.includes('ADMIN')) {
@@ -424,7 +445,39 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       }
     }
 
-    // Multi-field search — covers ALL fields, works in BOTH Excel Grid & Card List view
+    // 1. Person-Wise Filter (Assigned Rep)
+    if (filterPerson !== 'ALL') {
+      if (filterPerson === 'UNASSIGNED') {
+        const isUn = !item.assignedRep || item.assignedRep.toLowerCase().includes('unassigned') || item.assignedRep === '—';
+        if (!isUn) return false;
+      } else {
+        if (!item.assignedRep || !item.assignedRep.toLowerCase().includes(filterPerson.toLowerCase())) return false;
+      }
+    }
+
+    // 2. Person Role Filter
+    if (filterRole !== 'ALL') {
+      if (filterRole === 'TL') {
+        const isTL = item.assignedRep && (item.assignedRep.includes('TL') || item.assignedRep.includes('Leader') || item.assignedRep.includes('Priya'));
+        if (!isTL) return false;
+      } else if (filterRole === 'SALES_EXEC') {
+        const isExec = item.assignedRep && !item.assignedRep.includes('TL') && !item.assignedRep.includes('Leader') && !item.assignedRep.includes('Unassigned');
+        if (!isExec) return false;
+      } else if (filterRole === 'UNASSIGNED') {
+        const isUn = !item.assignedRep || item.assignedRep.toLowerCase().includes('unassigned') || item.assignedRep === '—';
+        if (!isUn) return false;
+      }
+    }
+
+    // 3. Status Filter (Combined activeFilter & filterStatus)
+    const effectiveStatus = filterStatus !== 'ALL' ? filterStatus : activeFilter;
+    if (effectiveStatus !== 'ALL') {
+      const itemS = (item.status || '').toUpperCase();
+      const targetS = effectiveStatus.toUpperCase();
+      if (!itemS.includes(targetS) && !targetS.includes(itemS)) return false;
+    }
+
+    // 4. Multi-field search — covers ALL fields, works in BOTH Excel Grid & Card List view
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       const matchesSearch =
@@ -442,8 +495,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       if (!matchesSearch) return false;
     }
 
-    if (activeFilter === 'ALL') return true;
-    return item.status.toUpperCase() === activeFilter.toUpperCase();
+    return true;
   });
 
   // renderExcelRow inline — used directly inside vertical ScrollView
@@ -859,10 +911,45 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 </Text>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: activeFiltersCount > 0 ? 'rgba(245,158,11,0.2)' : '#1e293b', borderColor: activeFiltersCount > 0 ? '#f59e0b' : '#334155' },
+                ]}
+                onPress={() => setFilterModalOpen(true)}
+              >
+                <Text style={[styles.actionBtnText, activeFiltersCount > 0 && { color: '#fbbf24' }]}>
+                  🎛️ Filter {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]} onPress={() => setColOrderModalOpen(true)}>
                 <Text style={[styles.actionBtnText, { color: '#a5b4fc' }]}>🔀 Reorder</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Quick Person Filter Chips Bar */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', marginRight: 2 }}>PERSON:</Text>
+                {[
+                  { id: 'ALL', label: 'All Persons' },
+                  { id: 'Priya', label: '👤 Priya (TL)' },
+                  { id: 'Rajesh', label: '👤 Rajesh' },
+                  { id: 'Rohan', label: '👤 Rohan' },
+                  { id: 'Amit', label: '👤 Amit' },
+                  { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
+                ].map(p => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === p.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                    onPress={() => setFilterPerson(p.id)}
+                  >
+                    <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
             {/* Status Filter Scroll */}
             <FlatList
@@ -992,11 +1079,10 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
                   <Text style={styles.leadCompany}>{item.company} • {item.email}</Text>
 
-                  <View style={styles.cardFooter}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.leadVal}>{item.value}</Text>
-                      <Text style={styles.leadPhone}>{item.phone}</Text>
-                    </View>
+                  <View style={{ marginVertical: 4 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399', letterSpacing: 0.3 }}>
+                      📞 {item.phone}
+                    </Text>
                   </View>
 
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
@@ -1333,6 +1419,130 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         totalLeadsCount={allocatedLeadsCount}
         sourceType={allocationSourceType}
       />
+
+      {/* ── MODAL 9: MULTI-DIMENSIONAL ADVANCED LEAD FILTER ─────────────────────── */}
+      <Modal visible={filterModalOpen} animationType="slide" transparent onRequestClose={() => setFilterModalOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(3,7,18,0.85)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 20, maxHeight: '85%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff' }}>🎛️ Advanced Lead Multi-Filter</Text>
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Filter by Person, Employee Role, Date Range & Status</Text>
+              </View>
+              <TouchableOpacity onPress={() => setFilterModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginVertical: 8 }}>
+              {/* 1. PERSON-WISE FILTER */}
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8', marginTop: 8, marginBottom: 6, textTransform: 'uppercase' }}>
+                👤 1. Assigned Person (Employee)
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { id: 'ALL', label: 'All Persons' },
+                  { id: 'Priya', label: 'Priya Sharma (TL A)' },
+                  { id: 'Rajesh', label: 'Rajesh Kumar (Sales)' },
+                  { id: 'Rohan', label: 'Rohan Kumar (Exec)' },
+                  { id: 'Amit', label: 'Amit Shah (Sales Exec)' },
+                  { id: 'Neha', label: 'Neha Gupta (Exec)' },
+                  { id: 'UNASSIGNED', label: '⚠️ Unassigned Leads' },
+                ].map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === item.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                    onPress={() => setFilterPerson(item.id)}
+                  >
+                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterPerson === item.id && { color: '#ffffff', fontWeight: '900' }]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 2. ROLE-WISE FILTER */}
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>
+                🏢 2. Employee Role
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { id: 'ALL', label: 'All Roles' },
+                  { id: 'TL', label: 'Team Leader (TL)' },
+                  { id: 'SALES_EXEC', label: 'Sales Representative / Exec' },
+                  { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
+                ].map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterRole === item.id && { backgroundColor: '#10b981', borderColor: '#34d399' }]}
+                    onPress={() => setFilterRole(item.id)}
+                  >
+                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterRole === item.id && { color: '#ffffff', fontWeight: '900' }]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 3. DATE RANGE FILTER */}
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#fbbf24', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>
+                📅 3. Date Range / Ingestion Time
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { id: 'ALL', label: 'All Time' },
+                  { id: 'TODAY', label: 'Today' },
+                  { id: 'YESTERDAY', label: 'Yesterday' },
+                  { id: 'THIS_WEEK', label: 'This Week (7 Days)' },
+                  { id: 'THIS_MONTH', label: 'This Month (30 Days)' },
+                ].map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterDate === item.id && { backgroundColor: '#f59e0b', borderColor: '#fbbf24' }]}
+                    onPress={() => setFilterDate(item.id)}
+                  >
+                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, filterDate === item.id && { color: '#030712', fontWeight: '900' }]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 4. STATUS / FUNNEL STAGE FILTER */}
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#38bdf8', marginTop: 14, marginBottom: 6, textTransform: 'uppercase' }}>
+                📊 4. Lead Status / Stage
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['ALL', 'NEW LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON'].map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, (filterStatus === s || activeFilter === s) && { backgroundColor: '#0284c7', borderColor: '#38bdf8' }]}
+                    onPress={() => { setFilterStatus(s); setActiveFilter(s); }}
+                  >
+                    <Text style={[{ fontSize: 11, fontWeight: '700', color: '#94a3b8' }, (filterStatus === s || activeFilter === s) && { color: '#ffffff', fontWeight: '900' }]}>
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#1e293b', marginTop: 8 }}>
+              <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#1e293b' }} onPress={resetAllFilters}>
+                <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '800' }}>✕ Reset Filters</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: '#4f46e5' }}
+                onPress={() => setFilterModalOpen(false)}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>
+                  Apply ({filteredLeads.length} Matches) →
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
