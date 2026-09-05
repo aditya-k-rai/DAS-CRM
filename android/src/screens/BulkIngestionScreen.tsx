@@ -948,6 +948,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         onClose={() => setAllocationModalOpen(false)}
         totalLeadsCount={214}
         sourceType={allocationSourceType}
+        onPreviewSheet={() => {
+          setAllocationModalOpen(false);
+          setActiveTab(allocationSourceType === 'GOOGLE_SHEETS' ? 'GOOGLE_SHEETS' : 'CSV_EXCEL');
+        }}
       />
 
       {/* ══ MODAL: Google Sheets Live Sync Portal & Mapping Grid ════════ */}

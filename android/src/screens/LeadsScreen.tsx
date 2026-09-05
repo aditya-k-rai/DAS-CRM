@@ -23,7 +23,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LeadsStackParamList } from '../../App';
@@ -32,7 +32,13 @@ import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { LeadIngestionControlCenterBar } from '../components/LeadIngestionControlCenterBar';
-import { FileImportEngineModal, ImportedLead, FileAuditRecord } from '../components/FileImportEngineModal';
+import {
+  FileImportEngineModal,
+  ImportedLead,
+  FileAuditRecord,
+  SavedImportSession,
+  DEFAULT_IMPORT_SESSION,
+} from '../components/FileImportEngineModal';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
@@ -95,6 +101,7 @@ const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
 ];
 
 export default function LeadsScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<LeadsNavProp>();
   const { token } = useAuthStore();
 
@@ -244,6 +251,7 @@ export default function LeadsScreen() {
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [savedImportSession, setSavedImportSession] = useState<SavedImportSession | null>(DEFAULT_IMPORT_SESSION);
 
   const handleImportSuccess = (leads: ImportedLead[], audit: FileAuditRecord) => {
     const converted: LeadItem[] = leads.map((l, i) => ({
@@ -788,11 +796,10 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                           <TouchableOpacity
                             style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#0ea5e9' }}
                             onPress={() => {
-                              // Close allocation detail + switch to the COLLECTIONS / EXCEL_GRID tab
+                              // Open File Import Portal with all saved sheet details, row & column controls
                               setAuditDetailRecord(null);
                               setAllocationModalOpen(false);
-                              setActiveSegment('COLLECTIONS');
-                              setViewMode('EXCEL_GRID');
+                              setImportModalOpen(true);
                             }}
                           >
                             <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '800' }}>👁️ Preview &amp; Edit Sheet</Text>
@@ -1379,6 +1386,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         visible={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         onImportSuccess={handleImportSuccess}
+        initialSession={savedImportSession}
+        onSaveSession={setSavedImportSession}
       />
 
       {/* ── MODAL 7: POST-CALL OUTCOME MODAL ───────────────────────────────── */}
@@ -1397,12 +1406,16 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         onClose={() => setAllocationModalOpen(false)}
         totalLeadsCount={allocatedLeadsCount}
         sourceType={allocationSourceType}
+        onPreviewSheet={() => {
+          setAllocationModalOpen(false);
+          setImportModalOpen(true);
+        }}
       />
 
       {/* ── MODAL 9: MULTI-DIMENSIONAL ADVANCED LEAD FILTER ─────────────────────── */}
       <Modal visible={filterModalOpen} animationType="slide" transparent onRequestClose={() => setFilterModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(3,7,18,0.85)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 20, maxHeight: '85%' }}>
+          <View style={{ backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 20, paddingTop: 20, paddingBottom: Math.max(insets.bottom + 16, 24), maxHeight: '85%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View>
                 <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff' }}>🎛️ Advanced Lead Multi-Filter</Text>
@@ -1507,11 +1520,11 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             </ScrollView>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#1e293b', marginTop: 8 }}>
-              <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#1e293b' }} onPress={resetAllFilters}>
+              <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: '#1e293b' }} onPress={resetAllFilters}>
                 <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '800' }}>✕ Reset Filters</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: '#4f46e5' }}
+                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: '#4f46e5' }}
                 onPress={() => setFilterModalOpen(false)}
               >
                 <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>

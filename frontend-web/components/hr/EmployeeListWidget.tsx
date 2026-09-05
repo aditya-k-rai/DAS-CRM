@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Users } from 'lucide-react';
+import { Users, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
 import TeamLeaderControlScreenWeb from './TeamLeaderControlScreenWeb';
 import ManagerControlScreenWeb from './ManagerControlScreenWeb';
@@ -189,8 +190,12 @@ const INITIAL_EMPLOYEES: EmployeeProfileWeb[] = [
 ];
 
 export function EmployeeListWidget() {
+  const { subscription } = useAuth();
   const [employees, setEmployees] = useState<EmployeeProfileWeb[]>(INITIAL_EMPLOYEES);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
+
+  const totalQuota = subscription?.userSeatsAllocated ?? 6;
+  const activeCount = employees.length;
 
   const handleUpdateEmployee = (updated: EmployeeProfileWeb) => {
     setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
@@ -228,6 +233,11 @@ export function EmployeeListWidget() {
           <p className="text-xs text-muted mt-1">
             Manage Name, Role, Assign Under, and click <strong className="text-white">Inspect &amp; Control →</strong> for dedicated role screens.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+          <ShieldCheck size={14} />
+          <span>{activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Active Seats (Plan Quota)</span>
         </div>
       </div>
 

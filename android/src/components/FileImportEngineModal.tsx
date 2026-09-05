@@ -11,7 +11,7 @@
  */
 
 import React, {
-  useState, useCallback, memo, useMemo,
+  useState, useEffect, useCallback, memo, useMemo,
 } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
@@ -120,11 +120,101 @@ export interface ParsedSheet {
   blockedRows: boolean[];
 }
 
+export interface SavedImportSession {
+  fileName: string;
+  inputFileName: string;
+  fileSize: string;
+  fmt: string;
+  selectedPlatform: string;
+  sheets: ParsedSheet[];
+  activeIdx: number;
+}
+
+export const DEFAULT_IMPORT_SESSION: SavedImportSession = {
+  fileName: '25-27 May_user_data.xlsx',
+  inputFileName: '25-27 May_user_data',
+  fileSize: '8.1 KB',
+  fmt: 'XLSX',
+  selectedPlatform: 'Google Ads',
+  activeIdx: 0,
+  sheets: [
+    {
+      name: '25_May_2026',
+      isBlocked: false,
+      columns: [
+        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
+        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
+        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
+        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
+        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
+        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
+        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
+      ],
+      blockedRows: [false, false, false, false, false, false, false, false, false, false, false],
+      data: [
+        ['Asfak Hunnani', 'Asfakhunnani@gmail.com', '+91 98765 43210', 'Hunnani Enterprises', '₹45,000', 'Mumbai', 'Enterprise CRM Suite'],
+        ['Shruti Kamble', 'mblephoto403@gmail.com', '+91 98123 45678', 'Kamble Studios', '₹35,000', 'Pune', 'WhatsApp Cloud API'],
+        ['Lalith Mukesh', 'lalithm300@gmail.com', '+91 97222 33445', 'Lalith Tech Labs', '₹75,000', 'Bangalore', 'AI Lead Scoring Engine'],
+        ['Anshika Kharola', 'harolaanshika@gmail.com', '+91 99887 11223', 'Kharola Logistics', '₹60,000', 'Delhi', 'Cold Outreach Pipeline'],
+        ['Abhishek Chouhan', 'k.chouhan42@gmail.com', '+91 96543 21098', 'Chouhan Corp', '₹30,000', 'Jaipur', 'Call Recording Integration'],
+        ['Parag Hadiya', 'hadiyaparag7@gmail.com', '+91 98444 55667', 'Hadiya & Sons', '₹50,000', 'Ahmedabad', 'Catalog PDF Generator'],
+        ['Ramesh Patel', 'ramesh.patel@gmail.com', '+91 98111 22334', 'Patel Industries', '₹90,000', 'Surat', 'Multi-Source Sync'],
+        ['Sneha Deshmukh', 'sneha.d@outlook.com', '+91 97555 44332', 'Deshmukh Pharma', '₹1,20,000', 'Nagpur', 'Full Suite License'],
+        ['Vikas Verma', 'vikas.verma@yahoo.com', '+91 98333 77889', 'Verma Tech Solutions', '₹40,000', 'Indore', 'Automated Lead Allocation'],
+        ['Pooja Nair', 'pooja.nair@gmail.com', '+91 98999 11223', 'Nair Healthcare Ltd', '₹85,000', 'Kochi', 'WhatsApp Broadcasts'],
+        ['Gaurav Mishra', 'gaurav.m@gmail.com', '+91 97444 88990', 'Mishra Traders', '₹28,000', 'Lucknow', 'HR & Attendance Sync'],
+      ],
+    },
+    {
+      name: '26_May_2026',
+      isBlocked: false,
+      columns: [
+        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
+        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
+        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
+        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
+        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
+        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
+        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
+      ],
+      blockedRows: [false, false, false, false, false],
+      data: [
+        ['Vikram Sethi', 'vikram@sethi.com', '+91 98777 66655', 'Sethi Global Pvt Ltd', '₹1,10,000', 'Chandigarh', 'Enterprise SLA'],
+        ['Meera Pillai', 'meera.p@outlook.com', '+91 98765 00112', 'Pillai Agro Exports', '₹65,000', 'Chennai', 'Lead Ingestion Portal'],
+        ['Yusuf Ansari', 'yusuf.ansari@yahoo.com', '+91 97345 88902', 'Ansari Textiles', '₹45,000', 'Varanasi', 'Quotations Module'],
+        ['Simran Kaur', 'simran.k@hotmail.com', '+91 99100 55678', 'Kaur Technologies', '₹80,000', 'Mohali', 'AI Chatbot Routing'],
+        ['Deepak Malhotra', 'deepak.m@gmail.com', '+91 98444 11223', 'Malhotra Auto Spares', '₹55,000', 'Ludhiana', 'Deals Pipeline Kanban'],
+      ],
+    },
+    {
+      name: '27_May_2026',
+      isBlocked: false,
+      columns: [
+        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
+        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
+        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
+        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
+        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
+        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
+        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
+      ],
+      blockedRows: [false, false, false],
+      data: [
+        ['Kiran Nair', 'kiran.nair@gmail.com', '+91 96543 21099', 'Nair Solar Power', '₹1,50,000', 'Thiruvananthapuram', 'Enterprise CRM'],
+        ['Tarun Singhal', 'tarun.s@singhal.com', '+91 98112 33445', 'Singhal Steel Works', '₹95,000', 'Bhilai', 'Live Sync Telemetry'],
+        ['Ritu Saxena', 'ritu.saxena@gmail.com', '+91 97123 99887', 'Saxena Design Hub', '₹38,000', 'Bhopal', 'Brochures & WhatsApp'],
+      ],
+    },
+  ],
+};
+
 export interface FileImportEngineModalProps {
   visible: boolean;
   onClose: () => void;
   onImportSuccess: (leads: ImportedLead[], audit: FileAuditRecord) => void;
   onImportError?: (msg: string) => void;
+  initialSession?: SavedImportSession | null;
+  onSaveSession?: (session: SavedImportSession) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,26 +271,52 @@ const cellStyle = StyleSheet.create({
 
 export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   visible, onClose, onImportSuccess, onImportError,
+  initialSession, onSaveSession,
 }) => {
   const { token } = useAuthStore();
   const insets = useSafeAreaInsets();
   const { width: SW } = useWindowDimensions();
   const isTablet = SW >= 600;
 
+  const baseSession = initialSession || DEFAULT_IMPORT_SESSION;
+
   // ── State ────────────────────────────────────────────────────────────────
-  const [fileName, setFileName]           = useState('');
-  const [fileSize, setFileSize]           = useState('');
-  const [fmt,      setFmt]               = useState('');
-  const [sheets,   setSheets]            = useState<ParsedSheet[]>([]);
-  const [activeIdx, setActiveIdx]         = useState(0);
+  const [fileName, setFileName]           = useState(baseSession.fileName);
+  const [fileSize, setFileSize]           = useState(baseSession.fileSize);
+  const [fmt,      setFmt]               = useState(baseSession.fmt);
+  const [sheets,   setSheets]            = useState<ParsedSheet[]>(baseSession.sheets);
+  const [activeIdx, setActiveIdx]         = useState(baseSession.activeIdx || 0);
   const [loading,   setLoading]           = useState(false);
-  const [inputFileName, setInputFileName] = useState('');
-  const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [inputFileName, setInputFileName] = useState(baseSession.inputFileName);
+  const [selectedPlatform, setSelectedPlatform] = useState(baseSession.selectedPlatform);
   const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
 
   // Role / Custom Name Modal State
   const [pickerColKey, setPickerColKey]   = useState<string | null>(null);
   const [customNameInput, setCustomNameInput] = useState('');
+
+  // Sync state if initialSession prop changes
+  useEffect(() => {
+    if (initialSession) {
+      setFileName(initialSession.fileName);
+      setFileSize(initialSession.fileSize);
+      setFmt(initialSession.fmt);
+      setSheets(initialSession.sheets);
+      setActiveIdx(initialSession.activeIdx || 0);
+      setInputFileName(initialSession.inputFileName);
+      setSelectedPlatform(initialSession.selectedPlatform);
+    }
+  }, [initialSession]);
+
+  const currentSession: SavedImportSession = useMemo(() => ({
+    fileName,
+    inputFileName,
+    fileSize,
+    fmt,
+    selectedPlatform,
+    sheets,
+    activeIdx,
+  }), [fileName, inputFileName, fileSize, fmt, selectedPlatform, sheets, activeIdx]);
 
   const activeSheet   = sheets[activeIdx];
   const totalDataRows = activeSheet?.data.length ?? 0;
@@ -486,6 +602,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         });
       } catch (_) { /* offline fallback */ }
 
+      onSaveSession?.(currentSession);
       onImportSuccess(leads, audit);
       handleClose();
     } catch (err) {
@@ -495,9 +612,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   };
 
   const handleClose = () => {
-    setSheets([]); setActiveIdx(0); setFileName(''); setFileSize('');
-    setFmt(''); setInputFileName(''); setSelectedPlatform('');
-    setLoading(false); setPickerColKey(null); setPlatformPickerOpen(false); onClose();
+    onSaveSession?.(currentSession);
+    setLoading(false);
+    setPickerColKey(null);
+    setPlatformPickerOpen(false);
+    onClose();
   };
 
   // ── Row Renderer (Zero-Flicker Flex Row) ─────────────────────────
@@ -839,7 +958,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.pickerOverlay}
             >
-              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet]}>
+              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
                 <View style={styles.pickerCardHeader}>
                   <View>
                     <Text style={styles.pickerTitle}>🎯 Map Field for COL {currentPickerCol.index + 1}</Text>

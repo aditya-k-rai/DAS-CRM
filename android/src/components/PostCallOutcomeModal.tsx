@@ -26,6 +26,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
 
 export interface CallOutcomeData {
@@ -89,6 +90,7 @@ export default function PostCallOutcomeModal({
   onClose,
   onSaveOutcome,
 }: PostCallOutcomeModalProps) {
+  const insets = useSafeAreaInsets();
   const next15Days = getNext15Days();
 
   // Modal Step State
@@ -163,7 +165,7 @@ export default function PostCallOutcomeModal({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
           <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
 
             {/* Header */}

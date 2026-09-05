@@ -111,7 +111,7 @@ const AVAILABLE_ROLES: { key: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; l
 
 export default function EmployeesScreen() {
   const insets = useSafeAreaInsets();
-  const { currentUser } = useAuthStore();
+  const { currentUser, subscription } = useAuthStore();
   const userRole: UserRole = normalizeRoleStr(currentUser.role);
 
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([
@@ -256,8 +256,33 @@ export default function EmployeesScreen() {
     { id: 'ua-5', name: 'Kiran Nair', email: 'kiran.nair@gmail.com', phone: '+91 96543 21099', registeredAt: '01 Sep 2026, 04:22 PM', deviceInfo: 'Android 12 · Realme 11' },
   ]);
 
+  const totalQuota = subscription?.userSeatsAllocated ?? 6;
+  const activeCount = employeesList.length;
+
+  const getCountPillStyle = () => {
+    if (totalQuota > 0 && activeCount > totalQuota) {
+      return { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.4)', text: '#ef4444' };
+    }
+    if (totalQuota > 0 && activeCount === totalQuota) {
+      return { bg: 'rgba(251, 191, 36, 0.15)', border: 'rgba(251, 191, 36, 0.4)', text: '#fbbf24' };
+    }
+    return { bg: 'rgba(52, 211, 153, 0.15)', border: 'rgba(52, 211, 153, 0.4)', text: '#34d399' };
+  };
+
+  const pillStyle = getCountPillStyle();
+
   const handleAssignRole = () => {
     if (!assignRoleTarget || !selectedRole) return;
+
+    if (totalQuota > 0 && activeCount >= totalQuota) {
+      Alert.alert(
+        'Quota Exceeded',
+        `Your subscription plan limit is ${totalQuota} active users. You cannot assign more roles until you upgrade your plan.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const roleConf = AVAILABLE_ROLES.find(r => r.key === selectedRole);
     Alert.alert(
       'Role Assigned',
@@ -328,8 +353,10 @@ export default function EmployeesScreen() {
           <Text style={styles.pageTitle}>👥 Employee Structure</Text>
           <Text style={styles.pageSub}>Manage staff roles, access & onboarding</Text>
         </View>
-        <View style={styles.countPill}>
-          <Text style={styles.countPillText}>{employeesList.length} Active</Text>
+        <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
+          <Text style={[styles.countPillText, { color: pillStyle.text }]}>
+            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Active
+          </Text>
         </View>
       </View>
 
@@ -480,7 +507,7 @@ export default function EmployeesScreen() {
       <Modal visible={!!assignRoleTarget} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {assignRoleTarget && (
-            <View style={styles.modalBox}>
+            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
               {/* Modal Header */}
               <View style={styles.modalHead}>
                 <View style={{ flex: 1 }}>

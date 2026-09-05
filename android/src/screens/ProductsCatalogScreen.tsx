@@ -536,7 +536,7 @@ export default function ProductsCatalogScreen({
       <Modal visible={!!viewDetailProduct} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {viewDetailProduct && (
-            <View style={styles.modalCardLarge}>
+            <View style={[styles.modalCardLarge, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
               <View style={styles.modalHeaderRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle}>{viewDetailProduct.name}</Text>
@@ -638,7 +638,7 @@ export default function ProductsCatalogScreen({
       {/* 📁 CREATE NEW CATEGORY MODAL (Category name + its first Sub-Category) */}
       <Modal visible={catModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCardSmall}>
+          <View style={[styles.modalCardSmall, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>📁 Add New Category</Text>
