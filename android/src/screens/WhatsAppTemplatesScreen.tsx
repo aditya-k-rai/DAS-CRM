@@ -8,7 +8,9 @@ import {
   TextInput,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface WhatsAppTemplate {
   id: string;
@@ -22,6 +24,7 @@ interface WhatsAppTemplatesScreenProps {
 }
 
 export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = ({ onClose }) => {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'ALL' | 'OUTREACH' | 'PROPOSAL' | 'FOLLOWUP' | 'PROMOTION'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -232,7 +235,7 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
       {/* Modal */}
       <Modal visible={editTplModalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitleText}>
                 {editingTpl ? '✏️ Edit WhatsApp Template' : '➕ Create New WhatsApp Template'}

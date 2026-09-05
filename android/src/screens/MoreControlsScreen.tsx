@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Switch,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductsCatalogScreen from './ProductsCatalogScreen';
@@ -48,6 +49,7 @@ export type ModuleKey =
   | 'SUPPORT';
 
 interface MoreControlsScreenProps {
+  navigation?: any;
   route?: { params?: { initialModule?: string } };
   onOpenProductsCatalog?: () => void;
   onOpenProfile?: () => void;
@@ -56,6 +58,7 @@ interface MoreControlsScreenProps {
 }
 
 export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
+  navigation,
   route,
   onOpenProductsCatalog,
   onOpenProfile,
@@ -63,6 +66,28 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const [activeModal, setActiveModal] = useState<ModuleKey | null>(null);
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
+
+  const closeModal = () => {
+    setActiveModal(null);
+    if (route?.params?.initialModule) {
+      try {
+        navigation?.setParams({ initialModule: undefined });
+      } catch {}
+    }
+  };
+
+  // Android hardware back press listener to close sub-screens
+  useEffect(() => {
+    const onBackPress = () => {
+      if (activeModal !== null) {
+        closeModal();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [activeModal]);
 
   useEffect(() => {
     const initMod = route?.params?.initialModule;
@@ -75,6 +100,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'ATTENDANCE') setActiveModal('ATTENDANCE');
       else if (initMod === 'PROFILE' || initMod === 'SALARY') setActiveModal('PROFILE');
       else if (initMod === 'EMPLOYEES') setActiveModal('INTERVIEWS');
+      else if (initMod === 'AI_HUB') setActiveModal('AI_HUB');
+      else if (initMod === 'AI_CONTROL' || initMod === 'AI_CUSTOMIZATION') setActiveModal('AI_CONTROL');
     }
   }, [route?.params?.initialModule]);
 
@@ -114,7 +141,12 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   // Helper Header Banner for Full-Screen Modals
   const renderBackBanner = (titleStr: string) => (
     <View style={styles.backBanner}>
-      <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.backBtn}>
+      <TouchableOpacity
+        onPress={closeModal}
+        style={styles.backBtn}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.7}
+      >
         <Text style={styles.backBtnText}>← Back to Menu</Text>
       </TouchableOpacity>
       <Text style={styles.backTitle}>{titleStr}</Text>
@@ -125,24 +157,24 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   if (activeModal !== null) {
     return (
       <View style={{ flex: 1, backgroundColor: '#090d16', paddingTop: 0 }}>
-        {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'AI_CONTROL' && <AiCustomizationScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'AI_HUB' && <AIHubScreen />}
-        {activeModal === 'QUOTES' && <QuotationsInvoicesScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'PDF_CATALOG' && <PdfCatalogueScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'DEALS' && <DealsPipelineScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'REPORTS' && <ReportsAnalyticsScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'IMPORT_EXPORT' && <BulkIngestionScreen onClose={() => setActiveModal(null)} />}
-        {activeModal === 'PROFILE' && <ProfileScreen onClose={() => setActiveModal(null)} />}
+        {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={closeModal} />}
+        {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={closeModal} />}
+        {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={closeModal} />}
+        {activeModal === 'AI_CONTROL' && <AiCustomizationScreen onClose={closeModal} />}
+        {activeModal === 'AI_HUB' && <AIHubScreen onClose={closeModal} />}
+        {activeModal === 'QUOTES' && <QuotationsInvoicesScreen onClose={closeModal} />}
+        {activeModal === 'PDF_CATALOG' && <PdfCatalogueScreen onClose={closeModal} />}
+        {activeModal === 'DEALS' && <DealsPipelineScreen onClose={closeModal} />}
+        {activeModal === 'REPORTS' && <ReportsAnalyticsScreen onClose={closeModal} />}
+        {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={closeModal} />}
+        {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={closeModal} />}
+        {activeModal === 'IMPORT_EXPORT' && <BulkIngestionScreen onClose={closeModal} />}
+        {activeModal === 'PROFILE' && <ProfileScreen onClose={closeModal} />}
         
         {activeModal === 'ATTENDANCE' && (
           <View style={{ flex: 1 }}>
             {renderBackBanner('Attendance & Punch Logs')}
-            <AttendanceScreen />
+            <AttendanceScreen onClose={closeModal} />
           </View>
         )}
 
@@ -229,7 +261,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
         {/* 📌 15. The Notice Board Screen */}
         {activeModal === 'UPCOMING_COMMS' && (
-          <NoticeBoardScreen onClose={() => setActiveModal(null)} />
+          <NoticeBoardScreen onClose={closeModal} />
         )}
 
         {/* ⚙️ 16. Settings Screen */}

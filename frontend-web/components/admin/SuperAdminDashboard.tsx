@@ -72,9 +72,139 @@ interface WhatsAppDailyLog {
   activeChats: number;
 }
 
-const INITIAL_COMPANIES: CompanyRecord[] = [];
+const INITIAL_COMPANIES: CompanyRecord[] = [
+  {
+    id: 'comp_acme',
+    name: 'Acme Sales Solutions',
+    adminName: 'Vikram Singh',
+    adminEmail: 'vikram.admin@acme.com',
+    registrationKey: 'ACME-KX-7421',
+    plan: 'FREE_TRIAL',
+    trialDaysLeft: 30,
+    isExpired: false,
+    seatsAllocated: 10,
+    seatsUsed: 6,
+    totalUsersCount: 11, // 6 Assigned + 5 Unassigned
+    totalLeads: 142,
+    convertedLeads: 38,
+    conversionRate: 26.7,
+    isActive: true,
+    createdAt: '2026-08-01',
+    expiryDate: '2026-09-30',
+    whatsappUsed: 0,
+    whatsappLimit: 0,
+  },
+  {
+    id: 'comp_growth',
+    name: 'NextGen Growth Technologies',
+    adminName: 'Rohan Verma',
+    adminEmail: 'rohan.admin@nextgen.com',
+    registrationKey: 'NGEN-GR-2041',
+    plan: 'GROWTH',
+    trialDaysLeft: 0,
+    isExpired: false,
+    seatsAllocated: 20,
+    seatsUsed: 14,
+    totalUsersCount: 16,
+    totalLeads: 85,
+    convertedLeads: 22,
+    conversionRate: 25.8,
+    isActive: true,
+    createdAt: '2026-07-15',
+    expiryDate: '2026-12-31',
+    whatsappUsed: 0,
+    whatsappLimit: 0,
+  },
+  {
+    id: 'comp_business',
+    name: 'Apex Business Solutions',
+    adminName: 'Sunita Sharma',
+    adminEmail: 'sunita.admin@apexcorp.com',
+    registrationKey: 'APEX-BZ-5088',
+    plan: 'BUSINESS',
+    trialDaysLeft: 0,
+    isExpired: false,
+    seatsAllocated: 50,
+    seatsUsed: 38,
+    totalUsersCount: 42,
+    totalLeads: 320,
+    convertedLeads: 84,
+    conversionRate: 26.2,
+    isActive: true,
+    createdAt: '2026-06-01',
+    expiryDate: '2026-12-31',
+    whatsappUsed: 28400,
+    whatsappLimit: 100000,
+  },
+  {
+    id: 'comp_enterprise',
+    name: 'Global Enterprise Holdings',
+    adminName: 'Amitabh Mehta',
+    adminEmail: 'admin@globalholdings.com',
+    registrationKey: 'GLBL-EP-1002',
+    plan: 'ENTERPRISE',
+    trialDaysLeft: 0,
+    isExpired: false,
+    seatsAllocated: 100,
+    seatsUsed: 78,
+    totalUsersCount: 85,
+    totalLeads: 890,
+    convertedLeads: 245,
+    conversionRate: 27.5,
+    isActive: true,
+    createdAt: '2026-05-01',
+    expiryDate: '2027-05-01',
+    whatsappUsed: 94200,
+    whatsappLimit: 500000,
+  },
+];
 
-const INITIAL_KEYS: KeyRecord[] = [];
+const INITIAL_KEYS: KeyRecord[] = [
+  {
+    id: 'key_1',
+    key: 'ACME-KX-7421',
+    companyName: 'Acme Sales Solutions',
+    planTier: 'FREE_TRIAL',
+    memberLimit: 10,
+    validityDays: 30,
+    status: 'ACTIVE',
+    expiresAt: '2026-09-30',
+    createdAt: '2026-08-01',
+  },
+  {
+    id: 'key_2',
+    key: 'NGEN-GR-2041',
+    companyName: 'NextGen Growth Technologies',
+    planTier: 'GROWTH',
+    memberLimit: 20,
+    validityDays: 365,
+    status: 'ACTIVE',
+    expiresAt: '2026-12-31',
+    createdAt: '2026-07-15',
+  },
+  {
+    id: 'key_3',
+    key: 'APEX-BZ-5088',
+    companyName: 'Apex Business Solutions',
+    planTier: 'BUSINESS',
+    memberLimit: 50,
+    validityDays: 365,
+    status: 'ACTIVE',
+    expiresAt: '2026-12-31',
+    createdAt: '2026-06-01',
+  },
+  {
+    id: 'key_4',
+    key: 'GLBL-EP-1002',
+    companyName: 'Global Enterprise Holdings',
+    planTier: 'ENTERPRISE',
+    memberLimit: 100,
+    validityDays: 365,
+    status: 'ACTIVE',
+    expiresAt: '2027-05-01',
+    createdAt: '2026-05-01',
+  },
+];
 
 const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [];
 
@@ -96,7 +226,8 @@ export function SuperAdminDashboard() {
   const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
   const [editName, setEditName] = useState('');
   const [editPlan, setEditPlan] = useState<PlanType>('FREE_TRIAL');
-  const [editSeats, setEditSeats] = useState(6);
+  const [editSeats, setEditSeats] = useState(10);
+  const [editTrialDuration, setEditTrialDuration] = useState(30); // 15 to 40 days
   const [editExpiryDate, setEditExpiryDate] = useState('');
 
   // WhatsApp Date-Wise Chat Log Modal
@@ -108,8 +239,25 @@ export function SuperAdminDashboard() {
   const [genKeyModalOpen, setGenKeyModalOpen] = useState(false);
   const [genCompanyName, setGenCompanyName] = useState('');
   const [genPlan, setGenPlan] = useState<PlanType>('FREE_TRIAL');
-  const [genSeats, setGenSeats] = useState(6);
+  const [genSeats, setGenSeats] = useState(10);
   const [genValidityDays, setGenValidityDays] = useState(30);
+
+  const handleGenPlanChange = (newPlan: PlanType) => {
+    setGenPlan(newPlan);
+    if (newPlan === 'FREE_TRIAL') {
+      setGenSeats(10);
+      setGenValidityDays(30);
+    } else if (newPlan === 'GROWTH') {
+      setGenSeats(20);
+      setGenValidityDays(30);
+    } else if (newPlan === 'BUSINESS') {
+      setGenSeats(50);
+      setGenValidityDays(30);
+    } else if (newPlan === 'ENTERPRISE') {
+      setGenSeats(100);
+      setGenValidityDays(365);
+    }
+  };
 
   const { updateSubscription } = useAuth();
 
@@ -122,13 +270,46 @@ export function SuperAdminDashboard() {
   const activePaidPlans = companies.filter(c => c.plan !== 'FREE_TRIAL').length;
   const pendingRequestsCount = upgradeRequests.filter(r => r.status === 'PENDING_APPROVAL').length;
 
+  // Plan change in edit modal
+  const handleEditPlanChange = (newPlan: PlanType) => {
+    setEditPlan(newPlan);
+    if (newPlan === 'FREE_TRIAL') {
+      setEditSeats(10);
+      const expiry = new Date(Date.now() + editTrialDuration * 86400000).toISOString().split('T')[0];
+      setEditExpiryDate(expiry);
+    } else if (newPlan === 'GROWTH') {
+      setEditSeats(20);
+      const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+      setEditExpiryDate(expiry);
+    } else if (newPlan === 'BUSINESS' || newPlan === 'PRO' || newPlan === 'PRO_50') {
+      setEditSeats(50);
+      const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+      setEditExpiryDate(expiry);
+    } else if (newPlan === 'ENTERPRISE' || newPlan === 'PRO_MAX' || newPlan === 'MAX') {
+      setEditSeats(100);
+      const expiry = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
+      setEditExpiryDate(expiry);
+    }
+  };
+
+  // Adjust trial duration between 15 and 40 days
+  const handleTrialDurationChange = (days: number) => {
+    const clamped = Math.max(15, Math.min(40, days));
+    setEditTrialDuration(clamped);
+    const expiry = new Date(Date.now() + clamped * 86400000).toISOString().split('T')[0];
+    setEditExpiryDate(expiry);
+  };
+
   // Open Edit Modal for a specific company
   const handleOpenEditModal = (comp: CompanyRecord) => {
     setEditingCompany(comp);
     setEditName(comp.name);
     setEditPlan(comp.plan);
-    setEditSeats(comp.seatsAllocated);
-    setEditExpiryDate(comp.expiryDate || '2026-12-31');
+    const defaultSeats = comp.seatsAllocated || (comp.plan === 'FREE_TRIAL' ? 10 : comp.plan === 'GROWTH' ? 20 : comp.plan === 'BUSINESS' ? 50 : 100);
+    setEditSeats(defaultSeats);
+    const defaultTrialDays = comp.trialDaysLeft > 0 ? Math.min(40, Math.max(15, comp.trialDaysLeft)) : 30;
+    setEditTrialDuration(defaultTrialDays);
+    setEditExpiryDate(comp.expiryDate || new Date(Date.now() + defaultTrialDays * 86400000).toISOString().split('T')[0]);
     setEditModalOpen(true);
   };
 
@@ -143,6 +324,7 @@ export function SuperAdminDashboard() {
               name: editName,
               plan: editPlan,
               seatsAllocated: editSeats,
+              trialDaysLeft: editPlan === 'FREE_TRIAL' ? editTrialDuration : 0,
               expiryDate: editExpiryDate,
             }
           : c
@@ -155,6 +337,13 @@ export function SuperAdminDashboard() {
           : k
       )
     );
+    if (editingCompany.id === 'comp_acme' || editingCompany.name === 'Acme Sales Solutions') {
+      updateSubscription({
+        planType: editPlan,
+        userSeatsAllocated: editSeats,
+        trialDaysLeft: editPlan === 'FREE_TRIAL' ? editTrialDuration : 0,
+      });
+    }
     setEditModalOpen(false);
   };
 
@@ -808,14 +997,12 @@ export function SuperAdminDashboard() {
                   <select
                     className="crm-input text-sm h-10 w-full font-bold text-indigo-300"
                     value={editPlan}
-                    onChange={e => setEditPlan(e.target.value as PlanType)}
+                    onChange={e => handleEditPlanChange(e.target.value as PlanType)}
                   >
-                    <option value="FREE_TRIAL">Free Trial (30d)</option>
-                    <option value="STARTER">Starter Plan (6 seats)</option>
-                    <option value="PRO">Pro Plan (20 seats)</option>
-                    <option value="PRO_50">Pro 50 Plan (50 seats)</option>
-                    <option value="PRO_MAX">Pro Max (Unlimited)</option>
-                    <option value="ENTERPRISE">Enterprise (Custom)</option>
+                    <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
+                    <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
+                    <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
+                    <option value="ENTERPRISE">Enterprise Plan (100 Users · All Features)</option>
                   </select>
                 </div>
 
@@ -829,6 +1016,38 @@ export function SuperAdminDashboard() {
                   />
                 </div>
               </div>
+
+              {/* Free Trial Duration Adjustment Slider (15 to 40 days) */}
+              {editPlan === 'FREE_TRIAL' && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                      <Clock size={14} /> Free Trial Duration (15 to 40 Days)
+                    </label>
+                    <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {editTrialDuration} Days Duration
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={15}
+                    max={40}
+                    step={1}
+                    value={editTrialDuration}
+                    onChange={e => handleTrialDurationChange(+e.target.value)}
+                    className="w-full accent-amber-400 cursor-pointer h-2 bg-slate-700 rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted font-mono font-bold">
+                    <button type="button" onClick={() => handleTrialDurationChange(15)} className="hover:text-amber-300">15d (Min)</button>
+                    <button type="button" onClick={() => handleTrialDurationChange(20)} className="hover:text-amber-300">20d</button>
+                    <button type="button" onClick={() => handleTrialDurationChange(30)} className="hover:text-amber-300">30d (Default)</button>
+                    <button type="button" onClick={() => handleTrialDurationChange(40)} className="hover:text-amber-300">40d (Max)</button>
+                  </div>
+                  <p className="text-[11px] text-amber-200/80">
+                    Free Trial includes 10 Users and Basic AI (Lead Score only). Expiry date automatically recalibrated to {editExpiryDate}.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="text-muted font-bold block mb-1">Plan / Key Expiry Date</label>
@@ -974,15 +1193,14 @@ export function SuperAdminDashboard() {
                 <div>
                   <label className="text-muted font-bold block mb-1">Plan Tier</label>
                   <select
-                    className="crm-input text-sm h-10 w-full"
+                    className="crm-input text-sm h-10 w-full font-bold text-purple-300"
                     value={genPlan}
-                    onChange={e => setGenPlan(e.target.value as PlanType)}
+                    onChange={e => handleGenPlanChange(e.target.value as PlanType)}
                   >
-                    <option value="FREE_TRIAL">Free Trial (30d)</option>
-                    <option value="STARTER">Starter Plan (6 seats)</option>
-                    <option value="PRO">Pro Plan (20 seats)</option>
-                    <option value="PRO_50">Pro 50 Plan (50 seats)</option>
-                    <option value="PRO_MAX">Pro Max (Unlimited)</option>
+                    <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
+                    <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
+                    <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
+                    <option value="ENTERPRISE">Enterprise Plan (100 Users · All Features)</option>
                   </select>
                 </div>
 
@@ -990,26 +1208,54 @@ export function SuperAdminDashboard() {
                   <label className="text-muted font-bold block mb-1">User Quota (Seats)</label>
                   <input
                     type="number"
-                    className="crm-input text-sm h-10 w-full"
+                    className="crm-input text-sm h-10 w-full font-mono font-bold"
                     value={genSeats}
                     onChange={e => setGenSeats(+e.target.value)}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-muted font-bold block mb-1">Validity Window (Days)</label>
-                <select
-                  className="crm-input text-sm h-10 w-full"
-                  value={genValidityDays}
-                  onChange={e => setGenValidityDays(+e.target.value)}
-                >
-                  <option value={14}>14 Days</option>
-                  <option value={30}>30 Days</option>
-                  <option value={90}>90 Days</option>
-                  <option value={365}>365 Days (1 Year)</option>
-                </select>
-              </div>
+              {genPlan === 'FREE_TRIAL' ? (
+                <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                      <Clock size={14} /> Trial Validity Days (15 to 40 Days)
+                    </label>
+                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300">
+                      {genValidityDays} Days
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={15}
+                    max={40}
+                    step={1}
+                    value={genValidityDays}
+                    onChange={e => setGenValidityDays(Math.max(15, Math.min(40, +e.target.value)))}
+                    className="w-full accent-purple-400 cursor-pointer h-2 bg-slate-700 rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted font-mono font-bold">
+                    <span>15d (Min)</span>
+                    <span>20d</span>
+                    <span>30d (Default)</span>
+                    <span>40d (Max)</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-muted font-bold block mb-1">Validity Window (Days)</label>
+                  <select
+                    className="crm-input text-sm h-10 w-full font-bold"
+                    value={genValidityDays}
+                    onChange={e => setGenValidityDays(+e.target.value)}
+                  >
+                    <option value={30}>30 Days (1 Month)</option>
+                    <option value={90}>90 Days (3 Months)</option>
+                    <option value={180}>180 Days (6 Months)</option>
+                    <option value={365}>365 Days (1 Year)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-border">

@@ -18,6 +18,7 @@ import {
   BackHandler,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
@@ -256,8 +257,10 @@ export default function EmployeesScreen() {
     { id: 'ua-5', name: 'Kiran Nair', email: 'kiran.nair@gmail.com', phone: '+91 96543 21099', registeredAt: '01 Sep 2026, 04:22 PM', deviceInfo: 'Android 12 · Realme 11' },
   ]);
 
-  const totalQuota = subscription?.userSeatsAllocated ?? 6;
+  const totalQuota = subscription?.userSeatsAllocated ?? 10;
   const activeCount = employeesList.length;
+  const unassignedCount = unassignedUsers.length;
+  const totalUsersCount = activeCount + unassignedCount;
 
   const getCountPillStyle = () => {
     if (totalQuota > 0 && activeCount > totalQuota) {
@@ -277,21 +280,56 @@ export default function EmployeesScreen() {
     if (totalQuota > 0 && activeCount >= totalQuota) {
       Alert.alert(
         'Quota Exceeded',
-        `Your subscription plan limit is ${totalQuota} active users. You cannot assign more roles until you upgrade your plan.`,
+        `Your subscription plan limit is ${totalQuota} active users. You have already allocated all ${totalQuota} seats. Upgrade your plan to assign more roles.`,
         [{ text: 'OK' }]
       );
       return;
     }
 
     const roleConf = AVAILABLE_ROLES.find(r => r.key === selectedRole);
-    Alert.alert(
-      'Role Assigned',
-      `${assignRoleTarget.name} has been assigned as ${roleConf?.label}. They will appear in the Assigned list shortly.`,
-      [{ text: 'OK' }]
-    );
+
+    // Create new assigned employee profile
+    const newEmployee: EmployeeProfile = {
+      id: `emp-${Date.now()}`,
+      name: assignRoleTarget.name,
+      email: assignRoleTarget.email,
+      phone: assignRoleTarget.phone,
+      role: selectedRole,
+      assignedManager: 'Tenant Admin (Vikram Singh)',
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: {
+        pan: 'ABCDE1234F',
+        aadhaar: 'AADHAAR_VERIFIED.pdf',
+        eduCert: 'DEGREE_DOC.pdf',
+        offerLetter: 'OFFER_LETTER.pdf',
+        lastUpdatedDate: 'Today',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'HDFC Bank',
+        accountHolder: assignRoleTarget.name,
+        accountNo: '50100234567890',
+        ifscCode: 'HDFC0001234',
+        upiId: `${assignRoleTarget.email.split('@')[0]}@okhdfc`,
+        lastUpdatedDate: 'Today',
+        historyLogs: [],
+      },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
+      subordinates: [],
+    };
+
+    setEmployeesList(prev => [newEmployee, ...prev]);
     setUnassignedUsers(prev => prev.filter(u => u.id !== assignRoleTarget.id));
     setAssignRoleTarget(null);
     setSelectedRole(null);
+
+    Alert.alert(
+      'Role Assigned Successfully',
+      `${assignRoleTarget.name} has been assigned as ${roleConf?.label}. They are now active in your Employee Structure.`,
+      [{ text: 'OK' }]
+    );
   };
 
   useEffect(() => {
@@ -349,13 +387,15 @@ export default function EmployeesScreen() {
 
       {/* ── Page Header ── */}
       <View style={styles.pageHeader}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={styles.pageTitle}>👥 Employee Structure</Text>
-          <Text style={styles.pageSub}>Manage staff roles, access & onboarding</Text>
+          <Text style={styles.pageSub}>
+            {totalUsersCount} Total Users · {activeCount} Assigned · {unassignedCount} Unassigned
+          </Text>
         </View>
         <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
           <Text style={[styles.countPillText, { color: pillStyle.text }]}>
-            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Active
+            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Seats Assigned
           </Text>
         </View>
       </View>
@@ -455,7 +495,7 @@ export default function EmployeesScreen() {
         >
           <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: 'rgba(251,191,36,0.07)' }]}>
             <Text style={[styles.tabInfoText, { color: '#fde68a' }]}>
-              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. Assign a role to activate their workspace access.
+              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. You have <Text style={{ fontWeight: '900', color: '#34d399' }}>{Math.max(0, totalQuota - activeCount)} available seat(s)</Text> on your plan ({activeCount}/{totalQuota} used).
             </Text>
           </View>
 
@@ -507,7 +547,7 @@ export default function EmployeesScreen() {
       <Modal visible={!!assignRoleTarget} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {assignRoleTarget && (
-            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
               {/* Modal Header */}
               <View style={styles.modalHead}>
                 <View style={{ flex: 1 }}>

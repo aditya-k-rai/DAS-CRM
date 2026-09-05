@@ -1521,7 +1521,7 @@ const S = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: '#1a2335',
     padding: 18,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'android' ? 72 : 36,
     maxHeight: '80%',
   },
   modalHandle: {

@@ -19,11 +19,12 @@ import {
   Dimensions,
   Linking,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { useAuthStore } from './src/store/authStore';
@@ -151,7 +152,7 @@ function MainTabNavigator({
 }: any) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
-  const bottomPadding = Math.max(insets.bottom, 10);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
   const topPadding = Math.max(insets.top, 12);
 
   const roleStr = currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
@@ -184,14 +185,29 @@ function MainTabNavigator({
       </View>
 
       <Tab.Navigator
+        tabBar={(props) => {
+          const filteredRoutes = props.state.routes.filter((r) => r.name !== 'WorkflowBuilder');
+          const currentRoute = props.state.routes[props.state.index];
+          const activeIndex = filteredRoutes.findIndex((r) => r.key === currentRoute?.key);
+          return (
+            <BottomTabBar
+              {...props}
+              state={{
+                ...props.state,
+                routes: filteredRoutes,
+                index: activeIndex >= 0 ? activeIndex : 0,
+              }}
+            />
+          );
+        }}
         screenOptions={{
           headerShown: false,
           tabBarStyle: [
             styles.tabBar,
             {
-              height: 58 + bottomPadding,
+              height: 66 + bottomPadding,
               paddingTop: 6,
-              paddingBottom: bottomPadding,
+              paddingBottom: bottomPadding + 2,
             }
           ],
           tabBarActiveTintColor: '#818cf8',
@@ -199,7 +215,8 @@ function MainTabNavigator({
           tabBarItemStyle: {
             justifyContent: 'center',
             alignItems: 'center',
-            paddingVertical: 2,
+            paddingVertical: 3,
+            minHeight: 56,
           },
         }}
       >
@@ -214,12 +231,17 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: 'rgba(129,140,248,0.45)' }]}>
-                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>🏠</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(99,102,241,0.22)', borderColor: 'rgba(129,140,248,0.5)' }]}>
+                <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>🏠</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={[styles.tabBarLabel, { color: focused ? '#818cf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.tabBarLabel, { color: focused ? '#818cf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+              >
                 Home
               </Text>
             ),
@@ -230,12 +252,17 @@ function MainTabNavigator({
           component={LeadsStackNavigator}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(14,165,233,0.2)', borderColor: 'rgba(56,189,248,0.45)' }]}>
-                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>🎯</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(14,165,233,0.22)', borderColor: 'rgba(56,189,248,0.5)' }]}>
+                <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>🎯</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+              >
                 Leads
               </Text>
             ),
@@ -246,12 +273,17 @@ function MainTabNavigator({
           component={EmployeesScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(168,85,247,0.2)', borderColor: 'rgba(192,132,252,0.45)' }]}>
-                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>👥</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(168,85,247,0.22)', borderColor: 'rgba(192,132,252,0.5)' }]}>
+                <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>👥</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={[styles.tabBarLabel, { color: focused ? '#c084fc' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.tabBarLabel, { color: focused ? '#c084fc' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+              >
                 Employees
               </Text>
             ),
@@ -270,16 +302,21 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(251,191,36,0.45)' }]}>
-                <View style={{ width: 17, height: 13, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
-                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
-                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(245,158,11,0.22)', borderColor: 'rgba(251,191,36,0.5)' }]}>
+                <View style={{ width: 19, height: 14, justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
                 </View>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+              >
                 Menu
               </Text>
             ),
@@ -290,12 +327,17 @@ function MainTabNavigator({
           component={AttendanceScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(52,211,153,0.45)' }]}>
-                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>⏱️</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(16,185,129,0.22)', borderColor: 'rgba(52,211,153,0.5)' }]}>
+                <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>⏱️</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={[styles.tabBarLabel, { color: focused ? '#34d399' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+                style={[styles.tabBarLabel, { color: focused ? '#34d399' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+              >
                 Attendance
               </Text>
             ),
@@ -309,6 +351,7 @@ function MainTabNavigator({
             <WorkflowBuilderScreen {...navProps} />
           )}
           options={{
+            tabBarItemStyle: { display: 'none' },
             tabBarButton: () => null,
             tabBarStyle: { display: 'none' },
           }}
@@ -862,25 +905,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#070c18',
     borderTopWidth: 1,
     borderTopColor: '#1a2333',
-    elevation: 8,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
   tabIconBox: {
-    width: 48,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
+    width: 52,
+    height: 33,
+    borderRadius: 16.5,
+    borderWidth: 1.5,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabBarLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     marginTop: 3,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
+    textAlign: 'center',
   },
 
   // 🔔 Notifications Modal Styles

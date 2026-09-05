@@ -4,9 +4,9 @@
  * Accessible from Admin Dashboard Header Banner (Workflow Rules button).
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, Alert, BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -54,15 +54,32 @@ export default function WorkflowBuilderScreen({ navigation }: Props) {
   };
 
   const goBack = () => {
-    try { navigation?.goBack(); } catch { try { navigation?.navigate("Home"); } catch {} }
+    if (navigation?.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      try {
+        navigation?.navigate("Home");
+      } catch {
+        try { navigation?.navigate("Menu"); } catch {}
+      }
+    }
   };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      goBack();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: 0 }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.7}>
-          <Text style={styles.backBtnText}>{"<"} Back</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Workflow Builder</Text>

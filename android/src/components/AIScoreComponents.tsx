@@ -85,10 +85,13 @@ export function AIScoreDetailModal({
   onClose,
 }: {
   visible: boolean;
-  score: AIScoreData;
+  score?: AIScoreData | null;
   onClose: () => void;
 }) {
-  const config = TIER_CONFIG[score.tier] || TIER_CONFIG.LOW;
+  if (!score) return null;
+
+  const tierKey = (score.tier || 'LOW').toUpperCase() as keyof typeof TIER_CONFIG;
+  const config = TIER_CONFIG[tierKey] || TIER_CONFIG.LOW;
 
   const getScoreColor = (value: number) => {
     if (value >= 80) return '#22c55e';
@@ -99,8 +102,8 @@ export function AIScoreDetailModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
           {/* Header */}
           <View style={styles.modalHeader}>
             <View style={[styles.modalHeaderLeft, { backgroundColor: config.bg, borderColor: config.border }]}>
@@ -112,7 +115,7 @@ export function AIScoreDetailModal({
                 {config.label} Priority · {score.totalScore.toFixed(1)}/10
               </Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -122,9 +125,10 @@ export function AIScoreDetailModal({
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📊 Score Breakdown</Text>
               {SCORE_CATEGORIES.map((cat) => {
-                const value = score[cat.key];
-                const percentage = (value / 10) * 100;
-                const scoreColor = getScoreColor(value);
+                const rawValue = score[cat.key] ?? 80;
+                const normalizedValue = rawValue <= 10 ? Math.round(rawValue * 10) : Math.round(rawValue);
+                const percentage = Math.min(100, Math.max(0, normalizedValue));
+                const scoreColor = getScoreColor(normalizedValue);
                 return (
                   <View key={cat.key} style={styles.scoreRow}>
                     <View style={styles.scoreLabel}>
@@ -133,7 +137,7 @@ export function AIScoreDetailModal({
                     <View style={styles.scoreBar}>
                       <View style={[styles.scoreBarFill, { width: `${percentage}%`, backgroundColor: scoreColor }]} />
                     </View>
-                    <Text style={[styles.scoreValue, { color: scoreColor }]}>{value.toFixed(0)}</Text>
+                    <Text style={[styles.scoreValue, { color: scoreColor }]}>{normalizedValue}</Text>
                   </View>
                 );
               })}
@@ -141,7 +145,7 @@ export function AIScoreDetailModal({
 
             {/* AI Analysis */}
             {score.analysisSummary && (
-              <View style={[styles.section, { backgroundColor: `${config.color}15`, borderColor: `${config.color}30` }]}>
+              <View style={[styles.section, styles.analysisBox, { backgroundColor: `${config.color}15`, borderColor: `${config.color}35` }]}>
                 <Text style={styles.sectionTitleEmoji}>🤖 AI Analysis</Text>
                 <Text style={styles.analysisText}>{score.analysisSummary}</Text>
               </View>
@@ -195,8 +199,8 @@ export function AIScoreDetailModal({
               </Text>
             )}
           </ScrollView>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 }
@@ -467,14 +471,15 @@ const styles = StyleSheet.create({
   sectionTitleEmoji: { fontSize: 12, fontWeight: '700', color: '#ffffff', marginBottom: 8 },
 
   // Score Breakdown
-  scoreRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  scoreLabel: { width: 80 },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  scoreLabel: { width: 85 },
   scoreLabelText: { fontSize: 11, fontWeight: '700' },
-  scoreBar: { flex: 1, height: 6, backgroundColor: '#1e293b', borderRadius: 3, marginHorizontal: 8 },
+  scoreBar: { flex: 1, height: 6, backgroundColor: '#1e293b', borderRadius: 3, marginHorizontal: 8, overflow: 'hidden' },
   scoreBarFill: { height: '100%', borderRadius: 3 },
-  scoreValue: { width: 24, fontSize: 11, fontWeight: '900', textAlign: 'right' },
+  scoreValue: { width: 28, fontSize: 11, fontWeight: '900', textAlign: 'right' },
 
   // Analysis
+  analysisBox: { borderWidth: 1, borderRadius: 12, padding: 12 },
   analysisText: { fontSize: 12, color: '#e2e8f0', lineHeight: 18 },
 
   // Factors

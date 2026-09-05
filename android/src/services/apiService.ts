@@ -293,6 +293,10 @@ class ApiService {
 
   /** Update lead status (/leads/:id/status) */
   async updateLeadStatus(token: string | null, leadId: string, newStatus: string): Promise<boolean> {
+    const idx = FALLBACK_LEADS.findIndex(l => l.id === leadId);
+    if (idx >= 0) {
+      FALLBACK_LEADS[idx].status = newStatus;
+    }
     if (!token) return true;
     try {
       const res = await fetch(`${API_BASE}/leads/${leadId}/status`, {

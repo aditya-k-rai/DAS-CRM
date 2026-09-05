@@ -149,9 +149,11 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
               </p>
               <div className="space-y-3">
                 {SCORE_CATEGORIES.map((cat) => {
-                  const value = score[cat.key as keyof AIScoreData] as number;
+                  const rawValue = (score[cat.key as keyof AIScoreData] as number) ?? 0;
+                  const normalizedValue = rawValue <= 10 ? Math.round(rawValue * 10) : Math.round(rawValue);
+                  const percentage = Math.min(100, Math.max(0, normalizedValue));
                   const Icon = cat.icon;
-                  const percentage = (value / 10) * 100;
+                  const scoreColor = getScoreColor(normalizedValue);
                   return (
                     <div key={cat.key}>
                       <div className="flex items-center justify-between mb-1">
@@ -159,14 +161,14 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
                           <Icon size={14} style={{ color: cat.color }} />
                           <span className="text-xs font-medium text-slate-300">{cat.label}</span>
                         </div>
-                        <span className="text-xs font-bold" style={{ color: getScoreColor(value) }}>
-                          {value.toFixed(0)}
+                        <span className="text-xs font-bold" style={{ color: scoreColor }}>
+                          {normalizedValue}
                         </span>
                       </div>
                       <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
                         <div
                           className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${percentage}%`, background: getScoreColor(value) }}
+                          style={{ width: `${percentage}%`, background: scoreColor }}
                         />
                       </div>
                     </div>

@@ -1,17 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Shield, ExternalLink, ArrowRight } from 'lucide-react';
+import { Shield, ExternalLink } from 'lucide-react';
 
 export default function SuperAdminPage() {
   const superAdminUrl = process.env.NEXT_PUBLIC_SUPER_ADMIN_URL || 'http://localhost:3002';
-
-  useEffect(() => {
-    // Redirect to the dedicated Super Admin Control Plane app
-    if (typeof window !== 'undefined') {
-      window.location.href = superAdminUrl;
-    }
-  }, [superAdminUrl]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-4">
@@ -28,6 +20,8 @@ export default function SuperAdminPage() {
       <div className="pt-2">
         <a
           href={superAdminUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl transition-all"
         >
           Open SuperAdmin Portal ({superAdminUrl}) <ExternalLink size={15} />

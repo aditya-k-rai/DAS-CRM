@@ -3,7 +3,62 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
-export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX' | 'ENTERPRISE';
+export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
+
+export interface PlanConfig {
+  id: PlanType;
+  name: string;
+  seats: number;
+  durationMinDays?: number;
+  durationMaxDays?: number;
+  defaultDurationDays?: number;
+  hasAllAiFeatures: boolean;
+  hasWhatsApp: boolean;
+  hasEmailMarketing: boolean;
+  description: string;
+}
+
+export const PLAN_CONFIGS: Record<string, PlanConfig> = {
+  FREE_TRIAL: {
+    id: 'FREE_TRIAL',
+    name: 'Free Trial Plan',
+    seats: 10,
+    durationMinDays: 15,
+    durationMaxDays: 40,
+    defaultDurationDays: 30,
+    hasAllAiFeatures: false, // Basic AI only (Only Lead Score)
+    hasWhatsApp: false,
+    hasEmailMarketing: false,
+    description: '10 Users · Basic AI (Lead Score only) · 15-40 days duration',
+  },
+  GROWTH: {
+    id: 'GROWTH',
+    name: 'Growth Plan',
+    seats: 20,
+    hasAllAiFeatures: true, // All AI features included
+    hasWhatsApp: false, // Blocked
+    hasEmailMarketing: false, // Blocked
+    description: '20 Users · All AI Features · WhatsApp & Email excluded',
+  },
+  BUSINESS: {
+    id: 'BUSINESS',
+    name: 'Business Plan',
+    seats: 50,
+    hasAllAiFeatures: true,
+    hasWhatsApp: true,
+    hasEmailMarketing: true,
+    description: '50 Users · All Features Included (All AI + WhatsApp + Email)',
+  },
+  ENTERPRISE: {
+    id: 'ENTERPRISE',
+    name: 'Enterprise Plan',
+    seats: 100,
+    hasAllAiFeatures: true,
+    hasWhatsApp: true,
+    hasEmailMarketing: true,
+    description: '100 Users · All Features Included · Enterprise Scale & SLA',
+  },
+};
 
 export interface CompanySubscription {
   id: string;
@@ -15,8 +70,8 @@ export interface CompanySubscription {
   userSeatsUsed: number;
   hasTeamLeaders: boolean;
   features: {
-    whatsApp: boolean; // HARD-BLOCKED during FREE_TRIAL
-    emailAutomation: boolean; // HARD-BLOCKED during FREE_TRIAL
+    whatsApp: boolean; // HARD-BLOCKED during FREE_TRIAL and GROWTH
+    emailAutomation: boolean; // HARD-BLOCKED during FREE_TRIAL and GROWTH
     aiLeadScoring: boolean;
     customSalaryBuilder: boolean;
     exportCSV: boolean;
@@ -48,14 +103,14 @@ export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_acme',
   companyName: 'Acme Sales Solutions',
   planType: 'FREE_TRIAL',
-  trialDaysLeft: 14,
+  trialDaysLeft: 30,
   isExpired: false,
-  userSeatsAllocated: 6, // Starter default seat quota (excluding Admin)
-  userSeatsUsed: 4,
+  userSeatsAllocated: 10, // Free Trial provides 10 Users quota
+  userSeatsUsed: 6, // 6 Assigned roles
   hasTeamLeaders: true,
   features: {
-    whatsApp: false, // Hard-blocked on FREE_TRIAL
-    emailAutomation: false, // Hard-blocked on FREE_TRIAL
+    whatsApp: false, // Hard-blocked on FREE_TRIAL and GROWTH
+    emailAutomation: false, // Hard-blocked on FREE_TRIAL and GROWTH
     aiLeadScoring: true,
     customSalaryBuilder: true,
     exportCSV: true,
@@ -133,6 +188,7 @@ interface AuthContextType {
   toggleScenario: (hasTL: boolean) => void;
   canEdit: () => boolean;
   canAccessFeature: (feat: keyof CompanySubscription['features']) => boolean;
+  canAccessAIFeature: (feature: 'lead-scoring' | 'chat-instructions' | 'templates' | 'automation' | 'analytics') => boolean;
   isSeatExceeded: boolean;
   setAuthSession: (user: UserProfile, token: string, sub?: CompanySubscription) => void;
   logout: () => void;
@@ -220,9 +276,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [roleTransitionLock, setRoleTransitionLock] = useState<RoleTransitionLock | null>(null);
 
   // localStorage hydration is fully handled by the lazy useState initializer above.
-  // Only the plan-enforcement side-effect needs a useEffect.
+  // Enforce plan features
   useEffect(() => {
-    if (subscription.planType === 'FREE_TRIAL') {
+    if (subscription.planType === 'FREE_TRIAL' || subscription.planType === 'GROWTH' || subscription.planType === 'STARTER') {
       setSubscription(prev => ({
         ...prev,
         features: { ...prev.features, whatsApp: false, emailAutomation: false },
@@ -247,10 +303,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...patch,
         features: { ...prev.features, ...(patch.features || {}) },
       };
-      // Always enforce HARD BLOCK on Free Trial for WhatsApp and Email Automation
-      if (updated.planType === 'FREE_TRIAL') {
+      // WhatsApp and Email are blocked on FREE_TRIAL and GROWTH
+      if (updated.planType === 'FREE_TRIAL' || updated.planType === 'GROWTH' || updated.planType === 'STARTER') {
         updated.features.whatsApp = false;
         updated.features.emailAutomation = false;
+      }
+      if (updated.planType === 'BUSINESS' || updated.planType === 'ENTERPRISE' || updated.planType === 'PRO' || updated.planType === 'PRO_50' || updated.planType === 'PRO_MAX' || updated.planType === 'MAX') {
+        updated.features.whatsApp = true;
+        updated.features.emailAutomation = true;
       }
       return updated;
     });
@@ -269,12 +329,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canAccessFeature = useCallback((feat: keyof CompanySubscription['features']): boolean => {
     if (currentUser.role === 'SUPER_ADMIN') return true;
-    // Hard block WhatsApp and Email Automation on FREE_TRIAL
-    if (subscription.planType === 'FREE_TRIAL' && (feat === 'whatsApp' || feat === 'emailAutomation')) {
+    const plan = subscription.planType;
+    // Hard block WhatsApp and Email Automation on FREE_TRIAL and GROWTH
+    if ((plan === 'FREE_TRIAL' || plan === 'GROWTH' || plan === 'STARTER') && (feat === 'whatsApp' || feat === 'emailAutomation')) {
       return false;
     }
     return !!subscription.features[feat];
   }, [currentUser.role, subscription.planType, subscription.features]);
+
+  const canAccessAIFeature = useCallback((feature: 'lead-scoring' | 'chat-instructions' | 'templates' | 'automation' | 'analytics'): boolean => {
+    if (currentUser.role === 'SUPER_ADMIN') return true;
+    const plan = subscription.planType;
+    // Free Trial has ONLY the Lead Score feature
+    if (plan === 'FREE_TRIAL' || plan === 'STARTER') {
+      return feature === 'lead-scoring';
+    }
+    // Growth, Business, and Enterprise have all AI features
+    return true;
+  }, [currentUser.role, subscription.planType]);
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
@@ -317,6 +389,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toggleScenario,
         canEdit,
         canAccessFeature,
+        canAccessAIFeature,
         isSeatExceeded,
         setAuthSession,
         logout,
@@ -342,6 +415,7 @@ export function useAuth() {
       toggleScenario: () => {},
       canEdit: () => true,
       canAccessFeature: () => true,
+      canAccessAIFeature: () => true,
       isSeatExceeded: false,
       setAuthSession: () => {},
       logout: () => {},

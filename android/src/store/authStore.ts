@@ -19,12 +19,70 @@ export type UserRole =
 
 export type PlanType =
   | 'FREE_TRIAL'
+  | 'GROWTH'
+  | 'BUSINESS'
+  | 'ENTERPRISE'
   | 'STARTER'
   | 'BASIC'
   | 'PRO'
   | 'PRO_50'
   | 'PRO_MAX'
-  | 'ENTERPRISE';
+  | 'MAX';
+
+export interface PlanConfig {
+  id: PlanType;
+  name: string;
+  seats: number;
+  durationMinDays?: number;
+  durationMaxDays?: number;
+  defaultDurationDays?: number;
+  hasAllAiFeatures: boolean;
+  hasWhatsApp: boolean;
+  hasEmailMarketing: boolean;
+  description: string;
+}
+
+export const PLAN_CONFIGS: Record<string, PlanConfig> = {
+  FREE_TRIAL: {
+    id: 'FREE_TRIAL',
+    name: 'Free Trial Plan',
+    seats: 10,
+    durationMinDays: 15,
+    durationMaxDays: 40,
+    defaultDurationDays: 30,
+    hasAllAiFeatures: false, // Basic AI only (Only Lead Score)
+    hasWhatsApp: false,
+    hasEmailMarketing: false,
+    description: '10 Users · Basic AI (Lead Score only) · 15-40 days duration',
+  },
+  GROWTH: {
+    id: 'GROWTH',
+    name: 'Growth Plan',
+    seats: 20,
+    hasAllAiFeatures: true, // All AI features included
+    hasWhatsApp: false, // Blocked
+    hasEmailMarketing: false, // Blocked
+    description: '20 Users · All AI Features · WhatsApp & Email excluded',
+  },
+  BUSINESS: {
+    id: 'BUSINESS',
+    name: 'Business Plan',
+    seats: 50,
+    hasAllAiFeatures: true,
+    hasWhatsApp: true,
+    hasEmailMarketing: true,
+    description: '50 Users · All Features Included (All AI + WhatsApp + Email)',
+  },
+  ENTERPRISE: {
+    id: 'ENTERPRISE',
+    name: 'Enterprise Plan',
+    seats: 100,
+    hasAllAiFeatures: true,
+    hasWhatsApp: true,
+    hasEmailMarketing: true,
+    description: '100 Users · All Features Included · Enterprise Scale & SLA',
+  },
+};
 
 export interface CompanySubscription {
   id: string;
@@ -74,15 +132,15 @@ export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_acme',
   companyName: 'Acme Sales Solutions',
   planType: 'FREE_TRIAL',
-  trialDaysLeft: 14,
+  trialDaysLeft: 30,
   isExpired: false,
-  userSeatsAllocated: 6,
-  userSeatsUsed: 4,
+  userSeatsAllocated: 10, // Free Trial default: 10 Users
+  userSeatsUsed: 6, // 6 Assigned roles
   hasTeamLeaders: true,
   features: {
-    whatsApp: false,
-    emailAutomation: false,
-    aiLeadScoring: true,
+    whatsApp: false, // Blocked on FREE_TRIAL and GROWTH
+    emailAutomation: false, // Blocked on FREE_TRIAL and GROWTH
+    aiLeadScoring: true, // Only AI feature enabled on FREE_TRIAL
     customSalaryBuilder: true,
     exportCSV: true,
   },
@@ -310,6 +368,9 @@ interface AuthState {
   canAccessFeature: (
     feat: keyof CompanySubscription['features'],
   ) => boolean;
+  canAccessAIFeature: (
+    feature: 'lead-scoring' | 'chat-instructions' | 'templates' | 'automation' | 'analytics',
+  ) => boolean;
 }
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
@@ -379,9 +440,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         ...patch,
         features: { ...state.subscription.features, ...(patch.features || {}) },
       };
-      if (updated.planType === 'FREE_TRIAL') {
+      // WhatsApp and Email are blocked on FREE_TRIAL and GROWTH
+      if (updated.planType === 'FREE_TRIAL' || updated.planType === 'GROWTH' || updated.planType === 'STARTER') {
         updated.features.whatsApp = false;
         updated.features.emailAutomation = false;
+      }
+      if (updated.planType === 'BUSINESS' || updated.planType === 'ENTERPRISE' || updated.planType === 'PRO' || updated.planType === 'PRO_50' || updated.planType === 'PRO_MAX' || updated.planType === 'MAX') {
+        updated.features.whatsApp = true;
+        updated.features.emailAutomation = true;
       }
       return { subscription: updated };
     });
@@ -433,12 +499,26 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   canAccessFeature: (feat) => {
     const { currentUser, subscription } = get();
     if (currentUser.role === 'SUPER_ADMIN') return true;
+    const plan = subscription.planType;
+    // Hard block WhatsApp and Email Marketing on FREE_TRIAL and GROWTH plans
     if (
-      subscription.planType === 'FREE_TRIAL' &&
+      (plan === 'FREE_TRIAL' || plan === 'GROWTH' || plan === 'STARTER') &&
       (feat === 'whatsApp' || feat === 'emailAutomation')
     ) {
       return false;
     }
     return !!subscription.features[feat];
+  },
+
+  canAccessAIFeature: (feature) => {
+    const { currentUser, subscription } = get();
+    if (currentUser.role === 'SUPER_ADMIN') return true;
+    const plan = subscription.planType;
+    // Free Trial has ONLY the Lead Score feature
+    if (plan === 'FREE_TRIAL' || plan === 'STARTER') {
+      return feature === 'lead-scoring';
+    }
+    // Growth, Business, and Enterprise have all AI features
+    return true;
   },
 }));

@@ -77,10 +77,16 @@ const LABELS = {
   },
 };
 
+import { useAuth } from '@/context/AuthContext';
+import { Lock, Sparkles, X } from 'lucide-react';
+
 export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
+  const { subscription } = useAuth();
   const [activeSubsection, setActiveSubsection] = useState<Subsection>(initialSubsection);
   const [language, setLanguage] = useState<Language>('en');
+  const [lockedModalItem, setLockedModalItem] = useState<string | null>(null);
 
+  const isFreeTrial = subscription?.planType === 'FREE_TRIAL' || subscription?.planType === 'STARTER';
   const t = LABELS[language];
 
   const menuItems = [
@@ -102,7 +108,7 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
       borderColor: 'border-pink-500/30',
       label: t.chatInstructions,
       description: t.chatInstructionsDesc,
-      badge: null,
+      badge: isFreeTrial ? 'GROWTH PLAN' : null,
     },
     {
       id: 'templates' as Subsection,
@@ -112,7 +118,7 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
       borderColor: 'border-amber-500/30',
       label: t.templates,
       description: t.templatesDesc,
-      badge: null,
+      badge: isFreeTrial ? 'GROWTH PLAN' : null,
     },
     {
       id: 'automation' as Subsection,
@@ -122,7 +128,7 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
       borderColor: 'border-emerald-500/30',
       label: t.automation,
       description: t.automationDesc,
-      badge: null,
+      badge: isFreeTrial ? 'GROWTH PLAN' : null,
     },
     {
       id: 'analytics' as Subsection,
@@ -132,7 +138,7 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
       borderColor: 'border-blue-500/30',
       label: t.analytics,
       description: t.analyticsDesc,
-      badge: null,
+      badge: isFreeTrial ? 'GROWTH PLAN' : null,
     },
   ];
 
@@ -143,7 +149,7 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
         return (
           <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -175,15 +181,45 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
               </div>
             </div>
 
+            {/* Free Trial Banner */}
+            {isFreeTrial && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold">
+                    ⚡
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-200">Free Trial Plan: Basic AI Active (Lead Scoring Only)</h4>
+                    <p className="text-[11px] text-amber-300/80">Upgrade to Growth Plan (20 Users) to unlock Chat Instructions, Templates, Automations, and Analytics.</p>
+                  </div>
+                </div>
+                <a
+                  href="/billing?plan=GROWTH"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-md transition-all whitespace-nowrap"
+                >
+                  Upgrade to Growth →
+                </a>
+              </div>
+            )}
+
             {/* Menu Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {menuItems.map((item) => {
                 const Icon = item.icon;
+                const isLocked = isFreeTrial && item.id !== 'lead-scoring';
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveSubsection(item.id)}
-                    className={`group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br ${item.gradient} border ${item.borderColor} hover:scale-[1.02] transition-all duration-200 text-left`}
+                    onClick={() => {
+                      if (isLocked) {
+                        setLockedModalItem(item.label);
+                        return;
+                      }
+                      setActiveSubsection(item.id);
+                    }}
+                    className={`group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br ${item.gradient} border ${item.borderColor} hover:scale-[1.01] transition-all duration-200 text-left ${
+                      isLocked ? 'opacity-70 hover:opacity-90' : ''
+                    }`}
                   >
                     <div className="flex items-start gap-4">
                       <div
@@ -193,17 +229,61 @@ export function AIHub({ initialSubsection = 'hub' }: AIHubProps) {
                         <Icon size={24} style={{ color: item.color }} />
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                          {item.label}
-                          <ChevronRight size={16} className="text-slate-500 group-hover:translate-x-1 transition-transform" />
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-white font-bold text-lg">{item.label}</h3>
+                          {isLocked && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                              <Lock size={10} /> GROWTH PLAN
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-400 mt-1">{item.description}</p>
+                      </div>
+                      <div className="text-slate-500 group-hover:translate-x-1 transition-transform">
+                        {isLocked ? <Lock size={18} className="text-amber-400" /> : <ChevronRight size={18} />}
                       </div>
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            {/* Upgrade Modal */}
+            {lockedModalItem && (
+              <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
+                <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+                  <button
+                    onClick={() => setLockedModalItem(null)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-white"
+                  >
+                    <X size={18} />
+                  </button>
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center">
+                    <Lock size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{lockedModalItem} requires Growth Plan</h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      Your Free Trial Plan includes <strong>Basic AI (Lead Scoring only)</strong>. The <strong>Growth Plan (20 Users)</strong> unlocks all AI capabilities including custom Chat Persona, Prompt Instructions, Auto-Automation triggers, and AI Learning Analytics.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setLockedModalItem(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold"
+                    >
+                      Dismiss
+                    </button>
+                    <a
+                      href="/billing?plan=GROWTH"
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black"
+                    >
+                      View Growth Plan →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 

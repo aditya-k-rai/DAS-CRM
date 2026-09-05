@@ -21,7 +21,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Linking, Modal, Image, Dimensions, Switch,
-  StatusBar, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
+  StatusBar, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -210,6 +210,13 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [historySearch, setHistorySearch]     = useState('');
   const [statusFilter, setStatusFilter]       = useState<'ALL'|'DRAFT'|'GENERATED_SENT'>('ALL');
   const [savedSuccess, setSavedSuccess]       = useState(false);
+
+  // ── Refresh & Compile PDF Engine State ──
+  const [isCompiling, setIsCompiling]         = useState(false);
+  const [compileSuccess, setCompileSuccess]   = useState(false);
+  const [compileVersion, setCompileVersion]   = useState(1);
+  const [lastCompiledAt, setLastCompiledAt]   = useState<string | null>(null);
+  const [compileStatusMsg, setCompileStatusMsg] = useState<string | null>(null);
 
   // Modals
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
@@ -679,7 +686,43 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 </html>`;
   };
 
+  const handleCompilePdf = useCallback(() => {
+    setIsCompiling(true);
+    // 1. Dismiss any open keyboard to commit pending inputs
+    Keyboard.dismiss();
+
+    // 2. Sanitize and recalculate all line items strictly
+    setItems(prevItems =>
+      prevItems.map(it => {
+        const qty = isNaN(Number(it.qty)) ? 1 : Math.max(0, Number(it.qty));
+        const unitPrice = isNaN(Number(it.unitPrice)) ? 0 : Math.max(0, Number(it.unitPrice));
+        const discountVal = isNaN(Number(it.discountVal)) ? 0 : Math.max(0, Number(it.discountVal));
+        const taxRate = isNaN(Number(it.taxRate)) ? globalGstRate : Math.max(0, Number(it.taxRate));
+        const base = qty * unitPrice;
+        const itemDisc = it.discountType === 'percent' ? base * (discountVal / 100) : discountVal;
+        const total = Math.max(0, base - itemDisc);
+        return { ...it, qty, unitPrice, discountVal, taxRate, total };
+      })
+    );
+
+    // 3. Force re-compilation with timestamp
+    setTimeout(() => {
+      const timeStr = fmtTime();
+      setLastCompiledAt(timeStr);
+      setCompileVersion(v => v + 1);
+      setIsCompiling(false);
+      setCompileSuccess(true);
+      setCompileStatusMsg(`✓ Synced at ${timeStr}`);
+
+      setTimeout(() => {
+        setCompileSuccess(false);
+        setCompileStatusMsg(null);
+      }, 2500);
+    }, 350);
+  }, [globalGstRate]);
+
   const handlePrintPDF = async (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
+    handleCompilePdf();
     setIsPrinting(true);
     try {
       const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
@@ -692,6 +735,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   };
 
   const handleSharePDF = async (overridePartyName?: string, overrideDocNo?: string, overrideAmount?: number) => {
+    handleCompilePdf();
     setIsPrinting(true);
     try {
       const html = buildPrintHTML(overridePartyName, overrideDocNo, overrideAmount);
@@ -1080,6 +1124,22 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
           {/* Quick Action Buttons */}
           <View style={styles.topBarActions}>
+            {/* ⚡ REFRESH & COMPILE BUTTON */}
+            <TouchableOpacity
+              style={[styles.topBarBtnCompile, compileSuccess && styles.topBarBtnCompileSuccess]}
+              onPress={handleCompilePdf}
+              disabled={isCompiling}
+              hitSlop={{top:6,bottom:6,left:4,right:4}}
+            >
+              {isCompiling ? (
+                <ActivityIndicator size="small" color="#ffffff" style={{ transform:[{scale:0.7}] }} />
+              ) : (
+                <Text style={styles.topBarBtnCompileText}>
+                  {compileSuccess ? '✓ Synced' : '⚡ Compile'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.topBarBtn, savedSuccess && styles.topBarBtnSuccess]}
               onPress={handleSaveCurrentDraft}
@@ -1484,7 +1544,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
               </View>
             </View>
 
-            {/* 5-Action Button Row */}
+            {/* 6-Action Button Row */}
             <View style={styles.bottomActionsRow}>
               <TouchableOpacity
                 style={[styles.bottomAction, savedSuccess && styles.bottomActionSuccess]}
@@ -1494,6 +1554,23 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 <Text style={styles.bottomActionIcon}>{savedSuccess ? '✓' : '💾'}</Text>
                 <Text style={[styles.bottomActionLabel, savedSuccess && { color:'#34d399' }]}>
                   {savedSuccess ? 'Saved' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* ⚡ COMPILE PDF ACTION */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionCompile, compileSuccess && styles.bottomActionCompileSuccess]}
+                onPress={handleCompilePdf}
+                disabled={isCompiling}
+                activeOpacity={0.8}
+              >
+                {isCompiling ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.bottomActionIcon}>⚡</Text>
+                )}
+                <Text style={[styles.bottomActionLabel, { color:'#fff' }]}>
+                  {compileSuccess ? 'Compiled' : 'Compile PDF'}
                 </Text>
               </TouchableOpacity>
 
@@ -1556,6 +1633,22 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
               <Text style={styles.splitToggleBtnText}>← Builder</Text>
             </TouchableOpacity>
 
+            {/* ⚡ PREVIEW REFRESH & COMPILE BUTTON */}
+            <TouchableOpacity
+              style={[styles.previewCompileBtn, compileSuccess && styles.previewCompileBtnSuccess]}
+              onPress={handleCompilePdf}
+              disabled={isCompiling}
+              hitSlop={{top:8,bottom:8,left:4,right:4}}
+            >
+              {isCompiling ? (
+                <ActivityIndicator size="small" color="#fff" style={{ transform:[{scale:0.65}] }} />
+              ) : (
+                <Text style={styles.previewCompileBtnText}>
+                  {compileSuccess ? '✓ Synced' : '⚡ Compile'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
             {/* Zoom Controls */}
             <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
               {[
@@ -1596,9 +1689,22 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             </View>
           </View>
 
+          {/* Compilation Status Banner */}
+          <View style={styles.previewStatusBanner}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+              <View style={[styles.statusDot, { backgroundColor: compileSuccess ? '#10b981' : '#6366f1' }]} />
+              <Text style={styles.previewStatusText}>
+                {compileStatusMsg || (lastCompiledAt ? `Compiled at ${lastCompiledAt} • All Live Data Synced` : 'Live A4 Preview (10mm Margin)')}
+              </Text>
+            </View>
+            <Text style={styles.previewStatusSub}>ISO A4 Format</Text>
+          </View>
+
           {/* Preview Scroll */}
           <ScrollView contentContainerStyle={styles.previewScroll} showsVerticalScrollIndicator={false}>
-            {renderA4Preview()}
+            <View key={`live-compiled-doc-${compileVersion}`}>
+              {renderA4Preview()}
+            </View>
           </ScrollView>
 
           {/* Preview Bottom Bar */}
@@ -1883,6 +1989,9 @@ const styles = StyleSheet.create({
   topBarActions: { flexDirection: 'row', gap: 6 },
   topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
   topBarBtnSuccess: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
+  topBarBtnCompile: { backgroundColor: '#2563eb', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#3b82f6', minWidth: 64, alignItems: 'center', justifyContent: 'center' },
+  topBarBtnCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
+  topBarBtnCompileText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
   topBarBtnPrint: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 68, alignItems: 'center', justifyContent: 'center' },
   topBarBtnText: { fontSize: 10, fontWeight: '900', color: '#e2e8f0' },
   topBarBtnPrintText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
@@ -1997,6 +2106,8 @@ const styles = StyleSheet.create({
   bottomActionsRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
   bottomAction: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2335', gap: 2 },
   bottomActionSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  bottomActionCompile: { backgroundColor: '#2563eb', borderColor: 'rgba(59,130,246,0.5)' },
+  bottomActionCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
   bottomActionPrint: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', flex: 1.3 },
   bottomActionShare: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' },
   bottomActionWA: { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: 'rgba(74,222,128,0.3)' },
@@ -2008,6 +2119,13 @@ const styles = StyleSheet.create({
   previewContainer: { flex: 1 },
   previewToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#060b18', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
   previewToolbarText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc' },
+  previewCompileBtn: { backgroundColor: '#2563eb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, minWidth: 60, alignItems: 'center', justifyContent: 'center' },
+  previewCompileBtnSuccess: { backgroundColor: '#059669' },
+  previewCompileBtnText: { fontSize: 9, fontWeight: '900', color: '#ffffff' },
+  previewStatusBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  previewStatusText: { fontSize: 9.5, fontWeight: '800', color: '#cbd5e1' },
+  previewStatusSub: { fontSize: 9, fontWeight: '700', color: '#64748b' },
   splitToggleBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
   splitToggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
   previewActionBtn: { backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },

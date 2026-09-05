@@ -24,6 +24,7 @@ import {
   PermissionsAndroid,
   Platform,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
@@ -76,9 +77,25 @@ const EMPLOYEES = [
   { id: 'emp_7', name: 'Amit Patel', role: 'SALES_EXEC', dept: 'SMB Sales', avatar: 'AP' },
 ];
 
-export default function AttendanceScreen() {
+export interface AttendanceScreenProps {
+  onClose?: () => void;
+  navigation?: any;
+}
+
+export default function AttendanceScreen({ onClose, navigation }: AttendanceScreenProps = {}) {
   const { currentUser } = useAuthStore();
   const isAdmin = currentUser.role === 'ADMIN';
+
+  // Android hardware back press listener if opened as a modal with onClose
+  useEffect(() => {
+    if (!onClose) return;
+    const onBackPress = () => {
+      onClose();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [onClose]);
 
   // Default activeTab: Admin gets 'MY_ATTENDANCE' (which serves as 'ALL_ATTENDANCE'), Non-Admin gets 'MARK'
   const [activeTab, setActiveTab] = useState<'MARK' | 'MY_ATTENDANCE'>(

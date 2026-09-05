@@ -22,6 +22,7 @@ import {
   Modal,
   Alert,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -706,24 +707,15 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           <View style={auditStyles.auditSectionCard}>
             {/* Header Row */}
             <View style={auditStyles.sectionHeaderRow}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
+              <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <Text style={auditStyles.sectionHeaderIcon}>📊</Text>
                   <Text style={auditStyles.sectionHeaderTitle}>Spreadsheet Ingestion &amp; Allocation Log</Text>
                 </View>
                 <Text style={auditStyles.sectionHeaderSub}>
-                  Audit trail of ingested files, batch assignments &amp; distribution
+                  Audit history of when, at what time, which sheets were injected, and employee assignments.
                 </Text>
               </View>
-
-              <TouchableOpacity
-                style={auditStyles.importSheetBtn}
-                onPress={() => setImportModalOpen(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={auditStyles.importSheetBtnIcon}>＋</Text>
-                <Text style={auditStyles.importSheetBtnText}>Import Sheet</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Segmented Filter Pills */}
@@ -1522,7 +1514,17 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       {/* ── MODAL 9: MULTI-DIMENSIONAL ADVANCED LEAD FILTER ─────────────────────── */}
       <Modal visible={filterModalOpen} animationType="slide" transparent onRequestClose={() => setFilterModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(3,7,18,0.85)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 20, paddingTop: 20, paddingBottom: Math.max(insets.bottom + 16, 24), maxHeight: '85%' }}>
+          <View style={{
+            backgroundColor: '#0f172a',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            borderWidth: 1,
+            borderColor: '#1e293b',
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16,
+            maxHeight: '85%',
+          }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View>
                 <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff' }}>🎛️ Advanced Lead Multi-Filter</Text>
@@ -1626,15 +1628,48 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               </View>
             </ScrollView>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#1e293b', marginTop: 8 }}>
-              <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: '#1e293b' }} onPress={resetAllFilters}>
-                <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '800' }}>✕ Reset Filters</Text>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: 14,
+              borderTopWidth: 1,
+              borderTopColor: '#1e293b',
+              marginTop: 10,
+              gap: 12,
+            }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: '#1e293b',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                }}
+                onPress={resetAllFilters}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: '#f87171', fontSize: 12, fontWeight: '800' }}>✕ Reset Filters</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: '#4f46e5' }}
+                style={{
+                  flex: 1.5,
+                  paddingHorizontal: 18,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: '#4f46e5',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  elevation: 3,
+                }}
                 onPress={() => setFilterModalOpen(false)}
+                activeOpacity={0.8}
               >
-                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>
                   Apply ({filteredLeads.length} Matches) →
                 </Text>
               </TouchableOpacity>

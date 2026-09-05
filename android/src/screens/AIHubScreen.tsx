@@ -21,6 +21,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { AIScoreCustomizationCard } from '../components/AIScoreComponents';
 import { apiService } from '../services/apiService';
@@ -48,6 +49,7 @@ const LABELS = {
     hindi: 'Hindi',
     hinglish: 'Hinglish',
     back: '← Back to AI Hub',
+    backToMenu: '← Back to Menu',
     save: '💾 Save',
     saving: 'Saving...',
     saved: '✓ Saved!',
@@ -116,6 +118,7 @@ const LABELS = {
     hindi: 'हिंदी',
     hinglish: 'हिंग्लिश',
     back: '← AI हब पर वापस',
+    backToMenu: '← मेनू पर वापस',
     save: '💾 सेव करें',
     saving: 'सेव हो रहा है...',
     saved: '✓ सेव हो गया!',
@@ -184,6 +187,7 @@ const LABELS = {
     hindi: 'Hindi',
     hinglish: 'Hinglish',
     back: '← AI Hub pe wapas',
+    backToMenu: '← Menu pe wapas',
     save: '💾 Save karo',
     saving: 'Saving...',
     saved: '✓ Ho gaya!',
@@ -237,15 +241,38 @@ const LABELS = {
   },
 };
 
-export function AIHubScreen() {
+export interface AIHubScreenProps {
+  onClose?: () => void;
+}
+
+export function AIHubScreen({ onClose }: AIHubScreenProps = {}) {
   const [activeSubsection, setActiveSubsection] = useState<Subsection>('hub');
   const [language, setLanguage] = useState<Language>('en');
-  const { token } = useAuthStore();
+  const { token, subscription, canAccessAIFeature } = useAuthStore();
   const [tokenStr, setTokenStr] = useState<string>('');
+
+  const isFreeTrial = subscription?.planType === 'FREE_TRIAL' || subscription?.planType === 'STARTER';
 
   useEffect(() => {
     if (token) setTokenStr(token);
   }, [token]);
+
+  // Handle hardware back press on Android
+  useEffect(() => {
+    const onBackPress = () => {
+      if (activeSubsection !== 'hub') {
+        setActiveSubsection('hub');
+        return true;
+      }
+      if (onClose) {
+        onClose();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [activeSubsection, onClose]);
 
   const t = LABELS[language];
 
@@ -256,6 +283,18 @@ export function AIHubScreen() {
     { id: 'automation' as Subsection, icon: '⚡', color: '#22c55e', label: t.automation, description: t.automationDesc },
     { id: 'analytics' as Subsection, icon: '📊', color: '#3b82f6', label: t.analytics, description: t.analyticsDesc },
   ];
+
+  const handleSelectSubsection = (id: Subsection) => {
+    if (id !== 'lead-scoring' && isFreeTrial) {
+      Alert.alert(
+        'Growth Plan Feature',
+        'Free Trial Plan includes Basic AI features only (Lead Score). Upgrade to the Growth Plan (20 Users) or higher to unlock Chat Instructions, Templates, Auto-Automation, and Analytics.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setActiveSubsection(id);
+  };
 
   const renderHub = () => (
     <View style={styles.hubContainer}>
@@ -270,6 +309,26 @@ export function AIHubScreen() {
             <Text style={styles.hubSubtitle}>{t.subtitle}</Text>
           </View>
         </View>
+
+        {/* Free Trial Banner */}
+        {isFreeTrial && (
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(251,191,36,0.08)',
+            borderColor: 'rgba(251,191,36,0.3)',
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 10,
+            marginBottom: 12,
+            gap: 8,
+          }}>
+            <Text style={{ fontSize: 16 }}>⚡</Text>
+            <Text style={{ fontSize: 11, color: '#fde68a', flex: 1, fontWeight: '600', lineHeight: 16 }}>
+              Free Trial Plan: Basic AI active (Only Lead Score). Upgrade to Growth Plan (20 Users) to unlock all AI features.
+            </Text>
+          </View>
+        )}
 
         {/* Language Selector */}
         <View style={styles.languageSelector}>
@@ -290,31 +349,66 @@ export function AIHubScreen() {
 
       {/* Menu Items */}
       <View style={styles.menuGrid}>
-        {menuItems.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.menuCard, { borderColor: `${item.color}40` }]}
-            onPress={() => setActiveSubsection(item.id)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.menuIconBox, { backgroundColor: `${item.color}20`, borderColor: `${item.color}50` }]}>
-              <Text style={styles.menuIcon}>{item.icon}</Text>
-            </View>
-            <View style={styles.menuTextContainer}>
-              <Text style={styles.menuLabel}>{item.label}</Text>
-              <Text style={styles.menuDesc}>{item.description}</Text>
-            </View>
-            <Text style={styles.menuArrow}>→</Text>
-          </TouchableOpacity>
-        ))}
+        {menuItems.map((item) => {
+          const isLocked = isFreeTrial && item.id !== 'lead-scoring';
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={[
+                styles.menuCard,
+                { borderColor: `${item.color}40` },
+                isLocked && { opacity: 0.65, borderColor: 'rgba(255,255,255,0.1)' }
+              ]}
+              onPress={() => handleSelectSubsection(item.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconBox, { backgroundColor: `${item.color}20`, borderColor: `${item.color}50` }]}>
+                <Text style={styles.menuIcon}>{item.icon}</Text>
+              </View>
+              <View style={styles.menuTextContainer}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  {isLocked && (
+                    <View style={{ backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)', borderWidth: 1, paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#fbbf24' }}>GROWTH PLAN</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.menuDesc}>{item.description}</Text>
+              </View>
+              <Text style={styles.menuArrow}>{isLocked ? '🔒' : '→'}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
 
-  const renderBackButton = () => (
-    <TouchableOpacity style={styles.backBtn} onPress={() => setActiveSubsection('hub')}>
-      <Text style={styles.backBtnText}>{t.back}</Text>
-    </TouchableOpacity>
+  const renderTopNavigation = () => (
+    <View style={styles.topNavBar}>
+      {activeSubsection !== 'hub' ? (
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => setActiveSubsection('hub')}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.backBtnText}>{t.back}</Text>
+        </TouchableOpacity>
+      ) : onClose ? (
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onClose}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.backBtnText}>{t.backToMenu || '← Back to Menu'}</Text>
+        </TouchableOpacity>
+      ) : null}
+      <Text style={styles.topNavTitle} numberOfLines={1}>
+        {activeSubsection === 'hub' ? 'AI Hub' : menuItems.find((m) => m.id === activeSubsection)?.label || 'AI Hub'}
+      </Text>
+    </View>
   );
 
   const renderContent = () => {
@@ -338,7 +432,7 @@ export function AIHubScreen() {
 
   return (
     <View style={styles.container}>
-      {activeSubsection !== 'hub' && renderBackButton()}
+      {renderTopNavigation()}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {renderContent()}
       </ScrollView>
@@ -932,8 +1026,32 @@ function AnalyticsSubsection({ t }: { t: typeof LABELS.en }) {
 // ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090d16' },
+  topNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    gap: 12,
+  },
+  topNavTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#ffffff',
+    flex: 1,
+  },
   scrollContent: { padding: 16, paddingBottom: 32 },
-  backBtn: { backgroundColor: '#1e293b', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#334155', alignSelf: 'flex-start', marginBottom: 16 },
+  backBtn: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignSelf: 'center',
+  },
   backBtnText: { color: '#818cf8', fontWeight: '900', fontSize: 12 },
 
   // Hub Styles

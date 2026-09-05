@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Trash2, GripVertical, Package, Percent, DollarSign,
   FileText, Send, Eye, Download, Check, Edit2, Building2,
@@ -655,6 +655,56 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // ── Refresh & Compile PDF Engine State ──
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [compileSuccess, setCompileSuccess] = useState(false);
+  const [compileVersion, setCompileVersion] = useState(1);
+  const [lastCompiledAt, setLastCompiledAt] = useState<string | null>(null);
+  const [isHighlightingPreview, setIsHighlightingPreview] = useState(false);
+
+  // Refresh & Compile: Flushes active inputs, sanitizes item data, recomputes financials & forces preview re-render
+  const handleCompilePdf = useCallback(() => {
+    setIsCompiling(true);
+
+    // 1. Flush any active focused input element so uncommitted keystrokes register
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // 2. Sanitize and recalculate all line items strictly
+    setItems(prevItems =>
+      prevItems.map(it => {
+        const qty = isNaN(Number(it.qty)) ? 1 : Math.max(0, Number(it.qty));
+        const unitPrice = isNaN(Number(it.unitPrice)) ? 0 : Math.max(0, Number(it.unitPrice));
+        const discountVal = isNaN(Number(it.discountVal)) ? 0 : Math.max(0, Number(it.discountVal));
+        const taxRate = isNaN(Number(it.taxRate)) ? globalGstRate : Math.max(0, Number(it.taxRate));
+        const base = qty * unitPrice;
+        const itemDisc = it.discountType === 'percent' ? base * (discountVal / 100) : discountVal;
+        const total = Math.max(0, base - itemDisc);
+        return { ...it, qty, unitPrice, discountVal, taxRate, total };
+      })
+    );
+
+    // 3. Force re-compilation of A4 preview with timestamp and visual highlight
+    setTimeout(() => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      setLastCompiledAt(timeStr);
+      setCompileVersion(v => v + 1);
+      setIsCompiling(false);
+      setCompileSuccess(true);
+      setIsHighlightingPreview(true);
+
+      setTimeout(() => {
+        setIsHighlightingPreview(false);
+      }, 1800);
+
+      setTimeout(() => {
+        setCompileSuccess(false);
+      }, 2500);
+    }, 350);
+  }, [globalGstRate]);
+
   // Selected Active Company & Party
   const activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
   const activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
@@ -1190,7 +1240,24 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* ⚡ REFRESH & COMPILE PDF BUTTON */}
               <button
+                type="button"
+                onClick={handleCompilePdf}
+                disabled={isCompiling}
+                className={`px-3.5 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                  compileSuccess
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/40 shadow-emerald-600/25'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-indigo-400/30 shadow-indigo-600/25 active:scale-95'
+                }`}
+                title="Compile and synchronize all live edits into the A4 PDF sheet"
+              >
+                <RefreshCw size={14} className={isCompiling ? "animate-spin" : ""} />
+                {isCompiling ? 'Compiling PDF...' : compileSuccess ? '✓ PDF Compiled' : 'Refresh & Compile'}
+              </button>
+
+              <button
+                type="button"
                 onClick={handleSaveCurrentDraft}
                 className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
               >
@@ -1199,6 +1266,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </button>
 
               <button
+                type="button"
                 onClick={() => setHistoryDrawerOpen(true)}
                 className="px-3.5 py-2 bg-indigo-900/40 hover:bg-indigo-900/60 text-indigo-300 text-xs font-extrabold rounded-xl border border-indigo-500/40 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
               >
@@ -1206,7 +1274,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </button>
 
               <button
-                onClick={() => window.print()}
+                type="button"
+                onClick={() => {
+                  handleCompilePdf();
+                  setTimeout(() => window.print(), 100);
+                }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
               >
                 <Download size={14} /> Print / Export PDF (A4)
@@ -1266,6 +1338,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       {viewMode === 'FULL_PREVIEW' ? (
         <div className="flex flex-col items-center space-y-4 print-hide w-full max-w-full overflow-hidden">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-slate-900 border border-slate-800 px-3 py-2 rounded-2xl text-xs font-bold text-white shadow-xl max-w-full">
+            {/* Refresh & Compile Button in Full Preview Toolbar */}
+            <button
+              type="button"
+              onClick={handleCompilePdf}
+              disabled={isCompiling}
+              className={`px-3 py-1 rounded-lg text-[11px] font-black flex items-center gap-1.5 transition-all shadow ${
+                compileSuccess
+                  ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 active:scale-95'
+              }`}
+              title="Re-compile and sync all live data into the full A4 preview"
+            >
+              <RefreshCw size={12} className={isCompiling ? "animate-spin" : ""} />
+              {isCompiling ? 'Compiling...' : compileSuccess ? '✓ PDF Synced' : 'Refresh & Compile'}
+            </button>
+
+            {lastCompiledAt && (
+              <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Compiled {lastCompiledAt}
+              </span>
+            )}
+
             <button
               onClick={() => setZoomScale(calculateFitScale())}
               className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
@@ -1314,15 +1409,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 minHeight: `${Math.round(1123 * zoomScale)}px`,
                 position: 'relative',
               }}
-              className="flex-shrink-0 transition-all duration-200 shadow-2xl rounded-xl mx-auto"
+              className={`flex-shrink-0 transition-all duration-300 shadow-2xl rounded-xl mx-auto ${
+                isHighlightingPreview ? 'ring-4 ring-emerald-400/80 shadow-[0_0_35px_rgba(16,185,129,0.4)]' : ''
+              }`}
             >
               <div
+                key={`compiled-preview-full-${compileVersion}`}
                 style={{
                   transform: `scale(${zoomScale})`,
                   transformOrigin: 'top left',
                   width: '794px',
                 }}
-                className="absolute top-0 left-0"
+                className="absolute top-0 left-0 transition-all duration-200"
               >
                 {renderA4SheetDocument()}
               </div>
@@ -2361,13 +2459,38 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           <div className={`lg:col-span-6 sticky top-6 flex flex-col items-center print-hide w-full max-w-full ${mobileActiveTab === 'BUILDER' ? 'hidden lg:flex' : 'flex'}`}>
             {/* Header Toolbar */}
             <div className="w-full max-w-[210mm] flex items-center justify-between px-3 sm:px-3.5 py-2 bg-slate-900 text-slate-300 rounded-t-xl border border-slate-800 text-[10px] font-bold shadow-md flex-wrap gap-1.5">
-              <span className="flex items-center gap-1.5 text-[#002060] bg-white/90 px-2 py-0.5 rounded font-black truncate">
-                <span className="w-2 h-2 rounded-full bg-[#002060] animate-pulse flex-shrink-0"></span>
-                Spectro A4 Live Preview ({pdfMargin}mm Margin)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 text-[#002060] bg-white/90 px-2 py-0.5 rounded font-black truncate">
+                  <span className="w-2 h-2 rounded-full bg-[#002060] animate-pulse flex-shrink-0"></span>
+                  Spectro A4 Live Preview ({pdfMargin}mm Margin)
+                </span>
+                {lastCompiledAt && (
+                  <span className="hidden xl:inline-flex items-center gap-1 text-[9.5px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Compiled {lastCompiledAt}
+                  </span>
+                )}
+              </div>
 
               <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* ⚡ Live Compile Button right on Preview Toolbar */}
                 <button
+                  type="button"
+                  onClick={handleCompilePdf}
+                  disabled={isCompiling}
+                  className={`px-2.5 py-0.5 rounded text-[9.5px] font-black flex items-center gap-1 transition-all shadow cursor-pointer ${
+                    compileSuccess
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 active:scale-95'
+                  }`}
+                  title="Force compile latest live data into preview"
+                >
+                  <RefreshCw size={11} className={isCompiling ? "animate-spin" : ""} />
+                  {isCompiling ? 'Compiling...' : compileSuccess ? '✓ Synced' : 'Refresh & Compile'}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setZoomScale(calculateFitScale())}
                   className="px-2 py-0.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 rounded text-[9.5px] font-extrabold flex items-center gap-1 cursor-pointer transition-all"
                   title="Fit Screen Width"
@@ -2421,15 +2544,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   minHeight: `${Math.round(1123 * zoomScale)}px`,
                   position: 'relative',
                 }}
-                className="flex-shrink-0 transition-all duration-150 shadow-2xl rounded-xl mx-auto"
+                className={`flex-shrink-0 transition-all duration-300 shadow-2xl rounded-xl mx-auto ${
+                  isHighlightingPreview ? 'ring-4 ring-emerald-400/80 shadow-[0_0_35px_rgba(16,185,129,0.4)]' : ''
+                }`}
               >
                 <div
+                  key={`compiled-preview-split-${compileVersion}`}
                   style={{
                     transform: `scale(${zoomScale})`,
                     transformOrigin: 'top left',
                     width: '794px',
                   }}
-                  className="absolute top-0 left-0"
+                  className="absolute top-0 left-0 transition-all duration-200"
                 >
                   {renderA4SheetDocument()}
                 </div>

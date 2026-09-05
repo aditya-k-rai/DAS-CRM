@@ -194,7 +194,7 @@ export function EmployeeListWidget() {
   const [employees, setEmployees] = useState<EmployeeProfileWeb[]>(INITIAL_EMPLOYEES);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
 
-  const totalQuota = subscription?.userSeatsAllocated ?? 6;
+  const totalQuota = subscription?.userSeatsAllocated ?? 10;
   const activeCount = employees.length;
 
   const handleUpdateEmployee = (updated: EmployeeProfileWeb) => {
@@ -237,7 +237,7 @@ export function EmployeeListWidget() {
 
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
           <ShieldCheck size={14} />
-          <span>{activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Active Seats (Plan Quota)</span>
+          <span>{activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Seats Assigned ({subscription?.planType ? subscription.planType.replace('_', ' ') : 'Free Trial'})</span>
         </div>
       </div>
 

@@ -889,7 +889,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         {/* ── FOOTER (SAFE AREA INSETS ELEVATED) ───────────────────────── */}
         <View style={[
           styles.footer,
-          { paddingHorizontal: PADX, paddingBottom: Math.max(insets.bottom + 10, 20) },
+          { paddingHorizontal: PADX, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 14 },
         ]}>
           <View style={styles.validationRow}>
             {!inputFileName.trim() && <Text style={styles.warnText}>⚠️ Enter File Name above</Text>}
@@ -910,7 +910,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         {platformPickerOpen && (
           <Modal visible transparent animationType="fade" onRequestClose={() => setPlatformPickerOpen(false)}>
             <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPlatformPickerOpen(false)}>
-              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet]} onStartShouldSetResponder={() => true}>
+              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]} onStartShouldSetResponder={() => true}>
                 <View style={styles.pickerCardHeader}>
                   <View>
                     <Text style={styles.pickerTitle}>🌐 Select Source Lead Platform</Text>
@@ -958,7 +958,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.pickerOverlay}
             >
-              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+              <View style={[styles.pickerCard, isTablet && styles.pickerCardTablet, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
                 <View style={styles.pickerCardHeader}>
                   <View>
                     <Text style={styles.pickerTitle}>🎯 Map Field for COL {currentPickerCol.index + 1}</Text>

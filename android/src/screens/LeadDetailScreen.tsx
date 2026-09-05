@@ -20,12 +20,16 @@ import {
   Image,
   Linking,
   Clipboard,
+  BackHandler,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LeadsStackParamList } from '../../App';
 import { callSyncEngine, LeadCallSummary } from '../services/callSyncEngine';
 import { useAuthStore } from '../store/authStore';
+import { apiService, FALLBACK_LEADS, AIScoreData } from '../services/apiService';
+import { AIScoreDetailModal } from '../components/AIScoreComponents';
 import {
   whatsappTemplateEngine,
   WhatsAppTemplate,
@@ -47,7 +51,7 @@ interface LeadDetailScreenProps {
 
 export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailScreenProps) {
   const navigation = useNavigation();
-  const { currentUser } = useAuthStore();
+  const { currentUser, token } = useAuthStore();
   const userRole = currentUser?.role || 'SALES_EXEC';
 
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
@@ -66,12 +70,29 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
   const leadId = lead?.id || 'lead-1';
   const leadName = lead?.name || 'Lead Details';
-  const leadPhone = lead?.phone || '+91 98765 43210';
-  const leadCompany = lead?.company || 'Acme Partner';
-  const leadValue = lead?.value || '$14,200';
+
+  // Match lead from FALLBACK_LEADS by ID or name
+  const matchedLead = FALLBACK_LEADS.find(
+    (l) => (leadId && l.id === leadId) || (leadName && l.name.toLowerCase() === leadName.toLowerCase())
+  );
+
+  const leadPhone = lead?.phone || matchedLead?.phone || '+91 98765 43210';
+  const leadCompany = lead?.company || matchedLead?.company || 'Acme Partner';
+  const leadValue = lead?.value || matchedLead?.value || '$14,200';
 
   // Dynamic Lead Status State
   const [leadStatusState, setLeadStatusState] = useState<string>(lead?.status || 'NEW LEAD');
+
+  // ⚡ Track Last Updated Status, Medium, and Timestamp
+  const [lastStatusUpdate, setLastStatusUpdate] = useState<{
+    status: string;
+    medium: string;
+    time: string;
+  }>({
+    status: lead?.status || matchedLead?.status || 'CONTACTED',
+    medium: '📞 Phone Call',
+    time: 'Today, 2:45 PM',
+  });
 
   // Live Call Telemetry State
   const [telemetry, setTelemetry] = useState<LeadCallSummary>({
@@ -181,10 +202,27 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+    } else if (navigation?.canGoBack && navigation.canGoBack()) {
       navigation.goBack();
+    } else {
+      try {
+        (navigation as any)?.navigate('LeadsList');
+      } catch {
+        try {
+          (navigation as any)?.navigate('Leads');
+        } catch {}
+      }
     }
   };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      handleBack();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [onBack, navigation]);
 
   // 📞 CALL NOW HANDLER (Direct Dialing + Instant Post-Call Outcome Modal)
   const handleCall = () => {
@@ -199,7 +237,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       Alert.alert('Dialing Direct', `Direct dialing ${cleaned} for ${leadName}...`);
     });
 
-    callSyncEngine.initiateCall(leadId, leadName, leadPhone, (updated) => {
+    callSyncEngine.initiateCall(leadId, leadName, leadPhone, (updated: LeadCallSummary) => {
       setTelemetry(updated);
     });
 
@@ -221,25 +259,63 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       lastFollowupAt: data.scheduledDate ? `${data.scheduledDate} ${data.scheduledTime || ''}` : `Today, ${data.timestamp}`,
     }));
 
-    // ⚡ AUTOMATED LEAD STATUS TRANSITION ENGINE
+    // ⚡ AUTOMATED LEAD STATUS TRANSITION ENGINE (ACTIVITY-DRIVEN)
+    let nextStatus = leadStatusState;
+    let updateReason = '';
+
     if (data.scheduledDate) {
-      setLeadStatusState('MEETING SCHEDULED');
-      Alert.alert('📅 Status Updated', 'Meeting / Follow-up scheduled! Lead status auto-updated to MEETING SCHEDULED.');
-    } else if (data.selectedProduct || data.subOption === 'CATALOGUE_SHARED') {
-      setLeadStatusState('IN NEGOTIATION');
-      Alert.alert('📄 Status Updated', 'Product details / Quotation shared! Lead status auto-updated to IN NEGOTIATION.');
-    } else if (data.outcome === 'PICKED_UP' || data.subOption === 'TALKED') {
-      if (!leadStatusState || leadStatusState === 'NEW LEAD' || leadStatusState === 'NEW') {
-        setLeadStatusState('CONTACTED');
-        Alert.alert('📞 Status Updated', 'Call picked up & feedback recorded! Lead status auto-updated to CONTACTED.');
+      nextStatus = 'MEETING SCHEDULED';
+      updateReason = `Follow-up / Meeting scheduled for ${data.scheduledDate}`;
+    } else if (data.selectedProduct || data.subOption === 'CATALOGUE_SHARED' || data.subOption === 'INTERESTED') {
+      nextStatus = 'IN NEGOTIATION';
+      updateReason = `Product discussed / Catalogue shared (${data.selectedProduct?.name || 'Product Portfolio'})`;
+    } else if (data.outcome === 'PICKED_UP' || data.subOption === 'TALKED' || data.subOption === 'WA_RESPONDED' || data.subOption === 'WA_SENT') {
+      if (!leadStatusState || leadStatusState === 'NEW LEAD' || leadStatusState === 'NEW' || leadStatusState === 'Prospecting') {
+        nextStatus = 'CONTACTED';
+        updateReason = 'Direct contact established with client';
       }
+    }
+
+    // Determine activity medium and timestamp
+    let outcomeMedium = '📞 Phone Call';
+    if (data.outcome === 'WHATSAPP_CHAT') {
+      outcomeMedium = data.selectedProduct ? '💬 WhatsApp (Catalogue)' : '💬 WhatsApp';
+    } else if (data.scheduledDate) {
+      outcomeMedium = '📅 Meeting Follow-up';
+    }
+
+    const timeString = data.timestamp
+      ? (data.timestamp.includes('Today') ? data.timestamp : `Today, ${data.timestamp}`)
+      : `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    if (nextStatus && nextStatus !== leadStatusState) {
+      setLeadStatusState(nextStatus);
+      apiService.updateLeadStatus(token, leadId, nextStatus);
+      setLastStatusUpdate({
+        status: nextStatus,
+        medium: outcomeMedium,
+        time: timeString,
+      });
+      Alert.alert('⚡ Status Auto-Updated', `${updateReason}. Lead status automatically advanced to ${nextStatus}.`);
+    } else {
+      setLastStatusUpdate(prev => ({
+        ...prev,
+        medium: outcomeMedium,
+        time: timeString,
+      }));
     }
   };
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const handleConfirmPaymentOutcome = (result: PaymentOutcomeResult) => {
+    const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     setLeadStatusState(result.targetLeadStatus);
+    setLastStatusUpdate({
+      status: result.targetLeadStatus,
+      medium: '💳 Invoice Payment',
+      time: timeString,
+    });
     handleSaveCallOutcome({
       leadId,
       leadName,
@@ -324,14 +400,19 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       });
     });
 
-    // Auto log WhatsApp chat outcome
+    // Check if product was attached (Step 2: Product & Price Band)
+    const hasProduct = !!selectedProduct && waStep === 2;
+
     handleSaveCallOutcome({
       leadId,
       leadName,
       phone: leadPhone,
       outcome: 'WHATSAPP_CHAT',
-      subOption: 'WA_SENT',
-      notes: `Sent WhatsApp message: "${customMsgText.substring(0, 45)}..."`,
+      subOption: hasProduct ? 'CATALOGUE_SHARED' : 'TALKED',
+      selectedProduct: hasProduct ? selectedProduct : null,
+      notes: hasProduct
+        ? `Sent Product "${selectedProduct?.name}" (${selectedProduct?.minPrice}) with WhatsApp message: "${customMsgText.substring(0, 45)}..."`
+        : `Sent WhatsApp outreach message: "${customMsgText.substring(0, 45)}..."`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
   };
@@ -379,8 +460,35 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   };
   const statusColor = getStatusColor(leadStatusState || lead?.status || 'NEW LEAD');
 
-  const rawAiScore = lead?.score || lead?.aiScore?.overall || 8.7;
+  // 🤖 AI Lead Score Modal & Full Breakdown Data
+  const [aiScoreModalOpen, setAiScoreModalOpen] = useState(false);
+
+  const rawAiScore = lead?.score || lead?.aiScore?.totalScore || lead?.aiScore?.overall || matchedLead?.aiScore?.totalScore || 8.7;
   const aiScoreDisplay = typeof rawAiScore === 'number' ? rawAiScore.toFixed(1) : String(rawAiScore);
+
+  const aiScoreData: AIScoreData = React.useMemo(() => {
+    if (lead?.aiScore && typeof lead.aiScore === 'object' && 'totalScore' in lead.aiScore) {
+      return lead.aiScore as AIScoreData;
+    }
+    if (matchedLead?.aiScore) {
+      return matchedLead.aiScore;
+    }
+    const scoreNum = typeof rawAiScore === 'number' ? rawAiScore : 8.7;
+    return {
+      totalScore: scoreNum,
+      tier: scoreNum >= 8 ? 'HOT' : scoreNum >= 6 ? 'WARM' : 'COLD',
+      budgetScore: 92,
+      intentScore: 85,
+      engagementScore: 88,
+      productFitScore: 90,
+      responseScore: 86,
+      analysisSummary: 'High-priority lead with strong engagement signals.',
+      topFactors: ['Website visit', 'Demo attended', 'Quotation viewed'],
+      riskFactors: [],
+      recommendations: ['Schedule follow-up call today', 'Share enterprise case studies'],
+      lastCalculatedAt: new Date().toISOString(),
+    };
+  }, [lead, matchedLead, rawAiScore]);
 
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
@@ -391,7 +499,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 24 }]} showsVerticalScrollIndicator={false}>
 
         {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Text style={styles.backText}>← Back to Leads</Text>
         </TouchableOpacity>
 
@@ -407,22 +515,26 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
               <Text style={styles.title}>{leadName}</Text>
               <Text style={styles.company}>{lead?.company || 'Acme Partner'} • {leadValue}</Text>
             </View>
-            {/* 🔥 AI SCORE BADGE IN PLACE OF CURRENCY OPTION */}
-            <View style={styles.aiScoreBadgeHeader}>
+            {/* 🔥 AI SCORE BADGE (Tap to View Detailed Score Breakdown Modal) */}
+            <TouchableOpacity
+              style={styles.aiScoreBadgeHeader}
+              onPress={() => setAiScoreModalOpen(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`AI Score ${aiScoreDisplay}, tap to view breakdown`}
+            >
               <Text style={styles.aiScoreTextHeader}>🔥 {aiScoreDisplay} AI Score</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          {/* DYNAMIC INTERACTIVE LEAD STATUS BUTTON (Updates dynamically when status is updated) */}
-          <TouchableOpacity
-            style={[styles.statusBadgeButton, { backgroundColor: statusColor + '20', borderColor: statusColor + '60' }]}
-            onPress={() => setStatusPickerOpen(true)}
-            activeOpacity={0.8}
-          >
+          {/* DYNAMIC AUTOMATED LEAD STATUS BADGE (Activity-driven, no manual edit button here) */}
+          <View style={[styles.statusBadgeContainer, { backgroundColor: statusColor + '18', borderColor: statusColor + '50' }]}>
             <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={[styles.statusText, { color: statusColor }]}>{leadStatusState || lead?.status || 'NEW LEAD'}</Text>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: statusColor, opacity: 0.8, marginLeft: 4 }}>✏️ Change</Text>
-          </TouchableOpacity>
+            <View style={[styles.autoActivityPill, { backgroundColor: statusColor + '25', borderColor: statusColor + '40' }]}>
+              <Text style={[styles.autoActivityText, { color: statusColor }]}>⚡ Auto Activity-Driven</Text>
+            </View>
+          </View>
         </View>
 
         {/* Action Buttons Toolbar (6 Glassmorphism Cards: Call, WhatsApp, WA Cloud, Direct Email, Email Mktg, Update Status) */}
@@ -447,7 +559,18 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: '#818cf8', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => { handleWhatsApp(); setLeadStatusState('IN NEGOTIATION'); setPaymentModalOpen(true); }}
+              onPress={() => {
+                handleWhatsApp();
+                const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                setLeadStatusState('IN NEGOTIATION');
+                setLastStatusUpdate({
+                  status: 'IN NEGOTIATION',
+                  medium: '☁️ WA Cloud',
+                  time: timeString,
+                });
+                apiService.updateLeadStatus(token, leadId, 'IN NEGOTIATION');
+                setPaymentModalOpen(true);
+              }}
               activeOpacity={0.8}
             >
               <Text style={{ color: '#a5b4fc', fontSize: 11, fontWeight: '900' }} numberOfLines={1}>☁️ WA Cloud</Text>
@@ -459,7 +582,14 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             <TouchableOpacity
               style={{ flex: 1, backgroundColor: 'rgba(192,132,252,0.15)', borderWidth: 1, borderColor: '#c084fc', borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
               onPress={() => {
+                const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
                 setLeadStatusState('IN NEGOTIATION');
+                setLastStatusUpdate({
+                  status: 'IN NEGOTIATION',
+                  medium: '🚀 Email Marketing',
+                  time: timeString,
+                });
+                apiService.updateLeadStatus(token, leadId, 'IN NEGOTIATION');
                 setCustomAlertConfig({
                   visible: true,
                   title: '🚀 Email Marketing',
@@ -609,12 +739,26 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
           <View style={styles.metaDivider} />
 
-          <Text style={styles.metaLine}>
-            ⏰ Last Called: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{telemetry.lastCalledAt}</Text>
-          </Text>
-          <Text style={styles.metaLine}>
-            📅 Last Follow-up: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{telemetry.lastFollowupAt}</Text>
-          </Text>
+          {/* ⚡ LAST UPDATED STATUS (THROUGH MEDIUM & TIME) */}
+          <View style={styles.lastStatusCard}>
+            <View style={styles.lastStatusTopRow}>
+              <Text style={styles.lastStatusTitle}>Last Updated Status:</Text>
+              <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(lastStatusUpdate.status) + '22', borderColor: getStatusColor(lastStatusUpdate.status) + '60' }]}>
+                <View style={[styles.statusDotSmall, { backgroundColor: getStatusColor(lastStatusUpdate.status) }]} />
+                <Text style={[styles.statusBadgeSmallText, { color: getStatusColor(lastStatusUpdate.status) }]}>
+                  {lastStatusUpdate.status}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.lastStatusMetaRow}>
+              <Text style={styles.lastStatusMetaText}>
+                Through: <Text style={styles.lastStatusMetaHighlight}>{lastStatusUpdate.medium}</Text>
+                {'  '}•{'  '}
+                Time: <Text style={[styles.lastStatusMetaHighlight, { color: '#818cf8' }]}>{lastStatusUpdate.time}</Text>
+              </Text>
+            </View>
+          </View>
 
           {/* 1-Day Ephemeral Storage & Midnight Purge Notice */}
           <View style={styles.purgeNoticeBox}>
@@ -909,7 +1053,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         onConfirmPaymentOutcome={handleConfirmPaymentOutcome}
       />
 
-      {/* 📝 QUICK LEAD STATUS SELECTOR MODAL */}
+      {/* 📝 ACTIVITY-DRIVEN LEAD STAGE UPDATE MODAL */}
       <Modal
         visible={statusPickerOpen}
         transparent
@@ -917,11 +1061,11 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         onRequestClose={() => setStatusPickerOpen(false)}
       >
         <View style={styles.waModalOverlay}>
-          <View style={[styles.waModalCard, { maxWidth: 360 }]}>
+          <View style={[styles.waModalCard, { maxWidth: 380, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
             <View style={styles.waModalHeaderRow}>
               <View>
-                <Text style={styles.waModalTitle}>📝 Update Lead Status</Text>
-                <Text style={styles.waModalSub}>Select current stage for {leadName}</Text>
+                <Text style={styles.waModalTitle}>⚡ Log Activity &amp; Advance Stage</Text>
+                <Text style={styles.waModalSub}>Recorded activity dynamically advances {leadName}'s lifecycle stage</Text>
               </View>
               <TouchableOpacity style={styles.waCloseBtn} onPress={() => setStatusPickerOpen(false)}>
                 <Text style={{ color: '#94a3b8', fontWeight: '900' }}>✕</Text>
@@ -930,21 +1074,16 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
             <View style={{ gap: 8, marginVertical: 8 }}>
               {[
-                { status: 'NEW LEAD', color: '#6366f1', icon: '✨' },
-                { status: 'CONTACTED', color: '#fbbf24', icon: '📞' },
-                { status: 'QUALIFIED', color: '#38bdf8', icon: '🎯' },
-                { status: 'PROPOSAL', color: '#818cf8', icon: '📄' },
-                { status: 'IN NEGOTIATION', color: '#a855f7', icon: '🤝' },
-                { status: 'MEETING SCHEDULED', color: '#ec4899', icon: '📅' },
-                { status: 'WON', color: '#34d399', icon: '🎉' },
-                { status: 'LOST', color: '#ef4444', icon: '❌' },
+                { status: 'CONTACTED', color: '#fbbf24', icon: '📞', desc: 'Direct call or chat discussion completed' },
+                { status: 'IN NEGOTIATION', color: '#a855f7', icon: '🤝', desc: 'Product presented & discussing pricing/terms' },
+                { status: 'PROPOSAL', color: '#818cf8', icon: '📄', desc: 'Formal quotation proposal deck dispatched' },
+                { status: 'MEETING SCHEDULED', color: '#ec4899', icon: '📅', desc: 'Product demo / physical visit scheduled' },
+                { status: 'WON', color: '#34d399', icon: '🎉', desc: 'Deal finalized & payment cleared' },
+                { status: 'LOST', color: '#ef4444', icon: '❌', desc: 'Lead dropped / not interested' },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.status}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
                     backgroundColor: leadStatusState === item.status ? item.color + '25' : '#020617',
                     borderWidth: 1,
                     borderColor: leadStatusState === item.status ? item.color : '#1e293b',
@@ -953,27 +1092,57 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                     paddingVertical: 10,
                   }}
                   onPress={() => {
-                    setLeadStatusState(item.status);
+                    const nextSt = item.status;
+                    const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                    setLeadStatusState(nextSt);
+                    setLastStatusUpdate({
+                      status: nextSt,
+                      medium: '📝 Activity Log',
+                      time: timeString,
+                    });
+                    apiService.updateLeadStatus(token, leadId, nextSt);
+                    setRecentOutcomes(prev => [{
+                      leadId,
+                      leadName,
+                      phone: leadPhone,
+                      outcome: nextSt === 'WON' ? 'PICKED_UP' : 'WHATSAPP_CHAT',
+                      subOption: nextSt === 'IN NEGOTIATION' ? 'INTERESTED' : 'TALKED',
+                      notes: `Activity Logged: ${item.desc}. Lead status advanced to ${nextSt}.`,
+                      callerName: currentUser?.name || 'Current User',
+                      callerRole: userRole,
+                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      dateLabel: 'Today',
+                    }, ...prev]);
                     setStatusPickerOpen(false);
-                    setToastConfig({ id: String(Date.now()), title: 'Stage Updated', message: `Status updated to ${item.status}!`, type: 'SUCCESS' });
+                    setToastConfig({ id: String(Date.now()), title: 'Activity & Stage Logged', message: `Lead moved to ${nextSt} via verified activity log.`, type: 'SUCCESS' });
                   }}
                   activeOpacity={0.8}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: leadStatusState === item.status ? item.color : '#ffffff' }}>
-                      {item.status}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 15 }}>{item.icon}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: leadStatusState === item.status ? item.color : '#ffffff' }}>
+                        {item.status}
+                      </Text>
+                    </View>
+                    {leadStatusState === item.status && (
+                      <Text style={{ color: item.color, fontSize: 10, fontWeight: '900' }}>✓ Active Stage</Text>
+                    )}
                   </View>
-                  {leadStatusState === item.status && (
-                    <Text style={{ color: item.color, fontSize: 11, fontWeight: '900' }}>✓ Active</Text>
-                  )}
+                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 3, paddingLeft: 23 }}>{item.desc}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* 📊 AI SCORE DETAIL BREAKDOWN MODAL */}
+      <AIScoreDetailModal
+        visible={aiScoreModalOpen}
+        score={aiScoreData}
+        onClose={() => setAiScoreModalOpen(false)}
+      />
 
       <ToastBanner toast={toastConfig} onDismiss={() => setToastConfig(null)} />
       <CustomAlertModal alert={customAlertConfig} onClose={() => setCustomAlertConfig(null)} />
@@ -1014,7 +1183,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   aiScoreTextHeader: { fontSize: 12, fontWeight: '900', color: '#f87171' },
-  statusBadgeButton: {
+  statusBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
@@ -1023,9 +1192,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignSelf: 'flex-start',
     marginTop: 4,
+    gap: 6,
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, fontWeight: '900' },
+  autoActivityPill: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+    borderWidth: 1,
+  },
+  autoActivityText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
 
   actionsRow: { flexDirection: 'row', gap: 8, marginBottom: 16, width: '100%', maxWidth: 500 },
   callBtn: {
@@ -1091,6 +1273,60 @@ const styles = StyleSheet.create({
 
   metaDivider: { height: 1, backgroundColor: '#1e293b', marginVertical: 8 },
   metaLine: { fontSize: 11, color: '#94a3b8', marginVertical: 2 },
+
+  lastStatusCard: {
+    backgroundColor: '#020617',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    gap: 6,
+    marginVertical: 4,
+  },
+  lastStatusTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  lastStatusTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#94a3b8',
+  },
+  statusBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusBadgeSmallText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  lastStatusMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lastStatusMetaText: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  lastStatusMetaHighlight: {
+    color: '#f8fafc',
+    fontWeight: '800',
+  },
 
   purgeNoticeBox: { backgroundColor: '#020617', borderRadius: 10, padding: 8, marginTop: 10, borderWidth: 1, borderColor: '#1e293b' },
   purgeNoticeText: { fontSize: 10, color: '#a5b4fc', fontStyle: 'italic' },

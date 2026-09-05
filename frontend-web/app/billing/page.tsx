@@ -27,61 +27,80 @@ export default function BillingPage() {
 
   const PLANS = [
     {
+      id: 'FREE_TRIAL',
+      name: '⚡ Free Trial Plan',
+      price: '₹0',
+      taxNote: 'No Credit Card Required',
+      period: '15 to 40 Days',
+      seats: 'Total 10 Users Quota',
+      seatNote: 'Adjustable by Super Admin per Company',
+      description: 'Test drive core CRM with Basic AI features (Lead Scoring only).',
+      features: [
+        { name: 'Core CRM Pipeline & Leads', enabled: true },
+        { name: 'Role-Based Access Control (RBAC)', enabled: true },
+        { name: 'Basic AI: Lead Scoring Only', enabled: true },
+        { name: 'Standard Reports & CSV Export', enabled: true },
+        { name: 'All AI (Chat, Prompts, Analytics)', enabled: false },
+        { name: 'WhatsApp Cloud API', enabled: false },
+        { name: 'Email Marketing Campaigns', enabled: false },
+      ],
+    },
+    {
       id: 'GROWTH',
       name: '🌱 Growth Plan',
       price: '₹999',
       taxNote: '+ 18% GST (Total ₹1,178.82)',
       period: '/ month',
-      seats: 'Total 6 Users Quota',
-      seatNote: 'Tenant Admin included',
-      description: 'Basic CRM features with Small AI model scoring.',
+      popular: true,
+      seats: 'Total 20 Users Quota',
+      seatNote: 'Tenant Admin + 19 Team Members',
+      description: 'All AI features included for scaling sales teams without WhatsApp/Email.',
       features: [
         { name: 'Core CRM & Pipeline Management', enabled: true },
         { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'Small AI Model & Normal AI Scoring', enabled: true },
-        { name: 'Basic Automations', enabled: true },
-        { name: 'Standard Lead Reports & Export', enabled: true },
+        { name: 'All AI Features (Scoring, Chat, Analytics)', enabled: true },
+        { name: 'AI Auto-Automations & Templates', enabled: true },
+        { name: 'HR Portal & Attendance Tracking', enabled: true },
         { name: 'WhatsApp Cloud API Quota', enabled: false },
         { name: 'Email Marketing Campaigns', enabled: false },
       ],
     },
     {
-      id: 'PRO',
-      name: '⭐ Pro Plan',
+      id: 'BUSINESS',
+      name: '💼 Business Plan',
       price: '₹2,499',
       taxNote: '+ 18% GST (Total ₹2,948.82)',
       period: '/ month',
-      popular: true,
-      seats: 'Total 22 Users Quota',
-      seatNote: 'Includes 10K WhatsApp & 3K Email Quota',
-      description: 'Includes all Growth features + WhatsApp & Email marketing.',
+      seats: 'Total 50 Users Quota',
+      seatNote: 'Includes WhatsApp & Email Marketing',
+      description: 'Full-suite CRM with 50 users and all features included.',
       features: [
         { name: 'Includes All Growth Plan Features', enabled: true },
-        { name: 'WhatsApp Cloud API (10,000 Msgs / mo)', enabled: true },
-        { name: 'Email Marketing (3,000 Mails / mo)', enabled: true },
-        { name: 'Basic Workflow Automations', enabled: true },
-        { name: 'Normal AI Model & Lead Scoring', enabled: true },
-        { name: 'HR Portal & Attendance Verification', enabled: true },
-        { name: 'Advanced AI Customization & Control', enabled: false },
+        { name: 'All AI Features & Learning Engine', enabled: true },
+        { name: 'WhatsApp Cloud API (25,000 Msgs / mo)', enabled: true },
+        { name: 'Email Marketing (10,000 Mails / mo)', enabled: true },
+        { name: 'Advanced Workflow Automations', enabled: true },
+        { name: 'Full HR & Custom Salary Builder', enabled: true },
+        { name: 'Custom Sales Pipelines & Funnels', enabled: true },
       ],
     },
     {
-      id: 'MAX',
-      name: '👑 Max Plan',
+      id: 'ENTERPRISE',
+      name: '👑 Enterprise Plan',
       price: '₹4,999',
       taxNote: '+ 18% GST (Total ₹5,898.82)',
       period: '/ month',
-      seats: 'Total 60 Users Quota',
-      seatNote: 'Includes 100K WhatsApp & 50K Email Quota',
-      description: 'Includes all Pro features + Advanced AI Customization & Control.',
+      seats: 'Total 100 Users Quota',
+      seatNote: 'Enterprise Quota & Priority SLA',
+      description: 'Maximum capacity and performance with 100 users and all features.',
       features: [
-        { name: 'Includes All Pro Plan Features', enabled: true },
+        { name: 'Includes All Business Plan Features', enabled: true },
+        { name: '100 Users Quota Allocated', enabled: true },
+        { name: 'All AI Features & High-Speed Inference', enabled: true },
         { name: 'WhatsApp Cloud API (100,000 Msgs / mo)', enabled: true },
         { name: 'Email Marketing (50,000 Mails / mo)', enabled: true },
-        { name: 'Advanced AI Customization & Control', enabled: true },
-        { name: 'Advanced Enterprise Workflow Automations', enabled: true },
-        { name: 'Custom Field & Funnel Customizer', enabled: true },
-        { name: 'Dedicated 24/7 Priority Support', enabled: true },
+        { name: 'Enterprise Custom SLA & Backups', enabled: true },
+        { name: 'Dedicated 24/7 Account Manager', enabled: true },
       ],
     },
   ];
@@ -127,7 +146,7 @@ export default function BillingPage() {
                   razorpaySignature: response.razorpay_signature,
                 }),
               });
-              setSuccessMsg('Payment verified! Upgrade request submitted to Super Admin for instant activation.');
+              setSuccessMsg('Payment verified! Upgrade activated.');
               setLoading(false);
             },
           };
@@ -140,19 +159,22 @@ export default function BillingPage() {
       console.warn('Razorpay SDK not loaded, using fallback upgrade request:', err);
     }
 
-    // Fallback: Queue Upgrade Request to Super Admin
+    // Fallback: Queue Upgrade Request
     setTimeout(() => {
+      const isFree = planId === 'FREE_TRIAL';
+      const isGrowth = planId === 'GROWTH';
       updateSubscription({
         planType: planId,
+        userSeatsAllocated: planId === 'FREE_TRIAL' ? 10 : planId === 'GROWTH' ? 20 : planId === 'BUSINESS' ? 50 : 100,
         features: {
-          whatsApp: planId !== 'FREE_TRIAL',
-          emailAutomation: planId !== 'FREE_TRIAL',
+          whatsApp: !isFree && !isGrowth,
+          emailAutomation: !isFree && !isGrowth,
           aiLeadScoring: true,
           customSalaryBuilder: true,
           exportCSV: true,
         },
       });
-      setSuccessMsg(`Upgrade request for ${planId} submitted to Super Admin! Features will unlock upon review.`);
+      setSuccessMsg(`Plan updated to ${planId}! Features and seat quotas recalibrated.`);
       setLoading(false);
     }, 1200);
   };
