@@ -64,7 +64,7 @@ export function LeadIngestionControlCenterBar({
             onPress={onInsertLeadPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnInsertLeadText}>+ + Insert Lead</Text>
+            <Text style={styles.btnInsertLeadText}>👤 + Insert Lead</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -72,7 +72,7 @@ export function LeadIngestionControlCenterBar({
             onPress={onImportCsvPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnImportCsvText}>📤 Import CSV / Excel</Text>
+            <Text style={styles.btnImportCsvText}>📥 Import CSV / Excel</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -88,7 +88,7 @@ export function LeadIngestionControlCenterBar({
             onPress={onExportCsvPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnExportCsvText}>📥 Export CSV</Text>
+            <Text style={styles.btnExportCsvText}>📤 Export CSV</Text>
           </TouchableOpacity>
         </View>
 
@@ -99,7 +99,7 @@ export function LeadIngestionControlCenterBar({
             onPress={onCustomColumnPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnCustomColText}>+ + Custom Column</Text>
+            <Text style={styles.btnCustomColText}>📐 + Custom Column</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

@@ -151,7 +151,7 @@ function MainTabNavigator({
 }: any) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
-  const bottomPadding = Math.max(insets.bottom, 6);
+  const bottomPadding = Math.max(insets.bottom, 10);
   const topPadding = Math.max(insets.top, 12);
 
   const roleStr = currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
@@ -189,8 +189,8 @@ function MainTabNavigator({
           tabBarStyle: [
             styles.tabBar,
             {
-              height: 56 + bottomPadding,
-              paddingTop: 4,
+              height: 58 + bottomPadding,
+              paddingTop: 6,
               paddingBottom: bottomPadding,
             }
           ],
@@ -214,13 +214,13 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(129,140,248,0.25)', borderColor: '#818cf8' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>🏠</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: 'rgba(129,140,248,0.45)' }]}>
+                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>🏠</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#818cf8' : '#64748b', marginTop: 1 }}>
-                {focused ? 'Home ●' : 'Home'}
+              <Text style={[styles.tabBarLabel, { color: focused ? '#818cf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+                Home
               </Text>
             ),
           }}
@@ -230,13 +230,13 @@ function MainTabNavigator({
           component={LeadsStackNavigator}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(56,189,248,0.25)', borderColor: '#38bdf8' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>🎯</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(14,165,233,0.2)', borderColor: 'rgba(56,189,248,0.45)' }]}>
+                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>🎯</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#38bdf8' : '#64748b', marginTop: 1 }}>
-                {focused ? 'Leads ●' : 'Leads'}
+              <Text style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+                Leads
               </Text>
             ),
           }}
@@ -246,13 +246,13 @@ function MainTabNavigator({
           component={EmployeesScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(192,132,252,0.25)', borderColor: '#c084fc' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>👥</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(168,85,247,0.2)', borderColor: 'rgba(192,132,252,0.45)' }]}>
+                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>👥</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#c084fc' : '#64748b', marginTop: 1 }}>
-                {focused ? 'Employees ●' : 'Employees'}
+              <Text style={[styles.tabBarLabel, { color: focused ? '#c084fc' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+                Employees
               </Text>
             ),
           }}
@@ -270,17 +270,17 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, { backgroundColor: focused ? 'rgba(251,191,36,0.25)' : 'rgba(251,191,36,0.12)', borderColor: focused ? '#fbbf24' : 'rgba(251,191,36,0.35)' }]}>
-                <View style={{ width: 16, height: 12, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
-                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
-                  <View style={{ width: 16, height: 2, backgroundColor: focused ? '#fbbf24' : '#f59e0b', borderRadius: 1 }} />
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(251,191,36,0.45)' }]}>
+                <View style={{ width: 17, height: 13, justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
+                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
+                  <View style={{ width: 17, height: 2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1 }} />
                 </View>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '800', color: focused ? '#fbbf24' : '#f59e0b', marginTop: 1 }}>
-                {focused ? 'Menu ●' : 'Menu'}
+              <Text style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+                Menu
               </Text>
             ),
           }}
@@ -290,13 +290,13 @@ function MainTabNavigator({
           component={AttendanceScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(52,211,153,0.25)', borderColor: '#34d399' }]}>
-                <Text style={{ fontSize: 17, lineHeight: 22 }}>⏱️</Text>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(52,211,153,0.45)' }]}>
+                <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.75 }}>⏱️</Text>
               </View>
             ),
             tabBarLabel: ({ focused }) => (
-              <Text style={{ fontSize: 10, fontWeight: focused ? '900' : '700', color: focused ? '#34d399' : '#64748b', marginTop: 1 }}>
-                {focused ? 'Attendance ●' : 'Attendance'}
+              <Text style={[styles.tabBarLabel, { color: focused ? '#34d399' : '#64748b', fontWeight: focused ? '800' : '600' }]}>
+                Attendance
               </Text>
             ),
           }}
@@ -858,8 +858,30 @@ const styles = StyleSheet.create({
   notifBadgeCircle: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#090d16' },
   notifBadgeCountText: { color: '#ffffff', fontSize: 9, fontWeight: '900' },
 
-  tabBar: { backgroundColor: '#090d16', borderTopWidth: 1, borderTopColor: '#1e293b', elevation: 0 },
-  tabIconBox: { width: 44, height: 28, borderRadius: 10, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  tabBar: {
+    backgroundColor: '#070c18',
+    borderTopWidth: 1,
+    borderTopColor: '#1a2333',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+  },
+  tabIconBox: {
+    width: 48,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBarLabel: {
+    fontSize: 10.5,
+    marginTop: 3,
+    letterSpacing: 0.2,
+  },
 
   // 🔔 Notifications Modal Styles
   notifModalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },

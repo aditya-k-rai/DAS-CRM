@@ -703,36 +703,85 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           />
 
           {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
-          <View style={styles.cardBox}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={styles.cardTitle}>📊 Spreadsheet Ingestion &amp; Allocation Log</Text>
-              <TouchableOpacity style={{ backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => setImportModalOpen(true)}>
-                <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>+ Import New Sheet</Text>
+          <View style={auditStyles.auditSectionCard}>
+            {/* Header Row */}
+            <View style={auditStyles.sectionHeaderRow}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={auditStyles.sectionHeaderIcon}>📊</Text>
+                  <Text style={auditStyles.sectionHeaderTitle}>Spreadsheet Ingestion &amp; Allocation Log</Text>
+                </View>
+                <Text style={auditStyles.sectionHeaderSub}>
+                  Audit trail of ingested files, batch assignments &amp; distribution
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={auditStyles.importSheetBtn}
+                onPress={() => setImportModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={auditStyles.importSheetBtnIcon}>＋</Text>
+                <Text style={auditStyles.importSheetBtnText}>Import Sheet</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.cardSub}>Audit history of when, at what time, which sheets were injected, and employee assignments.</Text>
 
-            {/* Filter Pills */}
-            <View style={{ flexDirection: 'row', gap: 6, marginVertical: 10 }}>
+            {/* Segmented Filter Pills */}
+            <View style={auditStyles.filterPillTrack}>
               {[
-                { id: 'ALL', label: `ALL (${auditLogs.length})` },
-                { id: 'PENDING', label: `⏳ PENDING (${auditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length})` },
-                { id: 'ALLOCATED', label: `✓ COMPLETED (${auditLogs.filter(a => a.status === 'ALLOCATED').length})` },
-              ].map(tab => (
-                <TouchableOpacity
-                  key={tab.id}
-                  style={[{ backgroundColor: '#020617', borderBottomWidth: 2, borderBottomColor: 'transparent', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }, auditFilter === tab.id && { backgroundColor: 'rgba(79,70,229,0.15)', borderBottomColor: '#6366f1' }]}
-                  onPress={() => setAuditFilter(tab.id as any)}
-                >
-                  <Text style={[{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }, auditFilter === tab.id && { color: '#818cf8' }]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                { id: 'ALL', label: 'All Files', count: auditLogs.length },
+                { id: 'PENDING', label: 'Pending', count: auditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length, isWarn: true },
+                { id: 'ALLOCATED', label: 'Allocated', count: auditLogs.filter(a => a.status === 'ALLOCATED').length, isSuccess: true },
+              ].map(tab => {
+                const isActive = auditFilter === tab.id;
+                return (
+                  <TouchableOpacity
+                    key={tab.id}
+                    style={[
+                      auditStyles.filterPill,
+                      isActive && auditStyles.filterPillActive,
+                      isActive && tab.isWarn && auditStyles.filterPillActiveWarn,
+                      isActive && tab.isSuccess && auditStyles.filterPillActiveSuccess,
+                    ]}
+                    onPress={() => setAuditFilter(tab.id as any)}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        auditStyles.filterPillText,
+                        isActive && auditStyles.filterPillTextActive,
+                        isActive && tab.isWarn && { color: '#fbbf24' },
+                        isActive && tab.isSuccess && { color: '#34d399' },
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                    <View
+                      style={[
+                        auditStyles.filterCountBadge,
+                        isActive && auditStyles.filterCountBadgeActive,
+                        isActive && tab.isWarn && { backgroundColor: 'rgba(245,158,11,0.25)' },
+                        isActive && tab.isSuccess && { backgroundColor: 'rgba(16,185,129,0.25)' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          auditStyles.filterCountBadgeText,
+                          isActive && auditStyles.filterCountBadgeTextActive,
+                          isActive && tab.isWarn && { color: '#fbbf24' },
+                          isActive && tab.isSuccess && { color: '#34d399' },
+                        ]}
+                      >
+                        {tab.count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            {/* Audit Log Cards */}
-            <View style={{ gap: 8 }}>
+            {/* Audit Log Cards List */}
+            <View style={{ gap: 10, marginTop: 12 }}>
               {auditLogs
                 .filter(item => {
                   if (auditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
@@ -741,72 +790,126 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 })
                 .map(item => {
                   const isPending = item.status === 'PENDING_ALLOCATION';
+                  const isCsv = item.fileName.toLowerCase().endsWith('.csv');
                   return (
                     <View
                       key={item.id}
                       style={[
-                        { backgroundColor: '#020617', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#1e293b' },
-                        isPending && { borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)' },
+                        auditStyles.logCard,
+                        isPending ? auditStyles.logCardPending : auditStyles.logCardAllocated,
                       ]}
                     >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, paddingRight: 8 }}
-                          onPress={() => setAuditDetailRecord(item)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{ fontSize: 13, fontWeight: '900', color: '#818cf8', textDecorationLine: 'underline' }}>
-                            📄 {item.fileName} <Text style={{ fontSize: 10, textDecorationLine: 'none', color: '#6366f1' }}>🔍 (Tap for Assigned To)</Text>
-                          </Text>
-                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748b', marginTop: 3 }}>
-                            🕒 Injected At: <Text style={{ color: '#cbd5e1', fontWeight: '800' }}>{item.injectedAt}</Text> • Platform: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{item.platform}</Text>
-                          </Text>
-                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#38bdf8', marginTop: 2 }}>
-                            📊 Extracted Size: <Text style={{ color: '#34d399', fontWeight: '900' }}>{item.leadsCount} Rows</Text> • <Text style={{ color: '#818cf8', fontWeight: '900' }}>{item.colsCount || 6} Columns</Text>
-                          </Text>
-                        </TouchableOpacity>
+                      {/* Top Header: File Info & Status Badge */}
+                      <View style={auditStyles.logCardTopRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
+                          <View style={[auditStyles.fileIconBox, isCsv ? auditStyles.fileIconBoxCsv : auditStyles.fileIconBoxExcel]}>
+                            <Text style={auditStyles.fileIconEmoji}>{isCsv ? '📊' : '📑'}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={auditStyles.logCardFileName} numberOfLines={1}>
+                              {item.fileName}
+                            </Text>
+                            <Text style={auditStyles.logCardTimestamp}>
+                              🕒 {item.injectedAt}
+                            </Text>
+                          </View>
+                        </View>
 
                         <TouchableOpacity
-                          style={[{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#1e293b' }, isPending ? { backgroundColor: 'rgba(245,158,11,0.2)' } : { backgroundColor: 'rgba(34,197,94,0.15)' }]}
+                          style={[
+                            auditStyles.statusBadge,
+                            isPending ? auditStyles.statusBadgePending : auditStyles.statusBadgeAllocated,
+                          ]}
                           onPress={() => setAuditDetailRecord(item)}
+                          activeOpacity={0.8}
                         >
-                          <Text style={[{ fontSize: 9, fontWeight: '900', color: '#94a3b8' }, isPending ? { color: '#fbbf24' } : { color: '#4ade80' }]}>
-                            {isPending ? '⏳ UNASSIGNED PENDING' : '✓ ALLOCATED ℹ️'}
+                          <Text style={auditStyles.statusBadgeDot}>{isPending ? '⏳' : '✓'}</Text>
+                          <Text style={[auditStyles.statusBadgeText, isPending ? { color: '#fbbf24' } : { color: '#34d399' }]}>
+                            {isPending ? 'PENDING ALLOCATION' : 'ALLOCATED'}
                           </Text>
                         </TouchableOpacity>
                       </View>
 
+                      {/* Middle: Metadata Pills Grid */}
+                      <View style={auditStyles.metaChipsRow}>
+                        <View style={auditStyles.metaChip}>
+                          <Text style={auditStyles.metaChipIcon}>🌐</Text>
+                          <Text style={auditStyles.metaChipLabel}>Source:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: '#38bdf8' }]}>{item.platform}</Text>
+                        </View>
+
+                        <View style={auditStyles.metaChip}>
+                          <Text style={auditStyles.metaChipIcon}>📈</Text>
+                          <Text style={auditStyles.metaChipLabel}>Rows:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: '#34d399' }]}>{item.leadsCount} Leads</Text>
+                        </View>
+
+                        <View style={auditStyles.metaChip}>
+                          <Text style={auditStyles.metaChipIcon}>📐</Text>
+                          <Text style={auditStyles.metaChipLabel}>Cols:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: '#818cf8' }]}>{item.colsCount || 6} Fields</Text>
+                        </View>
+                      </View>
+
+                      {/* Allocated Summary Box if already allocated */}
+                      {!isPending && item.allocationSummary && (
+                        <View style={auditStyles.allocatedSummaryBox}>
+                          <Text style={auditStyles.allocatedSummaryIcon}>👥</Text>
+                          <Text style={auditStyles.allocatedSummaryText} numberOfLines={2}>
+                            {item.allocationSummary}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Pending Action Banner */}
                       {isPending && (
-                        <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.2)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>⚠️ {item.leadsCount} Rows ({item.colsCount || 6} Cols) Unassigned</Text>
+                        <View style={auditStyles.pendingBanner}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={{ fontSize: 13 }}>⚠️</Text>
+                              <Text style={auditStyles.pendingBannerTitle}>
+                                {item.leadsCount} Leads Unassigned
+                              </Text>
+                            </View>
+                            <Text style={auditStyles.pendingBannerSub}>
+                              Dataset is unallocated. Assign to Team Leader or sales reps.
+                            </Text>
+                          </View>
+
                           <TouchableOpacity
-                            style={{ backgroundColor: '#f59e0b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}
+                            style={auditStyles.allocateCtaBtn}
                             onPress={() => {
+                              setAllocatedLeadsCount(item.leadsCount);
                               setAllocationSourceType('EXCEL_CSV');
                               setAllocationModalOpen(true);
                             }}
+                            activeOpacity={0.8}
                           >
-                            <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>⚡ Allocate Leads Now →</Text>
+                            <Text style={auditStyles.allocateCtaBtnText}>⚡ Allocate Now →</Text>
                           </TouchableOpacity>
                         </View>
                       )}
 
-                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {/* Card Footer Action Buttons */}
+                      <View style={auditStyles.cardFooterRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          {/* Preview & Edit Sheet Primary Action Button */}
                           <TouchableOpacity
-                            style={{ backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#0ea5e9' }}
+                            style={auditStyles.btnPreviewSheet}
                             onPress={() => {
-                              // Open File Import Portal with all saved sheet details, row & column controls
                               setAuditDetailRecord(null);
                               setAllocationModalOpen(false);
                               setImportModalOpen(true);
                             }}
+                            activeOpacity={0.75}
                           >
-                            <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '800' }}>👁️ Preview &amp; Edit Sheet</Text>
+                            <Text style={auditStyles.btnPreviewSheetIcon}>👁️</Text>
+                            <Text style={auditStyles.btnPreviewSheetText}>Preview &amp; Edit Sheet</Text>
                           </TouchableOpacity>
 
+                          {/* Delete Action Button */}
                           <TouchableOpacity
-                            style={{ backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}
+                            style={auditStyles.btnDeleteSheet}
                             onPress={() => {
                               Alert.alert(
                                 '🗑️ Delete Sheet Allocation',
@@ -824,13 +927,17 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                                 ]
                               );
                             }}
+                            activeOpacity={0.75}
                           >
-                            <Text style={{ color: '#f87171', fontSize: 10, fontWeight: '800' }}>🗑️ Delete</Text>
+                            <Text style={auditStyles.btnDeleteSheetIcon}>🗑️</Text>
+                            <Text style={auditStyles.btnDeleteSheetText}>Delete</Text>
                           </TouchableOpacity>
                         </View>
 
-                        <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                          <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '800' }}>⏳ Auto-Deletes in 7 Days</Text>
+                        {/* Retention Policy Indicator Pill (Informative, NOT button) */}
+                        <View style={auditStyles.retentionBadge}>
+                          <Text style={auditStyles.retentionBadgeIcon}>⏳</Text>
+                          <Text style={auditStyles.retentionBadgeText}>7-Day Retention</Text>
                         </View>
                       </View>
                     </View>
@@ -1535,6 +1642,99 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           </View>
         </View>
       </Modal>
+
+      {/* ── MODAL: SHEET ALLOCATION AUDIT DETAIL ───────────────────────────── */}
+      <Modal visible={!!auditDetailRecord} transparent animationType="fade" onRequestClose={() => setAuditDetailRecord(null)}>
+        <View style={styles.modalOverlay}>
+          {auditDetailRecord && (
+            <View style={[styles.modalContent, { maxWidth: 380, backgroundColor: '#0b1329', borderColor: '#1e293b' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 20 }}>📑</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: '#ffffff' }}>Spreadsheet Audit Record</Text>
+                </View>
+                <TouchableOpacity onPress={() => setAuditDetailRecord(null)}>
+                  <Text style={{ color: '#94a3b8', fontSize: 18, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>
+                Detailed ingestion telemetry &amp; employee batch allocation summary.
+              </Text>
+
+              <View style={{ backgroundColor: '#030712', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, gap: 8, marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b' }}>File Name:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#f8fafc' }}>{auditDetailRecord.fileName}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b' }}>Injected At:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#cbd5e1' }}>{auditDetailRecord.injectedAt}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b' }}>Platform:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#38bdf8' }}>{auditDetailRecord.platform}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b' }}>Dataset Size:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#34d399' }}>{auditDetailRecord.leadsCount} Rows • {auditDetailRecord.colsCount || 6} Cols</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b' }}>Status:</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: auditDetailRecord.status === 'PENDING_ALLOCATION' ? '#fbbf24' : '#34d399' }}>
+                    {auditDetailRecord.status === 'PENDING_ALLOCATION' ? '⏳ Unassigned Pending' : '✓ Allocated'}
+                  </Text>
+                </View>
+                {auditDetailRecord.allocationSummary && (
+                  <View style={{ marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                    <Text style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Allocation Distribution:</Text>
+                    <Text style={{ fontSize: 11, color: '#86efac', fontWeight: '700' }}>{auditDetailRecord.allocationSummary}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 1, borderColor: '#0284c7', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}
+                  onPress={() => {
+                    setAuditDetailRecord(null);
+                    setAllocationModalOpen(false);
+                    setImportModalOpen(true);
+                  }}
+                >
+                  <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>👁️ Preview Sheet</Text>
+                </TouchableOpacity>
+
+                {auditDetailRecord.status === 'PENDING_ALLOCATION' ? (
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#f59e0b', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}
+                    onPress={() => {
+                      setAllocatedLeadsCount(auditDetailRecord.leadsCount);
+                      setAllocationSourceType('EXCEL_CSV');
+                      setAuditDetailRecord(null);
+                      setAllocationModalOpen(true);
+                    }}
+                  >
+                    <Text style={{ color: '#000000', fontSize: 11, fontWeight: '900' }}>⚡ Allocate Leads →</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}
+                    onPress={() => {
+                      setAllocatedLeadsCount(auditDetailRecord.leadsCount);
+                      setAllocationSourceType('EXCEL_CSV');
+                      setAuditDetailRecord(null);
+                      setAllocationModalOpen(true);
+                    }}
+                  >
+                    <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '900' }}>🔄 Re-Allocate →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1695,4 +1895,361 @@ const styles = StyleSheet.create({
   colNameInput: { flex: 1, color: '#ffffff', fontSize: 11, fontWeight: '700', paddingHorizontal: 6 },
   colShiftBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
   colShiftBtnText: { color: '#38bdf8', fontSize: 9, fontWeight: '800' },
+});
+
+const auditStyles = StyleSheet.create({
+  auditSectionCard: {
+    backgroundColor: '#0a1020',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionHeaderIcon: {
+    fontSize: 16,
+  },
+  sectionHeaderTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+  },
+  sectionHeaderSub: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  importSheetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 9,
+    shadowColor: '#4f46e5',
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#6366f1',
+  },
+  importSheetBtnIcon: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  importSheetBtnText: {
+    color: '#ffffff',
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
+  filterPillTrack: {
+    flexDirection: 'row',
+    backgroundColor: '#060a15',
+    borderRadius: 12,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    gap: 4,
+  },
+  filterPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 5,
+  },
+  filterPillActive: {
+    backgroundColor: '#1e293b',
+  },
+  filterPillActiveWarn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.4)',
+  },
+  filterPillActiveSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  filterPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  filterPillTextActive: {
+    color: '#ffffff',
+    fontWeight: '900',
+  },
+  filterCountBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  filterCountBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  filterCountBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748b',
+  },
+  filterCountBadgeTextActive: {
+    color: '#ffffff',
+  },
+
+  logCard: {
+    backgroundColor: '#070c18',
+    borderRadius: 14,
+    padding: 13,
+    borderWidth: 1,
+  },
+  logCardPending: {
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    backgroundColor: '#090e1c',
+  },
+  logCardAllocated: {
+    borderColor: '#1e293b',
+    backgroundColor: '#070c18',
+  },
+
+  logCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  fileIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fileIconBoxCsv: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  fileIconBoxExcel: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  fileIconEmoji: {
+    fontSize: 15,
+  },
+  logCardFileName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#f8fafc',
+  },
+  logCardTimestamp: {
+    fontSize: 9.5,
+    color: '#64748b',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  statusBadgePending: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  statusBadgeAllocated: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+  },
+  statusBadgeDot: {
+    fontSize: 9,
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
+  metaChipsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 7,
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  metaChipIcon: {
+    fontSize: 9.5,
+  },
+  metaChipLabel: {
+    fontSize: 9.5,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  metaChipVal: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+
+  allocatedSummaryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  allocatedSummaryIcon: {
+    fontSize: 11,
+  },
+  allocatedSummaryText: {
+    fontSize: 10,
+    color: '#86efac',
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245, 158, 11, 0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderRadius: 10,
+    padding: 9,
+    marginBottom: 10,
+  },
+  pendingBannerTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#fbbf24',
+  },
+  pendingBannerSub: {
+    fontSize: 9,
+    color: '#fef3c7',
+    marginTop: 1.5,
+    opacity: 0.85,
+  },
+  allocateCtaBtn: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#f59e0b',
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  allocateCtaBtnText: {
+    color: '#000000',
+    fontSize: 10.5,
+    fontWeight: '900',
+  },
+
+  cardFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    paddingTop: 9,
+  },
+  btnPreviewSheet: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  btnPreviewSheetIcon: {
+    fontSize: 11,
+  },
+  btnPreviewSheetText: {
+    color: '#38bdf8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  btnDeleteSheet: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  btnDeleteSheetIcon: {
+    fontSize: 9.5,
+  },
+  btnDeleteSheetText: {
+    color: '#f87171',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  retentionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 4.5,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+  },
+  retentionBadgeIcon: {
+    fontSize: 9,
+  },
+  retentionBadgeText: {
+    color: '#94a3b8',
+    fontSize: 8.5,
+    fontWeight: '700',
+  },
 });
