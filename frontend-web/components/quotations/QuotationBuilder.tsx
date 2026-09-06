@@ -6,8 +6,9 @@ import {
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
   Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User,
-  Mail, MessageSquare, Share2, Upload
+  Mail, MessageSquare, Share2, Upload, FileDown
 } from 'lucide-react';
+import { exportQuotationAsDocx } from '../../lib/exportDocx';
 
 // ─── Interfaces & Section Layout Definitions ──────────────────
 export type SectionId = 'HEADER' | 'PARTY_INFO' | 'ITEMS_TABLE' | 'SUMMARY_AND_BANK' | 'FOOTER_TERMS';
@@ -662,6 +663,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [lastCompiledAt, setLastCompiledAt] = useState<string | null>(null);
   const [isHighlightingPreview, setIsHighlightingPreview] = useState(false);
 
+  // ── Word / DOCX Export State ──
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [docxSuccess, setDocxSuccess] = useState(false);
+
   // Refresh & Compile: Flushes active inputs, sanitizes item data, recomputes financials & forces preview re-render
   const handleCompilePdf = useCallback(() => {
     setIsCompiling(true);
@@ -704,6 +709,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       }, 2500);
     }, 350);
   }, [globalGstRate]);
+
 
   // Selected Active Company & Party
   const activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
@@ -783,6 +789,69 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
   const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
+
+  // ── Download as Editable Word (.docx) — placed here after all derived state ──
+  const handleDownloadDocx = useCallback(async () => {
+    const _activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
+    const _activeParty = parties.find(p => p.id === selectedPartyId) || parties[0];
+    const _docTitle = (() => {
+      switch (docType) {
+        case 'QUOTATION': return 'ESTIMATE / QUOTATION';
+        case 'PROFORMA_INVOICE': return 'PROFORMA INVOICE';
+        case 'TAX_INVOICE': return 'TAX INVOICE';
+        case 'PAYMENT_RECEIPT': return 'PAYMENT RECEIPT';
+        case 'CREDIT_NOTE': return 'CREDIT NOTE';
+        case 'DELIVERY_CHALLAN': return 'DELIVERY CHALLAN';
+        default: return 'DOCUMENT';
+      }
+    })();
+    const _cgst = gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal / 2;
+    setIsExportingDocx(true);
+    try {
+      await exportQuotationAsDocx({
+        docTitle: _docTitle,
+        docNo,
+        docDate,
+        validUntilDate,
+        showValidUntil,
+        company: _activeCompany,
+        party: _activeParty,
+        useSeparateShipping,
+        customShippingAddress,
+        items,
+        customColumns,
+        showGstColumn,
+        showHsnColumn,
+        gstType,
+        globalGstRate,
+        overallDiscountType,
+        overallDiscountVal,
+        termsText,
+        subtotal,
+        totalItemDiscounts,
+        overallDiscAmount,
+        effectiveGstTaxTotal,
+        grandTotal,
+        cgst: _cgst,
+        sgst: _cgst,
+        igst: effectiveGstTaxTotal,
+      });
+      setDocxSuccess(true);
+      setTimeout(() => setDocxSuccess(false), 2500);
+    } catch (err) {
+      console.error('DOCX export failed:', err);
+      alert('Could not generate Word document. Please try again.');
+    } finally {
+      setIsExportingDocx(false);
+    }
+  }, [
+    docType, docNo, docDate, validUntilDate, showValidUntil,
+    companies, selectedCompanyId, parties, selectedPartyId,
+    useSeparateShipping, customShippingAddress,
+    items, customColumns, showGstColumn, showHsnColumn, gstType, globalGstRate,
+    overallDiscountType, overallDiscountVal, termsText,
+    subtotal, totalItemDiscounts, overallDiscAmount, effectiveGstTaxTotal, grandTotal, gstTaxTotal,
+  ]);
 
   const handleImageFileUpload = (file: File, onSuccess: (dataUrl: string) => void) => {
     if (!file) return;
@@ -1282,6 +1351,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
               >
                 <Download size={14} /> Print / Export PDF (A4)
+              </button>
+
+              {/* ⬇ DOWNLOAD AS EDITABLE WORD (.docx) BUTTON */}
+              <button
+                type="button"
+                onClick={handleDownloadDocx}
+                disabled={isExportingDocx}
+                title="Download a fully editable Word document (.docx) with all sections — company info, line items, bank details, totals and terms"
+                className={`px-4 py-2 text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
+                  docxSuccess
+                    ? 'bg-teal-600 hover:bg-teal-500 text-white border-teal-400/40 shadow-teal-600/25'
+                    : isExportingDocx
+                    ? 'bg-blue-900/60 text-blue-300 border-blue-500/30 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-700 to-violet-700 hover:from-blue-600 hover:to-violet-600 text-white border-violet-400/30 shadow-violet-600/25 active:scale-95'
+                }`}
+              >
+                {isExportingDocx ? (
+                  <><RefreshCw size={13} className="animate-spin" /> Generating .docx...</>
+                ) : docxSuccess ? (
+                  <><Check size={13} /> Word Downloaded!</>
+                ) : (
+                  <><FileDown size={13} /> Download Word (.docx)</>
+                )}
               </button>
             </div>
           </div>
