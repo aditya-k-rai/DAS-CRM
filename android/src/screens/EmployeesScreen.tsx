@@ -432,7 +432,7 @@ export default function EmployeesScreen() {
       {/* ── Assigned Tab Content ── */}
       {activeTab === 'ASSIGNED' && (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.tabInfoBanner}>
@@ -490,7 +490,7 @@ export default function EmployeesScreen() {
       {/* ── Unassigned Tab Content ── */}
       {activeTab === 'UNASSIGNED' && (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: 'rgba(251,191,36,0.07)' }]}>
@@ -553,10 +553,25 @@ export default function EmployeesScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle}>Assign Role</Text>
                   <Text style={styles.modalSub}>{assignRoleTarget.name} · {assignRoleTarget.email}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <View style={[
+                      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+                      activeCount >= totalQuota
+                        ? { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: 'rgba(245, 158, 11, 0.35)' }
+                        : { backgroundColor: 'rgba(52, 211, 153, 0.12)', borderColor: 'rgba(52, 211, 153, 0.35)' }
+                    ]}>
+                      <Text style={{ fontSize: 9.5, fontWeight: '900', color: activeCount >= totalQuota ? '#fbbf24' : '#34d399' }}>
+                        {activeCount >= totalQuota
+                          ? `⚠️ Plan Limit: ${activeCount}/${totalQuota} Seats (Full)`
+                          : `✓ Available Seats: ${totalQuota - activeCount} of ${totalQuota}`}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
                 <TouchableOpacity
                   style={styles.modalCloseBtn}
                   onPress={() => { setAssignRoleTarget(null); setSelectedRole(null); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={styles.modalCloseBtnText}>✕</Text>
                 </TouchableOpacity>
@@ -670,12 +685,38 @@ const styles = StyleSheet.create({
   modalSectionLbl: { fontSize: 10, fontWeight: '900', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
 
   // Role Options
-  roleOption: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 13, marginBottom: 9 },
+  roleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    minHeight: 52,
+    marginBottom: 10,
+  },
   roleOptionDot: { width: 10, height: 10, borderRadius: 5 },
-  roleOptionText: { flex: 1, fontSize: 13, fontWeight: '800', color: '#94a3b8' },
+  roleOptionText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: '#94a3b8' },
   roleOptionCheck: { fontSize: 16, fontWeight: '900' },
 
   // Confirm Button
-  confirmBtn: { backgroundColor: 'rgba(99,102,241,0.22)', borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.55)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
-  confirmBtnText: { color: '#818cf8', fontSize: 13, fontWeight: '900' },
+  confirmBtn: {
+    backgroundColor: '#4f46e5',
+    borderWidth: 1.5,
+    borderColor: '#818cf8',
+    borderRadius: 14,
+    minHeight: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  confirmBtnText: { color: '#ffffff', fontSize: 13.5, fontWeight: '900', letterSpacing: 0.3 },
 });

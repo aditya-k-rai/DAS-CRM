@@ -569,7 +569,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
   return (
     <View style={[styles.container, { paddingTop: 4 }]}>
       {/* ── CONTENT SCROLL ───────────────────────────────────────────────── */}
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {/* 📸 TAB 1: MARK ATTENDANCE (STAFF / NON-ADMIN EXCLUSIVE)                   */}

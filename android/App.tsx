@@ -48,6 +48,11 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import ProductsCatalogScreen from './src/screens/ProductsCatalogScreen';
 import MoreControlsScreen from './src/screens/MoreControlsScreen';
 import WorkflowBuilderScreen from './src/screens/WorkflowBuilderScreen';
+import { ModernAlertModal } from './src/components/ModernAlertModal';
+import { initModernAlertOverride } from './src/services/modernAlert';
+
+// 🚀 Initialize Global Modern Alert Override across entire app
+initModernAlertOverride();
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.82, 320);
@@ -844,6 +849,9 @@ export default function App() {
       </Modal>
 
       </NavigationContainer>
+
+      {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
+      <ModernAlertModal />
     </SafeAreaProvider>
   );
 }

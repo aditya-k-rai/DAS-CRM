@@ -25,6 +25,7 @@ import {
   TextInput,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CATALOG_PRODUCTS, ProductItem } from '../services/whatsappTemplateEngine';
@@ -165,7 +166,7 @@ export default function PostCallOutcomeModal({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
           <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
 
             {/* Header */}

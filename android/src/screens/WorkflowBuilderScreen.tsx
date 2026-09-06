@@ -34,7 +34,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const STORAGE_KEY = '@das_crm_workflow_config_v2';
+export const WORKFLOW_STORAGE_KEY = '@das_crm_workflow_config_v2';
+const STORAGE_KEY = WORKFLOW_STORAGE_KEY;
 
 // ─── Color Palette (Matching Web COLORS) ──────────────────────────────────────
 const COLORS = [
@@ -133,7 +134,7 @@ const DEFAULT_CUSTOM_FIELDS: CustomField[] = [
   { id: 'cf-5', label: 'Incumbent Competitor', entity: 'DEALS', type: 'TOGGLE', required: false },
 ];
 
-const DEFAULT_WORKFLOWS: WorkflowRule[] = [
+export const DEFAULT_WORKFLOWS: WorkflowRule[] = [
   { id: 'wf-1', name: 'Hot Lead Auto-Handover', description: 'When AI Score reaches 80+, automatically escalate to the assigned Team Leader for priority follow-up.', triggerLabel: 'AI Score >= 80', conditionLabel: 'Status is not WON or LOST', actionLabel: 'Assign to Team Leader & Send WhatsApp', isActive: true, runCount: 142, lastRunStr: 'Today, 08:12 AM', color: '#6366f1' },
   { id: 'wf-2', name: 'No-Contact 3-Day Re-Assignment', description: 'If a lead has not been contacted in 3 days, re-assign it to the next available Sales Executive.', triggerLabel: 'No Contact for 72 Hours', conditionLabel: 'Status = NEW or FOLLOW_UP', actionLabel: 'Re-assign to Next Available Sales Exec', isActive: true, runCount: 38, lastRunStr: 'Yesterday, 09:00 AM', color: '#0ea5e9' },
   { id: 'wf-3', name: 'Meeting Booked Notification', description: 'Trigger a WhatsApp + in-app alert to the Sales Rep & Team Leader when a meeting is scheduled.', triggerLabel: 'Status Changed > MEETING SCHEDULED', conditionLabel: 'Any Lead, Any Rep', actionLabel: 'WhatsApp + Push Notif to Rep & TL', isActive: true, runCount: 64, lastRunStr: 'Today, 02:34 PM', color: '#10b981' },
@@ -148,16 +149,26 @@ const TRIGGER_OPTIONS = [
   { key: 'VALUE_THRESHOLD', icon: 'VL', label: 'Deal Value Threshold' },
 ];
 
-type TabId = 'statuses' | 'pipeline' | 'sources' | 'fields' | 'automations';
+export type TabId = 'statuses' | 'pipeline' | 'sources' | 'fields' | 'automations';
 
-interface Props {
+export interface Props {
   navigation?: any;
+  route?: any;
   onClose?: () => void;
+  initialTab?: TabId;
 }
 
-export default function WorkflowBuilderScreen({ navigation, onClose }: Props) {
+export default function WorkflowBuilderScreen({ navigation, route, onClose, initialTab }: Props) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabId>('statuses');
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab || route?.params?.initialTab || 'statuses');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    } else if (route?.params?.initialTab) {
+      setActiveTab(route?.params?.initialTab);
+    }
+  }, [initialTab, route?.params?.initialTab]);
 
   // State Collections
   const [statuses, setStatuses] = useState<LeadStatus[]>(DEFAULT_STATUSES);
@@ -412,12 +423,7 @@ export default function WorkflowBuilderScreen({ navigation, onClose }: Props) {
           <Text style={styles.backBtnText}>← Back</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.headerTitle}>Workflow Setup</Text>
-            <View style={styles.adminBadge}>
-              <Text style={styles.adminBadgeText}>Admin Only</Text>
-            </View>
-          </View>
+          <Text style={styles.headerTitle}>Workflow Setup</Text>
           <Text style={styles.headerSub}>Enterprise Workflow &amp; Lifecycle Controls</Text>
         </View>
         <TouchableOpacity style={styles.saveChangesBtn} onPress={handleSaveChanges} activeOpacity={0.8}>
@@ -425,21 +431,7 @@ export default function WorkflowBuilderScreen({ navigation, onClose }: Props) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
-
-        {/* ── 🛡️ Admin-Only Zone Banner (Exact Match to Web) ── */}
-        <View style={styles.adminBanner}>
-          <View style={styles.adminBannerIconBox}>
-            <Text style={{ fontSize: 16 }}>⚙️</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.adminBannerTitle}>Admin-Only Zone</Text>
-            <Text style={styles.adminBannerSub}>
-              Changes here affect the entire organization. Team Leaders and Sales staff cannot access this page.
-            </Text>
-          </View>
-        </View>
-
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 85 }]} showsVerticalScrollIndicator={false}>
         {/* ── Horizontal Navigation Tabs ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabScrollContent}>
           {TABS.map(tab => {
@@ -958,7 +950,7 @@ export default function WorkflowBuilderScreen({ navigation, onClose }: Props) {
       <Modal visible={!!selectedRule} transparent animationType="slide">
         <View style={styles.overlay}>
           {selectedRule && (
-            <View style={styles.modalBox}>
+            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 16 }]}>
               <View style={styles.modalHead}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle}>{selectedRule.name}</Text>
@@ -1033,7 +1025,7 @@ export default function WorkflowBuilderScreen({ navigation, onClose }: Props) {
       {/* ── Create Rule Modal ── */}
       <Modal visible={createRuleOpen} transparent animationType="slide">
         <View style={styles.overlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 16 }]}>
             <View style={styles.modalHead}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>New Workflow Rule</Text>
@@ -1497,9 +1489,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#818cf8',
     borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
+    minHeight: 52,
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+    marginTop: 14,
   },
-  proceedBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+  proceedBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 });

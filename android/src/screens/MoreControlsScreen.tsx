@@ -9,6 +9,7 @@ import {
   Alert,
   Switch,
   BackHandler,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductsCatalogScreen from './ProductsCatalogScreen';
@@ -168,7 +169,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         {activeModal === 'PDF_CATALOG' && <PdfCatalogueScreen onClose={closeModal} />}
         {activeModal === 'DEALS' && <DealsPipelineScreen onClose={closeModal} />}
         {activeModal === 'REPORTS' && <ReportsAnalyticsScreen onClose={closeModal} />}
-        {activeModal === 'AUTOMATIONS' && <WorkflowBuilderScreen onClose={closeModal} navigation={navigation} />}
+        {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={closeModal} navigation={navigation} />}
         {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={closeModal} />}
         {activeModal === 'IMPORT_EXPORT' && <BulkIngestionScreen onClose={closeModal} />}
         {activeModal === 'PROFILE' && <ProfileScreen onClose={closeModal} />}
@@ -352,7 +353,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       </View>
 
       {/* 18 Medium-Sized Responsive Grid Buttons in Specified Exact Order */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.gridContainer}>
           {GRID_BUTTONS.map((item) => (
             <TouchableOpacity

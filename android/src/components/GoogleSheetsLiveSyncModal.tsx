@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
-  ScrollView, Alert, Switch, ActivityIndicator, Dimensions,
+  ScrollView, Alert, Switch, ActivityIndicator, Dimensions, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/apiService';
@@ -528,7 +528,7 @@ export const GoogleSheetsLiveSyncModal: React.FC<GoogleSheetsLiveSyncModalProps>
             </ScrollView>
 
             {/* Footer Actions */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setViewStage('DASHBOARD')} disabled={isSavingConfig}>
                 <Text style={styles.cancelBtnText}>Back</Text>
               </TouchableOpacity>

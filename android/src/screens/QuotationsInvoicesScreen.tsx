@@ -144,6 +144,96 @@ const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Subcomponents (Memoized for High Performance & Zero Remount Churn)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AccordionHeaderProps {
+  label: string;
+  color: string;
+  sectionKey: string;
+  badge?: string;
+  stepNum?: number;
+  isDone?: boolean;
+  isOptional?: boolean;
+  isOpen: boolean;
+  onToggle: (key: string) => void;
+}
+
+const AccordionHeader: React.FC<AccordionHeaderProps> = React.memo(({
+  label,
+  color,
+  sectionKey,
+  badge,
+  stepNum,
+  isDone,
+  isOptional,
+  isOpen,
+  onToggle,
+}) => {
+  return (
+    <TouchableOpacity
+      onPress={() => onToggle(sectionKey)}
+      activeOpacity={0.7}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      style={[
+        styles.accHeader,
+        isOpen && styles.accHeaderOpen,
+        isDone && styles.accHeaderDone,
+      ]}
+    >
+      <View style={styles.accHeaderLeft}>
+        {stepNum !== undefined && (
+          <View style={[
+            styles.stepNumCircle,
+            isDone && styles.stepNumCircleDone,
+            isOpen && !isDone && { backgroundColor: color, borderColor: color },
+          ]}>
+            <Text style={[
+              styles.stepNumText,
+              isDone && styles.stepNumTextDone,
+              isOpen && !isDone && { color: '#020617' },
+            ]}>
+              {isDone ? '✓' : String(stepNum)}
+            </Text>
+          </View>
+        )}
+        <Text
+          style={[
+            styles.accHeaderText,
+            { color: isDone ? '#34d399' : isOpen ? '#ffffff' : color },
+          ]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        {isOptional && (
+          <View style={[styles.optionalPill, isOpen && styles.optionalPillOpen]}>
+            <Text style={[styles.optionalPillText, isOpen && styles.optionalPillTextOpen]}>Opt</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.accHeaderRight}>
+        {isDone ? (
+          <View style={styles.doneBadge}>
+            <Text style={styles.doneBadgeIcon}>✓</Text>
+            <Text style={styles.doneBadgeText}>Done</Text>
+          </View>
+        ) : badge ? (
+          <View style={[styles.accBadge, { backgroundColor: `${color}20`, borderColor: `${color}50` }]}>
+            <Text style={[styles.accBadgeText, { color }]}>{badge}</Text>
+          </View>
+        ) : null}
+        <View style={[styles.accChevronBox, isOpen && styles.accChevronBoxOpen]}>
+          <Text style={[styles.accChevronText, isOpen && styles.accChevronTextOpen]}>
+            {isOpen ? '∧' : '∨'}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Screen Component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -228,47 +318,60 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [newComp, setNewComp]                   = useState<Partial<CompanyDetails>>({});
   const [newParty, setNewParty]                 = useState<Partial<PartyDetails>>({});
 
-  // ─── Derived Calculations ──────────────────────────────────────────────────
-  const activeCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
-  const activeParty   = parties.find(p => p.id === selectedPartyId) || parties[0];
+  // ─── Derived Calculations (Memoized for High Performance) ───────────────────
+  const activeCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId) || companies[0], [companies, selectedCompanyId]);
+  const activeParty   = useMemo(() => parties.find(p => p.id === selectedPartyId) || parties[0], [parties, selectedPartyId]);
 
-  const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
-  const totalItemDiscounts = items.reduce((s, i) => {
-    const base = i.qty * i.unitPrice;
-    return s + (i.discountType === 'percent' ? base * i.discountVal / 100 : i.discountVal);
-  }, 0);
-  const taxableBase = Math.max(0, subtotal - totalItemDiscounts);
-  const overallDiscAmount = overallDiscountType === 'percent' ? taxableBase * overallDiscountVal / 100 : overallDiscountVal;
-  const finalTaxable = Math.max(0, taxableBase - overallDiscAmount);
-  const gstTaxTotal = items.reduce((s, i) => {
-    const base = i.qty * i.unitPrice;
-    const disc = i.discountType === 'percent' ? base * i.discountVal / 100 : i.discountVal;
-    return s + Math.max(0, base - disc) * i.taxRate / 100;
-  }, 0);
-  const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
-  const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
+  const { subtotal, totalItemDiscounts, taxableBase, overallDiscAmount, finalTaxable, gstTaxTotal, effectiveGstTaxTotal, grandTotal, cgst, sgst, igst, utgst } = useMemo(() => {
+    const sub = items.reduce((s, i) => s + (i.qty || 0) * (i.unitPrice || 0), 0);
+    const itemDisc = items.reduce((s, i) => {
+      const base = (i.qty || 0) * (i.unitPrice || 0);
+      return s + (i.discountType === 'percent' ? base * (i.discountVal || 0) / 100 : (i.discountVal || 0));
+    }, 0);
+    const taxBase = Math.max(0, sub - itemDisc);
+    const ovDisc = overallDiscountType === 'percent' ? taxBase * (overallDiscountVal || 0) / 100 : (overallDiscountVal || 0);
+    const fTaxable = Math.max(0, taxBase - ovDisc);
+    const gstTotal = items.reduce((s, i) => {
+      const base = (i.qty || 0) * (i.unitPrice || 0);
+      const disc = i.discountType === 'percent' ? base * (i.discountVal || 0) / 100 : (i.discountVal || 0);
+      return s + Math.max(0, base - disc) * (i.taxRate || 0) / 100;
+    }, 0);
+    const effGst = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTotal;
+    const gTotal = Math.round(fTaxable + effGst);
+    const cTax = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTotal / 2;
 
-  const cgst = gstType === 'EXEMPT' || globalGstRate === 0 ? 0 : gstTaxTotal / 2;
-  const sgst = cgst;
-  const igst = effectiveGstTaxTotal;
-  const utgst = cgst;
+    return {
+      subtotal: sub,
+      totalItemDiscounts: itemDisc,
+      taxableBase: taxBase,
+      overallDiscAmount: ovDisc,
+      finalTaxable: fTaxable,
+      gstTaxTotal: gstTotal,
+      effectiveGstTaxTotal: effGst,
+      grandTotal: gTotal,
+      cgst: cTax,
+      sgst: cTax,
+      igst: effGst,
+      utgst: cTax,
+    };
+  }, [items, overallDiscountType, overallDiscountVal, gstType, globalGstRate]);
 
-  // ── More Controls Toggle & 4 Core Steps Checkers ──
+  // ── More Controls Toggle & 4 Core Steps Checkers (Memoized) ──
   const [showMoreControls, setShowMoreControls] = useState(false);
 
-  const isStep1Done = Boolean(docNo?.trim() && docDate?.trim() && (!showValidUntil || (validUntilDate && validUntilDate.trim() !== '')));
-  const isStep2Done = Boolean(activeCompany?.name?.trim() && activeCompany?.gstNo?.trim());
-  const isStep3Done = Boolean(activeParty?.name?.trim());
-  const isStep4Done = Boolean(items.length > 0 && items.every(it => it.productName?.trim() && it.qty > 0 && it.unitPrice > 0));
-  const isStep5Done = Boolean(termsText && termsText.trim().length > 0);
-  const isStep6Done = Boolean(gstType);
-  const isStep7Done = Boolean(pdfMargin > 0 && pdfTopPadding > 0);
-  const isStep8Done = Boolean(sectionOrder.length > 0);
+  const isStep1Done = useMemo(() => Boolean(docNo?.trim() && docDate?.trim() && (!showValidUntil || (validUntilDate && validUntilDate.trim() !== ''))), [docNo, docDate, showValidUntil, validUntilDate]);
+  const isStep2Done = useMemo(() => Boolean(activeCompany?.name?.trim() && activeCompany?.gstNo?.trim()), [activeCompany]);
+  const isStep3Done = useMemo(() => Boolean(activeParty?.name?.trim()), [activeParty]);
+  const isStep4Done = useMemo(() => Boolean(items.length > 0 && items.every(it => it.productName?.trim() && it.qty > 0 && it.unitPrice > 0)), [items]);
+  const isStep5Done = useMemo(() => Boolean(termsText && termsText.trim().length > 0), [termsText]);
+  const isStep6Done = useMemo(() => Boolean(gstType), [gstType]);
+  const isStep7Done = useMemo(() => Boolean(pdfMargin > 0 && pdfTopPadding > 0), [pdfMargin, pdfTopPadding]);
+  const isStep8Done = useMemo(() => Boolean(sectionOrder.length > 0), [sectionOrder]);
 
-  const coreCompletedCount = [isStep1Done, isStep2Done, isStep3Done, isStep4Done].filter(Boolean).length;
+  const coreCompletedCount = useMemo(() => [isStep1Done, isStep2Done, isStep3Done, isStep4Done].filter(Boolean).length, [isStep1Done, isStep2Done, isStep3Done, isStep4Done]);
   const isCoreReady = coreCompletedCount === 4;
 
-  const getDocTitle = () => {
+  const getDocTitle = useCallback(() => {
     switch(docType) {
       case 'QUOTATION':        return 'ESTIMATE / QUOTATION';
       case 'PROFORMA_INVOICE': return 'PROFORMA INVOICE';
@@ -277,19 +380,24 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       case 'CREDIT_NOTE':      return 'CREDIT NOTE';
       case 'DELIVERY_CHALLAN': return 'DELIVERY CHALLAN';
     }
-  };
+  }, [docType]);
 
-  // ─── Handlers ───────────────────────────────────────────────────────────────
-  const toggleSection = (k: string) => {
+  // ─── Handlers (Memoized) ───────────────────────────────────────────────────
+  const toggleSection = useCallback((k: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setOpenSections(p => (p[k] ? {} : { [k]: true }));
-  };
+  }, []);
 
-  const handleConvertDoc = (type: DocumentType) => {
+  const toggleMoreControls = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowMoreControls(prev => !prev);
+  }, []);
+
+  const handleConvertDoc = useCallback((type: DocumentType) => {
     setDocType(type);
     const prefix = type === 'QUOTATION' ? 'EST' : type === 'PROFORMA_INVOICE' ? 'PI' : type === 'TAX_INVOICE' ? 'INV' : type === 'PAYMENT_RECEIPT' ? 'REC' : type === 'CREDIT_NOTE' ? 'CN' : 'DC';
     setDocNo(`${prefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-  };
+  }, []);
 
   const updateLineItem = useCallback((id: string, patch: Partial<LineItem>) => {
     setItems(prev => prev.map(it => {
@@ -302,7 +410,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     }));
   }, []);
 
-  const handleApplyGlobalGst = (rate: number) => {
+  const handleApplyGlobalGst = useCallback((rate: number) => {
     setGlobalGstRate(rate);
     setItems(prev => prev.map(it => {
       const updated = { ...it, taxRate: rate };
@@ -313,21 +421,21 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     }));
     if (rate === 0) setGstType('EXEMPT');
     else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
-  };
+  }, [gstType]);
 
-  const addLineItem = () => {
+  const addLineItem = useCallback(() => {
     const newItem: LineItem = {
       id: `item-${Date.now()}`, productName:'New Line Item', description:'High quality industrial grade specification item',
       showDescription:true, hsnCode:'998313', showImage:false, unit:'Nos', qty:1, unitPrice:10000,
       taxRate:globalGstRate, discountType:'flat', discountVal:0, total:10000,
     };
     setItems(prev => [...prev, newItem]);
-  };
+  }, [globalGstRate]);
 
-  const removeLineItem = (id: string) => {
+  const removeLineItem = useCallback((id: string) => {
     if (items.length <= 1) { Alert.alert('Notice', 'At least 1 line item is required.'); return; }
     setItems(prev => prev.filter(it => it.id !== id));
-  };
+  }, [items.length]);
 
   const handleSelectCatalogProduct = (product: typeof CATALOG_PRODUCTS[number], targetItemId: string | null) => {
     if (targetItemId === 'NEW' || !targetItemId) {
@@ -878,70 +986,14 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     setNewParty({});
   };
 
-  const filteredQuotes = savedQuotes.filter(q => {
+  const filteredQuotes = useMemo(() => {
     const qry = historySearch.toLowerCase();
-    const matchSearch = !qry || q.docNo.toLowerCase().includes(qry) || q.partyName.toLowerCase().includes(qry) || q.companyName.toLowerCase().includes(qry) || String(q.totalAmount).includes(qry);
-    const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  // ─── Accordion Section Component ───────────────────────────────────────────
-  const AccordionHeader = ({
-    label,
-    color,
-    sectionKey,
-    badge,
-    stepNum,
-    isDone,
-    isOptional,
-  }: {
-    label: string;
-    color: string;
-    sectionKey: string;
-    badge?: string;
-    stepNum?: number;
-    isDone?: boolean;
-    isOptional?: boolean;
-  }) => {
-    const isOpen = Boolean(openSections[sectionKey]);
-    return (
-      <TouchableOpacity onPress={() => toggleSection(sectionKey)} activeOpacity={0.7} style={[styles.accHeader, isOpen && styles.accHeaderOpen]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-          {stepNum !== undefined && (
-            <View style={[styles.stepNumCircle, isDone && styles.stepNumCircleDone, isOpen && !isDone && { backgroundColor: color }]}>
-              <Text style={[styles.stepNumText, isDone && styles.stepNumTextDone, isOpen && !isDone && { color: '#020617' }]}>
-                {isDone ? '✓' : String(stepNum)}
-              </Text>
-            </View>
-          )}
-          <Text style={[styles.accHeaderText, { color: isDone ? '#34d399' : isOpen ? '#ffffff' : color }]} numberOfLines={1}>
-            {label}
-          </Text>
-          {isOptional && (
-            <View style={[styles.optionalPill, isOpen && { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.2)' }]}>
-              <Text style={[styles.optionalPillText, isOpen && { color: '#c4b5fd' }]}>Opt</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.accHeaderRight}>
-          {isDone ? (
-            <View style={styles.doneBadge}>
-              <Text style={styles.doneBadgeText}>✓ Done</Text>
-            </View>
-          ) : badge ? (
-            <View style={[styles.accBadge, { backgroundColor:`${color}20`, borderColor:`${color}50` }]}>
-              <Text style={[styles.accBadgeText, { color }]}>{badge}</Text>
-            </View>
-          ) : null}
-          <View style={[styles.accChevronBox, isOpen && styles.accChevronBoxOpen]}>
-            <Text style={[styles.accChevronText, isOpen && styles.accChevronTextOpen]}>
-              {isOpen ? '∧' : '∨'}
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+    return savedQuotes.filter(q => {
+      const matchSearch = !qry || q.docNo.toLowerCase().includes(qry) || q.partyName.toLowerCase().includes(qry) || q.companyName.toLowerCase().includes(qry) || String(q.totalAmount).includes(qry);
+      const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [savedQuotes, historySearch, statusFilter]);
 
   // ─── Live Rendered Document Preview ─────────────────────────────────────────
   const renderA4Preview = () => {
@@ -1275,8 +1327,13 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
               <View style={[styles.progressBarFill, { width: `${Math.max(8, (coreCompletedCount / 4) * 100)}%` }, isCoreReady && { backgroundColor: '#10b981' }]} />
             </View>
 
-            {/* Mini Navigation Pills for 4 Core Steps */}
-            <View style={styles.miniPillsRow}>
+            {/* Mini Navigation Pills for 4 Core Steps + Optional Controls Button */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.miniPillsScrollContent}
+              style={styles.miniPillsScroll}
+            >
               {[
                 { num: 1, label: '1. Dates', done: isStep1Done, key: 'metadata' },
                 { num: 2, label: '2. Seller', done: isStep2Done, key: 'company' },
@@ -1287,35 +1344,74 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 return (
                   <TouchableOpacity
                     key={s.num}
-                    style={[styles.miniPill, s.done && styles.miniPillDone, isCurrentOpen && styles.miniPillActive]}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    style={[
+                      styles.miniPill,
+                      s.done && styles.miniPillDone,
+                      isCurrentOpen && styles.miniPillActive,
+                    ]}
                     onPress={() => {
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                       setOpenSections(prev => prev[s.key] ? {} : { [s.key]: true });
                     }}
                   >
-                    <Text style={[styles.miniPillText, s.done && styles.miniPillTextDone, isCurrentOpen && styles.miniPillTextActive]}>
-                      {s.done ? '✓ ' : ''}{s.label}
-                    </Text>
+                    <View style={styles.miniPillInner}>
+                      {s.done ? (
+                        <View style={styles.miniPillCheckBadge}>
+                          <Text style={styles.miniPillCheckText}>✓</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.miniPillDot, isCurrentOpen && styles.miniPillDotActive]} />
+                      )}
+                      <Text style={[
+                        styles.miniPillText,
+                        s.done && styles.miniPillTextDone,
+                        isCurrentOpen && styles.miniPillTextActive,
+                      ]}>
+                        {s.label}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
               <TouchableOpacity
-                style={[styles.miniPill, showMoreControls && styles.miniPillOptActive]}
-                onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setShowMoreControls(prev => !prev);
-                }}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                style={[
+                  styles.miniPill,
+                  styles.miniPillOpt,
+                  showMoreControls && styles.miniPillOptActive,
+                ]}
+                onPress={toggleMoreControls}
               >
-                <Text style={[styles.miniPillText, showMoreControls && styles.miniPillOptTextActive]}>
-                  {showMoreControls ? '∧ Opt (5-8)' : '∨ Opt (5-8)'}
-                </Text>
+                <View style={styles.miniPillInner}>
+                  <Text style={[styles.miniPillOptSparkle, showMoreControls && styles.miniPillOptSparkleActive]}>
+                    {showMoreControls ? '▲' : '▼'}
+                  </Text>
+                  <Text style={[
+                    styles.miniPillText,
+                    styles.miniPillOptText,
+                    showMoreControls && styles.miniPillOptTextActive,
+                  ]}>
+                    Opt (5-8)
+                  </Text>
+                </View>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
 
           {/* ── 1. Document Reference & Dates ── */}
           <View style={[styles.accCard, isStep1Done && styles.accCardDone, openSections.metadata && styles.accCardOpen]}>
-            <AccordionHeader label="📅 1. Document Reference & Dates" color="#fbbf24" sectionKey="metadata" stepNum={1} isDone={isStep1Done} />
+            <AccordionHeader
+              label="📅 1. Document Reference & Dates"
+              color="#fbbf24"
+              sectionKey="metadata"
+              stepNum={1}
+              isDone={isStep1Done}
+              isOpen={Boolean(openSections.metadata)}
+              onToggle={toggleSection}
+            />
             {openSections.metadata && (
               <View style={styles.accBody}>
                 <View style={{ flexDirection:'row', gap:8 }}>
@@ -1342,7 +1438,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
           {/* ── 2. Your Company / Seller ── */}
           <View style={[styles.accCard, isStep2Done && styles.accCardDone, openSections.company && styles.accCardOpen]}>
-            <AccordionHeader label="🏢 2. Your Company / Seller" color="#38bdf8" sectionKey="company" stepNum={2} isDone={isStep2Done} />
+            <AccordionHeader
+              label="🏢 2. Your Company / Seller"
+              color="#38bdf8"
+              sectionKey="company"
+              stepNum={2}
+              isDone={isStep2Done}
+              isOpen={Boolean(openSections.company)}
+              onToggle={toggleSection}
+            />
             {openSections.company && (
               <View style={styles.accBody}>
                 <View style={styles.companyRow}>
@@ -1374,7 +1478,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
           {/* ── 3. Client Buyer Party ── */}
           <View style={[styles.accCard, isStep3Done && styles.accCardDone, openSections.party && styles.accCardOpen]}>
-            <AccordionHeader label="👤 3. Select Buyer / Client Party" color="#34d399" sectionKey="party" stepNum={3} isDone={isStep3Done} />
+            <AccordionHeader
+              label="👤 3. Select Buyer / Client Party"
+              color="#34d399"
+              sectionKey="party"
+              stepNum={3}
+              isDone={isStep3Done}
+              isOpen={Boolean(openSections.party)}
+              onToggle={toggleSection}
+            />
             {openSections.party && (
               <View style={styles.accBody}>
                 <View style={styles.companyRow}>
@@ -1412,7 +1524,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
           {/* ── 4. Line Items Table Engine ── */}
           <View style={[styles.accCard, isStep4Done && styles.accCardDone, openSections.items && styles.accCardOpen]}>
-            <AccordionHeader label={`📦 4. Line Items (${items.length})`} color="#a78bfa" sectionKey="items" stepNum={4} isDone={isStep4Done} badge={`${items.length} items`} />
+            <AccordionHeader
+              label={`📦 4. Line Items (${items.length})`}
+              color="#a78bfa"
+              sectionKey="items"
+              stepNum={4}
+              isDone={isStep4Done}
+              badge={`${items.length} items`}
+              isOpen={Boolean(openSections.items)}
+              onToggle={toggleSection}
+            />
             {openSections.items && (
               <View style={styles.accBody}>
                 {/* 👁️ Table Column Controls (Moved into Section 4) */}
@@ -1590,7 +1711,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             <View>
               {/* ── 5. Terms & Conditions (Optional) ── */}
               <View style={[styles.accCard, isStep5Done && styles.accCardDone, openSections.terms && styles.accCardOpen]}>
-                <AccordionHeader label="📄 5. Terms & Conditions" color="#38bdf8" sectionKey="terms" stepNum={5} isDone={isStep5Done} isOptional={true} />
+                <AccordionHeader
+                  label="📄 5. Terms & Conditions"
+                  color="#38bdf8"
+                  sectionKey="terms"
+                  stepNum={5}
+                  isDone={isStep5Done}
+                  isOptional={true}
+                  isOpen={Boolean(openSections.terms)}
+                  onToggle={toggleSection}
+                />
                 {openSections.terms && (
                   <View style={styles.accBody}>
                     <Text style={[styles.fieldLabel, { marginBottom:6 }]}>Quick Pick Preset Template:</Text>
@@ -1627,6 +1757,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   isDone={isStep6Done}
                   isOptional={true}
                   badge={gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_','+')})`}
+                  isOpen={Boolean(openSections.gst)}
+                  onToggle={toggleSection}
                 />
                 {openSections.gst && (
                   <View style={styles.accBody}>
@@ -1661,7 +1793,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
               {/* ── 7. PDF Page & Margin Controls (Optional) ── */}
               <View style={[styles.accCard, isStep7Done && styles.accCardDone, openSections.pdf && styles.accCardOpen]}>
-                <AccordionHeader label="⚙️ 7. PDF Page & Margin Controls" color="#818cf8" sectionKey="pdf" stepNum={7} isDone={isStep7Done} isOptional={true} />
+                <AccordionHeader
+                  label="⚙️ 7. PDF Page & Margin Controls"
+                  color="#818cf8"
+                  sectionKey="pdf"
+                  stepNum={7}
+                  isDone={isStep7Done}
+                  isOptional={true}
+                  isOpen={Boolean(openSections.pdf)}
+                  onToggle={toggleSection}
+                />
                 {openSections.pdf && (
                   <View style={styles.accBody}>
                     {/* Margin */}
@@ -1688,7 +1829,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
               {/* ── 8. Section Layout Engine (Optional) ── */}
               <View style={[styles.accCard, isStep8Done && styles.accCardDone, openSections.layout && styles.accCardOpen]}>
-                <AccordionHeader label="🎨 8. Section Layout & Positioning" color="#fbbf24" sectionKey="layout" stepNum={8} isDone={isStep8Done} isOptional={true} />
+                <AccordionHeader
+                  label="🎨 8. Section Layout & Positioning"
+                  color="#fbbf24"
+                  sectionKey="layout"
+                  stepNum={8}
+                  isDone={isStep8Done}
+                  isOptional={true}
+                  isOpen={Boolean(openSections.layout)}
+                  onToggle={toggleSection}
+                />
                 {openSections.layout && (
                   <View style={styles.accBody}>
                     {/* Gap Control */}
@@ -1759,7 +1909,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
               <TouchableOpacity
                 style={[styles.bottomAction, savedSuccess && styles.bottomActionSuccess]}
                 onPress={handleSaveCurrentDraft}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 <Text style={styles.bottomActionIcon}>{savedSuccess ? '✓' : '💾'}</Text>
                 <Text style={[styles.bottomActionLabel, savedSuccess && { color:'#34d399' }]}>
@@ -1772,7 +1923,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 style={[styles.bottomAction, styles.bottomActionCompile, compileSuccess && styles.bottomActionCompileSuccess]}
                 onPress={handleCompilePdf}
                 disabled={isCompiling}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 {isCompiling ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -1788,7 +1940,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 style={[styles.bottomAction, styles.bottomActionPrint]}
                 onPress={() => handlePrintPDF()}
                 disabled={isPrinting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 {isPrinting
                   ? <ActivityIndicator size="small" color="#fff" />
@@ -1801,7 +1954,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 style={[styles.bottomAction, styles.bottomActionShare]}
                 onPress={() => handleSharePDF()}
                 disabled={isPrinting}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 <Text style={styles.bottomActionIcon}>📤</Text>
                 <Text style={[styles.bottomActionLabel, { color:'#a5b4fc' }]}>Share</Text>
@@ -1813,7 +1967,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
                   Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 <Text style={styles.bottomActionIcon}>💬</Text>
                 <Text style={[styles.bottomActionLabel, { color:'#4ade80' }]}>WhatsApp</Text>
@@ -1826,7 +1981,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                   const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nRegards,\n${activeCompany.name}`);
                   Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
               >
                 <Text style={styles.bottomActionIcon}>✉️</Text>
                 <Text style={[styles.bottomActionLabel, { color:'#60a5fa' }]}>Email</Text>
@@ -2181,38 +2337,38 @@ const styles = StyleSheet.create({
 
   // Top Header
   topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#060b18', borderBottomWidth: 1, borderBottomColor: '#1a2335' },
-  backBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', minWidth: 52 },
-  backBtnText: { color: '#38bdf8', fontWeight: '900', fontSize: 11, textAlign: 'center' },
-  headerTitle: { fontSize: 13, fontWeight: '900', color: '#ffffff', textAlign: 'center' },
-  headerSub: { fontSize: 9, color: '#475569', fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  topActionBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)', minWidth: 52, alignItems: 'center' },
-  topActionBtnText: { color: '#818cf8', fontWeight: '900', fontSize: 11 },
+  backBtn: { backgroundColor: '#0d1526', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: '#38bdf8', fontWeight: '900', fontSize: 12, textAlign: 'center' },
+  headerTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff', textAlign: 'center' },
+  headerSub: { fontSize: 9.5, color: '#64748b', fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  topActionBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)', minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  topActionBtnText: { color: '#818cf8', fontWeight: '900', fontSize: 12 },
 
   // Top Action Bar
   topActionBar: { backgroundColor: '#060b18', padding: 10, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
   topBarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   viewModeSwitcher: { flexDirection: 'row', backgroundColor: '#0d1526', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#1a2335' },
-  vmTab: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
+  vmTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
   vmTabActive: { backgroundColor: '#4f46e5' },
-  vmTabText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
+  vmTabText: { fontSize: 11, fontWeight: '900', color: '#64748b' },
   vmTabTextActive: { color: '#ffffff' },
   topBarActions: { flexDirection: 'row', gap: 6 },
-  topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
+  topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   topBarBtnSuccess: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
-  topBarBtnCompile: { backgroundColor: '#2563eb', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#3b82f6', minWidth: 64, alignItems: 'center', justifyContent: 'center' },
+  topBarBtnCompile: { backgroundColor: '#2563eb', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', minWidth: 70, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   topBarBtnCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
-  topBarBtnCompileText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
-  topBarBtnPrint: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 68, alignItems: 'center', justifyContent: 'center' },
-  topBarBtnText: { fontSize: 10, fontWeight: '900', color: '#e2e8f0' },
-  topBarBtnPrintText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
-  convertPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1e293b' },
+  topBarBtnCompileText: { fontSize: 10.5, fontWeight: '900', color: '#ffffff' },
+  topBarBtnPrint: { backgroundColor: '#4f46e5', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, minWidth: 70, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  topBarBtnText: { fontSize: 10.5, fontWeight: '900', color: '#e2e8f0' },
+  topBarBtnPrintText: { fontSize: 10.5, fontWeight: '900', color: '#ffffff' },
+  convertPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1e293b', minHeight: 34, alignItems: 'center', justifyContent: 'center' },
   convertPillActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  convertPillText: { fontSize: 9, fontWeight: '900', color: '#64748b' },
+  convertPillText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
   convertPillTextActive: { color: '#ffffff' },
 
   // Scroll Content
   scrollContent: { padding: 10, paddingBottom: 40 },
-  accCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', marginBottom: 8, overflow: 'hidden' },
+  accCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1.5, borderColor: '#1e293b', marginBottom: 10, overflow: 'hidden' },
   accCardOpen: {
     borderColor: '#6366f1',
     backgroundColor: '#10172a',
@@ -2222,7 +2378,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
-  accCardDone: { borderColor: 'rgba(16,185,129,0.35)', backgroundColor: 'rgba(15,23,42,0.95)' },
+  accCardDone: { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(15,23,42,0.95)' },
 
   // Progress Dashboard
   progressCard: { backgroundColor: '#0b1329', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
@@ -2236,20 +2392,90 @@ const styles = StyleSheet.create({
   coreStatusPillTextDone: { color: '#34d399' },
   progressBarTrack: { height: 6, backgroundColor: '#020617', borderRadius: 3, overflow: 'hidden', borderWidth: 1, borderColor: '#1e293b', marginBottom: 8 },
   progressBarFill: { height: '100%', backgroundColor: '#f59e0b', borderRadius: 3 },
-  miniPillsRow: { flexDirection: 'row', gap: 4 },
-  miniPill: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingVertical: 4, alignItems: 'center' },
-  miniPillDone: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
-  miniPillActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.25)' },
-  miniPillText: { fontSize: 8.5, fontWeight: '800', color: '#94a3b8' },
-  miniPillTextDone: { color: '#34d399' },
-  miniPillTextActive: { color: '#ffffff', fontWeight: '900' },
-
-  miniPillOptActive: {
+  
+  // Thumb-Friendly Progress Mini Navigation Pills
+  miniPillsScroll: { marginTop: 4 },
+  miniPillsScrollContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 8 },
+  miniPill: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#020617',
+    borderWidth: 1.5,
+    borderColor: '#1e293b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniPillInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniPillCheckBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniPillCheckText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#020617',
+  },
+  miniPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#475569',
+  },
+  miniPillDotActive: {
+    backgroundColor: '#818cf8',
+  },
+  miniPillDone: {
+    backgroundColor: 'rgba(16,185,129,0.14)',
+    borderColor: 'rgba(16,185,129,0.45)',
+  },
+  miniPillActive: {
     borderColor: '#818cf8',
-    backgroundColor: 'rgba(99,102,241,0.22)',
+    backgroundColor: 'rgba(99,102,241,0.25)',
+  },
+  miniPillText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#94a3b8',
+  },
+  miniPillTextDone: {
+    color: '#34d399',
+  },
+  miniPillTextActive: {
+    color: '#ffffff',
+    fontWeight: '900',
+  },
+  miniPillOpt: {
+    backgroundColor: 'rgba(99,102,241,0.14)',
+    borderColor: 'rgba(99,102,241,0.38)',
+  },
+  miniPillOptActive: {
+    borderColor: '#a855f7',
+    backgroundColor: 'rgba(168,85,247,0.25)',
+  },
+  miniPillOptSparkle: {
+    fontSize: 10.5,
+    color: '#818cf8',
+    fontWeight: '900',
+  },
+  miniPillOptSparkleActive: {
+    color: '#c084fc',
+  },
+  miniPillOptText: {
+    color: '#c7d2fe',
+    fontWeight: '900',
   },
   miniPillOptTextActive: {
-    color: '#c7d2fe',
+    color: '#f0abfc',
     fontWeight: '900',
   },
 
@@ -2259,7 +2485,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: 'rgba(99,102,241,0.32)',
-    padding: 12,
+    padding: 14,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2281,9 +2507,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   moreControlsIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#4f46e5',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2293,14 +2519,15 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  moreControlsIconText: { fontSize: 17 },
-  moreControlsTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff', letterSpacing: 0.2 },
+  moreControlsIconText: { fontSize: 18 },
+  moreControlsTitle: { fontSize: 12.5, fontWeight: '900', color: '#ffffff', letterSpacing: 0.2 },
   moreControlsSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
   
   // More Controls Action Pill Button
   moreControlsBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7.5,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minHeight: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2328,7 +2555,7 @@ const styles = StyleSheet.create({
   moreControlsBtnInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   moreControlsSparkle: {
     fontSize: 11,
@@ -2336,8 +2563,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   moreControlsPulseDot: {
-    width: 6.5,
-    height: 6.5,
+    width: 7,
+    height: 7,
     borderRadius: 3.5,
     backgroundColor: '#c084fc',
     shadowColor: '#c084fc',
@@ -2347,99 +2574,104 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   moreControlsBtnText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '900',
     color: '#ffffff',
     letterSpacing: 0.2,
   },
   moreControlsBtnTextActive: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '900',
     color: '#ffffff',
     letterSpacing: 0.2,
   },
   moreControlsChevron: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     color: '#c7d2fe',
-    marginLeft: 1,
+    marginLeft: 2,
   },
   moreControlsChevronActive: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     color: '#c084fc',
-    marginLeft: 1,
+    marginLeft: 2,
   },
 
   // Table Column Controls Box
   tableColControlBox: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
-  tableColControlTitle: { fontSize: 10.5, fontWeight: '900', color: '#a78bfa', marginBottom: 4 },
+  tableColControlTitle: { fontSize: 11, fontWeight: '900', color: '#a78bfa', marginBottom: 4 },
 
   // Step Number & Badges
-  stepNumCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  stepNumCircleDone: { backgroundColor: '#10b981' },
-  stepNumText: { fontSize: 9.5, fontWeight: '900', color: '#94a3b8' },
+  stepNumCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e293b', borderWidth: 1.5, borderColor: '#334155', alignItems: 'center', justifyContent: 'center' },
+  stepNumCircleDone: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  stepNumText: { fontSize: 11.5, fontWeight: '900', color: '#94a3b8' },
   stepNumTextDone: { color: '#020617' },
-  doneBadge: { backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  doneBadgeText: { fontSize: 8.5, fontWeight: '900', color: '#34d399' },
-  optionalPill: { backgroundColor: '#1e293b', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 4, borderWidth: 1, borderColor: '#334155' },
-  optionalPillActive: { backgroundColor: 'rgba(99,102,241,0.22)', borderColor: 'rgba(129,140,248,0.45)' },
-  optionalPillText: { fontSize: 8.5, fontWeight: '800', color: '#94a3b8' },
-  optionalPillTextActive: { color: '#c7d2fe' },
-  accHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
-  accHeaderOpen: { backgroundColor: 'rgba(99,102,241,0.08)' },
-  accHeaderText: { fontSize: 12, fontWeight: '900', flex: 1 },
+  doneBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.18)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8 },
+  doneBadgeIcon: { fontSize: 10, fontWeight: '900', color: '#34d399' },
+  doneBadgeText: { fontSize: 10, fontWeight: '900', color: '#34d399' },
+  optionalPill: { backgroundColor: '#1e293b', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: '#334155' },
+  optionalPillOpen: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#818cf8' },
+  optionalPillActive: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#818cf8' },
+  optionalPillText: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
+  optionalPillTextOpen: { color: '#c4b5fd' },
+  optionalPillTextActive: { color: '#c4b5fd' },
+  accHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14, minHeight: 56 },
+  accHeaderOpen: { backgroundColor: 'rgba(99,102,241,0.09)' },
+  accHeaderDone: { backgroundColor: 'rgba(16,185,129,0.03)' },
+  accHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 },
+  accHeaderText: { fontSize: 13.5, fontWeight: '900', flex: 1, letterSpacing: 0.15 },
   accHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  accBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
-  accBadgeText: { fontSize: 9, fontWeight: '900' },
+  accBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+  accBadgeText: { fontSize: 9.5, fontWeight: '900' },
   accChevronBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   accChevronBoxOpen: {
-    backgroundColor: 'rgba(99,102,241,0.2)',
+    backgroundColor: 'rgba(99,102,241,0.25)',
     borderColor: '#818cf8',
   },
   accChevronText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '900',
-    color: '#64748b',
+    color: '#94a3b8',
   },
   accChevronTextOpen: {
     color: '#c7d2fe',
   },
-  accBody: { padding: 12, paddingTop: 0, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  accBody: { padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#1e293b' },
 
   // Controls
   companyRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  addBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  addBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '900' },
-  selBox: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, minWidth: 140 },
+  addBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  addBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '900' },
+  selBox: { backgroundColor: '#020617', borderWidth: 1.5, borderColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minWidth: 150 },
   selBoxActive: { borderColor: '#38bdf8' },
-  selBoxName: { fontSize: 11, fontWeight: '900', color: '#ffffff' },
-  selBoxSub: { fontSize: 9, color: '#64748b', marginTop: 2 },
-  detailCard: { backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 12, padding: 10, marginTop: 8 },
-  detailName: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  selBoxName: { fontSize: 11.5, fontWeight: '900', color: '#ffffff' },
+  selBoxSub: { fontSize: 9.5, color: '#64748b', marginTop: 2 },
+  detailCard: { backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 12, padding: 12, marginTop: 8 },
+  detailName: { fontSize: 12.5, fontWeight: '900', color: '#ffffff' },
   detailSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
   detailContact: { fontSize: 10, color: '#818cf8', marginTop: 2 },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
   toggleText: { fontSize: 11, fontWeight: '800', color: '#cbd5e1', flex: 1 },
-  fieldLabel: { fontSize: 10, fontWeight: '800', color: '#94a3b8', marginBottom: 4 },
-  inputField: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, color: '#ffffff' },
+  fieldLabel: { fontSize: 10.5, fontWeight: '800', color: '#94a3b8', marginBottom: 4 },
+  inputField: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 11.5, color: '#ffffff' },
 
   // Item Box
   itemBox: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemIdx: { fontSize: 11, fontWeight: '900', color: '#94a3b8' },
-  removeBtn: { color: '#f43f5e', fontSize: 11, fontWeight: '900' },
-  catalogBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  catalogBtnText: { color: '#a78bfa', fontSize: 10, fontWeight: '900' },
+  removeBtn: { color: '#f43f5e', fontSize: 11, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 4 },
+  catalogBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  catalogBtnText: { color: '#a78bfa', fontSize: 10.5, fontWeight: '900' },
 
   // Catalog Modal Cards
   catalogCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10 },
@@ -2448,58 +2680,58 @@ const styles = StyleSheet.create({
   catalogDesc: { fontSize: 9, color: '#64748b', marginTop: 1 },
   catalogPrice: { fontSize: 11, fontWeight: '900', color: '#34d399' },
   catalogMeta: { fontSize: 9, color: '#94a3b8' },
-  catalogAddBtn: { backgroundColor: '#4f46e5', color: '#ffffff', fontSize: 10, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  catalogAddBtn: { backgroundColor: '#4f46e5', color: '#ffffff', fontSize: 10.5, fontWeight: '900', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
 
-  toggleBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
+  toggleBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: '#334155', minHeight: 30, alignItems: 'center', justifyContent: 'center' },
   toggleBtnOn: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
   toggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
   toggleBtnTextOn: { color: '#34d399' },
-  uploadBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  uploadBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '900' },
+  uploadBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
+  uploadBtnText: { color: '#38bdf8', fontSize: 10.5, fontWeight: '900' },
 
   customColManager: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  customColTitle: { fontSize: 11, fontWeight: '900', color: '#a78bfa' },
-  customColAddBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  customColAddBtnText: { color: '#a78bfa', fontSize: 10, fontWeight: '900' },
+  customColTitle: { fontSize: 11.5, fontWeight: '900', color: '#a78bfa' },
+  customColAddBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  customColAddBtnText: { color: '#a78bfa', fontSize: 10.5, fontWeight: '900' },
   customColRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  customColIdx: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(167,139,250,0.2)', alignItems: 'center', justifyContent: 'center' },
-  customColIdxText: { fontSize: 10, fontWeight: '900', color: '#a78bfa' },
-  customColDel: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(244,63,94,0.1)', borderWidth: 1, borderColor: 'rgba(244,63,94,0.3)', alignItems: 'center', justifyContent: 'center' },
-  customColDelText: { fontSize: 10, fontWeight: '900', color: '#f43f5e' },
-  addItemBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  addItemBtnText: { color: '#a78bfa', fontWeight: '900', fontSize: 11 },
+  customColIdx: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(167,139,250,0.2)', alignItems: 'center', justifyContent: 'center' },
+  customColIdxText: { fontSize: 10.5, fontWeight: '900', color: '#a78bfa' },
+  customColDel: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(244,63,94,0.1)', borderWidth: 1, borderColor: 'rgba(244,63,94,0.3)', alignItems: 'center', justifyContent: 'center' },
+  customColDelText: { fontSize: 11, fontWeight: '900', color: '#f43f5e' },
+  addItemBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingVertical: 12, borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  addItemBtnText: { color: '#a78bfa', fontWeight: '900', fontSize: 12.5 },
 
-  gstTypeBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 10, padding: 8, minWidth: 70 },
+  gstTypeBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1.5, borderColor: '#1e293b', borderRadius: 10, padding: 10, minWidth: 74, minHeight: 46, justifyContent: 'center' },
   gstTypeBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gstTypeBtnText: { fontSize: 10, fontWeight: '900', color: '#e2e8f0' },
-  gstTypeBtnSub: { fontSize: 8, color: '#64748b', marginTop: 2 },
+  gstTypeBtnText: { fontSize: 10.5, fontWeight: '900', color: '#e2e8f0' },
+  gstTypeBtnSub: { fontSize: 8.5, color: '#64748b', marginTop: 2 },
   gstTypeBtnTextActive: { color: '#0f172a' },
-  gstPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
+  gstPill: { paddingHorizontal: 14, paddingVertical: 8, minHeight: 38, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   gstPillActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gstPillText: { fontSize: 11, fontWeight: '900', color: '#94a3b8' },
+  gstPillText: { fontSize: 11.5, fontWeight: '900', color: '#94a3b8' },
   gstPillTextActive: { color: '#0f172a' },
 
-  marginBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  marginBtn: { flex: 1, paddingVertical: 9, minHeight: 38, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   marginBtnActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  marginBtnText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  marginBtnText: { fontSize: 10.5, fontWeight: '900', color: '#94a3b8' },
   marginBtnTextActive: { color: '#ffffff' },
 
-  gapBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' },
+  gapBtn: { paddingHorizontal: 12, paddingVertical: 7, minHeight: 34, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   gapBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gapBtnText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  gapBtnText: { fontSize: 10.5, fontWeight: '900', color: '#94a3b8' },
   gapBtnTextActive: { color: '#0f172a' },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10, padding: 8, marginBottom: 6, borderWidth: 1, borderColor: '#1e293b', gap: 8 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#1e293b', gap: 8 },
   sectionRowHidden: { opacity: 0.5, borderColor: '#1e293b' },
-  sectionRowIdx: { fontSize: 11, fontWeight: '900', color: '#f59e0b', width: 24, textAlign: 'center' },
-  sectionRowLabel: { fontSize: 11, fontWeight: '900', color: '#e2e8f0' },
-  sectionRowDesc: { fontSize: 9, color: '#64748b', marginTop: 1 },
-  secArrowBtn: { width: 28, height: 28, borderRadius: 6, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  sectionRowIdx: { fontSize: 11.5, fontWeight: '900', color: '#f59e0b', width: 24, textAlign: 'center' },
+  sectionRowLabel: { fontSize: 11.5, fontWeight: '900', color: '#e2e8f0' },
+  sectionRowDesc: { fontSize: 9.5, color: '#64748b', marginTop: 1 },
+  secArrowBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   secArrowBtnOn: { backgroundColor: 'rgba(99,102,241,0.3)' },
-  secArrowText: { fontSize: 12, color: '#94a3b8' },
+  secArrowText: { fontSize: 13, color: '#94a3b8' },
   secArrowTextOn: { color: '#818cf8' },
-  resetBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', paddingVertical: 8, borderRadius: 10, alignItems: 'center', marginTop: 8 },
-  resetBtnText: { color: '#fbbf24', fontWeight: '900', fontSize: 12 },
+  resetBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', paddingVertical: 10, minHeight: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  resetBtnText: { color: '#fbbf24', fontWeight: '900', fontSize: 12.5 },
 
   // Bottom Action Bar (Builder)
   bottomActionBar: { backgroundColor: '#060b18', borderTopWidth: 1, borderTopColor: '#1a2335' },
@@ -2507,17 +2739,17 @@ const styles = StyleSheet.create({
   totalSummaryLabel: { fontSize: 9, fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 },
   totalSummaryAmount: { fontSize: 18, fontWeight: '900', color: '#ffffff', marginTop: 1 },
   totalSummaryAmountWords: { fontSize: 8, color: '#475569', fontWeight: '600', maxWidth: 180 },
-  bottomActionsRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
-  bottomAction: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2335', gap: 2 },
+  bottomActionsRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 5 },
+  bottomAction: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 56, borderRadius: 12, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2335', gap: 3 },
   bottomActionSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
   bottomActionCompile: { backgroundColor: '#2563eb', borderColor: 'rgba(59,130,246,0.5)' },
   bottomActionCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
-  bottomActionPrint: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', flex: 1.3 },
+  bottomActionPrint: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', flex: 1.25 },
   bottomActionShare: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' },
   bottomActionWA: { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: 'rgba(74,222,128,0.3)' },
   bottomActionEmail: { backgroundColor: 'rgba(96,165,250,0.1)', borderColor: 'rgba(96,165,250,0.3)' },
-  bottomActionIcon: { fontSize: 18, lineHeight: 22 },
-  bottomActionLabel: { fontSize: 9, fontWeight: '900', color: '#64748b', textAlign: 'center' },
+  bottomActionIcon: { fontSize: 20, lineHeight: 24 },
+  bottomActionLabel: { fontSize: 9.5, fontWeight: '900', color: '#64748b', textAlign: 'center' },
 
   // Preview Screen
   previewContainer: { flex: 1 },

@@ -74,7 +74,7 @@ export default function HRDashboardScreen({ navigation }: any) {
   return (
     <View style={[styles.container, { paddingTop: 4 }]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header Banner */}

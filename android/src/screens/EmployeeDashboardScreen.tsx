@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal from '../components/PostCallOutcomeModal';
@@ -24,6 +26,7 @@ interface ScreenProps {
 
 export default function EmployeeDashboardScreen({ navigation, onNavigateToAttendance }: any) {
   const { currentUser } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
   const [activeCallLead, setActiveCallLead] = useState<{ id: string; name: string; phone: string } | null>(null);
 
@@ -40,7 +43,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.headerBox}>

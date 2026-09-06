@@ -11,8 +11,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
 
 interface ScreenProps {
@@ -21,6 +22,7 @@ interface ScreenProps {
 
 export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAttendance }: any) {
   const { currentUser } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [selectedRep, setSelectedRep] = React.useState<string | null>(null);
   const [assignModalOpen, setAssignModalOpen] = React.useState(false);
   const [selectedLeadToAssign, setSelectedLeadToAssign] = React.useState('LogiTech Freight Systems (₹3,50,000)');
@@ -45,7 +47,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.headerBox}>
           <Text style={styles.headerTitle}>🛡️ Team Leader Unit Workspace</Text>

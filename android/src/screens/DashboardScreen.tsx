@@ -33,7 +33,7 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
 
   return (
     <View style={[styles.container, { paddingTop: 4 }]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 Top Executive Banner */}
         <TenantAdminHeaderBanner role={selectedRole} />

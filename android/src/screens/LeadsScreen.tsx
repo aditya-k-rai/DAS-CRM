@@ -691,7 +691,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       {/* ⚡ SEGMENT 1: LEAD ROUTING FUNNEL WORKSPACE                               */}
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       {activeSegment === 'FUNNEL' ? (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
           {/* 🛢️ Lead Integration & Ingestion Control Center Banner */}
           <LeadIngestionControlCenterBar
             onInsertLeadPress={() => setInsertModalOpen(true)}
@@ -1123,6 +1123,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     showsVerticalScrollIndicator={true}
                     nestedScrollEnabled
                     style={styles.excelBodyList}
+                    contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }}
                   >
                     {renderExcelRows()}
                   </ScrollView>
@@ -1135,7 +1136,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             <FlatList
               data={filteredLeads}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.leadCard}

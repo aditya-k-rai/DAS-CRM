@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
-  ScrollView, Alert, Switch, ActivityIndicator, useWindowDimensions,
+  ScrollView, Alert, Switch, ActivityIndicator, useWindowDimensions, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -612,7 +612,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
         </ScrollView>
 
         {/* ── FOOTER ACTIONS ───────────────────────────────────────────── */}
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={submitting}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
