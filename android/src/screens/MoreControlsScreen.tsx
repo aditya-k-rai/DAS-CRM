@@ -21,6 +21,7 @@ import { PdfCatalogueScreen } from './PdfCatalogueScreen';
 import { DealsPipelineScreen } from './DealsPipelineScreen';
 import { ReportsAnalyticsScreen } from './ReportsAnalyticsScreen';
 import { WorkflowAutomationsScreen } from './WorkflowAutomationsScreen';
+import WorkflowBuilderScreen from './WorkflowBuilderScreen';
 import EmailMarketingScreen from './EmailMarketingScreen';
 import { BulkIngestionScreen } from './BulkIngestionScreen';
 import AttendanceScreen from './AttendanceScreen';
@@ -102,6 +103,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'EMPLOYEES') setActiveModal('INTERVIEWS');
       else if (initMod === 'AI_HUB') setActiveModal('AI_HUB');
       else if (initMod === 'AI_CONTROL' || initMod === 'AI_CUSTOMIZATION') setActiveModal('AI_CONTROL');
+      else if (initMod === 'AUTOMATIONS' || initMod === 'WORKFLOW') setActiveModal('AUTOMATIONS');
     }
   }, [route?.params?.initialModule]);
 
@@ -126,7 +128,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'AI_HUB', icon: '🧠', label: 'AI Hub' },
     { key: 'PDF_CATALOG', icon: '📄', label: 'PDF Catalogue' },
     { key: 'REPORTS', icon: '📊', label: 'Reports & Analytics' },
-    { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow Automations' },
+    { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow & Automations' },
     { key: 'IMPORT_EXPORT', icon: '📥', label: 'Lead Import History' },
     { key: 'ATTENDANCE', icon: '⏱️', label: 'Attendance' },
     { key: 'DEALS', icon: '💼', label: 'Deals' },
@@ -166,7 +168,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         {activeModal === 'PDF_CATALOG' && <PdfCatalogueScreen onClose={closeModal} />}
         {activeModal === 'DEALS' && <DealsPipelineScreen onClose={closeModal} />}
         {activeModal === 'REPORTS' && <ReportsAnalyticsScreen onClose={closeModal} />}
-        {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={closeModal} />}
+        {activeModal === 'AUTOMATIONS' && <WorkflowBuilderScreen onClose={closeModal} navigation={navigation} />}
         {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={closeModal} />}
         {activeModal === 'IMPORT_EXPORT' && <BulkIngestionScreen onClose={closeModal} />}
         {activeModal === 'PROFILE' && <ProfileScreen onClose={closeModal} />}

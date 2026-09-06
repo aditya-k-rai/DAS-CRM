@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import WorkflowBuilderScreen from './WorkflowBuilderScreen';
 
 export interface AutomationRule {
   id: string;
@@ -51,6 +52,11 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
   const [newRuleTrigger, setNewRuleTrigger] = useState('');
   const [newRuleAction, setNewRuleAction] = useState<'SEND_WHATSAPP' | 'SEND_EMAIL' | 'CREATE_TASK' | 'REASSIGN_LEAD'>('SEND_WHATSAPP');
   const [newRuleDelay, setNewRuleDelay] = useState<'IMMEDIATELY' | '15_MINS' | '1_HOUR' | '24_HOURS'>('IMMEDIATELY');
+  const [showFullWorkflowBuilder, setShowFullWorkflowBuilder] = useState(false);
+
+  if (showFullWorkflowBuilder) {
+    return <WorkflowBuilderScreen onClose={() => setShowFullWorkflowBuilder(false)} />;
+  }
 
   const handleCreateAutomationRule = () => {
     if (!newRuleName.trim() || !newRuleTrigger.trim()) {
@@ -86,6 +92,31 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* ── ⚙️ Full Admin Workflow Builder Launcher Banner ── */}
+        <TouchableOpacity
+          style={styles.adminBuilderBanner}
+          onPress={() => setShowFullWorkflowBuilder(true)}
+          activeOpacity={0.85}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+            <View style={styles.adminBuilderIconBox}>
+              <Text style={{ fontSize: 16 }}>⚙️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.adminBuilderTitle}>Admin Workflow &amp; Lifecycle Builder</Text>
+                <View style={styles.adminBadge}>
+                  <Text style={styles.adminBadgeText}>Admin Only</Text>
+                </View>
+              </View>
+              <Text style={styles.adminBuilderSub}>
+                Customize Lead Statuses, Pipeline Stages, Lead Sources &amp; Custom Fields
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.adminBuilderArrow}>Launch →</Text>
+        </TouchableOpacity>
+
         <View style={styles.moduleCard}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.moduleTitle}>⚡ Active Automation Rules &amp; Triggers</Text>
@@ -205,4 +236,37 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 11, fontWeight: '700', color: '#ffffff' },
   actionBadge: { fontSize: 7, fontWeight: '900', color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
   itemSub: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+
+  // Admin Builder Launcher Banner
+  adminBuilderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(99,102,241,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99,102,241,0.35)',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+  },
+  adminBuilderIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#4f46e5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminBuilderTitle: { fontSize: 12.5, fontWeight: '900', color: '#ffffff' },
+  adminBuilderSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
+  adminBadge: {
+    backgroundColor: 'rgba(99,102,241,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.5)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  adminBadgeText: { fontSize: 8, fontWeight: '900', color: '#818cf8' },
+  adminBuilderArrow: { color: '#818cf8', fontWeight: '900', fontSize: 12, marginLeft: 8 },
 });
