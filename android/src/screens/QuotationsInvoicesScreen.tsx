@@ -22,7 +22,12 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Linking, Modal, Image, Dimensions, Switch,
   StatusBar, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Keyboard,
+  LayoutAnimation, UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
@@ -199,10 +204,8 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     HEADER:true, PARTY_INFO:true, ITEMS_TABLE:true, SUMMARY_AND_BANK:true, FOOTER_TERMS:true,
   });
 
-  // Accordion state
-  const [openSections, setOpenSections] = useState<{[k:string]: boolean}>({
-    gst:true, pdf:false, layout:false, company:true, party:true, metadata:true, items:true, terms:false,
-  });
+  // Accordion state — Closed by default, strictly one open at a time
+  const [openSections, setOpenSections] = useState<{[k:string]: boolean}>({});
 
   // History & Drafts
   const [savedQuotes, setSavedQuotes]         = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
@@ -250,6 +253,21 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const igst = effectiveGstTaxTotal;
   const utgst = cgst;
 
+  // ── More Controls Toggle & 4 Core Steps Checkers ──
+  const [showMoreControls, setShowMoreControls] = useState(false);
+
+  const isStep1Done = Boolean(docNo?.trim() && docDate?.trim() && (!showValidUntil || (validUntilDate && validUntilDate.trim() !== '')));
+  const isStep2Done = Boolean(activeCompany?.name?.trim() && activeCompany?.gstNo?.trim());
+  const isStep3Done = Boolean(activeParty?.name?.trim());
+  const isStep4Done = Boolean(items.length > 0 && items.every(it => it.productName?.trim() && it.qty > 0 && it.unitPrice > 0));
+  const isStep5Done = Boolean(termsText && termsText.trim().length > 0);
+  const isStep6Done = Boolean(gstType);
+  const isStep7Done = Boolean(pdfMargin > 0 && pdfTopPadding > 0);
+  const isStep8Done = Boolean(sectionOrder.length > 0);
+
+  const coreCompletedCount = [isStep1Done, isStep2Done, isStep3Done, isStep4Done].filter(Boolean).length;
+  const isCoreReady = coreCompletedCount === 4;
+
   const getDocTitle = () => {
     switch(docType) {
       case 'QUOTATION':        return 'ESTIMATE / QUOTATION';
@@ -262,7 +280,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   };
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
-  const toggleSection = (k: string) => setOpenSections(p => ({ ...p, [k]: !p[k] }));
+  const toggleSection = (k: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenSections(p => (p[k] ? {} : { [k]: true }));
+  };
 
   const handleConvertDoc = (type: DocumentType) => {
     setDocType(type);
@@ -865,15 +886,62 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   });
 
   // ─── Accordion Section Component ───────────────────────────────────────────
-  const AccordionHeader = ({ label, color, sectionKey, badge }: { label: string; color: string; sectionKey: string; badge?: string }) => (
-    <TouchableOpacity onPress={() => toggleSection(sectionKey)} activeOpacity={0.7} style={styles.accHeader}>
-      <Text style={[styles.accHeaderText, { color }]}>{label}</Text>
-      <View style={styles.accHeaderRight}>
-        {badge && <View style={[styles.accBadge, { backgroundColor:`${color}20`, borderColor:`${color}50` }]}><Text style={[styles.accBadgeText, { color }]}>{badge}</Text></View>}
-        <Text style={styles.accChevron}>{openSections[sectionKey] ? '▲' : '▼'}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const AccordionHeader = ({
+    label,
+    color,
+    sectionKey,
+    badge,
+    stepNum,
+    isDone,
+    isOptional,
+  }: {
+    label: string;
+    color: string;
+    sectionKey: string;
+    badge?: string;
+    stepNum?: number;
+    isDone?: boolean;
+    isOptional?: boolean;
+  }) => {
+    const isOpen = Boolean(openSections[sectionKey]);
+    return (
+      <TouchableOpacity onPress={() => toggleSection(sectionKey)} activeOpacity={0.7} style={[styles.accHeader, isOpen && styles.accHeaderOpen]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          {stepNum !== undefined && (
+            <View style={[styles.stepNumCircle, isDone && styles.stepNumCircleDone, isOpen && !isDone && { backgroundColor: color }]}>
+              <Text style={[styles.stepNumText, isDone && styles.stepNumTextDone, isOpen && !isDone && { color: '#020617' }]}>
+                {isDone ? '✓' : String(stepNum)}
+              </Text>
+            </View>
+          )}
+          <Text style={[styles.accHeaderText, { color: isDone ? '#34d399' : isOpen ? '#ffffff' : color }]} numberOfLines={1}>
+            {label}
+          </Text>
+          {isOptional && (
+            <View style={[styles.optionalPill, isOpen && { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.2)' }]}>
+              <Text style={[styles.optionalPillText, isOpen && { color: '#c4b5fd' }]}>Opt</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.accHeaderRight}>
+          {isDone ? (
+            <View style={styles.doneBadge}>
+              <Text style={styles.doneBadgeText}>✓ Done</Text>
+            </View>
+          ) : badge ? (
+            <View style={[styles.accBadge, { backgroundColor:`${color}20`, borderColor:`${color}50` }]}>
+              <Text style={[styles.accBadgeText, { color }]}>{badge}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.accChevronBox, isOpen && styles.accChevronBoxOpen]}>
+            <Text style={[styles.accChevronText, isOpen && styles.accChevronTextOpen]}>
+              {isOpen ? '∧' : '∨'}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // ─── Live Rendered Document Preview ─────────────────────────────────────────
   const renderA4Preview = () => {
@@ -1179,9 +1247,102 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       {/* Content Area */}
       {viewMode === 'BUILDER' ? (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* ── 1. Company Selector ── */}
-          <View style={[styles.accCard, openSections.company && styles.accCardOpen]}>
-            <AccordionHeader label="🏢 1. Seller Company" color="#38bdf8" sectionKey="company" />
+          {/* ── Quotation Setup Progress (4 Core Required Steps + Optional) ── */}
+          <View style={styles.progressCard}>
+            <View style={styles.progressHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.progressTitle}>QUOTATION SETUP PROGRESS</Text>
+                  <View style={[styles.coreStatusPill, isCoreReady ? styles.coreStatusPillDone : {}]}>
+                    <Text style={[styles.coreStatusPillText, isCoreReady ? styles.coreStatusPillTextDone : {}]}>
+                      {isCoreReady ? '✓ 4/4 Core Done' : `${coreCompletedCount}/4 Core Done`}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.progressSub}>
+                  {isCoreReady
+                    ? 'Mandatory steps 1 to 4 are completed! Ready to export. Controls below are optional.'
+                    : 'Complete Steps 1 to 4 to prepare your quotation. Steps 5-8 are optional.'}
+                </Text>
+              </View>
+              <Text style={[styles.progressPctText, isCoreReady && { color: '#34d399' }]}>
+                {Math.round((coreCompletedCount / 4) * 100)}% Ready
+              </Text>
+            </View>
+
+            {/* Progress Bar */}
+            <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarFill, { width: `${Math.max(8, (coreCompletedCount / 4) * 100)}%` }, isCoreReady && { backgroundColor: '#10b981' }]} />
+            </View>
+
+            {/* Mini Navigation Pills for 4 Core Steps */}
+            <View style={styles.miniPillsRow}>
+              {[
+                { num: 1, label: '1. Dates', done: isStep1Done, key: 'metadata' },
+                { num: 2, label: '2. Seller', done: isStep2Done, key: 'company' },
+                { num: 3, label: '3. Buyer', done: isStep3Done, key: 'party' },
+                { num: 4, label: '4. Items', done: isStep4Done, key: 'items' },
+              ].map(s => {
+                const isCurrentOpen = Boolean(openSections[s.key]);
+                return (
+                  <TouchableOpacity
+                    key={s.num}
+                    style={[styles.miniPill, s.done && styles.miniPillDone, isCurrentOpen && styles.miniPillActive]}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      setOpenSections(prev => prev[s.key] ? {} : { [s.key]: true });
+                    }}
+                  >
+                    <Text style={[styles.miniPillText, s.done && styles.miniPillTextDone, isCurrentOpen && styles.miniPillTextActive]}>
+                      {s.done ? '✓ ' : ''}{s.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                style={[styles.miniPill, showMoreControls && styles.miniPillOptActive]}
+                onPress={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setShowMoreControls(prev => !prev);
+                }}
+              >
+                <Text style={[styles.miniPillText, showMoreControls && styles.miniPillOptTextActive]}>
+                  {showMoreControls ? '∧ Opt (5-8)' : '∨ Opt (5-8)'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── 1. Document Reference & Dates ── */}
+          <View style={[styles.accCard, isStep1Done && styles.accCardDone, openSections.metadata && styles.accCardOpen]}>
+            <AccordionHeader label="📅 1. Document Reference & Dates" color="#fbbf24" sectionKey="metadata" stepNum={1} isDone={isStep1Done} />
+            {openSections.metadata && (
+              <View style={styles.accBody}>
+                <View style={{ flexDirection:'row', gap:8 }}>
+                  <View style={{ flex:1 }}>
+                    <Text style={styles.fieldLabel}>Doc Number</Text>
+                    <TextInput style={styles.inputField} value={docNo} onChangeText={setDocNo} />
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={styles.fieldLabel}>Doc Date</Text>
+                    <TextInput style={styles.inputField} value={docDate} onChangeText={setDocDate} />
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={styles.fieldLabel}>Valid Until</Text>
+                    <TextInput style={[styles.inputField, !showValidUntil && { opacity:0.5 }]} value={validUntilDate} onChangeText={setValidUntilDate} editable={showValidUntil} placeholder="31/01/2026" placeholderTextColor="#64748b" />
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.toggleRow} onPress={() => setShowValidUntil(!showValidUntil)}>
+                  <Text style={styles.toggleText}>Include "Valid Until" Expiry Date in Document</Text>
+                  <Switch value={showValidUntil} onValueChange={setShowValidUntil} trackColor={{ false:'#1e293b', true:'#f59e0b' }} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* ── 2. Your Company / Seller ── */}
+          <View style={[styles.accCard, isStep2Done && styles.accCardDone, openSections.company && styles.accCardOpen]}>
+            <AccordionHeader label="🏢 2. Your Company / Seller" color="#38bdf8" sectionKey="company" stepNum={2} isDone={isStep2Done} />
             {openSections.company && (
               <View style={styles.accBody}>
                 <View style={styles.companyRow}>
@@ -1211,9 +1372,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 2. Party Selector ── */}
-          <View style={[styles.accCard, openSections.party && styles.accCardOpen]}>
-            <AccordionHeader label="👤 2. Client Buyer Party" color="#34d399" sectionKey="party" />
+          {/* ── 3. Client Buyer Party ── */}
+          <View style={[styles.accCard, isStep3Done && styles.accCardDone, openSections.party && styles.accCardOpen]}>
+            <AccordionHeader label="👤 3. Select Buyer / Client Party" color="#34d399" sectionKey="party" stepNum={3} isDone={isStep3Done} />
             {openSections.party && (
               <View style={styles.accBody}>
                 <View style={styles.companyRow}>
@@ -1249,38 +1410,24 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 3. Document Reference & Dates ── */}
-          <View style={[styles.accCard, openSections.metadata && styles.accCardOpen]}>
-            <AccordionHeader label="📅 3. Document Reference & Dates" color="#fbbf24" sectionKey="metadata" />
-            {openSections.metadata && (
-              <View style={styles.accBody}>
-                <View style={{ flexDirection:'row', gap:8 }}>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.fieldLabel}>Doc Number</Text>
-                    <TextInput style={styles.inputField} value={docNo} onChangeText={setDocNo} />
-                  </View>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.fieldLabel}>Doc Date</Text>
-                    <TextInput style={styles.inputField} value={docDate} onChangeText={setDocDate} />
-                  </View>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.fieldLabel}>Valid Until</Text>
-                    <TextInput style={[styles.inputField, !showValidUntil && { opacity:0.5 }]} value={validUntilDate} onChangeText={setValidUntilDate} editable={showValidUntil} placeholder="31/01/2026" placeholderTextColor="#64748b" />
-                  </View>
-                </View>
-                <TouchableOpacity style={styles.toggleRow} onPress={() => setShowValidUntil(!showValidUntil)}>
-                  <Text style={styles.toggleText}>Include "Valid Until" Expiry Date in Document</Text>
-                  <Switch value={showValidUntil} onValueChange={setShowValidUntil} trackColor={{ false:'#1e293b', true:'#f59e0b' }} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
           {/* ── 4. Line Items Table Engine ── */}
-          <View style={[styles.accCard, openSections.items && styles.accCardOpen]}>
-            <AccordionHeader label={`📦 4. Line Items (${items.length})`} color="#a78bfa" sectionKey="items" badge={`${items.length} items`} />
+          <View style={[styles.accCard, isStep4Done && styles.accCardDone, openSections.items && styles.accCardOpen]}>
+            <AccordionHeader label={`📦 4. Line Items (${items.length})`} color="#a78bfa" sectionKey="items" stepNum={4} isDone={isStep4Done} badge={`${items.length} items`} />
             {openSections.items && (
               <View style={styles.accBody}>
+                {/* 👁️ Table Column Controls (Moved into Section 4) */}
+                <View style={styles.tableColControlBox}>
+                  <Text style={styles.tableColControlTitle}>⫴ Table Column Controls</Text>
+                  <View style={styles.toggleRow}>
+                    <Text style={styles.toggleText}>Display GST % Column & Calculate with GST</Text>
+                    <Switch value={showGstColumn} onValueChange={setShowGstColumn} trackColor={{ false:'#1e293b', true:'#a78bfa' }} />
+                  </View>
+                  <View style={styles.toggleRow}>
+                    <Text style={styles.toggleText}>Display HSN / SAC Code Column in Table</Text>
+                    <Switch value={showHsnColumn} onValueChange={setShowHsnColumn} trackColor={{ false:'#1e293b', true:'#a78bfa' }} />
+                  </View>
+                </View>
+
                 {/* Custom Column Manager */}
                 <View style={styles.customColManager}>
                   <Text style={styles.customColTitle}>🛠️ Custom Table Columns ({customColumns.length})</Text>
@@ -1392,140 +1539,203 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             )}
           </View>
 
-          {/* ── 5. Terms & Conditions ── */}
-          <View style={[styles.accCard, openSections.terms && styles.accCardOpen]}>
-            <AccordionHeader label="📄 5. Terms & Conditions" color="#38bdf8" sectionKey="terms" />
-            {openSections.terms && (
-              <View style={styles.accBody}>
-                <TextInput style={[styles.inputField, { height:70 }]} value={termsText} onChangeText={setTermsText} multiline placeholder="Enter terms and conditions..." placeholderTextColor="#64748b" />
+          {/* ── 🎛️ MORE CONTROLS & ADVANCED SETTINGS BANNER (OPTIONAL) ── */}
+          <TouchableOpacity
+            style={[styles.moreControlsBanner, showMoreControls && styles.moreControlsBannerActive]}
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setShowMoreControls(prev => !prev);
+            }}
+            activeOpacity={0.85}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={styles.moreControlsIconBox}>
+                <Text style={styles.moreControlsIconText}>🎛️</Text>
               </View>
-            )}
-          </View>
-
-          {/* ── 6. GST Tax Controls ── */}
-          <View style={[styles.accCard, openSections.gst && styles.accCardOpen]}>
-            <AccordionHeader
-              label="🎚️ 6. GST Tax Rate & Column Controls"
-              color="#f59e0b"
-              sectionKey="gst"
-              badge={gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_','+')})`}
-            />
-            {openSections.gst && (
-              <View style={styles.accBody}>
-                {/* GST Type */}
-                <Text style={[styles.fieldLabel, { marginBottom:6 }]}>GST Tax Type / Mechanism:</Text>
-                <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:10 }}>
-                  {([
-                    { id:'CGST_SGST' as GstType, label:'CGST + SGST', sub:'In-State Split' },
-                    { id:'IGST' as GstType, label:'IGST', sub:'Interstate' },
-                    { id:'CGST_UTGST' as GstType, label:'CGST + UTGST', sub:'Union Territory' },
-                    { id:'EXEMPT' as GstType, label:'EXEMPT / NIL', sub:'0% Tax' },
-                  ]).map(t => (
-                    <TouchableOpacity key={t.id} style={[styles.gstTypeBtn, gstType===t.id && styles.gstTypeBtnActive]} onPress={() => { setGstType(t.id); if (t.id==='EXEMPT') handleApplyGlobalGst(0); else if (globalGstRate===0) handleApplyGlobalGst(18); }}>
-                      <Text style={[styles.gstTypeBtnText, gstType===t.id && styles.gstTypeBtnTextActive]}>{t.label}</Text>
-                      <Text style={[styles.gstTypeBtnSub, gstType===t.id && styles.gstTypeBtnTextActive]}>{t.sub}</Text>
-                    </TouchableOpacity>
-                  ))}
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.moreControlsTitle}>More Controls &amp; Settings</Text>
+                  <View style={[styles.optionalPill, showMoreControls && styles.optionalPillActive]}>
+                    <Text style={[styles.optionalPillText, showMoreControls && styles.optionalPillTextActive]}>
+                      Optional • Steps 5-8
+                    </Text>
+                  </View>
                 </View>
-
-                {/* GST Rate */}
-                <Text style={[styles.fieldLabel, { marginBottom:4 }]}>GST Tax Rate: {globalGstRate}%</Text>
-                <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:10 }}>
-                  {[0, 5, 12, 18, 28].map(rate => (
-                    <TouchableOpacity key={rate} style={[styles.gstPill, globalGstRate===rate && styles.gstPillActive]} onPress={() => handleApplyGlobalGst(rate)}>
-                      <Text style={[styles.gstPillText, globalGstRate===rate && styles.gstPillTextActive]}>{rate}%</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Column Toggles */}
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleText}>Display GST % Column & Calculate with GST</Text>
-                  <Switch value={showGstColumn} onValueChange={setShowGstColumn} trackColor={{ false:'#1e293b', true:'#f59e0b' }} />
-                </View>
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleText}>Display HSN / SAC Code Column</Text>
-                  <Switch value={showHsnColumn} onValueChange={setShowHsnColumn} trackColor={{ false:'#1e293b', true:'#6366f1' }} />
-                </View>
+                <Text style={styles.moreControlsSub}>
+                  5. Terms • 6. GST Tax • 7. Margins • 8. Layout
+                </Text>
               </View>
-            )}
-          </View>
+            </View>
 
-          {/* ── 7. PDF Page & Margin Controls ── */}
-          <View style={[styles.accCard, openSections.pdf && styles.accCardOpen]}>
-            <AccordionHeader label="⚙️ 7. PDF Page & Margin Controls" color="#818cf8" sectionKey="pdf" />
-            {openSections.pdf && (
-              <View style={styles.accBody}>
-                {/* Margin */}
-                <Text style={styles.fieldLabel}>Page Padding / Margin</Text>
-                <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
-                  {[6, 10, 15].map(m => (
-                    <TouchableOpacity key={m} style={[styles.marginBtn, pdfMargin===m && styles.marginBtnActive]} onPress={() => setPdfMargin(m)}>
-                      <Text style={[styles.marginBtnText, pdfMargin===m && styles.marginBtnTextActive]}>{m}mm {m===6?'Compact':m===10?'Standard':'Spacious'}</Text>
-                    </TouchableOpacity>
-                  ))}
+            {/* High-Tech Action Pill Button */}
+            <View style={[styles.moreControlsBtn, showMoreControls ? styles.moreControlsBtnActive : styles.moreControlsBtnInactive]}>
+              {showMoreControls ? (
+                <View style={styles.moreControlsBtnInner}>
+                  <View style={styles.moreControlsPulseDot} />
+                  <Text style={styles.moreControlsBtnTextActive}>Click to Collapse</Text>
+                  <Text style={styles.moreControlsChevronActive}>∧</Text>
                 </View>
-                {/* Page Mode */}
-                <Text style={styles.fieldLabel}>Page Flow Mode</Text>
-                <View style={{ flexDirection:'row', gap:6 }}>
-                  {(['SINGLE','MULTI'] as const).map(p => (
-                    <TouchableOpacity key={p} style={[styles.marginBtn, pdfPageMode===p && styles.marginBtnActive]} onPress={() => setPdfPageMode(p)}>
-                      <Text style={[styles.marginBtnText, pdfPageMode===p && styles.marginBtnTextActive]}>{p==='SINGLE' ? '📄 1-Page Strict' : '📄📄 Multi-Page'}</Text>
-                    </TouchableOpacity>
-                  ))}
+              ) : (
+                <View style={styles.moreControlsBtnInner}>
+                  <Text style={styles.moreControlsSparkle}>✦</Text>
+                  <Text style={styles.moreControlsBtnText}>Click to Slide Open</Text>
+                  <Text style={styles.moreControlsChevron}>∨</Text>
                 </View>
-              </View>
-            )}
-          </View>
+              )}
+            </View>
+          </TouchableOpacity>
 
-          {/* ── 8. Section Layout Engine ── */}
-          <View style={[styles.accCard, openSections.layout && styles.accCardOpen]}>
-            <AccordionHeader label="🎨 8. Section Layout & Positioning" color="#fbbf24" sectionKey="layout" />
-            {openSections.layout && (
-              <View style={styles.accBody}>
-                {/* Gap Control */}
-                <Text style={styles.fieldLabel}>Gap Between Sections: {sectionGap}px</Text>
-                <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:10 }}>
-                  {[4, 10, 18, 30, 50].map(g => (
-                    <TouchableOpacity key={g} style={[styles.gapBtn, sectionGap===g && styles.gapBtnActive]} onPress={() => setSectionGap(g)}>
-                      <Text style={[styles.gapBtnText, sectionGap===g && styles.gapBtnTextActive]}>{g}px</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                {/* Section Order & Visibility */}
-                <Text style={[styles.fieldLabel, { marginBottom:6 }]}>Section Sequence & Visibility</Text>
-                {sectionOrder.map((secId, idx) => {
-                  const meta = SECTION_META.find(m => m.id === secId);
-                  const isVisible = visibleSections[secId];
-                  return (
-                    <View key={secId} style={[styles.sectionRow, !isVisible && styles.sectionRowHidden]}>
-                      <Text style={styles.sectionRowIdx}>#{idx + 1}</Text>
-                      <View style={{ flex:1 }}>
-                        <Text style={styles.sectionRowLabel}>{meta?.label}</Text>
-                        <Text style={styles.sectionRowDesc}>{meta?.desc}</Text>
+          {/* ── EXPANDABLE ADVANCED CONTROLS (SECTIONS 5 TO 8) ── */}
+          {showMoreControls && (
+            <View>
+              {/* ── 5. Terms & Conditions (Optional) ── */}
+              <View style={[styles.accCard, isStep5Done && styles.accCardDone, openSections.terms && styles.accCardOpen]}>
+                <AccordionHeader label="📄 5. Terms & Conditions" color="#38bdf8" sectionKey="terms" stepNum={5} isDone={isStep5Done} isOptional={true} />
+                {openSections.terms && (
+                  <View style={styles.accBody}>
+                    <Text style={[styles.fieldLabel, { marginBottom:6 }]}>Quick Pick Preset Template:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {[
+                          { label: 'Standard Commercial', text: '1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.' },
+                          { label: '50% Advance & Balance', text: '1. 50% advance along with confirmed purchase order.\n2. Balance 50% against delivery.\n3. Goods once sold will not be taken back.' },
+                          { label: 'Strict 7-Day Net', text: '1. 100% payment within 7 days of invoice.\n2. Overdue interest @ 18% p.a.\n3. All taxes extra as applicable.' },
+                          { label: 'Service & Annual AMC', text: '1. Scope of work strictly per proposal specification.\n2. Preventive maintenance quarterly.\n3. Payment 100% in advance.' },
+                        ].map(t => (
+                          <TouchableOpacity
+                            key={t.label}
+                            style={[styles.marginBtn, { paddingHorizontal: 10, paddingVertical: 5 }]}
+                            onPress={() => setTermsText(t.text)}
+                          >
+                            <Text style={styles.marginBtnText}>{t.label}</Text>
+                          </TouchableOpacity>
+                        ))}
                       </View>
-                      <View style={{ flexDirection:'row', gap:4 }}>
-                        <TouchableOpacity style={styles.secArrowBtn} onPress={() => moveSectionUp(secId)} disabled={idx===0}>
-                          <Text style={[styles.secArrowText, idx===0 && { opacity:0.3 }]}>▲</Text>
+                    </ScrollView>
+                    <TextInput style={[styles.inputField, { height:80 }]} value={termsText} onChangeText={setTermsText} multiline placeholder="Enter terms and conditions..." placeholderTextColor="#64748b" />
+                  </View>
+                )}
+              </View>
+
+              {/* ── 6. GST Tax Controls (Optional) ── */}
+              <View style={[styles.accCard, isStep6Done && styles.accCardDone, openSections.gst && styles.accCardOpen]}>
+                <AccordionHeader
+                  label="🎚️ 6. GST Tax Rate & Tax Type"
+                  color="#f59e0b"
+                  sectionKey="gst"
+                  stepNum={6}
+                  isDone={isStep6Done}
+                  isOptional={true}
+                  badge={gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_','+')})`}
+                />
+                {openSections.gst && (
+                  <View style={styles.accBody}>
+                    {/* GST Type */}
+                    <Text style={[styles.fieldLabel, { marginBottom:6 }]}>GST Tax Type / Mechanism:</Text>
+                    <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+                      {([
+                        { id:'CGST_SGST' as GstType, label:'CGST + SGST', sub:'In-State Split' },
+                        { id:'IGST' as GstType, label:'IGST', sub:'Interstate' },
+                        { id:'CGST_UTGST' as GstType, label:'CGST + UTGST', sub:'Union Territory' },
+                        { id:'EXEMPT' as GstType, label:'EXEMPT / NIL', sub:'0% Tax' },
+                      ]).map(t => (
+                        <TouchableOpacity key={t.id} style={[styles.gstTypeBtn, gstType===t.id && styles.gstTypeBtnActive]} onPress={() => { setGstType(t.id); if (t.id==='EXEMPT') handleApplyGlobalGst(0); else if (globalGstRate===0) handleApplyGlobalGst(18); }}>
+                          <Text style={[styles.gstTypeBtnText, gstType===t.id && styles.gstTypeBtnTextActive]}>{t.label}</Text>
+                          <Text style={[styles.gstTypeBtnSub, gstType===t.id && styles.gstTypeBtnTextActive]}>{t.sub}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.secArrowBtn} onPress={() => moveSectionDown(secId)} disabled={idx===sectionOrder.length-1}>
-                          <Text style={[styles.secArrowText, idx===sectionOrder.length-1 && { opacity:0.3 }]}>▼</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.secArrowBtn, isVisible ? styles.secArrowBtnOn : {}]} onPress={() => toggleSectionVisibility(secId)}>
-                          <Text style={[styles.secArrowText, isVisible ? styles.secArrowTextOn : {}]}>{isVisible ? '👁' : '🚫'}</Text>
-                        </TouchableOpacity>
-                      </View>
+                      ))}
                     </View>
-                  );
-                })}
 
-                <TouchableOpacity style={styles.resetBtn} onPress={resetSectionLayout}>
-                  <Text style={styles.resetBtnText}>🔄 Reset Layout</Text>
-                </TouchableOpacity>
+                    {/* GST Rate */}
+                    <Text style={[styles.fieldLabel, { marginBottom:4 }]}>GST Tax Rate: {globalGstRate}%</Text>
+                    <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:6 }}>
+                      {[0, 5, 12, 18, 28].map(rate => (
+                        <TouchableOpacity key={rate} style={[styles.gstPill, globalGstRate===rate && styles.gstPillActive]} onPress={() => handleApplyGlobalGst(rate)}>
+                          <Text style={[styles.gstPillText, globalGstRate===rate && styles.gstPillTextActive]}>{rate}%</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
+
+              {/* ── 7. PDF Page & Margin Controls (Optional) ── */}
+              <View style={[styles.accCard, isStep7Done && styles.accCardDone, openSections.pdf && styles.accCardOpen]}>
+                <AccordionHeader label="⚙️ 7. PDF Page & Margin Controls" color="#818cf8" sectionKey="pdf" stepNum={7} isDone={isStep7Done} isOptional={true} />
+                {openSections.pdf && (
+                  <View style={styles.accBody}>
+                    {/* Margin */}
+                    <Text style={styles.fieldLabel}>Page Padding / Margin</Text>
+                    <View style={{ flexDirection:'row', gap:6, marginBottom:10 }}>
+                      {[6, 10, 15].map(m => (
+                        <TouchableOpacity key={m} style={[styles.marginBtn, pdfMargin===m && styles.marginBtnActive]} onPress={() => setPdfMargin(m)}>
+                          <Text style={[styles.marginBtnText, pdfMargin===m && styles.marginBtnTextActive]}>{m}mm {m===6?'Compact':m===10?'Standard':'Spacious'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {/* Page Mode */}
+                    <Text style={styles.fieldLabel}>Page Flow Mode</Text>
+                    <View style={{ flexDirection:'row', gap:6 }}>
+                      {(['SINGLE','MULTI'] as const).map(p => (
+                        <TouchableOpacity key={p} style={[styles.marginBtn, pdfPageMode===p && styles.marginBtnActive]} onPress={() => setPdfPageMode(p)}>
+                          <Text style={[styles.marginBtnText, pdfPageMode===p && styles.marginBtnTextActive]}>{p==='SINGLE' ? '📄 1-Page Strict' : '📄📄 Multi-Page'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* ── 8. Section Layout Engine (Optional) ── */}
+              <View style={[styles.accCard, isStep8Done && styles.accCardDone, openSections.layout && styles.accCardOpen]}>
+                <AccordionHeader label="🎨 8. Section Layout & Positioning" color="#fbbf24" sectionKey="layout" stepNum={8} isDone={isStep8Done} isOptional={true} />
+                {openSections.layout && (
+                  <View style={styles.accBody}>
+                    {/* Gap Control */}
+                    <Text style={styles.fieldLabel}>Gap Between Sections: {sectionGap}px</Text>
+                    <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+                      {[4, 10, 18, 30, 50].map(g => (
+                        <TouchableOpacity key={g} style={[styles.gapBtn, sectionGap===g && styles.gapBtnActive]} onPress={() => setSectionGap(g)}>
+                          <Text style={[styles.gapBtnText, sectionGap===g && styles.gapBtnTextActive]}>{g}px</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Section Order & Visibility */}
+                    <Text style={[styles.fieldLabel, { marginBottom:6 }]}>Section Sequence & Visibility</Text>
+                    {sectionOrder.map((secId, idx) => {
+                      const meta = SECTION_META.find(m => m.id === secId);
+                      const isVisible = visibleSections[secId];
+                      return (
+                        <View key={secId} style={[styles.sectionRow, !isVisible && styles.sectionRowHidden]}>
+                          <Text style={styles.sectionRowIdx}>#{idx + 1}</Text>
+                          <View style={{ flex:1 }}>
+                            <Text style={styles.sectionRowLabel}>{meta?.label}</Text>
+                            <Text style={styles.sectionRowDesc}>{meta?.desc}</Text>
+                          </View>
+                          <View style={{ flexDirection:'row', gap:4 }}>
+                            <TouchableOpacity style={styles.secArrowBtn} onPress={() => moveSectionUp(secId)} disabled={idx===0}>
+                              <Text style={[styles.secArrowText, idx===0 && { opacity:0.3 }]}>▲</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.secArrowBtn} onPress={() => moveSectionDown(secId)} disabled={idx===sectionOrder.length-1}>
+                              <Text style={[styles.secArrowText, idx===sectionOrder.length-1 && { opacity:0.3 }]}>▼</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.secArrowBtn, isVisible ? styles.secArrowBtnOn : {}]} onPress={() => toggleSectionVisibility(secId)}>
+                              <Text style={[styles.secArrowText, isVisible ? styles.secArrowTextOn : {}]}>{isVisible ? '👁' : '🚫'}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
+
+                    <TouchableOpacity style={styles.resetBtn} onPress={resetSectionLayout}>
+                      <Text style={styles.resetBtnText}>🔄 Reset Layout</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* ── BOTTOM ACTION BAR ── */}
           <View style={[
@@ -2003,13 +2213,207 @@ const styles = StyleSheet.create({
   // Scroll Content
   scrollContent: { padding: 10, paddingBottom: 40 },
   accCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', marginBottom: 8, overflow: 'hidden' },
-  accCardOpen: { borderColor: '#334155' },
+  accCardOpen: {
+    borderColor: '#6366f1',
+    backgroundColor: '#10172a',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  accCardDone: { borderColor: 'rgba(16,185,129,0.35)', backgroundColor: 'rgba(15,23,42,0.95)' },
+
+  // Progress Dashboard
+  progressCard: { backgroundColor: '#0b1329', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  progressTitle: { fontSize: 10.5, fontWeight: '900', color: '#ffffff', letterSpacing: 0.5 },
+  progressSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
+  progressPctText: { fontSize: 11, fontWeight: '900', color: '#f59e0b' },
+  coreStatusPill: { backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' },
+  coreStatusPillDone: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  coreStatusPillText: { fontSize: 8.5, fontWeight: '900', color: '#f59e0b' },
+  coreStatusPillTextDone: { color: '#34d399' },
+  progressBarTrack: { height: 6, backgroundColor: '#020617', borderRadius: 3, overflow: 'hidden', borderWidth: 1, borderColor: '#1e293b', marginBottom: 8 },
+  progressBarFill: { height: '100%', backgroundColor: '#f59e0b', borderRadius: 3 },
+  miniPillsRow: { flexDirection: 'row', gap: 4 },
+  miniPill: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingVertical: 4, alignItems: 'center' },
+  miniPillDone: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  miniPillActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.25)' },
+  miniPillText: { fontSize: 8.5, fontWeight: '800', color: '#94a3b8' },
+  miniPillTextDone: { color: '#34d399' },
+  miniPillTextActive: { color: '#ffffff', fontWeight: '900' },
+
+  miniPillOptActive: {
+    borderColor: '#818cf8',
+    backgroundColor: 'rgba(99,102,241,0.22)',
+  },
+  miniPillOptTextActive: {
+    color: '#c7d2fe',
+    fontWeight: '900',
+  },
+
+  // More Controls Banner
+  moreControlsBanner: {
+    backgroundColor: '#0c1224',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99,102,241,0.32)',
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  moreControlsBannerActive: {
+    borderColor: '#818cf8',
+    backgroundColor: '#161d38',
+    shadowColor: '#818cf8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  moreControlsIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: '#4f46e5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  moreControlsIconText: { fontSize: 17 },
+  moreControlsTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff', letterSpacing: 0.2 },
+  moreControlsSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
+  
+  // More Controls Action Pill Button
+  moreControlsBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7.5,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreControlsBtnInactive: {
+    backgroundColor: '#4f46e5',
+    borderWidth: 1,
+    borderColor: 'rgba(165,180,252,0.45)',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  moreControlsBtnActive: {
+    backgroundColor: 'rgba(46,16,101,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.6)',
+    shadowColor: '#a855f7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  moreControlsBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  moreControlsSparkle: {
+    fontSize: 11,
+    color: '#fbbf24',
+    fontWeight: '900',
+  },
+  moreControlsPulseDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: '#c084fc',
+    shadowColor: '#c084fc',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  moreControlsBtnText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+  },
+  moreControlsBtnTextActive: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.2,
+  },
+  moreControlsChevron: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#c7d2fe',
+    marginLeft: 1,
+  },
+  moreControlsChevronActive: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#c084fc',
+    marginLeft: 1,
+  },
+
+  // Table Column Controls Box
+  tableColControlBox: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
+  tableColControlTitle: { fontSize: 10.5, fontWeight: '900', color: '#a78bfa', marginBottom: 4 },
+
+  // Step Number & Badges
+  stepNumCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  stepNumCircleDone: { backgroundColor: '#10b981' },
+  stepNumText: { fontSize: 9.5, fontWeight: '900', color: '#94a3b8' },
+  stepNumTextDone: { color: '#020617' },
+  doneBadge: { backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.35)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  doneBadgeText: { fontSize: 8.5, fontWeight: '900', color: '#34d399' },
+  optionalPill: { backgroundColor: '#1e293b', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 4, borderWidth: 1, borderColor: '#334155' },
+  optionalPillActive: { backgroundColor: 'rgba(99,102,241,0.22)', borderColor: 'rgba(129,140,248,0.45)' },
+  optionalPillText: { fontSize: 8.5, fontWeight: '800', color: '#94a3b8' },
+  optionalPillTextActive: { color: '#c7d2fe' },
   accHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  accHeaderOpen: { backgroundColor: 'rgba(99,102,241,0.08)' },
   accHeaderText: { fontSize: 12, fontWeight: '900', flex: 1 },
   accHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   accBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   accBadgeText: { fontSize: 9, fontWeight: '900' },
-  accChevron: { fontSize: 10, color: '#64748b' },
+  accChevronBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  accChevronBoxOpen: {
+    backgroundColor: 'rgba(99,102,241,0.2)',
+    borderColor: '#818cf8',
+  },
+  accChevronText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#64748b',
+  },
+  accChevronTextOpen: {
+    color: '#c7d2fe',
+  },
   accBody: { padding: 12, paddingTop: 0, borderTopWidth: 1, borderTopColor: '#1e293b' },
 
   // Controls

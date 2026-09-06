@@ -6,7 +6,7 @@ import {
   Maximize2, Columns, ZoomIn, ZoomOut, Sliders, Truck, AlignLeft, Hash,
   ChevronDown, ChevronUp, Smartphone, Calendar, ArrowUp, ArrowDown, EyeOff,
   Layers, RotateCcw, History, BookOpen, Sparkles, Clock, FolderOpen, FileCheck, Tag, X, List, Search, User,
-  Mail, MessageSquare, Share2, Upload, FileDown
+  Mail, MessageSquare, Share2, Upload, FileDown, SlidersHorizontal, CheckCircle2
 } from 'lucide-react';
 import { exportQuotationAsDocx } from '../../lib/exportDocx';
 
@@ -100,6 +100,35 @@ export interface LineItem {
   discountVal: number;
   total: number;
 }
+
+export interface TermsTemplate {
+  id: string;
+  name: string;
+  text: string;
+}
+
+export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
+  {
+    id: 't-1',
+    name: 'Standard Commercial',
+    text: '1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.\n3. Goods once sold will not be taken back or exchanged.',
+  },
+  {
+    id: 't-2',
+    name: '50% Advance & Balance',
+    text: '1. 50% advance payment along with formal Purchase Order.\n2. Balance 50% upon delivery of goods / materials at site.\n3. Delivery within 7 to 10 working days from PO confirmation.',
+  },
+  {
+    id: 't-3',
+    name: 'Strict 7-Day Net',
+    text: '1. 100% payment within 7 calendar days from invoice date.\n2. Overdue payments subject to 18% p.a. commercial interest.\n3. Goods remain company property until paid in full.',
+  },
+  {
+    id: 't-4',
+    name: 'Service & Annual AMC',
+    text: '1. Service charges payable quarterly in advance.\n2. Replacement of hardware/spares billed separately at actuals.\n3. 24-hour turnaround SLA for emergency maintenance calls.',
+  },
+];
 
 // ─── Default Mock Data (Spectro Analytical Labs & Aarna Construction) ───
 const INITIAL_COMPANIES: CompanyDetails[] = [
@@ -587,20 +616,18 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, [handleNewQuoteReset]);
 
-  // Smooth Slidable Accordion Sections State
-  const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
-    gst: true,
-    pdf: true,
-    layout: true,
-    company: true,
-    party: true,
-    metadata: true,
-    items: true,
-    terms: true,
-  });
+  // Smooth Slidable Accordion Sections State — Closed by default, strictly one open at a time
+  const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({});
 
   const toggleSection = (key: string) => {
-    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections(prev => {
+      // If clicked section is already open, close it (sink it)
+      if (prev[key]) {
+        return {};
+      }
+      // Exclusive accordion: close all others, open only key
+      return { [key]: true };
+    });
   };
 
   // Shipping Address State
@@ -653,6 +680,53 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [termsText, setTermsText] = useState(
     '1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.'
   );
+
+  // ── Terms Templates State (Select from Previous or Add New) ──
+  const [termsTemplates, setTermsTemplates] = useState<TermsTemplate[]>(DEFAULT_TERMS_TEMPLATES);
+  const [selectedTermsId, setSelectedTermsId] = useState<string>('t-1');
+  const [isAddingNewTerms, setIsAddingNewTerms] = useState<boolean>(false);
+  const [newTermsTemplateName, setNewTermsTemplateName] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('das_crm_terms_templates');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) setTermsTemplates(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to load terms templates from storage', e);
+      }
+    }
+  }, []);
+
+  const handleSaveCustomTerms = () => {
+    if (!newTermsTemplateName.trim()) {
+      alert('Please enter a template name.');
+      return;
+    }
+    const newT: TermsTemplate = {
+      id: `tmpl-${Date.now()}`,
+      name: newTermsTemplateName.trim(),
+      text: termsText,
+    };
+    const updated = [...termsTemplates, newT];
+    setTermsTemplates(updated);
+    setSelectedTermsId(newT.id);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('das_crm_terms_templates', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save terms template', e);
+      }
+    }
+    setNewTermsTemplateName('');
+    setIsAddingNewTerms(false);
+  };
+
+  // ── More Controls Toggle State (Slides Sections 5 to 8) ──
+  const [showMoreControls, setShowMoreControls] = useState<boolean>(false);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -789,6 +863,22 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   const effectiveGstTaxTotal = (gstType === 'EXEMPT' || globalGstRate === 0) ? 0 : gstTaxTotal;
   const grandTotal = Math.round(finalTaxable + effectiveGstTaxTotal);
+
+  // ── 8-Step Completion Checkers & Progress Flags ──
+  const isStep1Done = Boolean(docNo?.trim() && docDate?.trim() && (!showValidUntil || (validUntilDate && validUntilDate.trim() !== '')));
+  const isStep2Done = Boolean(activeCompany?.name?.trim() && activeCompany?.gstNo?.trim());
+  const isStep3Done = Boolean(activeParty?.name?.trim());
+  const isStep4Done = Boolean(items.length > 0 && items.every(it => it.productName?.trim() && it.qty > 0 && it.unitPrice > 0));
+  const isStep5Done = Boolean(termsText && termsText.trim().length > 0);
+  const isStep6Done = Boolean(gstType);
+  const isStep7Done = Boolean(pdfMargin > 0 && pdfTopPadding > 0);
+  const isStep8Done = Boolean(sectionOrder.length > 0);
+
+  // ── 4 Core Steps (Required for Generation) & Optional Formatting Steps ──
+  const coreCompletedCount = [isStep1Done, isStep2Done, isStep3Done, isStep4Done].filter(Boolean).length;
+  const isCoreReady = coreCompletedCount === 4;
+  const optionalCompletedCount = [isStep5Done, isStep6Done, isStep7Done, isStep8Done].filter(Boolean).length;
+  const completedStepsCount = coreCompletedCount + optionalCompletedCount;
 
   // ── Download as Editable Word (.docx) — placed here after all derived state ──
   const handleDownloadDocx = useCallback(async () => {
@@ -1524,24 +1614,261 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* ── LEFT PANE: CONTROLS & FORM BUILDER (SLIDABLE ACCORDION SECTIONS) ── */}
           <div className={`lg:col-span-6 space-y-4 sm:space-y-6 print-hide ${mobileActiveTab === 'PREVIEW' ? 'hidden lg:block' : 'block'}`}>
-            {/* 🏢 1. SELLER / COMPANY SELECTOR (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+            {/* 📊 STEP COMPLETION & PROGRESS DASHBOARD */}
+            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <Sparkles size={14} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-white">Quotation Setup Progress</h4>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${
+                        isCoreReady
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-500/20'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      }`}>
+                        {isCoreReady ? '✓ 4/4 Core Steps Done • Ready to Export' : `${coreCompletedCount} of 4 Core Steps Done`}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-400 mt-0.5">
+                      {isCoreReady 
+                        ? 'Mandatory steps 1 to 4 are completed! Document is ready to export. Steps 5-8 below are optional.'
+                        : 'Complete the 4 core steps (1 to 4) to prepare your quotation. Further formatting (5 to 8) is optional.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border transition-all ${
+                    isCoreReady
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {Math.round((coreCompletedCount / 4) * 100)}% Ready
+                  </span>
+                </div>
+              </div>
+
+              {/* Dynamic Animated Progress Bar for the 4 Core Steps */}
+              <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isCoreReady
+                      ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                      : 'bg-gradient-to-r from-amber-500 to-indigo-500'
+                  }`}
+                  style={{ width: `${Math.max(8, (coreCompletedCount / 4) * 100)}%` }}
+                />
+              </div>
+
+              {/* Mini Steps Navigation: 4 Core Required Steps + 4 Optional Controls */}
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex items-center justify-between text-[9.5px] text-slate-400 font-bold px-0.5">
+                  <span className="flex items-center gap-1 text-slate-300">
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${isCoreReady ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                    CORE MANDATORY (STEPS 1 - 4):
+                  </span>
+                  <span className="text-slate-500 font-medium italic">
+                    ADVANCED FORMATTING (STEPS 5 - 8 OPTIONAL)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
+                  {[
+                    { num: 1, label: '1. Dates', done: isStep1Done, key: 'metadata', opt: false },
+                    { num: 2, label: '2. Seller', done: isStep2Done, key: 'company', opt: false },
+                    { num: 3, label: '3. Buyer', done: isStep3Done, key: 'party', opt: false },
+                    { num: 4, label: '4. Items', done: isStep4Done, key: 'items', opt: false },
+                    { num: 5, label: '5. Terms', done: isStep5Done, key: 'terms', opt: true },
+                    { num: 6, label: '6. Tax', done: isStep6Done, key: 'gst', opt: true },
+                    { num: 7, label: '7. Margin', done: isStep7Done, key: 'pdf', opt: true },
+                    { num: 8, label: '8. Layout', done: isStep8Done, key: 'layout', opt: true },
+                  ].map(s => {
+                    const isCurrentOpen = Boolean(openSections[s.key]);
+                    return (
+                      <button
+                        key={s.num}
+                        type="button"
+                        onClick={() => {
+                          if (s.num >= 5 && !showMoreControls) setShowMoreControls(true);
+                          setOpenSections(prev => prev[s.key] ? {} : { [s.key]: true });
+                        }}
+                        className={`p-1 rounded-lg text-center border transition-all cursor-pointer ${
+                          isCurrentOpen
+                            ? 'bg-indigo-600/30 border-indigo-400 text-white ring-2 ring-indigo-500/50 shadow-md scale-[1.04]'
+                            : s.done
+                            ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-400 hover:bg-emerald-500/25'
+                            : s.opt
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-500 hover:text-slate-300'
+                            : 'bg-slate-950 border-amber-500/30 text-amber-400 hover:text-amber-300'
+                        }`}
+                        title={s.opt ? `${s.label} (Optional)` : `${s.label} (Required)`}
+                      >
+                        <span className="text-[10px] font-mono font-black flex items-center justify-center">
+                          {s.done ? <Check size={11} strokeWidth={3} className="text-emerald-400" /> : s.num}
+                        </span>
+                        <span className="text-[8.5px] truncate block leading-tight font-medium">
+                          {s.label}{s.opt ? ' *' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 📅 1. DOCUMENT REFERENCE & DATES */}
+            <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+              openSections.metadata
+                ? 'bg-slate-900 border-amber-500/60 ring-1 ring-amber-500/25 shadow-[0_4px_25px_rgba(245,158,11,0.12)]'
+                : isStep1Done
+                ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+            }`}>
+              <div
+                onClick={() => toggleSection('metadata')}
+                className="flex items-center justify-between cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                    isStep1Done
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                      : openSections.metadata
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}>
+                    {isStep1Done ? <Check size={12} strokeWidth={3} /> : '1'}
+                  </span>
+                  <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isStep1Done ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    <Calendar size={15} /> 1. Document Reference &amp; Dates
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    isStep1Done
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {isStep1Done ? '✓ Completed' : 'Pending'}
+                  </span>
+                  <button className="text-slate-400 hover:text-white p-1">
+                    <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.metadata ? 'rotate-180 text-amber-400' : 'rotate-0 text-slate-400'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                  openSections.metadata
+                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                }`}
+              >
+                <div className="overflow-hidden space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Doc Number</label>
+                      <input
+                        type="text"
+                        value={docNo}
+                        onChange={e => setDocNo(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Doc Date</label>
+                      <input
+                        type="text"
+                        value={docDate}
+                        onChange={e => setDocDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Valid Until (Optional)</label>
+                      <input
+                        type="text"
+                        disabled={!showValidUntil}
+                        value={validUntilDate}
+                        onChange={e => setValidUntilDate(e.target.value)}
+                        placeholder="e.g. 31/01/2026"
+                        className={`w-full border rounded-xl px-3 py-1.5 text-xs ${
+                          showValidUntil
+                            ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500 focus:outline-none'
+                            : 'bg-slate-950/40 border-slate-800/50 text-slate-600 cursor-not-allowed'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 🗓️ OPTIONAL VALID UNTIL CHECKBOX TOGGLE */}
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showValidUntil}
+                        onChange={e => setShowValidUntil(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-800 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-slate-200">
+                        Include "Valid Until" Expiry Date in Document Header
+                      </span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 italic">
+                      ({showValidUntil ? 'Valid Until Visible' : 'Valid Until Hidden'})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 🏢 2. SELECT SELLER / YOUR COMPANY */}
+            <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+              openSections.company
+                ? 'bg-slate-900 border-sky-500/60 ring-1 ring-sky-500/25 shadow-[0_4px_25px_rgba(56,189,248,0.12)]'
+                : isStep2Done
+                ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+            }`}>
               <div
                 onClick={() => toggleSection('company')}
                 className="flex items-center justify-between cursor-pointer select-none"
               >
-                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
-                  <Building2 size={16} /> 1. Select Seller / Your Company
-                </h3>
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                    isStep2Done
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                      : openSections.company
+                      ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/25'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}>
+                    {isStep2Done ? <Check size={12} strokeWidth={3} /> : '2'}
+                  </span>
+                  <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isStep2Done ? 'text-emerald-400' : 'text-indigo-400'
+                  }`}>
+                    <Building2 size={15} /> 2. Your Company / Seller
+                  </h3>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); setCompanyModalOpen(true); }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg hover:bg-sky-400/20"
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10"
                   >
                     + Add Company
                   </button>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    isStep2Done
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {isStep2Done ? '✓ Completed' : 'Pending'}
+                  </span>
                   <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.company ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.company ? 'rotate-180 text-sky-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
               </div>
@@ -1599,24 +1926,50 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </div>
             </div>
 
-            {/* 👤 4. BUYER / PARTY SELECTOR & SEPARATE SHIPPING ADDRESS (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+            {/* 👤 3. SELECT CLIENT / BUYER PARTY */}
+            <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+              openSections.party
+                ? 'bg-slate-900 border-emerald-500/60 ring-1 ring-emerald-500/25 shadow-[0_4px_25px_rgba(16,185,129,0.12)]'
+                : isStep3Done
+                ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+            }`}>
               <div
                 onClick={() => toggleSection('party')}
                 className="flex items-center justify-between cursor-pointer select-none"
               >
-                <h3 className="text-xs font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
-                  <UserCheck size={16} /> 2. Select Client / Buyer Party
-                </h3>
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                    isStep3Done
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                      : openSections.party
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}>
+                    {isStep3Done ? <Check size={12} strokeWidth={3} /> : '3'}
+                  </span>
+                  <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isStep3Done ? 'text-emerald-400' : 'text-emerald-400'
+                  }`}>
+                    <UserCheck size={15} /> 3. Select Client / Buyer Party
+                  </h3>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); setPartyModalOpen(true); }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg hover:bg-emerald-400/20"
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10"
                   >
                     + Add Party
                   </button>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    isStep3Done
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {isStep3Done ? '✓ Completed' : 'Pending'}
+                  </span>
                   <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.party ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.party ? 'rotate-180 text-emerald-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
               </div>
@@ -1651,7 +2004,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
                   {/* 🚚 SEPARATE SHIPPING ADDRESS TOGGLE */}
                   <div className="pt-3 border-t border-slate-800 space-y-3">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={useSeparateShipping}
@@ -1659,7 +2012,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 cursor-pointer"
                       />
                       <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <Truck size={14} className="text-emerald-400" /> Shipping Address (Consignee) is different from Billing Address
+                        <Truck size={14} className="text-emerald-400" /> Shipping Address is different
                       </span>
                     </label>
 
@@ -1680,103 +2033,50 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </div>
             </div>
 
-            {/* 📅 5. DOCUMENT METADATA & OPTIONAL VALID UNTIL DATE (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('metadata')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
-                  <Calendar size={16} /> 3. Document Reference &amp; Dates
-                </h3>
-                <button className="text-slate-400 hover:text-white p-1">
-                  {openSections.metadata ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.metadata
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Doc Number</label>
-                      <input
-                        type="text"
-                        value={docNo}
-                        onChange={e => setDocNo(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Doc Date</label>
-                      <input
-                        type="text"
-                        value={docDate}
-                        onChange={e => setDocDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Valid Until (Optional)</label>
-                      <input
-                        type="text"
-                        disabled={!showValidUntil}
-                        value={validUntilDate}
-                        onChange={e => setValidUntilDate(e.target.value)}
-                        placeholder="e.g. 31/01/2026"
-                        className={`w-full border rounded-xl px-3 py-1.5 text-xs ${
-                          showValidUntil
-                            ? 'bg-slate-950 border-slate-800 text-white'
-                            : 'bg-slate-950/40 border-slate-800/50 text-slate-600 cursor-not-allowed'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 🗓️ OPTIONAL VALID UNTIL CHECKBOX TOGGLE */}
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showValidUntil}
-                        onChange={e => setShowValidUntil(e.target.checked)}
-                        className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-800 cursor-pointer"
-                      />
-                      <span className="text-xs font-bold text-slate-200">
-                        Include "Valid Until" Expiry Date in Document Header
-                      </span>
-                    </label>
-                    <span className="text-[10px] text-slate-400 italic">
-                      ({showValidUntil ? 'Valid Until Visible' : 'Valid Until Hidden'})
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 📦 6. LINE ITEMS & PRODUCTS CATALOG PICKER (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
+            {/* 📦 4. PRODUCTS & LINE ITEMS */}
+            <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+              openSections.items
+                ? 'bg-slate-900 border-purple-500/60 ring-1 ring-purple-500/25 shadow-[0_4px_25px_rgba(168,85,247,0.12)]'
+                : isStep4Done
+                ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+            }`}>
               <div
                 onClick={() => toggleSection('items')}
                 className="flex items-center justify-between cursor-pointer select-none"
               >
-                <h3 className="text-xs font-black uppercase text-purple-400 tracking-wider flex items-center gap-1.5">
-                  <Package size={16} /> 4. Products &amp; Line Items ({items.length})
-                </h3>
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                    isStep4Done
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                      : openSections.items
+                      ? 'bg-purple-500 text-slate-950 shadow-md shadow-purple-500/25'
+                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}>
+                    {isStep4Done ? <Check size={12} strokeWidth={3} /> : '4'}
+                  </span>
+                  <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isStep4Done ? 'text-emerald-400' : 'text-purple-400'
+                  }`}>
+                    <Package size={15} /> 4. Products &amp; Line Items ({items.length})
+                  </h3>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); addLineItem(); }}
-                    className="text-[11px] font-extrabold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-2.5 py-1 rounded-lg hover:bg-purple-500/30 flex items-center gap-1"
+                    className="text-[11px] font-extrabold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-2.5 py-1 rounded-lg hover:bg-purple-500/30 flex items-center gap-1 transition-all active:scale-95 shadow-sm shadow-purple-500/10"
                   >
                     <Plus size={12} /> Add Item
                   </button>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                    isStep4Done
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {isStep4Done ? '✓ Completed' : 'Pending'}
+                  </span>
                   <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.items ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.items ? 'rotate-180 text-purple-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
               </div>
@@ -1789,6 +2089,45 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 }`}
               >
                 <div className="overflow-hidden space-y-3">
+                  {/* 👁️ TOGGLES: SHOW/HIDE GST % COLUMN & HSN/SAC COLUMN */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
+                        <Columns size={13} /> Table Column Controls
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-slate-900/40 border border-slate-800/60 rounded-lg p-2">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={showGstColumn}
+                            onChange={e => setShowGstColumn(e.target.checked)}
+                            className="w-4 h-4 rounded text-purple-500 bg-slate-950 border-slate-800 cursor-pointer accent-purple-600"
+                          />
+                          <span className="text-xs font-bold text-slate-200">
+                            Display GST % Column &amp; Calculate Amount with GST
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-slate-900/40 border border-slate-800/60 rounded-lg p-2">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={showHsnColumn}
+                            onChange={e => setShowHsnColumn(e.target.checked)}
+                            className="w-4 h-4 rounded text-indigo-500 bg-slate-950 border-slate-800 cursor-pointer accent-indigo-600"
+                          />
+                          <span className="text-xs font-bold text-slate-200">
+                            Display HSN / SAC Code Column in Table
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* 🛠️ MULTIPLE DYNAMIC CUSTOM COLUMNS MANAGER */}
                   <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -1804,9 +2143,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       </button>
                     </div>
 
-                    {customColumns.length === 0 ? (
-                      <p className="text-[10.5px] text-slate-500 italic">No custom columns added yet. Click "+ Add Custom Column" to insert custom fields into the table.</p>
-                    ) : (
+                    {customColumns.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {customColumns.map((col, cIdx) => (
                           <div key={col.id} className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg p-1.5">
@@ -1834,6 +2171,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     )}
                   </div>
 
+                  {/* Line Items List */}
                   {items.map((item, idx) => (
                     <div key={item.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-3.5 space-y-3">
                       <div className="flex items-center justify-between gap-2">
@@ -1858,7 +2196,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           >
                             <option value="">Quick Pick Catalog Product...</option>
                             {CATALOG_PRODUCTS.map(p => (
-                              <option key={p.name} value={p.name}>{p.name} (₹{p.price.toLocaleString()})</option>
+                              <option key={p.name} value={p.name} suppressHydrationWarning>
+                                {p.name} (₹{p.price.toLocaleString('en-IN')})
+                              </option>
                             ))}
                           </select>
 
@@ -1951,7 +2291,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         <div className="space-y-1 bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5">
                           <div className="flex items-center justify-between mb-1">
                             <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                              <AlignLeft size={12} className="text-amber-400" /> Product Description (Small text below name)
+                              <AlignLeft size={12} className="text-amber-400" /> Product Description
                             </label>
                             <button
                               type="button"
@@ -1980,18 +2320,19 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                           <label className="block text-[10px] font-bold text-slate-400 mb-1">HSN/SAC</label>
                           <input
                             type="text"
-                            value={item.hsnCode || '998313'}
+                            value={item.hsnCode || ''}
                             onChange={e => updateLineItem(item.id, { hsnCode: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white text-center font-mono"
+                            placeholder="e.g. 998313"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white font-mono"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 mb-1">Qty</label>
+                          <label className="block text-[10px] font-bold text-slate-400 mb-1">Quantity</label>
                           <input
                             type="number"
                             value={item.qty}
                             onChange={e => updateLineItem(item.id, { qty: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white text-center font-bold"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white font-bold"
                           />
                         </div>
                         <div>
@@ -2000,7 +2341,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             type="text"
                             value={item.unit}
                             onChange={e => updateLineItem(item.id, { unit: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white text-center"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 text-xs text-white"
                           />
                         </div>
                         <div>
@@ -2023,7 +2364,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                         </div>
                       </div>
 
-                      {/* Dynamic Custom Column Inputs for this Item */}
+                      {/* Dynamic Custom Column Inputs */}
                       {customColumns.length > 0 && (
                         <div className="pt-2.5 border-t border-slate-800/80 space-y-2">
                           <span className="text-[10px] font-black uppercase text-purple-400 tracking-wider block">
@@ -2056,490 +2397,670 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               </div>
             </div>
 
-            {/* 📄 7. TERMS & CONDITIONS (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('terms')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-sky-400 tracking-wider">
-                  5. Terms &amp; Conditions
-                </h3>
-                <button className="text-slate-400 hover:text-white p-1">
-                  {openSections.terms ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.terms
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+            {/* 🎛️ MORE CONTROLS TOGGLE BANNER BUTTON (SLIDES SECTIONS 5 TO 8) */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowMoreControls(prev => !prev)}
+                className={`group w-full p-3.5 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all duration-300 select-none shadow-xl cursor-pointer ${
+                  showMoreControls
+                    ? 'bg-gradient-to-r from-violet-950/80 via-slate-900 to-indigo-950/80 border-violet-500/50 shadow-violet-500/15 ring-1 ring-violet-500/20'
+                    : 'bg-slate-900/90 hover:bg-slate-850 border-slate-800 hover:border-violet-500/40 hover:shadow-violet-500/10'
                 }`}
               >
-                <div className="overflow-hidden">
-                  <textarea
-                    value={termsText}
-                    onChange={e => setTermsText(e.target.value)}
-                    rows={3}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 resize-none font-mono"
-                  />
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-md flex-shrink-0 ${
+                    showMoreControls
+                      ? 'bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-violet-500/40 scale-105'
+                      : 'bg-slate-800 text-violet-400 group-hover:bg-violet-500/20 group-hover:text-violet-300'
+                  }`}>
+                    <SlidersHorizontal size={18} />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase tracking-wider text-white">
+                        More Controls &amp; Advanced Settings
+                      </span>
+                      <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/80">
+                        Optional • Steps 5 - 8
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                      5. Terms &amp; Conditions • 6. GST Tax Mechanism • 7. Page Margins • 8. Layout Engine
+                    </p>
+                  </div>
                 </div>
-              </div>
+
+                {/* Prominent High-Tech Action Button */}
+                <div className="flex items-center justify-end flex-shrink-0">
+                  {showMoreControls ? (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-950/90 text-violet-200 font-black text-xs border border-violet-500/60 shadow-lg shadow-violet-500/20 group-hover:bg-violet-900/70 transition-all">
+                      <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse"></span>
+                      <span>Click to Collapse</span>
+                      <ChevronUp size={15} className="text-violet-300 transition-transform group-hover:-translate-y-0.5 duration-200" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 text-white font-black text-xs shadow-lg shadow-violet-600/30 border border-violet-400/50 group-hover:from-violet-500 group-hover:via-indigo-500 group-hover:to-purple-500 group-hover:shadow-violet-500/40 group-hover:scale-[1.02] active:scale-[0.98] transition-all">
+                      <Sparkles size={13} className="text-violet-200" />
+                      <span>Click to Slide Open</span>
+                      <ChevronDown size={15} className="text-white transition-transform group-hover:translate-y-0.5 duration-200" />
+                    </div>
+                  )}
+                </div>
+              </button>
             </div>
 
-            {/* 🎚️ 6. GST TAX RATE, TAX TYPE & COLUMN CONTROLS */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('gst')}
-                className="flex items-center justify-between cursor-pointer select-none gap-2"
-              >
-                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5 truncate">
-                  <Percent size={16} className="flex-shrink-0" /> 6. GST Tax Rate, Tax Type (CGST/IGST/UTGST) &amp; Column Controls
-                </h3>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10.5px] sm:text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg">
-                    {gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_', '+')})`}
-                  </span>
-                  <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.gst ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Smooth Grid Height Slide Down */}
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.gst
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden space-y-4">
-                  {/* GST Tax Type Selector (CGST + SGST, IGST, CGST + UTGST, EXEMPT) */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-black uppercase text-amber-400 tracking-wider">
-                      Select GST Tax Type / Mechanism:
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      {[
-                        { id: 'CGST_SGST', label: 'CGST + SGST', sub: 'In-State Split' },
-                        { id: 'IGST', label: 'IGST', sub: 'Integrated Interstate' },
-                        { id: 'CGST_UTGST', label: 'CGST + UTGST', sub: 'Union Territory' },
-                        { id: 'EXEMPT', label: 'EXEMPT / NIL', sub: '0% Tax Exempt' },
-                      ].map(t => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setGstType(t.id as any);
-                            if (t.id === 'EXEMPT') {
-                              handleApplyGlobalGst(0);
-                            } else if (globalGstRate === 0) {
-                              handleApplyGlobalGst(18);
-                            }
-                          }}
-                          className={`py-2 px-2.5 rounded-xl border text-left transition-all ${
-                            gstType === t.id
-                              ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-lg shadow-amber-500/20'
-                              : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <p className="text-xs font-black truncate">{t.label}</p>
-                          <p className={`text-[9.5px] truncate ${gstType === t.id ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
-                            {t.sub}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
+            {/* ── EXPANDABLE ADVANCED CONTROLS CONTAINER (SECTIONS 5 - 8) ── */}
+            <div
+              className={`space-y-4 sm:space-y-6 transition-all duration-500 ease-in-out overflow-hidden ${
+                showMoreControls
+                  ? 'opacity-100 max-h-[5000px] pt-1'
+                  : 'opacity-0 max-h-0 pointer-events-none'
+              }`}
+            >
+              {/* 📄 5. TERMS & CONDITIONS (PREVIOUS TEMPLATES & ADD NEW) */}
+              <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+                openSections.terms
+                  ? 'bg-slate-900 border-sky-500/60 ring-1 ring-sky-500/25 shadow-[0_4px_25px_rgba(56,189,248,0.12)]'
+                  : isStep5Done
+                  ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+              }`}>
+                <div
+                  onClick={() => toggleSection('terms')}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isStep5Done
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                        : openSections.terms
+                        ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/25'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}>
+                      {isStep5Done ? <Check size={12} strokeWidth={3} /> : '5'}
+                    </span>
+                    <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                      isStep5Done ? 'text-emerald-400' : 'text-sky-400'
+                    }`}>
+                      <FileText size={15} /> 5. Terms &amp; Conditions
+                      <span className="text-[9.5px] font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/80">Optional</span>
+                    </h3>
                   </div>
-
-                  {/* GST Rate Slider & Presets */}
-                  <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-300">GST Tax Rate Percentage</label>
-                      <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded font-mono border border-amber-400/20">
-                        {globalGstRate}% Imposed
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] font-bold text-slate-400">0%</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={28}
-                        step={1}
-                        value={globalGstRate}
-                        onChange={e => {
-                          const val = Number(e.target.value);
-                          handleApplyGlobalGst(val);
-                          if (val === 0) setGstType('EXEMPT');
-                          else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
-                        }}
-                        className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                      />
-                      <span className="text-[10px] font-bold text-slate-400">28%</span>
-                    </div>
-
-                    {/* Quick GST Presets */}
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
-                      {[
-                        { label: '0% Exempt', val: 0 },
-                        { label: '5% Reduced', val: 5 },
-                        { label: '12% Standard', val: 12 },
-                        { label: '18% Standard', val: 18 },
-                        { label: '28% Luxury', val: 28 },
-                      ].map(preset => (
-                        <button
-                          key={preset.val}
-                          type="button"
-                          onClick={() => {
-                            handleApplyGlobalGst(preset.val);
-                            if (preset.val === 0) setGstType('EXEMPT');
-                            else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
-                          }}
-                          className={`py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
-                            globalGstRate === preset.val
-                              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                              : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 👁️ TOGGLES: SHOW/HIDE GST % COLUMN & HSN/SAC COLUMN */}
-                  <div className="pt-3 border-t border-slate-800 space-y-2.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showGstColumn}
-                          onChange={e => setShowGstColumn(e.target.checked)}
-                          className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-800 cursor-pointer"
-                        />
-                        <span className="text-xs font-bold text-slate-200">
-                          Display GST % Column &amp; Calculate Amount with GST
-                        </span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
-                        ({showGstColumn ? 'Shows GST col & computes with GST' : 'Hides GST col & shows base rate'})
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showHsnColumn}
-                          onChange={e => setShowHsnColumn(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-500 bg-slate-950 border-slate-800 cursor-pointer"
-                        />
-                        <span className="text-xs font-bold text-slate-200">
-                          Display HSN / SAC Code Column in Table
-                        </span>
-                      </label>
-                      <span className="text-[10px] text-slate-400 italic pl-6 sm:pl-0">
-                        ({showHsnColumn ? 'HSN Code Visible' : 'HSN Code Hidden'})
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                      isStep5Done
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}>
+                      {isStep5Done ? '✓ Configured' : 'Optional'}
+                    </span>
+                    <button className="text-slate-400 hover:text-white p-1">
+                      <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.terms ? 'rotate-180 text-sky-400' : 'rotate-0 text-slate-400'}`} />
+                    </button>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* ⚙️ 7. PDF PAGE & MARGIN CONTROLS (SMOOTH HEIGHT SLIDER) */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('pdf')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
-                  <Sliders size={16} /> 7. PDF Page &amp; Margin Controls
-                </h3>
-                <button className="text-slate-400 hover:text-white p-1">
-                  {openSections.pdf ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </button>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.pdf
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Margin Control */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Padding / Margin</label>
-                    <div className="flex gap-1.5">
-                      {[
-                        { label: '6mm Compact', val: 6 },
-                        { label: '10mm Standard', val: 10 },
-                        { label: '15mm Spacious', val: 15 },
-                      ].map(m => (
-                        <button
-                          key={m.val}
-                          type="button"
-                          onClick={() => setPdfMargin(m.val)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            pdfMargin === m.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Page Mode Control */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Flow Mode</label>
-                    <div className="flex gap-1.5">
-                      {[
-                        { label: '📄 1-Page Strict', val: 'SINGLE' },
-                        { label: '📄📄 Multi-Page', val: 'MULTI' },
-                      ].map(p => (
-                        <button
-                          key={p.val}
-                          type="button"
-                          onClick={() => setPdfPageMode(p.val as any)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            pdfPageMode === p.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 🎨 8. SECTION LAYOUT, GAPS & POSITIONING ENGINE */}
-            <div className="crm-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 transition-all duration-300">
-              <div
-                onClick={() => toggleSection('layout')}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <h3 className="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center gap-1.5">
-                  <Layers size={16} /> 8. Section Layout, Gaps &amp; Positioning Engine
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); resetSectionLayout(); }}
-                    className="text-[10.5px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg hover:bg-amber-400/20 flex items-center gap-1"
-                    title="Reset Layout to Default"
-                  >
-                    <RotateCcw size={11} /> Reset
-                  </button>
-                  <button className="text-slate-400 hover:text-white p-1">
-                    {openSections.layout ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openSections.layout
-                    ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
-                    : 'grid-rows-[0fr] opacity-0 overflow-hidden'
-                }`}
-              >
-                <div className="overflow-hidden space-y-4">
-                  {/* Section Gap Slider & Presets */}
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-300">Gap Between Sections</label>
-                      <span className="text-[11px] font-black font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
-                        {sectionGap}px Spacing
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max="60"
-                      step="1"
-                      value={sectionGap}
-                      onChange={e => setSectionGap(Number(e.target.value))}
-                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                    />
-
-                    <div className="grid grid-cols-5 gap-1">
-                      {[
-                        { label: '4px Tight', val: 4 },
-                        { label: '10px Std', val: 10 },
-                        { label: '18px Wide', val: 18 },
-                        { label: '30px Max', val: 30 },
-                        { label: '50px Jumbo', val: 50 },
-                      ].map(g => (
-                        <button
-                          key={g.val}
-                          type="button"
-                          onClick={() => setSectionGap(g.val)}
-                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all truncate ${
-                            sectionGap === g.val
-                              ? 'bg-amber-500 text-slate-950 shadow font-black'
-                              : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-                          }`}
-                        >
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Top & Bottom Page Margin Padding Controls */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Top Padding Control */}
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div
+                  className={`grid transition-all duration-300 ease-in-out ${
+                    openSections.terms
+                      ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                      : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                  }`}
+                >
+                  <div className="overflow-hidden space-y-3">
+                    {/* Quick Select from Previous / Saved Templates */}
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">Top Page Space</label>
-                        <span className="text-[11px] font-black font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded border border-indigo-400/20">
-                          {pdfTopPadding}px
-                        </span>
+                        <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                          <Sparkles size={12} className="text-sky-400" /> Select from Previous / Saved Templates:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingNewTerms(prev => !prev)}
+                          className="text-[10px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded-lg hover:bg-sky-500/20 transition-all flex items-center gap-1"
+                        >
+                          <Plus size={11} /> {isAddingNewTerms ? 'Close Form' : '+ Save Current as New Template'}
+                        </button>
                       </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="50"
-                        step="2"
-                        value={pdfTopPadding}
-                        onChange={e => setPdfTopPadding(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400"
+
+                      {/* Template Pills */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {termsTemplates.map(tmpl => {
+                          const isSelected = termsText.trim() === tmpl.text.trim();
+                          return (
+                            <button
+                              key={tmpl.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTermsId(tmpl.id);
+                                setTermsText(tmpl.text);
+                              }}
+                              className={`text-[10.5px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-sm shadow-sky-500/20 font-black'
+                                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                              }`}
+                            >
+                              {tmpl.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add New Template Input Form */}
+                      {isAddingNewTerms && (
+                        <div className="pt-2 border-t border-slate-800/80 space-y-2 animate-fade-in">
+                          <label className="text-[10px] font-bold text-sky-300 block">
+                            Name your current terms template to save it for future quotes:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newTermsTemplateName}
+                              onChange={e => setNewTermsTemplateName(e.target.value)}
+                              placeholder="e.g. 50-50 Milestone Terms, AMC Contract Terms..."
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:border-sky-500 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveCustomTerms}
+                              className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            >
+                              Save Template
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingNewTerms(false)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Editable Terms Textarea */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">
+                        Active Terms &amp; Conditions (Printed in PDF &amp; Word Export):
+                      </label>
+                      <textarea
+                        value={termsText}
+                        onChange={e => setTermsText(e.target.value)}
+                        rows={3}
+                        placeholder="Enter terms and conditions line by line..."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 resize-none font-sans focus:border-sky-500 focus:outline-none"
                       />
-                      <div className="flex gap-1">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 🎚️ 6. GST TAX RATE & TAX TYPE (CGST / IGST / UTGST / EXEMPT) */}
+              <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+                openSections.gst
+                  ? 'bg-slate-900 border-amber-500/60 ring-1 ring-amber-500/25 shadow-[0_4px_25px_rgba(245,158,11,0.12)]'
+                  : isStep6Done
+                  ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+              }`}>
+                <div
+                  onClick={() => toggleSection('gst')}
+                  className="flex items-center justify-between cursor-pointer select-none gap-2"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isStep6Done
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                        : openSections.gst
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}>
+                      {isStep6Done ? <Check size={12} strokeWidth={3} /> : '6'}
+                    </span>
+                    <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 truncate ${
+                      isStep6Done ? 'text-emerald-400' : 'text-amber-400'
+                    }`}>
+                      <Percent size={15} className="flex-shrink-0" /> 6. GST Tax Rate &amp; Tax Type
+                      <span className="text-[9.5px] font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/80">Optional</span>
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10.5px] sm:text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg">
+                      {gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_', '+')})`}
+                    </span>
+                    <button className="text-slate-400 hover:text-white p-1">
+                      <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.gst ? 'rotate-180 text-amber-400' : 'rotate-0 text-slate-400'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className={`grid transition-all duration-300 ease-in-out ${
+                    openSections.gst
+                      ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                      : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                  }`}
+                >
+                  <div className="overflow-hidden space-y-4">
+                    {/* GST Tax Type Selector (CGST + SGST, IGST, CGST + UTGST, EXEMPT) */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-black uppercase text-amber-400 tracking-wider">
+                        Select GST Tax Type / Mechanism:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                         {[
-                          { label: '15px', val: 15 },
-                          { label: '32px Std', val: 32 },
-                          { label: '45px Max', val: 45 },
+                          { id: 'CGST_SGST', label: 'CGST + SGST', sub: 'In-State Split' },
+                          { id: 'IGST', label: 'IGST', sub: 'Integrated Interstate' },
+                          { id: 'CGST_UTGST', label: 'CGST + UTGST', sub: 'Union Territory' },
+                          { id: 'EXEMPT', label: 'EXEMPT / NIL', sub: '0% Tax Exempt' },
                         ].map(t => (
                           <button
-                            key={t.val}
+                            key={t.id}
                             type="button"
-                            onClick={() => setPdfTopPadding(t.val)}
-                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
-                              pdfTopPadding === t.val ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            onClick={() => {
+                              setGstType(t.id as any);
+                              if (t.id === 'EXEMPT') {
+                                handleApplyGlobalGst(0);
+                              } else if (globalGstRate === 0) {
+                                handleApplyGlobalGst(18);
+                              }
+                            }}
+                            className={`py-2 px-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              gstType === t.id
+                                ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-lg shadow-amber-500/20'
+                                : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
                             }`}
                           >
-                            {t.label}
+                            <p className="text-xs font-black truncate">{t.label}</p>
+                            <p className={`text-[9.5px] truncate ${gstType === t.id ? 'text-slate-900 font-bold' : 'text-slate-500'}`}>
+                              {t.sub}
+                            </p>
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* Bottom Padding Control */}
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                    {/* GST Rate Slider & Presets */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">Bottom Page Space</label>
-                        <span className="text-[11px] font-black font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded border border-emerald-400/20">
-                          {pdfBottomPadding}px
+                        <label className="text-xs font-bold text-slate-300">GST Tax Rate Percentage</label>
+                        <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded font-mono border border-amber-400/20">
+                          {globalGstRate}% Imposed
                         </span>
                       </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="50"
-                        step="2"
-                        value={pdfBottomPadding}
-                        onChange={e => setPdfBottomPadding(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                      />
-                      <div className="flex gap-1">
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-slate-400">0%</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={28}
+                          step={1}
+                          value={globalGstRate}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            handleApplyGlobalGst(val);
+                            if (val === 0) setGstType('EXEMPT');
+                            else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
+                          }}
+                          className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
+                        <span className="text-[10px] font-bold text-slate-400">28%</span>
+                      </div>
+
+                      {/* Quick GST Presets */}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
                         {[
-                          { label: '12px', val: 12 },
-                          { label: '28px Std', val: 28 },
-                          { label: '40px Max', val: 40 },
-                        ].map(b => (
+                          { label: '0% Exempt', val: 0 },
+                          { label: '5% Reduced', val: 5 },
+                          { label: '12% Standard', val: 12 },
+                          { label: '18% Standard', val: 18 },
+                          { label: '28% Luxury', val: 28 },
+                        ].map(preset => (
                           <button
-                            key={b.val}
+                            key={preset.val}
                             type="button"
-                            onClick={() => setPdfBottomPadding(b.val)}
-                            className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
-                              pdfBottomPadding === b.val ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                            onClick={() => {
+                              handleApplyGlobalGst(preset.val);
+                              if (preset.val === 0) setGstType('EXEMPT');
+                              else if (gstType === 'EXEMPT') setGstType('CGST_SGST');
+                            }}
+                            className={`py-1.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                              globalGstRate === preset.val
+                                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                                : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
                             }`}
                           >
-                            {b.label}
+                            {preset.label}
                           </button>
                         ))}
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
 
-                  {/* Section Position Re-ordering List */}
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider">
-                      Section Sequence &amp; Visibility Controls
-                    </label>
-                    <div className="space-y-1.5">
-                      {sectionOrder.map((secId, idx) => {
-                        const meta = SECTION_METADATA.find(m => m.id === secId);
-                        const isVisible = visibleSections[secId];
-                        return (
-                          <div
-                            key={secId}
-                            className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
-                              isVisible
-                                ? 'bg-slate-950 border-slate-800 text-white'
-                                : 'bg-slate-950/40 border-slate-900 text-slate-500 opacity-60'
+              {/* ⚙️ 7. PAGE MARGINS & SIZING CONTROLS */}
+              <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+                openSections.pdf
+                  ? 'bg-slate-900 border-indigo-500/60 ring-1 ring-indigo-500/25 shadow-[0_4px_25px_rgba(99,102,241,0.12)]'
+                  : isStep7Done
+                  ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+              }`}>
+                <div
+                  onClick={() => toggleSection('pdf')}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isStep7Done
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                        : openSections.pdf
+                        ? 'bg-indigo-500 text-slate-950 shadow-md shadow-indigo-500/25'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}>
+                      {isStep7Done ? <Check size={12} strokeWidth={3} /> : '7'}
+                    </span>
+                    <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                      isStep7Done ? 'text-emerald-400' : 'text-indigo-400'
+                    }`}>
+                      <Sliders size={15} /> 7. Page Margins &amp; Controls
+                      <span className="text-[9.5px] font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/80">Optional</span>
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                      isStep7Done
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      {isStep7Done ? `✓ ${pdfMargin}mm Margin` : 'Pending'}
+                    </span>
+                    <button className="text-slate-400 hover:text-white p-1">
+                      <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.pdf ? 'rotate-180 text-indigo-400' : 'rotate-0 text-slate-400'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className={`grid transition-all duration-300 ease-in-out ${
+                    openSections.pdf
+                      ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                      : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                  }`}
+                >
+                  <div className="overflow-hidden space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Margin Control */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Padding / Margin</label>
+                        <div className="flex gap-1.5">
+                          {[
+                            { label: '6mm Compact', val: 6 },
+                            { label: '10mm Standard', val: 10 },
+                            { label: '15mm Spacious', val: 15 },
+                          ].map(m => (
+                            <button
+                              key={m.val}
+                              type="button"
+                              onClick={() => setPdfMargin(m.val)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                pdfMargin === m.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Page Mode Control */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Page Flow Mode</label>
+                        <div className="flex gap-1.5">
+                          {[
+                            { label: '📄 1-Page Strict', val: 'SINGLE' },
+                            { label: '📄📄 Multi-Page', val: 'MULTI' },
+                          ].map(p => (
+                            <button
+                              key={p.val}
+                              type="button"
+                              onClick={() => setPdfPageMode(p.val as any)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                pdfPageMode === p.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Top and Bottom Padding Controls */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Header Top Padding: {pdfTopPadding}px</label>
+                        <div className="flex gap-1">
+                          {[
+                            { label: '16px Tight', val: 16 },
+                            { label: '32px Std', val: 32 },
+                            { label: '48px Max', val: 48 },
+                          ].map(b => (
+                            <button
+                              key={b.val}
+                              type="button"
+                              onClick={() => setPdfTopPadding(b.val)}
+                              className={`flex-1 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                pdfTopPadding === b.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                              }`}
+                            >
+                              {b.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 mb-1.5">Footer Bottom Padding: {pdfBottomPadding}px</label>
+                        <div className="flex gap-1">
+                          {[
+                            { label: '12px Tight', val: 12 },
+                            { label: '28px Std', val: 28 },
+                            { label: '40px Max', val: 40 },
+                          ].map(b => (
+                            <button
+                              key={b.val}
+                              type="button"
+                              onClick={() => setPdfBottomPadding(b.val)}
+                              className={`flex-1 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                pdfBottomPadding === b.val ? 'bg-indigo-600 text-white shadow' : 'bg-slate-950 text-slate-400 border border-slate-800'
+                              }`}
+                            >
+                              {b.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 🎨 8. SECTION LAYOUT, GAPS & POSITIONING */}
+              <div className={`crm-card rounded-2xl p-4 sm:p-5 transition-all duration-300 border ${
+                openSections.layout
+                  ? 'bg-slate-900 border-violet-500/60 ring-1 ring-violet-500/25 shadow-[0_4px_25px_rgba(139,92,246,0.12)]'
+                  : isStep8Done
+                  ? 'bg-slate-900/80 border-emerald-500/35 hover:border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                  : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700/80'
+              }`}>
+                <div
+                  onClick={() => toggleSection('layout')}
+                  className="flex items-center justify-between cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                      isStep8Done
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/25'
+                        : openSections.layout
+                        ? 'bg-violet-500 text-slate-950 shadow-md shadow-violet-500/25'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700'
+                    }`}>
+                      {isStep8Done ? <Check size={12} strokeWidth={3} /> : '8'}
+                    </span>
+                    <h3 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                      isStep8Done ? 'text-emerald-400' : 'text-amber-400'
+                    }`}>
+                      <Layers size={15} /> 8. Section Layout, Gaps &amp; Positioning
+                      <span className="text-[9.5px] font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/80">Optional</span>
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); resetSectionLayout(); }}
+                      className="text-[10.5px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg hover:bg-amber-400/20 flex items-center gap-1 cursor-pointer"
+                      title="Reset Layout to Default"
+                    >
+                      <RotateCcw size={11} /> Reset
+                    </button>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${
+                      isStep8Done
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                    }`}>
+                      {isStep8Done ? '✓ Completed' : 'Pending'}
+                    </span>
+                    <button className="text-slate-400 hover:text-white p-1">
+                      <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.layout ? 'rotate-180 text-violet-400' : 'rotate-0 text-slate-400'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className={`grid transition-all duration-300 ease-in-out ${
+                    openSections.layout
+                      ? 'grid-rows-[1fr] opacity-100 pt-3 border-t border-slate-800 mt-3'
+                      : 'grid-rows-[0fr] opacity-0 overflow-hidden'
+                  }`}
+                >
+                  <div className="overflow-hidden space-y-4">
+                    {/* Section Gap Slider & Presets */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300">Gap Between Sections</label>
+                        <span className="text-[11px] font-black font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                          {sectionGap}px Spacing
+                        </span>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max="60"
+                        step="1"
+                        value={sectionGap}
+                        onChange={e => setSectionGap(Number(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                      />
+
+                      <div className="grid grid-cols-5 gap-1">
+                        {[
+                          { label: '4px Tight', val: 4 },
+                          { label: '10px Std', val: 10 },
+                          { label: '18px Wide', val: 18 },
+                          { label: '30px Max', val: 30 },
+                          { label: '50px Jumbo', val: 50 },
+                        ].map(g => (
+                          <button
+                            key={g.val}
+                            type="button"
+                            onClick={() => setSectionGap(g.val)}
+                            className={`py-1 rounded-lg text-[10px] font-extrabold transition-all truncate cursor-pointer ${
+                              sectionGap === g.val
+                                ? 'bg-amber-500 text-slate-950 shadow font-black'
+                                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-5 h-5 rounded bg-slate-900 border border-slate-800 text-[10px] font-black text-amber-400 flex items-center justify-center flex-shrink-0 font-mono">
-                                #{idx + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate leading-tight">{meta?.label}</p>
-                                <p className="text-[10px] text-slate-500 truncate leading-tight">{meta?.desc}</p>
+                            {g.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section Position Re-ordering List */}
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                        Section Sequence &amp; Visibility Controls
+                      </label>
+                      <div className="space-y-1.5">
+                        {sectionOrder.map((secId, idx) => {
+                          const meta = SECTION_METADATA.find(m => m.id === secId);
+                          const isVisible = visibleSections[secId];
+                          return (
+                            <div
+                              key={secId}
+                              className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                                isVisible
+                                  ? 'bg-slate-950 border-slate-800 text-white'
+                                  : 'bg-slate-950/40 border-slate-900 text-slate-500 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="w-5 h-5 rounded bg-slate-900 border border-slate-800 text-[10px] font-black text-amber-400 flex items-center justify-center flex-shrink-0 font-mono">
+                                  #{idx + 1}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold truncate leading-tight">{meta?.label}</p>
+                                  <p className="text-[10px] text-slate-500 truncate leading-tight">{meta?.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Move Up */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveSectionUp(secId)}
+                                  disabled={idx === 0}
+                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                  title="Move Section Up"
+                                >
+                                  <ArrowUp size={13} />
+                                </button>
+
+                                {/* Move Down */}
+                                <button
+                                  type="button"
+                                  onClick={() => moveSectionDown(secId)}
+                                  disabled={idx === sectionOrder.length - 1}
+                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                  title="Move Section Down"
+                                >
+                                  <ArrowDown size={13} />
+                                </button>
+
+                                {/* Visibility Toggle */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSectionVisibility(secId)}
+                                  className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    isVisible
+                                      ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
+                                      : 'bg-slate-800 text-slate-500 border border-slate-700'
+                                  }`}
+                                  title={isVisible ? 'Hide Section' : 'Show Section'}
+                                >
+                                  {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
+                                </button>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {/* Move Up */}
-                              <button
-                                type="button"
-                                onClick={() => moveSectionUp(secId)}
-                                disabled={idx === 0}
-                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
-                                title="Move Section Up"
-                              >
-                                <ArrowUp size={13} />
-                              </button>
-
-                              {/* Move Down */}
-                              <button
-                                type="button"
-                                onClick={() => moveSectionDown(secId)}
-                                disabled={idx === sectionOrder.length - 1}
-                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent"
-                                title="Move Section Down"
-                              >
-                                <ArrowDown size={13} />
-                              </button>
-
-                              {/* Visibility Toggle */}
-                              <button
-                                type="button"
-                                onClick={() => toggleSectionVisibility(secId)}
-                                className={`p-1.5 rounded-lg text-xs font-bold transition-all ${
-                                  isVisible
-                                    ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
-                                    : 'bg-slate-800 text-slate-500 border border-slate-700'
-                                }`}
-                                title={isVisible ? 'Hide Section' : 'Show Section'}
-                              >
-                                {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
