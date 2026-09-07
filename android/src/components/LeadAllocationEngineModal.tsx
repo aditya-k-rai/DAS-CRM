@@ -389,7 +389,12 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
               style={[styles.modeTab, mode === tab.id && styles.modeTabActive]}
               onPress={() => setMode(tab.id)}
             >
-              <Text style={[styles.modeTabText, mode === tab.id && styles.modeTabTextActive]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={[styles.modeTabText, mode === tab.id && styles.modeTabTextActive]}
+              >
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -684,7 +689,7 @@ const styles = StyleSheet.create({
   closeBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
 
   modeTabBar: { flexDirection: 'row', backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-  modeTab: { flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  modeTab: { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
   modeTabActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
   modeTabText: { fontSize: 11, fontWeight: '800', color: '#64748b' },
   modeTabTextActive: { color: '#ffffff' },

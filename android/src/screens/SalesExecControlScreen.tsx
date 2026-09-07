@@ -184,26 +184,28 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
           <Text style={styles.backBtnText}>← Back to Directory</Text>
         </TouchableOpacity>
         <View style={styles.roleTag}>
-          <Text style={styles.roleTagText}>SALES EXECUTIVE CONTROL</Text>
+          <Text style={styles.roleTagText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            SALES EXECUTIVE CONTROL
+          </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 30 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Text style={styles.profileName}>{employee.name}</Text>
               {employee.isLocked && <Text style={styles.lockedPill}>🔒 LOCKED</Text>}
             </View>
-            <Text style={styles.profileMeta}>✉️ Email: {employee.email}</Text>
+            <Text style={styles.profileMeta} numberOfLines={1}>✉️ Email: {employee.email}</Text>
             <Text style={styles.profileMeta}>📞 Number: {employee.phone}</Text>
-            <Text style={styles.profileMeta}>
+            <Text style={styles.profileMeta} numberOfLines={1}>
               Assigned Under: <Text style={{ color: '#818cf8', fontWeight: '800' }}>{employee.assignedManager}</Text>
             </Text>
           </View>
 
-          <View style={{ gap: 6 }}>
+          <View style={{ gap: 6, flexShrink: 0, justifyContent: 'center' }}>
             <TouchableOpacity style={styles.upgradeBtn} onPress={() => setUpgradeRoleModalOpen(true)}>
               <Text style={styles.upgradeBtnText}>Upgrade Role ⚡</Text>
             </TouchableOpacity>
@@ -464,7 +466,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
   backBtn: { backgroundColor: 'rgba(30, 41, 59, 0.8)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(56, 189, 248, 0.4)', shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 3 },
   backBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
-  roleTag: { backgroundColor: 'rgba(52, 211, 153, 0.18)', borderWidth: 1.5, borderColor: 'rgba(52, 211, 153, 0.5)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
+  roleTag: { backgroundColor: 'rgba(52, 211, 153, 0.18)', borderWidth: 1.5, borderColor: 'rgba(52, 211, 153, 0.5)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, flexShrink: 1, maxWidth: '60%' },
   roleTagText: { fontSize: 10, fontWeight: '900', color: '#34d399', letterSpacing: 0.4 },
   content: { padding: 16, alignItems: 'center' },
   profileCard: { width: '100%', maxWidth: 500, backgroundColor: '#0d1527', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(99, 102, 241, 0.3)', padding: 18, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 },

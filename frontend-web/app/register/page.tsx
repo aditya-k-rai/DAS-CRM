@@ -198,7 +198,7 @@ export default function RegisterCompanyPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-brand-400 text-xs font-semibold">
             <Shield size={14} /> TENANT WORKSPACE ONBOARDING GATEWAY
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Register Your Company Workspace</h1>
+          <h1 className="text-3xl font-extrabold text-foreground dark:text-white tracking-tight">Register Your Company Workspace</h1>
           <p className="text-sm text-muted max-w-md mx-auto">
             Fill in your company details below. Your Company Registration Key and login credentials will be dispatched to your official email ID.
           </p>

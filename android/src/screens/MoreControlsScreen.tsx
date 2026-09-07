@@ -28,6 +28,7 @@ import { BulkIngestionScreen } from './BulkIngestionScreen';
 import AttendanceScreen from './AttendanceScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
+import AppSettingsScreen from './AppSettingsScreen';
 
 export type ModuleKey =
   | 'PRODUCTS'
@@ -269,41 +270,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
         {/* ⚙️ 16. Settings Screen */}
         {activeModal === 'SETTINGS' && (
-          <View style={{ flex: 1 }}>
-            {renderBackBanner('System & App Preferences')}
-            <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiTitle}>⚙️ Workspace Settings</Text>
-                <Text style={styles.kpiSub}>Configure notifications, offline sync, security & API credentials</Text>
-              </View>
-
-              <View style={{ gap: 12, marginTop: 16 }}>
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>🔔 Push Notification Alerts</Text>
-                  <Switch value={true} onValueChange={() => {}} />
-                </View>
-
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>🌙 Dark Mode Theme</Text>
-                  <Switch value={true} onValueChange={() => {}} />
-                </View>
-
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>🔒 Biometric / Passcode Lock</Text>
-                  <Switch value={true} onValueChange={() => {}} />
-                </View>
-
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>📍 High Accuracy GPS Telemetry</Text>
-                  <Switch value={true} onValueChange={() => {}} />
-                </View>
-              </View>
-
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Settings Saved', 'Preferences updated successfully.')}>
-                <Text style={styles.actionBtnText}>Save Preferences</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+          <AppSettingsScreen onClose={closeModal} />
         )}
 
         {/* ❓ 18. Support Screen */}

@@ -15,16 +15,16 @@ export default function SettingsPage() {
         {/* Settings Sub-nav */}
         <div className="col-span-12 lg:col-span-3">
           <div className="crm-card p-2 space-y-1">
-            <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-brand/10 text-white border-l-2 border-brand">
+            <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-brand/10 text-brand dark:text-white border-l-2 border-brand">
               <Building2 size={16} /> Organization Profile
             </Link>
-            <Link href="/settings/team" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+            <Link href="/settings/team" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-foreground dark:hover:text-white hover:bg-muted/50 transition-all">
               <Users size={16} /> Team & Members
             </Link>
-            <Link href="/settings/billing" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+            <Link href="/settings/billing" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-foreground dark:hover:text-white hover:bg-muted/50 transition-all">
               <CreditCard size={16} /> Subscription & Billing
             </Link>
-            <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+            <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-foreground dark:hover:text-white hover:bg-muted/50 transition-all">
               <User size={16} /> My Account Profile
             </Link>
           </div>

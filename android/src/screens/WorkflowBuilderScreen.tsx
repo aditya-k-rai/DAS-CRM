@@ -5,10 +5,9 @@
  *   1. Admin-Only Zone Banner
  *   2. Lead Statuses (Reorder, inline edit, 10-color palette selector, default/won/lost flags, add/delete)
  *   3. Pipeline Stages (Win probabilities, stage colors, reorder, add/delete)
- *   4. Lead Sources (Active toggles, icon selection, add/delete)
- *   5. Custom Fields (Entity: Leads/Contacts/Deals, Type: Text/Number/Dropdown/Date/Toggle, Required flags)
- *   6. Automation Rules Engine (Trigger -> IF Condition -> THEN Action, run logs, detail modals)
- *   7. AsyncStorage persistence for organization-wide lifecycle state.
+ *   4. Custom Fields (Entity: Leads/Contacts/Deals, Type: Text/Number/Dropdown/Date/Toggle, Required flags)
+ *   5. Automation Rules Engine (Trigger -> IF Condition -> THEN Action, run logs, detail modals)
+ *   6. AsyncStorage persistence for organization-wide lifecycle state.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -61,6 +60,13 @@ export interface LeadStatus {
   isLost?: boolean;
 }
 
+export interface ColorPickerTarget {
+  type: 'status' | 'pipeline' | 'new_status' | 'new_stage';
+  id?: string;
+  name: string;
+  currentColor: string;
+}
+
 export interface PipelineStage {
   id: string;
   name: string;
@@ -68,12 +74,6 @@ export interface PipelineStage {
   color: string;
 }
 
-export interface LeadSource {
-  id: string;
-  name: string;
-  icon: string;
-  isActive: boolean;
-}
 
 export interface CustomField {
   id: string;
@@ -116,15 +116,6 @@ const DEFAULT_PIPELINE_STAGES: PipelineStage[] = [
   { id: 'ps-6', name: 'Closed Lost', probability: 0, color: '#ef4444' },
 ];
 
-const DEFAULT_LEAD_SOURCES: LeadSource[] = [
-  { id: 'ls-1', name: 'Website Contact Form', icon: '🌐', isActive: true },
-  { id: 'ls-2', name: 'WhatsApp Cloud Inbound', icon: '💬', isActive: true },
-  { id: 'ls-3', name: 'Customer & Partner Referral', icon: '👥', isActive: true },
-  { id: 'ls-4', name: 'Cold Calling & Outbound', icon: '📞', isActive: true },
-  { id: 'ls-5', name: 'LinkedIn Sales Navigator', icon: '💼', isActive: true },
-  { id: 'ls-6', name: 'Google Search & Meta Ads', icon: '🎯', isActive: true },
-  { id: 'ls-7', name: 'Trade Show & Expo Event', icon: '🎪', isActive: true },
-];
 
 const DEFAULT_CUSTOM_FIELDS: CustomField[] = [
   { id: 'cf-1', label: 'GSTIN / Corporate Tax ID', entity: 'LEADS', type: 'TEXT', required: true },
@@ -149,7 +140,7 @@ const TRIGGER_OPTIONS = [
   { key: 'VALUE_THRESHOLD', icon: 'VL', label: 'Deal Value Threshold' },
 ];
 
-export type TabId = 'statuses' | 'pipeline' | 'sources' | 'fields' | 'automations';
+export type TabId = 'statuses' | 'pipeline' | 'fields' | 'automations';
 
 export interface Props {
   navigation?: any;
@@ -160,20 +151,25 @@ export interface Props {
 
 export default function WorkflowBuilderScreen({ navigation, route, onClose, initialTab }: Props) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab || route?.params?.initialTab || 'statuses');
+  const getSafeInitialTab = (tab?: any): TabId => {
+    if (tab === 'statuses' || tab === 'pipeline' || tab === 'fields' || tab === 'automations') {
+      return tab;
+    }
+    return 'statuses';
+  };
+  const [activeTab, setActiveTab] = useState<TabId>(getSafeInitialTab(initialTab || route?.params?.initialTab));
 
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      setActiveTab(getSafeInitialTab(initialTab));
     } else if (route?.params?.initialTab) {
-      setActiveTab(route?.params?.initialTab);
+      setActiveTab(getSafeInitialTab(route?.params?.initialTab));
     }
   }, [initialTab, route?.params?.initialTab]);
 
   // State Collections
   const [statuses, setStatuses] = useState<LeadStatus[]>(DEFAULT_STATUSES);
   const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>(DEFAULT_PIPELINE_STAGES);
-  const [leadSources, setLeadSources] = useState<LeadSource[]>(DEFAULT_LEAD_SOURCES);
   const [customFields, setCustomFields] = useState<CustomField[]>(DEFAULT_CUSTOM_FIELDS);
   const [rules, setRules] = useState<WorkflowRule[]>(DEFAULT_WORKFLOWS);
 
@@ -187,9 +183,6 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
   const [newStageProb, setNewStageProb] = useState(50);
   const [newStageColor, setNewStageColor] = useState('#6366f1');
 
-  // 3. New Lead Source Form
-  const [newSourceName, setNewSourceName] = useState('');
-  const [newSourceIcon, setNewSourceIcon] = useState('🌐');
 
   // 4. New Custom Field Form
   const [newFieldLabel, setNewFieldLabel] = useState('');
@@ -211,7 +204,6 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
           const parsed = JSON.parse(raw);
           if (parsed.statuses) setStatuses(parsed.statuses);
           if (parsed.pipelineStages) setPipelineStages(parsed.pipelineStages);
-          if (parsed.leadSources) setLeadSources(parsed.leadSources);
           if (parsed.customFields) setCustomFields(parsed.customFields);
           if (parsed.rules) setRules(parsed.rules);
         }
@@ -224,12 +216,31 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
   // Save to AsyncStorage
   const handleSaveChanges = async () => {
     try {
-      const payload = { statuses, pipelineStages, leadSources, customFields, rules };
+      const payload = { statuses, pipelineStages, customFields, rules };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       Alert.alert('✅ Changes Saved', 'Workflow and lifecycle configuration successfully saved for your organization.');
     } catch (err) {
       Alert.alert('Error', 'Failed to persist workflow configurations.');
     }
+  };
+
+  // Color Picker Popup State
+  const [colorPickerTarget, setColorPickerTarget] = useState<ColorPickerTarget | null>(null);
+
+  const handleColorSelected = (color: string) => {
+    if (!colorPickerTarget) return;
+
+    if (colorPickerTarget.type === 'status' && colorPickerTarget.id) {
+      updateStatus(colorPickerTarget.id, 'color', color);
+    } else if (colorPickerTarget.type === 'pipeline' && colorPickerTarget.id) {
+      setPipelineStages(prev => prev.map(s => s.id === colorPickerTarget.id ? { ...s, color } : s));
+    } else if (colorPickerTarget.type === 'new_status') {
+      setNewStatusColor(color);
+    } else if (colorPickerTarget.type === 'new_stage') {
+      setNewStageColor(color);
+    }
+
+    setColorPickerTarget(prev => prev ? { ...prev, currentColor: color } : null);
   };
 
   const goBack = () => {
@@ -250,12 +261,24 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
 
   useEffect(() => {
     const onBackPress = () => {
+      if (colorPickerTarget) {
+        setColorPickerTarget(null);
+        return true;
+      }
+      if (selectedRule) {
+        setSelectedRule(null);
+        return true;
+      }
+      if (createRuleOpen) {
+        setCreateRuleOpen(false);
+        return true;
+      }
       goBack();
       return true;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, []);
+  }, [colorPickerTarget, selectedRule, createRuleOpen]);
 
   // ─── Lead Status Handlers ───────────────────────────────────────────────────
   const addStatus = () => {
@@ -339,28 +362,6 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
     setPipelineStages(updated);
   };
 
-  // ─── Lead Source Handlers ───────────────────────────────────────────────────
-  const addLeadSource = () => {
-    if (!newSourceName.trim()) {
-      Alert.alert('Missing Name', 'Please enter lead source name.');
-      return;
-    }
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setLeadSources(prev => [
-      ...prev,
-      { id: `ls-${Date.now()}`, name: newSourceName.trim(), icon: newSourceIcon, isActive: true },
-    ]);
-    setNewSourceName('');
-  };
-
-  const toggleSourceActive = (id: string) => {
-    setLeadSources(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
-  };
-
-  const removeLeadSource = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setLeadSources(prev => prev.filter(s => s.id !== id));
-  };
 
   // ─── Custom Field Handlers ──────────────────────────────────────────────────
   const addCustomField = () => {
@@ -410,7 +411,6 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
   const TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'statuses', label: 'Lead Statuses', icon: '📋' },
     { id: 'pipeline', label: 'Pipeline Stages', icon: '⊞' },
-    { id: 'sources', label: 'Lead Sources', icon: '📄' },
     { id: 'fields', label: 'Custom Fields', icon: '⚙️' },
     { id: 'automations', label: 'Automation Rules', icon: '⚡' },
   ];
@@ -488,12 +488,24 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
                     </TouchableOpacity>
                   </View>
 
-                  {/* Main Status Color Preview */}
-                  <View style={[styles.statusColorCircle, { backgroundColor: st.color, borderColor: st.color }]} />
+                  {/* Tappable Selected Color Circle (Opens Color Palette Popup) */}
+                  <TouchableOpacity
+                    style={[styles.statusColorCircleBtn, { backgroundColor: st.color, borderColor: st.color }]}
+                    onPress={() => setColorPickerTarget({
+                      type: 'status',
+                      id: st.id,
+                      name: st.name || 'Lead Status',
+                      currentColor: st.color,
+                    })}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <View style={styles.statusColorInnerRing} />
+                  </TouchableOpacity>
 
-                  {/* Editable Status Name */}
+                  {/* Editable Status Name - FULL VISIBILITY */}
                   <TextInput
-                    style={styles.statusInput}
+                    style={[styles.statusInput, { flex: 1 }]}
                     value={st.name}
                     onChangeText={txt => updateStatus(st.id, 'name', txt)}
                     placeholder="Status Name"
@@ -501,38 +513,25 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
                   />
 
                   {/* Badges */}
-                  <View style={styles.badgeWrap}>
-                    {st.isDefault && (
-                      <View style={[styles.pillBadge, { backgroundColor: 'rgba(99,102,241,0.18)', borderColor: 'rgba(99,102,241,0.45)' }]}>
-                        <Text style={[styles.pillBadgeText, { color: '#818cf8' }]}>Default</Text>
-                      </View>
-                    )}
-                    {st.isWon && (
-                      <View style={[styles.pillBadge, { backgroundColor: 'rgba(34,197,94,0.18)', borderColor: 'rgba(34,197,94,0.45)' }]}>
-                        <Text style={[styles.pillBadgeText, { color: '#22c55e' }]}>Won</Text>
-                      </View>
-                    )}
-                    {st.isLost && (
-                      <View style={[styles.pillBadge, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.45)' }]}>
-                        <Text style={[styles.pillBadgeText, { color: '#ef4444' }]}>Lost</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* 10-Color Picker Palette Dots */}
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorPaletteScroll}>
-                    {COLORS.map(c => {
-                      const isSelected = st.color === c;
-                      return (
-                        <TouchableOpacity
-                          key={c}
-                          style={[styles.colorDot, { backgroundColor: c }, isSelected && styles.colorDotSelected]}
-                          onPress={() => updateStatus(st.id, 'color', c)}
-                          activeOpacity={0.7}
-                        />
-                      );
-                    })}
-                  </ScrollView>
+                  {(st.isDefault || st.isWon || st.isLost) && (
+                    <View style={styles.badgeWrap}>
+                      {st.isDefault && (
+                        <View style={[styles.pillBadge, { backgroundColor: 'rgba(99,102,241,0.18)', borderColor: 'rgba(99,102,241,0.45)' }]}>
+                          <Text style={[styles.pillBadgeText, { color: '#818cf8' }]}>Default</Text>
+                        </View>
+                      )}
+                      {st.isWon && (
+                        <View style={[styles.pillBadge, { backgroundColor: 'rgba(34,197,94,0.18)', borderColor: 'rgba(34,197,94,0.45)' }]}>
+                          <Text style={[styles.pillBadgeText, { color: '#22c55e' }]}>Won</Text>
+                        </View>
+                      )}
+                      {st.isLost && (
+                        <View style={[styles.pillBadge, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.45)' }]}>
+                          <Text style={[styles.pillBadgeText, { color: '#ef4444' }]}>Lost</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   {/* Delete button (only for non-locked statuses) */}
                   {!st.isDefault && !st.isWon && !st.isLost ? (
@@ -540,7 +539,7 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
                       <Text style={{ fontSize: 13 }}>🗑️</Text>
                     </TouchableOpacity>
                   ) : (
-                    <View style={{ width: 22 }} />
+                    <View style={{ width: 14 }} />
                   )}
                 </View>
               ))}
@@ -549,7 +548,18 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
             {/* Add New Status Card (Dashed Border) */}
             <View style={styles.addDashedCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <View style={[styles.statusColorCircle, { backgroundColor: newStatusColor, borderColor: newStatusColor }]} />
+                <TouchableOpacity
+                  style={[styles.statusColorCircleBtn, { backgroundColor: newStatusColor, borderColor: newStatusColor }]}
+                  onPress={() => setColorPickerTarget({
+                    type: 'new_status',
+                    name: newStatusName.trim() || 'New Status',
+                    currentColor: newStatusColor,
+                  })}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <View style={styles.statusColorInnerRing} />
+                </TouchableOpacity>
                 <TextInput
                   style={[styles.statusInput, { flex: 1 }]}
                   placeholder="New status name..."
@@ -561,16 +571,18 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorPaletteScroll}>
-                  {COLORS.map(c => (
-                    <TouchableOpacity
-                      key={c}
-                      style={[styles.colorDot, { backgroundColor: c }, newStatusColor === c && styles.colorDotSelected]}
-                      onPress={() => setNewStatusColor(c)}
-                      activeOpacity={0.7}
-                    />
-                  ))}
-                </ScrollView>
+                <TouchableOpacity
+                  style={styles.pickColorChip}
+                  onPress={() => setColorPickerTarget({
+                    type: 'new_status',
+                    name: newStatusName.trim() || 'New Status',
+                    currentColor: newStatusColor,
+                  })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.miniColorDot, { backgroundColor: newStatusColor }]} />
+                  <Text style={styles.pickColorChipText}>Pick Color</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity style={styles.addBtn} onPress={addStatus} activeOpacity={0.8}>
                   <Text style={styles.addBtnText}>+ Add Status</Text>
@@ -613,12 +625,27 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
                     </TouchableOpacity>
                   </View>
 
-                  <View style={[styles.statusColorCircle, { backgroundColor: ps.color, borderColor: ps.color }]} />
+                  {/* Tappable Selected Color Circle (Opens Color Palette Popup) */}
+                  <TouchableOpacity
+                    style={[styles.statusColorCircleBtn, { backgroundColor: ps.color, borderColor: ps.color }]}
+                    onPress={() => setColorPickerTarget({
+                      type: 'pipeline',
+                      id: ps.id,
+                      name: ps.name || 'Pipeline Stage',
+                      currentColor: ps.color,
+                    })}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <View style={styles.statusColorInnerRing} />
+                  </TouchableOpacity>
 
                   <TextInput
-                    style={[styles.statusInput, { flex: 1.2 }]}
+                    style={[styles.statusInput, { flex: 1 }]}
                     value={ps.name}
                     onChangeText={txt => setPipelineStages(p => p.map(s => s.id === ps.id ? { ...s, name: txt } : s))}
+                    placeholder="Stage Name"
+                    placeholderTextColor="#64748b"
                   />
 
                   {/* Probability Stepper */}
@@ -638,18 +665,6 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
                     </TouchableOpacity>
                   </View>
 
-                  {/* Color Selector */}
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorPaletteScroll}>
-                    {COLORS.map(c => (
-                      <TouchableOpacity
-                        key={c}
-                        style={[styles.colorDot, { backgroundColor: c }, ps.color === c && styles.colorDotSelected]}
-                        onPress={() => setPipelineStages(p => p.map(s => s.id === ps.id ? { ...s, color: c } : s))}
-                        activeOpacity={0.7}
-                      />
-                    ))}
-                  </ScrollView>
-
                   <TouchableOpacity onPress={() => removePipelineStage(ps.id)} style={styles.trashBtn}>
                     <Text style={{ fontSize: 13 }}>🗑️</Text>
                   </TouchableOpacity>
@@ -660,7 +675,18 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
             {/* Add New Stage Card */}
             <View style={styles.addDashedCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <View style={[styles.statusColorCircle, { backgroundColor: newStageColor, borderColor: newStageColor }]} />
+                <TouchableOpacity
+                  style={[styles.statusColorCircleBtn, { backgroundColor: newStageColor, borderColor: newStageColor }]}
+                  onPress={() => setColorPickerTarget({
+                    type: 'new_stage',
+                    name: newStageName.trim() || 'New Pipeline Stage',
+                    currentColor: newStageColor,
+                  })}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <View style={styles.statusColorInnerRing} />
+                </TouchableOpacity>
                 <TextInput
                   style={[styles.statusInput, { flex: 1.5 }]}
                   placeholder="New deal stage name..."
@@ -680,16 +706,18 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorPaletteScroll}>
-                  {COLORS.map(c => (
-                    <TouchableOpacity
-                      key={c}
-                      style={[styles.colorDot, { backgroundColor: c }, newStageColor === c && styles.colorDotSelected]}
-                      onPress={() => setNewStageColor(c)}
-                      activeOpacity={0.7}
-                    />
-                  ))}
-                </ScrollView>
+                <TouchableOpacity
+                  style={styles.pickColorChip}
+                  onPress={() => setColorPickerTarget({
+                    type: 'new_stage',
+                    name: newStageName.trim() || 'New Pipeline Stage',
+                    currentColor: newStageColor,
+                  })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.miniColorDot, { backgroundColor: newStageColor }]} />
+                  <Text style={styles.pickColorChipText}>Pick Color</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity style={styles.addBtn} onPress={addPipelineStage} activeOpacity={0.8}>
                   <Text style={styles.addBtnText}>+ Add Stage</Text>
@@ -700,79 +728,7 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
         )}
 
         {/* ───────────────────────────────────────────────────────────────── */}
-        {/* 📄 TAB 3: LEAD SOURCES                                            */}
-        {/* ───────────────────────────────────────────────────────────────── */}
-        {activeTab === 'sources' && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Lead Sources</Text>
-              <Text style={styles.sectionSub}>Manage lead attribution channels, campaigns, and inbound sources.</Text>
-            </View>
-
-            <View style={{ gap: 8, marginBottom: 16 }}>
-              {leadSources.map(ls => (
-                <View key={ls.id} style={styles.sourceRow}>
-                  <Text style={{ fontSize: 20 }}>{ls.icon}</Text>
-                  <TextInput
-                    style={[styles.statusInput, { flex: 1 }]}
-                    value={ls.name}
-                    onChangeText={txt => setLeadSources(p => p.map(s => s.id === ls.id ? { ...s, name: txt } : s))}
-                  />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: ls.isActive ? '#34d399' : '#64748b' }}>
-                      {ls.isActive ? 'ACTIVE' : 'OFF'}
-                    </Text>
-                    <Switch
-                      value={ls.isActive}
-                      onValueChange={() => toggleSourceActive(ls.id)}
-                      trackColor={{ false: '#1e293b', true: '#10b981' }}
-                      thumbColor="#ffffff"
-                    />
-                    <TouchableOpacity onPress={() => removeLeadSource(ls.id)} style={styles.trashBtn}>
-                      <Text style={{ fontSize: 13 }}>🗑️</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            {/* Add New Source */}
-            <View style={styles.addDashedCard}>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8', marginBottom: 8 }}>
-                ➕ Register New Lead Channel Source
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                  {['🌐', '💬', '👥', '📞', '💼', '🎯', '🎪', '✉️', '📣', '🤖'].map(ic => (
-                    <TouchableOpacity
-                      key={ic}
-                      style={[styles.iconChoice, newSourceIcon === ic && styles.iconChoiceSelected]}
-                      onPress={() => setNewSourceIcon(ic)}
-                    >
-                      <Text style={{ fontSize: 16 }}>{ic}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput
-                  style={[styles.statusInput, { flex: 1 }]}
-                  placeholder="Lead source channel name (e.g. Meta Reels Ads)..."
-                  placeholderTextColor="#64748b"
-                  value={newSourceName}
-                  onChangeText={setNewSourceName}
-                />
-                <TouchableOpacity style={styles.addBtn} onPress={addLeadSource} activeOpacity={0.8}>
-                  <Text style={styles.addBtnText}>+ Add Source</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ───────────────────────────────────────────────────────────────── */}
-        {/* ⚙️ TAB 4: CUSTOM FIELDS                                           */}
+        {/* ⚙️ TAB 3: CUSTOM FIELDS                                           */}
         {/* ───────────────────────────────────────────────────────────────── */}
         {activeTab === 'fields' && (
           <View style={styles.sectionCard}>
@@ -1080,6 +1036,87 @@ export default function WorkflowBuilderScreen({ navigation, route, onClose, init
           </View>
         </View>
       </Modal>
+
+      {/* ── Color Picker Popup Modal ── */}
+      <Modal
+        visible={!!colorPickerTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setColorPickerTarget(null)}
+      >
+        <TouchableOpacity
+          style={styles.colorModalOverlay}
+          activeOpacity={1}
+          onPress={() => setColorPickerTarget(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.colorModalCard}
+            onPress={e => e.stopPropagation?.()}
+          >
+            <View style={styles.modalHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Choose Color</Text>
+                <Text style={styles.modalSub} numberOfLines={1}>
+                  {colorPickerTarget ? `Pick theme color for "${colorPickerTarget.name}"` : 'Select a color'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setColorPickerTarget(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Current Selected Color Banner */}
+            {colorPickerTarget && (
+              <View style={styles.currentColorBanner}>
+                <View style={[styles.largeColorPreview, { backgroundColor: colorPickerTarget.currentColor, borderColor: colorPickerTarget.currentColor }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.currentColorName} numberOfLines={1}>{colorPickerTarget.name}</Text>
+                  <Text style={styles.currentColorHex}>{colorPickerTarget.currentColor.toUpperCase()}</Text>
+                </View>
+                <View style={[styles.pillBadge, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' }]}>
+                  <Text style={[styles.pillBadgeText, { color: '#94a3b8' }]}>Active</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Color Palette Grid */}
+            <Text style={styles.sectionLbl}>SELECT FROM PALETTE</Text>
+            <View style={styles.colorGrid}>
+              {COLORS.map(c => {
+                const isSelected = colorPickerTarget?.currentColor === c;
+                return (
+                  <TouchableOpacity
+                    key={c}
+                    style={[
+                      styles.colorGridItem,
+                      { backgroundColor: c },
+                      isSelected && styles.colorGridItemSelected,
+                    ]}
+                    onPress={() => handleColorSelected(c)}
+                    activeOpacity={0.8}
+                  >
+                    {isSelected && <Text style={styles.colorGridCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Done Button */}
+            <TouchableOpacity
+              style={styles.colorModalDoneBtn}
+              onPress={() => setColorPickerTarget(null)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.colorModalDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -1223,8 +1260,29 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#ffffff',
   },
+  statusColorCircleBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statusColorInnerRing: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
   statusInput: {
     flex: 1,
+    minWidth: 90,
     fontSize: 12,
     fontWeight: '800',
     color: '#ffffff',
@@ -1262,6 +1320,127 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // Color Picker Popup Modal Styles
+  colorModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  colorModalCard: {
+    width: '100%',
+    maxWidth: 350,
+    backgroundColor: '#0c1322',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  currentColorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#090d16',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 12,
+    marginBottom: 16,
+  },
+  largeColorPreview: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  currentColorName: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  currentColorHex: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#818cf8',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginVertical: 14,
+  },
+  colorGridItem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorGridItemSelected: {
+    borderColor: '#ffffff',
+    transform: [{ scale: 1.15 }],
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  colorGridCheck: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  colorModalDoneBtn: {
+    backgroundColor: '#4f46e5',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#818cf8',
+  },
+  colorModalDoneBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  pickColorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0f172a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  miniColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  pickColorChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94a3b8',
+  },
+
   // Add Dashed Card
   addDashedCard: {
     backgroundColor: 'rgba(255,255,255,0.02)',
@@ -1297,31 +1476,6 @@ const styles = StyleSheet.create({
   probBtnText: { color: '#818cf8', fontSize: 12, fontWeight: '900' },
   probText: { color: '#38bdf8', fontSize: 10.5, fontWeight: '900', minWidth: 32, textAlign: 'center' },
 
-  // Sources
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#090d16',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    padding: 10,
-  },
-  iconChoice: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#0f172a',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconChoiceSelected: {
-    borderColor: '#818cf8',
-    backgroundColor: 'rgba(99,102,241,0.2)',
-  },
 
   // Custom Fields
   fieldRow: {

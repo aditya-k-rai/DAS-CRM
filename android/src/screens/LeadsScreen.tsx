@@ -177,17 +177,17 @@ export default function LeadsScreen() {
   });
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    name: 140,
-    email: 175,
-    phone: 165,
-    company: 150,
-    source: 110,
-    status: 125,
-    value: 115,
-    assignedRep: 135,
-    city: 110,
-    budget: 100,
-    requirement: 150,
+    name: 150,
+    email: 180,
+    phone: 170,
+    company: 160,
+    source: 120,
+    status: 135,
+    value: 125,
+    assignedRep: 175,
+    city: 130,
+    budget: 120,
+    requirement: 160,
   });
 
   const totalExcelWidth = useMemo(() => {
@@ -215,9 +215,14 @@ export default function LeadsScreen() {
   };
 
   const toggleColumnWidth = (colKey: string) => {
-    const currW = columnWidths[colKey] || 140;
-    const nextW = currW === 140 ? 210 : currW === 210 ? 280 : 140;
-    setColumnWidths((prev) => ({ ...prev, [colKey]: nextW }));
+    setColumnWidths((prev) => {
+      const currW = prev[colKey] || 150;
+      let nextW = 150;
+      if (currW < 180) nextW = 230;
+      else if (currW < 260) nextW = 310;
+      else nextW = 150;
+      return { ...prev, [colKey]: nextW };
+    });
   };
 
   const openHeaderRenameModal = (colKey: string) => {
@@ -534,20 +539,20 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             style={[styles.excelDataCell, { width }]}
             onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name })}
           >
-            <Text style={styles.excelCellName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.excelCellName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           </TouchableOpacity>
         );
       case 'email':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellEmail} numberOfLines={1}>{item.email}</Text>
+            <Text style={styles.excelCellEmail} numberOfLines={1} ellipsizeMode="tail">{item.email}</Text>
           </View>
         );
       case 'phone':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width, flexDirection: 'column', justifyContent: 'center' }]}>
-            <Text style={styles.excelCellPhone}>{item.phone}</Text>
-            <Text style={styles.excelCellTelemetry} numberOfLines={1}>
+            <Text style={styles.excelCellPhone} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
+            <Text style={styles.excelCellTelemetry} numberOfLines={1} ellipsizeMode="tail">
               {item.callSyncStatus || 'Synced: Today 2:45 PM • Connected'}
             </Text>
           </View>
@@ -555,14 +560,14 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       case 'company':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCompany} numberOfLines={1}>{item.company}</Text>
+            <Text style={styles.excelCellCompany} numberOfLines={1} ellipsizeMode="tail">{item.company}</Text>
           </View>
         );
       case 'source':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <View style={styles.excelSourceBadge}>
-              <Text style={styles.excelSourceText}>{item.source}</Text>
+            <View style={[styles.excelSourceBadge, { maxWidth: '100%' }]}>
+              <Text style={styles.excelSourceText} numberOfLines={1} ellipsizeMode="tail">{item.source}</Text>
             </View>
           </View>
         );
@@ -570,19 +575,20 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
             <View style={[styles.excelStagePill, {
+              maxWidth: '100%',
               backgroundColor: item.status.includes('Won') || item.status === 'WON' ? 'rgba(16,185,129,0.15)' : item.status.includes('Negotiation') ? 'rgba(245,158,11,0.15)' : 'rgba(99,102,241,0.15)',
               borderColor: item.status.includes('Won') || item.status === 'WON' ? 'rgba(16,185,129,0.4)' : item.status.includes('Negotiation') ? 'rgba(245,158,11,0.4)' : 'rgba(99,102,241,0.4)',
             }]}>
               <Text style={[styles.excelStageText, {
                 color: item.status.includes('Won') || item.status === 'WON' ? '#34d399' : item.status.includes('Negotiation') ? '#fbbf24' : '#818cf8',
-              }]}>{item.status}</Text>
+              }]} numberOfLines={1} ellipsizeMode="tail">{item.status}</Text>
             </View>
           </View>
         );
       case 'value':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellValue}>{item.value}</Text>
+            <Text style={styles.excelCellValue} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
           </View>
         );
       case 'assignedRep': {
@@ -593,12 +599,24 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           return (
             <View key={colKey} style={[styles.excelDataCell, { width }]}>
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#020617', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1e293b' }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#020617',
+                  paddingHorizontal: 6,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: '#1e293b',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                }}
                 onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
               >
-                <Text style={{ fontSize: 10 }}>🔒</Text>
-                <Text style={[styles.excelCellRep, { fontSize: 10, color: '#cbd5e1' }]} numberOfLines={1}>{item.assignedRep}</Text>
-                <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                <Text style={{ fontSize: 10, flexShrink: 0 }}>🔒</Text>
+                <Text style={[styles.excelCellRep, { fontSize: 10, color: '#cbd5e1', flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">{item.assignedRep}</Text>
+                <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 }}>
                   <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
                 </View>
               </TouchableOpacity>
@@ -610,7 +628,19 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
             <TouchableOpacity
               style={[
-                { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#0f172a',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: '#334155',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                },
                 isUnassigned && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b' },
               ]}
               onPress={() => {
@@ -627,10 +657,14 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 );
               }}
             >
-              <Text style={[{ fontSize: 10, fontWeight: '800', color: '#818cf8' }, isUnassigned && { color: '#fbbf24' }]} numberOfLines={1}>
+              <Text
+                style={[{ fontSize: 10, fontWeight: '800', color: '#818cf8', flex: 1, marginRight: 4 }, isUnassigned && { color: '#fbbf24' }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {isUnassigned ? '⚠️ Unassigned' : item.assignedRep}
               </Text>
-              <Text style={{ color: '#64748b', fontSize: 9 }}>▼</Text>
+              <Text style={{ color: '#64748b', fontSize: 9, flexShrink: 0 }}>▼</Text>
             </TouchableOpacity>
           </View>
         );
@@ -638,25 +672,25 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       case 'city':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom}>{item.city || 'Mumbai'}</Text>
+            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.city || 'Mumbai'}</Text>
           </View>
         );
       case 'budget':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom}>{item.budget || '50k-1L'}</Text>
+            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.budget || '50k-1L'}</Text>
           </View>
         );
       case 'requirement':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom} numberOfLines={1}>{item.requirement || 'CRM Suite'}</Text>
+            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.requirement || 'CRM Suite'}</Text>
           </View>
         );
       default:
         return (
           <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom}>-</Text>
+            <Text style={styles.excelCellCustom} numberOfLines={1}>-</Text>
           </View>
         );
     }
@@ -1847,13 +1881,13 @@ const styles = StyleSheet.create({
   excelRowNumCell: { width: 44, height: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329' },
 
   // Column control cell (title + ← → ↔ buttons side by side)
-  excelColControl: { height: 56, flexDirection: 'row', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 6 },
+  excelColControl: { height: 56, flexDirection: 'row', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 6, overflow: 'hidden' },
   excelColTitleBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5, justifyContent: 'center' },
   excelColTitleText: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
-  excelColControls: { flexDirection: 'row', gap: 3, marginLeft: 4 },
-  excelColBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 6, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  excelColControls: { flexDirection: 'row', gap: 2, marginLeft: 4, flexShrink: 0 },
+  excelColBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 5, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
   excelColBtnDisabled: { opacity: 0.3 },
-  excelColBtnText: { fontSize: 11, fontWeight: '900', color: '#38bdf8' },
+  excelColBtnText: { fontSize: 10, fontWeight: '900', color: '#38bdf8' },
 
   // Data body (inside horizontal ScrollView — no horizontal scrolling needed here)
   excelBodyList: { flex: 1 },
@@ -1884,7 +1918,7 @@ const styles = StyleSheet.create({
   excelRowNum: { width: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329', borderRightWidth: 1, borderRightColor: '#1e293b' },
   excelRowNumText: { fontSize: 10, fontWeight: '700', color: '#475569' },
   excelRowAlt: { backgroundColor: '#0b1120' },
-  excelDataCell: { paddingHorizontal: 8, paddingVertical: 8, borderRightWidth: 1, borderRightColor: '#1e293b', justifyContent: 'center' },
+  excelDataCell: { paddingHorizontal: 8, paddingVertical: 8, borderRightWidth: 1, borderRightColor: '#1e293b', justifyContent: 'center', overflow: 'hidden' },
 
   excelCellName: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
   excelCellEmail: { fontSize: 10, color: '#38bdf8', fontWeight: '600' },

@@ -13,6 +13,36 @@ export interface CategoryTree {
   subCategories: string[];
 }
 
+export interface ProductCardDisplayConfig {
+  showImage: boolean;
+  showName: boolean;
+  showCategory: boolean;
+  showSubCategory: boolean;
+  showPrice: boolean;
+  showGst: boolean;
+  showInStock: boolean;
+  showMoq: boolean;
+  showSku: boolean;
+  showDescription: boolean;
+  showFeatures: boolean;
+  showTapHint: boolean;
+}
+
+export const DEFAULT_CARD_DISPLAY_CONFIG: ProductCardDisplayConfig = {
+  showImage: true,
+  showName: true,
+  showCategory: true,
+  showSubCategory: true,
+  showPrice: true,
+  showGst: true,
+  showInStock: true,
+  showMoq: true,
+  showSku: true,
+  showDescription: false, // Clean display by default as requested
+  showFeatures: false,    // Clean display by default as requested
+  showTapHint: true,
+};
+
 export interface CatalogProductItem {
   id: string;
   name: string;
@@ -34,6 +64,7 @@ export interface CatalogProductItem {
 
 const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_v3';
 const STORAGE_CATS_KEY = 'das_crm_categories_tree_v1';
+const STORAGE_CARD_CONFIG_KEY = 'das_crm_product_card_display_config_v1';
 
 export const DEFAULT_CATEGORY_TREE: CategoryTree[] = [
   {
@@ -278,6 +309,36 @@ class ProductCatalogService {
     const updated = list.filter((p) => p.id !== id);
     await this.saveProducts(updated);
     return updated;
+  }
+
+  /**
+   * Admin-Only: Retrieve saved product card display configuration.
+   * Falls back to DEFAULT_CARD_DISPLAY_CONFIG.
+   */
+  async getCardDisplayConfig(): Promise<ProductCardDisplayConfig> {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_CARD_CONFIG_KEY);
+      if (stored) {
+        return {
+          ...DEFAULT_CARD_DISPLAY_CONFIG,
+          ...JSON.parse(stored),
+        };
+      }
+    } catch (err) {
+      console.log('Failed to load product card display config:', err);
+    }
+    return DEFAULT_CARD_DISPLAY_CONFIG;
+  }
+
+  /**
+   * Admin-Only: Save product card display configuration to persistent storage.
+   */
+  async saveCardDisplayConfig(config: ProductCardDisplayConfig): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(config));
+    } catch (err) {
+      console.log('Failed to save product card display config:', err);
+    }
   }
 }
 

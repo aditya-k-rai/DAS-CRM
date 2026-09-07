@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: 'Sign In | DAS CRM Platform' };
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#060810] text-white flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-background dark:bg-background text-foreground dark:text-foreground flex flex-col items-center justify-center p-6">
       <LoginGateway />
     </div>
   );

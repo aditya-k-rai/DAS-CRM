@@ -1232,54 +1232,26 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       {/* ── TOP ACTION & CONVERT BAR ───────────────────────────────────── */}
       <View style={styles.topActionBar}>
         <View style={styles.topBarRow}>
-          {/* View Mode Switcher */}
+          {/* View Mode Switcher — Enhanced Full-Width Segmented Tab Control */}
           <View style={styles.viewModeSwitcher}>
-            <TouchableOpacity style={[styles.vmTab, viewMode==='BUILDER' && styles.vmTabActive]} onPress={() => setViewMode('BUILDER')}>
-              <Text style={[styles.vmTabText, viewMode==='BUILDER' && styles.vmTabTextActive]}>⚙️ Builder</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.vmTab, viewMode==='LIVE_PREVIEW' && styles.vmTabActive]} onPress={() => setViewMode('LIVE_PREVIEW')}>
-              <Text style={[styles.vmTabText, viewMode==='LIVE_PREVIEW' && styles.vmTabTextActive]}>📄 Preview</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Action Buttons */}
-          <View style={styles.topBarActions}>
-            {/* ⚡ REFRESH & COMPILE BUTTON */}
             <TouchableOpacity
-              style={[styles.topBarBtnCompile, compileSuccess && styles.topBarBtnCompileSuccess]}
-              onPress={handleCompilePdf}
-              disabled={isCompiling}
-              hitSlop={{top:6,bottom:6,left:4,right:4}}
+              style={[styles.vmTab, viewMode === 'BUILDER' && styles.vmTabActive]}
+              onPress={() => setViewMode('BUILDER')}
+              activeOpacity={0.8}
             >
-              {isCompiling ? (
-                <ActivityIndicator size="small" color="#ffffff" style={{ transform:[{scale:0.7}] }} />
-              ) : (
-                <Text style={styles.topBarBtnCompileText}>
-                  {compileSuccess ? '✓ Synced' : '⚡ Compile'}
-                </Text>
-              )}
+              <Text style={[styles.vmTabText, viewMode === 'BUILDER' && styles.vmTabTextActive]}>
+                ⚙️ Document Builder
+              </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={[styles.topBarBtn, savedSuccess && styles.topBarBtnSuccess]}
-              onPress={handleSaveCurrentDraft}
-              hitSlop={{top:6,bottom:6,left:4,right:4}}
+              style={[styles.vmTab, viewMode === 'LIVE_PREVIEW' && styles.vmTabActive]}
+              onPress={() => setViewMode('LIVE_PREVIEW')}
+              activeOpacity={0.8}
             >
-              <Text style={styles.topBarBtnText}>{savedSuccess ? '✓ Saved' : '💾 Save'}</Text>
+              <Text style={[styles.vmTabText, viewMode === 'LIVE_PREVIEW' && styles.vmTabTextActive]}>
+                📄 Live A4 Preview
+              </Text>
             </TouchableOpacity>
-            {viewMode === 'BUILDER' && (
-              <TouchableOpacity
-                style={styles.topBarBtnPrint}
-                onPress={() => handlePrintPDF()}
-                disabled={isPrinting}
-                hitSlop={{top:6,bottom:6,left:4,right:4}}
-              >
-                {isPrinting
-                  ? <ActivityIndicator size="small" color="#ffffff" />
-                  : <Text style={styles.topBarBtnPrintText}>🖨 Print</Text>
-                }
-              </TouchableOpacity>
-            )}
           </View>
         </View>
 
@@ -1993,26 +1965,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
       ) : (
         /* ── LIVE A4 DOCUMENT PREVIEW ── */
         <View style={styles.previewContainer}>
-          {/* Preview Toolbar */}
+          {/* Preview Toolbar — Streamlined without duplicate Compile/Print */}
           <View style={styles.previewToolbar}>
             <TouchableOpacity style={styles.splitToggleBtn} onPress={() => setViewMode('BUILDER')} hitSlop={{top:8,bottom:8,left:8,right:8}}>
               <Text style={styles.splitToggleBtnText}>← Builder</Text>
-            </TouchableOpacity>
-
-            {/* ⚡ PREVIEW REFRESH & COMPILE BUTTON */}
-            <TouchableOpacity
-              style={[styles.previewCompileBtn, compileSuccess && styles.previewCompileBtnSuccess]}
-              onPress={handleCompilePdf}
-              disabled={isCompiling}
-              hitSlop={{top:8,bottom:8,left:4,right:4}}
-            >
-              {isCompiling ? (
-                <ActivityIndicator size="small" color="#fff" style={{ transform:[{scale:0.65}] }} />
-              ) : (
-                <Text style={styles.previewCompileBtnText}>
-                  {compileSuccess ? '✓ Synced' : '⚡ Compile'}
-                </Text>
-              )}
             </TouchableOpacity>
 
             {/* Zoom Controls */}
@@ -2024,10 +1980,10 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
               ].map(z => (
                 <TouchableOpacity
                   key={z.label}
-                  style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#0d1526' }, zoomScale === z.scale && { backgroundColor: '#4f46e5' }]}
+                  style={[{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1e293b' }, zoomScale === z.scale && { backgroundColor: '#4f46e5', borderColor: '#6366f1' }]}
                   onPress={() => setZoomScale(z.scale)}
                 >
-                  <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, zoomScale === z.scale && { color: '#ffffff' }]}>{z.label}</Text>
+                  <Text style={[{ fontSize: 9.5, fontWeight: '800', color: '#94a3b8' }, zoomScale === z.scale && { color: '#ffffff' }]}>{z.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -2042,15 +1998,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 <Text style={styles.previewActionBtnText}>📤 Share</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.previewActionBtn, styles.previewPrintBtn]}
-                onPress={() => handlePrintPDF()}
-                disabled={isPrinting}
+                style={[styles.previewActionBtn, { backgroundColor:'rgba(96,165,250,0.15)', borderColor:'rgba(96,165,250,0.4)' }]}
+                onPress={() => {
+                  const sub = encodeURIComponent(`${getDocTitle()} #${docNo} from ${activeCompany.name}`);
+                  const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nRegards,\n${activeCompany.name}`);
+                  Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
+                }}
                 hitSlop={{top:8,bottom:8,left:4,right:4}}
               >
-                {isPrinting
-                  ? <ActivityIndicator size="small" color="#fff" style={{ transform:[{scale:0.7}] }} />
-                  : <Text style={[styles.previewActionBtnText, { color:'#fff' }]}>🖨 Print</Text>
-                }
+                <Text style={[styles.previewActionBtnText, { color:'#60a5fa' }]}>✉️ Email</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2073,30 +2029,86 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
             </View>
           </ScrollView>
 
-          {/* Preview Bottom Bar */}
+          {/* ── PREVIEW BOTTOM BAR: 4 CORE ACTION BUTTONS (Compile, Print, Save, WhatsApp) ── */}
           <View style={[
-            styles.previewBottomBar,
+            styles.bottomActionBar,
             { paddingBottom: Math.max(insets.bottom + 8, 16) },
           ]}>
-            <TouchableOpacity
-              style={styles.previewBottomBtn}
-              onPress={() => {
-                const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
-                Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
-              }}
-            >
-              <Text style={styles.previewBottomBtnText}>💬 Send on WhatsApp</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.previewBottomBtn, { backgroundColor:'rgba(99,102,241,0.2)', borderColor:'rgba(99,102,241,0.4)' }]}
-              onPress={() => {
-                const sub = encodeURIComponent(`${getDocTitle()} #${docNo}`);
-                const body = encodeURIComponent(`Dear ${activeParty.name},\n\nPlease find attached ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\nRegards,\n${activeCompany.name}`);
-                Linking.openURL(`mailto:${activeParty.email}?subject=${sub}&body=${body}`);
-              }}
-            >
-              <Text style={[styles.previewBottomBtnText, { color:'#a5b4fc' }]}>✉️ Send via Email</Text>
-            </TouchableOpacity>
+            {/* Grand Total Summary Strip */}
+            <View style={styles.totalSummaryStrip}>
+              <View>
+                <Text style={styles.totalSummaryLabel}>Grand Total</Text>
+                <Text style={styles.totalSummaryAmount}>₹{grandTotal.toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={{ alignItems:'flex-end' }}>
+                <Text style={styles.totalSummaryLabel}>{items.length} item{items.length!==1?'s':''} • GST {globalGstRate}%</Text>
+                <Text style={styles.totalSummaryAmountWords} numberOfLines={1}>{numberToWordsINR(grandTotal).slice(0,40)}…</Text>
+              </View>
+            </View>
+
+            {/* 4 Core Buttons Row */}
+            <View style={styles.bottomActionsRow}>
+              {/* 1. ⚡ COMPILE */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionCompile, compileSuccess && styles.bottomActionCompileSuccess]}
+                onPress={handleCompilePdf}
+                disabled={isCompiling}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+              >
+                {isCompiling ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.bottomActionIcon}>⚡</Text>
+                )}
+                <Text style={[styles.bottomActionLabel, { color: '#fff' }]}>
+                  {compileSuccess ? 'Compiled' : 'Compile'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 2. 🖨️ PRINT */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionPrint]}
+                onPress={() => handlePrintPDF()}
+                disabled={isPrinting}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+              >
+                {isPrinting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.bottomActionIcon}>🖨</Text>
+                )}
+                <Text style={[styles.bottomActionLabel, { color: '#fff' }]}>Print</Text>
+              </TouchableOpacity>
+
+              {/* 3. 💾 SAVE */}
+              <TouchableOpacity
+                style={[styles.bottomAction, savedSuccess && styles.bottomActionSuccess]}
+                onPress={handleSaveCurrentDraft}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+              >
+                <Text style={styles.bottomActionIcon}>{savedSuccess ? '✓' : '💾'}</Text>
+                <Text style={[styles.bottomActionLabel, savedSuccess && { color: '#34d399' }]}>
+                  {savedSuccess ? 'Saved' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 4. 💬 WHATSAPP */}
+              <TouchableOpacity
+                style={[styles.bottomAction, styles.bottomActionWA]}
+                onPress={() => {
+                  const text = `Dear ${activeParty.name},\n\nPlease find ${getDocTitle()} #${docNo} for ₹${grandTotal.toLocaleString('en-IN')}.\n\n*Grand Total: ₹${grandTotal.toLocaleString('en-IN')}*\n\nGenerated via DAS CRM`;
+                  Linking.openURL(`whatsapp://send?phone=${activeParty.phone}&text=${encodeURIComponent(text)}`);
+                }}
+                activeOpacity={0.7}
+                hitSlop={{ top: 6, bottom: 6, left: 3, right: 3 }}
+              >
+                <Text style={styles.bottomActionIcon}>💬</Text>
+                <Text style={[styles.bottomActionLabel, { color: '#4ade80' }]}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -2346,12 +2358,12 @@ const styles = StyleSheet.create({
 
   // Top Action Bar
   topActionBar: { backgroundColor: '#060b18', padding: 10, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
-  topBarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  viewModeSwitcher: { flexDirection: 'row', backgroundColor: '#0d1526', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#1a2335' },
-  vmTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
-  vmTabActive: { backgroundColor: '#4f46e5' },
-  vmTabText: { fontSize: 11, fontWeight: '900', color: '#64748b' },
-  vmTabTextActive: { color: '#ffffff' },
+  topBarRow: { flexDirection: 'row', alignItems: 'center' },
+  viewModeSwitcher: { flex: 1, flexDirection: 'row', backgroundColor: '#0d1526', borderRadius: 12, padding: 3, borderWidth: 1, borderColor: '#1e293b' },
+  vmTab: { flex: 1, paddingVertical: 9, borderRadius: 9, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  vmTabActive: { backgroundColor: '#4f46e5', shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4, elevation: 3 },
+  vmTabText: { fontSize: 11.5, fontWeight: '800', color: '#64748b' },
+  vmTabTextActive: { color: '#ffffff', fontWeight: '900' },
   topBarActions: { flexDirection: 'row', gap: 6 },
   topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   topBarBtnSuccess: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },

@@ -75,14 +75,14 @@ export default function SuperAdminPortalPage() {
 
   if (isAuthenticated) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
-        <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
+      <main className="min-h-screen bg-background dark:bg-background text-foreground dark:text-foreground">
+        <header className="border-b border-border dark:border-border bg-card/50 dark:bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-bold">
               <Crown size={20} />
             </div>
             <div>
-              <h1 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">DAS CRM Super Admin</h1>
+              <h1 className="text-xs sm:text-sm font-black text-foreground dark:text-white uppercase tracking-wider">DAS CRM Super Admin</h1>
               <span className="text-[10px] text-cyan-400 font-mono">ADTYAMIGHTY@GMAIL.COM</span>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function SuperAdminPortalPage() {
               localStorage.removeItem('superadmin_token');
               setIsAuthenticated(false);
             }}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted dark:bg-slate-800 hover:bg-muted/80 dark:hover:bg-slate-700 text-foreground dark:text-slate-300 border border-border dark:border-slate-700"
           >
             Sign Out
           </button>

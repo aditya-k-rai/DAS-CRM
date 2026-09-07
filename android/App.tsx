@@ -29,6 +29,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 
 import { useAuthStore } from './src/store/authStore';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { LanguageProvider } from './src/context/LanguageContext';
 import LoginScreen from './src/screens/LoginScreen';
 
 // Dashboards per role
@@ -211,8 +212,8 @@ function MainTabNavigator({
           tabBarStyle: [
             styles.tabBar,
             {
-              height: 66 + bottomPadding,
-              paddingTop: 6,
+              height: 64 + bottomPadding,
+              paddingTop: 4,
               paddingBottom: bottomPadding + 2,
             }
           ],
@@ -221,8 +222,8 @@ function MainTabNavigator({
           tabBarItemStyle: {
             justifyContent: 'center',
             alignItems: 'center',
-            paddingVertical: 3,
-            minHeight: 56,
+            paddingVertical: 2,
+            paddingHorizontal: 0,
           },
         }}
       >
@@ -245,7 +246,7 @@ function MainTabNavigator({
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.75}
                 style={[styles.tabBarLabel, { color: focused ? '#818cf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
               >
                 Home
@@ -266,7 +267,7 @@ function MainTabNavigator({
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.75}
                 style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
               >
                 Leads
@@ -287,7 +288,7 @@ function MainTabNavigator({
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.75}
                 style={[styles.tabBarLabel, { color: focused ? '#c084fc' : '#64748b', fontWeight: focused ? '800' : '600' }]}
               >
                 Employees
@@ -320,7 +321,7 @@ function MainTabNavigator({
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.75}
                 style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : '#64748b', fontWeight: focused ? '800' : '600' }]}
               >
                 Menu
@@ -341,7 +342,7 @@ function MainTabNavigator({
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.75}
                 style={[styles.tabBarLabel, { color: focused ? '#34d399' : '#64748b', fontWeight: focused ? '800' : '600' }]}
               >
                 Attendance
@@ -499,7 +500,8 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <SafeAreaProvider>
+      <LanguageProvider>
+        <SafeAreaProvider>
         <StatusBar style="light" />
         <NavigationContainer ref={navigationRef}>
         {!token ? (
@@ -855,6 +857,7 @@ export default function App() {
       {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
       <ModernAlertModal />
     </SafeAreaProvider>
+    </LanguageProvider>
     </ThemeProvider>
   );
 }
@@ -923,18 +926,18 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   tabIconBox: {
-    width: 52,
-    height: 33,
-    borderRadius: 16.5,
+    width: 48,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1.5,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabBarLabel: {
-    fontSize: 11,
-    marginTop: 3,
-    letterSpacing: 0.1,
+    fontSize: 10,
+    marginTop: 2,
+    letterSpacing: 0,
     textAlign: 'center',
   },
 

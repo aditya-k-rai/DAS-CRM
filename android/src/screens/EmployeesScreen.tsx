@@ -408,7 +408,12 @@ export default function EmployeesScreen() {
           activeOpacity={0.8}
         >
           <View style={[styles.tabDot, { backgroundColor: activeTab === 'ASSIGNED' ? '#34d399' : '#334155' }]} />
-          <Text style={[styles.tabBtnText, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={[styles.tabBtnText, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}
+          >
             Assigned ({employeesList.length})
           </Text>
         </TouchableOpacity>
@@ -423,7 +428,12 @@ export default function EmployeesScreen() {
               <Text style={styles.unassignedBadgeText}>{unassignedUsers.length}</Text>
             </View>
           )}
-          <Text style={[styles.tabBtnText, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={[styles.tabBtnText, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}
+          >
             Unassigned ({unassignedUsers.length})
           </Text>
         </TouchableOpacity>
@@ -432,7 +442,7 @@ export default function EmployeesScreen() {
       {/* ── Assigned Tab Content ── */}
       {activeTab === 'ASSIGNED' && (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.tabInfoBanner}>
@@ -490,7 +500,7 @@ export default function EmployeesScreen() {
       {/* ── Unassigned Tab Content ── */}
       {activeTab === 'UNASSIGNED' && (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: 'rgba(251,191,36,0.07)' }]}>

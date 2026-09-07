@@ -202,7 +202,7 @@ export default function BillingPage() {
         <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
           SUBSCRIPTION & BILLING PORTAL
         </span>
-        <h1 className="text-3xl font-black text-white mt-2">Manage Workspace Plan & Quotas</h1>
+        <h1 className="text-3xl font-black text-foreground dark:text-white mt-2">Manage Workspace Plan & Quotas</h1>
         <p className="text-xs text-muted mt-1">Upgrade your plan to unlock WhatsApp automation, email marketing, and larger user seat quotas.</p>
       </div>
 
@@ -215,7 +215,7 @@ export default function BillingPage() {
               {subscription.planType} ({subscription.trialDaysLeft} Days Remaining)
             </span>
           </div>
-          <h2 className="text-xl font-bold text-white">{subscription.companyName}</h2>
+          <h2 className="text-xl font-bold text-foreground dark:text-white">{subscription.companyName}</h2>
           <p className="text-xs text-muted">
             User Seat Quota: <strong>{subscription.userSeatsUsed}</strong> / <strong>{subscription.userSeatsAllocated}</strong> seats used (Tenant Admin is excluded from seat quota count).
           </p>
@@ -260,11 +260,11 @@ export default function BillingPage() {
               )}
 
               <div>
-                <h3 className="font-bold text-white text-base mb-1">{plan.name}</h3>
+                <h3 className="font-bold text-foreground dark:text-white text-base mb-1">{plan.name}</h3>
                 <p className="text-[11px] text-muted mb-4 min-h-[32px]">{plan.description}</p>
 
                 <div className="mb-4">
-                  <span className="text-2xl font-black text-white">{plan.price}</span>
+                  <span className="text-2xl font-black text-foreground dark:text-white">{plan.price}</span>
                   <span className="text-xs text-muted ml-1">{plan.period}</span>
                 </div>
 

@@ -23,6 +23,7 @@ import {
   Alert,
   Image,
   Linking,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -30,7 +31,10 @@ import {
   CatalogProductItem,
   CategoryTree,
   PRESET_PRODUCT_IMAGES,
+  ProductCardDisplayConfig,
+  DEFAULT_CARD_DISPLAY_CONFIG,
 } from '../services/productCatalogService';
+import { useAuthStore, normalizeRoleStr } from '../store/authStore';
 
 interface ProductsCatalogScreenProps {
   onClose?: () => void;
@@ -49,6 +53,14 @@ export default function ProductsCatalogScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [activeSubCategory, setActiveSubCategory] = useState<string>('ALL');
+
+  const { currentUser } = useAuthStore();
+  const isAdmin = normalizeRoleStr(currentUser?.role) === 'ADMIN';
+
+  // Product Card Display Configuration State (Admin-governed)
+  const [cardConfig, setCardConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [tempConfig, setTempConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
 
   // Modal Form State (Create / Edit Product)
   const [modalOpen, setModalOpen] = useState(false);
@@ -89,12 +101,43 @@ export default function ProductsCatalogScreen({
   const loadCatalogData = async () => {
     const prods = await productCatalogService.getProducts();
     const cats = await productCatalogService.getCategories();
+    const cfg = await productCatalogService.getCardDisplayConfig();
     setProducts(prods);
     setCategories(cats);
+    setCardConfig(cfg);
+    setTempConfig(cfg);
     if (cats.length > 0) {
       setCategoryInput(cats[0].name);
       setSubCategoryInput(cats[0].subCategories[0] || 'General');
     }
+  };
+
+  // ── Admin Card Display Handlers ──────────────────────────────────────────
+  const handleOpenConfigModal = () => {
+    if (!isAdmin) {
+      Alert.alert(
+        '🔒 Admin Access Required',
+        'Only Organization Admins are permitted to configure product card display fields on this screen.'
+      );
+      return;
+    }
+    setTempConfig({ ...cardConfig });
+    setConfigModalOpen(true);
+  };
+
+  const handleSaveCardConfig = async () => {
+    if (!isAdmin) {
+      Alert.alert('🔒 Admin Access Required', 'Only Organization Admins can save card display preferences.');
+      return;
+    }
+    await productCatalogService.saveCardDisplayConfig(tempConfig);
+    setCardConfig(tempConfig);
+    setConfigModalOpen(false);
+    Alert.alert('✅ Display Settings Saved', 'Product catalog card display configuration updated successfully!');
+  };
+
+  const handleResetCardConfig = () => {
+    setTempConfig(DEFAULT_CARD_DISPLAY_CONFIG);
   };
 
   // Metrics Calculations
@@ -364,7 +407,7 @@ export default function ProductsCatalogScreen({
         </View>
 
         {/* Quick Action Bar: + Create Product, 📁 + Category, 📂 + Sub-Category */}
-        <View style={{ width: '100%', maxWidth: 650, flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+        <View style={{ width: '100%', maxWidth: 650, flexDirection: 'row', gap: 6, marginBottom: 8 }}>
           <TouchableOpacity style={[styles.createProductBtn, { flex: 1.5 }]} onPress={openCreateModal} activeOpacity={0.85}>
             <Text style={styles.createProductBtnText}>+ Create Product →</Text>
           </TouchableOpacity>
@@ -392,6 +435,38 @@ export default function ProductsCatalogScreen({
             activeOpacity={0.85}
           >
             <Text style={styles.createSubCatBtnText}>📂 + Sub-Category</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Admin Card Display Customization Action Row */}
+        <View style={{ width: '100%', maxWidth: 650, marginBottom: 12 }}>
+          <TouchableOpacity
+            style={[
+              styles.adminConfigBtn,
+              !isAdmin && styles.adminConfigBtnDisabled,
+            ]}
+            onPress={handleOpenConfigModal}
+            activeOpacity={0.85}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Text style={{ fontSize: 14 }}>⚙️</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.adminConfigBtnTitle}>Configure Card Display</Text>
+                  <View style={[styles.adminRoleBadge, !isAdmin && { backgroundColor: '#334155' }]}>
+                    <Text style={styles.adminRoleBadgeText}>{isAdmin ? 'ADMIN ONLY' : '🔒 ADMIN ONLY'}</Text>
+                  </View>
+                </View>
+                <Text style={styles.adminConfigBtnSubtitle}>
+                  {isAdmin
+                    ? 'Customize visible fields & attributes on this catalog screen'
+                    : 'Only Organization Admins can configure visible screen fields'}
+                </Text>
+              </View>
+            </View>
+            <Text style={{ color: isAdmin ? '#818cf8' : '#64748b', fontSize: 11, fontWeight: '800' }}>
+              {isAdmin ? 'Customize →' : 'Locked'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -471,64 +546,394 @@ export default function ProductsCatalogScreen({
                 activeOpacity={0.85}
               >
                 <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                  <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                  {cardConfig.showImage && (
+                    <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                  )}
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={styles.categoryBadgeText}>📁 {p.category}</Text>
-                        {p.subCategory && (
-                          <Text style={styles.subCategoryBadgeText}>📂 {p.subCategory}</Text>
+                    {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku) && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          {cardConfig.showCategory && (
+                            <Text style={styles.categoryBadgeText}>📁 {p.category}</Text>
+                          )}
+                          {cardConfig.showSubCategory && p.subCategory && (
+                            <Text style={styles.subCategoryBadgeText}>📂 {p.subCategory}</Text>
+                          )}
+                        </View>
+                        {cardConfig.showSku && (
+                          <Text style={styles.skuTagText}>{p.sku}</Text>
                         )}
                       </View>
-                      <Text style={styles.skuTagText}>{p.sku}</Text>
-                    </View>
+                    )}
 
-                    <Text style={styles.productTitle}>{p.name}</Text>
-                    <Text style={styles.priceRangeText}>
-                      {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
-                      <Text style={{ fontSize: 9, color: '#94a3b8' }}> (+{p.taxRate}% GST)</Text>
-                    </Text>
+                    {cardConfig.showName && (
+                      <Text style={styles.productTitle}>{p.name}</Text>
+                    )}
+
+                    {cardConfig.showPrice && (
+                      <Text style={styles.priceRangeText}>
+                        {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
+                        {cardConfig.showGst && (
+                          <Text style={{ fontSize: 9, color: '#94a3b8' }}> (+{p.taxRate}% GST)</Text>
+                        )}
+                      </Text>
+                    )}
 
                     {/* Quantity & Stock Conditions */}
-                    <View style={styles.conditionsRow}>
-                      <View style={[styles.stockBadge, { backgroundColor: stockColor + '20', borderColor: stockColor }]}>
-                        <Text style={[styles.stockBadgeText, { color: stockColor }]}>
-                          {isOutOfStock ? '🔴 Out of Stock' : isLowStock ? `🟡 Low Stock (${p.stockQuantity} Left)` : `🟢 In Stock (${p.stockQuantity} Units)`}
-                        </Text>
-                      </View>
+                    {(cardConfig.showInStock || cardConfig.showMoq) && (
+                      <View style={styles.conditionsRow}>
+                        {cardConfig.showInStock && (
+                          <View style={[styles.stockBadge, { backgroundColor: stockColor + '20', borderColor: stockColor }]}>
+                            <Text style={[styles.stockBadgeText, { color: stockColor }]}>
+                              {isOutOfStock ? '🔴 Out of Stock' : isLowStock ? `🟡 Low Stock (${p.stockQuantity} Left)` : `🟢 In Stock (${p.stockQuantity} Units)`}
+                            </Text>
+                          </View>
+                        )}
 
-                      <View style={styles.moqBadge}>
-                        <Text style={styles.moqBadgeText}>📦 MOQ: {p.moq} Unit(s)</Text>
+                        {cardConfig.showMoq && (
+                          <View style={styles.moqBadge}>
+                            <Text style={styles.moqBadgeText}>📦 MOQ: {p.moq} Unit(s)</Text>
+                          </View>
+                        )}
                       </View>
-                    </View>
+                    )}
                   </View>
                 </View>
 
-                <Text style={styles.descriptionText} numberOfLines={2}>{p.description}</Text>
+                {/* Description (Admin Configurable — Disabled by default) */}
+                {cardConfig.showDescription && (
+                  <Text style={styles.descriptionText} numberOfLines={2}>{p.description}</Text>
+                )}
 
-                {/* Features List */}
-                <View style={styles.featureChipsRow}>
-                  {p.features.slice(0, 3).map((feat, idx) => (
-                    <View key={idx} style={styles.featChip}>
-                      <Text style={styles.featChipText}>✓ {feat}</Text>
-                    </View>
-                  ))}
-                  {p.features.length > 3 && (
-                    <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '800', alignSelf: 'center' }}>
-                      +{p.features.length - 3} more specs →
-                    </Text>
-                  )}
-                </View>
+                {/* Features List (Admin Configurable — Disabled by default) */}
+                {cardConfig.showFeatures && p.features.length > 0 && (
+                  <View style={styles.featureChipsRow}>
+                    {p.features.slice(0, 3).map((feat, idx) => (
+                      <View key={idx} style={styles.featChip}>
+                        <Text style={styles.featChipText}>✓ {feat}</Text>
+                      </View>
+                    ))}
+                    {p.features.length > 3 && (
+                      <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '800', alignSelf: 'center' }}>
+                        +{p.features.length - 3} more specs →
+                      </Text>
+                    )}
+                  </View>
+                )}
 
-                <View style={styles.tapDetailsHintRow}>
-                  <Text style={styles.tapDetailsHintText}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
-                </View>
+                {cardConfig.showTapHint && (
+                  <View style={styles.tapDetailsHintRow}>
+                    <Text style={styles.tapDetailsHintText}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
 
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* ⚙️ ADMIN CARD DISPLAY CONFIGURATION MODAL                                    */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={configModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardLarge, { maxHeight: '92%', paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.modalTitle}>⚙️ Configure Product Card Display</Text>
+                  <View style={styles.adminOnlyPill}>
+                    <Text style={styles.adminOnlyPillText}>ADMIN ONLY</Text>
+                  </View>
+                </View>
+                <Text style={styles.modalSub}>
+                  Admin Governance: Control which attributes appear on catalog cards across the organization.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setConfigModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+              {/* Informational Guidance */}
+              <View style={styles.configInfoBanner}>
+                <Text style={styles.configInfoBannerText}>
+                  💡 <Text style={{ fontWeight: '900' }}>Clean Default View:</Text> Cards show Image, Name, Category, Subcategory, Price, GST, In-Stock, and MOQ. Description and specs tags are hidden by default to keep cards sleek and readable.
+                </Text>
+              </View>
+
+              {/* Live Preview Card */}
+              <Text style={styles.configSectionTitle}>👁️ Live Card Preview</Text>
+              <View style={[styles.productCard, { marginHorizontal: 0, marginBottom: 16, backgroundColor: '#020617', borderColor: '#4f46e5' }]}>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                  {tempConfig.showImage && (
+                    <Image source={{ uri: PRESET_PRODUCT_IMAGES[0] }} style={styles.productImg} />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    {(tempConfig.showCategory || tempConfig.showSubCategory || tempConfig.showSku) && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          {tempConfig.showCategory && (
+                            <Text style={styles.categoryBadgeText}>📁 CRM & Sales Software</Text>
+                          )}
+                          {tempConfig.showSubCategory && (
+                            <Text style={styles.subCategoryBadgeText}>📂 Lead Management</Text>
+                          )}
+                        </View>
+                        {tempConfig.showSku && (
+                          <Text style={styles.skuTagText}>DAS-CRM-001</Text>
+                        )}
+                      </View>
+                    )}
+
+                    {tempConfig.showName && (
+                      <Text style={styles.productTitle}>DAS CRM Enterprise Suite</Text>
+                    )}
+
+                    {tempConfig.showPrice && (
+                      <Text style={styles.priceRangeText}>
+                        ₹2,999 - ₹4,999
+                        {tempConfig.showGst && (
+                          <Text style={{ fontSize: 9, color: '#94a3b8' }}> (+18% GST)</Text>
+                        )}
+                      </Text>
+                    )}
+
+                    {(tempConfig.showInStock || tempConfig.showMoq) && (
+                      <View style={styles.conditionsRow}>
+                        {tempConfig.showInStock && (
+                          <View style={[styles.stockBadge, { backgroundColor: '#34d39920', borderColor: '#34d399' }]}>
+                            <Text style={[styles.stockBadgeText, { color: '#34d399' }]}>🟢 In Stock (250 Units)</Text>
+                          </View>
+                        )}
+
+                        {tempConfig.showMoq && (
+                          <View style={styles.moqBadge}>
+                            <Text style={styles.moqBadgeText}>📦 MOQ: 1 Unit(s)</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {tempConfig.showDescription && (
+                  <Text style={styles.descriptionText} numberOfLines={2}>
+                    Full sales automation, WhatsApp Cloud API, Email Marketing & AI Lead Scoring.
+                  </Text>
+                )}
+
+                {tempConfig.showFeatures && (
+                  <View style={styles.featureChipsRow}>
+                    <View style={styles.featChip}>
+                      <Text style={styles.featChipText}>✓ Unlimited Lead Ingestion</Text>
+                    </View>
+                    <View style={styles.featChip}>
+                      <Text style={styles.featChipText}>✓ WhatsApp Cloud API (100K Quota)</Text>
+                    </View>
+                  </View>
+                )}
+
+                {tempConfig.showTapHint && (
+                  <View style={styles.tapDetailsHintRow}>
+                    <Text style={styles.tapDetailsHintText}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* 1. Core Identity */}
+              <Text style={styles.configSectionTitle}>1. Core Information & Identification</Text>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🖼️ Product Cover Image</Text>
+                  <Text style={styles.configToggleDesc}>Display product image thumbnail on the card</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showImage}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showImage: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showImage ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🏷️ Product Name</Text>
+                  <Text style={styles.configToggleDesc}>Display product title header</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showName}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showName: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showName ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🔖 SKU Identifier</Text>
+                  <Text style={styles.configToggleDesc}>Display SKU tag (e.g. DAS-CRM-001)</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showSku}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showSku: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showSku ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              {/* 2. Taxonomy & Categories */}
+              <Text style={styles.configSectionTitle}>2. Taxonomy & Hierarchy</Text>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>📁 Parent Category Badge</Text>
+                  <Text style={styles.configToggleDesc}>Show primary parent category pill</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showCategory}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showCategory: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showCategory ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>📂 Sub-Category Badge</Text>
+                  <Text style={styles.configToggleDesc}>Show nested sub-category classification</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showSubCategory}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showSubCategory: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showSubCategory ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              {/* 3. Pricing, GST & Stock */}
+              <Text style={styles.configSectionTitle}>3. Pricing, Taxes & Inventory</Text>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>💰 Price Range</Text>
+                  <Text style={styles.configToggleDesc}>Show minimum and maximum price range</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showPrice}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showPrice: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showPrice ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🧾 GST Tax Rate</Text>
+                  <Text style={styles.configToggleDesc}>Display tax percentage suffix (+18% GST)</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showGst}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showGst: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showGst ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🟢 In-Stock Quantity Badge</Text>
+                  <Text style={styles.configToggleDesc}>Show current inventory status and units count</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showInStock}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showInStock: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showInStock ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>📦 Minimum Order Quantity (MOQ)</Text>
+                  <Text style={styles.configToggleDesc}>Show minimum required units badge</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showMoq}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showMoq: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showMoq ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              {/* 4. Extended Content (Clutter Controls) */}
+              <Text style={styles.configSectionTitle}>4. Extended Details (Optional Clutter)</Text>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>📝 Product Description Text</Text>
+                  <Text style={styles.configToggleDesc}>Display multi-line overview on card (turn OFF for clean card)</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showDescription}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showDescription: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showDescription ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>⚡ Feature Specs Badges</Text>
+                  <Text style={styles.configToggleDesc}>Display bullet tags on card (turn OFF for clean card)</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showFeatures}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showFeatures: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showFeatures ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              <View style={styles.configToggleRow}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.configToggleLabel}>🔍 Tap Card Hint</Text>
+                  <Text style={styles.configToggleDesc}>Show footer hint for inspector modal</Text>
+                </View>
+                <Switch
+                  value={tempConfig.showTapHint}
+                  onValueChange={(val) => setTempConfig((prev) => ({ ...prev, showTapHint: val }))}
+                  trackColor={{ false: '#334155', true: '#4f46e5' }}
+                  thumbColor={tempConfig.showTapHint ? '#818cf8' : '#94a3b8'}
+                />
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <TouchableOpacity
+                  style={styles.configResetBtn}
+                  onPress={handleResetCardConfig}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.configResetBtnText}>↺ Reset Clean View</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.configSaveBtn}
+                  onPress={handleSaveCardConfig}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.configSaveBtnText}>💾 Save Preferences</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       {/* 🔍 FULL PRODUCT SPECIFICATION & DETAILS INSPECTOR MODAL                     */}
@@ -1075,4 +1480,127 @@ const styles = StyleSheet.create({
 
   saveProductBtn: { backgroundColor: '#16a34a', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 14 },
   saveProductBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+
+  // Admin Card Display Configuration Styles
+  adminConfigBtn: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#4338ca',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  adminConfigBtnDisabled: {
+    borderColor: '#334155',
+    backgroundColor: '#090d16',
+    opacity: 0.7,
+  },
+  adminConfigBtnTitle: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  adminConfigBtnSubtitle: {
+    color: '#94a3b8',
+    fontSize: 9,
+    marginTop: 1,
+  },
+  adminRoleBadge: {
+    backgroundColor: '#4338ca',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adminRoleBadgeText: {
+    color: '#ffffff',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  adminOnlyPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adminOnlyPillText: {
+    color: '#f87171',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  configInfoBanner: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  configInfoBannerText: {
+    color: '#93c5fd',
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  configSectionTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#38bdf8',
+    marginTop: 10,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  configToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 6,
+  },
+  configToggleLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  configToggleDesc: {
+    fontSize: 9,
+    color: '#94a3b8',
+    marginTop: 1,
+  },
+  configResetBtn: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  configResetBtnText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  configSaveBtn: {
+    flex: 1.5,
+    backgroundColor: '#4f46e5',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  configSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
 });

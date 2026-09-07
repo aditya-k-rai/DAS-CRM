@@ -1,0 +1,646 @@
+<title>Dark Mode Implementation Dashboard</title>
+
+<style>
+:root {
+  --bg-light: #f8fafc;
+  --bg-dark: #0f172a;
+  --text-light: #1e293b;
+  --text-dark: #f1f5f9;
+  --accent: #6366f1;
+  --accent-light: #818cf8;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --card-light: #ffffff;
+  --card-dark: #1e293b;
+  --border-light: #e2e8f0;
+  --border-dark: #334155;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-light);
+  color: var(--text-light);
+  line-height: 1.6;
+  margin: 0;
+  padding: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    background: var(--bg-dark);
+    color: var(--text-dark);
+  }
+}
+
+body[data-theme="dark"] {
+  background: var(--bg-dark);
+  color: var(--text-dark);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+header {
+  margin-bottom: 40px;
+}
+
+h1 {
+  margin: 0 0 8px 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  font-size: 16px;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 32px 0;
+}
+
+.stat-card {
+  background: var(--card-light);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stat-card:not([data-theme="light"]) {
+    background: var(--card-dark);
+    border-color: var(--border-dark);
+  }
+}
+
+body[data-theme="dark"] .stat-card {
+  background: var(--card-dark);
+  border-color: var(--border-dark);
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+
+.stat-label {
+  font-size: 14px;
+  opacity: 0.7;
+  margin: 8px 0 0 0;
+}
+
+.section {
+  margin-bottom: 40px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-fixed {
+  background: var(--success);
+  color: white;
+}
+
+.status-pending {
+  background: var(--warning);
+  color: white;
+}
+
+.status-critical {
+  background: var(--error);
+  color: white;
+}
+
+.files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.file-card {
+  background: var(--card-light);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .file-card:not([data-theme="light"]) {
+    background: var(--card-dark);
+    border-color: var(--border-dark);
+  }
+}
+
+body[data-theme="dark"] .file-card {
+  background: var(--card-dark);
+  border-color: var(--border-dark);
+}
+
+.file-name {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  word-break: break-all;
+}
+
+.file-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.file-issues {
+  font-size: 13px;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.issue-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0 0;
+}
+
+.issue-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid var(--error);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.issue-item.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-left-color: var(--warning);
+}
+
+.issue-item.success {
+  background: rgba(16, 185, 129, 0.1);
+  border-left-color: var(--success);
+}
+
+.code-block {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .code-block:not([data-theme="light"]) {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+body[data-theme="dark"] .code-block {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 24px;
+  background: var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .progress-bar:not([data-theme="light"]) {
+    background: var(--border-dark);
+  }
+}
+
+body[data-theme="dark"] .progress-bar {
+  background: var(--border-dark);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), var(--accent-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  transition: width 0.3s ease;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+}
+
+@media (prefers-color-scheme: dark) {
+  th:not([data-theme="light"]),
+  td:not([data-theme="light"]) {
+    border-bottom-color: var(--border-dark);
+  }
+}
+
+body[data-theme="dark"] th,
+body[data-theme="dark"] td {
+  border-bottom-color: var(--border-dark);
+}
+
+th {
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  th:not([data-theme="light"]) {
+    background: rgba(99, 102, 241, 0.1);
+  }
+}
+
+body[data-theme="dark"] th {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  z-index: 1000;
+}
+
+.theme-toggle:hover {
+  background: var(--accent-light);
+}
+</style>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌙 Dark</button>
+
+<div class="container">
+  <header>
+    <h1>🎨 Dark Mode Implementation Dashboard</h1>
+    <p class="subtitle">Frontend-Web & SuperAdmin-Web Dark Mode Audit & Fix Progress</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat-card">
+      <p class="stat-value">3/21</p>
+      <p class="stat-label">Files Fixed (14%)</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-value">18</p>
+      <p class="stat-label">Pending Fixes</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-value">6</p>
+      <p class="stat-label">Critical Issues</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-value">2</p>
+      <p class="stat-label">Applications</p>
+    </div>
+  </div>
+
+  <div style="margin: 32px 0;">
+    <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; opacity: 0.7;">Overall Progress</h3>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 14%;">14% Complete</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">✅ Fixed Files (3)</h2>
+    <div class="files-grid">
+      <div class="file-card">
+        <p class="file-name">app/(auth)/layout.tsx</p>
+        <div class="file-status">
+          <span class="status-badge status-fixed">FIXED</span>
+        </div>
+        <ul class="issue-list">
+          <li class="issue-item success">✓ Removed hardcoded dark gradients</li>
+          <li class="issue-item success">✓ Replaced rgba colors with CSS variables</li>
+          <li class="issue-item success">✓ Added theme-aware styling</li>
+        </ul>
+      </div>
+
+      <div class="file-card">
+        <p class="file-name">app/login/page.tsx</p>
+        <div class="file-status">
+          <span class="status-badge status-fixed">FIXED</span>
+        </div>
+        <ul class="issue-list">
+          <li class="issue-item success">✓ Replaced bg-[#060810] with bg-background</li>
+          <li class="issue-item success">✓ Added text-foreground class</li>
+          <li class="issue-item success">✓ Now respects theme preference</li>
+        </ul>
+      </div>
+
+      <div class="file-card">
+        <p class="file-name">app/onboarding/page.tsx</p>
+        <div class="file-status">
+          <span class="status-badge status-fixed">FIXED</span>
+        </div>
+        <ul class="issue-list">
+          <li class="issue-item success">✓ Removed hardcoded dark background</li>
+          <li class="issue-item success">✓ Uses CSS variable system now</li>
+          <li class="issue-item success">✓ Responsive to theme changes</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">⏳ Pending Fixes (18)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Severity</th>
+          <th>Issues</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>app/billing/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Hardcoded card backgrounds, plan tile colors</td>
+          <td>Review & audit</td>
+        </tr>
+        <tr>
+          <td><code>app/register/page.tsx</code></td>
+          <td><span class="status-badge status-warning">MEDIUM</span></td>
+          <td>White text in header (fixed 1/3)</td>
+          <td>Continue fixes</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/whatsapp-templates/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Template card styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/settings/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Settings UI colors</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/settings/billing/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Billing page styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/automations/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Automation cards</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/admin/custom-fields/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Form field styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/admin/audit-logs/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Table styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/hr/leaves/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Leave request cards</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/pdf-catalogue/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>PDF preview cards</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/hr/interviews/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Interview list styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/comms/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Message threading UI</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/settings/profile/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Profile form styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/settings/team/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Team management cards</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/tasks/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Task card styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/companies/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Company list styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/contacts/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Contact cards styling</td>
+          <td>Audit needed</td>
+        </tr>
+        <tr>
+          <td><code>app/(dashboard)/admin/workflow/page.tsx</code></td>
+          <td><span class="status-badge status-pending">MEDIUM</span></td>
+          <td>Workflow builder styling</td>
+          <td>Audit needed</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">🔍 Critical Issues Found</h2>
+    <ul class="issue-list">
+      <li class="issue-item">
+        <strong>Auth Layout Branding Panel:</strong> Had hardcoded dark gradients and colors that completely broke light mode rendering
+      </li>
+      <li class="issue-item">
+        <strong>Login Page:</strong> Forced dark theme with bg-[#060810] and white text regardless of user preference
+      </li>
+      <li class="issue-item">
+        <strong>Onboarding Page:</strong> Same dark-only styling pattern preventing light mode users from seeing content
+      </li>
+      <li class="issue-item warning">
+        <strong>Register Page:</strong> Multiple hardcoded white text colors that fail in light mode
+      </li>
+      <li class="issue-item warning">
+        <strong>Dashboard Pages:</strong> 16 pages with potential hardcoded colors need audit
+      </li>
+      <li class="issue-item warning">
+        <strong>Settings Pages:</strong> Multiple nested settings pages with potential styling issues
+      </li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">📋 Next Steps</h2>
+    <ol style="line-height: 1.8;">
+      <li><strong>Complete register/page.tsx fixes:</strong> Fix remaining white text colors (GST number, industry selector)</li>
+      <li><strong>Audit billing/page.tsx:</strong> Check plan cards and pricing display for theme compliance</li>
+      <li><strong>Audit settings pages:</strong> Verify profile, team, and billing settings work in both themes</li>
+      <li><strong>Dashboard pages audit:</strong> Systematically check 16 dashboard pages for hardcoded colors</li>
+      <li><strong>Test all pages:</strong> Verify theme toggle works across all pages without visual issues</li>
+      <li><strong>SuperAdmin-Web fixes:</strong> Begin Task #4 after frontend-web completion</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">📊 CSS Variables Reference</h2>
+    <p>All pages should use these tokens instead of hardcoded colors:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Light Mode</th>
+          <th>Dark Mode</th>
+          <th>Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--background</code></td>
+          <td>248 250 252</td>
+          <td>11 13 23</td>
+          <td>Page background</td>
+        </tr>
+        <tr>
+          <td><code>--foreground</code></td>
+          <td>15 23 42</td>
+          <td>248 250 252</td>
+          <td>Text color</td>
+        </tr>
+        <tr>
+          <td><code>--card</code></td>
+          <td>255 255 255</td>
+          <td>17 19 31</td>
+          <td>Card background</td>
+        </tr>
+        <tr>
+          <td><code>--border</code></td>
+          <td>226 232 240</td>
+          <td>30 41 59</td>
+          <td>Border color</td>
+        </tr>
+        <tr>
+          <td><code>--muted</code></td>
+          <td>241 245 249</td>
+          <td>30 33 48</td>
+          <td>Muted backgrounds</td>
+        </tr>
+        <tr>
+          <td><code>--primary</code></td>
+          <td>79 70 229</td>
+          <td>99 102 241</td>
+          <td>Primary action</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const btn = document.querySelector('.theme-toggle');
+  const html = document.documentElement;
+  const theme = html.getAttribute('data-theme') || 'light';
+  btn.textContent = theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+}
+
+// Initialize theme
+function initTheme() {
+  const stored = localStorage.getItem('theme');
+  if (stored) {
+    document.documentElement.setAttribute('data-theme', stored);
+  }
+  updateThemeButton();
+}
+
+initTheme();
+</script>
