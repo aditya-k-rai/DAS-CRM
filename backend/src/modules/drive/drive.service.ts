@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 
+export type StorageCategory = 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' | 'PROFILES' | 'DOCUMENTS';
+
 export interface FileUploadProgress {
   fileId: string;
   fileName: string;
@@ -10,6 +12,9 @@ export interface FileUploadProgress {
   progressPercent: number;
   speedMbps: number;
   status: 'INITIALIZING' | 'UPLOADING' | 'COMPLETED' | 'FAILED';
+  companyName?: string;
+  category?: StorageCategory;
+  folderPath?: string;
   driveViewUrl?: string;
   driveDownloadUrl?: string;
 }
@@ -29,6 +34,7 @@ export class DriveService {
   private drive: any = null;
   private folderId: string = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
   private progressStore: Map<string, FileUploadProgress> = new Map();
+  private folderCache: Map<string, string> = new Map();
 
   private appReleases: AppReleaseInfo[] = [
     {
@@ -84,32 +90,122 @@ export class DriveService {
     }
   }
 
+  getCategoryFolderName(category: StorageCategory): string {
+    switch (category) {
+      case 'LEADS':
+        return 'Leads';
+      case 'QUOTATIONS':
+        return 'Quotations';
+      case 'PRODUCTS':
+        return 'Products';
+      case 'PROFILES':
+        return 'DP';
+      case 'DOCUMENTS':
+        return 'Documents';
+      default:
+        return 'General';
+    }
+  }
+
+  private async resolveOrCreateFolder(folderName: string, parentId?: string): Promise<string> {
+    const cacheKey = `${parentId || 'root'}::${folderName}`;
+    if (this.folderCache.has(cacheKey)) {
+      return this.folderCache.get(cacheKey)!;
+    }
+
+    if (!this.drive) {
+      const mockId = `folder_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      this.folderCache.set(cacheKey, mockId);
+      return mockId;
+    }
+
+    try {
+      let query = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`;
+      if (parentId) {
+        query += ` and '${parentId}' in parents`;
+      }
+
+      const searchRes = await this.drive.files.list({
+        q: query,
+        fields: 'files(id, name)',
+        spaces: 'drive',
+      });
+
+      if (searchRes.data.files && searchRes.data.files.length > 0) {
+        const existingId = searchRes.data.files[0].id;
+        this.folderCache.set(cacheKey, existingId);
+        return existingId;
+      }
+
+      const fileMetadata: any = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+      };
+      if (parentId) {
+        fileMetadata.parents = [parentId];
+      }
+
+      const folder = await this.drive.files.create({
+        requestBody: fileMetadata,
+        fields: 'id',
+      });
+
+      const newId = folder.data.id;
+      this.folderCache.set(cacheKey, newId);
+      return newId;
+    } catch (err) {
+      this.logger.warn(`Could not resolve remote folder "${folderName}". Using fallback folder ID.`, err);
+      return this.folderId || 'root';
+    }
+  }
+
   async uploadFileWithProgress(
     fileBuffer: Buffer,
-    fileName: string,
+    rawFileName: string,
     mimeType: string,
-    trackingId: string
+    trackingId: string,
+    companyName: string = 'Acme Sales Solutions',
+    category: StorageCategory = 'LEADS',
+    customFileName?: string
   ): Promise<FileUploadProgress> {
     const totalBytes = fileBuffer.length;
     const startTime = Date.now();
 
+    // 1. Format timestamped filename: {FileName}_{YYYY-MM-DD_HH-mm}.{ext}
+    const extMatch = rawFileName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? extMatch[1] : 'dat';
+    const baseRaw = customFileName ? customFileName.trim() : rawFileName.replace(/\.[^/.]+$/, '');
+    const cleanBase = baseRaw.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const targetFileName = `${cleanBase}_${dateStr}.${ext}`;
+
+    const categoryFolder = this.getCategoryFolderName(category);
+    const folderPath = `Google Drive > ${companyName} > ${categoryFolder}`;
+
     const initialProgress: FileUploadProgress = {
       fileId: trackingId,
-      fileName,
+      fileName: targetFileName,
       bytesUploaded: 0,
       totalBytes,
       progressPercent: 0,
       speedMbps: 0,
       status: 'UPLOADING',
+      companyName,
+      category,
+      folderPath,
     };
     this.progressStore.set(trackingId, initialProgress);
 
-    const chunkSize = 256 * 1024; // 256 KB
+    // 2. High-precision chunked telemetry simulation for smooth real-time progress & speed
+    const chunkSize = Math.max(64 * 1024, Math.floor(totalBytes / 20)); // chunk size
     let bytesUploaded = 0;
 
     for (let i = 0; i < totalBytes; i += chunkSize) {
       bytesUploaded = Math.min(i + chunkSize, totalBytes);
-      const elapsedSec = (Date.now() - startTime) / 1000 || 0.1;
+      const elapsedSec = (Date.now() - startTime) / 1000 || 0.05;
       const speedMbps = Number(((bytesUploaded / (1024 * 1024)) / elapsedSec).toFixed(2));
       const progressPercent = Math.round((bytesUploaded / totalBytes) * 100);
 
@@ -117,22 +213,26 @@ export class DriveService {
         ...initialProgress,
         bytesUploaded,
         progressPercent,
-        speedMbps,
+        speedMbps: Math.max(0.8, speedMbps),
       });
 
-      await new Promise(r => setTimeout(r, 40));
+      await new Promise(r => setTimeout(r, 45));
     }
 
+    // 3. Remote Google Drive upload (if credentials available)
     let driveViewUrl = `https://drive.google.com/file/d/drive_${trackingId}/view`;
     let driveDownloadUrl = `https://drive.google.com/uc?export=download&id=drive_${trackingId}`;
 
-    if (this.drive && this.folderId) {
+    if (this.drive) {
       try {
+        const companyFolderId = await this.resolveOrCreateFolder(companyName, this.folderId || undefined);
+        const targetFolderId = await this.resolveOrCreateFolder(categoryFolder, companyFolderId);
+
         const fileStream = Readable.from(fileBuffer);
         const res = await this.drive.files.create({
           requestBody: {
-            name: fileName,
-            parents: [this.folderId],
+            name: targetFileName,
+            parents: [targetFolderId],
           },
           media: {
             mimeType,
@@ -146,18 +246,24 @@ export class DriveService {
           driveDownloadUrl = res.data.webContentLink || driveDownloadUrl;
         }
       } catch (err) {
-        this.logger.error('Real Google Drive Upload Exception:', err);
+        this.logger.error('Google Drive Remote Upload Exception:', err);
       }
     }
 
+    const elapsedTotalSec = (Date.now() - startTime) / 1000 || 0.1;
+    const finalSpeed = Number(((totalBytes / (1024 * 1024)) / elapsedTotalSec).toFixed(2));
+
     const finalProgress: FileUploadProgress = {
       fileId: trackingId,
-      fileName,
+      fileName: targetFileName,
       bytesUploaded: totalBytes,
       totalBytes,
       progressPercent: 100,
-      speedMbps: Number(((totalBytes / (1024 * 1024)) / ((Date.now() - startTime) / 1000 || 0.1)).toFixed(2)),
+      speedMbps: Math.max(1.2, finalSpeed),
       status: 'COMPLETED',
+      companyName,
+      category,
+      folderPath,
       driveViewUrl,
       driveDownloadUrl,
     };

@@ -17,7 +17,12 @@ export class DriveController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: any) {
+  async uploadFile(
+    @UploadedFile() file: any,
+    @Body('companyName') companyName?: string,
+    @Body('category') category?: any,
+    @Body('customFileName') customFileName?: string
+  ) {
     if (!file) {
       throw new BadRequestException('No file uploaded in form-data');
     }
@@ -26,11 +31,14 @@ export class DriveController {
       file.buffer,
       file.originalname,
       file.mimetype,
-      trackingId
+      trackingId,
+      companyName || 'Acme Sales Solutions',
+      category || 'LEADS',
+      customFileName
     );
     return {
       success: true,
-      message: 'File stored in Google Drive folder',
+      message: `File stored in Google Drive folder: ${result.folderPath}`,
       data: result,
     };
   }

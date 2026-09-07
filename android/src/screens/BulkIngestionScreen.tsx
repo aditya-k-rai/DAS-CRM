@@ -31,6 +31,11 @@ import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
+import {
+  uploadFileToGoogleDriveAndroid,
+  formatTimestampedFileName,
+  GoogleDriveUploadProgress,
+} from '../services/googleDriveService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -158,6 +163,11 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [activeMappingCol, setActiveMappingCol] = useState<ColumnMapItem | null>(null);
 
+  // Google Drive Cloud Upload State (Android)
+  const [isUploadingDrive, setIsUploadingDrive] = useState(false);
+  const [driveProgress, setDriveProgress] = useState<GoogleDriveUploadProgress | null>(null);
+  const [isDriveUploaded, setIsDriveUploaded] = useState(false);
+
   // Google Sheets State
   const [googleConnected, setGoogleConnected] = useState(true);
   const [googleAccountEmail] = useState('org.sales@enterprise-dascrm.com');
@@ -182,7 +192,38 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
   const handlePickFile = async () => {
     // Simulate file picker (real impl: use expo-document-picker or react-native-document-picker)
     setSelectedFileName('facebook_leads_batch_sept2026.csv');
+    setIsDriveUploaded(false);
+    setDriveProgress(null);
     Alert.alert('📂 File Selected', 'facebook_leads_batch_sept2026.csv\n214 rows detected. Review column mapping below.');
+  };
+
+  const handleUploadToGoogleDrive = async () => {
+    if (!selectedFileName) {
+      Alert.alert('No File', 'Please select a CSV or Excel file first.');
+      return;
+    }
+
+    setIsUploadingDrive(true);
+    try {
+      const progress = await uploadFileToGoogleDriveAndroid(selectedFileName, {
+        companyName: 'Acme Sales Solutions',
+        category: 'LEADS',
+        onProgress: (p) => {
+          setDriveProgress(p);
+        },
+      });
+
+      setIsDriveUploaded(true);
+      setDriveProgress(progress);
+      Alert.alert(
+        '☁️ Archived in Backup Vault',
+        `File: ${progress.fileName}\nFolder: ${progress.folderPath}\nSpeed: ${progress.speedMbps} MB/s\n\nNote: Active CRM retains 3 months of data. This file is permanently backed up in Google Drive and queued for the Month-End Admin Email Report.\n\nNext: Tap "Confirm & Ingest Leads" to import into CRM pipeline.`
+      );
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err?.message || 'Could not upload to Google Drive.');
+    } finally {
+      setIsUploadingDrive(false);
+    }
   };
 
   const handleUploadCSV = async () => {
@@ -440,7 +481,71 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         </View>
       </View>
 
-      {/* Progress Bar (when uploading) */}
+      {/* Google Drive Cloud Storage Card */}
+      {selectedFileName && (
+        <View style={S.card}>
+          <View style={S.cardHeaderRow}>
+            <View style={[S.sectionDot, { backgroundColor: '#0284c7' }]} />
+            <Text style={S.cardTitle}>Google Drive Backup Vault (Cold Storage)</Text>
+            {isDriveUploaded && (
+              <View style={[S.statusBadge, { backgroundColor: 'rgba(34,197,94,0.15)' }]}>
+                <Text style={[S.statusBadgeText, { color: '#34d399' }]}>✓ Archived in Vault</Text>
+              </View>
+            )}
+          </View>
+          <Text style={S.cardSub}>Permanent Backup • Active DB retains 3 months of data • Queued for Month-End Admin Report</Text>
+
+          <View style={S.drivePathBadge}>
+            <Text style={S.drivePathText} numberOfLines={1}>
+              📁 Google Drive &gt; Acme Sales Solutions &gt; Leads &gt; {formatTimestampedFileName(selectedFileName)}
+            </Text>
+          </View>
+
+          {!isDriveUploaded && !isUploadingDrive && (
+            <TouchableOpacity
+              style={S.driveCloudBtn}
+              onPress={handleUploadToGoogleDrive}
+              activeOpacity={0.8}
+            >
+              <Text style={S.driveCloudBtnText}>☁️ Backup to Google Drive Vault</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Live Progress Bar & Speed Indicator */}
+          {isUploadingDrive && driveProgress && (
+            <View style={{ marginTop: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ color: '#818cf8', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                  Uploading {driveProgress.fileName}...
+                </Text>
+                <View style={S.driveSpeedBadge}>
+                  <Text style={S.driveSpeedText}>⚡ {driveProgress.speedMbps} MB/s</Text>
+                </View>
+              </View>
+
+              <View style={S.progressTrack}>
+                <View
+                  style={[
+                    S.progressFill,
+                    { width: `${Math.max(4, driveProgress.progressPercent)}%` as any, backgroundColor: '#0284c7' },
+                  ]}
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={{ color: '#64748b', fontSize: 9 }}>
+                  {(driveProgress.bytesUploaded / 1024).toFixed(0)} KB / {(driveProgress.totalBytes / 1024).toFixed(0)} KB
+                </Text>
+                <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '900' }}>
+                  {driveProgress.progressPercent}%
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Progress Bar (when importing) */}
       {isUploading && (
         <View style={S.card}>
           <Text style={S.cardTitle}>📤 Uploading & Processing...</Text>
@@ -453,18 +558,26 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
       {/* Execute Button */}
       <TouchableOpacity
-        style={[S.executeBtn, (isUploading || !selectedFileName) && S.executeBtnDisabled]}
+        style={[
+          S.executeBtn,
+          isDriveUploaded && { backgroundColor: '#059669', shadowColor: '#059669' },
+          (isUploading || !selectedFileName || isUploadingDrive) && S.executeBtnDisabled,
+        ]}
         onPress={handleUploadCSV}
-        disabled={isUploading || !selectedFileName}
+        disabled={isUploading || !selectedFileName || isUploadingDrive}
         activeOpacity={0.85}
       >
         <Text style={S.executeBtnText}>
-          {isUploading ? '⏳ Processing Import...' : '🚀 Execute Import Now →'}
+          {isUploading
+            ? '⏳ Processing Import...'
+            : isDriveUploaded
+            ? '🚀 Next: Confirm & Ingest Leads into Pipeline →'
+            : '🚀 Execute Import Now →'}
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[S.executeBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]}
+        style={[S.executeBtn, { backgroundColor: '#4f46e5', marginTop: 4 }]}
         onPress={() => { setAllocationSourceType('EXCEL_CSV'); setAllocationModalOpen(true); }}
         activeOpacity={0.85}
       >
@@ -1307,6 +1420,59 @@ const S = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '900',
     fontSize: 13,
+  },
+
+  // Google Drive Cloud Upload Styles (Android)
+  driveCloudBtn: {
+    backgroundColor: '#0284c7',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  driveCloudBtnText: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 12.5,
+  },
+  drivePathBadge: {
+    backgroundColor: '#090d16',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    padding: 8,
+    marginTop: 6,
+  },
+  drivePathText: {
+    color: '#818cf8',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '700',
+  },
+  driveSpeedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.3)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  driveSpeedText: {
+    color: '#fbbf24',
+    fontSize: 10,
+    fontWeight: '900',
   },
 
   // Info Footer

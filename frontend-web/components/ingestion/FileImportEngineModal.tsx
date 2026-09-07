@@ -4,10 +4,16 @@ import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Upload, FileSpreadsheet, X, Plus, Sliders,
-  Layers, CheckCircle, Ban, Eye, Type, AlertCircle
+  Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
+  Cloud, CloudUpload, Zap, Folder, Check
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
+import {
+  uploadFileToGoogleDrive,
+  formatTimestampedFileName,
+  GoogleDriveUploadProgress,
+} from '../../lib/googleDriveService';
 
 export interface FileImportEngineModalProps {
   isOpen: boolean;
@@ -67,6 +73,12 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [sheets, setSheets] = useState<ParsedSheet[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
 
+  // Google Drive Cloud Upload Telemetry State
+  const [selectedFileBlob, setSelectedFileBlob] = useState<File | null>(null);
+  const [isUploadingDrive, setIsUploadingDrive] = useState(false);
+  const [driveProgress, setDriveProgress] = useState<GoogleDriveUploadProgress | null>(null);
+  const [isDriveUploaded, setIsDriveUploaded] = useState(false);
+
   const [resizingColIdx, setResizingColIdx] = useState<number | null>(null);
   const startXRef = useRef<number>(0);
   const startWidthRef = useRef<number>(0);
@@ -75,6 +87,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setSelectedFileBlob(file);
+    setIsDriveUploaded(false);
+    setDriveProgress(null);
 
     const rawExt = file.name.split('.').pop()?.toUpperCase() || 'FILE';
     setDetectedFormat(rawExt);
@@ -437,6 +453,48 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     setIsAllocationModalOpen(true);
   };
 
+  // Google Drive Upload Handler with Real-time Progress & Speed
+  const handleUploadToGoogleDrive = async () => {
+    if (!selectedFileBlob && sheets.length === 0) {
+      alert('Please select a spreadsheet file first.');
+      return;
+    }
+
+    setIsUploadingDrive(true);
+    try {
+      let uploadBlob: Blob | File = selectedFileBlob!;
+      if (!uploadBlob) {
+        const wb = XLSX.utils.book_new();
+        sheets.forEach(s => {
+          const ws = XLSX.utils.aoa_to_sheet(s.data);
+          XLSX.utils.book_append_sheet(wb, ws, s.name);
+        });
+        const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      }
+
+      const result = await uploadFileToGoogleDrive(
+        uploadBlob,
+        `${fileName || 'Leads_Import'}.${(detectedFormat || 'xlsx').toLowerCase()}`,
+        {
+          companyName: 'Acme Sales Solutions',
+          category: 'LEADS',
+          customFileName: fileName,
+          onProgress: (p) => {
+            setDriveProgress(p);
+          },
+        }
+      );
+
+      setIsDriveUploaded(true);
+      setDriveProgress(result);
+    } catch (err) {
+      alert('Upload to Google Drive failed: ' + (err as Error).message);
+    } finally {
+      setIsUploadingDrive(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const totalRowsCount = sheets.reduce((acc, s) => acc + s.data.length, 0);
@@ -771,6 +829,81 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           )}
         </div>
 
+        {/* GOOGLE DRIVE SYNC & UPLOAD PROGRESS BAR */}
+        {sheets.length > 0 && (
+          <div className="px-5 py-3.5 bg-slate-900/95 border-t border-indigo-500/20 flex flex-col gap-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-inner">
+                  <Cloud size={18} />
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white">
+                    <span>Google Drive Cold Backup Vault:</span>
+                    <span className="text-indigo-300 font-mono text-[11px] bg-slate-800/90 px-2.5 py-0.5 rounded-md border border-slate-700">
+                      📁 Google Drive &gt; Acme Sales Solutions &gt; Leads &gt; {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Permanent Cold Storage Vault • Active CRM/Web retains 3-month data • Bundled for End-of-Month Admin Report Email.
+                  </p>
+                </div>
+              </div>
+
+              {!isDriveUploaded && !isUploadingDrive && (
+                <button
+                  type="button"
+                  onClick={handleUploadToGoogleDrive}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all whitespace-nowrap active:scale-95"
+                >
+                  <CloudUpload size={15} /> Backup to Google Drive
+                </button>
+              )}
+
+              {isDriveUploaded && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
+                    <CheckCircle size={14} /> Archived in Backup Vault
+                  </span>
+                  <span className="text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1.5 rounded-lg">
+                    📦 Queued for Month-End Admin Bundle
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Live Progress Bar & Speed Indicator */}
+            {isUploadingDrive && driveProgress && (
+              <div className="mt-1 bg-slate-950 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col gap-2 animate-fade-in shadow-inner">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center gap-2 text-indigo-300 font-bold">
+                    <span className="animate-spin text-sky-400">⏳</span>
+                    <span className="truncate max-w-xs sm:max-w-md">Uploading {driveProgress.fileName}...</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-amber-400 font-bold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      <Zap size={13} className="text-amber-400 fill-amber-400" />
+                      Speed: {driveProgress.speedMbps} MB/s
+                    </span>
+                    <span className="text-slate-400 font-medium">
+                      {(driveProgress.bytesUploaded / 1024).toFixed(0)} KB / {(driveProgress.totalBytes / 1024).toFixed(0)} KB
+                    </span>
+                    <span className="text-emerald-400 font-extrabold">{driveProgress.progressPercent}%</span>
+                  </div>
+                </div>
+
+                {/* Progress Bar Track */}
+                <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-150 shadow-[0_0_12px_rgba(99,102,241,0.6)]"
+                    style={{ width: `${Math.max(4, driveProgress.progressPercent)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* FOOTER ACTIONS BAR */}
         <div className="p-4 bg-slate-900 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted">
@@ -796,13 +929,18 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               Cancel
             </button>
 
-            {/* Strict Validation Button: Disabled until File Name & Platform are filled */}
+            {/* Strict Validation Button: Unlocks as 'Next: Confirm & Ingest' after Google Drive Upload */}
             <button
               onClick={handleCommitIngestion}
-              disabled={!isReadyToInject}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-brand hover:from-indigo-500 hover:to-brand-400 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:pointer-events-none transition-all"
+              disabled={!isReadyToInject || isUploadingDrive}
+              className={`px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all ${
+                isDriveUploaded
+                  ? 'bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/20 animate-pulse'
+                  : 'bg-gradient-to-r from-indigo-600 to-brand hover:from-indigo-500 hover:to-brand-400 text-white disabled:opacity-40 disabled:pointer-events-none'
+              }`}
             >
-              <CheckCircle size={15} /> Confirm &amp; Ingest Leads into Pipeline
+              <CheckCircle size={15} />
+              {isDriveUploaded ? 'Next: Confirm & Ingest Leads into Pipeline →' : 'Confirm & Ingest Leads into Pipeline'}
             </button>
           </div>
         </div>
