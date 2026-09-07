@@ -6,6 +6,7 @@ import {
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
   Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle
 } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'STARTER' | 'PRO' | 'PRO_MAX';
 
@@ -511,6 +512,9 @@ export function SuperAdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* 3-way Theme Toggle (Light / System / Dark) */}
+            <ThemeToggle />
+
             <button onClick={fetchBackendData} className="btn-primary text-xs px-4 py-2 flex items-center gap-2">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
             </button>

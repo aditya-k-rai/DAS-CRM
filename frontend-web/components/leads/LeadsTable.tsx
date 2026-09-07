@@ -43,7 +43,7 @@ const LEADS: LeadDataWeb[] = [
     currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
     totalCalls: 6, lastCalledAt: 'Today 2:45 PM',
     allocationTrail: [
-      { id: 'a1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Vikram Singh (Manager A)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:00:00+05:30', note: 'High-value enterprise lead from Website campaign.' },
+      { id: 'a1', fromRole: 'ADMIN', fromName: 'Admin (Vikram Singh)', toRole: 'MANAGER', toName: 'Vikram Singh (Manager A)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:00:00+05:30', note: 'High-value enterprise lead from Website campaign.' },
       { id: 'a2', fromRole: 'MANAGER', fromName: 'Vikram Singh (Manager A)', toRole: 'TEAM_LEADER', toName: 'Priya Sharma (TL A)', action: 'ALLOCATED', assignedAt: '2026-08-09T09:30:00+05:30', note: 'Delhi NCR territory. CRM vertical.' },
       { id: 'a3', fromRole: 'TEAM_LEADER', fromName: 'Priya Sharma (TL A)', toRole: 'SALES_EXEC', toName: 'Rajesh K. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T10:45:00+05:30', note: 'Assigned for outreach. Follow up by EOD.' },
     ],
@@ -57,7 +57,7 @@ const LEADS: LeadDataWeb[] = [
     currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
     totalCalls: 3, lastCalledAt: 'Yesterday 4:20 PM',
     allocationTrail: [
-      { id: 'b1', fromRole: 'ADMIN', fromName: 'Super Admin', toRole: 'MANAGER', toName: 'Anil Kumar (Manager B)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:15:00+05:30', note: 'LinkedIn inbound lead.' },
+      { id: 'b1', fromRole: 'ADMIN', fromName: 'Admin (Vikram Singh)', toRole: 'MANAGER', toName: 'Anil Kumar (Manager B)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:15:00+05:30', note: 'LinkedIn inbound lead.' },
       { id: 'b2', fromRole: 'MANAGER', fromName: 'Anil Kumar (Manager B)', toRole: 'SALES_EXEC', toName: 'Priya S. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T11:00:00+05:30', note: 'Direct assignment — small ticket, no TL needed.' },
     ],
   },

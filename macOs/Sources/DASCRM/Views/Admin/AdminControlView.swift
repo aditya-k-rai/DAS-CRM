@@ -9,9 +9,9 @@ import SwiftUI
 public struct AdminControlView: View {
     @State private var selectedTab = 0
     @State private var auditLogs: [AuditLogItem] = [
-        AuditLogItem(id: UUID().uuidString, action: "ROLE_TRANSITION", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date(), details: "Promoted Sales Rep to Manager role"),
+        AuditLogItem(id: UUID().uuidString, action: "ROLE_TRANSITION", actorName: "Vikram Singh (Admin)", role: "ADMIN", timestamp: Date(), details: "Promoted Sales Rep to Manager role"),
         AuditLogItem(id: UUID().uuidString, action: "BULK_LEAD_IMPORT", actorName: "Sarah Jenkins", role: "ORG_ADMIN", timestamp: Date().addingTimeInterval(-3600 * 2), details: "Imported 1,450 leads into pipeline"),
-        AuditLogItem(id: UUID().uuidString, action: "ORGANIZATION_UPDATE", actorName: "Aditya (Super Admin)", role: "SUPER_ADMIN", timestamp: Date().addingTimeInterval(-86400), details: "Updated API billing & seat limits")
+        AuditLogItem(id: UUID().uuidString, action: "ORGANIZATION_UPDATE", actorName: "Vikram Singh (Admin)", role: "ADMIN", timestamp: Date().addingTimeInterval(-86400), details: "Updated API billing & seat limits")
     ]
     
     public var body: some View {
@@ -20,7 +20,7 @@ public struct AdminControlView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Admin & RBAC Control Hub")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                    Text("SuperAdmin governance, role transitions, audit logs & organization control")
+                    Text("Admin governance, role transitions, audit logs & organization control")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }

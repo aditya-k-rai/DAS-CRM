@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Menu, Sun, Moon } from 'lucide-react';
+import { Search, Menu } from 'lucide-react';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
+import { ThemeToggle } from '../common/ThemeToggle';
 import { useSidebar } from '@/context/SidebarContext';
-import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
 interface TopbarProps {
@@ -16,7 +16,6 @@ interface TopbarProps {
 export function Topbar({ title, actions }: TopbarProps) {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { toggleMobile, collapsed, toggleCollapsed } = useSidebar();
-  const { theme, toggleTheme } = useTheme();
 
   const handleHamburgerClick = () => {
     if (window.innerWidth < 1024) {
@@ -43,7 +42,7 @@ export function Topbar({ title, actions }: TopbarProps) {
             <Menu size={18} />
           </button>
 
-          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
+          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white dark:text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap">
@@ -51,7 +50,7 @@ export function Topbar({ title, actions }: TopbarProps) {
           <button
             type="button"
             onClick={() => setCmdOpen(true)}
-            className="md:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-muted hover:text-white transition-colors"
+            className="md:hidden p-2 rounded-lg bg-secondary border border-border text-muted hover:text-foreground transition-colors"
             title="Search (⌘K)"
           >
             <Search size={16} />
@@ -62,13 +61,13 @@ export function Topbar({ title, actions }: TopbarProps) {
             onClick={() => setCmdOpen(true)}
             className="relative hidden md:flex items-center cursor-pointer group"
           >
-            <Search size={15} className="absolute left-3 text-muted group-hover:text-white transition-colors" style={{ color: 'rgb(var(--muted-foreground))' }} />
+            <Search size={15} className="absolute left-3 text-muted-foreground group-hover:text-foreground transition-colors" />
             <input
               readOnly
               className="crm-input pl-9 w-48 lg:w-64 text-xs sm:text-sm h-9 cursor-pointer"
               placeholder="Search leads, contacts... (⌘K)"
             />
-            <kbd className="absolute right-3 text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: 'rgb(var(--border))', color: 'rgb(var(--muted-foreground))' }}>
+            <kbd className="absolute right-3 text-xs px-1.5 py-0.5 rounded font-mono bg-border text-muted-foreground">
               ⌘K
             </kbd>
           </div>
@@ -76,16 +75,8 @@ export function Topbar({ title, actions }: TopbarProps) {
           {/* Page Actions */}
           {actions}
 
-          {/* Theme Toggle Button (Dark & Light Mode) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1.5 text-xs font-bold"
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            <span className="hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
-          </button>
+          {/* 3-way Theme Toggle (Light / System / Dark) */}
+          <ThemeToggle />
 
           {/* Quick App Downloads Button */}
           <a

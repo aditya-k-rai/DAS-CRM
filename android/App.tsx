@@ -28,6 +28,7 @@ import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { useAuthStore } from './src/store/authStore';
+import { ThemeProvider } from './src/context/ThemeContext';
 import LoginScreen from './src/screens/LoginScreen';
 
 // Dashboards per role
@@ -497,9 +498,10 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="light" />
-      <NavigationContainer ref={navigationRef}>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
         ) : (
@@ -853,6 +855,7 @@ export default function App() {
       {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
       <ModernAlertModal />
     </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 

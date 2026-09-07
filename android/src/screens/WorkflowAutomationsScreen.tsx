@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -42,6 +43,13 @@ interface WorkflowAutomationsScreenProps {
   navigation?: any;
 }
 
+const TRIGGER_OPTIONS = [
+  { key: 'AI_SCORE', icon: 'AI', label: 'AI Score Threshold (>= 80)' },
+  { key: 'STATUS_CHANGE', icon: 'ST', label: 'Lead Status Changed' },
+  { key: 'TIME_BASED', icon: 'TM', label: 'Time-Based Trigger (48h/72h)' },
+  { key: 'VALUE_THRESHOLD', icon: 'VL', label: 'Deal Value Threshold' },
+];
+
 export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps> = ({
   onClose,
   navigation,
@@ -51,6 +59,12 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
   const [pipelineRules, setPipelineRules] = useState<WorkflowRule[]>(DEFAULT_WORKFLOWS);
   const [showFullWorkflowBuilder, setShowFullWorkflowBuilder] = useState(false);
   const [builderTab, setBuilderTab] = useState<TabId>('automations');
+
+  // Rule Detail & Creation Modals
+  const [selectedRule, setSelectedRule] = useState<WorkflowRule | null>(null);
+  const [createRuleOpen, setCreateRuleOpen] = useState(false);
+  const [selectedTrigger, setSelectedTrigger] = useState<string | null>(null);
+  const [newWorkflowRuleName, setNewWorkflowRuleName] = useState('');
 
   // Load rules from AsyncStorage
   const loadRules = useCallback(async () => {
@@ -78,6 +92,9 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
         r.id === ruleId ? { ...r, isActive: !r.isActive } : r
       );
       setPipelineRules(updatedRules);
+      if (selectedRule && selectedRule.id === ruleId) {
+        setSelectedRule({ ...selectedRule, isActive: !selectedRule.isActive });
+      }
 
       // Persist in sync with WorkflowBuilder storage format
       const raw = await AsyncStorage.getItem(WORKFLOW_STORAGE_KEY);
@@ -86,6 +103,100 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
       await AsyncStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(payload));
     } catch (err) {
       console.warn('Failed to toggle workflow rule', err);
+    }
+  };
+
+  // Delete Rule & persist to AsyncStorage
+  const handleDeleteRule = (id: string) => {
+    Alert.alert('Delete Rule', 'Delete this automation rule? Cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const updated = pipelineRules.filter((r) => r.id !== id);
+            setPipelineRules(updated);
+            setSelectedRule(null);
+            const raw = await AsyncStorage.getItem(WORKFLOW_STORAGE_KEY);
+            const existingData = raw ? JSON.parse(raw) : {};
+            const payload = { ...existingData, rules: updated };
+            await AsyncStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(payload));
+          } catch (err) {
+            console.warn('Failed to delete workflow rule', err);
+          }
+        },
+      },
+    ]);
+  };
+
+  // Create New Rule & persist to AsyncStorage
+  const handleCreateNewWorkflowRule = async () => {
+    if (!selectedTrigger) {
+      Alert.alert('Select Trigger', 'Please select a trigger event type.');
+      return;
+    }
+    const triggerConfig: Record<string, { trigger: string; condition: string; action: string; color: string }> = {
+      AI_SCORE: {
+        trigger: 'AI Score >= 80',
+        condition: 'Status is not WON or LOST',
+        action: 'Assign to TL & Dispatch WhatsApp',
+        color: '#6366f1',
+      },
+      STATUS_CHANGE: {
+        trigger: 'Status Changed > PROPOSAL',
+        condition: 'High Priority Lead Assigned',
+        action: 'Alert Sales Exec + Schedule Task',
+        color: '#10b981',
+      },
+      TIME_BASED: {
+        trigger: 'No Contact for 72 Hours',
+        condition: 'Status = NEW or CONTACTED',
+        action: 'Re-assign to Next Available Rep',
+        color: '#0ea5e9',
+      },
+      VALUE_THRESHOLD: {
+        trigger: 'Deal Value > Rs. 5,00,000',
+        condition: 'Status in PROPOSAL or NEGOTIATION',
+        action: 'Alert Admin & Sales Director Real-Time',
+        color: '#c084fc',
+      },
+    };
+
+    const cfg = triggerConfig[selectedTrigger] || {
+      trigger: selectedTrigger,
+      condition: 'Target condition matched',
+      action: 'Dispatch Notification & Update CRM',
+      color: '#6366f1',
+    };
+
+    const newRule: WorkflowRule = {
+      id: `wf-${Date.now()}`,
+      name: newWorkflowRuleName.trim() || `Automated ${selectedTrigger.replace('_', ' ')} Rule`,
+      description: 'Trigger created from template wizard. Auto-dispatches escalation SLA, notifications and assignment.',
+      triggerLabel: cfg.trigger,
+      conditionLabel: cfg.condition,
+      actionLabel: cfg.action,
+      isActive: true,
+      runCount: 0,
+      lastRunStr: 'Just now',
+      color: cfg.color,
+    };
+
+    const updated = [newRule, ...pipelineRules];
+    setPipelineRules(updated);
+    setCreateRuleOpen(false);
+    setSelectedTrigger(null);
+    setNewWorkflowRuleName('');
+
+    try {
+      const raw = await AsyncStorage.getItem(WORKFLOW_STORAGE_KEY);
+      const existingData = raw ? JSON.parse(raw) : {};
+      const payload = { ...existingData, rules: updated };
+      await AsyncStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(payload));
+      Alert.alert('✅ Rule Created', `Workflow rule "${newRule.name}" is now active!`);
+    } catch (err) {
+      console.warn('Failed to persist created workflow rule', err);
     }
   };
 
@@ -175,31 +286,7 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 85 }]} showsVerticalScrollIndicator={false}>
-        {/* ── ⚡ Hero Pipeline Automation Card & Launch Button ── */}
-        <View style={styles.pipelineHeroCard}>
-          <View style={styles.pipelineHeroTop}>
-            <View style={styles.pipelineHeroIconBox}>
-              <Text style={{ fontSize: 20 }}>⚡</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.pipelineHeroTitle}>Pipeline Automation</Text>
-              <Text style={styles.pipelineHeroSub}>
-                Configure multi-stage deal SLAs, AI handovers, and lifecycle routing rules.
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.pipelineHeroButton}
-            onPress={() => handleOpenPipelineAutomation('automations')}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.pipelineHeroButtonText}>⚡ Pipeline Automation →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── ⚙️ Full Admin Workflow Builder Launcher Banner ── */}
+        {/* ── ⚙️ Full Admin Workflow & Lifecycle Builder Launcher Banner ── */}
         <TouchableOpacity
           style={styles.adminBuilderBanner}
           onPress={() => handleOpenPipelineAutomation('pipeline')}
@@ -211,17 +298,22 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
               <Text style={{ fontSize: 16 }}>⚙️</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.adminBuilderTitle}>Workflow Setup &amp; Pipeline Stages</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.adminBuilderTitle}>Lifecycle &amp; Pipeline Setup</Text>
+                <View style={styles.adminBadge}>
+                  <Text style={styles.adminBadgeText}>ADMIN</Text>
+                </View>
+              </View>
               <Text style={styles.adminBuilderSub}>
                 Customize Lead Statuses, Pipeline Stages, Lead Sources &amp; Custom Fields
               </Text>
             </View>
           </View>
-          <Text style={styles.adminBuilderArrow}>Launch →</Text>
+          <Text style={styles.adminBuilderArrow}>Launch Setup →</Text>
         </TouchableOpacity>
 
         {/* ───────────────────────────────────────────────────────────────── */}
-        {/* ⚡ THE AUTOMATION RULES SECTION (Matching Screenshot)            */}
+        {/* ⚡ THE AUTOMATION RULES SECTION                                   */}
         {/* ───────────────────────────────────────────────────────────────── */}
         <View style={styles.sectionContainer}>
           {/* Stats Row */}
@@ -239,16 +331,16 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
             ))}
           </View>
 
-          {/* Section Header with Pipeline Automation Button */}
+          {/* Section Header with + New Rule Button */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionLbl}>ACTIVE AUTOMATION RULES</Text>
             <TouchableOpacity
-              style={styles.pipelineActionBtn}
-              onPress={() => handleOpenPipelineAutomation('automations')}
+              style={styles.newRuleBtn}
+              onPress={() => setCreateRuleOpen(true)}
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.pipelineActionBtnText}>⚡ Pipeline Automation</Text>
+              <Text style={styles.newRuleBtnText}>+ New Rule</Text>
             </TouchableOpacity>
           </View>
 
@@ -257,7 +349,7 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
             <TouchableOpacity
               key={rule.id}
               style={[styles.ruleCard, { borderLeftColor: rule.color }]}
-              onPress={() => handleOpenPipelineAutomation('automations')}
+              onPress={() => setSelectedRule(rule)}
               activeOpacity={0.85}
             >
               <View style={styles.ruleCardTop}>
@@ -563,6 +655,150 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
           ))}
         </View>
       </ScrollView>
+
+      {/* ── Rule Detail & Execution Chain Modal ── */}
+      <Modal visible={!!selectedRule} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          {selectedRule && (
+            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 16 }]}>
+              <View style={styles.modalHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitle}>{selectedRule.name}</Text>
+                  <Text style={styles.modalSub}>Automation Rule Execution Chain</Text>
+                </View>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedRule(null)}>
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+                  <View
+                    style={[
+                      styles.activeBadge,
+                      selectedRule.isActive
+                        ? { borderColor: 'rgba(52,211,153,0.4)', backgroundColor: 'rgba(52,211,153,0.12)' }
+                        : { borderColor: 'rgba(100,116,139,0.3)', backgroundColor: 'rgba(100,116,139,0.1)' },
+                    ]}
+                  >
+                    <Text style={[styles.activeBadgeText, { color: selectedRule.isActive ? '#34d399' : '#64748b' }]}>
+                      {selectedRule.isActive ? 'ACTIVE' : 'PAUSED'}
+                    </Text>
+                  </View>
+                  <Text style={styles.ruleMetaText}>{selectedRule.runCount} total executions</Text>
+                </View>
+
+                <Text style={styles.detailDesc}>{selectedRule.description}</Text>
+                <Text style={[styles.sectionLbl, { marginTop: 12, marginBottom: 8 }]}>AUTOMATION CHAIN</Text>
+
+                {[
+                  { lbl: 'TRIGGER', val: selectedRule.triggerLabel, col: '#818cf8', bc: 'rgba(99,102,241,0.4)' },
+                  { lbl: 'CONDITION (IF)', val: selectedRule.conditionLabel, col: '#38bdf8', bc: 'rgba(56,189,248,0.4)' },
+                  { lbl: 'ACTION (THEN)', val: selectedRule.actionLabel, col: '#34d399', bc: 'rgba(52,211,153,0.4)' },
+                ].map((node, i) => (
+                  <View key={i}>
+                    {i > 0 && (
+                      <View style={{ alignItems: 'center', paddingVertical: 4 }}>
+                        <Text style={{ color: '#475569', fontSize: 14, fontWeight: '700' }}>↓</Text>
+                      </View>
+                    )}
+                    <View style={[styles.detailNode, { borderColor: node.bc }]}>
+                      <Text style={styles.detailNodeLbl}>{node.lbl}</Text>
+                      <Text style={[styles.detailNodeVal, { color: node.col }]}>{node.val}</Text>
+                    </View>
+                  </View>
+                ))}
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Last Executed:</Text>
+                  <Text style={styles.metaValue}>{selectedRule.lastRunStr}</Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalActionBtn,
+                      selectedRule.isActive
+                        ? { borderColor: '#475569', backgroundColor: 'rgba(100,116,139,0.2)' }
+                        : { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' },
+                    ]}
+                    onPress={() => handleToggleRule(selectedRule.id)}
+                  >
+                    <Text style={[styles.modalActionBtnText, { color: selectedRule.isActive ? '#94a3b8' : '#34d399' }]}>
+                      {selectedRule.isActive ? 'Pause Rule' : 'Activate Rule'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalActionBtn, { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.12)' }]}
+                    onPress={() => handleDeleteRule(selectedRule.id)}
+                  >
+                    <Text style={[styles.modalActionBtnText, { color: '#f87171' }]}>Delete Rule</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* ── Create New Workflow Rule Wizard Modal ── */}
+      <Modal visible={createRuleOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 24) + 16 }]}>
+            <View style={styles.modalHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>New Workflow Rule</Text>
+                <Text style={styles.modalSub}>Select trigger event to configure automated pipeline</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => {
+                  setCreateRuleOpen(false);
+                  setSelectedTrigger(null);
+                  setNewWorkflowRuleName('');
+                }}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={[styles.inputField, { marginBottom: 12 }]}
+              placeholder="Rule Name (e.g. VIP Lead Fast-Track Handover)"
+              placeholderTextColor="#64748b"
+              value={newWorkflowRuleName}
+              onChangeText={setNewWorkflowRuleName}
+            />
+
+            <Text style={[styles.sectionLbl, { marginBottom: 8 }]}>SELECT TRIGGER TYPE</Text>
+            {TRIGGER_OPTIONS.map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.triggerOpt, selectedTrigger === t.key && styles.triggerOptActive]}
+                onPress={() => setSelectedTrigger(t.key)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.triggerIcon, selectedTrigger === t.key && { backgroundColor: 'rgba(99,102,241,0.3)' }]}>
+                  <Text style={{ fontSize: 10, fontWeight: '900', color: selectedTrigger === t.key ? '#818cf8' : '#64748b' }}>
+                    {t.icon}
+                  </Text>
+                </View>
+                <Text style={[styles.triggerLbl, selectedTrigger === t.key && { color: '#818cf8' }]}>{t.label}</Text>
+                {selectedTrigger === t.key && <Text style={{ color: '#818cf8', fontSize: 16, fontWeight: '900' }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={[styles.proceedBtn, !selectedTrigger && { opacity: 0.35 }]}
+              disabled={!selectedTrigger}
+              onPress={handleCreateNewWorkflowRule}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.proceedBtnText}>⚡ Proceed &amp; Activate Rule →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -718,21 +954,106 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     letterSpacing: 0.8,
   },
-  pipelineActionBtn: {
-    backgroundColor: '#4f46e5',
+  newRuleBtn: {
+    backgroundColor: 'rgba(99,102,241,0.2)',
     borderWidth: 1,
-    borderColor: '#818cf8',
+    borderColor: 'rgba(99,102,241,0.5)',
     paddingHorizontal: 12,
-    minHeight: 36,
+    minHeight: 34,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,
   },
-  pipelineActionBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
+  newRuleBtnText: {
+    color: '#818cf8',
+    fontSize: 11.5,
     fontWeight: '900',
   },
+
+  // Modals & Inspectors
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  modalBox: {
+    backgroundColor: '#0f172a',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    maxHeight: '90%',
+  },
+  modalHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff', marginBottom: 2 },
+  modalSub: { fontSize: 10, color: '#64748b', fontWeight: '600' },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: { color: '#94a3b8', fontSize: 11, fontWeight: '900' },
+  detailDesc: { fontSize: 11.5, color: '#94a3b8', lineHeight: 16, marginBottom: 8 },
+  detailNode: { backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderRadius: 10, padding: 10 },
+  detailNodeLbl: { fontSize: 8.5, fontWeight: '900', color: '#64748b', letterSpacing: 0.5, marginBottom: 3 },
+  detailNodeVal: { fontSize: 11, fontWeight: '800' },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 8,
+    marginTop: 12,
+  },
+  metaLabel: { fontSize: 9.5, color: '#64748b', fontWeight: '700' },
+  metaValue: { fontSize: 9.5, color: '#ffffff', fontWeight: '800' },
+  modalActionBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  modalActionBtnText: { fontSize: 11, fontWeight: '900' },
+  triggerOpt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  triggerOptActive: { backgroundColor: 'rgba(99,102,241,0.12)', borderColor: '#818cf8' },
+  triggerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  triggerLbl: { flex: 1, fontSize: 11.5, fontWeight: '800', color: '#94a3b8' },
+  proceedBtn: {
+    backgroundColor: '#4f46e5',
+    borderWidth: 1,
+    borderColor: '#818cf8',
+    borderRadius: 12,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  proceedBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
 
   // Visual Rule Cards (Matching Screenshot)
   ruleCard: {

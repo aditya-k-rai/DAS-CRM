@@ -21,12 +21,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
   const [mounted, setMounted] = useState(false);
 
-  // Helper to determine resolved theme from system preference
-  const getSystemTheme = useCallback((): ResolvedTheme => {
-    if (typeof window === 'undefined') return 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }, []);
-
   const applyTheme = useCallback((activeTheme: Theme) => {
     if (typeof window === 'undefined') return;
     const root = document.documentElement;
@@ -53,7 +47,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // On mount: sync with localStorage preference (default to 'system')
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
@@ -62,7 +55,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(initialTheme);
   }, [applyTheme]);
 
-  // System media query listener for live updates when theme is set to 'system'
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -96,7 +88,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleTheme = () => {
-    // Cycle: system -> dark -> light -> system
     if (theme === 'system') {
       setTheme('dark');
     } else if (theme === 'dark') {

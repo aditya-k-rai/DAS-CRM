@@ -74,7 +74,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
 
   const SUPERVISORS = [
     'Tenant Admin (Vikram Singh)',
-    'Super Admin',
+    'Executive Admin (Aditya Rai)',
   ];
 
   const [hiredEmployeesList, setHiredEmployeesList] = useState([

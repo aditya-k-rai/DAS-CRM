@@ -55,7 +55,7 @@ const SAMPLE_TRAIL: AllocationEvent[] = [
   {
     id: 'alloc-1',
     fromRole: 'ADMIN',
-    fromName: 'Super Admin',
+    fromName: 'Admin (Vikram Singh)',
     toRole: 'MANAGER',
     toName: 'Rajesh Kumar (Manager A)',
     action: 'ALLOCATED',

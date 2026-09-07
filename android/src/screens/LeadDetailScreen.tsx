@@ -654,7 +654,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   </View>
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff', marginBottom: 2 }}>📁 Allocated to{'\n'}Manager A</Text>
-                <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3 }}>By Super Admin</Text>
+                <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 3 }}>By Admin</Text>
                 <Text style={{ fontSize: 9, fontWeight: '800', color: '#f59e0b' }}>Aug 21 • 08:30 AM</Text>
               </View>
 

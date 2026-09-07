@@ -79,7 +79,7 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
 
   const SUPERVISORS = [
     'Tenant Admin (Vikram Singh)',
-    'Super Admin',
+    'Executive Admin (Aditya Rai)',
   ];
 
   const MOCK_DEPT_DISTRIBUTION = [

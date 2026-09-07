@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { ThemeToggle } from './ThemeToggle';
 
 interface TenantAdminHeaderBannerProps {
   navigation?: any;
@@ -147,6 +148,8 @@ export function TenantAdminHeaderBanner({
 
       {/* ── Action Buttons Row ── */}
       <View style={styles.actionButtonsRow}>
+        <ThemeToggle style={{ flex: 0, marginRight: 'auto' }} />
+
         <TouchableOpacity
           style={[styles.btnSecondary, { borderColor: themeColor }]}
           onPress={handleBtn1}

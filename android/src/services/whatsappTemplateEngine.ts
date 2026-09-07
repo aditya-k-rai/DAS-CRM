@@ -223,7 +223,7 @@ class WhatsAppTemplateEngine {
     return DEFAULT_TEMPLATES;
   }
 
-  /** Save customized template list (Admin / Super Admin only) */
+  /** Save customized template list (Admin only) */
   async saveTemplates(templates: WhatsAppTemplate[]): Promise<boolean> {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
