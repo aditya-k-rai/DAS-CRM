@@ -28,6 +28,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/apiService';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -83,6 +85,8 @@ export interface AttendanceScreenProps {
 }
 
 export default function AttendanceScreen({ onClose, navigation }: AttendanceScreenProps = {}) {
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
   const { currentUser } = useAuthStore();
   const isAdmin = currentUser.role === 'ADMIN';
 
@@ -567,7 +571,31 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: 4 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
+      {/* ── NON-ADMIN TAB TOGGLE (MARK vs CALENDAR OVERVIEW) ──────────────── */}
+      {!isAdmin && (
+        <View style={{ paddingHorizontal: 16, marginBottom: 8, width: '100%', maxWidth: 500, alignSelf: 'center' }}>
+          <View style={[styles.tabToggleBox, { backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }]}>
+            <TouchableOpacity
+              style={[styles.tabToggleBtn, activeTab === 'MARK' && styles.tabToggleBtnActive]}
+              onPress={() => setActiveTab('MARK')}
+            >
+              <Text style={[styles.tabToggleText, activeTab === 'MARK' && styles.tabToggleTextActive]}>
+                📸 {t.attTabMark}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabToggleBtn, activeTab === 'MY_ATTENDANCE' && styles.tabToggleBtnActive]}
+              onPress={() => setActiveTab('MY_ATTENDANCE')}
+            >
+              <Text style={[styles.tabToggleText, activeTab === 'MY_ATTENDANCE' && styles.tabToggleTextActive]}>
+                📅 {t.attTabOverview}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* ── CONTENT SCROLL ───────────────────────────────────────────────── */}
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
@@ -576,13 +604,13 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
         {/* ─────────────────────────────────────────────────────────────────────────── */}
         {activeTab === 'MARK' && !isAdmin && (
           <View style={styles.markCardBox}>
-            <View style={styles.liveClockBanner}>
-              <Text style={styles.liveClockTitle}>🕒 Server Time: {serverFormattedTime}</Text>
-              <Text style={styles.liveClockSub}>{serverFormattedDate} • IST (Delhi Live Time)</Text>
+            <View style={[styles.liveClockBanner, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <Text style={styles.liveClockTitle}>🕒 {t.attServerTime}: {serverFormattedTime}</Text>
+              <Text style={[styles.liveClockSub, { color: colors.textMuted }]}>{serverFormattedDate} • IST (Delhi Live Time)</Text>
             </View>
 
             {/* GPS & Camera Permission Status Bar */}
-            <View style={styles.permStatusBar}>
+            <View style={[styles.permStatusBar, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <TouchableOpacity onPress={requestAllPermissions} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: locationPermissionGranted ? '#34d399' : '#f87171' }}>
                   {locationPermissionGranted ? '🟢 GPS Permission Active' : '🔴 Tap to Grant GPS Permission'}
@@ -597,18 +625,18 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
             </View>
 
             {/* Geo-Fence Location Telemetry Card */}
-            <View style={styles.geoCard}>
+            <View style={[styles.geoCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.geoCardTitle}>📍 Office Geo-Fence Telemetry</Text>
-                <TouchableOpacity onPress={fetchCurrentLocation} style={styles.refreshGpsBtn}>
+                <Text style={[styles.geoCardTitle, { color: colors.text }]}>📍 Office Geo-Fence Telemetry</Text>
+                <TouchableOpacity onPress={fetchCurrentLocation} style={[styles.refreshGpsBtn, !isDark && { backgroundColor: '#e0e7ff' }]}>
                   <Text style={styles.refreshGpsBtnText}>🔄 Fetch Live GPS</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.geoCoordsText}>
-                Live Coords: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{userCoords.lat.toFixed(6)}, {userCoords.lng.toFixed(6)}</Text>
+              <Text style={[styles.geoCoordsText, { color: colors.textMuted }]}>
+                Live Coords: <Text style={{ color: colors.text, fontWeight: '800' }}>{userCoords.lat.toFixed(6)}, {userCoords.lng.toFixed(6)}</Text>
               </Text>
-              <Text style={styles.geoBoundaryText}>
+              <Text style={[styles.geoBoundaryText, { color: colors.textMuted }]}>
                 Distance from {OFFICE_GEO.name}: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{geoDistanceMeters}m</Text> (Limit: 500m)
               </Text>
 
@@ -627,7 +655,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
             >
               <Text style={styles.bigPunchBtnIcon}>📷</Text>
               <Text style={styles.bigPunchBtnText}>
-                {punchedIn ? 'Snap Selfie & Punch Out →' : 'Snap Selfie & Punch In →'}
+                {punchedIn ? `${t.attPunchOut} →` : `${t.attPunchIn} →`}
               </Text>
               <Text style={styles.bigPunchBtnSub}>
                 Launches Camera + Captures GPS Coords + Syncs Server Timestamp
@@ -644,20 +672,20 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
 
             {/* Admin Employee Selector Dropdown */}
             {isAdmin && (
-              <View style={styles.adminEmpSelectorCard}>
+              <View style={[styles.adminEmpSelectorCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                 <Text style={styles.adminSelectorLabel}>👑 Admin Workforce Selection:</Text>
                 <TouchableOpacity
-                  style={styles.adminDropdownBtn}
+                  style={[styles.adminDropdownBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
                   onPress={() => setEmpDropdownOpen(!empDropdownOpen)}
                 >
-                  <Text style={styles.adminDropdownText}>
+                  <Text style={[styles.adminDropdownText, { color: colors.text }]}>
                     👤 {selectedEmployee.name} ({selectedEmployee.role}) • {selectedEmployee.dept}
                   </Text>
-                  <Text style={{ color: '#64748b' }}>{empDropdownOpen ? '▲' : '▼'}</Text>
+                  <Text style={{ color: colors.textMuted }}>{empDropdownOpen ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
 
                 {empDropdownOpen && (
-                  <View style={styles.dropdownMenu}>
+                  <View style={[styles.dropdownMenu, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                     {EMPLOYEES.map((emp) => (
                       <TouchableOpacity
                         key={emp.id}
@@ -667,7 +695,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
                           setEmpDropdownOpen(false);
                         }}
                       >
-                        <Text style={[styles.dropdownItemText, selectedEmployeeId === emp.id && { color: '#4f46e5', fontWeight: '800' }]}>
+                        <Text style={[styles.dropdownItemText, { color: colors.textSecondary }, selectedEmployeeId === emp.id && { color: colors.primary, fontWeight: '800' }]}>
                           {emp.name} ({emp.role}) — {emp.dept}
                         </Text>
                       </TouchableOpacity>
@@ -678,13 +706,13 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
             )}
 
             {/* Month & Year Header Display Bar (With Left / Right Slide Controls) */}
-            <View style={styles.monthHeaderDisplayBar}>
-              <TouchableOpacity onPress={handlePrevMonth} style={styles.monthArrowBtn} activeOpacity={0.7}>
+            <View style={[styles.monthHeaderDisplayBar, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TouchableOpacity onPress={handlePrevMonth} style={[styles.monthArrowBtn, !isDark && { backgroundColor: '#e2e8f0', borderColor: '#cbd5e1' }]} activeOpacity={0.7}>
                 <Text style={styles.arrowIconText}>◀</Text>
               </TouchableOpacity>
 
               <View style={{ alignItems: 'center' }}>
-                <Text style={styles.monthYearTitleText}>
+                <Text style={[styles.monthYearTitleText, { color: colors.text }]}>
                   {MONTH_NAMES[currentMonthIndex]} {currentYear}
                 </Text>
                 <Text style={styles.monthSwipeHintText}>
@@ -692,7 +720,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
                 </Text>
               </View>
 
-              <TouchableOpacity onPress={handleNextMonth} style={styles.monthArrowBtn} activeOpacity={0.7}>
+              <TouchableOpacity onPress={handleNextMonth} style={[styles.monthArrowBtn, !isDark && { backgroundColor: '#e2e8f0', borderColor: '#cbd5e1' }]} activeOpacity={0.7}>
                 <Text style={styles.arrowIconText}>▶</Text>
               </TouchableOpacity>
             </View>
@@ -700,49 +728,49 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
             {/* Dynamic Summary Badges Row */}
             <View style={styles.summaryBadgesRow}>
               <View style={styles.summaryBadgeItem}>
-                <Text style={styles.badgeLabel}>Present</Text>
+                <Text style={[styles.badgeLabel, { color: colors.textMuted }]}>{t.attPresent}</Text>
                 <View style={[styles.badgePillCircle, { backgroundColor: '#dcfce7', borderColor: '#22c55e' }]}>
                   <Text style={[styles.badgePillNum, { color: '#15803d' }]}>{dynamicCounts.present}</Text>
                 </View>
               </View>
 
               <View style={styles.summaryBadgeItem}>
-                <Text style={styles.badgeLabel}>Absent</Text>
+                <Text style={[styles.badgeLabel, { color: colors.textMuted }]}>{t.attAbsent}</Text>
                 <View style={[styles.badgePillCircle, { backgroundColor: '#fee2e2', borderColor: '#ef4444' }]}>
                   <Text style={[styles.badgePillNum, { color: '#b91c1c' }]}>{dynamicCounts.absent}</Text>
                 </View>
               </View>
 
               <View style={styles.summaryBadgeItem}>
-                <Text style={styles.badgeLabel}>Half Day</Text>
+                <Text style={[styles.badgeLabel, { color: colors.textMuted }]}>{t.attHalfDay}</Text>
                 <View style={[styles.badgePillCircle, { backgroundColor: '#fef3c7', borderColor: '#f59e0b' }]}>
                   <Text style={[styles.badgePillNum, { color: '#b45309' }]}>{dynamicCounts.halfDay}</Text>
                 </View>
               </View>
 
               <View style={styles.summaryBadgeItem}>
-                <Text style={styles.badgeLabel}>Leave</Text>
+                <Text style={[styles.badgeLabel, { color: colors.textMuted }]}>{t.attLeave}</Text>
                 <View style={[styles.badgePillCircle, { backgroundColor: '#e0e7ff', borderColor: '#6366f1' }]}>
                   <Text style={[styles.badgePillNum, { color: '#4338ca' }]}>{dynamicCounts.leave}</Text>
                 </View>
               </View>
 
               <View style={styles.summaryBadgeItem}>
-                <Text style={styles.badgeLabel}>Week Off</Text>
-                <View style={[styles.badgePillCircle, { backgroundColor: '#f1f5f9', borderColor: '#94a3b8' }]}>
-                  <Text style={[styles.badgePillNum, { color: '#64748b' }]}>{dynamicCounts.weekOff}</Text>
+                <Text style={[styles.badgeLabel, { color: colors.textMuted }]}>Week Off</Text>
+                <View style={[styles.badgePillCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', borderColor: colors.border }]}>
+                  <Text style={[styles.badgePillNum, { color: colors.textMuted }]}>{dynamicCounts.weekOff}</Text>
                 </View>
               </View>
             </View>
 
             {/* 28-DAY CALENDAR GRID WITH SWIPE SLIDER GESTURE */}
             <View
-              style={styles.calendarCard}
+              style={[styles.calendarCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
               <View style={styles.calendarHeaderInfo}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#0f172a' }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>
                   {MONTH_NAMES[currentMonthIndex]} {currentYear} Calendar Grid (Tap date to inspect record)
                 </Text>
               </View>
@@ -758,8 +786,8 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
                   const rec = recordsMap[d];
                   const isSel = d === selectedDay;
 
-                  let circleBg = '#f1f5f9';
-                  let textColor = '#64748b';
+                  let circleBg = isDark ? '#1e293b' : '#f1f5f9';
+                  let textColor = colors.textMuted;
 
                   if (rec?.status === 'PRESENT') {
                     circleBg = '#22c55e';
@@ -774,8 +802,8 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
                     circleBg = '#6366f1';
                     textColor = '#ffffff';
                   } else if (rec?.status === 'WEEK_OFF') {
-                    circleBg = '#cbd5e1';
-                    textColor = '#475569';
+                    circleBg = isDark ? '#334155' : '#cbd5e1';
+                    textColor = isDark ? '#94a3b8' : '#475569';
                   }
 
                   return (
@@ -795,9 +823,9 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
             </View>
 
             {/* SELECTED DAY RECORD CARD */}
-            <View style={styles.punchCard}>
+            <View style={[styles.punchCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: '#0f172a' }}>
+                <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text }}>
                   Record for {selectedDay} {MONTH_NAMES[currentMonthIndex].substring(0, 3).toUpperCase()} {currentYear} ({selectedEmployee.name})
                 </Text>
                 <View style={[styles.punchedPillTag, { backgroundColor: activeDayRecord.status === 'PRESENT' ? '#dcfce7' : '#fee2e2' }]}>
@@ -807,16 +835,16 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
                 </View>
               </View>
 
-              <View style={styles.workingHoursBox}>
-                <Text style={styles.workingHoursTitle}>⏱️ Total Working Hours: {activeDayRecord.workingHours}</Text>
-                <Text style={styles.workingHoursSub}>Rule: Full Day ≥ 8h • Half Day &lt; 5h • Overtime logged after 8h</Text>
+              <View style={[styles.workingHoursBox, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+                <Text style={[styles.workingHoursTitle, { color: colors.text }]}>⏱️ Total Working Hours: {activeDayRecord.workingHours}</Text>
+                <Text style={[styles.workingHoursSub, { color: colors.textMuted }]}>Rule: Full Day ≥ 8h • Half Day &lt; 5h • Overtime logged after 8h</Text>
               </View>
 
               {/* In Punch Details */}
-              <View style={styles.punchRecordBox}>
+              <View style={[styles.punchRecordBox, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
                 <View style={styles.alertCircleIcon}><Text style={{ fontSize: 12 }}>🟢</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.punchRecordTitle}>PUNCH IN: {activeDayRecord.inTime}</Text>
+                  <Text style={[styles.punchRecordTitle, { color: colors.text }]}>PUNCH IN: {activeDayRecord.inTime}</Text>
                   {activeDayRecord.inGeo && !activeDayRecord.inGeo.includes('not available') ? (
                     <TouchableOpacity onPress={() => openGoogleMaps(activeDayRecord.inGeo)}>
                       <Text style={styles.geoLinkText}>📍 Geo: {activeDayRecord.inGeo} (Open Map →)</Text>
@@ -828,10 +856,10 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
               </View>
 
               {/* Out Punch Details */}
-              <View style={[styles.punchRecordBox, { marginTop: 8 }]}>
+              <View style={[styles.punchRecordBox, { marginTop: 8, backgroundColor: colors.inputBg, borderColor: colors.border }]}>
                 <View style={[styles.alertCircleIcon, { backgroundColor: '#fee2e2' }]}><Text style={{ fontSize: 12 }}>🔴</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.punchRecordTitle}>PUNCH OUT: {activeDayRecord.outTime || 'Not Punched Out Yet'}</Text>
+                  <Text style={[styles.punchRecordTitle, { color: colors.text }]}>PUNCH OUT: {activeDayRecord.outTime || 'Not Punched Out Yet'}</Text>
                   {activeDayRecord.outGeo && !activeDayRecord.outGeo.includes('not available') ? (
                     <TouchableOpacity onPress={() => openGoogleMaps(activeDayRecord.outGeo || '')}>
                       <Text style={styles.geoLinkText}>📍 Geo: {activeDayRecord.outGeo} (Open Map →)</Text>
@@ -845,7 +873,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
 
             {/* 👑 ADMIN EXCLUSIVE OVERRIDE CONTROLS */}
             {isAdmin && (
-              <View style={styles.adminOverrideCard}>
+              <View style={[styles.adminOverrideCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={styles.adminOverrideTitle}>👑 Admin Date Override Controls</Text>
                   <Text style={styles.adminOverrideBadge}>ADMIN EXCLUSIVE</Text>

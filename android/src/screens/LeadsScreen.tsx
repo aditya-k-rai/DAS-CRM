@@ -29,6 +29,8 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LeadsStackParamList } from '../../App';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService, LeadItem, FALLBACK_LEADS } from '../services/apiService';
 import { callSyncEngine } from '../services/callSyncEngine';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
@@ -104,6 +106,8 @@ const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
 export default function LeadsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LeadsNavProp>();
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
   const { token } = useAuthStore();
 
   const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
@@ -696,17 +700,26 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     }
   };
 
+  const getFilterLabel = (f: string) => {
+    if (f === 'ALL') return t.leadsFilterAll;
+    if (f === 'NEW LEAD') return t.leadsFilterNew;
+    if (f === 'QUALIFIED') return t.leadsFilterQualified;
+    if (f === 'IN NEGOTIATION') return t.leadsFilterNegotiation;
+    if (f === 'WON') return t.leadsFilterWon;
+    return f;
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['bottom']}>
       {/* ── TOP SEGMENTED SLIDER (FUNNEL vs COLLECTIONS) ───────────────────── */}
       <View style={styles.sliderContainer}>
-        <View style={styles.sliderTrack}>
+        <View style={[styles.sliderTrack, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <TouchableOpacity
             style={[styles.sliderSegment, activeSegment === 'FUNNEL' && styles.sliderSegmentActive]}
             onPress={() => setActiveSegment('FUNNEL')}
           >
             <Text style={[styles.sliderText, activeSegment === 'FUNNEL' && styles.sliderTextActive]}>
-              ⚡ Lead Funnel
+              {t.leadsFunnelTab}
             </Text>
           </TouchableOpacity>
 
@@ -715,7 +728,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             onPress={() => setActiveSegment('COLLECTIONS')}
           >
             <Text style={[styles.sliderText, activeSegment === 'COLLECTIONS' && styles.sliderTextActive]}>
-              🎯 Leads Collections
+              {t.leadsCollectionsTab}
             </Text>
           </TouchableOpacity>
         </View>
@@ -979,11 +992,11 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         /* ─────────────────────────────────────────────────────────────────────────── */
         <View style={{ flex: 1 }}>
           {/* SEARCH & EXCEL CONTROLS HUB */}
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { backgroundColor: colors.cardBg, borderBottomColor: colors.borderSubtle }]}>
             <TextInput
-              style={styles.searchInput}
-              placeholder="🔍 Search by name, company, phone, email, status, city, budget, source, rep..."
-              placeholderTextColor="#64748b"
+              style={[styles.searchInput, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.text }]}
+              placeholder={t.leadsSearchPlaceholder}
+              placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
             />
@@ -1008,9 +1021,9 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 </View>
                 <TouchableOpacity
                   onPress={() => setSearch('')}
-                  style={{ backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+                  style={{ backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
                 >
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8' }}>✕ Clear</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textSecondary }}>✕ Clear</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1022,10 +1035,10 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
               {/* VIEW MODE TOGGLE */}
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: viewMode === 'EXCEL_GRID' ? '#0284c7' : '#1e293b' }]}
+                style={[styles.actionBtn, { backgroundColor: viewMode === 'EXCEL_GRID' ? '#0284c7' : (isDark ? '#1e293b' : '#e2e8f0') }]}
                 onPress={() => setViewMode(viewMode === 'EXCEL_GRID' ? 'CARD_LIST' : 'EXCEL_GRID')}
               >
-                <Text style={styles.actionBtnText}>
+                <Text style={[styles.actionBtnText, viewMode !== 'EXCEL_GRID' && !isDark && { color: '#0f172a' }]}>
                   {viewMode === 'EXCEL_GRID' ? '📊 Excel Grid' : '📱 Card View'}
                 </Text>
               </TouchableOpacity>
@@ -1033,11 +1046,11 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               <TouchableOpacity
                 style={[
                   styles.actionBtn,
-                  { backgroundColor: activeFiltersCount > 0 ? 'rgba(245,158,11,0.2)' : '#1e293b', borderColor: activeFiltersCount > 0 ? '#f59e0b' : '#334155' },
+                  { backgroundColor: activeFiltersCount > 0 ? 'rgba(245,158,11,0.2)' : (isDark ? '#1e293b' : '#e2e8f0'), borderColor: activeFiltersCount > 0 ? '#f59e0b' : colors.border },
                 ]}
                 onPress={() => setFilterModalOpen(true)}
               >
-                <Text style={[styles.actionBtnText, activeFiltersCount > 0 && { color: '#fbbf24' }]}>
+                <Text style={[styles.actionBtnText, activeFiltersCount > 0 ? { color: '#fbbf24' } : (!isDark ? { color: '#0f172a' } : {})]}>
                   🎛️ Filter {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ''}
                 </Text>
               </TouchableOpacity>
@@ -1050,7 +1063,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             {/* Quick Person Filter Chips Bar */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6, marginBottom: 4 }}>
               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                <Text style={{ fontSize: 9, fontWeight: '900', color: '#64748b', marginRight: 2 }}>PERSON:</Text>
+                <Text style={{ fontSize: 9, fontWeight: '900', color: colors.textMuted, marginRight: 2 }}>PERSON:</Text>
                 {[
                   { id: 'ALL', label: 'All Persons' },
                   { id: 'Priya', label: '👤 Priya (TL)' },
@@ -1061,10 +1074,10 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 ].map(p => (
                   <TouchableOpacity
                     key={p.id}
-                    style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === p.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                    style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }, filterPerson === p.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
                     onPress={() => setFilterPerson(p.id)}
                   >
-                    <Text style={[{ fontSize: 9, fontWeight: '800', color: '#94a3b8' }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
+                    <Text style={[{ fontSize: 9, fontWeight: '800', color: colors.textMuted }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1082,7 +1095,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                   style={[styles.filterChip, activeFilter === item && styles.filterChipActive]}
                   onPress={() => setActiveFilter(item)}
                 >
-                  <Text style={[styles.filterText, activeFilter === item && styles.filterTextActive]}>{item}</Text>
+                  <Text style={[styles.filterText, activeFilter === item && styles.filterTextActive]}>{getFilterLabel(item)}</Text>
                 </TouchableOpacity>
               )}
             />

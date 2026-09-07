@@ -29,6 +29,8 @@ import AttendanceScreen from './AttendanceScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
 import AppSettingsScreen from './AppSettingsScreen';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export type ModuleKey =
   | 'PRODUCTS'
@@ -69,6 +71,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const [activeModal, setActiveModal] = useState<ModuleKey | null>(null);
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
 
   const closeModal = () => {
     setActiveModal(null);
@@ -142,25 +146,48 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'SUPPORT', icon: '❓', label: 'Support' },
   ];
 
-  // Helper Header Banner for Full-Screen Modals
+  const getModuleLabel = (key: ModuleKey, defaultLabel: string): string => {
+    switch (key) {
+      case 'PRODUCTS': return t.modProducts || defaultLabel;
+      case 'QUOTES': return t.modQuotes || defaultLabel;
+      case 'COMMUNICATIONS': return t.modComms || defaultLabel;
+      case 'WA_TEMPLATES': return t.modWaTemplates || defaultLabel;
+      case 'EXTRA_EMAIL': return t.modEmail || defaultLabel;
+      case 'AI_CONTROL': return t.modAiControl || defaultLabel;
+      case 'AI_HUB': return t.modAiHub || defaultLabel;
+      case 'PDF_CATALOG': return t.modPdfCatalog || defaultLabel;
+      case 'REPORTS': return t.modReports || defaultLabel;
+      case 'AUTOMATIONS': return t.modAutomations || defaultLabel;
+      case 'IMPORT_EXPORT': return t.modImportExport || defaultLabel;
+      case 'ATTENDANCE': return t.modAttendance || defaultLabel;
+      case 'DEALS': return t.modDeals || defaultLabel;
+      case 'GOALS': return t.modGoals || defaultLabel;
+      case 'INTERVIEWS': return t.modInterviews || defaultLabel;
+      case 'UPCOMING_COMMS': return t.modNoticeBoard || defaultLabel;
+      case 'SETTINGS': return t.modSettings || defaultLabel;
+      case 'PROFILE': return t.modProfile || defaultLabel;
+      case 'SUPPORT': return t.modSupport || defaultLabel;
+      default: return defaultLabel;
+    }
+  };
+
   const renderBackBanner = (titleStr: string) => (
-    <View style={styles.backBanner}>
+    <View style={[styles.backBanner, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
       <TouchableOpacity
         onPress={closeModal}
-        style={styles.backBtn}
+        style={[styles.backBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         activeOpacity={0.7}
       >
-        <Text style={styles.backBtnText}>← Back to Menu</Text>
+        <Text style={[styles.backBtnText, { color: colors.primary }]}>{t.backToMenu || '← Back to Menu'}</Text>
       </TouchableOpacity>
-      <Text style={styles.backTitle}>{titleStr}</Text>
+      <Text style={[styles.backTitle, { color: colors.text }]}>{titleStr}</Text>
     </View>
   );
 
-  // Active Screen Renderer
   if (activeModal !== null) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#090d16', paddingTop: 0 }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: 0 }}>
         {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={closeModal} />}
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={closeModal} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={closeModal} />}
@@ -182,121 +209,109 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
           </View>
         )}
 
-        {/* 📈 13. Goals & Targets Screen */}
         {activeModal === 'GOALS' && (
           <View style={{ flex: 1 }}>
             {renderBackBanner('Goals & Target KPI Audits')}
             <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiTitle}>📈 Team Sales Goals (Aug 2026)</Text>
-                <Text style={styles.kpiSub}>Track individual target progress & rep performance leaderboard</Text>
+              <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={[styles.kpiTitle, { color: colors.text }]}>📈 Team Sales Goals (Aug 2026)</Text>
+                <Text style={[styles.kpiSub, { color: colors.textMuted }]}>Monthly targets across reps & departments</Text>
               </View>
 
-              <View style={{ gap: 12, marginTop: 12 }}>
+              <View style={{ gap: 12, marginTop: 16 }}>
                 {[
-                  { name: 'Amit Shah (Manager)', metric: 'Deals Closed', target: 30, achieved: 25, color: '#6366f1' },
-                  { name: 'Rajesh Kumar (Sales Exec)', metric: 'Closed Revenue', target: 15, achieved: 12, color: '#22c55e' },
-                  { name: 'Sunita Verma (HR/Ops)', metric: 'Employee Audits', target: 24, achieved: 24, color: '#ec4899' },
-                  { name: 'Priya Sharma (Outbound)', metric: 'Lead Calls', target: 200, achieved: 165, color: '#38bdf8' },
-                  { name: 'Amit Patel (SMB Sales)', metric: 'Won Deals', target: 15, achieved: 8, color: '#f59e0b' },
-                ].map((item, idx) => {
-                  const pct = Math.round((item.achieved / item.target) * 100);
-                  return (
-                    <View key={idx} style={styles.goalRowCard}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.goalRepName}>{item.name}</Text>
-                        <Text style={[styles.goalPct, { color: item.color }]}>{pct}% Achieved</Text>
-                      </View>
-
-                      <Text style={styles.goalMetricText}>Metric: {item.metric} · {item.achieved} / {item.target}</Text>
-
-                      <View style={styles.progressBarTrack}>
-                        <View style={[styles.progressBarFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: item.color }]} />
-                      </View>
+                  { rep: 'Rajesh Kumar (Sales Exec)', target: '₹10,00,000', achieved: '₹8,40,000', pct: 84, color: '#22c55e' },
+                  { rep: 'Amit Verma (Sales Exec)', target: '₹8,50,000', achieved: '₹6,10,000', pct: 71, color: '#38bdf8' },
+                  { rep: 'Priya Sharma (Sales Exec)', target: '₹9,00,000', achieved: '₹4,50,000', pct: 50, color: '#eab308' },
+                  { rep: 'Neha Joshi (Team Leader)', target: '₹25,00,000', achieved: '₹21,80,000', pct: 87, color: '#a855f7' },
+                ].map((g, idx) => (
+                  <View key={idx} style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={[styles.goalRepName, { color: colors.text }]}>{g.rep}</Text>
+                      <Text style={[styles.goalPct, { color: g.color }]}>{g.pct}%</Text>
                     </View>
-                  );
-                })}
+                    <View style={styles.progressBarTrack}>
+                      <View style={[styles.progressBarFill, { width: `${g.pct}%`, backgroundColor: g.color }]} />
+                    </View>
+                    <Text style={[styles.goalMetricText, { color: colors.textMuted }]}>{g.achieved} / {g.target}</Text>
+                  </View>
+                ))}
               </View>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Add Goal', 'Goal configuration dialog launched.')}>
-                <Text style={styles.actionBtnText}>+ Assign New Goal to Employee</Text>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Target Config', 'Opening KPI allocation editor...')}>
+                <Text style={styles.actionBtnText}>+ Set New Team Target</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         )}
 
-        {/* 👤 14. Interview for Hiring Screen */}
         {activeModal === 'INTERVIEWS' && (
           <View style={{ flex: 1 }}>
-            {renderBackBanner('Interview & Candidate Hiring Portal')}
+            {renderBackBanner('Hiring & Candidate Pipeline')}
             <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiTitle}>👤 Candidate Hiring Pipeline</Text>
-                <Text style={styles.kpiSub}>3 Scheduled Interviews Today · 14 Applicants Pending</Text>
+              <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={[styles.kpiTitle, { color: colors.text }]}>👤 Active Candidate Pipeline</Text>
+                <Text style={[styles.kpiSub, { color: colors.textMuted }]}>Track scheduled interviews, scores, and candidate statuses</Text>
               </View>
 
-              <View style={{ gap: 12, marginTop: 12 }}>
+              <View style={{ gap: 12, marginTop: 16 }}>
                 {[
-                  { name: 'Ananya Rao', role: 'Senior Sales Executive', interviewer: 'Rajesh Mehta', status: 'Offer Sent', score: '9.2 / 10', badgeColor: '#22c55e' },
-                  { name: 'Rohan Sharma', role: 'Inside Sales Specialist', interviewer: 'Sunita Verma', status: 'Scheduled 02:30 PM Today', score: 'Pending', badgeColor: '#38bdf8' },
-                  { name: 'Kavita Patel', role: 'Key Account Manager', interviewer: 'Amit Shah', status: 'Round 2 Tech Evaluation', score: '8.5 / 10', badgeColor: '#f59e0b' },
-                  { name: 'Vikram Rao', role: 'Enterprise Account Exec', interviewer: 'Neha Joshi', status: 'Interview Completed', score: '8.8 / 10', badgeColor: '#c084fc' },
+                  { name: 'Karan Malhotra', role: 'Sales Executive', status: 'Round 2 Tech Demo', score: '8.5 / 10', interviewer: 'Vikram Mehta' },
+                  { name: 'Ananya Roy', role: 'Team Leader (Inside Sales)', status: 'Final HR Discussion', score: '9.1 / 10', interviewer: 'Suresh Patil' },
+                  { name: 'Rohan Gupta', role: 'Account Manager', status: 'Offer Letter Pending', score: '8.8 / 10', interviewer: 'Rajesh Sharma' },
                 ].map((cand, idx) => (
-                  <View key={idx} style={styles.goalRowCard}>
+                  <View key={idx} style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={styles.goalRepName}>{cand.name}</Text>
-                      <View style={[styles.statusPill, { backgroundColor: cand.badgeColor + '20', borderColor: cand.badgeColor + '40' }]}>
-                        <Text style={{ color: cand.badgeColor, fontSize: 10, fontWeight: '800' }}>{cand.status}</Text>
+                      <Text style={[styles.goalRepName, { color: colors.text }]}>{cand.name}</Text>
+                      <View style={[styles.statusPill, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}>
+                        <Text style={{ color: '#818cf8', fontSize: 9, fontWeight: '800' }}>{cand.status}</Text>
                       </View>
                     </View>
 
-                    <Text style={styles.goalMetricText}>Role: {cand.role} · Interviewer: {cand.interviewer}</Text>
-                    <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800', marginTop: 4 }}>Score: {cand.score}</Text>
+                    <Text style={[styles.goalMetricText, { color: colors.textMuted }]}>Role: {cand.role} · Interviewer: {cand.interviewer}</Text>
+                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: '800', marginTop: 4 }}>Score: {cand.score}</Text>
                   </View>
                 ))}
               </View>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Schedule Interview', 'Opening candidate scheduler...')}>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Schedule Interview', 'Opening candidate scheduler...')}>
                 <Text style={styles.actionBtnText}>+ Schedule New Candidate Interview</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         )}
 
-        {/* 📌 15. The Notice Board Screen */}
         {activeModal === 'UPCOMING_COMMS' && (
           <NoticeBoardScreen onClose={closeModal} />
         )}
 
-        {/* ⚙️ 16. Settings Screen */}
         {activeModal === 'SETTINGS' && (
           <AppSettingsScreen onClose={closeModal} />
         )}
 
-        {/* ❓ 18. Support Screen */}
         {activeModal === 'SUPPORT' && (
           <View style={{ flex: 1 }}>
             {renderBackBanner('DAS CRM Support & Help Desk')}
             <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiTitle}>❓ Support & Help Desk</Text>
-                <Text style={styles.kpiSub}>24/7 Priority support, documentation, and live chat</Text>
+              <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={[styles.kpiTitle, { color: colors.text }]}>❓ Support & Help Desk</Text>
+                <Text style={[styles.kpiSub, { color: colors.textMuted }]}>24/7 Priority support, documentation, and live chat</Text>
               </View>
 
               <View style={{ gap: 12, marginTop: 16 }}>
-                <TouchableOpacity style={styles.goalRowCard} onPress={() => Alert.alert('Live Chat', 'Connecting to DAS CRM Support Engineer...')}>
+                <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => Alert.alert('Live Chat', 'Connecting to DAS CRM Support Engineer...')}>
                   <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '800' }}>💬 Start Live Chat Support</Text>
-                  <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>Instant 24/7 assistance from tech support engineers</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>Instant 24/7 assistance from tech support engineers</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.goalRowCard} onPress={() => Alert.alert('Helpline', 'Toll Free: +91 1800-DAS-CRM (327-276)')}>
+                <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => Alert.alert('Helpline', 'Toll Free: +91 1800-DAS-CRM (327-276)')}>
                   <Text style={{ color: '#22c55e', fontSize: 13, fontWeight: '800' }}>📞 Priority Phone Helpline</Text>
-                  <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>Call +91 1800-DAS-CRM for immediate resolution</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>Call +91 1800-DAS-CRM for immediate resolution</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.goalRowCard} onPress={() => Alert.alert('User Guide', 'Opening interactive documentation...')}>
+                <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => Alert.alert('User Guide', 'Opening interactive documentation...')}>
                   <Text style={{ color: '#c084fc', fontSize: 13, fontWeight: '800' }}>📄 User Manual & Documentation</Text>
-                  <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }}>Step-by-step setup guides for all 18 modules</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>Step-by-step setup guides for all 18 modules</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -307,25 +322,29 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   }
 
   return (
-    <View style={[styles.container, { paddingTop: 10 }]}>
-      {/* Header Bar */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 10 }]}>
+      <View style={[styles.header, { backgroundColor: colors.cardBg, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Enterprise Workspace Menu</Text>
-          <Text style={styles.headerSub}>Access all 18 modules & system toolkits</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t.menuTitle}</Text>
+          <Text style={[styles.headerSub, { color: colors.textMuted }]}>{t.menuSub}</Text>
         </View>
         <View style={styles.badgePill}>
-          <Text style={styles.badgePillText}>18 MODULES</Text>
+          <Text style={styles.badgePillText}>{t.modulesCountBadge}</Text>
         </View>
       </View>
 
-      {/* 18 Medium-Sized Responsive Grid Buttons in Specified Exact Order */}
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.gridContainer}>
           {GRID_BUTTONS.map((item) => (
             <TouchableOpacity
               key={item.key}
-              style={styles.gridCard}
+              style={[
+                styles.gridCard,
+                {
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.border,
+                }
+              ]}
               onPress={() => handleOpenModule(item.key)}
               activeOpacity={0.75}
             >
@@ -337,7 +356,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
                   </View>
                 )}
               </View>
-              <Text style={styles.cardLabel} numberOfLines={2}>{item.label}</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]} numberOfLines={2}>
+                {getModuleLabel(item.key, item.label)}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

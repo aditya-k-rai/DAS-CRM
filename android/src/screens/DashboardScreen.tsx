@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
 interface DashboardScreenProps {
@@ -24,6 +25,7 @@ interface DashboardScreenProps {
 }
 
 export default function DashboardScreen({ userRole, onNavigateToLeads }: DashboardScreenProps) {
+  const { colors, isDark } = useTheme();
   const { currentUser, subscription } = useAuthStore();
   const selectedRole: UserRole = normalizeRoleStr(userRole || currentUser.role);
 
@@ -32,52 +34,52 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: 4 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 Top Executive Banner */}
         <TenantAdminHeaderBanner role={selectedRole} />
 
         {/* 📊 Executive Performance Summary Cards */}
-        <Text style={styles.sectionTitle}>Executive Performance Overview</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Executive Performance Overview</Text>
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>📊</Text>
-            <Text style={styles.statValue}>1,420</Text>
-            <Text style={styles.statLabel}>Total Ingested Leads</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>1,420</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Total Ingested Leads</Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(16,185,129,0.3)' }]}>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>💰</Text>
             <Text style={[styles.statValue, { color: '#34d399' }]}>$148,500</Text>
-            <Text style={styles.statLabel}>Pipeline Value</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Pipeline Value</Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(245,158,11,0.3)' }]}>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>⚡</Text>
             <Text style={[styles.statValue, { color: '#fbbf24' }]}>42</Text>
-            <Text style={styles.statLabel}>Fresh Unassigned</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Fresh Unassigned</Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(168,85,247,0.3)' }]}>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>🎯</Text>
             <Text style={[styles.statValue, { color: '#c084fc' }]}>28.5%</Text>
-            <Text style={styles.statLabel}>Conversion Target</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Conversion Target</Text>
           </View>
         </View>
 
         {/* 📅 UPCOMING LEADS & FOLLOW-UPS */}
-        <Text style={styles.sectionTitle}>Upcoming Lead Follow-ups</Text>
-        <View style={styles.cardBox}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Lead Follow-ups</Text>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {[
             { title: 'Call Rajesh Kumar — Quote Discussion', time: 'Today 2:00 PM', priority: 'HIGH' },
             { title: 'Demo Presentation for TechCorp', time: 'Today 4:30 PM', priority: 'HIGH' },
             { title: 'Follow-up with Sunita Real Estate', time: 'Tomorrow 11:00 AM', priority: 'MEDIUM' },
           ].map((u, i) => (
-            <View key={i} style={[styles.infoRow, i < 2 && styles.borderBottom]}>
+            <View key={i} style={[styles.infoRow, i < 2 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.teamName}>{u.title}</Text>
-                <Text style={styles.teamSub}>📅 {u.time}</Text>
+                <Text style={[styles.teamName, { color: colors.text }]}>{u.title}</Text>
+                <Text style={[styles.teamSub, { color: colors.textMuted }]}>📅 {u.time}</Text>
               </View>
               <View style={styles.priorityTag}>
                 <Text style={styles.priorityText}>{u.priority}</Text>
@@ -88,13 +90,13 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
 
         {/* 📋 RECENT 5 LEADS PREVIEW WIDGET */}
         <View style={{ width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={styles.sectionTitle}>Recent 5 Ingested Leads</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Recent 5 Ingested Leads</Text>
           <TouchableOpacity onPress={onNavigateToLeads}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: '#818cf8' }}>View More Leads →</Text>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View More Leads →</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.cardBox}>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {[
             { name: 'Rajesh Kumar', company: 'TechCorp Ltd', val: '₹5,20,000', status: 'Proposal', score: 91 },
             { name: 'Priya Sharma', company: 'LogiTech Solutions', val: '₹3,50,000', status: 'Won', score: 98 },
@@ -102,10 +104,10 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
             { name: 'Sunita Rao', company: 'Real Estate Group', val: '₹8,50,000', status: 'Negotiation', score: 77 },
             { name: 'Amit Patel', company: 'Global Freight Ltd', val: '₹90,000', status: 'New Lead', score: 63 },
           ].map((l, idx) => (
-            <View key={l.name} style={[styles.infoRow, idx < 4 && styles.borderBottom]}>
+            <View key={l.name} style={[styles.infoRow, idx < 4 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.teamName}>{l.name}</Text>
-                <Text style={styles.teamSub}>{l.company} • {l.status}</Text>
+                <Text style={[styles.teamName, { color: colors.text }]}>{l.name}</Text>
+                <Text style={[styles.teamSub, { color: colors.textMuted }]}>{l.company} • {l.status}</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 2 }}>
                 <Text style={[styles.teamProgress, { fontSize: 13 }]}>{l.val}</Text>

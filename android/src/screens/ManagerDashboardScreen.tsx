@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
 import { callSyncEngine } from '../services/callSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
@@ -123,6 +124,7 @@ interface ScreenProps {
 }
 
 export default function ManagerDashboardScreen({ onNavigateToAttendance, navigation }: ScreenProps) {
+  const { colors, isDark } = useTheme();
   const { currentUser } = useAuthStore();
 
   const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
@@ -172,7 +174,7 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: 4 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* HEADER BANNER */}

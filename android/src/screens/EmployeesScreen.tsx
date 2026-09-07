@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 import SalesExecControlScreen from './SalesExecControlScreen';
 import TeamLeaderControlScreen from './TeamLeaderControlScreen';
@@ -112,6 +114,8 @@ const AVAILABLE_ROLES: { key: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; l
 
 export default function EmployeesScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
   const { currentUser, subscription } = useAuthStore();
   const userRole: UserRole = normalizeRoleStr(currentUser.role);
 
@@ -383,38 +387,38 @@ export default function EmployeesScreen() {
   // 👥 MAIN STAFF DIRECTORY — ASSIGNED / UNASSIGNED TABS
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { paddingTop: 0 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 0 }]}>
 
       {/* ── Page Header ── */}
-      <View style={styles.pageHeader}>
+      <View style={[styles.pageHeader, { borderBottomColor: colors.borderSubtle }]}>
         <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={styles.pageTitle}>👥 Employee Structure</Text>
-          <Text style={styles.pageSub}>
-            {totalUsersCount} Total Users · {activeCount} Assigned · {unassignedCount} Unassigned
+          <Text style={[styles.pageTitle, { color: colors.text }]}>{t.empStructureTitle}</Text>
+          <Text style={[styles.pageSub, { color: colors.textMuted }]}>
+            {totalUsersCount} {t.empTotalUsers} · {activeCount} {t.empTabAssigned} · {unassignedCount} {t.empTabUnassigned}
           </Text>
         </View>
         <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
           <Text style={[styles.countPillText, { color: pillStyle.text }]}>
-            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} Seats Assigned
+            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} {t.empSeatsAssigned}
           </Text>
         </View>
       </View>
 
       {/* ── Segmented Tab Bar ── */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: colors.cardBg, borderBottomColor: colors.borderSubtle }]}>
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'ASSIGNED' && styles.tabBtnActive]}
           onPress={() => setActiveTab('ASSIGNED')}
           activeOpacity={0.8}
         >
-          <View style={[styles.tabDot, { backgroundColor: activeTab === 'ASSIGNED' ? '#34d399' : '#334155' }]} />
+          <View style={[styles.tabDot, { backgroundColor: activeTab === 'ASSIGNED' ? '#34d399' : colors.tabBarInactive }]} />
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.85}
-            style={[styles.tabBtnText, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}
+            style={[styles.tabBtnText, { color: colors.textMuted }, activeTab === 'ASSIGNED' && styles.tabBtnTextActive]}
           >
-            Assigned ({employeesList.length})
+            {t.empTabAssigned} ({employeesList.length})
           </Text>
         </TouchableOpacity>
 
@@ -432,9 +436,9 @@ export default function EmployeesScreen() {
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.85}
-            style={[styles.tabBtnText, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}
+            style={[styles.tabBtnText, { color: colors.textMuted }, activeTab === 'UNASSIGNED' && styles.tabBtnTextUnassigned]}
           >
-            Unassigned ({unassignedUsers.length})
+            {t.empTabUnassigned} ({unassignedUsers.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -445,19 +449,19 @@ export default function EmployeesScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.tabInfoBanner}>
-            <Text style={styles.tabInfoText}>
-              ✅ These users have an active CRM role. Tap <Text style={{ color: '#818cf8' }}>Inspect & Control</Text> to manage their profile, documents, and performance.
+          <View style={[styles.tabInfoBanner, !isDark && { backgroundColor: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.4)' }]}>
+            <Text style={[styles.tabInfoText, !isDark && { color: '#065f46' }]}>
+              {t.empAssignedBanner}
             </Text>
           </View>
 
-          <View style={styles.cardBox}>
+          <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             {employeesList.map((emp, index) => {
               const roleStyle = getRoleBadgeStyle(emp.role);
               return (
                 <View
                   key={emp.id}
-                  style={[styles.empRow, index !== employeesList.length - 1 && styles.borderBottom]}
+                  style={[styles.empRow, index !== employeesList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
                 >
                   {/* Avatar Initials */}
                   <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
@@ -474,21 +478,21 @@ export default function EmployeesScreen() {
 
                   <View style={{ flex: 1, paddingRight: 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={styles.empName}>{emp.name}</Text>
+                      <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
                       <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
                         <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
                       </View>
                     </View>
-                    <Text style={styles.supervisorText}>
+                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
                       {emp.email}
                     </Text>
-                    <Text style={styles.supervisorText}>
-                      Under: <Text style={{ color: '#cbd5e1', fontWeight: '700' }}>{emp.assignedManager}</Text>
+                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
+                      Under: <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontWeight: '700' }}>{emp.assignedManager}</Text>
                     </Text>
                   </View>
 
                   <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
-                    <Text style={styles.inspectBtnText}>Inspect →</Text>
+                    <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -503,24 +507,24 @@ export default function EmployeesScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: 'rgba(251,191,36,0.07)' }]}>
-            <Text style={[styles.tabInfoText, { color: '#fde68a' }]}>
-              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. You have <Text style={{ fontWeight: '900', color: '#34d399' }}>{Math.max(0, totalQuota - activeCount)} available seat(s)</Text> on your plan ({activeCount}/{totalQuota} used).
+          <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: isDark ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.15)' }]}>
+            <Text style={[styles.tabInfoText, { color: isDark ? '#fde68a' : '#854d0e' }]}>
+              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. You have <Text style={{ fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>{Math.max(0, totalQuota - activeCount)} available seat(s)</Text> on your plan ({activeCount}/{totalQuota} used).
             </Text>
           </View>
 
           {unassignedUsers.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateIcon}>🎉</Text>
-              <Text style={styles.emptyStateTitle}>All Caught Up!</Text>
-              <Text style={styles.emptyStateSub}>No pending role assignments. All registered users have been activated.</Text>
+              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>All Caught Up!</Text>
+              <Text style={[styles.emptyStateSub, { color: colors.textMuted }]}>No pending role assignments. All registered users have been activated.</Text>
             </View>
           ) : (
-            <View style={styles.cardBox}>
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               {unassignedUsers.map((user, index) => (
                 <View
                   key={user.id}
-                  style={[styles.empRow, index !== unassignedUsers.length - 1 && styles.borderBottom]}
+                  style={[styles.empRow, index !== unassignedUsers.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
                 >
                   {/* Avatar */}
                   <View style={[styles.avatarCircle, { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)' }]}>
@@ -531,20 +535,20 @@ export default function EmployeesScreen() {
                   </View>
 
                   <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={styles.empName}>{user.name}</Text>
-                    <Text style={styles.supervisorText}>{user.email}</Text>
-                    <Text style={styles.supervisorText}>{user.phone}</Text>
+                    <Text style={[styles.empName, { color: colors.text }]}>{user.name}</Text>
+                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>{user.email}</Text>
+                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>{user.phone}</Text>
                     <View style={styles.registeredBadge}>
-                      <Text style={styles.registeredBadgeText}>Registered: {user.registeredAt}</Text>
+                      <Text style={styles.registeredBadgeText}>{t.empRegisteredBadge}: {user.registeredAt}</Text>
                     </View>
-                    <Text style={[styles.supervisorText, { marginTop: 2 }]}>{user.deviceInfo}</Text>
+                    <Text style={[styles.supervisorText, { color: colors.textMuted, marginTop: 2 }]}>{user.deviceInfo}</Text>
                   </View>
 
                   <TouchableOpacity
                     style={styles.assignBtn}
                     onPress={() => { setAssignRoleTarget(user); setSelectedRole(null); }}
                   >
-                    <Text style={styles.assignBtnText}>Assign Role</Text>
+                    <Text style={styles.assignBtnText}>{t.empAssignRole}</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -557,12 +561,12 @@ export default function EmployeesScreen() {
       <Modal visible={!!assignRoleTarget} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {assignRoleTarget && (
-            <View style={[styles.modalBox, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+            <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
               {/* Modal Header */}
-              <View style={styles.modalHead}>
+              <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalTitle}>Assign Role</Text>
-                  <Text style={styles.modalSub}>{assignRoleTarget.name} · {assignRoleTarget.email}</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>{t.empAssignRole}</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>{assignRoleTarget.name} · {assignRoleTarget.email}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
                     <View style={[
                       { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
@@ -579,28 +583,29 @@ export default function EmployeesScreen() {
                   </View>
                 </View>
                 <TouchableOpacity
-                  style={styles.modalCloseBtn}
+                  style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
                   onPress={() => { setAssignRoleTarget(null); setSelectedRole(null); }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.modalCloseBtnText}>✕</Text>
+                  <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.modalSectionLbl}>SELECT ROLE</Text>
+              <Text style={[styles.modalSectionLbl, { color: colors.textMuted }]}>SELECT ROLE</Text>
 
               {AVAILABLE_ROLES.map(r => (
                 <TouchableOpacity
                   key={r.key}
                   style={[
                     styles.roleOption,
+                    { backgroundColor: colors.inputBg, borderColor: colors.border },
                     selectedRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}18` },
                   ]}
                   onPress={() => setSelectedRole(r.key)}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.roleOptionDot, { backgroundColor: selectedRole === r.key ? r.color : '#334155' }]} />
-                  <Text style={[styles.roleOptionText, selectedRole === r.key && { color: r.color }]}>
+                  <View style={[styles.roleOptionDot, { backgroundColor: selectedRole === r.key ? r.color : (isDark ? '#334155' : '#cbd5e1') }]} />
+                  <Text style={[styles.roleOptionText, { color: colors.textSecondary }, selectedRole === r.key && { color: r.color }]}>
                     {r.label}
                   </Text>
                   {selectedRole === r.key && (

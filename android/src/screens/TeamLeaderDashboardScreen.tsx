@@ -15,12 +15,14 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
 
 interface ScreenProps {
   onNavigateToAttendance?: () => void;
 }
 
 export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAttendance }: any) {
+  const { colors, isDark } = useTheme();
   const { currentUser } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [selectedRep, setSelectedRep] = React.useState<string | null>(null);
@@ -46,7 +48,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.headerBox}>

@@ -28,8 +28,8 @@ import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { useAuthStore } from './src/store/authStore';
-import { ThemeProvider } from './src/context/ThemeContext';
-import { LanguageProvider } from './src/context/LanguageContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import LoginScreen from './src/screens/LoginScreen';
 
 // Dashboards per role
@@ -159,6 +159,8 @@ function MainTabNavigator({
 }: any) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
   const topPadding = Math.max(insets.top, 12);
 
@@ -166,22 +168,22 @@ function MainTabNavigator({
   const companyStr = currentUser?.companyName || 'Acme Sales Solutions';
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#090d16' }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* Dynamic Header */}
-      <View style={[styles.topHeader, { paddingTop: topPadding + 6 }]}>
+      <View style={[styles.topHeader, { backgroundColor: colors.headerBg, borderBottomColor: colors.border, paddingTop: topPadding + 6 }]}>
         <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenDrawer} activeOpacity={0.7}>
-          <View style={styles.hamburgerLine} />
-          <View style={[styles.hamburgerLine, { width: 14 }]} />
-          <View style={styles.hamburgerLine} />
+          <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
+          <View style={[styles.hamburgerLine, { width: 14, backgroundColor: colors.primary }]} />
+          <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{companyStr}</Text>
-          <Text style={styles.headerSub}>ROLE: {roleStr}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{companyStr}</Text>
+          <Text style={[styles.headerSub, { color: colors.primary }]}>{t.headerRolePrefix || 'ROLE'}: {roleStr}</Text>
         </View>
 
         {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
-        <TouchableOpacity style={styles.notifHeaderBtn} onPress={onOpenNotifications} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
           <Text style={{ fontSize: 17 }}>🔔</Text>
           {unreadCount > 0 && (
             <View style={styles.notifBadgeCircle}>
@@ -212,13 +214,15 @@ function MainTabNavigator({
           tabBarStyle: [
             styles.tabBar,
             {
+              backgroundColor: colors.tabBarBg,
+              borderTopColor: colors.tabBarBorder,
               height: 64 + bottomPadding,
               paddingTop: 4,
               paddingBottom: bottomPadding + 2,
             }
           ],
-          tabBarActiveTintColor: '#818cf8',
-          tabBarInactiveTintColor: '#64748b',
+          tabBarActiveTintColor: colors.tabBarActive,
+          tabBarInactiveTintColor: colors.tabBarInactive,
           tabBarItemStyle: {
             justifyContent: 'center',
             alignItems: 'center',
@@ -238,7 +242,7 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(99,102,241,0.22)', borderColor: 'rgba(129,140,248,0.5)' }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
                 <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>🏠</Text>
               </View>
             ),
@@ -247,9 +251,9 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#818cf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? colors.tabBarActive : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
-                Home
+                {t.tabHome}
               </Text>
             ),
           }}
@@ -268,9 +272,9 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
-                Leads
+                {t.tabLeads}
               </Text>
             ),
           }}
@@ -289,9 +293,9 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#c084fc' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? '#c084fc' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
-                Employees
+                {t.tabEmployees}
               </Text>
             ),
           }}
@@ -311,9 +315,9 @@ function MainTabNavigator({
             tabBarIcon: ({ focused }) => (
               <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(245,158,11,0.22)', borderColor: 'rgba(251,191,36,0.5)' }]}>
                 <View style={{ width: 19, height: 14, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : '#64748b', borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
                 </View>
               </View>
             ),
@@ -322,9 +326,9 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
-                Menu
+                {t.tabMenu}
               </Text>
             ),
           }}
@@ -343,9 +347,9 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#34d399' : '#64748b', fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? '#34d399' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
-                Attendance
+                {t.tabAttendance}
               </Text>
             ),
           }}
@@ -368,7 +372,9 @@ function MainTabNavigator({
   );
 }
 
-export default function App() {
+function RootAppContent() {
+  const { colors, isDark } = useTheme();
+  const { t, language } = useLanguage();
   const { token, currentUser, logout } = useAuthStore();
   const navigationRef = useNavigationContainerRef();
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -499,11 +505,9 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <SafeAreaProvider>
-        <StatusBar style="light" />
-        <NavigationContainer ref={navigationRef}>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
         ) : (
@@ -518,346 +522,340 @@ export default function App() {
           />
         )}
 
-      {/* ☰ LEFT-SLIDING HAMBURGER DRAWER MODAL */}
-      <Modal visible={drawerVisible} transparent animationType="none">
-        <View style={styles.modalContainer}>
-          <Animated.View style={[styles.drawerBackdrop, { opacity: fadeAnim }]}>
-            <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => closeDrawer()} />
-          </Animated.View>
+        {/* ☰ LEFT-SLIDING HAMBURGER DRAWER MODAL */}
+        <Modal visible={drawerVisible} transparent animationType="none">
+          <View style={styles.modalContainer}>
+            <Animated.View style={[styles.drawerBackdrop, { opacity: fadeAnim }]}>
+              <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => closeDrawer()} />
+            </Animated.View>
 
-          <Animated.View style={[styles.leftDrawerContent, { width: DRAWER_WIDTH, transform: [{ translateX: slideAnim }] }]}>
-            <View style={styles.drawerTopBar}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={styles.drawerLogoBadge}>
-                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>DAS</Text>
+            <Animated.View style={[styles.leftDrawerContent, { width: DRAWER_WIDTH, backgroundColor: colors.drawerBg, borderRightColor: colors.border, transform: [{ translateX: slideAnim }] }]}>
+              <View style={styles.drawerTopBar}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={styles.drawerLogoBadge}>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>DAS</Text>
+                  </View>
+                  <Text style={[styles.drawerAppTitle, { color: colors.text }]}>{t.drawerAppTitle}</Text>
                 </View>
-                <Text style={styles.drawerAppTitle}>DAS CRM Control</Text>
+                <TouchableOpacity style={[styles.closeDrawerBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => closeDrawer()} activeOpacity={0.7}>
+                  <Text style={{ color: colors.textMuted, fontSize: 16, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.closeDrawerBtn} onPress={() => closeDrawer()} activeOpacity={0.7}>
-                <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.drawerUserCard}>
-              <View style={styles.drawerAvatarGlow}>
-                <Text style={styles.drawerAvatarText}>{currentUser.avatar}</Text>
-                <View style={styles.onlineDot} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.drawerUserName} numberOfLines={1}>{currentUser.name}</Text>
-                <Text style={styles.drawerUserEmail} numberOfLines={1}>{currentUser.email}</Text>
-                <View style={styles.roleTagPill}>
-                  <Text style={styles.roleTagText}>{currentUser.role.replace('_', ' ')}</Text>
+              <View style={[styles.drawerUserCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={styles.drawerAvatarGlow}>
+                  <Text style={styles.drawerAvatarText}>{currentUser.avatar}</Text>
+                  <View style={styles.onlineDot} />
                 </View>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.fullProfileBtn}
-              onPress={() => closeDrawer(() => setProfileModalOpen(true))}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.fullProfileBtnText}>👤 View Full Profile →</Text>
-            </TouchableOpacity>
-
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-
-              {/* ROLE-CUSTOMIZED SHORTCUT GROUPS */}
-              {(() => {
-                const normRole = (currentUser?.role || '').toUpperCase();
-                let groups = [];
-                if (normRole.includes('ADMIN')) {
-                  groups = [
-                    {
-                      title: '👑 TENANT ADMIN COMMAND',
-                      items: [
-                        { icon: '🎯', label: 'All Ingested Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '👥', label: 'Staff Directory & Hierarchy', badge: 'ADMIN', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
-                        { icon: '💼', label: 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
-                        { icon: '📦', label: 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
-                      ]
-                    },
-                    {
-                      title: 'COMMUNICATIONS & AUDIT',
-                      items: [
-                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
-                        { icon: '📊', label: 'In-Depth Telemetry Reports', badge: 'REPORTS', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
-                        { icon: '⏱️', label: 'Workforce Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                      ]
-                    }
-                  ];
-                } else if (normRole.includes('MANAGER')) {
-                  groups = [
-                    {
-                      title: '📈 DEPARTMENT MANAGER CONTROL',
-                      items: [
-                        { icon: '🎯', label: 'Department Team Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '👥', label: 'Supervised Staff Members', badge: 'TEAM', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
-                        { icon: '💼', label: 'Department Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'Quotation Approvals', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
-                        { icon: '📦', label: 'Products Catalog', badge: '', action: () => closeDrawer(() => setProductsModalOpen(true)) },
-                      ]
-                    },
-                    {
-                      title: 'COMMUNICATIONS & AUDIT',
-                      items: [
-                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Team Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
-                        { icon: '⏱️', label: 'Team Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                      ]
-                    }
-                  ];
-                } else if (normRole.includes('HR')) {
-                  groups = [
-                    {
-                      title: '👔 HR & WORKFORCE CONTROL',
-                      items: [
-                        { icon: '⏱️', label: 'Attendance & Punch Log Audit', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                        { icon: '📅', label: 'Staff Leave Approvals', badge: 'ACTION', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                        { icon: '👥', label: 'Organization Staff List', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
-                        { icon: '💳', label: 'Payroll & Overtime Telemetry', badge: 'PAYROLL', action: () => closeDrawer(() => (navigationRef as any).navigate('Profile')) },
-                      ]
-                    },
-                    {
-                      title: 'COMMUNICATIONS & NOTIFICATIONS',
-                      items: [
-                        { icon: '🔔', label: 'HR Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'HR Directives & Announcements', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
-                      ]
-                    }
-                  ];
-                } else if (normRole.includes('TEAM_LEADER') || normRole.includes('LEADER')) {
-                  groups = [
-                    {
-                      title: '🛡️ TEAM LEADER UNIT CONTROL',
-                      items: [
-                        { icon: '🎯', label: 'Unit Lead Queue Allocation', badge: 'UNIT', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '💼', label: 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
-                        { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
-                        { icon: '⏱️', label: 'Unit Punch Log Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                      ]
-                    },
-                    {
-                      title: 'COMMUNICATIONS & ALERTS',
-                      items: [
-                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'Team WhatsApp Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
-                      ]
-                    }
-                  ];
-                } else {
-                  groups = [
-                    {
-                      title: '🎯 MY SALES WORKSPACE',
-                      items: [
-                        { icon: '📞', label: 'My Assigned Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
-                        { icon: '💼', label: 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
-                        { icon: '📝', label: 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
-                        { icon: '⏱️', label: 'Daily Attendance Punch', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
-                      ]
-                    },
-                    {
-                      title: 'COMMUNICATIONS & ALERTS',
-                      items: [
-                        { icon: '🔔', label: 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
-                        { icon: '💬', label: 'WhatsApp Inbox & Comms', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
-                      ]
-                    }
-                  ];
-                }
-
-                return groups.map((grp, idx) => (
-                  <React.Fragment key={idx}>
-                    <View style={styles.sectionHeaderRow}>
-                      <Text style={styles.drawerGroupTitle}>{grp.title}</Text>
-                      <View style={styles.sectionLine} />
-                    </View>
-                    {grp.items.map((item, i) => (
-                      <TouchableOpacity key={i} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
-                        <View style={styles.drawerItemIconBox}>
-                          <Text style={{ fontSize: 14 }}>{item.icon}</Text>
-                        </View>
-                        <Text style={styles.drawerItemLabel}>{item.label}</Text>
-                        {!!item.badge && (
-                          <View style={styles.itemBadge}>
-                            <Text style={styles.itemBadgeText}>{item.badge}</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </React.Fragment>
-                ));
-              })()}
-
-              {/* SYSTEM & IN-APP UPDATE */}
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.drawerGroupTitle}>SYSTEM &amp; UPDATES</Text>
-                <View style={styles.sectionLine} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.drawerUserName, { color: colors.text }]} numberOfLines={1}>{currentUser.name}</Text>
+                  <Text style={[styles.drawerUserEmail, { color: colors.textMuted }]} numberOfLines={1}>{currentUser.email}</Text>
+                  <View style={styles.roleTagPill}>
+                    <Text style={styles.roleTagText}>{currentUser.role.replace('_', ' ')}</Text>
+                  </View>
+                </View>
               </View>
 
               <TouchableOpacity
-                style={styles.drawerItemRow}
-                onPress={() => closeDrawer(() => setUpdateModalOpen(true))}
-                activeOpacity={0.7}
-              >
-                <View style={styles.drawerItemIconBox}>
-                  <Text style={{ fontSize: 14 }}>🚀</Text>
-                </View>
-                <Text style={styles.drawerItemLabel}>Check In-App Version</Text>
-                <View style={[styles.itemBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
-                  <Text style={[styles.itemBadgeText, { color: '#38bdf8' }]}>v2.5.0 NEW</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.7}>
-                <Text style={styles.signOutBtnText}>🚪 Sign Out of Workspace</Text>
-              </TouchableOpacity>
-
-              {/* 💻 DEVELOPER BAR */}
-              <TouchableOpacity
-                style={styles.devBarCard}
-                onPress={() => Linking.openURL('https://github.com/aditya-k-rai')}
+                style={styles.fullProfileBtn}
+                onPress={() => closeDrawer(() => setProfileModalOpen(true))}
                 activeOpacity={0.8}
               >
-                <Text style={styles.devBarTitle}>⚡ Developed with ❤️ by <Text style={{ color: '#818cf8', fontWeight: '900' }}>Aditya Kumar Rai</Text></Text>
-                <Text style={styles.devBarLink}>🔗 github.com/aditya-k-rai →</Text>
+                <Text style={styles.fullProfileBtnText}>{t.drawerViewProfile}</Text>
               </TouchableOpacity>
 
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                {/* ROLE-CUSTOMIZED SHORTCUT GROUPS */}
+                {(() => {
+                  const normRole = (currentUser?.role || '').toUpperCase();
+                  let groups = [];
+                  if (normRole.includes('ADMIN')) {
+                    groups = [
+                      {
+                        title: t.drawerQuickLaunch || '👑 TENANT ADMIN COMMAND',
+                        items: [
+                          { icon: '🎯', label: t.tabLeads || 'All Ingested Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                          { icon: '👥', label: t.tabEmployees || 'Staff Directory & Hierarchy', badge: 'ADMIN', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                          { icon: '💼', label: t.modDeals || 'Deals & Pipeline Kanban', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                          { icon: '📝', label: t.modQuotes || 'Quotations & Invoices', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
+                          { icon: '📦', label: t.modProducts || 'Products & Services Catalog', badge: 'PORTAL', action: () => closeDrawer(() => setProductsModalOpen(true)) },
+                        ]
+                      },
+                      {
+                        title: t.drawerWorkspaceModules || 'COMMUNICATIONS & AUDIT',
+                        items: [
+                          { icon: '🔔', label: t.drawerNotifications || 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                          { icon: '💬', label: t.modComms || 'Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                          { icon: '📊', label: t.modReports || 'In-Depth Telemetry Reports', badge: 'REPORTS', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
+                          { icon: '⏱️', label: t.tabAttendance || 'Workforce Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        ]
+                      }
+                    ];
+                  } else if (normRole.includes('MANAGER')) {
+                    groups = [
+                      {
+                        title: t.drawerQuickLaunch || '📈 DEPARTMENT MANAGER CONTROL',
+                        items: [
+                          { icon: '🎯', label: t.tabLeads || 'Department Team Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                          { icon: '👥', label: t.tabEmployees || 'Supervised Staff Members', badge: 'TEAM', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                          { icon: '💼', label: t.modDeals || 'Department Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                          { icon: '📝', label: t.modQuotes || 'Quotation Approvals', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
+                          { icon: '📦', label: t.modProducts || 'Products Catalog', badge: '', action: () => closeDrawer(() => setProductsModalOpen(true)) },
+                        ]
+                      },
+                      {
+                        title: t.drawerWorkspaceModules || 'COMMUNICATIONS & AUDIT',
+                        items: [
+                          { icon: '🔔', label: t.drawerNotifications || 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                          { icon: '💬', label: t.modComms || 'Team Communications Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                          { icon: '⏱️', label: t.tabAttendance || 'Team Attendance Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        ]
+                      }
+                    ];
+                  } else if (normRole.includes('HR')) {
+                    groups = [
+                      {
+                        title: t.drawerQuickLaunch || '👔 HR & WORKFORCE CONTROL',
+                        items: [
+                          { icon: '⏱️', label: t.tabAttendance || 'Attendance & Punch Log Audit', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                          { icon: '📅', label: 'Staff Leave Approvals', badge: 'ACTION', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                          { icon: '👥', label: t.tabEmployees || 'Organization Staff List', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },
+                          { icon: '💳', label: 'Payroll & Overtime Telemetry', badge: 'PAYROLL', action: () => closeDrawer(() => (navigationRef as any).navigate('Profile')) },
+                        ]
+                      },
+                      {
+                        title: t.drawerWorkspaceModules || 'COMMUNICATIONS & NOTIFICATIONS',
+                        items: [
+                          { icon: '🔔', label: t.drawerNotifications || 'HR Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                          { icon: '💬', label: 'HR Directives & Announcements', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                        ]
+                      }
+                    ];
+                  } else if (normRole.includes('TEAM_LEADER') || normRole.includes('LEADER')) {
+                    groups = [
+                      {
+                        title: t.drawerQuickLaunch || '🛡️ TEAM LEADER UNIT CONTROL',
+                        items: [
+                          { icon: '🎯', label: t.tabLeads || 'Unit Lead Queue Allocation', badge: 'UNIT', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                          { icon: '💼', label: t.modDeals || 'Unit Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                          { icon: '🏆', label: 'Rep Performance Audit', badge: 'RANK', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'REPORTS' })) },
+                          { icon: '⏱️', label: t.tabAttendance || 'Unit Punch Log Audit', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        ]
+                      },
+                      {
+                        title: t.drawerWorkspaceModules || 'COMMUNICATIONS & ALERTS',
+                        items: [
+                          { icon: '🔔', label: t.drawerNotifications || 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                          { icon: '💬', label: t.modComms || 'Team WhatsApp Hub', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                        ]
+                      }
+                    ];
+                  } else {
+                    groups = [
+                      {
+                        title: t.drawerQuickLaunch || '🎯 MY SALES WORKSPACE',
+                        items: [
+                          { icon: '📞', label: t.tabLeads || 'My Assigned Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
+                          { icon: '💼', label: t.modDeals || 'My Deals Pipeline', badge: 'KANBAN', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'DEALS' })) },
+                          { icon: '📝', label: t.modQuotes || 'My Quotations Generator', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'QUOTATIONS' })) },
+                          { icon: '⏱️', label: t.tabAttendance || 'Daily Attendance Punch', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Attendance')) },
+                        ]
+                      },
+                      {
+                        title: t.drawerWorkspaceModules || 'COMMUNICATIONS & ALERTS',
+                        items: [
+                          { icon: '🔔', label: t.drawerNotifications || 'Notifications & Alerts', badge: `${unreadNotifCount} NEW`, action: () => closeDrawer(() => setNotifModalOpen(true)) },
+                          { icon: '💬', label: t.modComms || 'WhatsApp Inbox & Comms', badge: '', action: () => closeDrawer(() => (navigationRef as any).navigate('Menu', { initialModule: 'COMMS' })) },
+                        ]
+                      }
+                    ];
+                  }
 
-      {/* 👤 FULL USER PROFILE MODAL */}
-      <Modal visible={profileModalOpen} transparent animationType="slide">
-        <ProfileScreen
-          onLogout={handleLogout}
-          onOpenUpdate={() => {
-            setProfileModalOpen(false);
-            setUpdateModalOpen(true);
-          }}
-          onClose={() => setProfileModalOpen(false)}
-        />
-      </Modal>
+                  return groups.map((grp, idx) => (
+                    <React.Fragment key={idx}>
+                      <View style={styles.sectionHeaderRow}>
+                        <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{grp.title}</Text>
+                        <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
+                      </View>
+                      {grp.items.map((item, i) => (
+                        <TouchableOpacity key={i} style={styles.drawerItemRow} onPress={item.action} activeOpacity={0.7}>
+                          <View style={[styles.drawerItemIconBox, { backgroundColor: colors.cardBgElevated }]}>
+                            <Text style={{ fontSize: 14 }}>{item.icon}</Text>
+                          </View>
+                          <Text style={[styles.drawerItemLabel, { color: colors.text }]}>{item.label}</Text>
+                          {!!item.badge && (
+                            <View style={styles.itemBadge}>
+                              <Text style={styles.itemBadgeText}>{item.badge}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </React.Fragment>
+                  ));
+                })()}
 
-      {/* 📦 PRODUCTS & SERVICES CATALOG MANAGEMENT PORTAL MODAL */}
-      <Modal visible={productsModalOpen} transparent animationType="slide">
-        <ProductsCatalogScreen isModal onClose={() => setProductsModalOpen(false)} />
-      </Modal>
-
-      {/* 🔔 NOTIFICATIONS CENTER & REAL-TIME ROUTING SCREEN MODAL */}
-      <Modal visible={notifModalOpen} transparent animationType="slide">
-        <NotificationsScreen
-          onClose={() => setNotifModalOpen(false)}
-          onUnreadCountChange={(count) => setOverrideUnreadCount(count)}
-          onNavigateToLead={(leadId, leadName) => {
-            setNotifModalOpen(false);
-            try {
-              (navigationRef as any).navigate('Leads', {
-                screen: 'LeadDetail',
-                params: { leadId, leadName },
-              });
-            } catch {
-              (navigationRef as any).navigate('Leads');
-            }
-          }}
-          onNavigateToRoute={(routeName) => {
-            setNotifModalOpen(false);
-            if (routeName === 'Products') {
-              setProductsModalOpen(true);
-            } else {
-              try {
-                (navigationRef as any).navigate(routeName);
-              } catch (e) {
-                console.log('Nav error:', e);
-              }
-            }
-          }}
-        />
-      </Modal>
-
-      {/* 🚀 IN-APP APK UPDATE ENGINE MODAL */}
-      <Modal visible={updateModalOpen} transparent animationType="slide">
-        <View style={styles.updateModalOverlay}>
-          <View style={styles.updateModalCard}>
-
-            <View style={styles.updateHeaderRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={styles.updateIconBox}>
-                  <Text style={{ fontSize: 20 }}>🚀</Text>
+                {/* SYSTEM & IN-APP UPDATE */}
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{t.drawerSystemConfig}</Text>
+                  <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
                 </View>
-                <View>
-                  <Text style={styles.updateModalTitle}>In-App App Updates</Text>
-                  <Text style={styles.updateModalSub}>DAS CRM Android Control System</Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => setUpdateModalOpen(false)} style={styles.closeDrawerBtn}>
-                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.versionBox}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.verTitle}>Available Version: {latestVersion}</Text>
-                <View style={styles.stableBadge}>
-                  <Text style={styles.stableBadgeText}>OFFICIAL STABLE</Text>
-                </View>
-              </View>
-              <Text style={styles.verMeta}>Currently Installed: {currentVersion} • Size: 24.8 MB</Text>
-            </View>
-
-            <Text style={styles.changelogTitle}>What's New in {latestVersion}:</Text>
-            <View style={styles.changelogCard}>
-              <Text style={styles.changelogItem}>• ⚡ 3-Model Lead Funnel Routing Engine (Batch Quotas &amp; Vanishing Pool)</Text>
-              <Text style={styles.changelogItem}>• 📊 Google Sheets 2-Way Live Sync &amp; Excel Bulk Import Ingestion</Text>
-              <Text style={styles.changelogItem}>• ⏱️ Geofenced Attendance Punch &amp; Auto Midnight Purge Engine</Text>
-              <Text style={styles.changelogItem}>• 💬 WhatsApp 2-Step Product Quotation &amp; Direct Launcher</Text>
-            </View>
-
-            {downloading && (
-              <View style={{ marginVertical: 10 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800' }}>Downloading Update Package...</Text>
-                  <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '900' }}>{downloadProgress}%</Text>
-                </View>
-                <View style={styles.progressBarTrack}>
-                  <View style={[styles.progressBarFill, { width: `${downloadProgress}%` }]} />
-                </View>
-              </View>
-            )}
-
-            <View style={styles.updateActionsRow}>
-              {downloadReady ? (
-                <TouchableOpacity style={styles.updatePrimaryBtn} onPress={handleInstallApk}>
-                  <Text style={styles.updatePrimaryBtnText}>📦 Install Updated APK Package Now →</Text>
-                </TouchableOpacity>
-              ) : (
                 <TouchableOpacity
-                  style={styles.updatePrimaryBtn}
-                  onPress={handleStartDownload}
-                  disabled={downloading}
+                  style={styles.drawerItemRow}
+                  onPress={() => closeDrawer(() => setUpdateModalOpen(true))}
+                  activeOpacity={0.7}
                 >
-                  {downloading ? (
-                    <ActivityIndicator color="#ffffff" size="small" />
-                  ) : (
-                    <Text style={styles.updatePrimaryBtnText}>📥 Download &amp; Upgrade to {latestVersion} →</Text>
-                  )}
+                  <View style={[styles.drawerItemIconBox, { backgroundColor: colors.cardBgElevated }]}>
+                    <Text style={{ fontSize: 14 }}>🚀</Text>
+                  </View>
+                  <Text style={[styles.drawerItemLabel, { color: colors.text }]}>{t.drawerAppUpdates}</Text>
+                  <View style={[styles.itemBadge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
+                    <Text style={[styles.itemBadgeText, { color: '#38bdf8' }]}>v2.5.0 NEW</Text>
+                  </View>
                 </TouchableOpacity>
-              )}
-            </View>
 
+                <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.7}>
+                  <Text style={styles.signOutBtnText}>{t.drawerSignOut}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </Animated.View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
+        {/* 👤 FULL USER PROFILE MODAL */}
+        <Modal visible={profileModalOpen} transparent animationType="slide">
+          <ProfileScreen
+            onLogout={handleLogout}
+            onOpenUpdate={() => {
+              setProfileModalOpen(false);
+              setUpdateModalOpen(true);
+            }}
+            onClose={() => setProfileModalOpen(false)}
+          />
+        </Modal>
+
+        {/* 📦 PRODUCTS & SERVICES CATALOG MANAGEMENT PORTAL MODAL */}
+        <Modal visible={productsModalOpen} transparent animationType="slide">
+          <ProductsCatalogScreen isModal onClose={() => setProductsModalOpen(false)} />
+        </Modal>
+
+        {/* 🔔 NOTIFICATIONS CENTER & REAL-TIME ROUTING SCREEN MODAL */}
+        <Modal visible={notifModalOpen} transparent animationType="slide">
+          <NotificationsScreen
+            onClose={() => setNotifModalOpen(false)}
+            onUnreadCountChange={(count) => setOverrideUnreadCount(count)}
+            onNavigateToLead={(leadId, leadName) => {
+              setNotifModalOpen(false);
+              try {
+                (navigationRef as any).navigate('Leads', {
+                  screen: 'LeadDetail',
+                  params: { leadId, leadName },
+                });
+              } catch {
+                (navigationRef as any).navigate('Leads');
+              }
+            }}
+            onNavigateToRoute={(routeName) => {
+              setNotifModalOpen(false);
+              if (routeName === 'Products') {
+                setProductsModalOpen(true);
+              } else {
+                try {
+                  (navigationRef as any).navigate(routeName);
+                } catch (e) {
+                  console.log('Nav error:', e);
+                }
+              }
+            }}
+          />
+        </Modal>
+
+        {/* 🚀 IN-APP APK UPDATE ENGINE MODAL */}
+        <Modal visible={updateModalOpen} transparent animationType="slide">
+          <View style={styles.updateModalOverlay}>
+            <View style={[styles.updateModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={styles.updateHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={styles.updateIconBox}>
+                    <Text style={{ fontSize: 20 }}>🚀</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.updateModalTitle, { color: colors.text }]}>{t.drawerAppUpdates}</Text>
+                    <Text style={[styles.updateModalSub, { color: colors.textMuted }]}>DAS CRM Android Control System</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setUpdateModalOpen(false)} style={[styles.closeDrawerBtn, { backgroundColor: colors.cardBgElevated }]}>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.versionBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.verTitle, { color: colors.text }]}>Available Version: {latestVersion}</Text>
+                  <View style={styles.stableBadge}>
+                    <Text style={styles.stableBadgeText}>OFFICIAL STABLE</Text>
+                  </View>
+                </View>
+                <Text style={[styles.verMeta, { color: colors.textMuted }]}>Currently Installed: {currentVersion} • Size: 24.8 MB</Text>
+              </View>
+
+              <Text style={[styles.changelogTitle, { color: colors.text }]}>What's New in {latestVersion}:</Text>
+              <View style={[styles.changelogCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <Text style={[styles.changelogItem, { color: colors.textSecondary }]}>• ⚡ 3-Model Lead Funnel Routing Engine (Batch Quotas &amp; Vanishing Pool)</Text>
+                <Text style={[styles.changelogItem, { color: colors.textSecondary }]}>• 📊 Google Sheets 2-Way Live Sync &amp; Excel Bulk Import Ingestion</Text>
+                <Text style={[styles.changelogItem, { color: colors.textSecondary }]}>• ⏱️ Geofenced Attendance Punch &amp; Auto Midnight Purge Engine</Text>
+                <Text style={[styles.changelogItem, { color: colors.textSecondary }]}>• 💬 WhatsApp 2-Step Product Quotation &amp; Direct Launcher</Text>
+              </View>
+
+              {downloading && (
+                <View style={{ marginVertical: 10 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '800' }}>Downloading Update Package...</Text>
+                    <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '900' }}>{downloadProgress}%</Text>
+                  </View>
+                  <View style={styles.progressBarTrack}>
+                    <View style={[styles.progressBarFill, { width: `${downloadProgress}%` }]} />
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.updateActionsRow}>
+                {downloadReady ? (
+                  <TouchableOpacity style={styles.updatePrimaryBtn} onPress={handleInstallApk}>
+                    <Text style={styles.updatePrimaryBtnText}>📦 Install Updated APK Package Now →</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.updatePrimaryBtn}
+                    onPress={handleStartDownload}
+                    disabled={downloading}
+                  >
+                    {downloading ? (
+                      <ActivityIndicator color="#ffffff" size="small" />
+                    ) : (
+                      <Text style={styles.updatePrimaryBtnText}>📥 Download &amp; Upgrade to {latestVersion} →</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
       </NavigationContainer>
+    </>
+  );
+}
 
-      {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
-      <ModernAlertModal />
-    </SafeAreaProvider>
-    </LanguageProvider>
+export default function App() {
+  return (
+    <ThemeProvider>
+      <LanguageProvider>
+        <SafeAreaProvider>
+          <RootAppContent />
+          {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
+          <ModernAlertModal />
+        </SafeAreaProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { callSyncEngine } from '../services/callSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
@@ -62,13 +64,13 @@ const MOCK_ADMIN_MEETINGS: ScheduledMeetingItem[] = [
     id: 'mtg-2',
     leadId: 'lead-2',
     leadName: 'Priya Sharma',
-    company: 'LogiTech Freight Systems',
+    company: 'LogiTech Express',
     phone: '+91 98123 45678',
-    email: 'priya@logitech.com',
-    value: '₹3,50,000',
-    assignedAgent: 'Amit Patel',
+    email: 'priya@logitech.in',
+    value: '₹3,40,000',
+    assignedAgent: 'Amit Verma',
     agentRole: 'Sales Executive',
-    meetingPurpose: 'WhatsApp Automation Bot Integration Review',
+    meetingPurpose: 'Lead Funnel & GPS Punch Telemetry Integration',
     scheduledTimeStr: 'Today, 04:45 PM',
     isToday: true,
     status: 'SCHEDULED',
@@ -76,57 +78,42 @@ const MOCK_ADMIN_MEETINGS: ScheduledMeetingItem[] = [
   {
     id: 'mtg-3',
     leadId: 'lead-3',
-    leadName: 'Sunita Kapoor',
-    company: 'Sunita Logistics Pvt Ltd',
-    phone: '+91 97222 33344',
-    email: 'sunita@sunitalogistics.com',
+    leadName: 'Sunil Gavaskar',
+    company: 'Apex Industrial Gears',
+    phone: '+91 99001 22334',
+    email: 'sunil@apexingears.com',
     value: '₹8,90,000',
-    assignedAgent: 'Amit Shah',
-    agentRole: 'Team Leader',
-    meetingPurpose: 'Executive Contract Signing & License Rollout',
-    scheduledTimeStr: 'Today, 06:15 PM',
-    isToday: true,
+    assignedAgent: 'Rajesh Kumar',
+    agentRole: 'Sales Executive',
+    meetingPurpose: 'Custom Quotation & WhatsApp Catalog Dispatch',
+    scheduledTimeStr: 'Tomorrow, 11:00 AM',
+    isToday: false,
     status: 'CONFIRMED',
   },
   {
     id: 'mtg-4',
     leadId: 'lead-4',
-    leadName: 'Vikram Sethi',
-    company: 'Sethi Enterprises',
-    phone: '+91 98777 66655',
-    email: 'vikram@sethi.com',
-    value: '₹4,20,000',
+    leadName: 'Deepak Chopra',
+    company: 'Zenith Retail Chains',
+    phone: '+91 97788 44556',
+    email: 'deepak@zenithretail.in',
+    value: '₹12,50,000',
     assignedAgent: 'Neha Joshi',
     agentRole: 'Team Leader',
-    meetingPurpose: 'Cloud Telemetry License Proposal Walkthrough',
-    scheduledTimeStr: 'Tomorrow, 11:00 AM',
+    meetingPurpose: 'Annual License Renewal & Role Permission Audit',
+    scheduledTimeStr: 'Tomorrow, 03:15 PM',
     isToday: false,
     status: 'SCHEDULED',
   },
   {
     id: 'mtg-5',
     leadId: 'lead-5',
-    leadName: 'Rakesh Verma',
-    company: 'Verma Solutions',
-    phone: '+91 98111 22233',
-    email: 'rakesh@verma.com',
-    value: '₹2,45,000',
+    leadName: 'Anita Desai',
+    company: 'Global Fintech Ventures',
+    phone: '+91 98200 11223',
+    email: 'anita@globalfintech.com',
+    value: '₹4,10,000',
     assignedAgent: 'Priya Sharma',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'AI Lead Scoring Engine Pro Walkthrough',
-    scheduledTimeStr: '22 Aug 2026, 03:00 PM',
-    isToday: false,
-    status: 'SCHEDULED',
-  },
-  {
-    id: 'mtg-6',
-    leadId: 'lead-6',
-    leadName: 'Deepa Nair',
-    company: 'Nair Exports Ltd',
-    phone: '+91 99888 77766',
-    email: 'deepa@nair.com',
-    value: '₹6,80,000',
-    assignedAgent: 'Rajesh Kumar',
     agentRole: 'Sales Executive',
     meetingPurpose: 'Multi-Tenant Migration & Security Compliance',
     scheduledTimeStr: '23 Aug 2026, 05:30 PM',
@@ -142,6 +129,8 @@ interface ScreenProps {
 
 export default function AdminDashboardScreen({ onNavigateToAttendance, navigation }: ScreenProps) {
   const { currentUser, subscription } = useAuthStore();
+  const { colors, isDark } = useTheme();
+  const { t } = useLanguage();
 
   const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
   const [selectedMeeting, setSelectedMeeting] = useState<ScheduledMeetingItem | null>(null);
@@ -191,7 +180,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: 4 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 HEADER BANNER (TENANT ADMIN COMMAND CENTER) */}
@@ -199,31 +188,31 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>Revenue (Won)</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.wonRevenue}</Text>
             <Text style={[styles.statVal, { color: '#34d399' }]}>$128,400</Text>
-            <Text style={styles.statSubLbl}>↑ +14.2% closed</Text>
+            <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>↑ +14.2% closed</Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(129, 140, 248, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>Active Pipeline</Text>
-            <Text style={[styles.statVal, { color: '#ffffff' }]}>$412,000</Text>
-            <Text style={[styles.statSubLbl, { color: '#818cf8' }]}>42 Open Deals</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.activePipeline}</Text>
+            <Text style={[styles.statVal, { color: colors.text }]}>$412,000</Text>
+            <Text style={[styles.statSubLbl, { color: colors.primary }]}>42 Open Deals</Text>
           </View>
         </View>
 
         {/* 📊 ROW 2: LEADS & CONVERSION TARGET CARDS */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(96, 165, 250, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>Total Leads</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.totalLeads}</Text>
             <Text style={[styles.statVal, { color: '#93c5fd' }]}>3,420</Text>
-            <Text style={styles.statSubLbl}>Multi-Source</Text>
+            <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>Multi-Source</Text>
           </View>
 
-          <View style={[styles.statCard, { borderColor: 'rgba(192, 132, 252, 0.4)' }]}>
-            <Text style={styles.cardHeaderLbl}>Conversion Rate</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.conversionRate}</Text>
             <Text style={[styles.statVal, { color: '#c084fc' }]}>14.2%</Text>
-            <Text style={styles.statSubLbl}>Target: 15.0%</Text>
+            <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>Target: 15.0%</Text>
           </View>
         </View>
 

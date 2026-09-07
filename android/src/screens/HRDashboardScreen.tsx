@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
 const LEAVE_REQUESTS = [
@@ -56,6 +57,7 @@ const ATTENDANCE_TODAY = [
 ];
 
 export default function HRDashboardScreen({ navigation }: any) {
+  const { colors, isDark } = useTheme();
   const { currentUser, subscription } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'leaves' | 'payroll'>('overview');
   const [leaves, setLeaves] = useState(LEAVE_REQUESTS);
@@ -72,7 +74,7 @@ export default function HRDashboardScreen({ navigation }: any) {
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: 4 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: 4 }]}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]}
         showsVerticalScrollIndicator={false}
