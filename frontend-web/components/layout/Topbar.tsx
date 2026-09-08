@@ -61,13 +61,13 @@ export function Topbar({ title, actions }: TopbarProps) {
             onClick={() => setCmdOpen(true)}
             className="relative hidden md:flex items-center cursor-pointer group"
           >
-            <Search size={15} className="absolute left-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+            <Search size={15} className="absolute left-3 text-muted-foreground group-hover:text-foreground transition-colors pointer-events-none" />
             <input
               readOnly
-              className="crm-input pl-9 w-48 lg:w-64 text-xs sm:text-sm h-9 cursor-pointer"
-              placeholder="Search leads, contacts... (⌘K)"
+              className="crm-input pl-9 pr-12 w-48 lg:w-64 text-xs sm:text-sm h-9 cursor-pointer truncate"
+              placeholder="Search leads, contacts..."
             />
-            <kbd className="absolute right-3 text-xs px-1.5 py-0.5 rounded font-mono bg-border text-muted-foreground">
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded font-mono bg-border/60 text-muted-foreground border border-border/80 pointer-events-none select-none">
               ⌘K
             </kbd>
           </div>

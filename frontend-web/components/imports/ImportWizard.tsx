@@ -21,17 +21,13 @@ export function ImportWizard() {
   const [progress, setProgress]         = useState(0);
   const fileRef                         = useRef<HTMLInputElement>(null);
 
-  // Dynamic Parsed File State
-  const [parsedHeaders, setParsedHeaders] = useState<string[]>(['Full Name', 'Email', 'Phone Number', 'Company', 'Lead Value', 'Source', 'Notes']);
-  const [parsedRows, setParsedRows]       = useState<string[][]>([
-    ['Rajesh Kumar', 'rajesh@example.com', '9876543210', 'TechCorp', '240000', 'Website', 'Inbound Lead'],
-    ['Priya Sharma',  'priya@example.com',  '8765432109', 'Sunita RE', '180000', 'LinkedIn', 'Interested in Enterprise'],
-    ['Amit Patel',   'amit@example.com',   '7654321098', 'SpeedCars', '90000',  'Event', 'SLA Quote Requested'],
-  ]);
+  // Dynamic Parsed File State (Starts blank, populates on file upload / sync)
+  const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
+  const [parsedRows, setParsedRows]       = useState<string[][]>([]);
 
   // Google Sheets Live Sync State
-  const [googleSheetUrl, setGoogleSheetUrl]   = useState('https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit');
-  const [googleSheetRange, setGoogleSheetRange] = useState('Inbound_Leads!A2:F100');
+  const [googleSheetUrl, setGoogleSheetUrl]   = useState('');
+  const [googleSheetRange, setGoogleSheetRange] = useState('');
   const [gSheetSyncing, setGSheetSyncing]     = useState(false);
   const [gSheetStatusMsg, setGSheetStatusMsg] = useState('');
 

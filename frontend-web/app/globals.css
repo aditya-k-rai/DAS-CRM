@@ -500,7 +500,7 @@ body {
   user-select: none;
   border: none;
   background: rgb(79 70 229);
-  color: white;
+  color: white !important;
 }
 
 .btn-primary:hover {
@@ -694,13 +694,80 @@ body {
 
 .pill-tab.active {
   background: rgb(79 70 229);
-  color: white;
+  color: white !important;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
 }
 
 .pill-tab:not(.active):hover {
   background: rgb(var(--muted));
   color: rgb(var(--foreground));
+}
+
+/* ── Multi-Filter & Interactive Pill Contrast System ── */
+.filter-pill-selected {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.filter-pill-selected *,
+.filter-pill-selected span,
+.filter-pill-selected svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.filter-pill-unselected {
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b !important;
+  font-weight: 600;
+  transition: all 0.15s ease-in-out;
+}
+
+.filter-pill-unselected:hover {
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a !important;
+  transform: translateY(-1px);
+}
+
+.filter-pill-unselected *,
+.filter-pill-unselected span {
+  color: #1e293b !important;
+}
+
+.filter-pill-unselected:hover *,
+.filter-pill-unselected:hover span {
+  color: #0f172a !important;
+}
+
+/* Dark theme overrides for unselected pills */
+.dark .filter-pill-unselected,
+[data-theme="dark"] .filter-pill-unselected {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  color: #f8fafc !important;
+}
+
+.dark .filter-pill-unselected:hover,
+[data-theme="dark"] .filter-pill-unselected:hover {
+  background-color: #334155;
+  border-color: #475569;
+  color: #ffffff !important;
+}
+
+.dark .filter-pill-unselected *,
+.dark .filter-pill-unselected span,
+[data-theme="dark"] .filter-pill-unselected *,
+[data-theme="dark"] .filter-pill-unselected span {
+  color: #f8fafc !important;
+}
+
+.dark .filter-pill-unselected:hover *,
+.dark .filter-pill-unselected:hover span,
+[data-theme="dark"] .filter-pill-unselected:hover *,
+[data-theme="dark"] .filter-pill-unselected:hover span {
+  color: #ffffff !important;
 }
 
 /* ── Divider ── */

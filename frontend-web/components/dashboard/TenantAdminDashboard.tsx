@@ -351,9 +351,7 @@ export function TenantAdminDashboard() {
   const [sheetTestStep, setSheetTestStep] = useState<'CONFIG' | 'TESTING' | 'VERIFIED'>('CONFIG');
   const [sheetTestLoading, setSheetTestLoading] = useState(false);
 
-  const [googleSheetUrlInput, setGoogleSheetUrlInput] = useState(
-    'https://docs.google.com/spreadsheets/d/1a94UpsuFmExmnXA7xgPEVx_er4ngoA0HYK5dOcDkUpA/edit?usp=sharing'
-  );
+  const [googleSheetUrlInput, setGoogleSheetUrlInput] = useState('');
   const [animatedPopup, setAnimatedPopup] = useState<{
     open: boolean;
     title: string;

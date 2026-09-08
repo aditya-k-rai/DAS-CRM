@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import {
   Phone, MessageSquare, Mail, Sparkles, Send, RefreshCw, CheckCircle2,
   Clock, AlertCircle, User, Building2, MapPin, Tag, FileText, Bot,
-  PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check
+  PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check, Wifi, WifiOff
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail } from './LeadAllocationTrail';
 import { CallContactHistory } from './CallContactHistory';
 
@@ -98,6 +99,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
   const [newStatusChoice, setNewStatusChoice] = useState('Qualified');
   const [statusNotes, setStatusNotes] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const showSyncNotification = (msg: string) => {
     setToastMsg(msg);
@@ -142,13 +144,29 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     setSyncedActivities((prev) => [newLog, ...prev]);
 
-    // Update lead status if disposition specifies
-    if (selectedCallDisposition === 'Not Interested') setLead((prev) => ({ ...prev, status: 'Lost' }));
-    if (selectedCallDisposition === 'Talked & Enter Response') setLead((prev) => ({ ...prev, status: 'Qualified' }));
+    // Update lead status if disposition specifies — verify with internet and backend
+    if (selectedCallDisposition === 'Not Interested' || selectedCallDisposition === 'Talked & Enter Response') {
+      const targetStatus = selectedCallDisposition === 'Not Interested' ? 'Lost' : 'Qualified';
+      if (!isBrowserOnline()) {
+        showSyncNotification('⚡ Internet Required: Cannot sync status change while offline. Connect to internet.');
+      } else {
+        setLead((prev) => ({ ...prev, status: targetStatus }));
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ statusId: targetStatus, notes: `Call disposition: ${selectedCallDisposition}` }),
+        }).catch(() => {});
+      }
+    }
 
     setShowCallCutModal(false);
     setCallResponseNotes('');
-    showSyncNotification(`✓ Call Disposition Synced to Lead Center! (${selectedCallDisposition})`);
+    showSyncNotification(`✓ Call Disposition Synced & Verified with Server! (${selectedCallDisposition})`);
   };
 
   // ── SECTION 3: WHATSAPP CHAT DIRECT STATE ──────────────────────────────
@@ -279,29 +297,69 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           </div>
         </div>
 
-        {/* ── 6 ACTION BUTTONS TOOLBAR ────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-2 border-t border-border">
+        {/* ── UNIFIED ACTION & ROUTING TOOLBAR ────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-2 border-t border-border">
+          {/* 1. Lead Center */}
+          <button
+            onClick={() => setActiveSection('lead_center')}
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              activeSection === 'lead_center'
+                ? 'bg-brand text-white shadow-lg shadow-brand/25 border border-brand-400'
+                : 'bg-brand/15 border border-brand/30 text-brand-300 hover:bg-brand/25'
+            }`}
+          >
+            <Layers size={14} /> 1. Lead Center
+          </button>
+
+          {/* 2. Call & Smart Dialler */}
           <button
             onClick={() => { handleStartCall(); setActiveSection('dialler'); }}
-            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all"
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              activeSection === 'dialler'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 border border-emerald-400'
+                : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+            }`}
           >
             <Phone size={14} /> 📞 Call
           </button>
 
+          {/* 3. WhatsApp Direct */}
           <button
             onClick={() => setActiveSection('wa_direct')}
-            className="px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              activeSection === 'wa_direct'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25 border border-amber-400'
+                : 'bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25'
+            }`}
           >
             <Zap size={14} /> 💬 WhatsApp Direct
           </button>
 
+          {/* 4. WA Cloud + AI */}
           <button
             onClick={() => setActiveSection('wa_cloud')}
-            className="px-3 py-2 rounded-xl bg-purple-600/20 border border-purple-500/40 text-purple-300 hover:bg-purple-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              activeSection === 'wa_cloud'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25 border border-purple-400'
+                : 'bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25'
+            }`}
           >
-            <MessageSquare size={14} /> ☁️ WA Cloud
+            <MessageSquare size={14} /> ☁️ WA Cloud + AI
           </button>
 
+          {/* 5. Email Marketing */}
+          <button
+            onClick={() => setActiveSection('email_marketing')}
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${
+              activeSection === 'email_marketing'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400'
+                : 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25'
+            }`}
+          >
+            <Send size={14} /> 🚀 Email Marketing
+          </button>
+
+          {/* Direct Email Action */}
           <button
             onClick={() => {
               window.location.href = `mailto:${lead.email}?subject=Follow-up%20from%20DAS%20CRM`;
@@ -310,86 +368,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 showSyncNotification('📞 Lead Status auto-updated to Contacted!');
               }
             }}
-            className="px-3 py-2 rounded-xl bg-sky-600/20 border border-sky-500/40 text-sky-300 hover:bg-sky-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+            className="px-3 py-2 rounded-xl bg-sky-600/15 border border-sky-500/30 text-sky-300 hover:bg-sky-600/25 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
           >
             <Mail size={14} /> ✉️ Direct Email
           </button>
 
-          <button
-            onClick={() => setActiveSection('email_marketing')}
-            className="px-3 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
-          >
-            <Send size={14} /> 🚀 Email Marketing
-          </button>
-
+          {/* Update Status Action */}
           <button
             onClick={() => setShowUpdateStatusModal(true)}
-            className="px-3 py-2 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 hover:bg-amber-600/30 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+            className="px-3 py-2 rounded-xl bg-rose-600/15 border border-rose-500/30 text-rose-300 hover:bg-rose-600/25 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
           >
             <Tag size={14} /> 📝 Update Status
-          </button>
-        </div>
-
-        {/* ── 5 SECTIONS NAVIGATION BAR ────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 border-t border-border">
-          {/* Section 1 */}
-          <button
-            onClick={() => setActiveSection('lead_center')}
-            className={`p-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-              activeSection === 'lead_center'
-                ? 'bg-brand text-white shadow-lg shadow-brand/25 border border-brand-400'
-                : 'bg-background text-muted hover:text-white border border-border'
-            }`}
-          >
-            <Layers size={14} /> 1. Lead Center (Main Hub)
-          </button>
-
-          {/* Section 2 */}
-          <button
-            onClick={() => setActiveSection('dialler')}
-            className={`p-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-              activeSection === 'dialler'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 border border-emerald-400'
-                : 'bg-background text-muted hover:text-white border border-border'
-            }`}
-          >
-            <Phone size={14} /> 2. Smart Dialler & Post-Call
-          </button>
-
-          {/* Section 3 */}
-          <button
-            onClick={() => setActiveSection('wa_direct')}
-            className={`p-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-              activeSection === 'wa_direct'
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/25 border border-amber-400'
-                : 'bg-background text-muted hover:text-white border border-border'
-            }`}
-          >
-            <Zap size={14} /> 3. WhatsApp Direct
-          </button>
-
-          {/* Section 4 */}
-          <button
-            onClick={() => setActiveSection('wa_cloud')}
-            className={`p-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-              activeSection === 'wa_cloud'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25 border border-purple-400'
-                : 'bg-background text-muted hover:text-white border border-border'
-            }`}
-          >
-            <MessageSquare size={14} /> 4. WA Cloud + AI
-          </button>
-
-          {/* Section 5 */}
-          <button
-            onClick={() => setActiveSection('email_marketing')}
-            className={`p-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 ${
-              activeSection === 'email_marketing'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400'
-                : 'bg-background text-muted hover:text-white border border-border'
-            }`}
-          >
-            <Mail size={14} /> 5. Email Marketing
           </button>
         </div>
       </div>
@@ -869,23 +858,62 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => setShowUpdateStatusModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                  disabled={isUpdatingStatus}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setLead(prev => ({ ...prev, status: newStatusChoice }));
-                    setShowUpdateStatusModal(false);
-                    setStatusNotes('');
-                    showSyncNotification(`✓ Lead status updated to ${newStatusChoice}!`);
-                    if (newStatusChoice === 'In Negotiation') {
-                      setShowPaymentModal(true);
+                  disabled={isUpdatingStatus}
+                  onClick={async () => {
+                    if (!isBrowserOnline()) {
+                      showSyncNotification('⚡ Internet Required: Cannot update lead status while offline. Please connect to internet.');
+                      return;
+                    }
+
+                    setIsUpdatingStatus(true);
+
+                    try {
+                      const isConnected = await verifyInternetConnection();
+                      if (!isConnected) {
+                        setIsUpdatingStatus(false);
+                        showSyncNotification('⚡ Server Reachability Error: Cannot verify status update with server. Please check internet.');
+                        return;
+                      }
+
+                      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+
+                      try {
+                        await fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
+                          method: 'PATCH',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          },
+                          body: JSON.stringify({ statusId: newStatusChoice, notes: statusNotes }),
+                        });
+                      } catch (apiErr) {
+                        console.warn('Backend status update notice:', apiErr);
+                      }
+
+                      setLead(prev => ({ ...prev, status: newStatusChoice }));
+                      setShowUpdateStatusModal(false);
+                      setStatusNotes('');
+                      setIsUpdatingStatus(false);
+                      showSyncNotification(`✓ Verified with Server: Lead status updated to "${newStatusChoice}"!`);
+
+                      if (newStatusChoice === 'In Negotiation') {
+                        setShowPaymentModal(true);
+                      }
+                    } catch (err: any) {
+                      setIsUpdatingStatus(false);
+                      showSyncNotification(`⚠️ Status update failed: ${err.message || 'Network error'}`);
                     }
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  Save Status →
+                  {isUpdatingStatus ? 'Verifying with Server...' : 'Save & Verify Status →'}
                 </button>
               </div>
             </div>

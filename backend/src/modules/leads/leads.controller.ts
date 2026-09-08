@@ -56,19 +56,19 @@ export class LeadsController {
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Change lead status (with history tracking)' })
+  @ApiOperation({ summary: 'Change lead status (with server verification and history tracking)' })
   changeStatus(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body('statusId') statusId: string,
-    @Body('notes') notes?: string,
+    @Body() body: { statusId?: string; status?: string; newStatus?: string; notes?: string },
   ) {
+    const statusIdentifier = body.statusId || body.status || body.newStatus || '';
     return this.leadsService.changeStatus(
       user.organizationId,
       user.id,
       id,
-      statusId,
-      notes,
+      statusIdentifier,
+      body.notes,
     );
   }
 
@@ -147,6 +147,36 @@ export class LeadsController {
     @Body() dto: { leadIds: string[]; targetUserId: string },
   ) {
     return this.leadsService.managerDownstreamAllocate(
+      user.organizationId,
+      user.id,
+      dto,
+    );
+  }
+
+  @Post('distribution/allocate-verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Online-Verified Lead Allocation with Employee Notification Dispatch' })
+  allocateLeadsWithVerification(
+    @CurrentUser() user: any,
+    @Body() dto: {
+      mode: 'BATCHWISE' | 'DIRECT_ASSIGN';
+      batchRules?: Array<{
+        fromRow: number;
+        toRow: number;
+        assigneeId: string;
+        assigneeName: string;
+      }>;
+      directAssign?: {
+        assigneeId: string;
+        assigneeName?: string;
+      };
+      leadIds?: string[];
+      totalLeadsCount?: number;
+      sourceName?: string;
+      fileName?: string;
+    },
+  ) {
+    return this.leadsService.allocateLeadsWithVerification(
       user.organizationId,
       user.id,
       dto,

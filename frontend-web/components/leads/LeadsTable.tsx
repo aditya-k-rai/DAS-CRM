@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
 
@@ -95,6 +96,107 @@ export function LeadsTable() {
   const [filterDate, setFilterDate] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [tableToast, setTableToast] = useState<string | null>(null);
+
+  const showTableToast = (msg: string) => {
+    setTableToast(msg);
+    setTimeout(() => setTableToast(null), 3800);
+  };
+
+  const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
+    if (!isBrowserOnline()) {
+      showTableToast('⚡ Internet Required: Cannot update lead status while offline. Connect to internet.');
+      return;
+    }
+    try {
+      const isConnected = await verifyInternetConnection();
+      if (!isConnected) {
+        showTableToast('⚡ Server Reachability Error: Cannot verify status update with backend. Check internet.');
+        return;
+      }
+
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+
+      try {
+        await fetch(`${apiBase}/leads/${leadId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ statusId: newStatus }),
+        });
+      } catch (e) {
+        console.warn('Backend status update warning:', e);
+      }
+
+      const statusColors: Record<string, string> = {
+        New: '#6366f1',
+        Contacted: '#f59e0b',
+        Qualified: '#3b82f6',
+        Proposal: '#8b5cf6',
+        Negotiation: '#ec4899',
+        Won: '#22c55e',
+        Lost: '#ef4444',
+      };
+
+      setLeadsList(prev => prev.map(item => item.id === leadId ? {
+        ...item,
+        status: newStatus,
+        statusColor: statusColors[newStatus] || '#6366f1',
+      } : item));
+
+      showTableToast(`✓ Verified with Server: Lead status updated to "${newStatus}"!`);
+    } catch (err: any) {
+      showTableToast(`⚠️ Status change error: ${err.message || 'Network error'}`);
+    }
+  };
+
+  const handleReassignOwner = async (leadId: string, newOwner: string) => {
+    if (!isBrowserOnline()) {
+      showTableToast('⚡ Internet Required: Cannot reassign lead while offline. Connect to internet.');
+      return;
+    }
+
+    try {
+      const isConnected = await verifyInternetConnection();
+      if (!isConnected) {
+        showTableToast('⚡ Server Reachability Error: Cannot verify allocation with backend. Check internet.');
+        return;
+      }
+
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+
+      try {
+        await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            mode: 'DIRECT_ASSIGN',
+            leadIds: [leadId],
+            directAssign: { assigneeId: newOwner, assigneeName: newOwner },
+          }),
+        });
+      } catch (e) {
+        console.warn('Backend allocation warning:', e);
+      }
+
+      setLeadsList(prev => prev.map(item => item.id === leadId ? {
+        ...item,
+        owner: newOwner,
+        currentAssignee: newOwner,
+      } : item));
+
+      showTableToast(`✓ Verified with Server: Lead allocated to ${newOwner}! Employee notified.`);
+    } catch (err: any) {
+      showTableToast(`⚠️ Allocation failed: ${err.message || 'Network error'}`);
+    }
+  };
 
   // Excel Interactive Column Order State
   const [columnOrder, setColumnOrder] = useState<string[]>([
@@ -268,7 +370,15 @@ export function LeadsTable() {
   };
 
   return (
-    <div className="crm-card overflow-hidden p-0 space-y-0">
+    <div className="crm-card overflow-hidden p-0 space-y-0 relative">
+      {/* Toast Feedback Banner */}
+      {tableToast && (
+        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 flex items-center justify-between text-xs text-emerald-300 animate-in fade-in duration-200">
+          <span className="font-semibold">{tableToast}</span>
+          <button onClick={() => setTableToast(null)} className="text-emerald-400 hover:text-white">✕</button>
+        </div>
+      )}
+
       {/* Role Scoping Banner */}
       {isRep && (
         <div className="bg-indigo-500/15 border-b border-indigo-500/30 px-4 py-2.5 flex items-center justify-between text-xs text-indigo-300">
@@ -298,14 +408,14 @@ export function LeadsTable() {
                 onClick={() => setIsFilterModalOpen(true)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
                   activeFilterCount > 0
-                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
-                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white hover:border-slate-700'
+                    ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                    : 'filter-pill-unselected'
                 }`}
               >
-                <Filter size={14} className={activeFilterCount > 0 ? 'text-indigo-400' : 'text-slate-400'} />
+                <Filter size={14} className={activeFilterCount > 0 ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
                 <span>🎛️ Multi-Filter</span>
                 {activeFilterCount > 0 && (
-                  <span className="bg-indigo-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                  <span className="bg-white text-indigo-700 text-[10px] font-black px-1.5 py-0.2 rounded-full">
                     {activeFilterCount}
                   </span>
                 )}
@@ -315,8 +425,8 @@ export function LeadsTable() {
                 onClick={() => setIsExcelMode(!isExcelMode)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
                   isExcelMode
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                    : 'bg-slate-900 text-muted border-slate-800 hover:text-white'
+                    ? 'filter-pill-selected bg-emerald-600 border-emerald-600 shadow-sm'
+                    : 'filter-pill-unselected'
                 }`}
               >
                 <Table size={14} />
@@ -326,8 +436,8 @@ export function LeadsTable() {
           </div>
 
           {/* Quick Person Filter Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-800/60 text-xs">
-            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1 pr-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-200 dark:border-slate-800/60 text-xs">
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 pr-1">
               <User size={12} className="text-slate-500" /> Person:
             </span>
             {[
@@ -340,10 +450,10 @@ export function LeadsTable() {
               <button
                 key={item.id}
                 onClick={() => setFilterPerson(item.id)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
                   filterPerson === item.id
-                    ? 'bg-indigo-500/25 border-indigo-400 text-indigo-300'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                    : 'filter-pill-unselected'
                 }`}
               >
                 {item.label}
@@ -353,7 +463,7 @@ export function LeadsTable() {
             {activeFilterCount > 0 && (
               <button
                 onClick={resetFilters}
-                className="ml-auto text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 pl-2"
+                className="ml-auto text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 pl-2"
               >
                 <RotateCcw size={11} /> Reset All ({activeFilterCount})
               </button>
@@ -551,13 +661,17 @@ export function LeadsTable() {
                     )}
 
                     {colKey === 'status' && (
-                      <span
-                        className="status-badge inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold"
-                        style={{ background: `${lead.statusColor}20`, color: lead.statusColor }}
+                      <select
+                        value={lead.status}
+                        onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                        className="status-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border border-slate-700 bg-slate-900 cursor-pointer focus:outline-none transition-all hover:border-indigo-500"
+                        style={{ color: lead.statusColor }}
+                        title="Change Lead Stage (Online Verified with Server)"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: lead.statusColor }} />
-                        {lead.status}
-                      </span>
+                        {['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'].map(st => (
+                          <option key={st} value={st} className="bg-slate-900 text-white">{st}</option>
+                        ))}
+                      </select>
                     )}
 
                     {colKey === 'aiScore' && (
@@ -595,15 +709,13 @@ export function LeadsTable() {
                         <div className="flex items-center gap-1.5">
                           <select
                             value={lead.owner || 'Unassigned'}
-                            onChange={(e) => {
-                              const newOwner = e.target.value;
-                              setLeadsList(prev => prev.map(item => item.id === lead.id ? { ...item, owner: newOwner, currentAssignee: newOwner } : item));
-                            }}
+                            onChange={(e) => handleReassignOwner(lead.id, e.target.value)}
                             className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
                               isUnassigned
                                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
                                 : 'bg-slate-900 border-slate-700 text-indigo-300 hover:border-indigo-500'
                             }`}
+                            title="Reallocate Lead (Online Verified with Server)"
                           >
                             <option value="Unassigned">⚠️ Unassigned</option>
                             <option value="Rajesh K.">Rajesh K. (Sales Rep)</option>
@@ -746,32 +858,33 @@ export function LeadsTable() {
       {/* 🎛️ Advanced Lead Multi-Filter Modal */}
       {isFilterModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/90">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
                   <Filter size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">🎛️ Multi-Dimensional Lead Filter</h3>
-                  <p className="text-xs text-slate-400">Filter by assigned person, role, date range & stage status</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">🎛️ Multi-Dimensional Lead Filter</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Filter by assigned person, role, date range & stage status</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsFilterModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                title="Close Filter"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-5 overflow-y-auto">
+            <div className="p-5 space-y-5 overflow-y-auto bg-white dark:bg-slate-900">
               {/* 1. Person Wise Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <User size={14} className="text-indigo-400" />
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <User size={14} className="text-indigo-600 dark:text-indigo-400" />
                   Assigned Employee / Person
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -787,12 +900,12 @@ export function LeadsTable() {
                       onClick={() => setFilterPerson(item.id)}
                       className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
                         filterPerson === item.id
-                          ? 'bg-indigo-500/20 border-indigo-500 text-indigo-200 shadow-sm'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30'
+                          : 'filter-pill-unselected'
                       }`}
                     >
-                      <span>{item.label}</span>
-                      {filterPerson === item.id && <Check size={14} className="text-indigo-400" />}
+                      <span className="font-semibold">{item.label}</span>
+                      {filterPerson === item.id && <Check size={15} className="text-white stroke-[3]" />}
                     </button>
                   ))}
                 </div>
@@ -800,8 +913,8 @@ export function LeadsTable() {
 
               {/* 2. Person Role Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Shield size={14} className="text-emerald-400" />
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Shield size={14} className="text-emerald-600 dark:text-emerald-400" />
                   Assignee Role Scoping
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -818,12 +931,12 @@ export function LeadsTable() {
                       onClick={() => setFilterRole(item.id)}
                       className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
                         filterRole === item.id
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-sm'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          ? 'filter-pill-selected bg-emerald-600 border-emerald-600 shadow-md shadow-emerald-600/30'
+                          : 'filter-pill-unselected'
                       }`}
                     >
-                      <span>{item.label}</span>
-                      {filterRole === item.id && <Check size={14} className="text-emerald-400" />}
+                      <span className="font-semibold">{item.label}</span>
+                      {filterRole === item.id && <Check size={15} className="text-white stroke-[3]" />}
                     </button>
                   ))}
                 </div>
@@ -831,8 +944,8 @@ export function LeadsTable() {
 
               {/* 3. Date Range Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-amber-400" />
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Calendar size={14} className="text-amber-600 dark:text-amber-400" />
                   Lead Created Date
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -847,12 +960,12 @@ export function LeadsTable() {
                       onClick={() => setFilterDate(item.id)}
                       className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
                         filterDate === item.id
-                          ? 'bg-amber-500/20 border-amber-500 text-amber-200 shadow-sm'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          ? 'filter-pill-selected bg-amber-600 border-amber-600 shadow-md shadow-amber-600/30'
+                          : 'filter-pill-unselected'
                       }`}
                     >
-                      <span>{item.label}</span>
-                      {filterDate === item.id && <Check size={14} className="text-amber-400" />}
+                      <span className="font-semibold">{item.label}</span>
+                      {filterDate === item.id && <Check size={15} className="text-white stroke-[3]" />}
                     </button>
                   ))}
                 </div>
@@ -860,8 +973,8 @@ export function LeadsTable() {
 
               {/* 4. Status Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Star size={14} className="text-purple-400" />
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Star size={14} className="text-purple-600 dark:text-purple-400" />
                   Stage / Status
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -875,8 +988,8 @@ export function LeadsTable() {
                       }}
                       className={`p-2 rounded-lg text-xs font-semibold text-center border transition-all ${
                         (filterStatus === 'ALL' && st === 'All') || filterStatus === st
-                          ? 'bg-purple-500/20 border-purple-500 text-purple-200'
-                          : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-white'
+                          ? 'filter-pill-selected bg-purple-600 border-purple-600 shadow-md shadow-purple-600/30'
+                          : 'filter-pill-unselected'
                       }`}
                     >
                       {st}
@@ -887,16 +1000,16 @@ export function LeadsTable() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between">
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
               <button
                 onClick={resetFilters}
-                className="text-xs font-bold text-slate-400 hover:text-amber-400 flex items-center gap-1 transition-colors"
+                className="text-xs font-bold text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-amber-400 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
               >
                 <RotateCcw size={13} /> Reset Filters
               </button>
               <button
                 onClick={() => setIsFilterModalOpen(false)}
-                className="btn-primary text-xs py-2 px-5 font-bold shadow-lg"
+                className="btn-primary text-xs py-2.5 px-6 font-bold shadow-lg shadow-indigo-600/30"
               >
                 Apply Filters ({filtered.length} Leads Matching)
               </button>

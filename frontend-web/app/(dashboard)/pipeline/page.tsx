@@ -211,7 +211,12 @@ export default function LeadPipelinePage() {
 
   const [webAuditFilter, setWebAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
   const [selectedWebAuditDetail, setSelectedWebAuditDetail] = useState<typeof webAuditLogs[0] | null>(null);
-  const [pendingAllocationSheet, setPendingAllocationSheet] = useState<{ isOpen: boolean; fileName: string; leadsCount: number }>({
+  const [pendingAllocationSheet, setPendingAllocationSheet] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    leadsCount: number;
+    auditId?: string;
+  }>({
     isOpen: false,
     fileName: '',
     leadsCount: 0,
@@ -580,8 +585,8 @@ export default function LeadPipelinePage() {
                   onClick={() => setWebAuditFilter(tab.id as any)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${
                     webAuditFilter === tab.id
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
-                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                      ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                      : 'filter-pill-unselected'
                   }`}
                 >
                   {tab.label}
@@ -612,43 +617,120 @@ export default function LeadPipelinePage() {
                         <div className="flex items-start justify-between gap-2">
                           <button
                             onClick={() => setSelectedWebAuditDetail(item)}
-                            className="text-xs font-black text-indigo-400 hover:text-indigo-300 hover:underline truncate flex items-center gap-1.5 transition-all text-left"
+                            className="text-xs font-extrabold text-white dark:text-white hover:text-indigo-300 hover:underline truncate flex items-center gap-1.5 transition-all text-left"
                             title="Click to view Assigned To Whom allocation breakdown"
                           >
                             <FileSpreadsheet size={14} className={isPending ? 'text-amber-400' : 'text-indigo-400'} />
                             {item.fileName}
-                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">🔍 Assigned To</span>
+                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30">🔍 Assigned To</span>
                           </button>
-                          <span
-                            onClick={() => setSelectedWebAuditDetail(item)}
-                            className={`px-2 py-0.5 text-[9px] font-black rounded-md border uppercase tracking-wider cursor-pointer ${
+                          <button
+                            onClick={() => {
+                              if (isPending) {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              } else {
+                                setSelectedWebAuditDetail(item);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-[9px] font-black rounded-lg border uppercase tracking-wider cursor-pointer transition-all shadow-sm ${
                               isPending
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
-                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 animate-pulse'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
                             }`}
+                            title={isPending ? 'Click to allocate these pending leads' : 'Click to view allocation breakdown'}
                           >
-                            {isPending ? '⏳ PENDING' : '✓ ALLOCATED ℹ️'}
-                          </span>
+                            {isPending ? '⏳ PENDING • ASSIGN' : '✓ ALLOCATED ℹ️'}
+                          </button>
                         </div>
 
-                        <div className="space-y-1.5 text-[11px] text-slate-400">
+                        <div className="space-y-1.5 text-[11px] text-slate-300">
                           <p className="flex items-center gap-1">
-                            <Clock size={12} className="text-slate-500" />
-                            Injected At: <span className="text-slate-200 font-bold">{item.injectedAt}</span>
+                            <Clock size={12} className="text-slate-400" />
+                            Injected At: <span className="text-white font-bold">{item.injectedAt}</span>
                           </p>
                           <p className="flex items-center gap-1">
-                            <Zap size={12} className="text-slate-500" />
+                            <Zap size={12} className="text-slate-400" />
                             Extracted Size: <span className="text-emerald-400 font-extrabold">{item.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{item.colsCount || 6} Columns</span>
                           </p>
                           <p className="flex items-center gap-1">
-                            <Radio size={12} className="text-slate-500" />
+                            <Radio size={12} className="text-slate-400" />
                             Source Platform: <span className="text-sky-300 font-bold">{item.platform}</span>
                           </p>
                         </div>
+
+                        {/* Allocation Status & Action Callout Box */}
+                        {isPending ? (
+                          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1">
+                                <UserX size={13} className="text-amber-400" /> Unassigned: {item.leadsCount} Leads
+                              </span>
+                              <span className="text-[9px] font-bold text-amber-400/90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">Action Required</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                              title="Allocate these pending leads to employees"
+                            >
+                              <UserCheck size={14} /> ⚡ Allocate {item.leadsCount} Leads Now →
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                            <div className="truncate flex items-center gap-1.5 text-slate-300">
+                              <UserCheck size={13} className="text-emerald-400 flex-shrink-0" />
+                              <span className="truncate text-[11px] font-medium" title={item.allocationSummary}>
+                                {item.allocationSummary || 'Assigned to sales reps'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20"
+                              title="Reallocate or adjust distribution rules"
+                            >
+                              Re-allocate
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[11px]">
                         <div className="flex items-center gap-1.5">
+                          {isPending && (
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                              title="Allocate leads in this spreadsheet"
+                            >
+                              <UserCheck size={12} /> Allocate Leads
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
@@ -1298,6 +1380,24 @@ export default function LeadPipelinePage() {
               status: 'SUCCESS' as const,
             };
             setFileUploadHistory(prev => [newAudit, ...prev]);
+
+            const newAuditLogItem = {
+              id: `aud_${Date.now()}`,
+              fileName: audit.filename,
+              injectedAt: audit.date || new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              leadsCount: audit.count,
+              colsCount: 8,
+              platform: 'Spreadsheet Ingestion',
+              status: 'PENDING_ALLOCATION' as const,
+            };
+            setWebAuditLogs(prev => [newAuditLogItem, ...prev]);
+
+            setPendingAllocationSheet({
+              isOpen: true,
+              fileName: audit.filename,
+              leadsCount: audit.count,
+              auditId: newAuditLogItem.id,
+            });
           }}
         />
       )}
@@ -1391,6 +1491,39 @@ export default function LeadPipelinePage() {
               document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
             }, 100);
           }}
+          onAllocationComplete={(result) => {
+            // Update webAuditLogs item to ALLOCATED
+            setWebAuditLogs(prev => prev.map(a => {
+              const isMatch = (pendingAllocationSheet.auditId && a.id === pendingAllocationSheet.auditId) ||
+                              (a.fileName === pendingAllocationSheet.fileName);
+              if (isMatch) {
+                let summaryText = 'Allocated to sales reps';
+                if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+                  summaryText = `Assigned directly to ${result.assignedUser.name}`;
+                } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+                  summaryText = result.batchRules.map(r => `${r.assigneeName} [Rows ${r.fromRow}-${r.toRow}]`).join(', ');
+                }
+                return {
+                  ...a,
+                  status: 'ALLOCATED' as const,
+                  allocationSummary: summaryText,
+                };
+              }
+              return a;
+            }));
+
+            // Assign reps to directory leads
+            if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+              setLeadDirectory(prev => prev.map(l => ({ ...l, assignedRep: result.assignedUser!.name })));
+            } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+              setLeadDirectory(prev => prev.map((l, idx) => {
+                const matchedRule = result.batchRules?.find(r => (idx + 1) >= r.fromRow && (idx + 1) <= r.toRow);
+                return matchedRule ? { ...l, assignedRep: matchedRule.assigneeName } : l;
+              }));
+            }
+
+            setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
+          }}
         />
       )}
       {/* Web Sheet Audit Allocation Breakdown Modal */}
@@ -1415,8 +1548,8 @@ export default function LeadPipelinePage() {
 
             <div className="space-y-3">
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs">
-                <p className="font-extrabold text-indigo-300 text-sm flex items-center gap-1.5">
-                  <FileSpreadsheet size={15} /> {selectedWebAuditDetail.fileName}
+                <p className="font-extrabold text-white text-sm flex items-center gap-1.5">
+                  <FileSpreadsheet size={15} className="text-indigo-400" /> {selectedWebAuditDetail.fileName}
                 </p>
                 <p className="text-slate-400 flex items-center gap-1">
                   <Clock size={13} className="text-slate-500" />
@@ -1432,12 +1565,29 @@ export default function LeadPipelinePage() {
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-1.5">
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-2">
                 <span className="text-xs font-extrabold text-indigo-300 block">👤 Assigned To Whom (Employee Allocation):</span>
                 {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? (
-                  <p className="text-xs font-bold text-amber-400">
-                    ⚠️ Unassigned / Pending Allocation. Click 'Allocate Leads Now' on the card to assign sales reps.
-                  </p>
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-bold text-amber-400">
+                      ⚠️ Unassigned / Pending Allocation. No team members assigned yet.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const detail = selectedWebAuditDetail;
+                        setSelectedWebAuditDetail(null);
+                        setPendingAllocationSheet({
+                          isOpen: true,
+                          fileName: detail.fileName,
+                          leadsCount: detail.leadsCount,
+                          auditId: detail.id,
+                        });
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <UserCheck size={14} /> ⚡ Allocate {selectedWebAuditDetail.leadsCount} Leads to Team Now →
+                    </button>
+                  </div>
                 ) : (
                   <p className="text-xs font-semibold text-slate-200 leading-relaxed">
                     {selectedWebAuditDetail.allocationSummary || 'Assigned to sales reps upon spreadsheet ingestion.'}
@@ -1446,12 +1596,27 @@ export default function LeadPipelinePage() {
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between gap-2">
               <button
                 onClick={() => setSelectedWebAuditDetail(null)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-xs"
               >
                 Close Breakdown
+              </button>
+              <button
+                onClick={() => {
+                  const detail = selectedWebAuditDetail;
+                  setSelectedWebAuditDetail(null);
+                  setPendingAllocationSheet({
+                    isOpen: true,
+                    fileName: detail.fileName,
+                    leadsCount: detail.leadsCount,
+                    auditId: detail.id,
+                  });
+                }}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserCheck size={14} /> ⚡ {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? 'Allocate Leads Now' : 'Re-Allocate Leads'}
               </button>
             </div>
           </div>

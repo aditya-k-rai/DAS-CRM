@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Bell, Target, CheckSquare, DollarSign, Users, X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, Target, CheckSquare, DollarSign, Users, X, Check, Zap } from 'lucide-react';
 
 const NOTIFICATIONS = [
   { id: '1', type: 'lead',    icon: Target,      color: 'rgb(99,102,241)',  title: 'New lead assigned to you',       body: 'Rajesh Kumar from TechCorp has been assigned.',    time: '2m ago',  read: false },
@@ -14,6 +14,51 @@ const NOTIFICATIONS = [
 export function NotificationCenter() {
   const [open, setOpen]            = useState(false);
   const [notifications, setNotes]  = useState(NOTIFICATIONS);
+
+  const fetchLiveNotifications = async () => {
+    if (typeof window === 'undefined') return;
+    const token = localStorage.getItem('das_crm_token');
+    if (!token) return;
+
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const res = await fetch(`${apiBase}/notifications?limit=20`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.items) && data.items.length > 0) {
+          const mapped = data.items.map((item: any) => ({
+            id: item.id,
+            type: item.type === 'LEAD_ASSIGNED' ? 'lead' : 'system',
+            icon: item.type === 'LEAD_ASSIGNED' ? Zap : Target,
+            color: item.type === 'LEAD_ASSIGNED' ? 'rgb(99,102,241)' : 'rgb(59,130,246)',
+            title: item.title || 'Notification',
+            body: item.body || '',
+            time: item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
+            read: !!item.isRead,
+          }));
+
+          // Merge with fallback mocks ensuring no duplicate IDs
+          setNotes(prev => {
+            const existingIds = new Set(mapped.map((m: any) => m.id));
+            const remaining = prev.filter(p => !existingIds.has(p.id));
+            return [...mapped, ...remaining];
+          });
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchLiveNotifications();
+    const interval = setInterval(fetchLiveNotifications, 15000);
+    window.addEventListener('focus', fetchLiveNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchLiveNotifications);
+    };
+  }, []);
 
   const unread = notifications.filter(n => !n.read).length;
 

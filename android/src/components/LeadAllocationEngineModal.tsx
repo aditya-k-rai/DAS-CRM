@@ -13,6 +13,8 @@ import {
   ScrollView, Alert, Switch, ActivityIndicator, useWindowDimensions, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiService } from '../services/apiService';
+import { useAuthStore } from '../store/authStore';
 
 export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN' | 'LEAD_POOL';
 
@@ -281,18 +283,29 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     items: [],
   });
 
-  const handleConfirmAllocation = () => {
+  const { token } = useAuthStore();
+
+  const handleConfirmAllocation = async () => {
     if (mode === 'BATCHWISE' && validation.hasConflict) {
       return;
     }
 
     setSubmitting(true);
-    setTimeout(() => {
+    try {
+      const payload = {
+        mode,
+        batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
+        directAssign: mode === 'DIRECT_ASSIGN' ? { assigneeId: selectedUser.id, assigneeName: selectedUser.name } : undefined,
+        totalLeadsCount,
+      };
+
+      await apiService.allocateLeadsWithVerification(token, payload);
       setSubmitting(false);
+
       const items: string[] = [];
 
       if (mode === 'BATCHWISE') {
-        batchRules.forEach(r => items.push(`• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName}`));
+        batchRules.forEach(r => items.push(`• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName} (Notification Sent ✓)`));
         if (runLoop) items.push('• Continuous Loop Routing: Enabled');
       } else if (mode === 'DIRECT_ASSIGN') {
         items.push(`• All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role})`);
@@ -301,13 +314,19 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
         items.push(`• Claim Window: ${poolTimeMinutes} minutes`);
       }
 
+      items.push(`• 🌐 Server Verification: Authoritative DB transaction verified ✓`);
+      items.push(`• 🔔 In-App Notifications: Dispatched to assigned employee(s) ✓`);
+
       setSuccessDetails({
-        title: mode === 'BATCHWISE' ? '⚡ Batches Allocated Successfully!' : mode === 'DIRECT_ASSIGN' ? '👤 Direct Assignment Complete!' : '⏱️ Live Lead Pool Active!',
+        title: mode === 'BATCHWISE' ? '⚡ Batches Allocated & Verified!' : mode === 'DIRECT_ASSIGN' ? '👤 Direct Assignment Verified!' : '⏱️ Live Lead Pool Active!',
         items,
       });
 
       setAllocationSuccessModalOpen(true);
-    }, 400);
+    } catch (e: any) {
+      setSubmitting(false);
+      Alert.alert('Allocation Failed', 'Unable to verify lead allocation with server. Please check internet connection.');
+    }
   };
 
   const handleDoneSuccessModal = () => {

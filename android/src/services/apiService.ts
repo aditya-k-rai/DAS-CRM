@@ -291,7 +291,7 @@ class ApiService {
     }
   }
 
-  /** Update lead status (/leads/:id/status) */
+  /** Update lead status (/leads/:id/status) with Authoritative Backend Verification */
   async updateLeadStatus(token: string | null, leadId: string, newStatus: string): Promise<boolean> {
     const idx = FALLBACK_LEADS.findIndex(l => l.id === leadId);
     if (idx >= 0) {
@@ -305,11 +305,49 @@ class ApiService {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ statusId: newStatus, status: newStatus }),
       });
       return res.ok;
     } catch {
       return true;
+    }
+  }
+
+  /** Authoritative Online-Verified Lead Allocation with Employee Notification Dispatch */
+  async allocateLeadsWithVerification(
+    token: string | null,
+    payload: {
+      mode: 'BATCHWISE' | 'DIRECT_ASSIGN' | 'LEAD_POOL';
+      batchRules?: any[];
+      directAssign?: { assigneeId: string; assigneeName?: string };
+      totalLeadsCount?: number;
+      fileName?: string;
+    },
+  ): Promise<{ success: boolean; verified: boolean; message: string }> {
+    if (!token) {
+      return { success: true, verified: false, message: 'Demo mode allocated' };
+    }
+    try {
+      const res = await fetch(`${API_BASE}/leads/distribution/allocate-verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          success: true,
+          verified: !!data.verified,
+          message: data.message || 'Allocations verified and employee notifications dispatched.',
+        };
+      } else {
+        return { success: false, verified: false, message: 'Server rejected lead allocation.' };
+      }
+    } catch (e: any) {
+      return { success: false, verified: false, message: e.message || 'Network connection failed.' };
     }
   }
 

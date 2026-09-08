@@ -22,9 +22,7 @@ export default function LeadsPage() {
   const [newLeadEmail, setNewLeadEmail] = useState('');
   const [newLeadValue, setNewLeadValue] = useState('');
 
-  const [rawCsvText, setRawCsvText] = useState(
-    'Name, Phone, Company, Email, Value\nRajesh Kumar, +91 98765 43210, TechCorp Solutions, rajesh@techcorp.com, ₹5,20,000\nPriya Sharma, +91 98123 45678, LogiTech Freight, priya@logitech.com, ₹3,50,000'
-  );
+  const [rawCsvText, setRawCsvText] = useState('');
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const canAccessFunnel = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'MANAGER' || rawRole === 'OWNER';
@@ -187,6 +185,7 @@ export default function LeadsPage() {
                 <textarea
                   rows={6}
                   value={rawCsvText}
+                  placeholder="Paste your raw CSV rows here (e.g. Name, Phone, Company, Email, Value)..."
                   onChange={(e) => setRawCsvText(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-emerald-400 font-mono focus:border-brand-500 focus:outline-none"
                 />
