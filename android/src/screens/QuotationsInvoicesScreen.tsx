@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { useTheme } from '../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -128,23 +129,146 @@ const fmtTime = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const INITIAL_COMPANIES: CompanyDetails[] = [
-  { id:'comp-1', name:'Aarna Construction & Interiors', logoUrl:'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60', address:'Plot1, Ats-kasnaroad, Bindalenclave, Greater Noida, Uttar Pradesh, 201310', email:'info@aarnaconstructions.com', phone:'+91 98102 34567', gstNo:'09APMPL1329Q1Z8', panNo:'APML1329Q', bankName:'Punjab National Bank', accountNo:'6198002100003189', ifscCode:'PUNB0619800', branch:'DAV TIRAHA, Greater Noida', upiId:'aarna@pnb' },
-  { id:'comp-2', name:'Spectro Tech India Pvt Ltd', logoUrl:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=60', address:'Plot No. 42, Sector 18, Cyber City, Gurugram, HR - 122002', email:'billing@spectrotech.in', phone:'+91 124 4567890', gstNo:'06AAAAC1234F1Z9', panNo:'AAAAC1234F', bankName:'HDFC Bank Ltd', accountNo:'50200044556677', ifscCode:'HDFC0000123', branch:'Cyber City', upiId:'spectro@hdfcbank' },
+  {
+    id: 'comp-1',
+    name: 'DAS Business Solutions Pvt Ltd',
+    logoUrl: 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=120&auto=format&fit=crop&q=60',
+    address: 'A-43, Sector 62, Electronic City, Noida, Uttar Pradesh - 201301',
+    email: 'billing@dascrm.com',
+    phone: '+91 98100 12345',
+    gstNo: '09AABCD1234E1Z5',
+    panNo: 'AABCD1234E',
+    bankName: 'HDFC Bank Ltd',
+    accountNo: '50200012345678',
+    ifscCode: 'HDFC0001234',
+    branch: 'Sector 62 Noida',
+    upiId: 'dascrm@hdfcbank',
+  },
+  {
+    id: 'comp-2',
+    name: 'Apex Industrial Systems LLP',
+    logoUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=120&auto=format&fit=crop&q=60',
+    address: 'B-12, Okhla Industrial Area Phase 1, New Delhi - 110020',
+    email: 'accounts@apexindustrial.in',
+    phone: '+91 11 4567 8900',
+    gstNo: '07AAFFA9876K1ZP',
+    panNo: 'AAFFA9876K',
+    bankName: 'ICICI Bank Ltd',
+    accountNo: '000705001234',
+    ifscCode: 'ICIC0000007',
+    branch: 'Connaught Place New Delhi',
+    upiId: 'apexsystems@icici',
+  },
 ];
 
 const INITIAL_PARTIES: PartyDetails[] = [
-  { id:'party-1', name:'SPECTRO ANALYTICAL LABS PRIVATE LIMITED', contactPerson:'Site Procurement Manager', email:'info@spectro.in', phone:'+91 93194 95000', address:'S 1, SITE GNEPIP KASNA ROAD, SURAJPUR INDUSTRIAL AREA V Gautam Buddha Nagar 201310, GREATER NOIDA, Uttar Pradesh, 201310', shippingAddress:'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310', gstNo:'09APMPL1329Q1Z8', panNo:'APML1329Q' },
-  { id:'party-2', name:'TechCorp Solutions Pvt Ltd', contactPerson:'Rajesh Varma', email:'rajesh@techcorp.com', phone:'+91 98765 43210', address:'Building 7, Mindspace IT Park, Madhapur, Hyderabad, TS - 500081', shippingAddress:'Warehouse 12, Mindspace Park, Hyderabad, TS - 500081', gstNo:'36AAACT9988K1ZP', panNo:'AAACT9988K' },
+  {
+    id: 'party-1',
+    name: 'TechCorp Innovations India Pvt Ltd',
+    contactPerson: 'Vikram Malhotra (VP Procurement)',
+    email: 'procurement@techcorp.in',
+    phone: '+91 98200 54321',
+    address: 'Tower B, 7th Floor, DLF Cyber City, Phase 2, Gurugram, Haryana - 122002',
+    shippingAddress: 'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310',
+    gstNo: '06AABCT9988D1Z2',
+    panNo: 'AABCT9988D',
+  },
+  {
+    id: 'party-2',
+    name: 'GreenField Energy Solutions Ltd',
+    contactPerson: 'Anjali Deshmukh (Head Projects)',
+    email: 'accounts@greenfieldenergy.com',
+    phone: '+91 22 6789 0123',
+    address: 'Unit 402, Godrej One, Pirojshanagar, Vikhroli East, Mumbai, Maharashtra - 400079',
+    shippingAddress: 'Godown 12, Kalamboli Warehousing Zone, Navi Mumbai - 410218',
+    gstNo: '27AABCG5544B1ZV',
+    panNo: 'AABCG5544B',
+  },
 ];
 
 const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
-  { id:'sq-1', docNo:'EST-2026-0891', docType:'QUOTATION', partyName:'SPECTRO ANALYTICAL LABS PRIVATE LIMITED', companyName:'Aarna Construction & Interiors', savedAt:'29/08/2026, 07:45 PM', totalAmount:238950, status:'GENERATED_SENT', sentVia:'EMAIL', sentToLead:'billing@spectroanalytical.com', itemsCount:1, createdByName:'Aditya Kumar Rai', createdByRole:'Tenant Admin', payload:{ items:[{ id:'item-1', productName:'Executive Work Station', description:'Ergonomic Modular Desk System', showDescription:true, hsnCode:'998313', customValues:{ 'col-1':'Aarna Modular', 'col-2':'1 Year Full Warranty' }, showImage:false, unit:'Nos', qty:9, unitPrice:22500, taxRate:18, discountType:'flat', discountVal:0, total:202500 }], customColumns:[{ id:'col-1', name:'Make / Brand' },{ id:'col-2', name:'Warranty Period' }], sectionOrder:['HEADER','PARTY_INFO','ITEMS_TABLE','SUMMARY_AND_BANK','FOOTER_TERMS'], sectionGap:10, pdfTopPadding:32, pdfBottomPadding:28, globalGstRate:18, gstType:'CGST_SGST', docDate:'13/01/2026', validUntilDate:'31/01/2026' } },
-  { id:'sq-2', docNo:'PI-2026-0412', docType:'PROFORMA_INVOICE', partyName:'INFOSYS ENTERPRISE SOLUTIONS', companyName:'Aarna Construction & Interiors', savedAt:'29/08/2026, 06:15 PM', totalAmount:540000, status:'GENERATED_SENT', sentVia:'WHATSAPP_DIRECT', sentToLead:'+91 9810234567', itemsCount:2, createdByName:'Priya Sharma', createdByRole:'Sales Manager' },
-  { id:'sq-3', docNo:'EST-2026-0892', docType:'QUOTATION', partyName:'TATA CONSULTANCY SERVICES', companyName:'Aarna Construction & Interiors', savedAt:'28/08/2026, 03:20 PM', totalAmount:185000, status:'DRAFT', itemsCount:1, createdByName:'Rajesh Kumar', createdByRole:'Sales Executive' },
+  {
+    id: 'sq-1',
+    docNo: 'EST-2026-0891',
+    docType: 'QUOTATION',
+    partyName: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '29/08/2026, 07:45 PM',
+    totalAmount: 238950,
+    status: 'GENERATED_SENT',
+    sentVia: 'EMAIL',
+    sentToLead: 'billing@spectroanalytical.com',
+    itemsCount: 1,
+    createdByName: 'Aditya Kumar Rai',
+    createdByRole: 'Tenant Admin',
+    payload: {
+      items: [
+        {
+          id: 'item-1',
+          productName: 'Executive Work Station',
+          description: 'Ergonomic Modular Desk System',
+          showDescription: true,
+          hsnCode: '998313',
+          customValues: {
+            'col-1': 'Aarna Modular',
+            'col-2': '1 Year Full Warranty',
+          },
+          showImage: false,
+          unit: 'Nos',
+          qty: 9,
+          unitPrice: 22500,
+          taxRate: 18,
+          discountType: 'flat',
+          discountVal: 0,
+          total: 202500,
+        },
+      ],
+      customColumns: [
+        { id: 'col-1', name: 'Make / Brand' },
+        { id: 'col-2', name: 'Warranty Period' },
+      ],
+      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+      sectionGap: 10,
+      pdfTopPadding: 32,
+      pdfBottomPadding: 28,
+      globalGstRate: 18,
+      gstType: 'CGST_SGST',
+      docDate: '13/01/2026',
+      validUntilDate: '31/01/2026',
+    },
+  },
+  {
+    id: 'sq-2',
+    docNo: 'PI-2026-0412',
+    docType: 'PROFORMA_INVOICE',
+    partyName: 'INFOSYS ENTERPRISE SOLUTIONS',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '29/08/2026, 06:15 PM',
+    totalAmount: 540000,
+    status: 'GENERATED_SENT',
+    sentVia: 'WHATSAPP_DIRECT',
+    sentToLead: '+91 9810234567',
+    itemsCount: 2,
+    createdByName: 'Priya Sharma',
+    createdByRole: 'Sales Manager',
+  },
+  {
+    id: 'sq-3',
+    docNo: 'EST-2026-0892',
+    docType: 'QUOTATION',
+    partyName: 'TATA CONSULTANCY SERVICES',
+    companyName: 'Aarna Construction & Interiors',
+    savedAt: '28/08/2026, 03:20 PM',
+    totalAmount: 185000,
+    status: 'DRAFT',
+    itemsCount: 1,
+    createdByName: 'Rajesh Kumar',
+    createdByRole: 'Sales Executive',
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Subcomponents (Memoized for High Performance & Zero Remount Churn)
+// Accordion Section Header Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface AccordionHeaderProps {
@@ -170,6 +294,9 @@ const AccordionHeader: React.FC<AccordionHeaderProps> = React.memo(({
   isOpen,
   onToggle,
 }) => {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   return (
     <TouchableOpacity
       onPress={() => onToggle(sectionKey)}
@@ -177,21 +304,23 @@ const AccordionHeader: React.FC<AccordionHeaderProps> = React.memo(({
       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
       style={[
         styles.accHeader,
-        isOpen && styles.accHeaderOpen,
-        isDone && styles.accHeaderDone,
+        isOpen && [styles.accHeaderOpen, { backgroundColor: isDark ? 'rgba(99,102,241,0.09)' : 'rgba(99,102,241,0.06)' }],
+        isDone && [styles.accHeaderDone, { backgroundColor: isDark ? 'rgba(16,185,129,0.03)' : 'rgba(16,185,129,0.04)' }],
       ]}
     >
       <View style={styles.accHeaderLeft}>
         {stepNum !== undefined && (
           <View style={[
             styles.stepNumCircle,
+            { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
             isDone && styles.stepNumCircleDone,
             isOpen && !isDone && { backgroundColor: color, borderColor: color },
           ]}>
             <Text style={[
               styles.stepNumText,
+              { color: colors.textSecondary },
               isDone && styles.stepNumTextDone,
-              isOpen && !isDone && { color: '#020617' },
+              isOpen && !isDone && { color: '#ffffff' },
             ]}>
               {isDone ? '✓' : String(stepNum)}
             </Text>
@@ -200,15 +329,15 @@ const AccordionHeader: React.FC<AccordionHeaderProps> = React.memo(({
         <Text
           style={[
             styles.accHeaderText,
-            { color: isDone ? '#34d399' : isOpen ? '#ffffff' : color },
+            { color: isDone ? (isDark ? '#34d399' : '#059669') : isOpen ? colors.text : color },
           ]}
           numberOfLines={1}
         >
           {label}
         </Text>
         {isOptional && (
-          <View style={[styles.optionalPill, isOpen && styles.optionalPillOpen]}>
-            <Text style={[styles.optionalPillText, isOpen && styles.optionalPillTextOpen]}>Opt</Text>
+          <View style={[styles.optionalPill, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }, isOpen && styles.optionalPillOpen]}>
+            <Text style={[styles.optionalPillText, { color: colors.textSecondary }, isOpen && styles.optionalPillTextOpen]}>Opt</Text>
           </View>
         )}
       </View>
@@ -241,6 +370,8 @@ interface QuotationsInvoicesScreenProps { onClose?: () => void; }
 
 export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> = ({ onClose }) => {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [viewMode, setViewMode] = useState<'BUILDER' | 'LIVE_PREVIEW'>('BUILDER');
   const [docType, setDocType]   = useState<DocumentType>('QUOTATION');
   const [docNo, setDocNo]       = useState('EST-2026-0891');
@@ -1211,7 +1342,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   // ─── Render Screen ──────────────────────────────────────────────────────────
   return (
     <View style={[styles.container, { paddingTop: onClose ? 0 : Math.max(insets.top, 12) }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#060b18" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.cardBg} />
 
       {/* ── TOP HEADER BAR ─────────────────────────────────────────────── */}
       <View style={styles.topHeader}>
@@ -2302,15 +2433,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                       onPress={() => handleSharePDF(item.partyName, item.docNo, item.totalAmount)}
                       disabled={isPrinting}
                     >
-                      <Text style={[styles.historyActionBtnText, { color:'#a5b4fc' }]}>📤 Share</Text>
+                      <Text style={[styles.historyActionBtnText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>↗ Share</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(52,211,153,0.15)', borderColor:'rgba(52,211,153,0.3)' }]} onPress={() => handleDirectSendQuote(item, 'EMAIL')}>
-                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>✉️</Text>
+                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(16,185,129,0.1)', borderColor: isDark ? 'rgba(52,211,153,0.3)' : 'rgba(16,185,129,0.25)' }]} onPress={() => handleDirectSendQuote(item, 'EMAIL')}>
+                      <Text style={[styles.historyActionBtnText, { color: isDark ? '#34d399' : '#059669' }]}>✉️</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(52,211,153,0.15)', borderColor:'rgba(52,211,153,0.3)' }]} onPress={() => handleDirectSendQuote(item, 'WHATSAPP_DIRECT')}>
-                      <Text style={[styles.historyActionBtnText, { color:'#34d399' }]}>💬</Text>
+                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(16,185,129,0.1)', borderColor: isDark ? 'rgba(52,211,153,0.3)' : 'rgba(16,185,129,0.25)' }]} onPress={() => handleDirectSendQuote(item, 'WHATSAPP_DIRECT')}>
+                      <Text style={[styles.historyActionBtnText, { color: isDark ? '#34d399' : '#059669' }]}>💬</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor:'rgba(244,63,94,0.1)', borderColor:'rgba(244,63,94,0.3)' }]} onPress={() => {
+                    <TouchableOpacity style={[styles.historyActionBtn, { backgroundColor: 'rgba(244,63,94,0.1)', borderColor: 'rgba(244,63,94,0.3)' }]} onPress={() => {
                       Alert.alert('Delete Quote', `Delete ${item.docNo}?`, [
                         { text:'Cancel', style:'cancel' },
                         { text:'Delete', style:'destructive', onPress:() => setSavedQuotes(prev => prev.filter(q => q.id !== item.id)) },
@@ -2344,66 +2475,66 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 // Styles
 // ─────────────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#060b18' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
 
   // Top Header
-  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#060b18', borderBottomWidth: 1, borderBottomColor: '#1a2335' },
-  backBtn: { backgroundColor: '#0d1526', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
-  backBtnText: { color: '#38bdf8', fontWeight: '900', fontSize: 12, textAlign: 'center' },
-  headerTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff', textAlign: 'center' },
-  headerSub: { fontSize: 9.5, color: '#64748b', fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  topActionBtn: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)', minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
-  topActionBtnText: { color: '#818cf8', fontWeight: '900', fontSize: 12 },
+  topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border, minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900', fontSize: 12, textAlign: 'center' },
+  headerTitle: { fontSize: 14, fontWeight: '900', color: colors.text, textAlign: 'center' },
+  headerSub: { fontSize: 9.5, color: colors.textSecondary, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  topActionBtn: { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)', minWidth: 62, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  topActionBtnText: { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900', fontSize: 12 },
 
   // Top Action Bar
-  topActionBar: { backgroundColor: '#060b18', padding: 10, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
+  topActionBar: { backgroundColor: colors.cardBg, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
   topBarRow: { flexDirection: 'row', alignItems: 'center' },
-  viewModeSwitcher: { flex: 1, flexDirection: 'row', backgroundColor: '#0d1526', borderRadius: 12, padding: 3, borderWidth: 1, borderColor: '#1e293b' },
+  viewModeSwitcher: { flex: 1, flexDirection: 'row', backgroundColor: colors.cardBgElevated, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: colors.border },
   vmTab: { flex: 1, paddingVertical: 9, borderRadius: 9, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
   vmTabActive: { backgroundColor: '#4f46e5', shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4, elevation: 3 },
-  vmTabText: { fontSize: 11.5, fontWeight: '800', color: '#64748b' },
+  vmTabText: { fontSize: 11.5, fontWeight: '800', color: colors.textSecondary },
   vmTabTextActive: { color: '#ffffff', fontWeight: '900' },
   topBarActions: { flexDirection: 'row', gap: 6 },
-  topBarBtn: { backgroundColor: '#0d1526', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  topBarBtnSuccess: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
+  topBarBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: colors.border, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  topBarBtnSuccess: { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)', borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.3)' },
   topBarBtnCompile: { backgroundColor: '#2563eb', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#3b82f6', minWidth: 70, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   topBarBtnCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
   topBarBtnCompileText: { fontSize: 10.5, fontWeight: '900', color: '#ffffff' },
   topBarBtnPrint: { backgroundColor: '#4f46e5', paddingHorizontal: 13, paddingVertical: 7, borderRadius: 10, minWidth: 70, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  topBarBtnText: { fontSize: 10.5, fontWeight: '900', color: '#e2e8f0' },
+  topBarBtnText: { fontSize: 10.5, fontWeight: '900', color: colors.textSecondary },
   topBarBtnPrintText: { fontSize: 10.5, fontWeight: '900', color: '#ffffff' },
-  convertPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1e293b', minHeight: 34, alignItems: 'center', justifyContent: 'center' },
+  convertPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
   convertPillActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  convertPillText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
+  convertPillText: { fontSize: 10, fontWeight: '900', color: colors.textSecondary },
   convertPillTextActive: { color: '#ffffff' },
 
   // Scroll Content
   scrollContent: { padding: 10, paddingBottom: 40 },
-  accCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1.5, borderColor: '#1e293b', marginBottom: 10, overflow: 'hidden' },
+  accCard: { backgroundColor: colors.cardBg, borderRadius: 14, borderWidth: 1.5, borderColor: colors.border, marginBottom: 10, overflow: 'hidden' },
   accCardOpen: {
-    borderColor: '#6366f1',
-    backgroundColor: '#10172a',
-    shadowColor: '#6366f1',
+    borderColor: isDark ? '#6366f1' : '#4f46e5',
+    backgroundColor: colors.cardBg,
+    shadowColor: isDark ? '#6366f1' : '#4f46e5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 4,
   },
-  accCardDone: { borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(15,23,42,0.95)' },
+  accCardDone: { borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.3)', backgroundColor: colors.cardBg },
 
   // Progress Dashboard
-  progressCard: { backgroundColor: '#0b1329', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
+  progressCard: { backgroundColor: colors.cardBg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  progressTitle: { fontSize: 10.5, fontWeight: '900', color: '#ffffff', letterSpacing: 0.5 },
-  progressSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
-  progressPctText: { fontSize: 11, fontWeight: '900', color: '#f59e0b' },
-  coreStatusPill: { backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' },
-  coreStatusPillDone: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
-  coreStatusPillText: { fontSize: 8.5, fontWeight: '900', color: '#f59e0b' },
-  coreStatusPillTextDone: { color: '#34d399' },
-  progressBarTrack: { height: 6, backgroundColor: '#020617', borderRadius: 3, overflow: 'hidden', borderWidth: 1, borderColor: '#1e293b', marginBottom: 8 },
-  progressBarFill: { height: '100%', backgroundColor: '#f59e0b', borderRadius: 3 },
+  progressTitle: { fontSize: 10.5, fontWeight: '900', color: colors.text, letterSpacing: 0.5 },
+  progressSub: { fontSize: 9.5, color: colors.textSecondary, marginTop: 2 },
+  progressPctText: { fontSize: 11, fontWeight: '900', color: isDark ? '#f59e0b' : '#d97706' },
+  coreStatusPill: { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.25)' },
+  coreStatusPillDone: { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)', borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.25)' },
+  coreStatusPillText: { fontSize: 8.5, fontWeight: '900', color: isDark ? '#f59e0b' : '#d97706' },
+  coreStatusPillTextDone: { color: isDark ? '#34d399' : '#059669' },
+  progressBarTrack: { height: 6, backgroundColor: colors.cardBgElevated, borderRadius: 3, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  progressBarFill: { height: '100%', backgroundColor: isDark ? '#f59e0b' : '#d97706', borderRadius: 3 },
   
   // Thumb-Friendly Progress Mini Navigation Pills
   miniPillsScroll: { marginTop: 4 },
@@ -2413,9 +2544,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#020617',
+    backgroundColor: colors.cardBgElevated,
     borderWidth: 1.5,
-    borderColor: '#1e293b',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2435,68 +2566,68 @@ const styles = StyleSheet.create({
   miniPillCheckText: {
     fontSize: 9.5,
     fontWeight: '900',
-    color: '#020617',
+    color: '#ffffff',
   },
   miniPillDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: '#475569',
+    backgroundColor: colors.border,
   },
   miniPillDotActive: {
-    backgroundColor: '#818cf8',
+    backgroundColor: isDark ? '#818cf8' : '#4f46e5',
   },
   miniPillDone: {
-    backgroundColor: 'rgba(16,185,129,0.14)',
-    borderColor: 'rgba(16,185,129,0.45)',
+    backgroundColor: isDark ? 'rgba(16,185,129,0.14)' : 'rgba(16,185,129,0.1)',
+    borderColor: isDark ? 'rgba(16,185,129,0.45)' : 'rgba(16,185,129,0.35)',
   },
   miniPillActive: {
-    borderColor: '#818cf8',
-    backgroundColor: 'rgba(99,102,241,0.25)',
+    borderColor: isDark ? '#818cf8' : '#4f46e5',
+    backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
   },
   miniPillText: {
     fontSize: 11.5,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   miniPillTextDone: {
-    color: '#34d399',
+    color: isDark ? '#34d399' : '#059669',
   },
   miniPillTextActive: {
-    color: '#ffffff',
+    color: colors.text,
     fontWeight: '900',
   },
   miniPillOpt: {
-    backgroundColor: 'rgba(99,102,241,0.14)',
-    borderColor: 'rgba(99,102,241,0.38)',
+    backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : 'rgba(99,102,241,0.08)',
+    borderColor: isDark ? 'rgba(99,102,241,0.38)' : 'rgba(99,102,241,0.25)',
   },
   miniPillOptActive: {
     borderColor: '#a855f7',
-    backgroundColor: 'rgba(168,85,247,0.25)',
+    backgroundColor: isDark ? 'rgba(168,85,247,0.25)' : 'rgba(168,85,247,0.15)',
   },
   miniPillOptSparkle: {
     fontSize: 10.5,
-    color: '#818cf8',
+    color: isDark ? '#818cf8' : '#4f46e5',
     fontWeight: '900',
   },
   miniPillOptSparkleActive: {
-    color: '#c084fc',
+    color: '#a855f7',
   },
   miniPillOptText: {
-    color: '#c7d2fe',
+    color: isDark ? '#c7d2fe' : '#4338ca',
     fontWeight: '900',
   },
   miniPillOptTextActive: {
-    color: '#f0abfc',
+    color: '#9333ea',
     fontWeight: '900',
   },
 
   // More Controls Banner
   moreControlsBanner: {
-    backgroundColor: '#0c1224',
+    backgroundColor: colors.cardBg,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: 'rgba(99,102,241,0.32)',
+    borderColor: isDark ? 'rgba(99,102,241,0.32)' : 'rgba(99,102,241,0.2)',
     padding: 14,
     marginBottom: 10,
     flexDirection: 'row',
@@ -2505,16 +2636,16 @@ const styles = StyleSheet.create({
     gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
   moreControlsBannerActive: {
-    borderColor: '#818cf8',
-    backgroundColor: '#161d38',
-    shadowColor: '#818cf8',
+    borderColor: isDark ? '#818cf8' : '#4f46e5',
+    backgroundColor: colors.cardBg,
+    shadowColor: isDark ? '#818cf8' : '#4f46e5',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
   },
@@ -2532,8 +2663,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   moreControlsIconText: { fontSize: 18 },
-  moreControlsTitle: { fontSize: 12.5, fontWeight: '900', color: '#ffffff', letterSpacing: 0.2 },
-  moreControlsSub: { fontSize: 9.5, color: '#94a3b8', marginTop: 2 },
+  moreControlsTitle: { fontSize: 12.5, fontWeight: '900', color: colors.text, letterSpacing: 0.2 },
+  moreControlsSub: { fontSize: 9.5, color: colors.textSecondary, marginTop: 2 },
   
   // More Controls Action Pill Button
   moreControlsBtn: {
@@ -2555,7 +2686,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   moreControlsBtnActive: {
-    backgroundColor: 'rgba(46,16,101,0.85)',
+    backgroundColor: isDark ? 'rgba(46,16,101,0.85)' : '#7e22ce',
     borderWidth: 1,
     borderColor: 'rgba(168,85,247,0.6)',
     shadowColor: '#a855f7',
@@ -2611,28 +2742,28 @@ const styles = StyleSheet.create({
   },
 
   // Table Column Controls Box
-  tableColControlBox: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
-  tableColControlTitle: { fontSize: 11, fontWeight: '900', color: '#a78bfa', marginBottom: 4 },
+  tableColControlBox: { backgroundColor: colors.cardBgElevated, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10, marginBottom: 10 },
+  tableColControlTitle: { fontSize: 11, fontWeight: '900', color: isDark ? '#a78bfa' : '#6d28d9', marginBottom: 4 },
 
   // Step Number & Badges
-  stepNumCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e293b', borderWidth: 1.5, borderColor: '#334155', alignItems: 'center', justifyContent: 'center' },
+  stepNumCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.cardBgElevated, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   stepNumCircleDone: { backgroundColor: '#10b981', borderColor: '#10b981' },
-  stepNumText: { fontSize: 11.5, fontWeight: '900', color: '#94a3b8' },
-  stepNumTextDone: { color: '#020617' },
-  doneBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.18)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8 },
-  doneBadgeIcon: { fontSize: 10, fontWeight: '900', color: '#34d399' },
-  doneBadgeText: { fontSize: 10, fontWeight: '900', color: '#34d399' },
-  optionalPill: { backgroundColor: '#1e293b', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: '#334155' },
-  optionalPillOpen: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#818cf8' },
-  optionalPillActive: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#818cf8' },
-  optionalPillText: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
-  optionalPillTextOpen: { color: '#c4b5fd' },
-  optionalPillTextActive: { color: '#c4b5fd' },
+  stepNumText: { fontSize: 11.5, fontWeight: '900', color: colors.textSecondary },
+  stepNumTextDone: { color: '#ffffff' },
+  doneBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(16,185,129,0.45)' : 'rgba(16,185,129,0.3)', paddingHorizontal: 9, paddingVertical: 4.5, borderRadius: 8 },
+  doneBadgeIcon: { fontSize: 10, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
+  doneBadgeText: { fontSize: 10, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
+  optionalPill: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: colors.border },
+  optionalPillOpen: { backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)', borderColor: isDark ? '#818cf8' : '#4f46e5' },
+  optionalPillActive: { backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)', borderColor: isDark ? '#818cf8' : '#4f46e5' },
+  optionalPillText: { fontSize: 9, fontWeight: '800', color: colors.textSecondary },
+  optionalPillTextOpen: { color: isDark ? '#c4b5fd' : '#4338ca' },
+  optionalPillTextActive: { color: isDark ? '#c4b5fd' : '#4338ca' },
   accHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14, minHeight: 56 },
-  accHeaderOpen: { backgroundColor: 'rgba(99,102,241,0.09)' },
-  accHeaderDone: { backgroundColor: 'rgba(16,185,129,0.03)' },
+  accHeaderOpen: { backgroundColor: isDark ? 'rgba(99,102,241,0.09)' : 'rgba(99,102,241,0.05)' },
+  accHeaderDone: { backgroundColor: isDark ? 'rgba(16,185,129,0.03)' : 'rgba(16,185,129,0.04)' },
   accHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 },
-  accHeaderText: { fontSize: 13.5, fontWeight: '900', flex: 1, letterSpacing: 0.15 },
+  accHeaderText: { fontSize: 13.5, fontWeight: '900', flex: 1, letterSpacing: 0.15, color: colors.text },
   accHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   accBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
   accBadgeText: { fontSize: 9.5, fontWeight: '900' },
@@ -2642,149 +2773,149 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
   },
   accChevronBoxOpen: {
-    backgroundColor: 'rgba(99,102,241,0.25)',
-    borderColor: '#818cf8',
+    backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
+    borderColor: isDark ? '#818cf8' : '#4f46e5',
   },
   accChevronText: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#94a3b8',
+    color: colors.textSecondary,
   },
   accChevronTextOpen: {
-    color: '#c7d2fe',
+    color: isDark ? '#c7d2fe' : '#4338ca',
   },
-  accBody: { padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#1e293b' },
+  accBody: { padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: colors.border },
 
   // Controls
   companyRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  addBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
-  addBtnText: { color: '#38bdf8', fontSize: 11, fontWeight: '900' },
-  selBox: { backgroundColor: '#020617', borderWidth: 1.5, borderColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minWidth: 150 },
-  selBoxActive: { borderColor: '#38bdf8' },
-  selBoxName: { fontSize: 11.5, fontWeight: '900', color: '#ffffff' },
-  selBoxSub: { fontSize: 9.5, color: '#64748b', marginTop: 2 },
-  detailCard: { backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 12, padding: 12, marginTop: 8 },
-  detailName: { fontSize: 12.5, fontWeight: '900', color: '#ffffff' },
-  detailSub: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
-  detailContact: { fontSize: 10, color: '#818cf8', marginTop: 2 },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' },
-  toggleText: { fontSize: 11, fontWeight: '800', color: '#cbd5e1', flex: 1 },
-  fieldLabel: { fontSize: 10.5, fontWeight: '800', color: '#94a3b8', marginBottom: 4 },
-  inputField: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 11.5, color: '#ffffff' },
+  addBtn: { backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.4)' : 'rgba(14,165,233,0.3)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  addBtnText: { color: isDark ? '#38bdf8' : '#0284c7', fontSize: 11, fontWeight: '900' },
+  selBox: { backgroundColor: colors.cardBgElevated, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minWidth: 150 },
+  selBoxActive: { borderColor: isDark ? '#38bdf8' : '#0284c7' },
+  selBoxName: { fontSize: 11.5, fontWeight: '900', color: colors.text },
+  selBoxSub: { fontSize: 9.5, color: colors.textSecondary, marginTop: 2 },
+  detailCard: { backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)', borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.2)', borderRadius: 12, padding: 12, marginTop: 8 },
+  detailName: { fontSize: 12.5, fontWeight: '900', color: colors.text },
+  detailSub: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
+  detailContact: { fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', marginTop: 2 },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  toggleText: { fontSize: 11, fontWeight: '800', color: colors.text, flex: 1 },
+  fieldLabel: { fontSize: 10.5, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 },
+  inputField: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 11.5, color: colors.text },
 
   // Item Box
-  itemBox: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 10 },
+  itemBox: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, marginBottom: 10 },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemIdx: { fontSize: 11, fontWeight: '900', color: '#94a3b8' },
+  itemIdx: { fontSize: 11, fontWeight: '900', color: colors.textSecondary },
   removeBtn: { color: '#f43f5e', fontSize: 11, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 4 },
-  catalogBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
-  catalogBtnText: { color: '#a78bfa', fontSize: 10.5, fontWeight: '900' },
+  catalogBtn: { backgroundColor: isDark ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(167,139,250,0.3)' : 'rgba(167,139,250,0.25)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  catalogBtnText: { color: isDark ? '#a78bfa' : '#6d28d9', fontSize: 10.5, fontWeight: '900' },
 
   // Catalog Modal Cards
-  catalogCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10 },
-  catalogImg: { width: 44, height: 44, borderRadius: 6, backgroundColor: '#0f172a' },
-  catalogName: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
-  catalogDesc: { fontSize: 9, color: '#64748b', marginTop: 1 },
-  catalogPrice: { fontSize: 11, fontWeight: '900', color: '#34d399' },
-  catalogMeta: { fontSize: 9, color: '#94a3b8' },
+  catalogCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.cardBgElevated, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 10 },
+  catalogImg: { width: 44, height: 44, borderRadius: 6, backgroundColor: colors.cardBg },
+  catalogName: { fontSize: 12, fontWeight: '900', color: colors.text },
+  catalogDesc: { fontSize: 9, color: colors.textSecondary, marginTop: 1 },
+  catalogPrice: { fontSize: 11, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
+  catalogMeta: { fontSize: 9, color: colors.textSecondary },
   catalogAddBtn: { backgroundColor: '#4f46e5', color: '#ffffff', fontSize: 10.5, fontWeight: '900', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
 
-  toggleBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: '#334155', minHeight: 30, alignItems: 'center', justifyContent: 'center' },
-  toggleBtnOn: { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)' },
-  toggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
-  toggleBtnTextOn: { color: '#34d399' },
-  uploadBtn: { backgroundColor: 'rgba(56,189,248,0.15)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.4)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
-  uploadBtnText: { color: '#38bdf8', fontSize: 10.5, fontWeight: '900' },
+  toggleBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.border, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
+  toggleBtnOn: { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)', borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.3)' },
+  toggleBtnText: { fontSize: 10, fontWeight: '900', color: colors.textSecondary },
+  toggleBtnTextOn: { color: isDark ? '#34d399' : '#059669' },
+  uploadBtn: { backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.4)' : 'rgba(14,165,233,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
+  uploadBtnText: { color: isDark ? '#38bdf8' : '#0284c7', fontSize: 10.5, fontWeight: '900' },
 
   customColManager: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  customColTitle: { fontSize: 11.5, fontWeight: '900', color: '#a78bfa' },
-  customColAddBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
-  customColAddBtnText: { color: '#a78bfa', fontSize: 10.5, fontWeight: '900' },
+  customColTitle: { fontSize: 11.5, fontWeight: '900', color: isDark ? '#a78bfa' : '#6d28d9' },
+  customColAddBtn: { backgroundColor: isDark ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(167,139,250,0.3)' : 'rgba(167,139,250,0.25)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  customColAddBtnText: { color: isDark ? '#a78bfa' : '#6d28d9', fontSize: 10.5, fontWeight: '900' },
   customColRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  customColIdx: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(167,139,250,0.2)', alignItems: 'center', justifyContent: 'center' },
-  customColIdxText: { fontSize: 10.5, fontWeight: '900', color: '#a78bfa' },
-  customColDel: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(244,63,94,0.1)', borderWidth: 1, borderColor: 'rgba(244,63,94,0.3)', alignItems: 'center', justifyContent: 'center' },
+  customColIdx: { width: 26, height: 26, borderRadius: 13, backgroundColor: isDark ? 'rgba(167,139,250,0.2)' : 'rgba(167,139,250,0.15)', alignItems: 'center', justifyContent: 'center' },
+  customColIdxText: { fontSize: 10.5, fontWeight: '900', color: isDark ? '#a78bfa' : '#6d28d9' },
+  customColDel: { width: 28, height: 28, borderRadius: 14, backgroundColor: isDark ? 'rgba(244,63,94,0.1)' : 'rgba(244,63,94,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(244,63,94,0.3)' : 'rgba(244,63,94,0.2)', alignItems: 'center', justifyContent: 'center' },
   customColDelText: { fontSize: 11, fontWeight: '900', color: '#f43f5e' },
-  addItemBtn: { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', paddingVertical: 12, borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
-  addItemBtnText: { color: '#a78bfa', fontWeight: '900', fontSize: 12.5 },
+  addItemBtn: { backgroundColor: isDark ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(167,139,250,0.3)' : 'rgba(167,139,250,0.25)', paddingVertical: 12, borderRadius: 12, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  addItemBtnText: { color: isDark ? '#a78bfa' : '#6d28d9', fontWeight: '900', fontSize: 12.5 },
 
-  gstTypeBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1.5, borderColor: '#1e293b', borderRadius: 10, padding: 10, minWidth: 74, minHeight: 46, justifyContent: 'center' },
+  gstTypeBtn: { flex: 1, backgroundColor: colors.cardBgElevated, borderWidth: 1.5, borderColor: colors.border, borderRadius: 10, padding: 10, minWidth: 74, minHeight: 46, justifyContent: 'center' },
   gstTypeBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gstTypeBtnText: { fontSize: 10.5, fontWeight: '900', color: '#e2e8f0' },
-  gstTypeBtnSub: { fontSize: 8.5, color: '#64748b', marginTop: 2 },
+  gstTypeBtnText: { fontSize: 10.5, fontWeight: '900', color: colors.text },
+  gstTypeBtnSub: { fontSize: 8.5, color: colors.textSecondary, marginTop: 2 },
   gstTypeBtnTextActive: { color: '#0f172a' },
-  gstPill: { paddingHorizontal: 14, paddingVertical: 8, minHeight: 38, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  gstPill: { paddingHorizontal: 14, paddingVertical: 8, minHeight: 38, borderRadius: 8, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   gstPillActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gstPillText: { fontSize: 11.5, fontWeight: '900', color: '#94a3b8' },
+  gstPillText: { fontSize: 11.5, fontWeight: '900', color: colors.textSecondary },
   gstPillTextActive: { color: '#0f172a' },
 
-  marginBtn: { flex: 1, paddingVertical: 9, minHeight: 38, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  marginBtn: { flex: 1, paddingVertical: 9, minHeight: 38, borderRadius: 8, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   marginBtnActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  marginBtnText: { fontSize: 10.5, fontWeight: '900', color: '#94a3b8' },
+  marginBtnText: { fontSize: 10.5, fontWeight: '900', color: colors.textSecondary },
   marginBtnTextActive: { color: '#ffffff' },
 
-  gapBtn: { paddingHorizontal: 12, paddingVertical: 7, minHeight: 34, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  gapBtn: { paddingHorizontal: 12, paddingVertical: 7, minHeight: 34, borderRadius: 8, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   gapBtnActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  gapBtnText: { fontSize: 10.5, fontWeight: '900', color: '#94a3b8' },
+  gapBtnText: { fontSize: 10.5, fontWeight: '900', color: colors.textSecondary },
   gapBtnTextActive: { color: '#0f172a' },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: '#1e293b', gap: 8 },
-  sectionRowHidden: { opacity: 0.5, borderColor: '#1e293b' },
-  sectionRowIdx: { fontSize: 11.5, fontWeight: '900', color: '#f59e0b', width: 24, textAlign: 'center' },
-  sectionRowLabel: { fontSize: 11.5, fontWeight: '900', color: '#e2e8f0' },
-  sectionRowDesc: { fontSize: 9.5, color: '#64748b', marginTop: 1 },
-  secArrowBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  secArrowBtnOn: { backgroundColor: 'rgba(99,102,241,0.3)' },
-  secArrowText: { fontSize: 13, color: '#94a3b8' },
-  secArrowTextOn: { color: '#818cf8' },
-  resetBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', paddingVertical: 10, minHeight: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  resetBtnText: { color: '#fbbf24', fontWeight: '900', fontSize: 12.5 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardBgElevated, borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: colors.border, gap: 8 },
+  sectionRowHidden: { opacity: 0.5, borderColor: colors.border },
+  sectionRowIdx: { fontSize: 11.5, fontWeight: '900', color: isDark ? '#f59e0b' : '#d97706', width: 24, textAlign: 'center' },
+  sectionRowLabel: { fontSize: 11.5, fontWeight: '900', color: colors.text },
+  sectionRowDesc: { fontSize: 9.5, color: colors.textSecondary, marginTop: 1 },
+  secArrowBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.cardBgElevated, alignItems: 'center', justifyContent: 'center' },
+  secArrowBtnOn: { backgroundColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)' },
+  secArrowText: { fontSize: 13, color: colors.textSecondary },
+  secArrowTextOn: { color: isDark ? '#818cf8' : '#4f46e5' },
+  resetBtn: { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.25)', paddingVertical: 10, minHeight: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  resetBtnText: { color: isDark ? '#fbbf24' : '#b45309', fontWeight: '900', fontSize: 12.5 },
 
   // Bottom Action Bar (Builder)
-  bottomActionBar: { backgroundColor: '#060b18', borderTopWidth: 1, borderTopColor: '#1a2335' },
-  totalSummaryStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0d1526' },
-  totalSummaryLabel: { fontSize: 9, fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 },
-  totalSummaryAmount: { fontSize: 18, fontWeight: '900', color: '#ffffff', marginTop: 1 },
-  totalSummaryAmountWords: { fontSize: 8, color: '#475569', fontWeight: '600', maxWidth: 180 },
+  bottomActionBar: { backgroundColor: colors.cardBg, borderTopWidth: 1, borderTopColor: colors.border },
+  totalSummaryStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  totalSummaryLabel: { fontSize: 9, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  totalSummaryAmount: { fontSize: 18, fontWeight: '900', color: colors.text, marginTop: 1 },
+  totalSummaryAmountWords: { fontSize: 8, color: colors.textSecondary, fontWeight: '600', maxWidth: 180 },
   bottomActionsRow: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, gap: 5 },
-  bottomAction: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 56, borderRadius: 12, backgroundColor: '#0d1526', borderWidth: 1, borderColor: '#1a2335', gap: 3 },
-  bottomActionSuccess: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' },
+  bottomAction: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 56, borderRadius: 12, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, gap: 3 },
+  bottomActionSuccess: { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)', borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.25)' },
   bottomActionCompile: { backgroundColor: '#2563eb', borderColor: 'rgba(59,130,246,0.5)' },
   bottomActionCompileSuccess: { backgroundColor: '#059669', borderColor: '#10b981' },
   bottomActionPrint: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', flex: 1.25 },
-  bottomActionShare: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' },
-  bottomActionWA: { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: 'rgba(74,222,128,0.3)' },
-  bottomActionEmail: { backgroundColor: 'rgba(96,165,250,0.1)', borderColor: 'rgba(96,165,250,0.3)' },
+  bottomActionShare: { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)', borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.2)' },
+  bottomActionWA: { backgroundColor: isDark ? 'rgba(74,222,128,0.1)' : 'rgba(74,222,128,0.08)', borderColor: isDark ? 'rgba(74,222,128,0.3)' : 'rgba(74,222,128,0.2)' },
+  bottomActionEmail: { backgroundColor: isDark ? 'rgba(96,165,250,0.1)' : 'rgba(96,165,250,0.08)', borderColor: isDark ? 'rgba(96,165,250,0.3)' : 'rgba(96,165,250,0.2)' },
   bottomActionIcon: { fontSize: 20, lineHeight: 24 },
-  bottomActionLabel: { fontSize: 9.5, fontWeight: '900', color: '#64748b', textAlign: 'center' },
+  bottomActionLabel: { fontSize: 9.5, fontWeight: '900', color: colors.textSecondary, textAlign: 'center' },
 
   // Preview Screen
   previewContainer: { flex: 1 },
-  previewToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#060b18', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1a2335' },
-  previewToolbarText: { fontSize: 11, fontWeight: '900', color: '#a5b4fc' },
+  previewToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardBg, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  previewToolbarText: { fontSize: 11, fontWeight: '900', color: isDark ? '#a5b4fc' : '#4338ca' },
   previewCompileBtn: { backgroundColor: '#2563eb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, minWidth: 60, alignItems: 'center', justifyContent: 'center' },
   previewCompileBtnSuccess: { backgroundColor: '#059669' },
   previewCompileBtnText: { fontSize: 9, fontWeight: '900', color: '#ffffff' },
-  previewStatusBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  previewStatusBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardBgElevated, paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
-  previewStatusText: { fontSize: 9.5, fontWeight: '800', color: '#cbd5e1' },
-  previewStatusSub: { fontSize: 9, fontWeight: '700', color: '#64748b' },
-  splitToggleBtn: { backgroundColor: '#0d1526', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
-  splitToggleBtnText: { fontSize: 10, fontWeight: '900', color: '#64748b' },
-  previewActionBtn: { backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(99,102,241,0.4)' },
-  previewActionBtnText: { fontSize: 10, fontWeight: '900', color: '#818cf8' },
+  previewStatusText: { fontSize: 9.5, fontWeight: '800', color: colors.text },
+  previewStatusSub: { fontSize: 9, fontWeight: '700', color: colors.textSecondary },
+  splitToggleBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  splitToggleBtnText: { fontSize: 10, fontWeight: '900', color: colors.textSecondary },
+  previewActionBtn: { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)' },
+  previewActionBtnText: { fontSize: 10, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5' },
   previewPrintBtn: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  previewBottomBar: { flexDirection: 'row', gap: 8, padding: 10, backgroundColor: '#060b18', borderTopWidth: 1, borderTopColor: '#1a2335' },
-  previewBottomBtn: { flex: 1, backgroundColor: 'rgba(74,222,128,0.1)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  previewBottomBtnText: { fontSize: 12, fontWeight: '900', color: '#4ade80' },
+  previewBottomBar: { flexDirection: 'row', gap: 8, padding: 10, backgroundColor: colors.cardBg, borderTopWidth: 1, borderTopColor: colors.border },
+  previewBottomBtn: { flex: 1, backgroundColor: isDark ? 'rgba(74,222,128,0.1)' : 'rgba(74,222,128,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(74,222,128,0.3)' : 'rgba(74,222,128,0.2)', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  previewBottomBtnText: { fontSize: 12, fontWeight: '900', color: isDark ? '#4ade80' : '#16a34a' },
   previewScroll: { padding: 12, alignItems: 'center' },
 
-  // A4 Preview Styles
+  // A4 Preview Styles (Fixed Print Standard White Paper)
   a4Paper: { backgroundColor: '#ffffff', borderRadius: 6, paddingBottom: 32, borderWidth: 1.5, borderColor: '#002060', position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
   a4NavyBar: { height: 5, backgroundColor: '#002060', marginBottom: 8 },
   a4Section: {},
@@ -2848,41 +2979,42 @@ const styles = StyleSheet.create({
   a4BottomLink: { fontSize: 7.5, fontWeight: '800', color: '#4f46e5' },
 
   // Modal Styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', padding: 16 },
-  modalContent: { backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(2,6,23,0.85)' : 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 16 },
+  modalContent: { backgroundColor: colors.cardBg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
-  modalInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, color: '#ffffff' },
-  cancelBtn: { flex: 1, backgroundColor: '#1e293b', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  cancelBtnText: { color: '#94a3b8', fontWeight: '900', fontSize: 12 },
+  modalTitle: { fontSize: 14, fontWeight: '900', color: colors.text },
+  modalInput: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, color: colors.text },
+  cancelBtn: { flex: 1, backgroundColor: colors.cardBgElevated, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  cancelBtnText: { color: colors.textSecondary, fontWeight: '900', fontSize: 12 },
   saveBtn: { flex: 1, backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   saveBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
   historyStatsRow: { flexDirection: 'row', gap: 16, marginTop: 10 },
-  historyStat: { fontSize: 11, color: '#64748b' },
-  historyStatVal: { fontWeight: '900', color: '#e2e8f0' },
-  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' },
+  historyStat: { fontSize: 11, color: colors.textSecondary },
+  historyStatVal: { fontWeight: '900', color: colors.text },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border },
   statusChipActive: { backgroundColor: '#4f46e5', borderColor: '#4f46e5' },
-  statusChipText: { fontSize: 10, fontWeight: '900', color: '#94a3b8' },
+  statusChipText: { fontSize: 10, fontWeight: '900', color: colors.textSecondary },
   statusChipTextActive: { color: '#ffffff' },
-  historyCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
+  historyCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
   historyCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  historyDocNo: { fontSize: 12, fontWeight: '900', color: '#38bdf8' },
-  historyTypeBadge: { backgroundColor: 'rgba(99,102,241,0.2)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginTop: 2, alignSelf: 'flex-start' },
-  historyTypeBadgeText: { fontSize: 8, fontWeight: '900', color: '#818cf8' },
-  historyAmount: { fontSize: 13, fontWeight: '900', color: '#34d399' },
+  historyDocNo: { fontSize: 12, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' },
+  historyTypeBadge: { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginTop: 2, alignSelf: 'flex-start' },
+  historyTypeBadgeText: { fontSize: 8, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5' },
+  historyAmount: { fontSize: 13, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
   historyStatusBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginTop: 2 },
-  historyStatusDraft: { backgroundColor: 'rgba(245,158,11,0.2)' },
-  historyStatusSent: { backgroundColor: 'rgba(16,185,129,0.2)' },
+  historyStatusDraft: { backgroundColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.12)' },
+  historyStatusSent: { backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.12)' },
   historyStatusText: { fontSize: 9, fontWeight: '900' },
-  historyStatusTextDraft: { color: '#fbbf24' },
-  historyStatusTextSent: { color: '#34d399' },
-  historyParty: { fontSize: 11, color: '#e2e8f0', marginBottom: 2 },
-  historyMeta: { fontSize: 9, color: '#64748b', marginBottom: 8 },
+  historyStatusTextDraft: { color: isDark ? '#fbbf24' : '#b45309' },
+  historyStatusTextSent: { color: isDark ? '#34d399' : '#059669' },
+  historyParty: { fontSize: 11, color: colors.text, marginBottom: 2 },
+  historyMeta: { fontSize: 9, color: colors.textSecondary, marginBottom: 8 },
   historyActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  historyActionBtn: { backgroundColor: 'rgba(56,189,248,0.1)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  historyActionBtnText: { fontSize: 10, fontWeight: '900', color: '#38bdf8' },
+  historyActionBtn: { backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(14,165,233,0.1)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(14,165,233,0.25)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  historyActionBtnText: { fontSize: 10, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' },
   historyPrintBtn: { backgroundColor: '#4f46e5', borderColor: '#4f46e5', paddingHorizontal: 12 },
-  historyShareBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.4)' },
+  historyShareBtn: { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)', borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)' },
   newQuoteBtn: { backgroundColor: '#4f46e5', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   newQuoteBtnText: { color: '#ffffff', fontWeight: '900', fontSize: 13 },
 });
+

@@ -11,6 +11,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface LeadIngestionControlCenterBarProps {
   onInsertLeadPress?: () => void;
@@ -31,26 +32,28 @@ export function LeadIngestionControlCenterBar({
   onAdjustColumnsPress,
   columnCount = 11,
 }: LeadIngestionControlCenterBarProps) {
+  const { colors, isDark } = useTheme();
+
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
       {/* Header Section */}
-      <View style={styles.headerBlock}>
+      <View style={[styles.headerBlock, { borderBottomColor: colors.border }]}>
         {/* Top Badges */}
         <View style={styles.badgeRow}>
-          <View style={styles.purplePill}>
-            <Text style={styles.purplePillText}>⚡ INTEGRATION & DATA HUB</Text>
+          <View style={[styles.purplePill, !isDark && { backgroundColor: 'rgba(99, 102, 241, 0.12)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
+            <Text style={[styles.purplePillText, !isDark && { color: '#4f46e5' }]}>⚡ INTEGRATION & DATA HUB</Text>
           </View>
 
-          <View style={styles.greenPill}>
-            <Text style={styles.greenPillText}>5 ACTIVE CHANNELS</Text>
+          <View style={[styles.greenPill, !isDark && { backgroundColor: 'rgba(5, 150, 105, 0.12)', borderColor: 'rgba(5, 150, 105, 0.3)' }]}>
+            <Text style={[styles.greenPillText, !isDark && { color: '#059669' }]}>5 ACTIVE CHANNELS</Text>
           </View>
         </View>
 
         {/* Title */}
-        <Text style={styles.titleText}>🛢️ Lead Integration & Ingestion Control Center</Text>
+        <Text style={[styles.titleText, { color: colors.text }]}>🛢️ Lead Integration & Ingestion Control Center</Text>
 
         {/* Subtitle */}
-        <Text style={styles.subtitleText}>
+        <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>
           Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
         </Text>
       </View>
@@ -68,46 +71,46 @@ export function LeadIngestionControlCenterBar({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.btnImportCsv}
+            style={[styles.btnImportCsv, !isDark && { backgroundColor: 'rgba(147, 51, 234, 0.12)', borderColor: 'rgba(147, 51, 234, 0.3)' }]}
             onPress={onImportCsvPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnImportCsvText}>📥 Import CSV / Excel</Text>
+            <Text style={[styles.btnImportCsvText, !isDark && { color: '#7c3aed' }]}>📥 Import CSV / Excel</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.btnSheetsSync}
+            style={[styles.btnSheetsSync, !isDark && { backgroundColor: 'rgba(5, 150, 105, 0.12)', borderColor: 'rgba(5, 150, 105, 0.3)' }]}
             onPress={onGoogleSheetsPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnSheetsSyncText}>📊 Google Sheets Sync</Text>
+            <Text style={[styles.btnSheetsSyncText, !isDark && { color: '#059669' }]}>📊 Google Sheets Sync</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.btnExportCsv}
+            style={[styles.btnExportCsv, !isDark && { backgroundColor: 'rgba(13, 148, 136, 0.12)', borderColor: 'rgba(13, 148, 136, 0.3)' }]}
             onPress={onExportCsvPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnExportCsvText}>📤 Export CSV</Text>
+            <Text style={[styles.btnExportCsvText, !isDark && { color: '#0d9488' }]}>📤 Export CSV</Text>
           </TouchableOpacity>
         </View>
 
         {/* Row 2 Actions */}
         <View style={[styles.buttonRow, { marginTop: 6 }]}>
           <TouchableOpacity
-            style={styles.btnCustomCol}
+            style={[styles.btnCustomCol, !isDark && { backgroundColor: 'rgba(8, 145, 178, 0.12)', borderColor: 'rgba(8, 145, 178, 0.3)' }]}
             onPress={onCustomColumnPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnCustomColText}>📐 + Custom Column</Text>
+            <Text style={[styles.btnCustomColText, !isDark && { color: '#0891b2' }]}>📐 + Custom Column</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.btnAdjustCols}
+            style={[styles.btnAdjustCols, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
             onPress={onAdjustColumnsPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.btnAdjustColsText}>🎛️ Adjust Columns ({columnCount})</Text>
+            <Text style={[styles.btnAdjustColsText, { color: colors.text }]}>🎛️ Adjust Columns ({columnCount})</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -184,17 +184,8 @@ function MainTabNavigator({
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {/* ☀️/⚙️/🌙 Quick Theme Mode Switcher */}
-          <TouchableOpacity
-            style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
-            onPress={toggleTheme}
-            activeOpacity={0.7}
-            accessibilityLabel={`Theme: ${theme}`}
-          >
-            <Text style={{ fontSize: 16 }}>
-              {theme === 'system' ? '⚙️' : theme === 'dark' ? '🌙' : '☀️'}
-            </Text>
-          </TouchableOpacity>
+          {/* ☀️ / 🌙 / ⚙️ 3 Explicit Theme Buttons: Light, Dark, System Sync */}
+          <ThemeToggle compact style={{ height: 36, minHeight: 36 }} />
 
           {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
           <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
@@ -927,7 +918,7 @@ const styles = StyleSheet.create({
   topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   hamburgerBtn: { padding: 4, justifyContent: 'center', gap: 4 },
   hamburgerLine: { width: 18, height: 2, backgroundColor: '#818cf8', borderRadius: 1 },
-  headerCenter: { alignItems: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   headerTitle: { color: '#ffffff', fontSize: 14, fontWeight: '900' },
   headerSub: { color: '#818cf8', fontSize: 8, fontWeight: '800', letterSpacing: 0.5, marginTop: 1 },
 

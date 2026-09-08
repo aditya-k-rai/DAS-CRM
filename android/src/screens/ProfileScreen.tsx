@@ -11,7 +11,7 @@
  * 8. Live Workspace Sync, Diagnostics & Sign Out
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { apiService } from '../services/apiService';
+import { useTheme } from '../context/ThemeContext';
 
 interface ProfileScreenProps {
   onLogout?: () => void;
@@ -37,6 +38,8 @@ interface ProfileScreenProps {
 }
 
 export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal = !!onLogout }: ProfileScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { currentUser, subscription, logout } = useAuthStore();
   const role: UserRole = currentUser.role || 'SALES_EXEC';
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
@@ -184,7 +187,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           <Text style={styles.screenTitle}>User Identity &amp; Profile</Text>
           {onClose && (
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>✕ Close Profile</Text>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>✕ Close Profile</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -422,8 +425,8 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             <TextInput style={styles.textInput} value={inputDpUrl} onChangeText={setInputDpUrl} placeholder="Enter Image URL..." placeholderTextColor="#64748b" />
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b' }]} onPress={() => setDpModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => setDpModalOpen(false)}>
+                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5' }]} onPress={handleSaveDp}>
                 <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save DP ✓</Text>
@@ -450,8 +453,8 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
                 style={[styles.planOptionCard, selectedPlanTier === tier && styles.planOptionCardActive]}
                 onPress={() => setSelectedPlanTier(tier)}
               >
-                <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>{tier} Plan</Text>
-                <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text }}>{tier} Plan</Text>
+                <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }}>
                   {tier === 'GROWTH' ? 'Up to 10 Users • WhatsApp Cloud API' : tier === 'PRO' ? 'Up to 50 Users • AI Lead Scoring & Automations' : 'Unlimited Users • Dedicated Drive Backup'}
                 </Text>
               </TouchableOpacity>
@@ -487,8 +490,8 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             <TextInput style={styles.textInput} value={eduCertInput} onChangeText={setEduCertInput} placeholder="Enter Educational Certificate..." placeholderTextColor="#64748b" />
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b' }]} onPress={() => setDocModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => setDocModalOpen(false)}>
+                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5' }]} onPress={handleSaveDocuments}>
                 <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save Documents ✓</Text>
@@ -512,9 +515,9 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             <ScrollView style={{ maxHeight: 240 }}>
               {docHistoryLogs.map((log, i) => (
                 <View key={i} style={styles.historyRow}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>{log.docType} ({log.date})</Text>
-                  <Text style={{ fontSize: 10, color: '#38bdf8', marginTop: 2 }}>Updated to: {log.newValue}</Text>
-                  <Text style={{ fontSize: 9, color: '#64748b' }}>Old Record: {log.oldValue}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.docType} ({log.date})</Text>
+                  <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', marginTop: 2 }}>Updated to: {log.newValue}</Text>
+                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>Old Record: {log.oldValue}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -542,8 +545,8 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             <TextInput style={styles.textInput} value={ifscCodeInput} onChangeText={setIfscCodeInput} placeholder="Enter IFSC Code..." placeholderTextColor="#64748b" />
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b' }]} onPress={() => setBankModalOpen(false)}>
-                <Text style={{ color: '#94a3b8', fontWeight: '700' }}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.cardBgElevated }]} onPress={() => setBankModalOpen(false)}>
+                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5' }]} onPress={handleSaveBankDetails}>
                 <Text style={{ color: '#ffffff', fontWeight: '800' }}>Save Bank Details ✓</Text>
@@ -567,8 +570,8 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             <ScrollView style={{ maxHeight: 240 }}>
               {bankHistoryLogs.map((log, i) => (
                 <View key={i} style={styles.historyRow}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>{log.bankName} ({log.date})</Text>
-                  <Text style={{ fontSize: 10, color: '#34d399', marginTop: 2 }}>Account: {log.accountNo}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.bankName} ({log.date})</Text>
+                  <Text style={{ fontSize: 10, color: isDark ? '#34d399' : '#059669', marginTop: 2 }}>Account: {log.accountNo}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -582,29 +585,29 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, alignItems: 'center', flexGrow: 1 },
 
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 500, marginBottom: 12 },
-  screenTitle: { fontSize: 18, fontWeight: '900', color: '#ffffff' },
-  closeBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  screenTitle: { fontSize: 18, fontWeight: '900', color: colors.text },
+  closeBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
 
   identityCard: {
     width: '100%',
     maxWidth: 500,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.cardBg,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: colors.border,
     padding: 16,
     marginBottom: 12,
     gap: 12,
   },
   avatarGlow: { width: 56, height: 56, borderRadius: 18, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' },
   avatarText: { fontSize: 22, color: '#ffffff', fontWeight: '900' },
-  userName: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
-  userEmail: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
+  userName: { fontSize: 16, fontWeight: '900', color: colors.text },
+  userEmail: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
 
   roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   roleBadgeText: { fontSize: 9, fontWeight: '800' },
@@ -612,47 +615,47 @@ const styles = StyleSheet.create({
   planBadgeText: { fontSize: 9, fontWeight: '800' },
 
   uploadDpBtn: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
+    backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.4)',
+    borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)',
     borderRadius: 10,
     paddingVertical: 8,
     alignItems: 'center',
   },
-  uploadDpBtnLocked: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
-  uploadDpBtnText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
+  uploadDpBtnLocked: { backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', borderColor: '#ef4444' },
+  uploadDpBtnText: { fontSize: 11, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5' },
 
-  cardBox: { width: '100%', maxWidth: 500, backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 14, marginBottom: 12 },
+  cardBox: { width: '100%', maxWidth: 500, backgroundColor: colors.cardBg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 12 },
   cardHeaderWithBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  cardBoxTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff', marginBottom: 6 },
+  cardBoxTitle: { fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 6 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
-  infoLabel: { fontSize: 11, color: '#94a3b8' },
-  infoValue: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
+  infoLabel: { fontSize: 11, color: colors.textSecondary },
+  infoValue: { fontSize: 11, fontWeight: '800', color: colors.text },
 
   telemetryGrid: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 },
-  telemetryCard: { flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, alignItems: 'center' },
-  telemetryVal: { fontSize: 15, fontWeight: '900', color: '#38bdf8' },
-  telemetryLbl: { fontSize: 9, color: '#94a3b8', marginTop: 2, textAlign: 'center' },
+  telemetryCard: { flex: 1, backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, alignItems: 'center' },
+  telemetryVal: { fontSize: 15, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' },
+  telemetryLbl: { fontSize: 9, color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
 
-  actionCardBtn: { marginTop: 8, backgroundColor: '#1e293b', borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#334155' },
-  actionCardBtnLocked: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
-  actionCardBtnText: { fontSize: 11, fontWeight: '800', color: '#38bdf8' },
-  actionCardBtnTextLocked: { color: '#fca5a5' },
+  actionCardBtn: { marginTop: 8, backgroundColor: colors.cardBgElevated, borderRadius: 10, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  actionCardBtnLocked: { backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', borderColor: '#ef4444' },
+  actionCardBtnText: { fontSize: 11, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7' },
+  actionCardBtnTextLocked: { color: isDark ? '#fca5a5' : '#dc2626' },
 
   syncBtn: { backgroundColor: '#4f46e5', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 8 },
   syncBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
-  logoutButton: { width: '100%', maxWidth: 500, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: '#ef4444', paddingVertical: 12, borderRadius: 14, alignItems: 'center', marginTop: 8, marginBottom: 12 },
-  logoutButtonText: { color: '#fca5a5', fontWeight: '900', fontSize: 13 },
+  logoutButton: { width: '100%', maxWidth: 500, backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: '#ef4444', paddingVertical: 12, borderRadius: 14, alignItems: 'center', marginTop: 8, marginBottom: 12 },
+  logoutButtonText: { color: isDark ? '#fca5a5' : '#dc2626', fontWeight: '900', fontSize: 13 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderRadius: 18, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalTitle: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
-  modalSub: { fontSize: 10, color: '#94a3b8', marginBottom: 10 },
-  inputLabel: { fontSize: 10, fontWeight: '700', color: '#cbd5e1', marginTop: 6, marginBottom: 2 },
-  textInput: { backgroundColor: '#020617', borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', color: '#ffffff', paddingHorizontal: 10, paddingVertical: 6, fontSize: 11 },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(2,6,23,0.85)' : 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 400, backgroundColor: colors.cardBg, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  modalTitle: { fontSize: 14, fontWeight: '800', color: colors.text },
+  modalSub: { fontSize: 10, color: colors.textSecondary, marginBottom: 10 },
+  inputLabel: { fontSize: 10, fontWeight: '700', color: colors.textSecondary, marginTop: 6, marginBottom: 2 },
+  textInput: { backgroundColor: colors.cardBgElevated, borderRadius: 8, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11 },
   modalBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  historyRow: { backgroundColor: '#020617', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', marginBottom: 6 },
+  historyRow: { backgroundColor: colors.cardBgElevated, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
 
-  planOptionCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginBottom: 8 },
-  planOptionCardActive: { borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.15)' },
+  planOptionCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, marginBottom: 8 },
+  planOptionCardActive: { borderColor: '#4f46e5', backgroundColor: isDark ? 'rgba(79,70,229,0.15)' : 'rgba(79,70,229,0.1)' },
 });

@@ -12,8 +12,8 @@ export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
 
   const options: Array<{ value: Theme; label: string; icon: string }> = [
     { value: 'light', label: 'Light', icon: '☀️' },
-    { value: 'system', label: 'System', icon: '⚙️' },
     { value: 'dark', label: 'Dark', icon: '🌙' },
+    { value: 'system', label: 'System sync', icon: '⚙️' },
   ];
 
   return (
@@ -21,8 +21,8 @@ export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
       style={[
         styles.container,
         {
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.9)',
-          borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(203, 213, 225, 0.8)',
+          backgroundColor: colors.cardBgElevated,
+          borderColor: colors.border,
         },
         style,
       ]}
@@ -30,13 +30,15 @@ export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
       {options.map((opt) => {
         const isActive = theme === opt.value;
         const activeColor = colors.primary;
-        const inactiveColor = isDark ? '#94a3b8' : '#64748b';
+        const inactiveColor = colors.textSecondary;
 
         return (
           <TouchableOpacity
             key={opt.value}
             onPress={() => setTheme(opt.value)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Theme option: ${opt.label}`}
             style={[
               styles.button,
               compact && styles.buttonCompact,

@@ -35,6 +35,7 @@ import {
   DEFAULT_CARD_DISPLAY_CONFIG,
 } from '../services/productCatalogService';
 import { useAuthStore, normalizeRoleStr } from '../store/authStore';
+import { useTheme } from '../context/ThemeContext';
 
 interface ProductsCatalogScreenProps {
   onClose?: () => void;
@@ -47,6 +48,8 @@ export default function ProductsCatalogScreen({
   onSelectProductForQuote,
   isModal = false,
 }: ProductsCatalogScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [products, setProducts] = useState<CatalogProductItem[]>([]);
   const [categories, setCategories] = useState<CategoryTree[]>([]);
 
@@ -361,48 +364,48 @@ export default function ProductsCatalogScreen({
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   return (
-    <View style={[styles.container, { paddingTop: isModal ? topPadding : 8 }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: isModal ? topPadding : 8 }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 36 }]} showsVerticalScrollIndicator={false}>
 
         {/* Top Navigation Sub-Header (Matched to CommunicationScreen.tsx) */}
-        <View style={styles.topSubHeaderBar}>
+        <View style={[styles.topSubHeaderBar, { borderBottomColor: colors.border }]}>
           {onClose ? (
-            <TouchableOpacity style={styles.backBtn} onPress={onClose}>
-              <Text style={styles.backBtnText}>← Back to Operations</Text>
+            <TouchableOpacity style={[styles.backBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={onClose}>
+              <Text style={[styles.backBtnText, { color: colors.primary }]}>← Back to Operations</Text>
             </TouchableOpacity>
           ) : (
             <View />
           )}
-          <Text style={styles.subHeaderTitle}>📦 Products &amp; Catalog Customization</Text>
+          <Text style={[styles.subHeaderTitle, { color: colors.text }]}>📦 Products &amp; Catalog Customization</Text>
         </View>
 
         {/* Main Header Box (Matched to CommunicationScreen.tsx) */}
         <View style={styles.headerBox}>
-          <Text style={styles.headerTitle}>Products &amp; Catalog Customization Engine</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Products &amp; Catalog Customization Engine</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             Categories • Sub-Categories • Inventory Stock • Minimum Order Quantity &amp; Tier Pricing
           </Text>
         </View>
 
         {/* Metrics Summary Cards */}
         <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricVal}>{totalItems}</Text>
-            <Text style={styles.metricLbl}>Total Items</Text>
+          <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.metricVal, { color: colors.text }]}>{totalItems}</Text>
+            <Text style={[styles.metricLbl, { color: colors.textSecondary }]}>Total Items</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={[styles.metricVal, { color: '#34d399' }]}>{inStockCount}</Text>
-            <Text style={styles.metricLbl}>In Stock (≥10)</Text>
+          <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.metricVal, { color: isDark ? '#34d399' : '#059669' }]}>{inStockCount}</Text>
+            <Text style={[styles.metricLbl, { color: colors.textSecondary }]}>In Stock (≥10)</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={[styles.metricVal, { color: '#facc15' }]}>{lowStockCount + outOfStockCount}</Text>
-            <Text style={styles.metricLbl}>Stock Alerts</Text>
+          <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.metricVal, { color: isDark ? '#facc15' : '#d97706' }]}>{lowStockCount + outOfStockCount}</Text>
+            <Text style={[styles.metricLbl, { color: colors.textSecondary }]}>Stock Alerts</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={[styles.metricVal, { color: '#818cf8', fontSize: 13 }]}>
+          <View style={[styles.metricCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.metricVal, { color: isDark ? '#818cf8' : '#4f46e5', fontSize: 13 }]}>
               ₹{(totalValuation / 1000).toFixed(1)}k
             </Text>
-            <Text style={styles.metricLbl}>Catalog Value</Text>
+            <Text style={[styles.metricLbl, { color: colors.textSecondary }]}>Catalog Value</Text>
           </View>
         </View>
 
@@ -413,7 +416,7 @@ export default function ProductsCatalogScreen({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.createCatBtn, { flex: 1 }]}
+            style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 1 }]}
             onPress={() => {
               setNewCatNameInput('');
               setNewSubCatNameInput('');
@@ -421,11 +424,11 @@ export default function ProductsCatalogScreen({
             }}
             activeOpacity={0.85}
           >
-            <Text style={styles.createCatBtnText}>📁 + Category</Text>
+            <Text style={[styles.createCatBtnText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>📁 + Category</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.createSubCatBtn, { flex: 1.1 }]}
+            style={[styles.createSubCatBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, flex: 1.1 }]}
             onPress={() => {
               // Pre-fill parent with first available category
               setNewSubCatParentInput(categories.length > 0 ? categories[0].name : '');
@@ -434,7 +437,7 @@ export default function ProductsCatalogScreen({
             }}
             activeOpacity={0.85}
           >
-            <Text style={styles.createSubCatBtnText}>📂 + Sub-Category</Text>
+            <Text style={[styles.createSubCatBtnText, { color: isDark ? '#38bdf8' : '#0284c7' }]}>📂 + Sub-Category</Text>
           </TouchableOpacity>
         </View>
 
@@ -443,6 +446,7 @@ export default function ProductsCatalogScreen({
           <TouchableOpacity
             style={[
               styles.adminConfigBtn,
+              { backgroundColor: colors.cardBg, borderColor: isDark ? '#4338ca' : '#c7d2fe' },
               !isAdmin && styles.adminConfigBtnDisabled,
             ]}
             onPress={handleOpenConfigModal}
@@ -452,19 +456,19 @@ export default function ProductsCatalogScreen({
               <Text style={{ fontSize: 14 }}>⚙️</Text>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.adminConfigBtnTitle}>Configure Card Display</Text>
+                  <Text style={[styles.adminConfigBtnTitle, { color: colors.text }]}>Configure Card Display</Text>
                   <View style={[styles.adminRoleBadge, !isAdmin && { backgroundColor: '#334155' }]}>
                     <Text style={styles.adminRoleBadgeText}>{isAdmin ? 'ADMIN ONLY' : '🔒 ADMIN ONLY'}</Text>
                   </View>
                 </View>
-                <Text style={styles.adminConfigBtnSubtitle}>
+                <Text style={[styles.adminConfigBtnSubtitle, { color: colors.textSecondary }]}>
                   {isAdmin
                     ? 'Customize visible fields & attributes on this catalog screen'
                     : 'Only Organization Admins can configure visible screen fields'}
                 </Text>
               </View>
             </View>
-            <Text style={{ color: isAdmin ? '#818cf8' : '#64748b', fontSize: 11, fontWeight: '800' }}>
+            <Text style={{ color: isAdmin ? (isDark ? '#818cf8' : '#4f46e5') : colors.textMuted, fontSize: 11, fontWeight: '800' }}>
               {isAdmin ? 'Customize →' : 'Locked'}
             </Text>
           </TouchableOpacity>
@@ -473,15 +477,15 @@ export default function ProductsCatalogScreen({
         {/* Search & Dual-Level Category / Sub-Category Filter Bar */}
         <View style={styles.filterSection}>
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { backgroundColor: colors.cardBg, borderColor: colors.border, color: colors.text }]}
             placeholder="🔍 Search products, SKU, category or sub-category..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
 
           {/* Level 1: Parent Category Chips */}
-          <Text style={{ fontSize: 9, fontWeight: '800', color: '#818cf8', marginTop: 8, marginBottom: 4 }}>
+          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5', marginTop: 8, marginBottom: 4 }}>
             📁 Parent Category Filter:
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
@@ -492,13 +496,26 @@ export default function ProductsCatalogScreen({
             ].map((f) => (
               <TouchableOpacity
                 key={f.key}
-                style={[styles.filterChip, activeCategory === f.key && styles.filterChipActive]}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: colors.cardBg, borderColor: colors.border },
+                  activeCategory === f.key && {
+                    backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)',
+                    borderColor: isDark ? '#818cf8' : '#4f46e5',
+                  },
+                ]}
                 onPress={() => {
                   setActiveCategory(f.key);
                   setActiveSubCategory('ALL');
                 }}
               >
-                <Text style={[styles.filterChipText, activeCategory === f.key && styles.filterChipTextActive]}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    { color: colors.textSecondary },
+                    activeCategory === f.key && { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
+                  ]}
+                >
                   {f.label}
                 </Text>
               </TouchableOpacity>
@@ -508,7 +525,7 @@ export default function ProductsCatalogScreen({
           {/* Level 2: Sub-Category Chips */}
           {activeCategory !== 'ALL' && activeCategory !== 'LOW_STOCK' && availableFilterSubCats.length > 0 && (
             <>
-              <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8', marginTop: 6, marginBottom: 4 }}>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7', marginTop: 6, marginBottom: 4 }}>
                 📂 Sub-Category Filter ({activeCategory}):
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
@@ -518,10 +535,23 @@ export default function ProductsCatalogScreen({
                 ].map((scObj) => (
                   <TouchableOpacity
                     key={scObj.key}
-                    style={[styles.subFilterChip, activeSubCategory === scObj.key && styles.subFilterChipActive]}
+                    style={[
+                      styles.subFilterChip,
+                      { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+                      activeSubCategory === scObj.key && {
+                        backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.12)',
+                        borderColor: isDark ? '#38bdf8' : '#0284c7',
+                      },
+                    ]}
                     onPress={() => setActiveSubCategory(scObj.key)}
                   >
-                    <Text style={[styles.subFilterChipText, activeSubCategory === scObj.key && styles.subFilterChipTextActive]}>
+                    <Text
+                      style={[
+                        styles.subFilterChipText,
+                        { color: colors.textSecondary },
+                        activeSubCategory === scObj.key && { color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' },
+                      ]}
+                    >
                       {scObj.label}
                     </Text>
                   </TouchableOpacity>
@@ -541,7 +571,7 @@ export default function ProductsCatalogScreen({
             return (
               <TouchableOpacity
                 key={p.id}
-                style={styles.productCard}
+                style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
                 onPress={() => setViewDetailProduct(p)}
                 activeOpacity={0.85}
               >
@@ -561,20 +591,20 @@ export default function ProductsCatalogScreen({
                           )}
                         </View>
                         {cardConfig.showSku && (
-                          <Text style={styles.skuTagText}>{p.sku}</Text>
+                          <Text style={[styles.skuTagText, { color: colors.textMuted }]}>{p.sku}</Text>
                         )}
                       </View>
                     )}
 
                     {cardConfig.showName && (
-                      <Text style={styles.productTitle}>{p.name}</Text>
+                      <Text style={[styles.productTitle, { color: colors.text }]}>{p.name}</Text>
                     )}
 
                     {cardConfig.showPrice && (
-                      <Text style={styles.priceRangeText}>
+                      <Text style={[styles.priceRangeText, { color: isDark ? '#34d399' : '#059669' }]}>
                         {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
                         {cardConfig.showGst && (
-                          <Text style={{ fontSize: 9, color: '#94a3b8' }}> (+{p.taxRate}% GST)</Text>
+                          <Text style={{ fontSize: 9, color: colors.textMuted }}> (+{p.taxRate}% GST)</Text>
                         )}
                       </Text>
                     )}
@@ -591,8 +621,8 @@ export default function ProductsCatalogScreen({
                         )}
 
                         {cardConfig.showMoq && (
-                          <View style={styles.moqBadge}>
-                            <Text style={styles.moqBadgeText}>📦 MOQ: {p.moq} Unit(s)</Text>
+                          <View style={[styles.moqBadge, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                            <Text style={[styles.moqBadgeText, { color: colors.textSecondary }]}>📦 MOQ: {p.moq} Unit(s)</Text>
                           </View>
                         )}
                       </View>
@@ -602,19 +632,19 @@ export default function ProductsCatalogScreen({
 
                 {/* Description (Admin Configurable — Disabled by default) */}
                 {cardConfig.showDescription && (
-                  <Text style={styles.descriptionText} numberOfLines={2}>{p.description}</Text>
+                  <Text style={[styles.descriptionText, { color: colors.textSecondary }]} numberOfLines={2}>{p.description}</Text>
                 )}
 
                 {/* Features List (Admin Configurable — Disabled by default) */}
                 {cardConfig.showFeatures && p.features.length > 0 && (
                   <View style={styles.featureChipsRow}>
                     {p.features.slice(0, 3).map((feat, idx) => (
-                      <View key={idx} style={styles.featChip}>
-                        <Text style={styles.featChipText}>✓ {feat}</Text>
+                      <View key={idx} style={[styles.featChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                        <Text style={[styles.featChipText, { color: colors.textSecondary }]}>✓ {feat}</Text>
                       </View>
                     ))}
                     {p.features.length > 3 && (
-                      <Text style={{ fontSize: 8, color: '#818cf8', fontWeight: '800', alignSelf: 'center' }}>
+                      <Text style={{ fontSize: 8, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800', alignSelf: 'center' }}>
                         +{p.features.length - 3} more specs →
                       </Text>
                     )}
@@ -622,8 +652,8 @@ export default function ProductsCatalogScreen({
                 )}
 
                 {cardConfig.showTapHint && (
-                  <View style={styles.tapDetailsHintRow}>
-                    <Text style={styles.tapDetailsHintText}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
+                  <View style={[styles.tapDetailsHintRow, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.tapDetailsHintText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -653,7 +683,7 @@ export default function ProductsCatalogScreen({
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setConfigModalOpen(false)} style={styles.modalCloseBtn}>
-                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -948,7 +978,7 @@ export default function ProductsCatalogScreen({
                   <Text style={styles.modalSub}>SKU: {viewDetailProduct.sku} • Added: {viewDetailProduct.createdAt}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setViewDetailProduct(null)} style={styles.modalCloseBtn}>
-                  <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
@@ -979,7 +1009,7 @@ export default function ProductsCatalogScreen({
 
                 {/* Full Description */}
                 <Text style={styles.inputLabel}>📝 Detailed Product Overview:</Text>
-                <Text style={{ fontSize: 11, color: '#ffffff', lineHeight: 18, marginBottom: 10 }}>
+                <Text style={{ fontSize: 11, color: colors.text, lineHeight: 18, marginBottom: 10 }}>
                   {viewDetailProduct.description}
                 </Text>
 
@@ -1050,7 +1080,7 @@ export default function ProductsCatalogScreen({
                 <Text style={styles.modalSub}>Create a new top-level product category</Text>
               </View>
               <TouchableOpacity onPress={() => setCatModalOpen(false)} style={styles.modalCloseBtn}>
-                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -1089,7 +1119,7 @@ export default function ProductsCatalogScreen({
                 <Text style={styles.modalSub}>Add a sub-category under an existing parent category</Text>
               </View>
               <TouchableOpacity onPress={() => setSubCatModalOpen(false)} style={styles.modalCloseBtn}>
-                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -1142,7 +1172,7 @@ export default function ProductsCatalogScreen({
                 <Text style={styles.modalSub}>Category, Sub-Category, Prices, Inventory &amp; Tax Conditions</Text>
               </View>
               <TouchableOpacity onPress={() => setModalOpen(false)} style={styles.modalCloseBtn}>
-                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>✕</Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -1338,91 +1368,91 @@ export default function ProductsCatalogScreen({
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, alignItems: 'center', paddingBottom: 36 },
 
   headerRow: { width: '100%', maxWidth: 650, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  screenTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
-  screenSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
-  closeBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
+  screenTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
+  screenSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+  closeBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
 
   metricsGrid: { width: '100%', maxWidth: 650, flexDirection: 'row', gap: 8, marginBottom: 12 },
-  metricCard: { flex: 1, backgroundColor: '#0f172a', borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: '#1e293b' },
-  metricVal: { fontSize: 16, fontWeight: '900', color: '#ffffff' },
-  metricLbl: { fontSize: 9, color: '#94a3b8', marginTop: 2, textAlign: 'center' },
+  metricCard: { flex: 1, backgroundColor: colors.cardBg, borderRadius: 14, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  metricVal: { fontSize: 16, fontWeight: '900', color: colors.text },
+  metricLbl: { fontSize: 9, color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
 
   createProductBtn: { backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   createProductBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
-  createCatBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  createCatBtnText: { color: '#818cf8', fontSize: 10, fontWeight: '800' },
-  createSubCatBtn: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#38bdf8', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
-  createSubCatBtnText: { color: '#38bdf8', fontSize: 10, fontWeight: '800' },
+  createCatBtn: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  createCatBtnText: { color: isDark ? '#818cf8' : '#4f46e5', fontSize: 10, fontWeight: '800' },
+  createSubCatBtn: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
+  createSubCatBtnText: { color: isDark ? '#38bdf8' : '#0284c7', fontSize: 10, fontWeight: '800' },
 
   filterSection: { width: '100%', maxWidth: 650, marginBottom: 12 },
-  searchInput: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, color: '#ffffff', fontSize: 11 },
+  searchInput: { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, color: colors.text, fontSize: 11 },
 
-  filterChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', marginRight: 6 },
-  filterChipActive: { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' },
-  filterChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
-  filterChipTextActive: { color: '#818cf8', fontWeight: '900' },
+  filterChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border, marginRight: 6 },
+  filterChipActive: { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', borderColor: isDark ? '#818cf8' : '#4f46e5' },
+  filterChipText: { fontSize: 10, fontWeight: '700', color: colors.textSecondary },
+  filterChipTextActive: { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
 
-  subFilterChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', marginRight: 4 },
-  subFilterChipActive: { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: '#38bdf8' },
-  subFilterChipText: { fontSize: 9, color: '#94a3b8', fontWeight: '700' },
-  subFilterChipTextActive: { color: '#38bdf8', fontWeight: '900' },
+  subFilterChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, marginRight: 4 },
+  subFilterChipActive: { backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.12)', borderColor: isDark ? '#38bdf8' : '#0284c7' },
+  subFilterChipText: { fontSize: 9, color: colors.textSecondary, fontWeight: '700' },
+  subFilterChipTextActive: { color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' },
 
   productsContainer: { width: '100%', maxWidth: 650, gap: 12 },
-  productCard: { backgroundColor: '#0f172a', borderRadius: 16, borderWidth: 1, borderColor: '#1e293b', padding: 14 },
+  productCard: { backgroundColor: colors.cardBg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14 },
   productImg: { width: 64, height: 64, borderRadius: 12, resizeMode: 'cover' },
 
-  categoryBadgeText: { fontSize: 8, fontWeight: '900', color: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  subCategoryBadgeText: { fontSize: 8, fontWeight: '800', color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  skuTagText: { fontSize: 9, fontWeight: '800', color: '#64748b' },
+  categoryBadgeText: { fontSize: 8, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5', backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  subCategoryBadgeText: { fontSize: 8, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  skuTagText: { fontSize: 9, fontWeight: '800', color: colors.textMuted },
 
-  productTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff', marginTop: 3 },
-  priceRangeText: { fontSize: 12, fontWeight: '800', color: '#34d399', marginTop: 2 },
+  productTitle: { fontSize: 14, fontWeight: '900', color: colors.text, marginTop: 3 },
+  priceRangeText: { fontSize: 12, fontWeight: '800', color: isDark ? '#34d399' : '#059669', marginTop: 2 },
 
   conditionsRow: { flexDirection: 'row', gap: 6, marginTop: 6, alignItems: 'center' },
   stockBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   stockBadgeText: { fontSize: 9, fontWeight: '800' },
-  moqBadge: { backgroundColor: '#020617', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
-  moqBadgeText: { fontSize: 9, color: '#cbd5e1', fontWeight: '700' },
+  moqBadge: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+  moqBadgeText: { fontSize: 9, color: colors.textSecondary, fontWeight: '700' },
 
-  descriptionText: { fontSize: 11, color: '#cbd5e1', marginTop: 8, lineHeight: 16 },
+  descriptionText: { fontSize: 11, color: colors.textSecondary, marginTop: 8, lineHeight: 16 },
 
   featureChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 },
-  featChip: { backgroundColor: '#020617', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: '#1e293b' },
-  featChipText: { fontSize: 8, color: '#94a3b8', fontWeight: '700' },
+  featChip: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: colors.border },
+  featChipText: { fontSize: 8, color: colors.textSecondary, fontWeight: '700' },
 
-  tapDetailsHintRow: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b', alignItems: 'center' },
-  tapDetailsHintText: { color: '#818cf8', fontSize: 10, fontWeight: '800' },
+  tapDetailsHintRow: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'center' },
+  tapDetailsHintText: { color: isDark ? '#818cf8' : '#4f46e5', fontSize: 10, fontWeight: '800' },
 
   cardActionsRow: { flexDirection: 'row', gap: 8, marginTop: 12, alignItems: 'center' },
-  editBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
-  editBtnText: { color: '#818cf8', fontSize: 10, fontWeight: '800' },
-  deleteBtn: { backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
-  deleteBtnText: { color: '#fca5a5', fontSize: 10, fontWeight: '800' },
+  editBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  editBtnText: { color: isDark ? '#818cf8' : '#4f46e5', fontSize: 10, fontWeight: '800' },
+  deleteBtn: { backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)' },
+  deleteBtnText: { color: isDark ? '#fca5a5' : '#dc2626', fontSize: 10, fontWeight: '800' },
   quoteBtn: { backgroundColor: '#16a34a', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, marginLeft: 'auto' },
   quoteBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
 
   // Detail Modal Styles
   detailCoverImg: { width: '100%', height: 160, borderRadius: 14, resizeMode: 'cover', marginBottom: 4 },
-  detailPriceCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#38bdf8', padding: 10, marginVertical: 8 },
-  detailPriceTitle: { fontSize: 14, fontWeight: '900', color: '#34d399' },
-  detailPriceSub: { fontSize: 10, color: '#cbd5e1', marginTop: 2 },
+  detailPriceCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: isDark ? '#38bdf8' : '#0284c7', padding: 10, marginVertical: 8 },
+  detailPriceTitle: { fontSize: 14, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
+  detailPriceSub: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
 
-  detailFeatRow: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#020617', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' },
+  detailFeatRow: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: colors.cardBgElevated, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
 
-  tierTableCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 8, marginBottom: 12 },
-  tierTableRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  tierTableCell: { flex: 1, fontSize: 10, color: '#cbd5e1', textAlign: 'center' },
+  tierTableCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 8, marginBottom: 12 },
+  tierTableRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  tierTableCell: { flex: 1, fontSize: 10, color: colors.textSecondary, textAlign: 'center' },
 
   // Modal Form Styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 460, maxHeight: '90%', backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalCardLarge: { width: '100%', maxWidth: 500, maxHeight: '92%', backgroundColor: '#0f172a', borderRadius: 24, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalCardSmall: { width: '100%', maxWidth: 400, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(2, 6, 23, 0.85)' : 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 460, maxHeight: '90%', backgroundColor: colors.cardBg, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  modalCardLarge: { width: '100%', maxWidth: 500, maxHeight: '92%', backgroundColor: colors.cardBg, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  modalCardSmall: { width: '100%', maxWidth: 400, backgroundColor: colors.cardBg, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16 },
 
   topSubHeaderBar: {
     width: '100%',
@@ -1433,49 +1463,49 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: colors.border,
   },
   backBtn: {
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.cardBg,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
   },
   backBtnText: {
-    color: '#38bdf8',
+    color: isDark ? '#38bdf8' : '#0284c7',
     fontSize: 11,
     fontWeight: '800',
   },
-  subHeaderTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  subHeaderTitle: { fontSize: 12, fontWeight: '900', color: colors.text },
   headerBox: { width: '100%', maxWidth: 650, marginBottom: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#ffffff', marginBottom: 2 },
-  headerSubtitle: { fontSize: 11, color: '#94a3b8' },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 2 },
+  headerSubtitle: { fontSize: 11, color: colors.textSecondary },
 
-  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
-  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
-  modalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
-  modalCloseBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 10 },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: colors.text },
+  modalSub: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+  modalCloseBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.cardBgElevated, justifyContent: 'center', alignItems: 'center' },
 
-  inputLabel: { fontSize: 10, fontWeight: '800', color: '#818cf8', marginTop: 8, marginBottom: 4 },
-  formInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, color: '#ffffff', fontSize: 11 },
+  inputLabel: { fontSize: 10, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5', marginTop: 8, marginBottom: 4 },
+  formInput: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, color: colors.text, fontSize: 11 },
   formRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
 
-  catChip: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 },
-  catChipActive: { borderColor: '#818cf8', backgroundColor: 'rgba(99,102,241,0.15)' },
-  catChipText: { fontSize: 10, color: '#cbd5e1', fontWeight: '700' },
+  catChip: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 },
+  catChipActive: { borderColor: isDark ? '#818cf8' : '#4f46e5', backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)' },
+  catChipText: { fontSize: 10, color: colors.textSecondary, fontWeight: '700' },
 
-  subCatChip: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginRight: 4 },
-  subCatChipActive: { borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)' },
-  subCatChipText: { fontSize: 9, color: '#94a3b8', fontWeight: '700' },
+  subCatChip: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginRight: 4 },
+  subCatChipActive: { borderColor: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)' },
+  subCatChipText: { fontSize: 9, color: colors.textSecondary, fontWeight: '700' },
 
-  taxChip: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
-  taxChipActive: { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: '#38bdf8' },
-  taxChipText: { fontSize: 10, color: '#cbd5e1', fontWeight: '700' },
+  taxChip: { flex: 1, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
+  taxChipActive: { backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', borderColor: isDark ? '#38bdf8' : '#0284c7' },
+  taxChipText: { fontSize: 10, color: colors.textSecondary, fontWeight: '700' },
 
-  imgPresetBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: '#334155', overflow: 'hidden', marginRight: 6 },
-  imgPresetActive: { borderColor: '#38bdf8', borderWidth: 2 },
+  imgPresetBtn: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginRight: 6 },
+  imgPresetActive: { borderColor: isDark ? '#38bdf8' : '#0284c7', borderWidth: 2 },
   imgPresetThumb: { width: '100%', height: '100%', resizeMode: 'cover' },
 
   saveProductBtn: { backgroundColor: '#16a34a', paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 14 },
@@ -1483,9 +1513,9 @@ const styles = StyleSheet.create({
 
   // Admin Card Display Configuration Styles
   adminConfigBtn: {
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.cardBg,
     borderWidth: 1,
-    borderColor: '#4338ca',
+    borderColor: isDark ? '#4338ca' : '#c7d2fe',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1494,17 +1524,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   adminConfigBtnDisabled: {
-    borderColor: '#334155',
-    backgroundColor: '#090d16',
+    borderColor: colors.border,
+    backgroundColor: colors.cardBgElevated,
     opacity: 0.7,
   },
   adminConfigBtnTitle: {
-    color: '#ffffff',
+    color: colors.text,
     fontSize: 11,
     fontWeight: '800',
   },
   adminConfigBtnSubtitle: {
-    color: '#94a3b8',
+    color: colors.textSecondary,
     fontSize: 9,
     marginTop: 1,
   },
@@ -1521,7 +1551,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   adminOnlyPill: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
     borderWidth: 1,
     borderColor: '#ef4444',
     paddingHorizontal: 6,
@@ -1529,27 +1559,27 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   adminOnlyPillText: {
-    color: '#f87171',
+    color: isDark ? '#f87171' : '#dc2626',
     fontSize: 8,
     fontWeight: '900',
   },
   configInfoBanner: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.25)',
     borderRadius: 10,
     padding: 10,
     marginBottom: 12,
   },
   configInfoBannerText: {
-    color: '#93c5fd',
+    color: isDark ? '#93c5fd' : '#1d4ed8',
     fontSize: 10,
     lineHeight: 15,
   },
   configSectionTitle: {
     fontSize: 11,
     fontWeight: '900',
-    color: '#38bdf8',
+    color: isDark ? '#38bdf8' : '#0284c7',
     marginTop: 10,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -1559,9 +1589,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#020617',
+    backgroundColor: colors.cardBgElevated,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -1570,24 +1600,24 @@ const styles = StyleSheet.create({
   configToggleLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#ffffff',
+    color: colors.text,
   },
   configToggleDesc: {
     fontSize: 9,
-    color: '#94a3b8',
+    color: colors.textSecondary,
     marginTop: 1,
   },
   configResetBtn: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.cardBgElevated,
     borderWidth: 1,
-    borderColor: '#475569',
+    borderColor: colors.border,
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
   },
   configResetBtnText: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '800',
   },

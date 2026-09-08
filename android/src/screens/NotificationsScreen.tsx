@@ -8,7 +8,7 @@
  * 4. Action Launchers: Direct Call & Direct WhatsApp.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { callSyncEngine } from '../services/callSyncEngine';
+import { useTheme } from '../context/ThemeContext';
 
 export interface DetailedNotification {
   id: string;
@@ -366,6 +367,8 @@ export default function NotificationsScreen({
     // Rendered outside navigation context or in modal
   }
   const navigation = propNavigation || navFromHook;
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { currentUser } = useAuthStore();
   const userRole = currentUser?.role || 'SALES_EXEC';
 
@@ -482,7 +485,7 @@ export default function NotificationsScreen({
 
           {onClose && (
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕ Close</Text>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: '900' }}>✕ Close</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -555,17 +558,17 @@ export default function NotificationsScreen({
               {item.leadName && (
                 <View style={styles.leadContextBox}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#ffffff' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>
                       👤 {item.leadName} {item.company ? `(${item.company})` : ''}
                     </Text>
                     {item.meetingPurpose && (
-                      <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
+                      <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 1 }}>
                         💼 {item.meetingPurpose}
                       </Text>
                     )}
                   </View>
                   {item.value && (
-                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>{item.value}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>{item.value}</Text>
                   )}
                 </View>
               )}
@@ -618,7 +621,7 @@ export default function NotificationsScreen({
                   <Text style={styles.modalSub}>Timestamp: {selectedNotif.exactTime} • Priority: {selectedNotif.priority}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setSelectedNotif(null)} style={styles.modalCloseBtn}>
-                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '900' }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
@@ -634,23 +637,23 @@ export default function NotificationsScreen({
                   </View>
                 )}
 
-                <Text style={{ fontSize: 12, color: '#ffffff', lineHeight: 18, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: colors.text, lineHeight: 18, marginBottom: 12 }}>
                   {selectedNotif.message}
                 </Text>
 
                 {/* Lead Profile Metadata */}
                 {selectedNotif.leadName && (
                   <View style={styles.modalLeadCard}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#818cf8' }}>🎯 Lead &amp; Task Context:</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5' }}>🎯 Lead &amp; Task Context:</Text>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '900', color: '#ffffff' }}>{selectedNotif.leadName}</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '900', color: '#34d399' }}>{selectedNotif.value || ''}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text }}>{selectedNotif.leadName}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>{selectedNotif.value || ''}</Text>
                     </View>
-                    <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{selectedNotif.company} • {selectedNotif.phone}</Text>
+                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 1 }}>{selectedNotif.company} • {selectedNotif.phone}</Text>
 
                     {selectedNotif.meetingPurpose && (
-                      <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
-                        <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>
+                      <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700' }}>
                           💼 Purpose: {selectedNotif.meetingPurpose}
                         </Text>
                       </View>
@@ -699,63 +702,63 @@ export default function NotificationsScreen({
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, alignItems: 'center', paddingBottom: 32 },
 
   headerRow: { width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  screenTitle: { fontSize: 20, fontWeight: '800', color: '#ffffff' },
-  screenSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+  screenTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
+  screenSub: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
   unreadCountBadge: { backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   unreadCountBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: '900' },
-  closeBtn: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#334155' },
+  closeBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
 
-  alertBanner: { width: '100%', maxWidth: 600, backgroundColor: 'rgba(234,179,8,0.12)', borderWidth: 1, borderColor: '#eab308', borderRadius: 14, padding: 12, marginBottom: 12 },
-  alertBannerTitle: { fontSize: 12, fontWeight: '900', color: '#facc15' },
-  alertBannerSub: { fontSize: 10, color: '#fef08a', marginTop: 3, lineHeight: 14 },
-  liveTag: { backgroundColor: 'rgba(234,179,8,0.2)', borderWidth: 1, borderColor: '#eab308', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
-  liveTagText: { color: '#facc15', fontSize: 8, fontWeight: '900' },
+  alertBanner: { width: '100%', maxWidth: 600, backgroundColor: isDark ? 'rgba(234,179,8,0.12)' : '#fef9c3', borderWidth: 1, borderColor: isDark ? '#eab308' : '#f59e0b', borderRadius: 14, padding: 12, marginBottom: 12 },
+  alertBannerTitle: { fontSize: 12, fontWeight: '900', color: isDark ? '#facc15' : '#92400e' },
+  alertBannerSub: { fontSize: 10, color: isDark ? '#fef08a' : '#78350f', marginTop: 3, lineHeight: 14 },
+  liveTag: { backgroundColor: isDark ? 'rgba(234,179,8,0.2)' : 'rgba(234,179,8,0.15)', borderWidth: 1, borderColor: isDark ? '#eab308' : '#f59e0b', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  liveTagText: { color: isDark ? '#facc15' : '#92400e', fontSize: 8, fontWeight: '900' },
 
   filterContainer: { width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  filterChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', marginRight: 6 },
-  filterChipActive: { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: '#818cf8' },
-  filterChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
-  filterChipTextActive: { color: '#818cf8', fontWeight: '900' },
+  filterChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, marginRight: 6 },
+  filterChipActive: { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', borderColor: '#818cf8' },
+  filterChipText: { fontSize: 10, fontWeight: '700', color: colors.textSecondary },
+  filterChipTextActive: { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
 
-  markAllBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  markAllBtnText: { color: '#818cf8', fontSize: 9, fontWeight: '800' },
+  markAllBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+  markAllBtnText: { color: isDark ? '#818cf8' : '#4f46e5', fontSize: 9, fontWeight: '800' },
 
-  notifCard: { backgroundColor: '#0f172a', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 },
-  notifCardUnread: { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)' },
-  notifTitle: { fontSize: 13, fontWeight: '800', color: '#ffffff' },
+  notifCard: { backgroundColor: colors.cardBg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+  notifCardUnread: { borderColor: '#818cf8', backgroundColor: isDark ? 'rgba(129,140,248,0.08)' : 'rgba(99,102,241,0.05)' },
+  notifTitle: { fontSize: 13, fontWeight: '800', color: colors.text },
   unreadGlowDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#818cf8' },
-  timeBadge: { backgroundColor: '#020617', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
-  timeBadgeHigh: { backgroundColor: 'rgba(234,179,8,0.15)', borderColor: '#eab308' },
-  timeBadgeText: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
+  timeBadge: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+  timeBadgeHigh: { backgroundColor: isDark ? 'rgba(234,179,8,0.15)' : '#fef3c7', borderColor: isDark ? '#eab308' : '#d97706' },
+  timeBadgeText: { fontSize: 9, fontWeight: '800', color: colors.textSecondary },
 
-  notifMsg: { fontSize: 11, color: '#cbd5e1', marginTop: 4, lineHeight: 16 },
-  leadContextBox: { marginTop: 8, backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  notifMsg: { fontSize: 11, color: colors.textSecondary, marginTop: 4, lineHeight: 16 },
+  leadContextBox: { marginTop: 8, backgroundColor: colors.cardBgElevated, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
   cardActionsRow: { flexDirection: 'row', gap: 6, marginTop: 10, alignItems: 'center' },
   routeActionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   routeActionBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
-  callActionBtn: { backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
-  callActionBtnText: { color: '#34d399', fontSize: 10, fontWeight: '800' },
-  readActionBtn: { backgroundColor: '#1e293b', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, marginLeft: 'auto' },
-  readActionBtnText: { color: '#94a3b8', fontSize: 9, fontWeight: '700' },
+  callActionBtn: { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)', borderWidth: 1, borderColor: isDark ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.25)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
+  callActionBtnText: { color: isDark ? '#34d399' : '#059669', fontSize: 10, fontWeight: '800' },
+  readActionBtn: { backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, marginLeft: 'auto', borderWidth: 1, borderColor: colors.border },
+  readActionBtnText: { color: colors.textSecondary, fontSize: 9, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  modalCard: { width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
-  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
-  modalTitle: { fontSize: 15, fontWeight: '900', color: '#ffffff' },
-  modalSub: { fontSize: 10, color: '#94a3b8', marginTop: 1 },
-  modalCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(2, 6, 23, 0.85)' : 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalCard: { width: '100%', maxWidth: 420, backgroundColor: colors.cardBg, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 },
+  modalTitle: { fontSize: 15, fontWeight: '900', color: colors.text },
+  modalSub: { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.cardBgElevated, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
 
-  modalAlertNotice: { backgroundColor: 'rgba(234,179,8,0.15)', borderWidth: 1, borderColor: '#eab308', borderRadius: 10, padding: 8, marginBottom: 10 },
-  modalAlertNoticeTitle: { fontSize: 10, fontWeight: '900', color: '#facc15' },
-  modalAlertNoticeSub: { fontSize: 9, color: '#fef08a', marginTop: 1 },
+  modalAlertNotice: { backgroundColor: isDark ? 'rgba(234,179,8,0.15)' : '#fef3c7', borderWidth: 1, borderColor: isDark ? '#eab308' : '#d97706', borderRadius: 10, padding: 8, marginBottom: 10 },
+  modalAlertNoticeTitle: { fontSize: 10, fontWeight: '900', color: isDark ? '#facc15' : '#92400e' },
+  modalAlertNoticeSub: { fontSize: 9, color: isDark ? '#fef08a' : '#78350f', marginTop: 1 },
 
-  modalLeadCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#334155', padding: 10, marginBottom: 10 },
+  modalLeadCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 10, marginBottom: 10 },
   modalActionBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   modalActionBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
 

@@ -842,7 +842,10 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       style={[
                         auditStyles.logCard,
                         { backgroundColor: colors.cardBg, borderColor: colors.border },
-                        isPending && auditStyles.logCardPending,
+                        isPending && {
+                          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.05)' : '#fffbeb',
+                          borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : '#fde68a',
+                        },
                       ]}
                     >
                       {/* Top Header: File Info & Status Badge */}
@@ -855,7 +858,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             <Text style={[auditStyles.logCardFileName, { color: colors.text }]} numberOfLines={1}>
                               {item.fileName}
                             </Text>
-                            <Text style={auditStyles.logCardTimestamp}>
+                            <Text style={[auditStyles.logCardTimestamp, { color: colors.textMuted }]}>
                               🕒 {item.injectedAt}
                             </Text>
                           </View>
@@ -901,7 +904,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       {!isPending && item.allocationSummary && (
                         <View style={[auditStyles.allocatedSummaryBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                           <Text style={auditStyles.allocatedSummaryIcon}>👥</Text>
-                          <Text style={auditStyles.allocatedSummaryText} numberOfLines={2}>
+                          <Text style={[auditStyles.allocatedSummaryText, { color: isDark ? '#86efac' : '#15803d' }]} numberOfLines={2}>
                             {item.allocationSummary}
                           </Text>
                         </View>
@@ -909,15 +912,23 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
                       {/* Pending Action Banner */}
                       {isPending && (
-                        <View style={auditStyles.pendingBanner}>
+                        <View
+                          style={[
+                            auditStyles.pendingBanner,
+                            {
+                              backgroundColor: isDark ? 'rgba(245, 158, 11, 0.09)' : '#fef3c7',
+                              borderColor: isDark ? 'rgba(245, 158, 11, 0.25)' : '#fde68a',
+                            },
+                          ]}
+                        >
                           <View style={{ flex: 1, paddingRight: 8 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                               <Text style={{ fontSize: 13 }}>⚠️</Text>
-                              <Text style={auditStyles.pendingBannerTitle}>
+                              <Text style={[auditStyles.pendingBannerTitle, { color: isDark ? '#fbbf24' : '#92400e' }]}>
                                 {item.leadsCount} Leads Unassigned
                               </Text>
                             </View>
-                            <Text style={auditStyles.pendingBannerSub}>
+                            <Text style={[auditStyles.pendingBannerSub, { color: isDark ? '#fde68a' : '#78350f' }]}>
                               Dataset is unallocated. Assign to Team Leader or sales reps.
                             </Text>
                           </View>
@@ -937,7 +948,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       )}
 
                       {/* Card Footer Action Buttons */}
-                      <View style={auditStyles.cardFooterRow}>
+                      <View style={[auditStyles.cardFooterRow, { borderTopColor: colors.border }]}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           {/* Preview & Edit Sheet Primary Action Button */}
                           <TouchableOpacity
@@ -950,7 +961,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             activeOpacity={0.75}
                           >
                             <Text style={auditStyles.btnPreviewSheetIcon}>👁️</Text>
-                            <Text style={auditStyles.btnPreviewSheetText}>Preview &amp; Edit Sheet</Text>
+                            <Text style={[auditStyles.btnPreviewSheetText, { color: isDark ? '#38bdf8' : '#0284c7' }]}>Preview &amp; Edit Sheet</Text>
                           </TouchableOpacity>
 
                           {/* Delete Action Button */}
@@ -976,7 +987,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             activeOpacity={0.75}
                           >
                             <Text style={auditStyles.btnDeleteSheetIcon}>🗑️</Text>
-                            <Text style={auditStyles.btnDeleteSheetText}>Delete</Text>
+                            <Text style={[auditStyles.btnDeleteSheetText, { color: isDark ? '#f87171' : '#dc2626' }]}>Delete</Text>
                           </TouchableOpacity>
                         </View>
 
@@ -2126,18 +2137,15 @@ const auditStyles = StyleSheet.create({
   },
 
   logCard: {
-    backgroundColor: '#070c18',
     borderRadius: 14,
     padding: 13,
     borderWidth: 1,
   },
   logCardPending: {
     borderColor: 'rgba(245, 158, 11, 0.35)',
-    backgroundColor: '#090e1c',
   },
   logCardAllocated: {
     borderColor: '#1e293b',
-    backgroundColor: '#070c18',
   },
 
   logCardTopRow: {
