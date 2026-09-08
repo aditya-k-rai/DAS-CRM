@@ -502,3 +502,63 @@ export async function uploadLeadSpreadsheetToDrive(
     onProgress,
   });
 }
+
+export interface FolderMailRequestPayload {
+  folderPath: string;
+  recipientEmail: string;
+  companyName?: string;
+  category?: 'EMPLOYEES' | 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' | 'PROFILES' | 'DOCUMENTS';
+  employeeName?: string;
+  subCategory?: string;
+  format?: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
+  notes?: string;
+}
+
+export interface FolderMailRequestResult {
+  requestId: string;
+  folderPath: string;
+  recipientEmail: string;
+  companyName: string;
+  format: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
+  fileCount: number;
+  totalSizeMb: string;
+  status: string;
+  requestedAt: string;
+  downloadUrl?: string;
+}
+
+/**
+ * Request a full folder export delivered directly to Admin email.
+ */
+export async function requestFolderDataOnEmail(
+  payload: FolderMailRequestPayload
+): Promise<FolderMailRequestResult> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const res = await fetch(`${apiBase}/drive/request-folder-mail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to dispatch folder data request to email');
+  }
+  return data.data;
+}
+
+/**
+ * Fetch history of folder data requests dispatched to email.
+ */
+export async function getFolderMailRequests(
+  companyName: string = 'Acme Sales Solutions'
+): Promise<FolderMailRequestResult[]> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  try {
+    const res = await fetch(`${apiBase}/drive/mail-requests?companyName=${encodeURIComponent(companyName)}`);
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
+}
+

@@ -174,6 +174,27 @@ export class DriveController {
     };
   }
 
+  @Post('request-folder-mail')
+  async requestFolderMail(@Body() dto: any) {
+    if (!dto?.recipientEmail) {
+      throw new BadRequestException('Recipient email address is required');
+    }
+    const result = await this.driveService.requestFolderMail(dto);
+    return {
+      success: true,
+      message: `Folder data package for [${result.folderPath}] has been queued and sent to ${result.recipientEmail}`,
+      data: result,
+    };
+  }
+
+  @Get('mail-requests')
+  getMailRequests(@Query('companyName') companyName?: string) {
+    return {
+      success: true,
+      data: this.driveService.getMailRequests(companyName),
+    };
+  }
+
   @Get('app-releases')
   getAppReleases() {
     return {

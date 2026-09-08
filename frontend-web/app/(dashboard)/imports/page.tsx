@@ -1,19 +1,22 @@
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
-import { ImportWizard } from '@/components/imports/ImportWizard';
-import { Upload } from 'lucide-react';
+import { DatabaseHubView } from '@/components/database/DatabaseHubView';
 
-export const metadata: Metadata = { title: 'Import Data | DAS CRM' };
+export const metadata: Metadata = { title: 'Database & Imports | DAS CRM' };
 
 export default function ImportsPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <Topbar title="Import Data" actions={
-        <span className="text-xs text-muted">CSV · Excel (.xlsx) · Google Sheets</span>
-      } />
+      <Topbar
+        title="Database &amp; Lead Imports"
+        actions={
+          <span className="text-xs text-muted-foreground">CSV · Excel (.xlsx) · Google Sheets · Drive Vault</span>
+        }
+      />
       <main className="flex-1 p-6 overflow-auto">
-        <ImportWizard />
+        <DatabaseHubView initialTab="imports" />
       </main>
     </div>
   );
 }
+

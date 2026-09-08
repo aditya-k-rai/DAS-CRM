@@ -261,7 +261,7 @@ export default function LeadsScreen() {
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [savedImportSession, setSavedImportSession] = useState<SavedImportSession | null>(DEFAULT_IMPORT_SESSION);
+  const [savedImportSession, setSavedImportSession] = useState<SavedImportSession | null>(null);
 
   const handleImportSuccess = (leads: ImportedLead[], audit: FileAuditRecord) => {
     const converted: LeadItem[] = leads.map((l, i) => ({
@@ -748,7 +748,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           {/* 🛢️ Lead Integration & Ingestion Control Center Banner */}
           <LeadIngestionControlCenterBar
             onInsertLeadPress={() => setInsertModalOpen(true)}
-            onImportCsvPress={() => setImportModalOpen(true)}
+            onImportCsvPress={() => { setSavedImportSession(null); setImportModalOpen(true); }}
             onGoogleSheetsPress={() => setSheetModalOpen(true)}
             onExportCsvPress={() => handleProcessCsvTextImport()}
             onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
@@ -956,6 +956,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             onPress={() => {
                               setAuditDetailRecord(null);
                               setAllocationModalOpen(false);
+                              setSavedImportSession(DEFAULT_IMPORT_SESSION);
                               setImportModalOpen(true);
                             }}
                             activeOpacity={0.75}

@@ -278,35 +278,44 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const { width: SW } = useWindowDimensions();
   const isTablet = SW >= 600;
 
-  const baseSession = initialSession || DEFAULT_IMPORT_SESSION;
-
-  // ── State ────────────────────────────────────────────────────────────────
-  const [fileName, setFileName]           = useState(baseSession.fileName);
-  const [fileSize, setFileSize]           = useState(baseSession.fileSize);
-  const [fmt,      setFmt]               = useState(baseSession.fmt);
-  const [sheets,   setSheets]            = useState<ParsedSheet[]>(baseSession.sheets);
-  const [activeIdx, setActiveIdx]         = useState(baseSession.activeIdx || 0);
+  // ── State (Starts fresh and empty unless an explicit initialSession is provided) ───
+  const [fileName, setFileName]           = useState(initialSession?.fileName || '');
+  const [fileSize, setFileSize]           = useState(initialSession?.fileSize || '');
+  const [fmt,      setFmt]               = useState(initialSession?.fmt || '');
+  const [sheets,   setSheets]            = useState<ParsedSheet[]>(initialSession?.sheets || []);
+  const [activeIdx, setActiveIdx]         = useState(initialSession?.activeIdx || 0);
   const [loading,   setLoading]           = useState(false);
-  const [inputFileName, setInputFileName] = useState(baseSession.inputFileName);
-  const [selectedPlatform, setSelectedPlatform] = useState(baseSession.selectedPlatform);
+  const [inputFileName, setInputFileName] = useState(initialSession?.inputFileName || '');
+  const [selectedPlatform, setSelectedPlatform] = useState(initialSession?.selectedPlatform || 'Google Ads');
   const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
 
   // Role / Custom Name Modal State
   const [pickerColKey, setPickerColKey]   = useState<string | null>(null);
   const [customNameInput, setCustomNameInput] = useState('');
 
-  // Sync state if initialSession prop changes
+  // Sync state if initialSession prop changes or modal opens
   useEffect(() => {
-    if (initialSession) {
-      setFileName(initialSession.fileName);
-      setFileSize(initialSession.fileSize);
-      setFmt(initialSession.fmt);
-      setSheets(initialSession.sheets);
-      setActiveIdx(initialSession.activeIdx || 0);
-      setInputFileName(initialSession.inputFileName);
-      setSelectedPlatform(initialSession.selectedPlatform);
+    if (visible) {
+      if (initialSession) {
+        setFileName(initialSession.fileName);
+        setFileSize(initialSession.fileSize);
+        setFmt(initialSession.fmt);
+        setSheets(initialSession.sheets);
+        setActiveIdx(initialSession.activeIdx || 0);
+        setInputFileName(initialSession.inputFileName);
+        setSelectedPlatform(initialSession.selectedPlatform);
+      } else {
+        // Reset to clean new import state
+        setFileName('');
+        setFileSize('');
+        setFmt('');
+        setSheets([]);
+        setActiveIdx(0);
+        setInputFileName('');
+        setSelectedPlatform('Google Ads');
+      }
     }
-  }, [initialSession]);
+  }, [initialSession, visible]);
 
   const currentSession: SavedImportSession = useMemo(() => ({
     fileName,
@@ -781,8 +790,20 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           {sheets.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📂</Text>
-              <Text style={styles.emptyTitle}>No Spreadsheet File Loaded</Text>
-              <Text style={styles.emptySub}>Tap "Select Spreadsheet File" above to upload CSV or Excel workbook</Text>
+              <Text style={styles.emptyTitle}>Ready for New Lead Import</Text>
+              <Text style={styles.emptySub}>
+                Select a CSV or Excel (.xlsx, .xls) spreadsheet from your device to map columns and ingest leads.
+              </Text>
+              <TouchableOpacity
+                style={[styles.pickBtn, { marginTop: 16, paddingHorizontal: 24, backgroundColor: '#4f46e5' }]}
+                onPress={handlePickFile}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.pickBtnText, { color: '#ffffff', fontWeight: '800' }]}>
+                  📂 Select Spreadsheet File
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : activeSheet?.isBlocked ? (
             <View style={styles.emptyState}>

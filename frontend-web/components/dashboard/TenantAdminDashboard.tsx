@@ -11,7 +11,6 @@ import {
   UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
-import { GoogleDriveStatusWidget } from './GoogleDriveStatusWidget';
 
 interface DashboardLeadRecord {
   id: string;
@@ -869,9 +868,6 @@ export function TenantAdminDashboard() {
           Open Lead Pipeline →
         </Link>
       </div>
-
-      {/* ── Google Drive Cloud Storage Telemetry & Vault Hub ── */}
-      <GoogleDriveStatusWidget />
 
         {editingLead && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">

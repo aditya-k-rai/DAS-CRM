@@ -25,6 +25,7 @@ import { WorkflowAutomationsScreen } from './WorkflowAutomationsScreen';
 import WorkflowBuilderScreen from './WorkflowBuilderScreen';
 import EmailMarketingScreen from './EmailMarketingScreen';
 import { BulkIngestionScreen } from './BulkIngestionScreen';
+import { DatabaseScreen } from './DatabaseScreen';
 import AttendanceScreen from './AttendanceScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
@@ -43,6 +44,7 @@ export type ModuleKey =
   | 'PDF_CATALOG'
   | 'REPORTS'
   | 'AUTOMATIONS'
+  | 'DATABASE'
   | 'IMPORT_EXPORT'
   | 'ATTENDANCE'
   | 'DEALS'
@@ -135,7 +137,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'PDF_CATALOG', icon: '📄', label: 'PDF Catalogue' },
     { key: 'REPORTS', icon: '📊', label: 'Reports & Analytics' },
     { key: 'AUTOMATIONS', icon: '⚡', label: 'Workflow & Automations' },
-    { key: 'IMPORT_EXPORT', icon: '📥', label: 'Lead Import History' },
+    { key: 'DATABASE', icon: '🗄️', label: 'Database & Storage' },
     { key: 'ATTENDANCE', icon: '⏱️', label: 'Attendance' },
     { key: 'DEALS', icon: '💼', label: 'Deals' },
     { key: 'GOALS', icon: '📈', label: 'Goals & Targets' },
@@ -158,6 +160,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'PDF_CATALOG': return t.modPdfCatalog || defaultLabel;
       case 'REPORTS': return t.modReports || defaultLabel;
       case 'AUTOMATIONS': return t.modAutomations || defaultLabel;
+      case 'DATABASE': return 'Database & Storage';
       case 'IMPORT_EXPORT': return t.modImportExport || defaultLabel;
       case 'ATTENDANCE': return t.modAttendance || defaultLabel;
       case 'DEALS': return t.modDeals || defaultLabel;
@@ -199,7 +202,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
         {activeModal === 'REPORTS' && <ReportsAnalyticsScreen onClose={closeModal} />}
         {activeModal === 'AUTOMATIONS' && <WorkflowAutomationsScreen onClose={closeModal} navigation={navigation} />}
         {activeModal === 'EXTRA_EMAIL' && <EmailMarketingScreen onClose={closeModal} />}
-        {activeModal === 'IMPORT_EXPORT' && <BulkIngestionScreen onClose={closeModal} />}
+        {(activeModal === 'DATABASE' || activeModal === 'IMPORT_EXPORT') && <DatabaseScreen onClose={closeModal} />}
         {activeModal === 'PROFILE' && <ProfileScreen onClose={closeModal} />}
         
         {activeModal === 'ATTENDANCE' && (

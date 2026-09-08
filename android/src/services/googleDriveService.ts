@@ -421,3 +421,61 @@ export async function uploadLeadSpreadsheetToDriveAndroid(
     onProgress,
   });
 }
+
+export interface FolderMailRequestPayloadAndroid {
+  folderPath: string;
+  recipientEmail: string;
+  companyName?: string;
+  category?: StorageCategory;
+  employeeName?: string;
+  subCategory?: string;
+  format?: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
+  notes?: string;
+}
+
+export interface FolderMailRequestResultAndroid {
+  requestId: string;
+  folderPath: string;
+  recipientEmail: string;
+  companyName: string;
+  format: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
+  fileCount: number;
+  totalSizeMb: string;
+  status: string;
+  requestedAt: string;
+  downloadUrl?: string;
+}
+
+/**
+ * Request a full folder export delivered directly to Admin email (Android)
+ */
+export async function requestFolderDataOnEmailAndroid(
+  payload: FolderMailRequestPayloadAndroid
+): Promise<FolderMailRequestResultAndroid> {
+  const res = await fetch(`${API_BASE}/drive/request-folder-mail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to dispatch folder data request to email');
+  }
+  return data.data;
+}
+
+/**
+ * Fetch history of folder data requests dispatched to email (Android)
+ */
+export async function getFolderMailRequestsAndroid(
+  companyName: string = 'Acme Sales Solutions'
+): Promise<FolderMailRequestResultAndroid[]> {
+  try {
+    const res = await fetch(`${API_BASE}/drive/mail-requests?companyName=${encodeURIComponent(companyName)}`);
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
+}
+
