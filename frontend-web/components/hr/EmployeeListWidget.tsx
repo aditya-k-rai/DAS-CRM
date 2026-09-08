@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, ShieldCheck } from 'lucide-react';
+import { Users, ShieldCheck, Cloud } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
 import TeamLeaderControlScreenWeb from './TeamLeaderControlScreenWeb';
 import ManagerControlScreenWeb from './ManagerControlScreenWeb';
 import HrControlScreenWeb from './HrControlScreenWeb';
+import EmployeeDriveVaultModal from './EmployeeDriveVaultModal';
 
 export interface EmployeeProfileWeb {
   id: string;
@@ -193,6 +194,7 @@ export function EmployeeListWidget() {
   const { subscription } = useAuth();
   const [employees, setEmployees] = useState<EmployeeProfileWeb[]>(INITIAL_EMPLOYEES);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
+  const [vaultEmp, setVaultEmp] = useState<EmployeeProfileWeb | null>(null);
 
   const totalQuota = subscription?.userSeatsAllocated ?? 10;
   const activeCount = employees.length;
@@ -231,7 +233,7 @@ export function EmployeeListWidget() {
             <Users className="text-brand-400" size={22} /> Organization Staff Directory &amp; Role Control Router
           </h2>
           <p className="text-xs text-muted mt-1">
-            Manage Name, Role, Assign Under, and click <strong className="text-white">Inspect &amp; Control →</strong> for dedicated role screens.
+            Manage Name, Role, Assign Under, and click <strong className="text-white">Inspect &amp; Control →</strong> or <strong className="text-indigo-400">Drive Vault</strong> for dedicated employee cloud storage.
           </p>
         </div>
 
@@ -277,16 +279,35 @@ export function EmployeeListWidget() {
                 <p>📞 Phone: <span className="text-slate-300">{emp.phone}</span></p>
               </div>
 
-              <button
-                onClick={() => setInspectingEmp(emp)}
-                className="w-full py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 border border-brand/40 text-brand-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md"
-              >
-                Inspect &amp; Control →
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setInspectingEmp(emp)}
+                  className="flex-1 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 border border-brand/40 text-brand-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md"
+                >
+                  Inspect &amp; Control →
+                </button>
+                <button
+                  onClick={() => setVaultEmp(emp)}
+                  title={`Open ${emp.name}'s Google Drive Vault`}
+                  className="px-3 py-2.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md"
+                >
+                  <Cloud size={15} />
+                  <span>Drive</span>
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* Per-Employee Google Drive Cloud Vault Modal */}
+      {vaultEmp && (
+        <EmployeeDriveVaultModal
+          employee={vaultEmp}
+          isOpen={!!vaultEmp}
+          onClose={() => setVaultEmp(null)}
+        />
+      )}
     </div>
   );
 }

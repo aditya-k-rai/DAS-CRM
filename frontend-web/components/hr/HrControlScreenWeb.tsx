@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EmployeeProfileWeb as EmployeeProfile } from './EmployeeListWidget';
+import EmployeeDriveVaultModal from './EmployeeDriveVaultModal';
 
 interface Props {
   employee: EmployeeProfile;
@@ -17,6 +18,7 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
   const [hiredLogsModalOpen, setHiredLogsModalOpen] = useState(false);
   const [firedLogsModalOpen, setFiredLogsModalOpen] = useState(false);
   const [rolesReportModalOpen, setRolesReportModalOpen] = useState(false);
+  const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
   const MOCK_HIRED_EMPLOYEES = [
     { id: 'hire-1', name: 'Rohan Kumar', role: 'Sales Exec', date: 'Aug 01, 2026', interviewNotes: 'Passed HR & Sales Round' },
@@ -120,9 +122,14 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
         </button>
       </div>
 
-      <button onClick={() => setRolesReportModalOpen(true)} className="w-full py-3 bg-sky-600 text-white text-xs font-bold rounded-xl">
-        📜 Share HR Governance & Policy Sheet →
-      </button>
+      <div className="flex gap-4 mb-6">
+        <button onClick={() => setRolesReportModalOpen(true)} className="flex-1 py-3 bg-sky-600 text-white text-xs font-bold rounded-xl">
+          📜 Share HR Governance & Policy Sheet →
+        </button>
+        <button onClick={() => setDriveVaultOpen(true)} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition">
+          ☁️ {employee.name}&apos;s Google Drive Vault (DP, KYC, Docs) →
+        </button>
+      </div>
 
       {/* Modals */}
       {hiredLogsModalOpen && (
@@ -166,6 +173,15 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
             <button onClick={() => { setRolesReportModalOpen(false); alert('HR Policy Sheet Shared!'); }} className="w-full py-2 bg-sky-600 text-white text-xs font-bold rounded-xl">Share HR Policy Sheet →</button>
           </div>
         </div>
+      )}
+
+      {/* Google Drive Vault Modal */}
+      {driveVaultOpen && (
+        <EmployeeDriveVaultModal
+          employee={employee}
+          isOpen={driveVaultOpen}
+          onClose={() => setDriveVaultOpen(false)}
+        />
       )}
     </div>
   );

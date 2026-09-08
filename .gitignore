@@ -35,3 +35,9 @@ Thumbs.db
 .vscode/*
 !.vscode/settings.json
 .idea/
+
+# Service Accounts & Private Keys
+service-account*.json
+*credentials*.json
+secrets.txt
+backend/service-account.json

@@ -11,6 +11,7 @@ import {
 import { LeadAllocationModal } from './LeadAllocationModal';
 import {
   uploadFileToGoogleDrive,
+  uploadLeadSpreadsheetToDrive,
   formatTimestampedFileName,
   GoogleDriveUploadProgress,
 } from '../../lib/googleDriveService';
@@ -440,9 +441,40 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
     const now = new Date();
     const formattedDate = `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    const ext = (detectedFormat || 'xlsx').toLowerCase();
+    const timestampedFileName = formatTimestampedFileName(fileName.trim() || 'Leads_Import', ext);
+
+    // ☁️ Automatically archive the imported Excel spreadsheet to Google Drive with Date & Time in filename
+    (async () => {
+      try {
+        let uploadBlob: Blob | File = selectedFileBlob!;
+        if (!uploadBlob) {
+          const wb = XLSX.utils.book_new();
+          sheets.forEach(s => {
+            const ws = XLSX.utils.aoa_to_sheet(s.data);
+            XLSX.utils.book_append_sheet(wb, ws, s.name);
+          });
+          const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        }
+
+        const driveResult = await uploadLeadSpreadsheetToDrive(
+          uploadBlob,
+          `${fileName.trim() || 'Leads_Import'}.${ext}`,
+          'Acme Sales Solutions',
+          (p) => {
+            setDriveProgress(p);
+            if (p.status === 'COMPLETED') setIsDriveUploaded(true);
+          }
+        );
+        console.log('✅ Stored imported Excel to Google Drive:', driveResult.folderPath, driveResult.fileName);
+      } catch (err) {
+        console.warn('Auto-storage of imported Excel to Google Drive:', err);
+      }
+    })();
 
     onImportLeads(extractedLeads, {
-      filename: `${fileName.trim()} (${detectedFormat || 'FILE'})`,
+      filename: timestampedFileName,
       fileSize: fileSize || '—',
       platform: selectedPlatform,
       count: extractedLeads.length,
@@ -473,16 +505,13 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       }
 
-      const result = await uploadFileToGoogleDrive(
+      const ext = (detectedFormat || 'xlsx').toLowerCase();
+      const result = await uploadLeadSpreadsheetToDrive(
         uploadBlob,
-        `${fileName || 'Leads_Import'}.${(detectedFormat || 'xlsx').toLowerCase()}`,
-        {
-          companyName: 'Acme Sales Solutions',
-          category: 'LEADS',
-          customFileName: fileName,
-          onProgress: (p) => {
-            setDriveProgress(p);
-          },
+        `${fileName.trim() || 'Leads_Import'}.${ext}`,
+        'Acme Sales Solutions',
+        (p) => {
+          setDriveProgress(p);
         }
       );
 
