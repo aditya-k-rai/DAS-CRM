@@ -52,6 +52,7 @@ import MoreControlsScreen from './src/screens/MoreControlsScreen';
 import WorkflowBuilderScreen from './src/screens/WorkflowBuilderScreen';
 import { ModernAlertModal } from './src/components/ModernAlertModal';
 import { initModernAlertOverride } from './src/services/modernAlert';
+import { ThemeToggle } from './src/components/ThemeToggle';
 
 // 🚀 Initialize Global Modern Alert Override across entire app
 initModernAlertOverride();
@@ -159,7 +160,7 @@ function MainTabNavigator({
 }: any) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
   const topPadding = Math.max(insets.top, 12);
@@ -182,15 +183,29 @@ function MainTabNavigator({
           <Text style={[styles.headerSub, { color: colors.primary }]}>{t.headerRolePrefix || 'ROLE'}: {roleStr}</Text>
         </View>
 
-        {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
-        <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
-          <Text style={{ fontSize: 17 }}>🔔</Text>
-          {unreadCount > 0 && (
-            <View style={styles.notifBadgeCircle}>
-              <Text style={styles.notifBadgeCountText}>{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* ☀️/⚙️/🌙 Quick Theme Mode Switcher */}
+          <TouchableOpacity
+            style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+            onPress={toggleTheme}
+            activeOpacity={0.7}
+            accessibilityLabel={`Theme: ${theme}`}
+          >
+            <Text style={{ fontSize: 16 }}>
+              {theme === 'system' ? '⚙️' : theme === 'dark' ? '🌙' : '☀️'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
+          <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
+            <Text style={{ fontSize: 17 }}>🔔</Text>
+            {unreadCount > 0 && (
+              <View style={styles.notifBadgeCircle}>
+                <Text style={styles.notifBadgeCountText}>{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Tab.Navigator
@@ -242,7 +257,7 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: isDark ? colors.primaryLight : 'rgba(79, 70, 229, 0.12)', borderColor: isDark ? colors.primary : 'rgba(79, 70, 229, 0.3)' }]}>
                 <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>🏠</Text>
               </View>
             ),
@@ -263,7 +278,7 @@ function MainTabNavigator({
           component={LeadsStackNavigator}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(14,165,233,0.22)', borderColor: 'rgba(56,189,248,0.5)' }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: isDark ? 'rgba(14,165,233,0.22)' : 'rgba(14,165,233,0.12)', borderColor: isDark ? 'rgba(56,189,248,0.5)' : 'rgba(2,132,199,0.35)' }]}>
                 <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>🎯</Text>
               </View>
             ),
@@ -272,7 +287,7 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#38bdf8' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? (isDark ? '#38bdf8' : '#0284c7') : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
                 {t.tabLeads}
               </Text>
@@ -284,7 +299,7 @@ function MainTabNavigator({
           component={EmployeesScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(168,85,247,0.22)', borderColor: 'rgba(192,132,252,0.5)' }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: isDark ? 'rgba(168,85,247,0.22)' : 'rgba(168,85,247,0.12)', borderColor: isDark ? 'rgba(192,132,252,0.5)' : 'rgba(147,51,234,0.35)' }]}>
                 <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>👥</Text>
               </View>
             ),
@@ -293,7 +308,7 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#c084fc' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? (isDark ? '#c084fc' : '#7c3aed') : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
                 {t.tabEmployees}
               </Text>
@@ -313,11 +328,11 @@ function MainTabNavigator({
           )}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(245,158,11,0.22)', borderColor: 'rgba(251,191,36,0.5)' }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: isDark ? 'rgba(245,158,11,0.22)' : 'rgba(245,158,11,0.12)', borderColor: isDark ? 'rgba(251,191,36,0.5)' : 'rgba(217,119,6,0.35)' }]}>
                 <View style={{ width: 19, height: 14, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
-                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? '#fbbf24' : colors.tabBarInactive, borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? (isDark ? '#fbbf24' : '#b45309') : colors.tabBarInactive, borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? (isDark ? '#fbbf24' : '#b45309') : colors.tabBarInactive, borderRadius: 1.5 }} />
+                  <View style={{ width: 19, height: 2.2, backgroundColor: focused ? (isDark ? '#fbbf24' : '#b45309') : colors.tabBarInactive, borderRadius: 1.5 }} />
                 </View>
               </View>
             ),
@@ -326,7 +341,7 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#fbbf24' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? (isDark ? '#fbbf24' : '#b45309') : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
                 {t.tabMenu}
               </Text>
@@ -338,7 +353,7 @@ function MainTabNavigator({
           component={AttendanceScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <View style={[styles.tabIconBox, focused && { backgroundColor: 'rgba(16,185,129,0.22)', borderColor: 'rgba(52,211,153,0.5)' }]}>
+              <View style={[styles.tabIconBox, focused && { backgroundColor: isDark ? 'rgba(16,185,129,0.22)' : 'rgba(16,185,129,0.12)', borderColor: isDark ? 'rgba(52,211,153,0.5)' : 'rgba(5,150,105,0.35)' }]}>
                 <Text style={{ fontSize: 21, lineHeight: 25, opacity: focused ? 1 : 0.75 }}>⏱️</Text>
               </View>
             ),
@@ -347,7 +362,7 @@ function MainTabNavigator({
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.75}
-                style={[styles.tabBarLabel, { color: focused ? '#34d399' : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
+                style={[styles.tabBarLabel, { color: focused ? (isDark ? '#34d399' : '#059669') : colors.tabBarInactive, fontWeight: focused ? '800' : '600' }]}
               >
                 {t.tabAttendance}
               </Text>
@@ -694,10 +709,18 @@ function RootAppContent() {
                   ));
                 })()}
 
-                {/* SYSTEM & IN-APP UPDATE */}
+                {/* SYSTEM & THEME PREFERENCE */}
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{t.drawerSystemConfig}</Text>
+                  <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{t.drawerSystemConfig || 'SYSTEM & THEME'}</Text>
                   <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
+                </View>
+
+                {/* 3-Way Theme Switcher in Drawer */}
+                <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Theme Preference
+                  </Text>
+                  <ThemeToggle />
                 </View>
 
                 <TouchableOpacity

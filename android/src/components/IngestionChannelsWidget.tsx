@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 export interface IngestionChannelItem {
   id: string;
@@ -102,6 +103,7 @@ interface IngestionChannelsWidgetProps {
 }
 
 export default function IngestionChannelsWidget({ navigation, title = '🟢 Live Ingestion Channels & Traffic Sources' }: IngestionChannelsWidgetProps) {
+  const { colors, isDark } = useTheme();
 
   const handleChannelPress = (ch: IngestionChannelItem) => {
     switch (ch.actionKey) {
@@ -161,7 +163,7 @@ export default function IngestionChannelsWidget({ navigation, title = '🟢 Live
     <View style={styles.container}>
       {/* Title Bar with Count Chip */}
       <View style={styles.titleRow}>
-        <Text style={styles.widgetTitle}>{title}</Text>
+        <Text style={[styles.widgetTitle, { color: colors.text }]}>{title}</Text>
         <View style={styles.activeStreamsChip}>
           <Text style={styles.activeStreamsText}>6 STREAMS</Text>
         </View>
@@ -176,7 +178,13 @@ export default function IngestionChannelsWidget({ navigation, title = '🟢 Live
         {INGESTION_CHANNELS_DATA.map((ch) => (
           <TouchableOpacity
             key={ch.id}
-            style={[styles.channelBox, { borderColor: ch.cardBorderColor }]}
+            style={[
+              styles.channelBox,
+              {
+                backgroundColor: colors.cardBg,
+                borderColor: isDark ? ch.cardBorderColor : colors.border,
+              },
+            ]}
             onPress={() => handleChannelPress(ch)}
             activeOpacity={0.8}
           >
@@ -184,22 +192,22 @@ export default function IngestionChannelsWidget({ navigation, title = '🟢 Live
             <View style={styles.topRow}>
               <View style={styles.nameWithIcon}>
                 <Text style={styles.iconText}>{ch.icon}</Text>
-                <Text style={styles.channelName} numberOfLines={1}>{ch.name}</Text>
+                <Text style={[styles.channelName, { color: colors.text }]} numberOfLines={1}>{ch.name}</Text>
               </View>
               <View style={[styles.statusDot, { backgroundColor: ch.statusDotColor }]} />
             </View>
 
             {/* Ingested Telemetry Count */}
-            <Text style={styles.ingestedVal}>{ch.ingestedText}</Text>
+            <Text style={[styles.ingestedVal, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{ch.ingestedText}</Text>
 
             {/* Bottom Row: Badge Tag + Last Synced Time */}
             <View style={styles.bottomRow}>
-              <View style={[styles.tagBadge, ch.tagType === 'FAST' ? styles.fastTag : ch.tagType === 'SLOW' ? styles.slowTag : styles.normalTag]}>
-                <Text style={[styles.tagText, ch.tagType === 'FAST' ? { color: '#34d399' } : ch.tagType === 'SLOW' ? { color: '#fbbf24' } : { color: '#94a3b8' }]}>
+              <View style={[styles.tagBadge, ch.tagType === 'FAST' ? styles.fastTag : ch.tagType === 'SLOW' ? styles.slowTag : (isDark ? styles.normalTag : { backgroundColor: colors.cardBgElevated, borderColor: colors.border })]}>
+                <Text style={[styles.tagText, ch.tagType === 'FAST' ? { color: isDark ? '#34d399' : '#059669' } : ch.tagType === 'SLOW' ? { color: isDark ? '#fbbf24' : '#b45309' } : { color: colors.textSecondary }]}>
                   {ch.badgeTag}
                 </Text>
               </View>
-              <Text style={styles.lastTimeText}>{ch.lastTimeText}</Text>
+              <Text style={[styles.lastTimeText, { color: colors.textMuted }]}>{ch.lastTimeText}</Text>
             </View>
           </TouchableOpacity>
         ))}

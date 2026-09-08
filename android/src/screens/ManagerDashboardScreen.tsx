@@ -182,17 +182,17 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
 
         {/* DEPARTMENT STAT CARDS */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
-            <Text style={styles.statVal}>₹24.8L</Text>
-            <Text style={styles.statLbl}>Dept Revenue (82% Goal)</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹24.8L</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Dept Revenue (82% Goal)</Text>
           </View>
-          <View style={[styles.statCard, { borderColor: 'rgba(168,85,247,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>14 Reps</Text>
-            <Text style={styles.statLbl}>Supervised Staff</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(168,85,247,0.3)' : 'rgba(168,85,247,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#c084fc' : '#9333ea' }]}>14 Reps</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Supervised Staff</Text>
           </View>
-          <View style={[styles.statCard, { borderColor: 'rgba(16,185,129,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>34.8%</Text>
-            <Text style={styles.statLbl}>Conversion Rate</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#34d399' : '#059669' }]}>34.8%</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Conversion Rate</Text>
           </View>
         </View>
 

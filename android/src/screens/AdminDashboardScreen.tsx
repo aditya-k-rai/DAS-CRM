@@ -220,36 +220,60 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         <IngestionChannelsWidget navigation={navigation} />
 
         {/* 📅 SCHEDULED MEETINGS TODAY & UPCOMING WIDGET */}
-        <View style={[styles.cardBox, { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.06)' }]}>
+        <View style={[styles.cardBox, { borderColor: isDark ? 'rgba(129,140,248,0.4)' : 'rgba(99,102,241,0.3)', backgroundColor: isDark ? 'rgba(129,140,248,0.06)' : 'rgba(99,102,241,0.04)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={[styles.cardTitle, { color: '#818cf8' }]}>📅 Scheduled Meetings Today &amp; Upcoming</Text>
+            <Text style={[styles.cardTitle, { color: isDark ? '#818cf8' : '#4f46e5' }]}>📅 Scheduled Meetings Today &amp; Upcoming</Text>
           </View>
 
           {/* Filter Bar */}
           <View style={styles.filterTabRow}>
             <TouchableOpacity
-              style={[styles.filterChip, meetingFilter === 'TODAY' && styles.filterChipActive]}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: meetingFilter === 'TODAY'
+                    ? (isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.12)')
+                    : colors.cardBgElevated,
+                  borderColor: meetingFilter === 'TODAY' ? colors.primary : colors.border,
+                },
+              ]}
               onPress={() => setMeetingFilter('TODAY')}
             >
-              <Text style={[styles.filterChipText, meetingFilter === 'TODAY' && styles.filterChipTextActive]}>
+              <Text style={[styles.filterChipText, { color: meetingFilter === 'TODAY' ? colors.primary : colors.textSecondary }, meetingFilter === 'TODAY' && styles.filterChipTextActive]}>
                 🟢 Today ({todayCount})
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.filterChip, meetingFilter === 'UPCOMING' && styles.filterChipActive]}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: meetingFilter === 'UPCOMING'
+                    ? (isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.12)')
+                    : colors.cardBgElevated,
+                  borderColor: meetingFilter === 'UPCOMING' ? colors.primary : colors.border,
+                },
+              ]}
               onPress={() => setMeetingFilter('UPCOMING')}
             >
-              <Text style={[styles.filterChipText, meetingFilter === 'UPCOMING' && styles.filterChipTextActive]}>
+              <Text style={[styles.filterChipText, { color: meetingFilter === 'UPCOMING' ? colors.primary : colors.textSecondary }, meetingFilter === 'UPCOMING' && styles.filterChipTextActive]}>
                 🔵 Upcoming ({upcomingCount})
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.filterChip, meetingFilter === 'ALL' && styles.filterChipActive]}
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: meetingFilter === 'ALL'
+                    ? (isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.12)')
+                    : colors.cardBgElevated,
+                  borderColor: meetingFilter === 'ALL' ? colors.primary : colors.border,
+                },
+              ]}
               onPress={() => setMeetingFilter('ALL')}
             >
-              <Text style={[styles.filterChipText, meetingFilter === 'ALL' && styles.filterChipTextActive]}>
+              <Text style={[styles.filterChipText, { color: meetingFilter === 'ALL' ? colors.primary : colors.textSecondary }, meetingFilter === 'ALL' && styles.filterChipTextActive]}>
                 All Scheduled ({MOCK_ADMIN_MEETINGS.length})
               </Text>
             </TouchableOpacity>
@@ -260,13 +284,13 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
             {filteredMeetings.map((item, idx) => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && styles.borderBottom]}
+                style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
                 onPress={() => setSelectedMeeting(item)}
                 activeOpacity={0.8}
               >
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.itemName}>{item.leadName}</Text>
+                    <Text style={[styles.itemName, { color: colors.text }]}>{item.leadName}</Text>
                     <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
                       <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
                         {item.status}
@@ -274,11 +298,11 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
                     </View>
                   </View>
 
-                  <Text style={styles.itemSub}>{item.company} • {item.phone}</Text>
-                  <Text style={{ fontSize: 10, color: '#cbd5e1', marginTop: 2, fontWeight: '700' }}>
+                  <Text style={[styles.itemSub, { color: colors.textMuted }]}>{item.company} • {item.phone}</Text>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2, fontWeight: '700' }}>
                     💼 {item.meetingPurpose}
                   </Text>
-                  <Text style={{ fontSize: 9, color: '#818cf8', marginTop: 2, fontWeight: '800' }}>
+                  <Text style={{ fontSize: 9, color: colors.primary, marginTop: 2, fontWeight: '800' }}>
                     👤 Assigned Rep: {item.assignedAgent} ({item.agentRole})
                   </Text>
                 </View>
@@ -288,7 +312,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
                     ⏰ {item.scheduledTimeStr}
                   </Text>
                   <Text style={styles.leadValBadge}>{item.value}</Text>
-                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800', textDecorationLine: 'underline' }}>
+                  <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '800', textDecorationLine: 'underline' }}>
                     Inspect Lead →
                   </Text>
                 </View>
@@ -298,68 +322,68 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         </View>
 
         {/* 👥 WORKFORCE & ATTENDANCE TODAY */}
-        <View style={[styles.cardBox, { borderColor: 'rgba(20, 184, 166, 0.4)', backgroundColor: 'rgba(20, 184, 166, 0.06)' }]}>
+        <View style={[styles.cardBox, { borderColor: 'rgba(20, 184, 166, 0.4)', backgroundColor: isDark ? 'rgba(20, 184, 166, 0.06)' : 'rgba(20, 184, 166, 0.08)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <Text style={[styles.cardTitle, { color: '#2dd4bf' }]}>👥 Workforce &amp; Attendance Today</Text>
+            <Text style={[styles.cardTitle, { color: isDark ? '#2dd4bf' : '#0d9488' }]}>👥 Workforce &amp; Attendance Today</Text>
             <TouchableOpacity onPress={onNavigateToAttendance}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#2dd4bf' }}>79.2% Rate • View All →</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#2dd4bf' : '#0d9488' }}>79.2% Rate • View All →</Text>
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: '#ffffff' }}>19 Present</Text>
-            <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: '600' }}>/ 24 Total Employees</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>19 Present</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>/ 24 Total Employees</Text>
           </View>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
             <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700' }}>🟢 19 Present</Text>
-            <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '700' }}>🟣 3 On Leave</Text>
-            <Text style={{ fontSize: 10, color: '#f87171', fontWeight: '700' }}>🔴 2 Absent</Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#c084fc' : '#9333ea', fontWeight: '700' }}>🟣 3 On Leave</Text>
+            <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🔴 2 Absent</Text>
           </View>
         </View>
 
         {/* ⚡ TODAY'S OPERATIONS & SALES TELEMETRY */}
-        <View style={[styles.cardBox, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: 'rgba(16, 185, 129, 0.06)' }]}>
+        <View style={[styles.cardBox, { borderColor: 'rgba(16, 185, 129, 0.4)', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.06)' : 'rgba(16, 185, 129, 0.08)' }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={[styles.cardTitle, { color: '#34d399' }]}>⚡ Operations &amp; Sales Telemetry</Text>
+            <Text style={[styles.cardTitle, { color: isDark ? '#34d399' : '#059669' }]}>⚡ Operations &amp; Sales Telemetry</Text>
             <TouchableOpacity
               onPress={() => setInDepthReportOpen(true)}
               activeOpacity={0.7}
-              style={{ backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
+              style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.2)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
             >
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#34d399' }}>View In-Depth Report →</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>View In-Depth Report →</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.telemetryGrid}>
+          <View style={[styles.telemetryGrid, { borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
             <View style={styles.telemetryItem}>
-              <Text style={styles.telemetryVal}>142</Text>
-              <Text style={styles.telemetryLbl}>Leads Allocated</Text>
+              <Text style={[styles.telemetryVal, { color: isDark ? '#93c5fd' : '#2563eb' }]}>142</Text>
+              <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Leads Allocated</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: '#818cf8' }]}>384</Text>
-              <Text style={styles.telemetryLbl}>Calls Done</Text>
+              <Text style={[styles.telemetryVal, { color: colors.primary }]}>384</Text>
+              <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Calls Done</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: '#34d399' }]}>820</Text>
-              <Text style={styles.telemetryLbl}>Msgs Sent</Text>
+              <Text style={[styles.telemetryVal, { color: '#10b981' }]}>820</Text>
+              <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Msgs Sent</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: '#fbbf24' }]}>8</Text>
-              <Text style={styles.telemetryLbl}>Deals Closed</Text>
+              <Text style={[styles.telemetryVal, { color: '#f59e0b' }]}>8</Text>
+              <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Deals Closed</Text>
             </View>
           </View>
         </View>
 
         {/* LIVE INGESTION HISTORY */}
-        <Text style={styles.sectionTitle}>Multi-Source Ingestion Telemetry</Text>
-        <View style={styles.cardBox}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Multi-Source Ingestion Telemetry</Text>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {[
             { title: 'Google Sheets Live Sync', status: 'LIVE SYNC', count: 142 },
             { title: 'Excel File Uploads', status: 'BATCH COMPLETE', count: 98 },
             { title: 'Meta Ads Webhook', status: 'ACTIVE HOOK', count: 64 },
           ].map((item, idx) => (
-            <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
+            <View key={idx} style={[styles.itemRow, idx < 2 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{item.title}</Text>
-                <Text style={styles.itemSub}>{item.count} leads ingested</Text>
+                <Text style={[styles.itemName, { color: colors.text }]}>{item.title}</Text>
+                <Text style={[styles.itemSub, { color: colors.textMuted }]}>{item.count} leads ingested</Text>
               </View>
               <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '800' }}>🟢 {item.status}</Text>
             </View>
@@ -374,50 +398,50 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
       <Modal visible={!!selectedMeeting} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           {selectedMeeting && (
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeaderRow}>
+            <View style={[styles.modalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={[styles.modalHeaderRow, { borderBottomColor: colors.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.modalTitle}>📅 Scheduled Meeting &amp; Lead Details</Text>
-                  <Text style={styles.modalSub}>Time: <Text style={{ color: '#34d399', fontWeight: '800' }}>{selectedMeeting.scheduledTimeStr}</Text></Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>📅 Scheduled Meeting &amp; Lead Details</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>Time: <Text style={{ color: '#34d399', fontWeight: '800' }}>{selectedMeeting.scheduledTimeStr}</Text></Text>
                 </View>
-                <TouchableOpacity onPress={() => setSelectedMeeting(null)} style={styles.modalCloseBtn}>
-                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>✕</Text>
+                <TouchableOpacity onPress={() => setSelectedMeeting(null)} style={[styles.modalCloseBtn, { backgroundColor: colors.cardBgElevated }]}>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '900' }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
 
                 {/* Lead Profile Header Card */}
-                <View style={styles.leadInspectHeaderCard}>
+                <View style={[styles.leadInspectHeaderCard, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff' }}>{selectedMeeting.leadName}</Text>
-                    <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{selectedMeeting.company}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '900', color: colors.text }}>{selectedMeeting.leadName}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{selectedMeeting.company}</Text>
                   </View>
                   <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399' }}>{selectedMeeting.value}</Text>
                 </View>
 
                 {/* Meeting Agenda Card */}
-                <View style={styles.inspectDetailBox}>
-                  <Text style={styles.inspectLabel}>🎯 Meeting Agenda &amp; Purpose:</Text>
-                  <Text style={{ fontSize: 12, color: '#ffffff', fontWeight: '700', marginTop: 2 }}>
+                <View style={[styles.inspectDetailBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                  <Text style={[styles.inspectLabel, { color: colors.primary }]}>🎯 Meeting Agenda &amp; Purpose:</Text>
+                  <Text style={{ fontSize: 12, color: colors.text, fontWeight: '700', marginTop: 2 }}>
                     {selectedMeeting.meetingPurpose}
                   </Text>
 
-                  <View style={styles.metaRow}>
-                    <Text style={styles.inspectLabel}>👤 Assigned Staff:</Text>
-                    <Text style={{ fontSize: 11, color: '#818cf8', fontWeight: '800' }}>
+                  <View style={[styles.metaRow, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.inspectLabel, { color: colors.primary }]}>👤 Assigned Staff:</Text>
+                    <Text style={{ fontSize: 11, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800' }}>
                       {selectedMeeting.assignedAgent} ({selectedMeeting.agentRole})
                     </Text>
                   </View>
 
-                  <View style={styles.metaRow}>
-                    <Text style={styles.inspectLabel}>📞 Phone:</Text>
-                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '800' }}>{selectedMeeting.phone}</Text>
+                  <View style={[styles.metaRow, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.inspectLabel, { color: colors.primary }]}>📞 Phone:</Text>
+                    <Text style={{ fontSize: 11, color: colors.text, fontWeight: '800' }}>{selectedMeeting.phone}</Text>
                   </View>
 
-                  <View style={styles.metaRow}>
-                    <Text style={styles.inspectLabel}>✉️ Email:</Text>
-                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '800' }}>{selectedMeeting.email}</Text>
+                  <View style={[styles.metaRow, { borderTopColor: colors.border }]}>
+                    <Text style={[styles.inspectLabel, { color: colors.primary }]}>✉️ Email:</Text>
+                    <Text style={{ fontSize: 11, color: colors.text, fontWeight: '800' }}>{selectedMeeting.email}</Text>
                   </View>
                 </View>
 
@@ -515,32 +539,32 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
               </View>
 
               {/* Call Outcome Distribution Audit */}
-              <View style={{ backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 10 }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>📞 Call Outcome Distribution Audit</Text>
+              <View style={{ backgroundColor: colors.cardBgElevated, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: colors.text, marginBottom: 8 }}>📞 Call Outcome Distribution Audit</Text>
                 {[
                   { outcome: '🟢 Connected / Picked Up', count: '228 Calls', pct: '59.3%', color: '#34d399' },
                   { outcome: '💬 WhatsApp Follow-up Chat', count: '94 Chats', pct: '24.5%', color: '#38bdf8' },
                   { outcome: '🟡 Line Busy / Call Back', count: '42 Calls', pct: '10.9%', color: '#fbbf24' },
                   { outcome: '🔴 Not Responding / Switched Off', count: '20 Calls', pct: '5.2%', color: '#f87171' },
                 ].map((item, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: '#1e293b' }}>
-                    <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>{item.outcome}</Text>
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: colors.border }}>
+                    <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700' }}>{item.outcome}</Text>
                     <Text style={{ fontSize: 10, fontWeight: '900', color: item.color }}>{item.count} ({item.pct})</Text>
                   </View>
                 ))}
               </View>
 
               {/* Sales Rep Leaderboard */}
-              <View style={{ backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: '#1e293b', padding: 12, marginBottom: 12 }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#818cf8', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
+              <View style={{ backgroundColor: colors.cardBgElevated, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
                 {[
                   { rank: '#1', rep: 'Rajesh Kumar (Sales Exec)', calls: '64 Calls', closed: '₹5,20,000' },
                   { rank: '#2', rep: 'Amit Patel (Sales Exec)', calls: '52 Calls', closed: '₹3,50,000' },
                   { rank: '#3', rep: 'Priya Sharma (Sales Exec)', calls: '48 Calls', closed: '₹2,45,000' },
                   { rank: '#4', rep: 'Neha Joshi (Team Leader)', calls: '44 Calls', closed: '₹1,90,000' },
                 ].map((item, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: '#1e293b' }}>
-                    <Text style={{ fontSize: 10, color: '#ffffff', fontWeight: '800' }}>{item.rank} {item.rep}</Text>
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: colors.border }}>
+                    <Text style={{ fontSize: 10, color: colors.text, fontWeight: '800' }}>{item.rank} {item.rep}</Text>
                     <Text style={{ fontSize: 10, fontWeight: '900', color: '#34d399' }}>{item.calls} • {item.closed}</Text>
                   </View>
                 ))}

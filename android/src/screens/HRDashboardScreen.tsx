@@ -83,94 +83,101 @@ export default function HRDashboardScreen({ navigation }: any) {
         <TenantAdminHeaderBanner navigation={navigation} role="HR" />
 
         {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key as any)}
-              activeOpacity={0.8}
-            >
-              <Text
+        <View style={[styles.tabsContainer, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
                 style={[
-                  styles.tabText,
-                  activeTab === tab.key && styles.tabTextActive,
+                  styles.tab,
+                  isActive && [styles.tabActive, { backgroundColor: isDark ? 'rgba(56,189,248,0.22)' : 'rgba(2,132,199,0.12)' }],
                 ]}
+                onPress={() => setActiveTab(tab.key as any)}
+                activeOpacity={0.8}
               >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: isActive ? (isDark ? '#38bdf8' : '#0284c7') : colors.textSecondary },
+                    isActive && { fontWeight: '800' },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* ── OVERVIEW ─────────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
           <View>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
               Human Resources, Attendance &amp; Salary Overview
             </Text>
 
             {/* Stats Grid */}
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, { borderColor: 'rgba(56,189,248,0.3)' }]}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.25)' }]}>
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>👥</Text>
-                  <Text style={[styles.statTag, { color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)' }]}>
+                  <Text style={[styles.statTag, { color: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(2,132,199,0.12)' }]}>
                     +2 New
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: '#38bdf8' }]}>45</Text>
-                <Text style={styles.statLabel}>Total Staff Members</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#38bdf8' : '#0284c7' }]}>45</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Staff Members</Text>
               </View>
 
-              <View style={[styles.statCard, { borderColor: 'rgba(16,185,129,0.3)' }]}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(16,185,129,0.3)' : 'rgba(5,150,105,0.25)' }]}>
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>⏱️</Text>
-                  <Text style={[styles.statTag, { color: '#34d399', backgroundColor: 'rgba(16,185,129,0.15)' }]}>
+                  <Text style={[styles.statTag, { color: isDark ? '#34d399' : '#059669', backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)' }]}>
                     +1.2%
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: '#34d399' }]}>95.5%</Text>
-                <Text style={styles.statLabel}>Attendance Rate Today</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#34d399' : '#059669' }]}>95.5%</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Attendance Rate Today</Text>
               </View>
 
-              <View style={[styles.statCard, { borderColor: 'rgba(245,158,11,0.3)' }]}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(217,119,6,0.25)' }]}>
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>📅</Text>
-                  <Text style={[styles.statTag, { color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.15)' }]}>
+                  <Text style={[styles.statTag, { color: isDark ? '#fbbf24' : '#b45309', backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)' }]}>
                     ACTION
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: '#fbbf24' }]}>3</Text>
-                <Text style={styles.statLabel}>Leave Requests Pending</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#fbbf24' : '#b45309' }]}>3</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Leave Requests Pending</Text>
               </View>
 
-              <View style={[styles.statCard, { borderColor: 'rgba(168,85,247,0.3)' }]}>
+              <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(168,85,247,0.3)' : 'rgba(147,51,234,0.25)' }]}>
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>💳</Text>
-                  <Text style={[styles.statTag, { color: '#c084fc', backgroundColor: 'rgba(168,85,247,0.15)' }]}>
+                  <Text style={[styles.statTag, { color: isDark ? '#c084fc' : '#7c3aed', backgroundColor: isDark ? 'rgba(168,85,247,0.15)' : 'rgba(124,58,237,0.12)' }]}>
                     AUG
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: '#c084fc' }]}>₹64.2L</Text>
-                <Text style={styles.statLabel}>Monthly Payroll Total</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#c084fc' : '#7c3aed' }]}>₹64.2L</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Monthly Payroll Total</Text>
               </View>
             </View>
 
             {/* Attendance Summary */}
-            <Text style={styles.sectionTitle}>Attendance Summary Today</Text>
-            <View style={styles.cardBox}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Attendance Summary Today</Text>
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               {[
-                { label: 'Present Staff', value: '43 Employees', color: '#34d399' },
-                { label: 'On Approved Leave', value: '2 Employees', color: '#fbbf24' },
-                { label: 'Late Arrivals', value: '1 Employee', color: '#f87171' },
-                { label: 'Absent / Unexplained', value: '0 Employees', color: '#64748b' },
+                { label: 'Present Staff', value: '43 Employees', color: isDark ? '#34d399' : '#059669' },
+                { label: 'On Approved Leave', value: '2 Employees', color: isDark ? '#fbbf24' : '#b45309' },
+                { label: 'Late Arrivals', value: '1 Employee', color: isDark ? '#f87171' : '#dc2626' },
+                { label: 'Absent / Unexplained', value: '0 Employees', color: colors.textSecondary },
               ].map((row, i) => (
                 <View
                   key={i}
-                  style={[styles.infoRow, i < 3 && { borderBottomWidth: 1, borderBottomColor: '#1e293b' }]}
+                  style={[styles.infoRow, i < 3 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
                 >
-                  <Text style={styles.infoLabel}>{row.label}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                   <Text style={[styles.infoVal, { color: row.color }]}>
                     {row.value}
                   </Text>
@@ -179,19 +186,19 @@ export default function HRDashboardScreen({ navigation }: any) {
             </View>
 
             {/* Payroll Quick Stats */}
-            <Text style={styles.sectionTitle}>Payroll Quick Stats</Text>
-            <View style={styles.cardBox}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Payroll Quick Stats</Text>
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               {[
-                { label: 'Base Salary Disbursed', value: '₹52.4L', color: '#ffffff' },
-                { label: 'Incentives &amp; Bonuses', value: '₹8.6L', color: '#34d399' },
-                { label: 'Deductions (ESI/PF)', value: '₹3.2L', color: '#f87171' },
-                { label: 'Net Payroll Processed', value: '₹64.2L', color: '#c084fc' },
+                { label: 'Base Salary Disbursed', value: '₹52.4L', color: colors.text },
+                { label: 'Incentives & Bonuses', value: '₹8.6L', color: isDark ? '#34d399' : '#059669' },
+                { label: 'Deductions (ESI/PF)', value: '₹3.2L', color: isDark ? '#f87171' : '#dc2626' },
+                { label: 'Net Payroll Processed', value: '₹64.2L', color: isDark ? '#c084fc' : '#7c3aed' },
               ].map((row, i) => (
                 <View
                   key={i}
-                  style={[styles.infoRow, i < 3 && { borderBottomWidth: 1, borderBottomColor: '#1e293b' }]}
+                  style={[styles.infoRow, i < 3 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
                 >
-                  <Text style={styles.infoLabel}>{row.label}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{row.label}</Text>
                   <Text style={[styles.infoVal, { color: row.color }]}>
                     {row.value}
                   </Text>
@@ -204,30 +211,30 @@ export default function HRDashboardScreen({ navigation }: any) {
         {/* ── ATTENDANCE ───────────────────────────────────────────────── */}
         {activeTab === 'attendance' && (
           <View>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
               Today's attendance log for all staff members
             </Text>
 
             {ATTENDANCE_TODAY.map((emp, i) => {
               const statusColor =
                 emp.status === 'PRESENT'
-                  ? '#34d399'
+                  ? (isDark ? '#34d399' : '#059669')
                   : emp.status === 'LATE'
-                  ? '#fbbf24'
-                  : '#f87171';
+                  ? (isDark ? '#fbbf24' : '#b45309')
+                  : (isDark ? '#f87171' : '#dc2626');
               const statusBg =
                 emp.status === 'PRESENT'
-                  ? 'rgba(16,185,129,0.15)'
+                  ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)')
                   : emp.status === 'LATE'
-                  ? 'rgba(245,158,11,0.15)'
-                  : 'rgba(239,68,68,0.15)';
+                  ? (isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)')
+                  : (isDark ? 'rgba(239,68,68,0.15)' : 'rgba(220,38,38,0.12)');
 
               return (
-                <View key={i} style={styles.attendanceCard}>
+                <View key={i} style={[styles.attendanceCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                   <View
                     style={[
                       styles.avatarCircle,
-                      { backgroundColor: statusColor + '30' },
+                      { backgroundColor: statusColor + '20' },
                     ]}
                   >
                     <Text style={[styles.avatarText, { color: statusColor }]}>
@@ -239,21 +246,21 @@ export default function HRDashboardScreen({ navigation }: any) {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.empName}>{emp.name}</Text>
-                    <Text style={styles.empRole}>{emp.role}</Text>
+                    <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
+                    <Text style={[styles.empRole, { color: colors.textSecondary }]}>{emp.role}</Text>
                   </View>
                   <View>
                     <View
                       style={[
                         styles.statusTag,
-                        { backgroundColor: statusBg, borderColor: statusColor + '60' },
+                        { backgroundColor: statusBg, borderColor: statusColor + '50' },
                       ]}
                     >
                       <Text style={[styles.statusTagText, { color: statusColor }]}>
                         {emp.status}
                       </Text>
                     </View>
-                    <Text style={styles.timeText}>{emp.time}</Text>
+                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{emp.time}</Text>
                   </View>
                 </View>
               );
@@ -264,37 +271,37 @@ export default function HRDashboardScreen({ navigation }: any) {
         {/* ── LEAVE QUEUE ──────────────────────────────────────────────── */}
         {activeTab === 'leaves' && (
           <View>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
               Pending leave requests awaiting HR approval
             </Text>
 
             {leaves.map((req) => {
               const isPending = req.status === 'PENDING';
               return (
-                <View key={req.id} style={styles.leaveCard}>
+                <View key={req.id} style={[styles.leaveCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                   <View style={styles.leaveHeader}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.leaveName}>{req.name}</Text>
-                      <Text style={styles.leaveRole}>{req.role}</Text>
+                      <Text style={[styles.leaveName, { color: colors.text }]}>{req.name}</Text>
+                      <Text style={[styles.leaveRole, { color: colors.textSecondary }]}>{req.role}</Text>
                     </View>
                     <View
                       style={[
                         styles.leaveStatusTag,
                         isPending
                           ? {
-                              backgroundColor: 'rgba(245,158,11,0.15)',
-                              borderColor: 'rgba(245,158,11,0.4)',
+                              backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)',
+                              borderColor: isDark ? 'rgba(245,158,11,0.4)' : 'rgba(217,119,6,0.3)',
                             }
                           : {
-                              backgroundColor: 'rgba(16,185,129,0.15)',
-                              borderColor: 'rgba(16,185,129,0.4)',
+                              backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)',
+                              borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(5,150,105,0.3)',
                             },
                       ]}
                     >
                       <Text
                         style={[
                           styles.leaveStatusText,
-                          { color: isPending ? '#fbbf24' : '#34d399' },
+                          { color: isPending ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#34d399' : '#059669') },
                         ]}
                       >
                         {req.status}
@@ -302,15 +309,19 @@ export default function HRDashboardScreen({ navigation }: any) {
                     </View>
                   </View>
                   <View style={styles.leaveDetails}>
-                    <Text style={styles.leaveType}>
+                    <Text style={[styles.leaveType, { color: colors.textSecondary }]}>
                       📋 {req.type} — {req.days} Day{req.days > 1 ? 's' : ''}
                     </Text>
-                    <Text style={styles.leaveDates}>📅 {req.dates}</Text>
+                    <Text style={[styles.leaveDates, { color: colors.textSecondary }]}>📅 {req.dates}</Text>
                   </View>
                   {isPending && (
                     <View style={styles.leaveActions}>
                       <TouchableOpacity
-                        style={[styles.leaveActionBtn, styles.approveBtn]}
+                        style={[
+                          styles.leaveActionBtn,
+                          styles.approveBtn,
+                          !isDark && { backgroundColor: 'rgba(5,150,105,0.12)', borderColor: 'rgba(5,150,105,0.35)' },
+                        ]}
                         onPress={() => {
                           setLeaves((prev) =>
                             prev.map((l) => (l.id === req.id ? { ...l, status: 'APPROVED' } : l))
@@ -319,12 +330,16 @@ export default function HRDashboardScreen({ navigation }: any) {
                         }}
                         activeOpacity={0.8}
                       >
-                        <Text style={[styles.leaveActionText, { color: '#34d399' }]}>
+                        <Text style={[styles.leaveActionText, { color: isDark ? '#34d399' : '#059669' }]}>
                           ✓ Approve
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.leaveActionBtn, styles.rejectBtn]}
+                        style={[
+                          styles.leaveActionBtn,
+                          styles.rejectBtn,
+                          !isDark && { backgroundColor: 'rgba(220,38,38,0.12)', borderColor: 'rgba(220,38,38,0.35)' },
+                        ]}
                         onPress={() => {
                           setLeaves((prev) =>
                             prev.map((l) => (l.id === req.id ? { ...l, status: 'REJECTED' } : l))
@@ -333,7 +348,7 @@ export default function HRDashboardScreen({ navigation }: any) {
                         }}
                         activeOpacity={0.8}
                       >
-                        <Text style={[styles.leaveActionText, { color: '#f87171' }]}>
+                        <Text style={[styles.leaveActionText, { color: isDark ? '#f87171' : '#dc2626' }]}>
                           ✕ Reject
                         </Text>
                       </TouchableOpacity>

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, Theme } from '../context/ThemeContext';
 import { useLanguage, AppLanguage } from '../context/LanguageContext';
 
 const PREF_PUSH_KEY = '@das_crm_pref_push_alerts';
@@ -25,7 +25,7 @@ interface AppSettingsScreenProps {
 
 export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose }) => {
   const insets = useSafeAreaInsets();
-  const { resolvedTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const { language, setLanguage, t } = useLanguage();
 
@@ -63,9 +63,9 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
     loadPreferences();
   }, []);
 
-  // Theme toggle handler (direct instant theme update)
-  const handleDarkModeToggle = (val: boolean) => {
-    setTheme(val ? 'dark' : 'light');
+  // Theme selection handler (direct instant theme update)
+  const handleSelectTheme = (newTheme: Theme) => {
+    setTheme(newTheme);
   };
 
   // Language selection handler
@@ -101,6 +101,18 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
   const titleColor = isDark ? '#f8fafc' : '#0f172a';
   const subColor = isDark ? '#94a3b8' : '#64748b';
   const backBannerBg = isDark ? '#0f172a' : '#ffffff';
+
+  const THEME_OPTIONS: { key: Theme; label: string; subLabel: string; icon: string; badge?: string }[] = [
+    {
+      key: 'system',
+      label: 'System Sync',
+      subLabel: `Auto-syncs with device Day/Night theme (${resolvedTheme === 'dark' ? '🌙 Dark Active' : '☀️ Light Active'})`,
+      icon: '⚙️',
+      badge: 'DEFAULT',
+    },
+    { key: 'light', label: 'Light Mode', subLabel: 'Clean high-contrast daytime interface', icon: '☀️' },
+    { key: 'dark', label: 'Dark Mode', subLabel: 'OLED-optimized low-glare nighttime interface', icon: '🌙' },
+  ];
 
   const LANGUAGE_OPTIONS: { key: AppLanguage; label: string; subLabel: string; flag: string; badge?: string }[] = [
     { key: 'en', label: t.english, subLabel: 'English (US / UK)', flag: '🇺🇸', badge: t.defaultBadge },
@@ -206,6 +218,63 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
           })}
         </View>
 
+        {/* 🎨 THEME & APPEARANCE (SYSTEM SYNC DEFAULT) */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: titleColor }]}>Theme & Appearance</Text>
+          <Text style={[styles.sectionSub, { color: subColor }]}>System Sync by default or choose manual preference</Text>
+        </View>
+
+        <View style={styles.languageCardsContainer}>
+          {THEME_OPTIONS.map((item) => {
+            const isSelected = theme === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.languageCard,
+                  {
+                    backgroundColor: isSelected
+                      ? isDark ? 'rgba(79, 70, 229, 0.16)' : 'rgba(79, 70, 229, 0.08)'
+                      : cardBg,
+                    borderColor: isSelected ? '#4f46e5' : borderColor,
+                    borderWidth: isSelected ? 2 : 1,
+                  },
+                ]}
+                onPress={() => handleSelectTheme(item.key)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.languageCardLeft}>
+                  <View style={[styles.flagBadge, { backgroundColor: isSelected ? '#4f46e5' : (isDark ? '#1e293b' : '#f1f5f9') }]}>
+                    <Text style={{ fontSize: 16 }}>{item.icon}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text
+                        style={[
+                          styles.languageCardTitle,
+                          { color: isSelected ? '#6366f1' : titleColor, fontWeight: isSelected ? '800' : '700' },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      {item.badge && (
+                        <View style={[styles.defaultPill, { backgroundColor: 'rgba(52, 211, 153, 0.15)', borderColor: 'rgba(52, 211, 153, 0.4)' }]}>
+                          <Text style={[styles.defaultPillText, { color: '#34d399' }]}>{item.badge}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.languageCardSub, { color: subColor }]}>{item.subLabel}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                  {isSelected && <View style={styles.radioInnerDot} />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         {/* 🎛️ SYSTEM CONTROLS & TOGGLES */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { color: titleColor }]}>System & Device Preferences</Text>
@@ -224,20 +293,6 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
               onValueChange={setPushAlerts}
               trackColor={{ false: '#334155', true: '#4f46e5' }}
               thumbColor={pushAlerts ? '#ffffff' : '#94a3b8'}
-            />
-          </View>
-
-          {/* 🌙 Dark Mode Theme */}
-          <View style={[styles.settingRow, { borderBottomColor: borderColor }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, { color: titleColor }]}>{t.darkModeTitle}</Text>
-              <Text style={[styles.settingDesc, { color: subColor }]}>{t.darkModeDesc}</Text>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={handleDarkModeToggle}
-              trackColor={{ false: '#cbd5e1', true: '#4f46e5' }}
-              thumbColor={isDark ? '#ffffff' : '#f8fafc'}
             />
           </View>
 

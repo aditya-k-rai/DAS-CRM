@@ -521,17 +521,23 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     filteredLeads.map((item, index) => (
       <View
         key={item.id}
-        style={[styles.excelDataRow, index % 2 === 1 && styles.excelRowAlt]}
+        style={[
+          styles.excelDataRow,
+          {
+            backgroundColor: index % 2 === 1 ? (isDark ? '#0b1120' : '#f8fafc') : colors.cardBg,
+            borderBottomColor: colors.border,
+          },
+        ]}
       >
-        <View style={styles.excelRowNum}>
-          <Text style={styles.excelRowNumText}>{index + 1}</Text>
+        <View style={[styles.excelRowNum, { backgroundColor: colors.cardBgElevated, borderRightColor: colors.border }]}>
+          <Text style={[styles.excelRowNumText, { color: colors.textMuted }]}>{index + 1}</Text>
         </View>
         {columnOrder.map((colKey) =>
           renderExcelCell(item, colKey, columnWidths[colKey] || 140)
         )}
       </View>
     ))
-    , [filteredLeads, columnOrder, columnWidths]);
+    , [filteredLeads, columnOrder, columnWidths, colors, isDark]);
 
   // ── RENDER EXCEL CELL BY COLUMN KEY ────────────────────────────────────────
   const renderExcelCell = (item: LeadItem, colKey: string, width: number) => {
@@ -540,59 +546,59 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         return (
           <TouchableOpacity
             key={colKey}
-            style={[styles.excelDataCell, { width }]}
+            style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}
             onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name })}
           >
-            <Text style={styles.excelCellName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+            <Text style={[styles.excelCellName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           </TouchableOpacity>
         );
       case 'email':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellEmail} numberOfLines={1} ellipsizeMode="tail">{item.email}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellEmail, { color: isDark ? '#38bdf8' : '#0284c7' }]} numberOfLines={1} ellipsizeMode="tail">{item.email}</Text>
           </View>
         );
       case 'phone':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width, flexDirection: 'column', justifyContent: 'center' }]}>
-            <Text style={styles.excelCellPhone} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
-            <Text style={styles.excelCellTelemetry} numberOfLines={1} ellipsizeMode="tail">
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border, flexDirection: 'column', justifyContent: 'center' }]}>
+            <Text style={[styles.excelCellPhone, { color: isDark ? '#34d399' : '#059669' }]} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
+            <Text style={[styles.excelCellTelemetry, { color: colors.textMuted }]} numberOfLines={1} ellipsizeMode="tail">
               {item.callSyncStatus || 'Synced: Today 2:45 PM • Connected'}
             </Text>
           </View>
         );
       case 'company':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCompany} numberOfLines={1} ellipsizeMode="tail">{item.company}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellCompany, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.company}</Text>
           </View>
         );
       case 'source':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <View style={[styles.excelSourceBadge, { maxWidth: '100%' }]}>
-              <Text style={styles.excelSourceText} numberOfLines={1} ellipsizeMode="tail">{item.source}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <View style={[styles.excelSourceBadge, { maxWidth: '100%', backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)' }]}>
+              <Text style={[styles.excelSourceText, { color: isDark ? '#a5b4fc' : '#4f46e5' }]} numberOfLines={1} ellipsizeMode="tail">{item.source}</Text>
             </View>
           </View>
         );
       case 'status':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
             <View style={[styles.excelStagePill, {
               maxWidth: '100%',
-              backgroundColor: item.status.includes('Won') || item.status === 'WON' ? 'rgba(16,185,129,0.15)' : item.status.includes('Negotiation') ? 'rgba(245,158,11,0.15)' : 'rgba(99,102,241,0.15)',
-              borderColor: item.status.includes('Won') || item.status === 'WON' ? 'rgba(16,185,129,0.4)' : item.status.includes('Negotiation') ? 'rgba(245,158,11,0.4)' : 'rgba(99,102,241,0.4)',
+              backgroundColor: item.status.includes('Won') || item.status === 'WON' ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)') : item.status.includes('Negotiation') ? (isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)') : (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.12)'),
+              borderColor: item.status.includes('Won') || item.status === 'WON' ? (isDark ? 'rgba(16,185,129,0.4)' : '#10b981') : item.status.includes('Negotiation') ? (isDark ? 'rgba(245,158,11,0.4)' : '#f59e0b') : (isDark ? 'rgba(99,102,241,0.4)' : '#6366f1'),
             }]}>
               <Text style={[styles.excelStageText, {
-                color: item.status.includes('Won') || item.status === 'WON' ? '#34d399' : item.status.includes('Negotiation') ? '#fbbf24' : '#818cf8',
+                color: item.status.includes('Won') || item.status === 'WON' ? (isDark ? '#34d399' : '#059669') : item.status.includes('Negotiation') ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#818cf8' : '#4338ca'),
               }]} numberOfLines={1} ellipsizeMode="tail">{item.status}</Text>
             </View>
           </View>
         );
       case 'value':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellValue} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellValue, { color: isDark ? '#34d399' : '#059669' }]} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
           </View>
         );
       case 'assignedRep': {
@@ -601,27 +607,27 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
         if (isLocked) {
           return (
-            <View key={colKey} style={[styles.excelDataCell, { width }]}>
+            <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
               <TouchableOpacity
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 4,
-                  backgroundColor: '#020617',
+                  backgroundColor: colors.cardBgElevated,
                   paddingHorizontal: 6,
                   paddingVertical: 4,
                   borderRadius: 6,
                   borderWidth: 1,
-                  borderColor: '#1e293b',
+                  borderColor: colors.border,
                   maxWidth: '100%',
                   overflow: 'hidden',
                 }}
                 onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
               >
                 <Text style={{ fontSize: 10, flexShrink: 0 }}>🔒</Text>
-                <Text style={[styles.excelCellRep, { fontSize: 10, color: '#cbd5e1', flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">{item.assignedRep}</Text>
-                <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 }}>
-                  <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
+                <Text style={[styles.excelCellRep, { fontSize: 10, color: colors.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">{item.assignedRep}</Text>
+                <View style={{ backgroundColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, flexShrink: 0 }}>
+                  <Text style={{ color: isDark ? '#fbbf24' : '#b45309', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -629,23 +635,23 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         }
 
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
             <TouchableOpacity
               style={[
                 {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  backgroundColor: '#0f172a',
+                  backgroundColor: colors.cardBgElevated,
                   paddingHorizontal: 8,
                   paddingVertical: 4,
                   borderRadius: 6,
                   borderWidth: 1,
-                  borderColor: '#334155',
+                  borderColor: colors.border,
                   maxWidth: '100%',
                   overflow: 'hidden',
                 },
-                isUnassigned && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b' },
+                isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
               ]}
               onPress={() => {
                 Alert.alert(
@@ -662,39 +668,39 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               }}
             >
               <Text
-                style={[{ fontSize: 10, fontWeight: '800', color: '#818cf8', flex: 1, marginRight: 4 }, isUnassigned && { color: '#fbbf24' }]}
+                style={[{ fontSize: 10, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5', flex: 1, marginRight: 4 }, isUnassigned && { color: isDark ? '#fbbf24' : '#b45309' }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
                 {isUnassigned ? '⚠️ Unassigned' : item.assignedRep}
               </Text>
-              <Text style={{ color: '#64748b', fontSize: 9, flexShrink: 0 }}>▼</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 9, flexShrink: 0 }}>▼</Text>
             </TouchableOpacity>
           </View>
         );
       }
       case 'city':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.city || 'Mumbai'}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.city || 'Mumbai'}</Text>
           </View>
         );
       case 'budget':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.budget || '50k-1L'}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.budget || '50k-1L'}</Text>
           </View>
         );
       case 'requirement':
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom} numberOfLines={1} ellipsizeMode="tail">{item.requirement || 'CRM Suite'}</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.requirement || 'CRM Suite'}</Text>
           </View>
         );
       default:
         return (
-          <View key={colKey} style={[styles.excelDataCell, { width }]}>
-            <Text style={styles.excelCellCustom} numberOfLines={1}>-</Text>
+          <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
+            <Text style={[styles.excelCellCustom, { color: colors.textMuted }]} numberOfLines={1}>-</Text>
           </View>
         );
     }
@@ -713,21 +719,21 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]} edges={['bottom']}>
       {/* ── TOP SEGMENTED SLIDER (FUNNEL vs COLLECTIONS) ───────────────────── */}
       <View style={styles.sliderContainer}>
-        <View style={[styles.sliderTrack, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+        <View style={[styles.sliderTrack, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
           <TouchableOpacity
-            style={[styles.sliderSegment, activeSegment === 'FUNNEL' && styles.sliderSegmentActive]}
+            style={[styles.sliderSegment, activeSegment === 'FUNNEL' && [styles.sliderSegmentActive, { backgroundColor: colors.primary }]]}
             onPress={() => setActiveSegment('FUNNEL')}
           >
-            <Text style={[styles.sliderText, activeSegment === 'FUNNEL' && styles.sliderTextActive]}>
+            <Text style={[styles.sliderText, { color: activeSegment === 'FUNNEL' ? '#ffffff' : colors.textSecondary }, activeSegment === 'FUNNEL' && styles.sliderTextActive]}>
               {t.leadsFunnelTab}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.sliderSegment, activeSegment === 'COLLECTIONS' && styles.sliderSegmentActive]}
+            style={[styles.sliderSegment, activeSegment === 'COLLECTIONS' && [styles.sliderSegmentActive, { backgroundColor: colors.primary }]]}
             onPress={() => setActiveSegment('COLLECTIONS')}
           >
-            <Text style={[styles.sliderText, activeSegment === 'COLLECTIONS' && styles.sliderTextActive]}>
+            <Text style={[styles.sliderText, { color: activeSegment === 'COLLECTIONS' ? '#ffffff' : colors.textSecondary }, activeSegment === 'COLLECTIONS' && styles.sliderTextActive]}>
               {t.leadsCollectionsTab}
             </Text>
           </TouchableOpacity>
@@ -751,22 +757,22 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           />
 
           {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
-          <View style={auditStyles.auditSectionCard}>
+          <View style={[auditStyles.auditSectionCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             {/* Header Row */}
             <View style={auditStyles.sectionHeaderRow}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <Text style={auditStyles.sectionHeaderIcon}>📊</Text>
-                  <Text style={auditStyles.sectionHeaderTitle}>Spreadsheet Ingestion &amp; Allocation Log</Text>
+                  <Text style={[auditStyles.sectionHeaderTitle, { color: colors.text }]}>Spreadsheet Ingestion &amp; Allocation Log</Text>
                 </View>
-                <Text style={auditStyles.sectionHeaderSub}>
+                <Text style={[auditStyles.sectionHeaderSub, { color: colors.textMuted }]}>
                   Audit history of when, at what time, which sheets were injected, and employee assignments.
                 </Text>
               </View>
             </View>
 
             {/* Segmented Filter Pills */}
-            <View style={auditStyles.filterPillTrack}>
+            <View style={[auditStyles.filterPillTrack, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
               {[
                 { id: 'ALL', label: 'All Files', count: auditLogs.length },
                 { id: 'PENDING', label: 'Pending', count: auditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length, isWarn: true },
@@ -778,7 +784,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     key={tab.id}
                     style={[
                       auditStyles.filterPill,
-                      isActive && auditStyles.filterPillActive,
+                      isActive && [auditStyles.filterPillActive, { backgroundColor: colors.cardBg }],
                       isActive && tab.isWarn && auditStyles.filterPillActiveWarn,
                       isActive && tab.isSuccess && auditStyles.filterPillActiveSuccess,
                     ]}
@@ -788,9 +794,9 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                     <Text
                       style={[
                         auditStyles.filterPillText,
-                        isActive && auditStyles.filterPillTextActive,
-                        isActive && tab.isWarn && { color: '#fbbf24' },
-                        isActive && tab.isSuccess && { color: '#34d399' },
+                        { color: isActive ? colors.text : colors.textSecondary },
+                        isActive && tab.isWarn && { color: isDark ? '#fbbf24' : '#b45309' },
+                        isActive && tab.isSuccess && { color: isDark ? '#34d399' : '#059669' },
                       ]}
                     >
                       {tab.label}
@@ -806,9 +812,9 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       <Text
                         style={[
                           auditStyles.filterCountBadgeText,
-                          isActive && auditStyles.filterCountBadgeTextActive,
-                          isActive && tab.isWarn && { color: '#fbbf24' },
-                          isActive && tab.isSuccess && { color: '#34d399' },
+                          { color: isActive ? colors.text : colors.textSecondary },
+                          isActive && tab.isWarn && { color: isDark ? '#fbbf24' : '#b45309' },
+                          isActive && tab.isSuccess && { color: isDark ? '#34d399' : '#059669' },
                         ]}
                       >
                         {tab.count}
@@ -835,7 +841,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       key={item.id}
                       style={[
                         auditStyles.logCard,
-                        isPending ? auditStyles.logCardPending : auditStyles.logCardAllocated,
+                        { backgroundColor: colors.cardBg, borderColor: colors.border },
+                        isPending && auditStyles.logCardPending,
                       ]}
                     >
                       {/* Top Header: File Info & Status Badge */}
@@ -845,7 +852,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             <Text style={auditStyles.fileIconEmoji}>{isCsv ? '📊' : '📑'}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={auditStyles.logCardFileName} numberOfLines={1}>
+                            <Text style={[auditStyles.logCardFileName, { color: colors.text }]} numberOfLines={1}>
                               {item.fileName}
                             </Text>
                             <Text style={auditStyles.logCardTimestamp}>
@@ -863,7 +870,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                           activeOpacity={0.8}
                         >
                           <Text style={auditStyles.statusBadgeDot}>{isPending ? '⏳' : '✓'}</Text>
-                          <Text style={[auditStyles.statusBadgeText, isPending ? { color: '#fbbf24' } : { color: '#34d399' }]}>
+                          <Text style={[auditStyles.statusBadgeText, isPending ? { color: isDark ? '#fbbf24' : '#b45309' } : { color: isDark ? '#34d399' : '#059669' }]}>
                             {isPending ? 'PENDING ALLOCATION' : 'ALLOCATED'}
                           </Text>
                         </TouchableOpacity>
@@ -871,28 +878,28 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
                       {/* Middle: Metadata Pills Grid */}
                       <View style={auditStyles.metaChipsRow}>
-                        <View style={auditStyles.metaChip}>
+                        <View style={[auditStyles.metaChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                           <Text style={auditStyles.metaChipIcon}>🌐</Text>
-                          <Text style={auditStyles.metaChipLabel}>Source:</Text>
-                          <Text style={[auditStyles.metaChipVal, { color: '#38bdf8' }]}>{item.platform}</Text>
+                          <Text style={[auditStyles.metaChipLabel, { color: colors.textMuted }]}>Source:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{item.platform}</Text>
                         </View>
 
-                        <View style={auditStyles.metaChip}>
+                        <View style={[auditStyles.metaChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                           <Text style={auditStyles.metaChipIcon}>📈</Text>
-                          <Text style={auditStyles.metaChipLabel}>Rows:</Text>
-                          <Text style={[auditStyles.metaChipVal, { color: '#34d399' }]}>{item.leadsCount} Leads</Text>
+                          <Text style={[auditStyles.metaChipLabel, { color: colors.textMuted }]}>Rows:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: isDark ? '#34d399' : '#059669' }]}>{item.leadsCount} Leads</Text>
                         </View>
 
-                        <View style={auditStyles.metaChip}>
+                        <View style={[auditStyles.metaChip, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                           <Text style={auditStyles.metaChipIcon}>📐</Text>
-                          <Text style={auditStyles.metaChipLabel}>Cols:</Text>
-                          <Text style={[auditStyles.metaChipVal, { color: '#818cf8' }]}>{item.colsCount || 6} Fields</Text>
+                          <Text style={[auditStyles.metaChipLabel, { color: colors.textMuted }]}>Cols:</Text>
+                          <Text style={[auditStyles.metaChipVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>{item.colsCount || 6} Fields</Text>
                         </View>
                       </View>
 
                       {/* Allocated Summary Box if already allocated */}
                       {!isPending && item.allocationSummary && (
-                        <View style={auditStyles.allocatedSummaryBox}>
+                        <View style={[auditStyles.allocatedSummaryBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
                           <Text style={auditStyles.allocatedSummaryIcon}>👥</Text>
                           <Text style={auditStyles.allocatedSummaryText} numberOfLines={2}>
                             {item.allocationSummary}
@@ -1074,10 +1081,13 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 ].map(p => (
                   <TouchableOpacity
                     key={p.id}
-                    style={[{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }, filterPerson === p.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
+                    style={[
+                      { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border },
+                      filterPerson === p.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                    ]}
                     onPress={() => setFilterPerson(p.id)}
                   >
-                    <Text style={[{ fontSize: 9, fontWeight: '800', color: colors.textMuted }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
+                    <Text style={[{ fontSize: 9, fontWeight: '800', color: colors.textSecondary }, filterPerson === p.id && { color: '#ffffff' }]}>{p.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1092,10 +1102,26 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               style={styles.filterScroll}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[styles.filterChip, activeFilter === item && styles.filterChipActive]}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor: activeFilter === item
+                        ? (isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.12)')
+                        : colors.cardBgElevated,
+                      borderColor: activeFilter === item ? colors.primary : colors.border,
+                    },
+                  ]}
                   onPress={() => setActiveFilter(item)}
                 >
-                  <Text style={[styles.filterText, activeFilter === item && styles.filterTextActive]}>{getFilterLabel(item)}</Text>
+                  <Text
+                    style={[
+                      styles.filterText,
+                      { color: activeFilter === item ? colors.primary : colors.textSecondary },
+                      activeFilter === item && styles.filterTextActive,
+                    ]}
+                  >
+                    {getFilterLabel(item)}
+                  </Text>
                 </TouchableOpacity>
               )}
             />
@@ -1110,7 +1136,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
              * Single outer horizontal ScrollView contains Header + Data Rows.
              * Inner container sets minWidth = totalExcelWidth and flex = 1 vertically.
              */
-            <View style={styles.excelOuter}>
+            <View style={[styles.excelOuter, { backgroundColor: colors.bg }]}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={true}
@@ -1119,45 +1145,45 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               >
                 <View style={{ minWidth: totalExcelWidth, flex: 1 }}>
                   {/* ── STICKY HEADER TOOLBAR ─────────────────────────── */}
-                  <View style={styles.excelToolbar}>
-                    <View style={styles.excelRowNumCorner}>
-                      <Text style={styles.excelRowNumCornerText}>#</Text>
+                  <View style={[styles.excelToolbar, { backgroundColor: colors.cardBgElevated, borderBottomColor: colors.border }]}>
+                    <View style={[styles.excelRowNumCorner, { backgroundColor: colors.cardBgElevated, borderBottomColor: colors.border }]}>
+                      <Text style={[styles.excelRowNumCornerText, { color: colors.textMuted }]}>#</Text>
                     </View>
                     {columnOrder.map((colKey, colIdx) => {
                       const colWidth = columnWidths[colKey] || 140;
                       const colName = columnNames[colKey] || colKey;
                       return (
-                        <View key={colKey} style={[styles.excelColControl, { width: colWidth }]}>
+                        <View key={colKey} style={[styles.excelColControl, { width: colWidth, borderRightColor: colors.border }]}>
                           <TouchableOpacity
-                            style={styles.excelColTitleBtn}
+                            style={[styles.excelColTitleBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
                             onPress={() => openHeaderRenameModal(colKey)}
                             activeOpacity={0.7}
                           >
-                            <Text style={styles.excelColTitleText} numberOfLines={1}>{colName}</Text>
+                            <Text style={[styles.excelColTitleText, { color: colors.primary }]} numberOfLines={1}>{colName}</Text>
                           </TouchableOpacity>
                           <View style={styles.excelColControls}>
                             <TouchableOpacity
-                              style={[styles.excelColBtn, colIdx === 0 && styles.excelColBtnDisabled]}
+                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }, colIdx === 0 && styles.excelColBtnDisabled]}
                               disabled={colIdx === 0}
                               onPress={() => moveColumnLeft(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={styles.excelColBtnText}>←</Text>
+                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>←</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[styles.excelColBtn, colIdx === columnOrder.length - 1 && styles.excelColBtnDisabled]}
+                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }, colIdx === columnOrder.length - 1 && styles.excelColBtnDisabled]}
                               disabled={colIdx === columnOrder.length - 1}
                               onPress={() => moveColumnRight(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={styles.excelColBtnText}>→</Text>
+                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>→</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={styles.excelColBtn}
+                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
                               onPress={() => toggleColumnWidth(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={styles.excelColBtnText}>↔</Text>
+                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>↔</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -1186,39 +1212,39 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.leadCard}
+                  style={[styles.leadCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
                   onPress={() => navigation.navigate('LeadDetail', { leadId: item.id, leadName: item.name })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.cardHeader}>
                     <View style={styles.cardHeaderLeft}>
-                      <Text style={styles.leadName}>{item.name}</Text>
+                      <Text style={[styles.leadName, { color: colors.text }]}>{item.name}</Text>
                       {item.aiScore && (
                         <AIScoreBadge score={item.aiScore} compact />
                       )}
                     </View>
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <TouchableOpacity style={styles.editRowBtn} onPress={() => setEditingLead(item)}>
-                        <Text style={styles.editRowBtnText}>✏️ Edit</Text>
+                      <TouchableOpacity style={[styles.editRowBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={() => setEditingLead(item)}>
+                        <Text style={[styles.editRowBtnText, { color: colors.primary }]}>✏️ Edit</Text>
                       </TouchableOpacity>
                       <View style={[styles.statusBadge, {
-                        backgroundColor: item.status === 'WON' ? 'rgba(16,185,129,0.15)' : 'rgba(56,189,248,0.15)',
-                        borderColor: item.status === 'WON' ? 'rgba(16,185,129,0.4)' : 'rgba(56,189,248,0.4)',
+                        backgroundColor: item.status === 'WON' ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)') : (isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.12)'),
+                        borderColor: item.status === 'WON' ? (isDark ? 'rgba(16,185,129,0.4)' : '#10b981') : (isDark ? 'rgba(56,189,248,0.4)' : '#0284c7'),
                       }]}>
-                        <Text style={[styles.statusText, { color: item.status === 'WON' ? '#34d399' : '#38bdf8' }]}>{item.status}</Text>
+                        <Text style={[styles.statusText, { color: item.status === 'WON' ? (isDark ? '#34d399' : '#059669') : (isDark ? '#38bdf8' : '#0284c7') }]}>{item.status}</Text>
                       </View>
                     </View>
                   </View>
 
-                  <Text style={styles.leadCompany}>{item.company} • {item.email}</Text>
+                  <Text style={[styles.leadCompany, { color: colors.textMuted }]}>{item.company} • {item.email}</Text>
 
                   <View style={{ marginVertical: 4 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '900', color: '#34d399', letterSpacing: 0.3 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#34d399' : '#059669', letterSpacing: 0.3 }}>
                       📞 {item.phone}
                     </Text>
                   </View>
 
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
+                  <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
                     {(() => {
                       const isLocked = isLeadContactedAndLocked({ status: item.status, stage: item.status, totalCalls: item.callSyncStatus ? 1 : 0 });
                       const isUnassigned = !item.assignedRep || item.assignedRep === 'Unassigned' || item.assignedRep === '—';
@@ -1226,13 +1252,13 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       if (isLocked) {
                         return (
                           <TouchableOpacity
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#020617', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#1e293b' }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border }}
                             onPress={() => Alert.alert('🔒 Assignment Locked', 'This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.')}
                           >
                             <Text style={{ fontSize: 10 }}>🔒</Text>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#cbd5e1' }}>{item.assignedRep}</Text>
-                            <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
-                              <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.text }}>{item.assignedRep}</Text>
+                            <View style={{ backgroundColor: isDark ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.15)', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ color: isDark ? '#fbbf24' : '#b45309', fontSize: 8, fontWeight: '900' }}>LOCKED</Text>
                             </View>
                           </TouchableOpacity>
                         );
@@ -1241,8 +1267,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       return (
                         <TouchableOpacity
                           style={[
-                            { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0f172a', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#334155' },
-                            isUnassigned && { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b' },
+                            { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.cardBgElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+                            isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
                           ]}
                           onPress={() => {
                             Alert.alert(

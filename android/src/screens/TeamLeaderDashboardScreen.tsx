@@ -52,31 +52,31 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.headerBox}>
-          <Text style={styles.headerTitle}>🛡️ Team Leader Unit Workspace</Text>
-          <Text style={styles.headerSub}>{currentUser.name} • {currentUser.companyName}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>🛡️ Team Leader Unit Workspace</Text>
+          <Text style={[styles.headerSub, { color: colors.textMuted }]}>{currentUser.name} • {currentUser.companyName}</Text>
         </View>
 
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: 'rgba(99,102,241,0.3)' }]}>
-            <Text style={styles.statVal}>₹14.2L</Text>
-            <Text style={styles.statLbl}>Team Unit Revenue (🥇 #1)</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹14.2L</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Team Unit Revenue (🥇 #1)</Text>
           </View>
-          <View style={[styles.statCard, { borderColor: 'rgba(56,189,248,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{repsList.length} Execs</Text>
-            <Text style={styles.statLbl}>Supervised Execs</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{repsList.length} Execs</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Supervised Execs</Text>
           </View>
-          <View style={[styles.statCard, { borderColor: 'rgba(245,158,11,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#fbbf24' }]}>18 Leads</Text>
-            <Text style={styles.statLbl}>Unassigned Queue</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.4)' }]}>
+            <Text style={[styles.statVal, { color: isDark ? '#fbbf24' : '#d97706' }]}>18 Leads</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Unassigned Queue</Text>
           </View>
         </View>
 
         {/* Synchronized Attendance Status */}
-        <View style={styles.cardBox}>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
-              <Text style={styles.cardTitle}>⏱️ Attendance Logger</Text>
-              <Text style={styles.cardSub}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (09:05 AM)</Text></Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance Logger</Text>
+              <Text style={[styles.cardSub, { color: colors.textMuted }]}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (09:05 AM)</Text></Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance}>
               <Text style={styles.actionBtnText}>Mark Attendance →</Text>
@@ -85,16 +85,16 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
         </View>
 
         {/* Rep Leaderboard */}
-        <Text style={styles.sectionTitle}>Supervised Rep Leaderboard</Text>
-        <View style={styles.cardBox}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Supervised Rep Leaderboard</Text>
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {repsList.map((rep, idx) => (
-            <View key={rep.name} style={[styles.itemRow, idx < repsList.length - 1 && styles.borderBottom]}>
+            <View key={rep.name} style={[styles.itemRow, idx < repsList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{rep.name}</Text>
-                <Text style={styles.itemSub}>{rep.leads} Leads Assigned • {rep.calls} Calls</Text>
+                <Text style={[styles.itemName, { color: colors.text }]}>{rep.name}</Text>
+                <Text style={[styles.itemSub, { color: colors.textMuted }]}>{rep.leads} Leads Assigned • {rep.calls} Calls</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Text style={styles.itemVal}>{rep.rev}</Text>
+                <Text style={[styles.itemVal, { color: colors.primary }]}>{rep.rev}</Text>
                 <TouchableOpacity
                   style={styles.assignBtn}
                   onPress={() => {
@@ -115,9 +115,9 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
       <React.Fragment>
         {assignModalOpen && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <View style={{ width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 16, borderColor: '#1e293b', borderWidth: 1, padding: 18, gap: 12 }}>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: '#ffffff' }}>🎯 Assign Queue Lead to {selectedRep}</Text>
-              <Text style={{ fontSize: 11, color: '#94a3b8' }}>Select an unassigned inbound lead from the unit queue:</Text>
+            <View style={{ width: '100%', maxWidth: 420, backgroundColor: colors.cardBg, borderRadius: 16, borderColor: colors.border, borderWidth: 1, padding: 18, gap: 12 }}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: colors.text }}>🎯 Assign Queue Lead to {selectedRep}</Text>
+              <Text style={{ fontSize: 11, color: colors.textMuted }}>Select an unassigned inbound lead from the unit queue:</Text>
 
               {[
                 'LogiTech Freight Systems (₹3,50,000)',
@@ -126,16 +126,16 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
               ].map((leadTitle) => (
                 <TouchableOpacity
                   key={leadTitle}
-                  style={[{ padding: 10, borderRadius: 10, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, selectedLeadToAssign === leadTitle && { borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.12)' }]}
+                  style={[{ padding: 10, borderRadius: 10, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border }, selectedLeadToAssign === leadTitle && { borderColor: colors.primary, backgroundColor: colors.primaryLight }]}
                   onPress={() => setSelectedLeadToAssign(leadTitle)}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: selectedLeadToAssign === leadTitle ? '#818cf8' : '#ffffff' }}>{leadTitle}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: selectedLeadToAssign === leadTitle ? colors.primary : colors.text }}>{leadTitle}</Text>
                 </TouchableOpacity>
               ))}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#1e293b', borderRadius: 10, alignItems: 'center' }} onPress={() => setAssignModalOpen(false)}>
-                  <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 11 }}>Cancel</Text>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1, borderRadius: 10, alignItems: 'center' }} onPress={() => setAssignModalOpen(false)}>
+                  <Text style={{ color: colors.text, fontWeight: '800', fontSize: 11 }}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#4f46e5', borderRadius: 10, alignItems: 'center' }} onPress={handleConfirmAssignLead}>

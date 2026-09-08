@@ -98,13 +98,15 @@ const STORAGE_KEY = 'das_crm_theme';
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useColorScheme();
   const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
+    systemColorScheme === 'light' ? 'light' : 'dark'
+  );
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Compute resolved theme based on current preference and system setting
   const computeResolvedTheme = useCallback((activeTheme: Theme, systemScheme: string | null | undefined): ResolvedTheme => {
     if (activeTheme === 'system') {
-      return systemScheme === 'dark' ? 'dark' : 'light';
+      return systemScheme === 'light' ? 'light' : 'dark';
     }
     return activeTheme;
   }, []);
@@ -121,13 +123,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         const validThemes = ['light', 'dark', 'system'];
-        const loadedTheme = (saved && validThemes.includes(saved)) ? (saved as Theme) : 'dark';
+        const loadedTheme = (saved && validThemes.includes(saved)) ? (saved as Theme) : 'system';
 
         setThemeState(loadedTheme);
         applyTheme(loadedTheme);
       } catch (error) {
         console.warn('Failed to load theme preference:', error);
-        applyTheme('dark');
+        applyTheme('system');
       } finally {
         setIsLoaded(true);
       }
@@ -154,11 +156,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [applyTheme]);
 
   const toggleTheme = useCallback(() => {
-    const themes: Theme[] = ['light', 'dark'];
-    const currentIndex = themes.indexOf(theme === 'system' ? resolvedTheme : theme);
-    const nextIndex = (currentIndex + 1) % themes.length;
+    // Cycle: system -> light -> dark -> system
+    const themes: Theme[] = ['system', 'light', 'dark'];
+    const currentIndex = themes.indexOf(theme);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % themes.length : 0;
     setTheme(themes[nextIndex]);
-  }, [theme, resolvedTheme, setTheme]);
+  }, [theme, setTheme]);
 
   const isDark = resolvedTheme === 'dark';
   const colors = isDark ? DARK_THEME : LIGHT_THEME;
