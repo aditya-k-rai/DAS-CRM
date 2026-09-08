@@ -295,7 +295,7 @@ export function LeadFunnelDistribution() {
               <Database size={20} className="text-indigo-400" /> Lead Integration & Ingestion Control Center
             </h2>
             <p className="text-xs text-muted mt-0.5">
-              Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+              Integrate Webhooks, Insert Single Lead, Import CSV / Excel, Configure Custom Columns & Adjust Lead Table Views
             </p>
           </div>
 
@@ -318,12 +318,6 @@ export function LeadFunnelDistribution() {
               className="px-3.5 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
             >
               <FileSpreadsheet size={14} /> Google Sheets Sync
-            </button>
-            <button
-              onClick={() => alert('📥 Leads CSV Exported Successfully')}
-              className="px-3.5 py-2 rounded-xl bg-teal-600/20 border border-teal-500/40 text-teal-300 hover:bg-teal-600/30 font-bold text-xs flex items-center gap-1.5 transition-all"
-            >
-              <Download size={14} /> Export CSV
             </button>
             <button
               onClick={() => alert('➕ Add Custom Column Modal Opened')}

@@ -17,7 +17,6 @@ interface LeadIngestionControlCenterBarProps {
   onInsertLeadPress?: () => void;
   onImportCsvPress?: () => void;
   onGoogleSheetsPress?: () => void;
-  onExportCsvPress?: () => void;
   onCustomColumnPress?: () => void;
   onAdjustColumnsPress?: () => void;
   columnCount?: number;
@@ -27,7 +26,6 @@ export function LeadIngestionControlCenterBar({
   onInsertLeadPress,
   onImportCsvPress,
   onGoogleSheetsPress,
-  onExportCsvPress,
   onCustomColumnPress,
   onAdjustColumnsPress,
   columnCount = 11,
@@ -54,7 +52,7 @@ export function LeadIngestionControlCenterBar({
 
         {/* Subtitle */}
         <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>
-          Integrate Webhooks, Insert Single Lead, Import/Export CSV, Configure Custom Columns & Adjust Lead Table Views
+          Integrate Webhooks, Insert Single Lead, Import CSV / Excel, Configure Custom Columns & Adjust Lead Table Views
         </Text>
       </View>
 
@@ -84,14 +82,6 @@ export function LeadIngestionControlCenterBar({
             activeOpacity={0.8}
           >
             <Text style={[styles.btnSheetsSyncText, !isDark && { color: '#059669' }]}>📊 Google Sheets Sync</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.btnExportCsv, !isDark && { backgroundColor: 'rgba(13, 148, 136, 0.12)', borderColor: 'rgba(13, 148, 136, 0.3)' }]}
-            onPress={onExportCsvPress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.btnExportCsvText, !isDark && { color: '#0d9488' }]}>📤 Export CSV</Text>
           </TouchableOpacity>
         </View>
 
@@ -236,21 +226,6 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '800',
     color: '#34d399',
-  },
-  btnExportCsv: {
-    backgroundColor: 'rgba(20, 184, 166, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(20, 184, 166, 0.4)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnExportCsvText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#2dd4bf',
   },
   btnCustomCol: {
     backgroundColor: 'rgba(6, 182, 212, 0.2)',

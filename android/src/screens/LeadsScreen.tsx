@@ -750,7 +750,6 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             onInsertLeadPress={() => setInsertModalOpen(true)}
             onImportCsvPress={() => { setSavedImportSession(null); setImportModalOpen(true); }}
             onGoogleSheetsPress={() => setSheetModalOpen(true)}
-            onExportCsvPress={() => handleProcessCsvTextImport()}
             onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
             onAdjustColumnsPress={() => setColOrderModalOpen(true)}
             columnCount={columnOrder.length}
