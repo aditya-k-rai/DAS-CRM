@@ -6,6 +6,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import {
   ImportsService,
@@ -16,6 +17,7 @@ import {
 
 @ApiTags('Imports')
 @Controller('api/v1/imports')
+@Throttle({ bulk_import: { limit: 40, ttl: 3600000 } })
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 

@@ -340,4 +340,42 @@ POST /api/v1/attendance/punch-in         -> Submit geofenced location punch-in
 
 ---
 
+## 🛡️ API Rate Limiting, Throttling & Security Policies
+
+DAS CRM enforces multi-tier, endpoint-aware API Throttling via NestJS `@nestjs/throttler` to protect backend services against DDoS, credential-stuffing, SMS OTP toll-fraud, and database lockup during file parsing.
+
+### 1. Subscription Plan Hourly Rate Limits
+
+Rate limits are evaluated per authenticated `User ID` (or IP address for unauthenticated requests). When a user is logged in, their requests across both **Web** and **Android Mobile** share their account's tier quota seamlessly:
+
+| Plan Tier | Hourly Request Limit | Equivalent Per Minute Rate | Target Use Case |
+| :--- | :---: | :---: | :--- |
+| **Free Trial / Starter** | **500 req / hour** | ~8 req / min | Basic evaluation & trial accounts |
+| **Growth / Business** | **2,000 req / hour** | ~33 req / min | Active daily sales & team operations |
+| **Pro Max / Enterprise** | **5,000 req / hour** | ~83 req / min | High-velocity pipelines & heavy automation |
+
+---
+
+### 2. Endpoint-Specific Protection Limits
+
+Critical and sensitive API endpoints enforce targeted rate limits regardless of subscription tier:
+
+| Endpoint Group | Target Endpoints | Hourly Limit | Security & Performance Rationale |
+| :--- | :--- | :---: | :--- |
+| **Auth & OTP** | `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/forgot-password`, `/api/v1/auth/reset-password`, `/api/v1/auth/super-admin/request-otp` | **15 req / hour** | Prevents SMS OTP toll-fraud, costs, and brute-force credential stuffing. |
+| **Bulk Ingestion & CSV** | `/api/v1/imports/csv`, `/api/v1/imports/multi-format`, `/api/v1/drive/upload` | **40 req / hour** | Prevents database lockup & high CPU consumption during multi-row parsing. |
+| **General Read & Write** | `/api/v1/leads`, `/api/v1/quotes`, `/api/v1/contacts`, `/api/v1/deals` | **1,000 req / hour** | Ensures smooth UI responsiveness across Web and Android for general sales operations. |
+
+---
+
+### 3. Technical Implementation Details
+
+- **Guard**: [`CustomThrottlerGuard`](file:///c:/Users/Mighty/Downloads/DAS%20CRM/backend/src/common/guards/custom-throttler.guard.ts) in NestJS (`APP_GUARD`).
+- **Tracking Mechanism**:
+  - Authenticated Users: `user_<USER_ID>` (unified quota across Web and Mobile app).
+  - Unauthenticated Users: `ip_<IP_ADDRESS>` (IP-based protection).
+
+---
+
 *Documentation compiled & verified for DAS CRM Ecosystem v2.5.0.*
+

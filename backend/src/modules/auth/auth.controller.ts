@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -34,12 +35,14 @@ export class AuthController {
   // ── Standard Login / Register ──────────────────────────────
 
   @Post('register')
+  @Throttle({ auth_otp: { limit: 15, ttl: 3600000 } })
   @ApiOperation({ summary: 'Register a new organization + admin account' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
+  @Throttle({ auth_otp: { limit: 15, ttl: 3600000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Login with email + password (Tenant Admin & Staff)',
@@ -49,6 +52,7 @@ export class AuthController {
   }
 
   @Post('google')
+  @Throttle({ auth_otp: { limit: 15, ttl: 3600000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate with Google OAuth & Gmail verification' })
   googleLogin(@Body() dto: GoogleLoginDto) {
@@ -56,6 +60,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ auth_otp: { limit: 15, ttl: 3600000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request 6-digit password reset OTP email' })
   forgotPassword(@Body('email') email: string) {

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -33,9 +35,12 @@ import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1000, limit: 100 },
-      { name: 'medium', ttl: 10000, limit: 500 },
-      { name: 'long', ttl: 60000, limit: 2500 },
+      { name: 'auth_otp', ttl: 3600000, limit: 15 },
+      { name: 'bulk_import', ttl: 3600000, limit: 40 },
+      { name: 'general_crud', ttl: 3600000, limit: 1000 },
+      { name: 'free_tier', ttl: 3600000, limit: 500 },
+      { name: 'growth_tier', ttl: 3600000, limit: 2000 },
+      { name: 'pro_max_tier', ttl: 3600000, limit: 5000 },
     ]),
     BullModule.forRootAsync({
       useFactory: () => ({
@@ -71,6 +76,12 @@ import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
     DriveModule,
     EmailModule,
     AIScoringModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: CustomThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
