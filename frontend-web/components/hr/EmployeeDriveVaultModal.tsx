@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cloud,
   ExternalLink,
   FileText,
-  Upload,
+  Lock,
+  Download,
   X,
   CheckCircle2,
   HardDrive,
@@ -16,11 +17,7 @@ import {
 } from 'lucide-react';
 import {
   listEmployeeDriveFiles,
-  uploadEmployeeDpToDrive,
-  uploadEmployeeDocumentToDrive,
-  uploadEmployeeDetailToDrive,
   GoogleDriveStoredFile,
-  GoogleDriveUploadProgress,
 } from '@/lib/googleDriveService';
 import { EmployeeProfileWeb } from './EmployeeListWidget';
 
@@ -40,9 +37,6 @@ export default function EmployeeDriveVaultModal({
   const [activeSubFolder, setActiveSubFolder] = useState<'DP' | 'Documents' | 'Details'>('Documents');
   const [files, setFiles] = useState<GoogleDriveStoredFile[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<GoogleDriveUploadProgress | null>(null);
-  const [docLabel, setDocLabel] = useState<string>('PAN_Card');
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -63,33 +57,6 @@ export default function EmployeeDriveVaultModal({
   }, [isOpen, employee.name]);
 
   if (!isOpen) return null;
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      if (activeSubFolder === 'DP') {
-        await uploadEmployeeDpToDrive(file, employee.name, companyName, (p) => {
-          setUploadProgress(p);
-        });
-      } else if (activeSubFolder === 'Documents') {
-        await uploadEmployeeDocumentToDrive(file, employee.name, docLabel, companyName, (p) => {
-          setUploadProgress(p);
-        });
-      } else {
-        await uploadEmployeeDetailToDrive(file, employee.name, docLabel, companyName, (p) => {
-          setUploadProgress(p);
-        });
-      }
-
-      await fetchFiles();
-      setTimeout(() => setUploadProgress(null), 3500);
-    } catch (err) {
-      console.error('Failed to upload file to employee drive vault:', err);
-      setUploadProgress(null);
-    }
-  };
 
   const filteredSubFiles = files.filter(f => {
     if (activeSubFolder === 'DP') return f.subCategory === 'DP' || f.category === 'PROFILES';
@@ -133,7 +100,7 @@ export default function EmployeeDriveVaultModal({
         {/* Sub-Folders Selector */}
         <div className="grid grid-cols-3 gap-2">
           <button
-            onClick={() => { setActiveSubFolder('DP'); setDocLabel('Avatar_DP'); }}
+            onClick={() => setActiveSubFolder('DP')}
             className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
               activeSubFolder === 'DP'
                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
@@ -145,7 +112,7 @@ export default function EmployeeDriveVaultModal({
           </button>
 
           <button
-            onClick={() => { setActiveSubFolder('Documents'); setDocLabel('Aadhaar_Card'); }}
+            onClick={() => setActiveSubFolder('Documents')}
             className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
               activeSubFolder === 'Documents'
                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
@@ -157,7 +124,7 @@ export default function EmployeeDriveVaultModal({
           </button>
 
           <button
-            onClick={() => { setActiveSubFolder('Details'); setDocLabel('Bank_Passbook'); }}
+            onClick={() => setActiveSubFolder('Details')}
             className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all ${
               activeSubFolder === 'Details'
                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
@@ -169,77 +136,24 @@ export default function EmployeeDriveVaultModal({
           </button>
         </div>
 
-        {/* Upload Action Box */}
-        <div className="rounded-2xl border border-dashed border-indigo-500/40 bg-indigo-500/5 p-4 space-y-3">
+        {/* Drive Storage Policy & Path Header */}
+        <div className="rounded-2xl border border-border/80 bg-accent/20 p-4 space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Folder className="h-4 w-4 text-indigo-400" />
               <span className="text-xs font-bold text-foreground">
-                Target Folder: <strong>Employees / {employee.name} / {activeSubFolder}</strong>
+                Vault Path: <strong>Employees / {employee.name} / {activeSubFolder}</strong>
               </span>
             </div>
 
-            {activeSubFolder !== 'DP' && (
-              <select
-                value={docLabel}
-                onChange={(e) => setDocLabel(e.target.value)}
-                className="bg-card border border-border rounded-lg text-xs px-2.5 py-1 text-foreground font-semibold focus:outline-none focus:border-indigo-500"
-              >
-                {activeSubFolder === 'Documents' ? (
-                  <>
-                    <option value="Aadhaar_Card">Aadhaar Card (PDF/Img)</option>
-                    <option value="PAN_Card">PAN Card (PDF/Img)</option>
-                    <option value="Degree_Certificate">Degree Certificate</option>
-                    <option value="Offer_Letter">Offer Letter</option>
-                    <option value="Resume_CV">Resume / CV</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="Bank_Passbook">Bank Passbook / Cheque</option>
-                    <option value="Employment_Agreement">Employment Agreement</option>
-                    <option value="Performance_Review">Performance Review Slip</option>
-                    <option value="Address_Proof">Address Proof Utility Bill</option>
-                  </>
-                )}
-              </select>
-            )}
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-accent/30 px-3 py-1.5 text-xs text-muted-foreground font-semibold">
+              <Lock className="h-3.5 w-3.5 text-amber-400" />
+              <span>View &amp; Download Only</span>
+            </span>
           </div>
-
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-colors shadow-md"
-            >
-              <Upload className="h-4 w-4" />
-              Upload {activeSubFolder === 'DP' ? 'Display Picture (DP)' : docLabel.replace('_', ' ')} to Google Drive
-            </button>
-          </div>
-
-          {/* Live Upload Progress */}
-          {uploadProgress && (
-            <div className="rounded-xl border border-indigo-500/50 bg-indigo-950/50 p-3 space-y-1.5 animate-in fade-in">
-              <div className="flex justify-between text-xs font-bold text-indigo-300">
-                <span>Streaming {uploadProgress.fileName}...</span>
-                <span>{uploadProgress.progressPercent}% ({uploadProgress.speedMbps} MB/s)</span>
-              </div>
-              <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-indigo-500 to-cyan-400 h-2 transition-all duration-150"
-                  style={{ width: `${uploadProgress.progressPercent}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                <span className="truncate">Destination: {uploadProgress.folderPath}</span>
-                <span className="text-emerald-400 font-bold shrink-0">DB Load: 0%</span>
-              </div>
-            </div>
-          )}
+          <p className="text-[11px] text-muted-foreground">
+            Staff DP, official KYC documents, and banking credentials uploaded in the Employee Profile &amp; HR screens are automatically archived here in Google Drive.
+          </p>
         </div>
 
         {/* Existing Files inside this Employee SubFolder */}
@@ -261,7 +175,7 @@ export default function EmployeeDriveVaultModal({
             {filteredSubFiles.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
                 <HardDrive className="h-5 w-5 mx-auto text-muted-foreground/40 mb-1" />
-                No files uploaded to this employee folder yet. Click upload above to store documents directly in Google Drive.
+                No files archived in this employee vault yet. Upload profile pictures and KYC docs in the Employee Profile screen to archive them to Google Drive.
               </div>
             ) : (
               filteredSubFiles.map((file) => (
@@ -287,6 +201,16 @@ export default function EmployeeDriveVaultModal({
                     >
                       View in Drive <ExternalLink className="h-3 w-3" />
                     </a>
+                    {file.driveDownloadUrl && (
+                      <a
+                        href={file.driveDownloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 font-bold text-xs"
+                      >
+                        <Download className="h-3 w-3" /> Download
+                      </a>
+                    )}
                   </div>
                 </div>
               ))

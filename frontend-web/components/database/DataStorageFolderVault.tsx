@@ -35,14 +35,10 @@ import {
 import {
   checkGoogleDriveStatus,
   listGoogleDriveFiles,
-  uploadEmployeeDpToDrive,
-  uploadEmployeeDocumentToDrive,
-  uploadLeadSpreadsheetToDrive,
   requestFolderDataOnEmail,
   getFolderMailRequests,
   GoogleDriveConnectionStatus,
   GoogleDriveStoredFile,
-  GoogleDriveUploadProgress,
   FolderMailRequestResult,
 } from '../../lib/googleDriveService';
 import { useAuth } from '@/context/AuthContext';
@@ -68,10 +64,6 @@ export const DataStorageFolderVault: React.FC = () => {
   const [mailNotes, setMailNotes] = useState<string>('');
   const [isSendingMail, setIsSendingMail] = useState(false);
   const [mailSuccessToast, setMailSuccessToast] = useState<string | null>(null);
-
-  // Upload state
-  const [uploadProgress, setUploadProgress] = useState<GoogleDriveUploadProgress | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const EMPLOYEES = ['Amit Shah', 'Priya Sharma', 'Sunita Verma', 'Amit Patel'];
 
@@ -145,32 +137,6 @@ export const DataStorageFolderVault: React.FC = () => {
       alert(err.message || 'Failed to dispatch email request');
     } finally {
       setIsSendingMail(false);
-    }
-  };
-
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      if (activeMainFolder === 'EMPLOYEES') {
-        if (selectedSubCat === 'DP') {
-          await uploadEmployeeDpToDrive(file, selectedEmployee, 'Acme Sales Solutions', (p) => setUploadProgress(p));
-        } else {
-          await uploadEmployeeDocumentToDrive(file, selectedEmployee, selectedSubCat, 'Acme Sales Solutions', (p) => setUploadProgress(p));
-        }
-      } else if (activeMainFolder === 'LEADS') {
-        await uploadLeadSpreadsheetToDrive(file, file.name, 'Acme Sales Solutions', (p) => setUploadProgress(p));
-      }
-      await loadData();
-      setTimeout(() => setUploadProgress(null), 3000);
-    } catch (err) {
-      console.error('Upload failed:', err);
-      setUploadProgress(null);
     }
   };
 
@@ -559,19 +525,10 @@ export const DataStorageFolderVault: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={handleUploadClick}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    Upload to {activeMainFolder === 'EMPLOYEES' ? `${selectedEmployee}/${selectedSubCat}` : activeMainFolder}
-                  </button>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-accent/30 px-3 py-1.5 text-xs text-muted-foreground font-semibold">
+                    <Lock className="h-3.5 w-3.5 text-amber-400" />
+                    <span>View &amp; Download Only</span>
+                  </span>
 
                   <button
                     onClick={() => handleOpenMailModal(getActiveFolderPath())}
@@ -583,29 +540,13 @@ export const DataStorageFolderVault: React.FC = () => {
                 </div>
               </div>
 
-              {/* Upload Progress Bar if active */}
-              {uploadProgress && (
-                <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-indigo-300">
-                    <span>Uploading {uploadProgress.fileName}...</span>
-                    <span>{uploadProgress.progressPercent}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-border overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-300"
-                      style={{ width: `${uploadProgress.progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* Files Table for Selected Folder */}
               {currentFolderFiles.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Folder className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                  <p className="text-xs font-medium">No files uploaded yet in this folder.</p>
-                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                    Click upload above or request folder package to email.
+                  <p className="text-xs font-medium">No files stored in this folder yet.</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-md mx-auto">
+                    Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations, Products) are automatically fetched and stored here in Google Drive.
                   </p>
                 </div>
               ) : (

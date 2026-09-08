@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cloud,
   CheckCircle2,
@@ -12,18 +12,16 @@ import {
   ShieldCheck,
   DatabaseZap,
   User,
-  Upload,
+  Lock,
+  Download,
   Folder,
   FileBadge,
 } from 'lucide-react';
 import {
   checkGoogleDriveStatus,
   listGoogleDriveFiles,
-  uploadEmployeeDpToDrive,
-  uploadEmployeeDocumentToDrive,
   GoogleDriveConnectionStatus,
   GoogleDriveStoredFile,
-  GoogleDriveUploadProgress,
 } from '../../lib/googleDriveService';
 
 export const GoogleDriveStatusWidget: React.FC = () => {
@@ -36,8 +34,6 @@ export const GoogleDriveStatusWidget: React.FC = () => {
   // Employee Vault Explorer State
   const [selectedEmployee, setSelectedEmployee] = useState<string>('Amit Shah');
   const [selectedSubCat, setSelectedSubCat] = useState<'DP' | 'Documents' | 'Details'>('Documents');
-  const [uploadProgress, setUploadProgress] = useState<GoogleDriveUploadProgress | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const EMPLOYEES = ['Amit Shah', 'Priya Sharma', 'Sunita Verma', 'Amit Patel'];
 
@@ -60,29 +56,6 @@ export const GoogleDriveStatusWidget: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  const handleQuickUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      if (selectedSubCat === 'DP') {
-        await uploadEmployeeDpToDrive(file, selectedEmployee, 'Acme Sales Solutions', (p) => {
-          setUploadProgress(p);
-        });
-      } else {
-        await uploadEmployeeDocumentToDrive(file, selectedEmployee, selectedSubCat, 'Acme Sales Solutions', (p) => {
-          setUploadProgress(p);
-        });
-      }
-      // Refresh files
-      await loadData();
-      setTimeout(() => setUploadProgress(null), 3000);
-    } catch (err) {
-      console.error('Upload failed:', err);
-      setUploadProgress(null);
-    }
-  };
 
   const filteredFiles = files.filter(f => {
     if (activeCategory === 'ALL') return true;
@@ -289,45 +262,26 @@ export const GoogleDriveStatusWidget: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Active Upload & Inspect Bar */}
+                  {/* Active Folder Status & Access Mode */}
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <FileBadge className="h-3.5 w-3.5 text-emerald-400" />
                       <span>Active Folder: <strong>Employees/{selectedEmployee}/{selectedSubCat}</strong></span>
                     </div>
 
-                    <div>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleQuickUpload}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-sm"
-                      >
-                        <Upload className="h-3.5 w-3.5" />
-                        Upload to {selectedEmployee}/{selectedSubCat}
-                      </button>
-                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-accent/30 px-3 py-1.5 text-xs text-muted-foreground font-semibold">
+                      <Lock className="h-3.5 w-3.5 text-amber-400" />
+                      <span>View &amp; Download Only</span>
+                    </span>
                   </div>
 
-                  {/* Live Upload Progress */}
-                  {uploadProgress && (
-                    <div className="rounded-lg border border-indigo-500/40 bg-indigo-950/40 p-2.5 mt-2 space-y-1">
-                      <div className="flex justify-between text-xs font-semibold text-indigo-300">
-                        <span>Uploading {uploadProgress.fileName}...</span>
-                        <span>{uploadProgress.progressPercent}% ({uploadProgress.speedMbps} MB/s)</span>
-                      </div>
-                      <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-gradient-to-r from-indigo-500 to-cyan-400 h-1.5 transition-all duration-150"
-                          style={{ width: `${uploadProgress.progressPercent}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        Destination: {uploadProgress.folderPath}
+                  {/* Empty state when no files */}
+                  {employeeFiles.length === 0 && (
+                    <div className="py-4 text-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl bg-accent/10 mt-2">
+                      <Folder className="h-6 w-6 mx-auto text-muted-foreground/40 mb-1" />
+                      <p className="font-medium">No files stored in this employee vault yet.</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        Files uploaded via HR profiles &amp; KYC modules are automatically archived here.
                       </p>
                     </div>
                   )}
@@ -359,6 +313,16 @@ export const GoogleDriveStatusWidget: React.FC = () => {
                               >
                                 View <ExternalLink className="h-3 w-3" />
                               </a>
+                              {ef.driveDownloadUrl && (
+                                <a
+                                  href={ef.driveDownloadUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-400 hover:text-emerald-300 font-bold inline-flex items-center gap-0.5"
+                                >
+                                  Download <Download className="h-3 w-3" />
+                                </a>
+                              )}
                             </div>
                           </div>
                         ))}

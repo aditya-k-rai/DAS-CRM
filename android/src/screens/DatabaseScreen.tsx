@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -28,8 +29,6 @@ import BulkIngestionScreen from './BulkIngestionScreen';
 import {
   checkGoogleDriveStatus,
   listGoogleDriveFiles,
-  uploadEmployeeDocumentToDriveAndroid,
-  uploadEmployeeDpToDriveAndroid,
   requestFolderDataOnEmailAndroid,
   getFolderMailRequestsAndroid,
   GoogleDriveStoredFile,
@@ -504,12 +503,18 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                   </Text>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => handleOpenMailModal(getActiveFolderPath())}
-                  style={styles.requestMailBtn}
-                >
-                  <Text style={styles.requestMailBtnText}>📧 Request on Mail</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={styles.viewOnlyBadge}>
+                    <Text style={styles.viewOnlyBadgeText}>🔒 View Only</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => handleOpenMailModal(getActiveFolderPath())}
+                    style={styles.requestMailBtn}
+                  >
+                    <Text style={styles.requestMailBtnText}>📧 Request on Mail</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Files in Active Folder */}
@@ -523,6 +528,9 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                     <Text style={{ fontSize: 24, marginBottom: 4 }}>📂</Text>
                     <Text style={[styles.emptyFilesText, { color: colors.textMuted }]}>
                       No files stored in this folder yet.
+                    </Text>
+                    <Text style={[styles.emptyFilesSubText, { color: colors.textMuted }]}>
+                      Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations) are automatically fetched and stored here in Google Drive.
                     </Text>
                   </View>
                 ) : (
@@ -540,12 +548,35 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                           {(file.sizeBytes / 1024).toFixed(1)} KB • {file.uploadedAt}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => Alert.alert('File Direct Access', `Viewing ${file.fileName}\nPath: ${file.folderPath}`)}
-                        style={styles.viewFileBtn}
-                      >
-                        <Text style={styles.viewFileBtnText}>View</Text>
-                      </TouchableOpacity>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (file.driveViewUrl) {
+                              Linking.openURL(file.driveViewUrl).catch(() => {
+                                Alert.alert('File', `Viewing ${file.fileName}\nPath: ${file.folderPath}`);
+                              });
+                            } else {
+                              Alert.alert('File Direct Access', `Viewing ${file.fileName}\nPath: ${file.folderPath}`);
+                            }
+                          }}
+                          style={styles.viewFileBtn}
+                        >
+                          <Text style={styles.viewFileBtnText}>View</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const url = file.driveDownloadUrl || file.driveViewUrl;
+                            if (url) {
+                              Linking.openURL(url).catch(() => {
+                                Alert.alert('Download', `Downloading ${file.fileName}`);
+                              });
+                            }
+                          }}
+                          style={styles.downloadFileBtn}
+                        >
+                          <Text style={styles.downloadFileBtnText}>Download</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))
                 )}
@@ -572,6 +603,28 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                     <Text style={styles.fileMeta}>
                       {file.folderPath} • {(file.sizeBytes / 1024).toFixed(1)} KB
                     </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (file.driveViewUrl) {
+                          Linking.openURL(file.driveViewUrl).catch(() => {});
+                        }
+                      }}
+                      style={styles.viewFileBtn}
+                    >
+                      <Text style={styles.viewFileBtnText}>View</Text>
+                    </TouchableOpacity>
+                    {file.driveDownloadUrl && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          Linking.openURL(file.driveDownloadUrl!).catch(() => {});
+                        }}
+                        style={styles.downloadFileBtn}
+                      >
+                        <Text style={styles.downloadFileBtnText}>Download</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ))}
@@ -1075,6 +1128,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#818cf8',
+  },
+  downloadFileBtn: {
+    backgroundColor: '#10b98120',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  downloadFileBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  viewOnlyBadge: {
+    backgroundColor: '#f59e0b15',
+    borderColor: '#f59e0b35',
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  viewOnlyBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#f59e0b',
+  },
+  emptyFilesSubText: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 260,
   },
   statusBadge: {
     backgroundColor: '#10b98120',
