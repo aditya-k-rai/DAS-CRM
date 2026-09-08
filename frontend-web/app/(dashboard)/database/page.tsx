@@ -1,6 +1,9 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
 import { DatabaseHubView } from '@/components/database/DatabaseHubView';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Database & Storage | DAS CRM',
@@ -21,7 +24,9 @@ export default function DatabasePage() {
         }
       />
       <main className="flex-1 p-6 overflow-auto">
-        <DatabaseHubView initialTab="imports" />
+        <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Loading Database Hub...</div>}>
+          <DatabaseHubView initialTab="imports" />
+        </Suspense>
       </main>
     </div>
   );
