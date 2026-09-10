@@ -381,31 +381,44 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isLocked: false,
   isHydrated: false,
 
-  /** Load persisted session from AsyncStorage on app start. */
+  /** Load persisted session from AsyncStorage on app start with timeout safeguard. */
   hydrate: async () => {
     try {
-      const [userStr, tokenStr, roleStr] = await Promise.all([
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 800));
+      const storagePromise = Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.user),
         AsyncStorage.getItem(STORAGE_KEYS.token),
         AsyncStorage.getItem(STORAGE_KEYS.role),
       ]);
 
+      const results = await Promise.race([storagePromise, timeoutPromise]);
+      if (!results) {
+        set({ isHydrated: true });
+        return;
+      }
+
+      const [userStr, tokenStr, roleStr] = results;
+
       let user: UserProfile = DEMO_USERS.ADMIN;
 
       if (userStr) {
-        const parsed = JSON.parse(userStr) as UserProfile;
-        if (parsed && (parsed.role || parsed.email)) {
-          parsed.role = normalizeRoleStr(
-            parsed.role || inferRoleFromEmail(parsed.email),
-          );
-          // Guard: only adtyamighty@gmail.com can be SUPER_ADMIN
-          if (
-            parsed.role === 'SUPER_ADMIN' &&
-            parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com'
-          ) {
-            parsed.role = 'ADMIN';
+        try {
+          const parsed = JSON.parse(userStr) as UserProfile;
+          if (parsed && (parsed.role || parsed.email)) {
+            parsed.role = normalizeRoleStr(
+              parsed.role || inferRoleFromEmail(parsed.email),
+            );
+            // Guard: only adtyamighty@gmail.com can be SUPER_ADMIN
+            if (
+              parsed.role === 'SUPER_ADMIN' &&
+              parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com'
+            ) {
+              parsed.role = 'ADMIN';
+            }
+            user = parsed;
           }
-          user = parsed;
+        } catch {
+          // Bad JSON: use default
         }
       } else if (roleStr) {
         const safeRole = normalizeRoleStr(roleStr);

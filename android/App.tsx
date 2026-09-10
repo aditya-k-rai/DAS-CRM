@@ -26,6 +26,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuthStore } from './src/store/authStore';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
@@ -381,8 +382,13 @@ function MainTabNavigator({
 function RootAppContent() {
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { token, currentUser, logout } = useAuthStore();
+  const { token, currentUser, logout, hydrate, isHydrated } = useAuthStore();
   const navigationRef = useNavigationContainerRef();
+
+  // 🚀 Hydrate persisted session on mount with timeout safeguard
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [productsModalOpen, setProductsModalOpen] = useState(false);
@@ -510,8 +516,20 @@ function RootAppContent() {
     });
   };
 
+  if (!isHydrated) {
+    return (
+      <View style={[styles.splashContainer, { backgroundColor: colors?.bg || '#090d16' }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <View style={styles.splashLogoBox}>
+          <Text style={styles.splashLogoText}>DAS</Text>
+        </View>
+        <ActivityIndicator size="small" color="#6366f1" style={{ marginTop: 24 }} />
+      </View>
+    );
+  }
+
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <NavigationContainer ref={navigationRef}>
         {!token ? (
@@ -856,21 +874,89 @@ function RootAppContent() {
           </View>
         </Modal>
       </NavigationContainer>
-    </>
+    </View>
   );
+}
+
+// ─── ROOT ERROR BOUNDARY ───────────────────────────────────────────────────────
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('RootErrorBoundary caught an unhandled error:', error, errorInfo);
+  }
+
+  handleRestart = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  handleResetSession = async () => {
+    try {
+      await AsyncStorage.clear();
+    } catch {}
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={errorStyles.container}>
+          <StatusBar style="light" />
+          <View style={errorStyles.card}>
+            <View style={errorStyles.iconCircle}>
+              <Text style={errorStyles.iconText}>⚠️</Text>
+            </View>
+            <Text style={errorStyles.title}>Something went wrong</Text>
+            <Text style={errorStyles.subtitle}>
+              The application encountered an unexpected issue while loading. You can reload or reset your local session.
+            </Text>
+            {this.state.error?.message ? (
+              <View style={errorStyles.errorBox}>
+                <Text style={errorStyles.errorText} numberOfLines={3}>
+                  {this.state.error.message}
+                </Text>
+              </View>
+            ) : null}
+            <TouchableOpacity style={errorStyles.retryButton} onPress={this.handleRestart}>
+              <Text style={errorStyles.retryButtonText}>Reload Application</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={errorStyles.resetButton} onPress={this.handleResetSession}>
+              <Text style={errorStyles.resetButtonText}>Reset Session & Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <SafeAreaProvider>
-          <RootAppContent />
-          {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
-          <ModernAlertModal />
-        </SafeAreaProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <RootErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <SafeAreaProvider>
+            <RootAppContent />
+            {/* 🚀 GLOBAL MODERN ANIMATED POPUP MODAL */}
+            <ModernAlertModal />
+          </SafeAreaProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </RootErrorBoundary>
   );
 }
 
@@ -1011,4 +1097,115 @@ const styles = StyleSheet.create({
   updatePrimaryBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
   checkServerBtn: { backgroundColor: '#1e293b', paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   checkServerBtnText: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
+
+  // Splash Fallback Styles
+  splashContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogoBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 18,
+    backgroundColor: '#4f46e5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  splashLogoText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+});
+
+const errorStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#090d16',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  iconText: {
+    fontSize: 26,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  errorBox: {
+    backgroundColor: '#020617',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    width: '100%',
+    marginBottom: 20,
+  },
+  errorText: {
+    fontSize: 11,
+    color: '#f87171',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  retryButton: {
+    width: '100%',
+    backgroundColor: '#4f46e5',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  resetButton: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });

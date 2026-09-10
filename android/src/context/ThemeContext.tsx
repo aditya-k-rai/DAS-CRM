@@ -166,10 +166,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isDark = resolvedTheme === 'dark';
   const colors = isDark ? DARK_THEME : LIGHT_THEME;
 
-  if (!isLoaded) {
-    return <>{children}</>;
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, isDark, colors, setTheme, toggleTheme }}>
       {children}
@@ -180,7 +176,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    return {
+      theme: 'system',
+      resolvedTheme: 'dark',
+      isDark: true,
+      colors: DARK_THEME,
+      setTheme: () => {},
+      toggleTheme: () => {},
+    };
   }
   return context;
 }

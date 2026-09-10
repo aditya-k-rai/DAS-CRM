@@ -592,10 +592,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
 
-  if (!isLoaded) {
-    return <>{children}</>;
-  }
-
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
       {children}
@@ -606,7 +602,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 export function useLanguage(): LanguageContextType {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    return {
+      language: 'en',
+      setLanguage: async () => {},
+      t: TRANSLATIONS.en,
+    };
   }
   return context;
 }
