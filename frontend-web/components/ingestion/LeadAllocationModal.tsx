@@ -9,6 +9,15 @@ export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN';
 
 export interface WebBatchRule {
   id: string;
+  fromRow: number | string;
+  toRow: number | string;
+  assigneeId: string;
+  assigneeName: string;
+  role: string;
+}
+
+export interface AllocatedBatchRule {
+  id: string;
   fromRow: number;
   toRow: number;
   assigneeId: string;
@@ -25,7 +34,7 @@ export interface LeadAllocationModalProps {
   onPreviewSheet?: () => void;
   onAllocationComplete?: (result: {
     mode: AllocationMode;
-    batchRules?: WebBatchRule[];
+    batchRules?: AllocatedBatchRule[];
     assignedUser?: { id: string; name: string };
   }) => void;
 }
@@ -45,31 +54,49 @@ export interface ValidationConflict {
 
 export const validateBatchRules = (
   rules: WebBatchRule[],
-  totalCount: number
+  totalCount: number,
+  strict: boolean = false,
 ): ValidationConflict => {
   const conflictingRuleIds: string[] = [];
 
   // 1. Check individual rule boundaries
   for (let i = 0; i < rules.length; i++) {
     const r = rules[i];
-    if (r.fromRow < 1 || r.fromRow > totalCount) {
+    const fromStr = String(r.fromRow ?? '').trim();
+    const toStr = String(r.toRow ?? '').trim();
+
+    if (!fromStr || !toStr) {
+      if (strict) {
+        return {
+          hasConflict: true,
+          message: `Batch Rule #${i + 1}: Please enter both From Row and To Row.`,
+          conflictingRuleIds: [r.id],
+        };
+      }
+      continue;
+    }
+
+    const from = Number(fromStr);
+    const to = Number(toStr);
+
+    if (isNaN(from) || from < 1 || from > totalCount) {
       return {
         hasConflict: true,
-        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) must be between 1 and ${totalCount}.`,
+        message: `Batch Rule #${i + 1} From Row (${fromStr}) must be between 1 and ${totalCount}.`,
         conflictingRuleIds: [r.id],
       };
     }
-    if (r.toRow < 1 || r.toRow > totalCount) {
+    if (isNaN(to) || to < 1 || to > totalCount) {
       return {
         hasConflict: true,
-        message: `Batch Rule #${i + 1} To Row (${r.toRow}) must be between 1 and ${totalCount}.`,
+        message: `Batch Rule #${i + 1} To Row (${toStr}) must be between 1 and ${totalCount}.`,
         conflictingRuleIds: [r.id],
       };
     }
-    if (r.fromRow > r.toRow) {
+    if (from > to) {
       return {
         hasConflict: true,
-        message: `Batch Rule #${i + 1} From Row (${r.fromRow}) cannot be greater than To Row (${r.toRow}).`,
+        message: `Batch Rule #${i + 1} From Row (${from}) cannot be greater than To Row (${to}).`,
         conflictingRuleIds: [r.id],
       };
     }
@@ -80,9 +107,22 @@ export const validateBatchRules = (
     for (let j = i + 1; j < rules.length; j++) {
       const r1 = rules[i];
       const r2 = rules[j];
+      const f1Str = String(r1.fromRow ?? '').trim();
+      const t1Str = String(r1.toRow ?? '').trim();
+      const f2Str = String(r2.fromRow ?? '').trim();
+      const t2Str = String(r2.toRow ?? '').trim();
 
-      const overlapStart = Math.max(r1.fromRow, r2.fromRow);
-      const overlapEnd = Math.min(r1.toRow, r2.toRow);
+      if (!f1Str || !t1Str || !f2Str || !t2Str) continue;
+
+      const from1 = Number(f1Str);
+      const to1 = Number(t1Str);
+      const from2 = Number(f2Str);
+      const to2 = Number(t2Str);
+
+      if (isNaN(from1) || isNaN(to1) || isNaN(from2) || isNaN(to2)) continue;
+
+      const overlapStart = Math.max(from1, from2);
+      const overlapEnd = Math.min(to1, to2);
 
       if (overlapStart <= overlapEnd) {
         const overlapCount = overlapEnd - overlapStart + 1;
@@ -142,30 +182,11 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   useEffect(() => {
-    if (totalLeadsCount > 0) {
-      setBatchRules(prev => {
-        if (prev.length === 0) {
-          const half = Math.max(1, Math.floor(totalLeadsCount / 2));
-          return [
-            { id: 'b-1', fromRow: 1, toRow: half, assigneeId: 'usr-1', assigneeName: 'Priya Sharma (TL A)', role: 'Team Leader' },
-            { id: 'b-2', fromRow: Math.min(half + 1, totalLeadsCount), toRow: totalLeadsCount, assigneeId: 'usr-2', assigneeName: 'Rohan Kumar (Sales Rep C)', role: 'Sales Exec' },
-          ];
-        }
-        // Auto-clamp existing batch rules to current totalLeadsCount
-        let start = 1;
-        const countPerRule = Math.max(1, Math.floor(totalLeadsCount / prev.length));
-        return prev.map((rule, idx) => {
-          const isLast = idx === prev.length - 1;
-          const end = isLast ? totalLeadsCount : Math.min(start + countPerRule - 1, totalLeadsCount);
-          const res = {
-            ...rule,
-            fromRow: start,
-            toRow: Math.max(start, end),
-          };
-          start = Math.min(end + 1, totalLeadsCount);
-          return res;
-        });
-      });
+    if (batchRules.length === 0) {
+      setBatchRules([
+        { id: 'b-1', fromRow: '', toRow: '', assigneeId: MOCK_TEAM[0].id, assigneeName: `${MOCK_TEAM[0].name} (${MOCK_TEAM[0].role})`, role: MOCK_TEAM[0].role },
+        { id: 'b-2', fromRow: '', toRow: '', assigneeId: MOCK_TEAM[1].id, assigneeName: `${MOCK_TEAM[1].name} (${MOCK_TEAM[1].role})`, role: MOCK_TEAM[1].role },
+      ]);
     }
   }, [totalLeadsCount]);
 
@@ -174,21 +195,14 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
-    const lastTo = batchRules[batchRules.length - 1]?.toRow || 0;
-    if (lastTo >= totalLeadsCount) {
-      alert(`All ${totalLeadsCount} rows are already covered by existing batch rules.`);
-      return;
-    }
-    const nextFrom = Math.min(lastTo + 1, totalLeadsCount);
-    const nextTo = totalLeadsCount;
     const nextUser = MOCK_TEAM[batchRules.length % MOCK_TEAM.length];
 
     setBatchRules(prev => [
       ...prev,
       {
         id: `b-${Date.now()}`,
-        fromRow: nextFrom,
-        toRow: nextTo,
+        fromRow: '',
+        toRow: '',
         assigneeId: nextUser.id,
         assigneeName: `${nextUser.name} (${nextUser.role})`,
         role: nextUser.role,
@@ -197,33 +211,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   const handleUpdateBatchRule = (id: string, patch: Partial<WebBatchRule>) => {
-    setBatchRules(prev => {
-      const targetIndex = prev.findIndex(r => r.id === id);
-      if (targetIndex === -1) return prev;
-
-      const rawUpdated = prev.map(r => r.id === id ? { ...r, ...patch } : r);
-
-      // Cascade rule adjustments to keep ranges valid & contiguous
-      return rawUpdated.map((rule, idx) => {
-        let f = Math.min(Math.max(1, rule.fromRow), totalLeadsCount);
-        let t = Math.min(Math.max(f, rule.toRow), totalLeadsCount);
-
-        // If target rule's toRow was updated, auto-sync subsequent rule's fromRow & toRow
-        if (idx > 0) {
-          const prevRule = rawUpdated[idx - 1];
-          if (prevRule.toRow < totalLeadsCount) {
-            f = Math.min(prevRule.toRow + 1, totalLeadsCount);
-            if (t < f) t = Math.min(f + 10, totalLeadsCount);
-          }
-        }
-
-        return {
-          ...rule,
-          fromRow: f,
-          toRow: Math.max(f, t),
-        };
-      });
-    });
+    setBatchRules(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   };
 
   const handleRemoveBatchRule = (id: string) => {
@@ -278,8 +266,12 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   }, []);
 
   const handleConfirmAllocation = async () => {
-    if (mode === 'BATCHWISE' && validation.hasConflict) {
-      return;
+    if (mode === 'BATCHWISE') {
+      const strictVal = validateBatchRules(batchRules, totalLeadsCount, true);
+      if (strictVal.hasConflict) {
+        alert(strictVal.message);
+        return;
+      }
     }
 
     setOfflineError(null);
@@ -306,7 +298,11 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
       const payload = {
         mode,
-        batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
+        batchRules: mode === 'BATCHWISE' ? batchRules.map(r => ({
+          ...r,
+          fromRow: Number(r.fromRow),
+          toRow: Number(r.toRow),
+        })) : undefined,
         directAssign: mode === 'DIRECT_ASSIGN' ? { assigneeId: selectedUser.id, assigneeName: selectedUser.name } : undefined,
         totalLeadsCount,
         fileName,
@@ -360,7 +356,11 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     setAllocationSuccessModalOpen(false);
     onAllocationComplete?.({
       mode,
-      batchRules: mode === 'BATCHWISE' ? batchRules : undefined,
+      batchRules: mode === 'BATCHWISE' ? batchRules.map(r => ({
+        ...r,
+        fromRow: Number(r.fromRow),
+        toRow: Number(r.toRow),
+      })) : undefined,
       assignedUser: mode === 'DIRECT_ASSIGN' ? { id: selectedUser.id, name: selectedUser.name } : undefined,
     });
     onClose();
@@ -690,23 +690,35 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 block mb-1">From Row</label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="e.g. 1"
                             className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
                               isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
                             }`}
-                            value={rule.fromRow}
-                            onChange={e => handleUpdateBatchRule(rule.id, { fromRow: Number(e.target.value) || 1 })}
+                            value={rule.fromRow === '' ? '' : rule.fromRow}
+                            onChange={e => {
+                              const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                              handleUpdateBatchRule(rule.id, { fromRow: cleaned === '' ? '' : Number(cleaned) });
+                            }}
                           />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-400 block mb-1">To Row (Max {totalLeadsCount})</label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder={`Max ${totalLeadsCount}`}
                             className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
                               isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
                             }`}
-                            value={rule.toRow}
-                            onChange={e => handleUpdateBatchRule(rule.id, { toRow: Number(e.target.value) || 1 })}
+                            value={rule.toRow === '' ? '' : rule.toRow}
+                            onChange={e => {
+                              const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                              handleUpdateBatchRule(rule.id, { toRow: cleaned === '' ? '' : Number(cleaned) });
+                            }}
                           />
                         </div>
                       </div>
