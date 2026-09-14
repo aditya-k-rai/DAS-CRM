@@ -50,16 +50,26 @@ const adminNavigation: NavItem[] = [
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
 ];
 
+import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, subscription, logout } = useAuth();
   const { mobileOpen, closeMobile, collapsed, toggleCollapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
+    closeMobile();
+    logout();
+    router.push('/login');
+  };
 
   const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'ADMIN');
 
@@ -204,27 +214,42 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* User section with Logout */}
+        {/* User section with Modern Logout */}
         <div className="border-t mx-2 mb-2 pt-2 space-y-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card transition-colors">
-            <Link href="/profile" onClick={closeMobile} className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold">{currentUser.avatar}</div>
+          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card/70 border border-transparent hover:border-border/60 transition-all">
+            <Link href="/profile" onClick={closeMobile} className="flex items-center gap-3 min-w-0 flex-1 group">
+              <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold group-hover:ring-2 group-hover:ring-brand-500/40 transition-all">{currentUser.avatar}</div>
               <div className="sidebar-user-info min-w-0">
-                <p className="text-xs font-bold truncate text-white hover:text-brand-400 transition-colors">{currentUser.name}</p>
+                <p className="text-xs font-bold truncate text-white group-hover:text-brand-400 transition-colors">{currentUser.name}</p>
                 <p className="text-[10px] truncate text-muted" style={{ color: 'rgb(var(--sidebar-text))' }}>{currentUser.email}</p>
               </div>
             </Link>
             <button
               type="button"
-              onClick={() => {
-                closeMobile();
-                logout();
-                router.push('/login');
-              }}
-              title="Sign Out / Switch Workspace"
-              className="p-1.5 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-all flex-shrink-0"
+              onClick={() => setShowLogoutModal(true)}
+              title="Sign Out of Workspace"
+              className="p-2 rounded-xl text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-600 border border-rose-500/25 hover:border-rose-500/50 shadow-xs hover:shadow-rose-600/30 transition-all duration-200 flex-shrink-0 group"
             >
-              <LogOut size={16} />
+              <LogOut size={15} className="group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+
+          {/* Quick Sign Out Action Bar (Visible in expanded sidebar) */}
+          <div className="sidebar-user-info">
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(true)}
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-500/10 via-rose-500/15 to-red-500/10 hover:from-rose-500/20 hover:to-red-500/20 border border-rose-500/20 hover:border-rose-500/40 text-rose-300 hover:text-white text-xs font-bold transition-all shadow-xs group"
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 group-hover:scale-110 transition-transform">
+                  <LogOut size={11} />
+                </span>
+                <span>Sign Out</span>
+              </div>
+              <span className="text-[9px] uppercase font-extrabold tracking-wider text-rose-400/80 px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">
+                Exit
+              </span>
             </button>
           </div>
 
@@ -242,6 +267,18 @@ export function Sidebar() {
           </div>
         </div>
       </aside>
+
+      {/* Modern Confirmation Modal for Sign Out */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleConfirmLogout}
+        userName={currentUser?.name}
+        userEmail={currentUser?.email}
+        userRole={currentUser?.role}
+        userAvatar={currentUser?.avatar}
+        companyName={subscription?.companyName || 'Acme Sales Solutions'}
+      />
     </>
   );
 }

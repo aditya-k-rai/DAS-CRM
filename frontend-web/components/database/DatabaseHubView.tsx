@@ -16,9 +16,11 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { ImportWizard } from '@/components/imports/ImportWizard';
+import { LeadImportHistoryView } from '@/components/imports/LeadImportHistoryView';
 import { DataStorageFolderVault } from './DataStorageFolderVault';
 
 export type DatabaseTab = 'imports' | 'storage';
+export type ImportSubView = 'history' | 'wizard';
 
 interface DatabaseHubViewProps {
   initialTab?: DatabaseTab;
@@ -30,6 +32,7 @@ export const DatabaseHubView: React.FC<DatabaseHubViewProps> = ({ initialTab = '
 
   const tabParam = searchParams.get('tab') as DatabaseTab | null;
   const [activeTab, setActiveTab] = useState<DatabaseTab>(tabParam || initialTab);
+  const [importSubView, setImportSubView] = useState<ImportSubView>('history');
 
   useEffect(() => {
     if (tabParam && (tabParam === 'imports' || tabParam === 'storage')) {
@@ -102,8 +105,62 @@ export const DatabaseHubView: React.FC<DatabaseHubViewProps> = ({ initialTab = '
 
       {/* Content Rendering based on Tab */}
       {activeTab === 'imports' ? (
-        <div className="space-y-6">
-          <ImportWizard />
+        <div className="space-y-4">
+          {/* Sub-navigation pills under Lead Import History */}
+          <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2 p-1 bg-accent/30 rounded-xl border border-border shadow-inner">
+              <button
+                id="btn-subtab-history"
+                onClick={() => setImportSubView('history')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  importSubView === 'history'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                }`}
+              >
+                <History className="h-3.5 w-3.5" />
+                <span>📜 Lead Import History &amp; Allocations</span>
+              </button>
+
+              <button
+                id="btn-subtab-wizard"
+                onClick={() => setImportSubView('wizard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  importSubView === 'wizard'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                }`}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                <span>⚡ New Import / Sync Wizard</span>
+              </button>
+            </div>
+
+            {importSubView === 'history' ? (
+              <button
+                onClick={() => setImportSubView('wizard')}
+                className="hidden sm:flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                <span>Upload New Sheet / CSV →</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setImportSubView('history')}
+                className="hidden sm:flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                <History className="h-3.5 w-3.5" />
+                <span>← View Past Import Logs</span>
+              </button>
+            )}
+          </div>
+
+          {/* Sub-view switcher */}
+          {importSubView === 'history' ? (
+            <LeadImportHistoryView onOpenNewIngestion={() => setImportSubView('wizard')} />
+          ) : (
+            <ImportWizard />
+          )}
         </div>
       ) : (
         <div className="space-y-6">

@@ -52,7 +52,7 @@ import ProductsCatalogScreen from './src/screens/ProductsCatalogScreen';
 import MoreControlsScreen from './src/screens/MoreControlsScreen';
 import WorkflowBuilderScreen from './src/screens/WorkflowBuilderScreen';
 import { ModernAlertModal } from './src/components/ModernAlertModal';
-import { initModernAlertOverride } from './src/services/modernAlert';
+import { ModernAlert, initModernAlertOverride } from './src/services/modernAlert';
 import { ThemeToggle } from './src/components/ThemeToggle';
 
 // 🚀 Initialize Global Modern Alert Override across entire app
@@ -516,6 +516,30 @@ function RootAppContent() {
     });
   };
 
+  const confirmAndHandleLogout = () => {
+    ModernAlert.show({
+      title: 'Sign Out of DAS CRM?',
+      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: Acme Sales Solutions\n• Role: ${currentUser?.role || 'ADMIN'}\n• Offline changes and leads remain safe.`,
+      type: 'warning',
+      icon: '🚪',
+      badgeText: 'SECURITY & SESSION',
+      accentColor: '#ef4444',
+      buttons: [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes, Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            handleLogout();
+          },
+        },
+      ],
+    });
+  };
+
   if (!isHydrated) {
     return (
       <View style={[styles.splashContainer, { backgroundColor: colors?.bg || '#090d16' }]}>
@@ -746,8 +770,21 @@ function RootAppContent() {
                   </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.7}>
-                  <Text style={styles.signOutBtnText}>{t.drawerSignOut}</Text>
+                <TouchableOpacity
+                  style={styles.modernSignOutCard}
+                  onPress={confirmAndHandleLogout}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.signOutIconCircle}>
+                    <Text style={{ fontSize: 14 }}>🚪</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.signOutCardTitle}>{t.drawerSignOut || 'Sign Out of DAS CRM'}</Text>
+                    <Text style={styles.signOutCardSub}>End active session safely</Text>
+                  </View>
+                  <View style={styles.signOutPill}>
+                    <Text style={styles.signOutPillText}>EXIT</Text>
+                  </View>
                 </TouchableOpacity>
               </ScrollView>
             </Animated.View>
@@ -994,8 +1031,55 @@ const styles = StyleSheet.create({
   itemBadge: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   itemBadgeText: { color: '#818cf8', fontSize: 8, fontWeight: '800' },
 
-  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', paddingVertical: 10, borderRadius: 12, marginTop: 20 },
-  signOutBtnText: { color: '#fca5a5', fontSize: 12, fontWeight: '800' },
+  modernSignOutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    marginTop: 22,
+    marginBottom: 8,
+  },
+  signOutIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  signOutCardTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  signOutCardSub: {
+    color: '#fca5a5',
+    fontSize: 10,
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  signOutPill: {
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  signOutPillText: {
+    color: '#fca5a5',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 
   devBarCard: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, marginTop: 12, alignItems: 'center' },
   devBarTitle: { color: '#ffffff', fontSize: 10, fontWeight: '700' },

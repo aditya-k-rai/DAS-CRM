@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../store/authStore';
 import BulkIngestionScreen from './BulkIngestionScreen';
+import { LeadImportHistoryView } from '../components/LeadImportHistoryView';
 import {
   checkGoogleDriveStatus,
   listGoogleDriveFiles,
@@ -53,6 +54,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
 
   // Top-level Section Switcher: 'IMPORTS' vs 'STORAGE'
   const [activeSection, setActiveSection] = useState<'IMPORTS' | 'STORAGE'>(initialTab);
+  const [importSubView, setImportSubView] = useState<'HISTORY' | 'INGESTION'>('HISTORY');
 
   // Storage Vault State
   const [driveStatus, setDriveStatus] = useState<GoogleDriveConnectionStatus | null>(null);
@@ -223,8 +225,53 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
 
       {/* SECTION 1: LEAD IMPORT HISTORY */}
       {activeSection === 'IMPORTS' ? (
-        <View style={{ flex: 1 }}>
-          <BulkIngestionScreen onClose={onClose} />
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 10 }}>
+          {/* Sub Navigation Bar for Imports Section */}
+          <View style={[styles.importSubNav, { backgroundColor: isDark ? '#0f172a' : '#f1f5f9', borderColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
+            <TouchableOpacity
+              style={[
+                styles.importSubNavBtn,
+                importSubView === 'HISTORY' && styles.importSubNavBtnActive,
+              ]}
+              onPress={() => setImportSubView('HISTORY')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.importSubNavBtnText,
+                  { color: importSubView === 'HISTORY' ? '#ffffff' : colors.textMuted },
+                  importSubView === 'HISTORY' && styles.importSubNavBtnTextActive,
+                ]}
+              >
+                📜 Import History & Allocations
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.importSubNavBtn,
+                importSubView === 'INGESTION' && styles.importSubNavBtnActive,
+              ]}
+              onPress={() => setImportSubView('INGESTION')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.importSubNavBtnText,
+                  { color: importSubView === 'INGESTION' ? '#ffffff' : colors.textMuted },
+                  importSubView === 'INGESTION' && styles.importSubNavBtnTextActive,
+                ]}
+              >
+                ⚡ New Upload / Sync
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {importSubView === 'HISTORY' ? (
+            <LeadImportHistoryView onOpenNewIngestion={() => setImportSubView('INGESTION')} />
+          ) : (
+            <BulkIngestionScreen onClose={() => setImportSubView('HISTORY')} />
+          )}
         </View>
       ) : (
         /* SECTION 2: DATA STORAGE (GOOGLE DRIVE VAULT & EMAIL REQUEST) */
@@ -1260,5 +1307,35 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800',
+  },
+  importSubNav: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 10,
+    gap: 4,
+  },
+  importSubNavBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importSubNavBtnActive: {
+    backgroundColor: '#4f46e5',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  importSubNavBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  importSubNavBtnTextActive: {
+    fontWeight: '900',
   },
 });

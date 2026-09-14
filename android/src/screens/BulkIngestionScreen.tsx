@@ -31,6 +31,7 @@ import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
+import { LeadImportHistoryView } from '../components/LeadImportHistoryView';
 import {
   uploadFileToGoogleDriveAndroid,
   formatTimestampedFileName,
@@ -790,57 +791,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
   // ── Render: History Tab ────────────────────────────────────────────────────
   const renderHistoryTab = () => (
-    <View>
-      <View style={S.card}>
-        <View style={S.cardHeaderRow}>
-          <View style={[S.sectionDot, { backgroundColor: '#a78bfa' }]} />
-          <Text style={S.cardTitle}>Sync Run History & Audit Logs</Text>
-          <View style={S.statusBadge}>
-            <Text style={S.statusBadgeText}>{syncLogs.length} Runs</Text>
-          </View>
-        </View>
-        <Text style={S.cardSub}>Row-level error isolation: single invalid row will not fail the batch.</Text>
-      </View>
-
-      {syncLogs.map(log => (
-        <TouchableOpacity
-          key={log.id}
-          style={S.logCard}
-          onPress={() => Alert.alert(
-            `Sync Details: ${log.fileName}`,
-            `Source: ${log.source}\nTab: ${log.tabName}\nStatus: ${log.status}\n\n• Rows Detected: ${log.rowsDetected}\n• Created: ${log.rowsCreated}\n• Updated: ${log.rowsUpdated}\n• Skipped: ${log.rowsSkipped}\n• Errors: ${log.errorCount}\n\nTimestamp: ${log.timestamp}`
-          )}
-          activeOpacity={0.85}
-        >
-          <View style={S.logCardLeft}>
-            <SourceIcon source={log.source} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={S.logFileName} numberOfLines={1}>{log.fileName}</Text>
-            <Text style={S.logMeta}>
-              {log.source} {log.tabName !== '—' ? `• Tab: ${log.tabName}` : ''} • {log.timestamp}
-            </Text>
-            <View style={S.logStatsRow}>
-              <Text style={S.logStat}>+{log.rowsCreated} new</Text>
-              <Text style={[S.logStat, { color: '#38bdf8' }]}>↑ {log.rowsUpdated} updated</Text>
-              {log.rowsSkipped > 0 && <Text style={[S.logStat, { color: '#fbbf24' }]}>⊘ {log.rowsSkipped} skipped</Text>}
-              {log.errorCount > 0 && <Text style={[S.logStat, { color: '#f87171' }]}>⚠ {log.errorCount} errors</Text>}
-            </View>
-          </View>
-          <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-            <StatusBadge status={log.status} />
-          </View>
-        </TouchableOpacity>
-      ))}
-
-      {syncLogs.length === 0 && (
-        <View style={[S.card, { alignItems: 'center', paddingVertical: 40 }]}>
-          <Text style={{ fontSize: 36, marginBottom: 8 }}>📭</Text>
-          <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '700' }}>No sync runs yet</Text>
-          <Text style={{ color: '#475569', fontSize: 10, marginTop: 4 }}>Import a CSV or sync Google Sheets to see history.</Text>
-        </View>
-      )}
-    </View>
+    <LeadImportHistoryView onOpenNewIngestion={() => setActiveTab('CSV_EXCEL')} />
   );
 
   // ── Main Render ────────────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { apiService } from '../services/apiService';
 import { useTheme } from '../context/ThemeContext';
+import { ModernAlert } from '../services/modernAlert';
 
 interface ProfileScreenProps {
   onLogout?: () => void;
@@ -168,6 +169,30 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
   const handleLogout = async () => {
     await logout();
     onLogout?.();
+  };
+
+  const handleLogoutPress = () => {
+    ModernAlert.show({
+      title: 'Sign Out of DAS CRM?',
+      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${subscription?.companyName || 'Acme Sales Solutions'}\n• Role: ${role}\n• Synced leads and customer records remain completely safe.`,
+      type: 'warning',
+      icon: '🚪',
+      badgeText: 'SECURITY & SESSION',
+      accentColor: '#ef4444',
+      buttons: [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes, Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            handleLogout();
+          },
+        },
+      ],
+    });
   };
 
   const insets = useSafeAreaInsets();
@@ -407,10 +432,35 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           <Text style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>Last Synced: {lastSyncTime}</Text>
         </View>
 
-        {/* ── 9. LOGOUT BUTTON ────────────────────────────────────────────── */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-          <Text style={styles.logoutButtonText}>🚪 Sign Out of Workspace</Text>
-        </TouchableOpacity>
+        {/* ── 9. SESSION & SECURITY / MODERN LOGOUT CARD ──────────────────── */}
+        <View style={styles.sessionCard}>
+          <View style={styles.sessionCardHeader}>
+            <View style={styles.sessionIconCircle}>
+              <Text style={{ fontSize: 16 }}>🛡️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sessionCardTitle}>Security & Active Session</Text>
+              <Text style={styles.sessionCardSub}>
+                Connected as {currentUser?.name || 'User'} ({role})
+              </Text>
+            </View>
+            <View style={styles.sessionLiveBadge}>
+              <View style={styles.sessionLiveDot} />
+              <Text style={styles.sessionLiveText}>ACTIVE</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.modernLogoutBtn}
+            onPress={handleLogoutPress}
+            activeOpacity={0.8}
+          >
+            <View style={styles.modernLogoutIconBox}>
+              <Text style={{ fontSize: 13 }}>🚪</Text>
+            </View>
+            <Text style={styles.modernLogoutBtnText}>Sign Out of Workspace</Text>
+          </TouchableOpacity>
+        </View>
 
       </ScrollView>
 
@@ -644,8 +694,96 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   syncBtn: { backgroundColor: '#4f46e5', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 8 },
   syncBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
-  logoutButton: { width: '100%', maxWidth: 500, backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', borderWidth: 1, borderColor: '#ef4444', paddingVertical: 12, borderRadius: 14, alignItems: 'center', marginTop: 8, marginBottom: 12 },
-  logoutButtonText: { color: isDark ? '#fca5a5' : '#dc2626', fontWeight: '900', fontSize: 13 },
+  sessionCard: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: colors.cardBg,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.22)',
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 16,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.15 : 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sessionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  sessionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(239,68,68,0.35)' : 'rgba(239,68,68,0.2)',
+  },
+  sessionCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  sessionCardSub: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  sessionLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.25)',
+  },
+  sessionLiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#10b981',
+  },
+  sessionLiveText: {
+    color: '#10b981',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  modernLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.35)',
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  modernLogoutIconBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modernLogoutBtnText: {
+    color: isDark ? '#fca5a5' : '#dc2626',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
 
   modalOverlay: { flex: 1, backgroundColor: isDark ? 'rgba(2,6,23,0.85)' : 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalCard: { width: '100%', maxWidth: 400, backgroundColor: colors.cardBg, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 16 },

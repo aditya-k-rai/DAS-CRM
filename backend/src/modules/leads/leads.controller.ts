@@ -212,4 +212,24 @@ export class LeadsController {
   getIngestionHistory(@CurrentUser() user: any) {
     return this.leadsService.getIngestionHistory(user.organizationId);
   }
+
+  @Post('mail-import-report')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mail Lead Import & Allocation Report to Admin' })
+  mailImportReport(
+    @CurrentUser() user: any,
+    @Body() dto: {
+      importId: string;
+      fileName: string;
+      source: 'CSV' | 'EXCEL' | 'GOOGLE_SHEETS';
+      importDate: string;
+      totalLeads: number;
+      allocationMode: string;
+      allocationBreakdown?: string[];
+      recipientEmail: string;
+      notes?: string;
+    },
+  ) {
+    return this.leadsService.mailImportReport(user.organizationId, user.id, dto);
+  }
 }

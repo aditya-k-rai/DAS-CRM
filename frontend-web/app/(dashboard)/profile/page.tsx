@@ -8,11 +8,13 @@ import {
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import { Topbar } from '@/components/layout/Topbar';
+import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 
 export default function UserProfilePage() {
   const { currentUser, subscription, logout } = useAuth();
   const [downloadingLogs, setDownloadingLogs] = useState(false);
   const [downloadingPayslip, setDownloadingPayslip] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const role: UserRole = (currentUser.role || 'SALES_EXEC') as UserRole;
 
@@ -242,13 +244,13 @@ export default function UserProfilePage() {
                 <Download size={14} /> {downloadingLogs ? 'Exporting...' : 'Export Telemetry CSV'}
               </button>
               <button
-                onClick={() => {
-                  logout();
-                  window.location.href = '/login';
-                }}
-                className="btn-danger text-xs gap-1.5 flex items-center"
+                onClick={() => setShowLogoutModal(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600/15 via-rose-600/20 to-red-600/15 hover:from-rose-600/25 hover:to-red-600/25 text-rose-300 hover:text-white border border-rose-500/30 hover:border-rose-500/50 text-xs font-bold shadow-xs hover:shadow-rose-600/20 transition-all duration-200 group"
               >
-                <LogOut size={14} /> Sign Out
+                <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-rose-500/25 text-rose-400 group-hover:scale-110 transition-transform">
+                  <LogOut size={12} />
+                </div>
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
@@ -472,6 +474,22 @@ export default function UserProfilePage() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL 5: LOGOUT CONFIRMATION MODAL ──────────────────────── */}
+      <LogoutConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          logout();
+          window.location.href = '/login';
+        }}
+        userName={currentUser?.name}
+        userEmail={currentUser?.email}
+        userRole={currentUser?.role}
+        userAvatar={currentUser?.avatar}
+        companyName={subscription?.companyName || 'Acme Sales Solutions'}
+      />
 
     </div>
   );

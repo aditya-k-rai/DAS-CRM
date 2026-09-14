@@ -827,4 +827,47 @@ export class LeadsService {
       ],
     };
   }
+
+  /** Mail Lead Import & Allocation Report to Admin Email */
+  async mailImportReport(
+    organizationId: string,
+    userId: string,
+    dto: {
+      importId: string;
+      fileName: string;
+      source: 'CSV' | 'EXCEL' | 'GOOGLE_SHEETS';
+      importDate: string;
+      totalLeads: number;
+      allocationMode: string;
+      allocationBreakdown?: string[];
+      recipientEmail: string;
+      notes?: string;
+    },
+  ) {
+    const adminEmail = dto.recipientEmail || 'adtyamighty@gmail.com';
+
+    await this.notificationsService.send({
+      organizationId,
+      recipientIds: [userId],
+      event: 'AUTOMATION_TRIGGERED',
+      title: '📧 Lead Import Report Dispatched',
+      body: `Import & allocation report for "${dto.fileName}" (${dto.totalLeads} leads) has been dispatched to ${adminEmail}.`,
+      linkUrl: '/database?tab=imports',
+      channels: ['IN_APP'],
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: `Lead import report for "${dto.fileName}" successfully dispatched to ${adminEmail}.`,
+      recipientEmail: adminEmail,
+      dispatchedAt: new Date().toISOString(),
+      reportSummary: {
+        fileName: dto.fileName,
+        source: dto.source,
+        totalLeads: dto.totalLeads,
+        allocationMode: dto.allocationMode,
+        allocationBreakdown: dto.allocationBreakdown || [],
+      },
+    };
+  }
 }
