@@ -410,6 +410,7 @@ function RootAppContent() {
 
   // ── IN-APP UPDATE ENGINE STATE ──────────────────────────────────────────────
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -512,6 +513,7 @@ function RootAppContent() {
       setProductsModalOpen(false);
       setNotifModalOpen(false);
       setUpdateModalOpen(false);
+      setAboutModalOpen(false);
       logout();
     });
   };
@@ -771,6 +773,20 @@ function RootAppContent() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  style={styles.drawerItemRow}
+                  onPress={() => closeDrawer(() => setAboutModalOpen(true))}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.drawerItemIconBox, { backgroundColor: colors.cardBgElevated }]}>
+                    <Text style={{ fontSize: 14 }}>ℹ️</Text>
+                  </View>
+                  <Text style={[styles.drawerItemLabel, { color: colors.text }]}>About DAS CRM &amp; Dev</Text>
+                  <View style={[styles.itemBadge, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}>
+                    <Text style={[styles.itemBadgeText, { color: '#818cf8' }]}>AUTHOR</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={styles.modernSignOutCard}
                   onPress={confirmAndHandleLogout}
                   activeOpacity={0.75}
@@ -907,6 +923,75 @@ function RootAppContent() {
                   </TouchableOpacity>
                 )}
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ℹ️ ABOUT DAS CRM & DEVELOPER MODAL */}
+        <Modal visible={aboutModalOpen} transparent animationType="slide">
+          <View style={styles.updateModalOverlay}>
+            <View style={[styles.updateModalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={styles.updateHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={[styles.updateIconBox, { backgroundColor: 'rgba(99,102,241,0.2)' }]}>
+                    <Text style={{ fontSize: 20 }}>ℹ️</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.updateModalTitle, { color: colors.text }]}>About DAS CRM</Text>
+                    <Text style={[styles.updateModalSub, { color: colors.textMuted }]}>Platform &amp; Lead Systems Architect</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setAboutModalOpen(false)} style={[styles.closeDrawerBtn, { backgroundColor: colors.cardBgElevated }]}>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.versionBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.verTitle, { color: colors.text }]}>DAS CRM Enterprise Android</Text>
+                  <View style={styles.stableBadge}>
+                    <Text style={styles.stableBadgeText}>v2.5.0 STABLE</Text>
+                  </View>
+                </View>
+                <Text style={[styles.verMeta, { color: colors.textMuted }]}>Build: 2026.09.14 • React Native Turbo Engine</Text>
+              </View>
+
+              {/* Developer Card */}
+              <View style={{ backgroundColor: colors.cardBgElevated, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 14, gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '900' }}>AKR</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: colors.text }}>Aditya Kumar Rai</Text>
+                      <View style={{ backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                        <Text style={{ color: '#818cf8', fontSize: 8, fontWeight: '900' }}>LEAD DEV</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#818cf8', fontWeight: '700', marginTop: 1 }}>Senior Software Developer &amp; SaaS Architect</Text>
+                  </View>
+                </View>
+
+                <Text style={{ fontSize: 11, color: colors.textSecondary, lineHeight: 16 }}>
+                  Architected DAS CRM — engineered the 3-model lead funnel routing engine, multi-tenant Google Drive storage vault, offline attendance sync, and cross-platform native mobile experience.
+                </Text>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center' }}
+                  onPress={() => Linking.openURL('https://github.com/aditya-k-rai')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>🐙 View GitHub Profile (@aditya-k-rai) ↗</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.checkServerBtn, { backgroundColor: colors.cardBgElevated }]}
+                onPress={() => setAboutModalOpen(false)}
+              >
+                <Text style={[styles.checkServerBtnText, { color: colors.text }]}>Close</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -1080,10 +1165,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-
-  devBarCard: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, marginTop: 12, alignItems: 'center' },
-  devBarTitle: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
-  devBarLink: { color: '#38bdf8', fontSize: 9, fontWeight: '800', marginTop: 2 },
 
   topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
   hamburgerBtn: { padding: 4, justifyContent: 'center', gap: 4 },

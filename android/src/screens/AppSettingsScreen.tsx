@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -355,6 +356,61 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
             <Text style={styles.actionBtnText}>💾 {t.savePreferences}</Text>
           )}
         </TouchableOpacity>
+
+        {/* ℹ️ ABOUT & DEVELOPER SECTION */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: titleColor }]}>ℹ️ About DAS CRM &amp; Engineering</Text>
+          <Text style={[styles.sectionSub, { color: subColor }]}>App build information &amp; lead systems architect</Text>
+        </View>
+
+        <View style={[styles.aboutCard, { backgroundColor: cardBg, borderColor }]}>
+          <View style={styles.aboutHeaderRow}>
+            <View style={styles.appLogoCircle}>
+              <Text style={{ fontSize: 16 }}>🚀</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.aboutAppName, { color: titleColor }]}>DAS CRM Enterprise</Text>
+                <View style={styles.versionBadge}>
+                  <Text style={styles.versionBadgeText}>v2.5.0 STABLE</Text>
+                </View>
+              </View>
+              <Text style={[styles.aboutBuildMeta, { color: subColor }]}>Build: 2026.09.14 • Android Client</Text>
+            </View>
+          </View>
+
+          <View style={[styles.aboutDivider, { backgroundColor: borderColor }]} />
+
+          {/* Developer Card */}
+          <View style={styles.developerBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={styles.developerAvatar}>
+                <Text style={styles.developerAvatarText}>AKR</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.developerName, { color: titleColor }]}>Aditya Kumar Rai</Text>
+                  <View style={styles.authorBadge}>
+                    <Text style={styles.authorBadgeText}>LEAD DEV</Text>
+                  </View>
+                </View>
+                <Text style={styles.developerRole}>Senior Software Developer &amp; SaaS Architect</Text>
+              </View>
+            </View>
+
+            <Text style={[styles.developerBio, { color: subColor }]}>
+              Lead architect responsible for the fullstack design, real-time funnel engine, and cross-platform mobile &amp; web systems of DAS CRM.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.githubBtn}
+              onPress={() => Linking.openURL('https://github.com/aditya-k-rai')}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.githubBtnText}>🐙 View Developer Profile on GitHub (@aditya-k-rai) ↗</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -532,6 +588,109 @@ const styles = StyleSheet.create({
   actionBtnText: {
     color: '#ffffff',
     fontSize: 15,
+    fontWeight: '800',
+  },
+  aboutCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 6,
+    marginBottom: 24,
+  },
+  aboutHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  appLogoCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(99, 102, 241, 0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aboutAppName: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  versionBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  versionBadgeText: {
+    color: '#34d399',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  aboutBuildMeta: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  aboutDivider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  developerBox: {
+    gap: 8,
+  },
+  developerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#4f46e5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  developerAvatarText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  developerName: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  authorBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  authorBadgeText: {
+    color: '#818cf8',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  developerRole: {
+    color: '#818cf8',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  developerBio: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  githubBtn: {
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  githubBtnText: {
+    color: '#818cf8',
+    fontSize: 11,
     fontWeight: '800',
   },
 });

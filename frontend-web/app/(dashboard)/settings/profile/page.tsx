@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
-import { User, Key, ShieldCheck, Save, Building2, Users, CreditCard } from 'lucide-react';
+import { User, Key, ShieldCheck, Save, Building2, Users, CreditCard, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'My Profile & Security | Settings' };
@@ -26,6 +26,9 @@ export default function ProfileSettingsPage() {
             </Link>
             <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-brand/10 text-white border-l-2 border-brand">
               <User size={16} /> My Account Profile
+            </Link>
+            <Link href="/about" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+              <Info size={16} /> About & Developer
             </Link>
           </div>
         </div>

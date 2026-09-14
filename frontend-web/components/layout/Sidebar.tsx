@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Target, Users, Package, Receipt, MessageSquare,
   MessageCircle, Mail, Sparkles, FileText, GitBranch,
   BarChart3, Zap, Database, Briefcase, TrendingUp,
-  UserCheck, Radio, Settings, Building2, HelpCircle,
+  UserCheck, Radio, Settings, Building2, HelpCircle, Info,
   Shield, LogOut, PanelLeftClose, PanelLeft, X, Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,7 @@ const adminNavigation: NavItem[] = [
   { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'About & Developer', href: '/about', icon: Info, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
 ];
 
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
@@ -251,19 +252,6 @@ export function Sidebar() {
                 Exit
               </span>
             </button>
-          </div>
-
-          {/* Developer Credit Bar */}
-          <div className="sidebar-dev-credit px-2 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 flex items-center justify-between">
-            <a
-              href="https://github.com/aditya-k-rai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between w-full text-[11px] font-semibold text-slate-300 hover:text-indigo-400 transition-colors"
-            >
-              <span>💻 Dev: <strong className="text-white">Aditya Kumar Rai</strong></span>
-              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">GitHub ↗</span>
-            </a>
           </div>
         </div>
       </aside>

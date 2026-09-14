@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import {
   Search, BookOpen, MessageSquare, Shield, Zap, FileText, CheckCircle2,
-  AlertCircle, ChevronRight, Phone, Mail, ExternalLink, Plus, Send
+  AlertCircle, ChevronRight, Phone, Mail, ExternalLink, Plus, Send,
+  Info, Code2, GitBranch, Sparkles, Database, Layers, ArrowRight
 } from 'lucide-react';
+import Link from 'next/link';
 
 const KB_CATEGORIES = [
   { id: 'getting_started', title: 'Getting Started', desc: 'Setup, roles, workspace configuration, and onboarding.', icon: Zap, color: '#6366f1', count: 8 },
@@ -26,7 +28,7 @@ const TICKETS = [
 ];
 
 export function HelpCenter() {
-  const [activeTab, setActiveTab]   = useState<'kb' | 'tickets'>('kb');
+  const [activeTab, setActiveTab]   = useState<'kb' | 'tickets' | 'about'>('kb');
   const [search, setSearch]         = useState('');
   const [selectedArticle, setArticle] = useState<typeof ARTICLES[0] | null>(null);
   const [showTicketModal, setShowTicket] = useState(false);
@@ -80,6 +82,12 @@ export function HelpCenter() {
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'tickets' ? 'bg-brand/20 text-brand-400 border border-brand/30' : 'text-muted'}`}
         >
           <MessageSquare size={15} /> Support Tickets ({TICKETS.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('about')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'about' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-muted hover:text-white'}`}
+        >
+          <Info size={15} /> About &amp; Developer
         </button>
       </div>
 
@@ -175,6 +183,87 @@ export function HelpCenter() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* About & Developer Tab */}
+      {activeTab === 'about' && (
+        <div className="space-y-6">
+          {/* Developer Card */}
+          <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border-indigo-500/30 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                  <Code2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Lead Architect &amp; Developer</h3>
+                  <p className="text-xs text-muted">Core Platform Engineering, Architecture &amp; System Design</p>
+                </div>
+              </div>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold flex items-center gap-1">
+                <CheckCircle2 size={12} /> Verified Author
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+              <div className="flex items-center gap-3.5">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-cyan-500 flex items-center justify-center text-sm font-black text-white shadow-md">
+                  AKR
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white">Aditya Kumar Rai</h4>
+                  <p className="text-xs text-indigo-400 font-semibold">Senior Software Developer &amp; SaaS Architect</p>
+                  <p className="text-[11px] text-muted mt-0.5">Architected Next.js Web, Android APK &amp; NestJS microservices</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://github.com/aditya-k-rai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30"
+                >
+                  <GitBranch size={13} />
+                  <span>GitHub (@aditya-k-rai)</span>
+                  <ExternalLink size={12} />
+                </a>
+                <Link
+                  href="/about"
+                  className="btn-secondary text-xs flex items-center gap-1"
+                >
+                  <span>Full About Page</span>
+                  <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* System Specs Mini Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="crm-card p-4 space-y-1">
+              <span className="text-[10px] font-bold text-muted uppercase">Platform Version</span>
+              <div className="text-sm font-black text-white flex items-center gap-1.5">
+                <Sparkles size={14} className="text-indigo-400" />
+                v2.5.0 Production Stable
+              </div>
+            </div>
+            <div className="crm-card p-4 space-y-1">
+              <span className="text-[10px] font-bold text-muted uppercase">Backend Infrastructure</span>
+              <div className="text-sm font-black text-emerald-400 flex items-center gap-1.5">
+                <Database size={14} />
+                NestJS + PostgreSQL Vault
+              </div>
+            </div>
+            <div className="crm-card p-4 space-y-1">
+              <span className="text-[10px] font-bold text-muted uppercase">Multi-Tenant Routing</span>
+              <div className="text-sm font-black text-purple-400 flex items-center gap-1.5">
+                <Layers size={14} />
+                Isolated Google Drive Storage
+              </div>
+            </div>
           </div>
         </div>
       )}

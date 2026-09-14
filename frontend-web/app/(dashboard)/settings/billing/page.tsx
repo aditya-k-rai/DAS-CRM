@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
-import { CreditCard, Check, Zap, Building2, Users, User, Shield } from 'lucide-react';
+import { CreditCard, Check, Zap, Building2, Users, User, Shield, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Subscription & Billing | DAS CRM' };
@@ -31,6 +31,9 @@ export default function BillingPage() {
             </Link>
             <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
               <User size={16} /> My Account Profile
+            </Link>
+            <Link href="/about" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+              <Info size={16} /> About & Developer
             </Link>
           </div>
         </div>

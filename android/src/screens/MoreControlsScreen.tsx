@@ -53,7 +53,8 @@ export type ModuleKey =
   | 'UPCOMING_COMMS'
   | 'SETTINGS'
   | 'PROFILE'
-  | 'SUPPORT';
+  | 'SUPPORT'
+  | 'ABOUT';
 
 interface MoreControlsScreenProps {
   navigation?: any;
@@ -112,6 +113,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'AI_HUB') setActiveModal('AI_HUB');
       else if (initMod === 'AI_CONTROL' || initMod === 'AI_CUSTOMIZATION') setActiveModal('AI_CONTROL');
       else if (initMod === 'AUTOMATIONS' || initMod === 'WORKFLOW') setActiveModal('AUTOMATIONS');
+      else if (initMod === 'ABOUT' || initMod === 'DEVELOPER') setActiveModal('ABOUT');
     }
   }, [route?.params?.initialModule]);
 
@@ -145,6 +147,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     { key: 'UPCOMING_COMMS', icon: '📌', label: 'The Notice Board' },
     { key: 'SETTINGS', icon: '⚙️', label: 'Settings' },
     { key: 'PROFILE', icon: '🏢', label: 'Company Profile Settings' },
+    { key: 'ABOUT', icon: 'ℹ️', label: 'About & Developer' },
     { key: 'SUPPORT', icon: '❓', label: 'Support' },
   ];
 
@@ -169,6 +172,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       case 'UPCOMING_COMMS': return t.modNoticeBoard || defaultLabel;
       case 'SETTINGS': return t.modSettings || defaultLabel;
       case 'PROFILE': return t.modProfile || defaultLabel;
+      case 'ABOUT': return 'About & Developer';
       case 'SUPPORT': return t.modSupport || defaultLabel;
       default: return defaultLabel;
     }
@@ -288,7 +292,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
           <NoticeBoardScreen onClose={closeModal} />
         )}
 
-        {activeModal === 'SETTINGS' && (
+        {(activeModal === 'SETTINGS' || activeModal === 'ABOUT') && (
           <AppSettingsScreen onClose={closeModal} />
         )}
 
@@ -315,6 +319,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
                 <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => Alert.alert('User Guide', 'Opening interactive documentation...')}>
                   <Text style={{ color: '#c084fc', fontSize: 13, fontWeight: '800' }}>📄 User Manual & Documentation</Text>
                   <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>Step-by-step setup guides for all 18 modules</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]} onPress={() => setActiveModal('ABOUT')}>
+                  <Text style={{ color: '#818cf8', fontSize: 13, fontWeight: '800' }}>ℹ️ About DAS CRM & Lead Architect</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>Platform architecture, Aditya Kumar Rai (Developer) profile & GitHub</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
-import { Building2, Save, Upload, Shield, Bell, Key, CreditCard, Users, User } from 'lucide-react';
+import { Building2, Save, Upload, Shield, Bell, Key, CreditCard, Users, User, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Settings | DAS CRM' };
@@ -26,6 +26,9 @@ export default function SettingsPage() {
             </Link>
             <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-foreground dark:hover:text-white hover:bg-muted/50 transition-all">
               <User size={16} /> My Account Profile
+            </Link>
+            <Link href="/about" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-foreground dark:hover:text-white hover:bg-muted/50 transition-all">
+              <Info size={16} /> About & Developer
             </Link>
           </div>
         </div>

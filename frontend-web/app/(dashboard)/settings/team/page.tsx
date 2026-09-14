@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Topbar } from '@/components/layout/Topbar';
-import { Users, Plus, Shield, Mail, MoreHorizontal, UserPlus, Building2, CreditCard, User } from 'lucide-react';
+import { Users, Plus, Shield, Mail, MoreHorizontal, UserPlus, Building2, CreditCard, User, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Team & Members | Settings' };
@@ -34,6 +34,9 @@ export default function TeamSettingsPage() {
             </Link>
             <Link href="/settings/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
               <User size={16} /> My Account Profile
+            </Link>
+            <Link href="/about" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-muted/50 transition-all">
+              <Info size={16} /> About & Developer
             </Link>
           </div>
         </div>
