@@ -247,87 +247,91 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
   const isFullyLoaded = renderLimit >= totalRows;
 
   return (
-    <div className="flex-1 overflow-hidden rounded-xl border border-border/80 shadow-2xl flex flex-col" ref={containerRef}>
+    <div className="flex-1 overflow-hidden rounded-xl border border-border/80 shadow-2xl flex flex-col bg-slate-950" ref={containerRef}>
 
-      {/* ── Sticky Column-Mapping Header ───────────────────────────────── */}
-      <div className="overflow-x-auto shrink-0 bg-slate-900 border-b-2 border-slate-700 select-none">
-        <div style={{ width: totalWidth, display: 'flex' }}>
+      {/* ── Single Unified Horizontal Scroll Engine (Syncs Header & Data Body) ── */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden bg-slate-950 flex flex-col">
+        <div style={{ width: totalWidth, minWidth: '100%' }} className="flex flex-col shrink-0">
 
-          {/* Row Controls column header */}
-          <div
-            style={{ width: 80, minWidth: 80 }}
-            className="px-2 py-3 text-center border-r-2 border-slate-600 font-black text-[10px] text-slate-300 uppercase tracking-widest shrink-0 bg-slate-800"
-          >
-            # Controls
+          {/* ── Column-Mapping Header ───────────────────────────────── */}
+          <div className="shrink-0 bg-slate-900 border-b-2 border-slate-700 select-none flex">
+            {/* Row Controls column header */}
+            <div
+              style={{ width: 80, minWidth: 80 }}
+              className="px-2 py-3 text-center border-r-2 border-slate-600 font-black text-[10px] text-slate-300 uppercase tracking-widest shrink-0 bg-slate-800"
+            >
+              # Controls
+            </div>
+
+            {activeSheet.data[0]?.map((_, cIdx) => {
+              const w = activeSheet.columnWidths[cIdx] || 160;
+              const isBlocked = activeSheet.blockedColumns[cIdx];
+              return (
+                <div
+                  key={cIdx}
+                  style={{ width: w, minWidth: w }}
+                  className={`p-2 border-r border-slate-600/70 last:border-0 relative group shrink-0 ${
+                    isBlocked ? 'bg-rose-950/50' : 'bg-slate-800'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                        Col {cIdx + 1}
+                      </span>
+                      <button
+                        onClick={() => toggleBlockColumn(cIdx)}
+                        title={isBlocked ? 'Unblock Column' : 'Block Column'}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                          isBlocked
+                            ? 'bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
+                            : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                        }`}
+                      >
+                        {isBlocked ? '👁 On' : '🚫 Off'}
+                      </button>
+                    </div>
+                    <select
+                      value={activeSheet.columnMappings[cIdx] || 'custom'}
+                      onChange={e => updateColumnMapping(cIdx, e.target.value)}
+                      disabled={isBlocked}
+                      className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-200 py-0.5"
+                    >
+                      {FIELD_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Drag-to-resize handle */}
+                  <div
+                    onMouseDown={e => handleMouseDownResize(e, cIdx)}
+                    title="Drag to resize column"
+                    className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-20 hover:bg-cyan-400/60 flex items-center justify-center transition-colors"
+                  >
+                    <div className="w-[2px] h-full bg-slate-600 group-hover:bg-cyan-300" />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {activeSheet.data[0]?.map((_, cIdx) => {
-            const w = activeSheet.columnWidths[cIdx] || 160;
-            const isBlocked = activeSheet.blockedColumns[cIdx];
-            return (
-              <div
-                key={cIdx}
-                style={{ width: w, minWidth: w }}
-                className={`p-2 border-r border-slate-600/70 last:border-0 relative group shrink-0 ${
-                  isBlocked ? 'bg-rose-950/50' : 'bg-slate-800'
-                }`}
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-black text-white uppercase tracking-wider">
-                      Col {cIdx + 1}
-                    </span>
-                    <button
-                      onClick={() => toggleBlockColumn(cIdx)}
-                      title={isBlocked ? 'Unblock Column' : 'Block Column'}
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                        isBlocked
-                          ? 'bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
-                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                      }`}
-                    >
-                      {isBlocked ? '👁 On' : '🚫 Off'}
-                    </button>
-                  </div>
-                  <select
-                    value={activeSheet.columnMappings[cIdx] || 'custom'}
-                    onChange={e => updateColumnMapping(cIdx, e.target.value)}
-                    disabled={isBlocked}
-                    className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-200 py-0.5"
-                  >
-                    {FIELD_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* Drag-to-resize handle */}
-                <div
-                  onMouseDown={e => handleMouseDownResize(e, cIdx)}
-                  title="Drag to resize column"
-                  className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-20 hover:bg-cyan-400/60 flex items-center justify-center transition-colors"
-                >
-                  <div className="w-[2px] h-full bg-slate-600 group-hover:bg-cyan-300" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+          {/* ── Chunk-Loaded Virtual Row Body — always shows exactly 10 rows ── */}
+          <div className="shrink-0" style={{ background: 'rgb(2 6 23)', height: 10 * ROW_HEIGHT }}>
+            <FixedSizeList
+              ref={listRef}
+              height={10 * ROW_HEIGHT}           /* exactly 10 rows visible at all times */
+              itemCount={renderLimit}            /* currently unlocked chunk */
+              itemSize={ROW_HEIGHT}
+              width={totalWidth}
+              overscanCount={20}                 /* pre-paint 20 rows above+below viewport */
+              onItemsRendered={handleItemsRendered}
+              style={{ willChange: 'transform', overflowX: 'hidden' }}
+            >
+              {RowRenderer}
+            </FixedSizeList>
+          </div>
 
-      {/* ── Chunk-Loaded Virtual Row Body — always shows exactly 10 rows ── */}
-      <div className="shrink-0 overflow-x-auto" style={{ background: 'rgb(2 6 23)', height: 10 * ROW_HEIGHT }}>
-        <FixedSizeList
-          ref={listRef}
-          height={10 * ROW_HEIGHT}           /* exactly 10 rows visible at all times */
-          itemCount={renderLimit}            /* currently unlocked chunk */
-          itemSize={ROW_HEIGHT}
-          width={totalWidth}
-          overscanCount={20}                 /* pre-paint 20 rows above+below viewport */
-          onItemsRendered={handleItemsRendered}
-          style={{ willChange: 'transform', overflowX: 'hidden' }}
-        >
-          {RowRenderer}
-        </FixedSizeList>
+        </div>
       </div>
 
       {/* ── Status Bar ─────────────────────────────────────────────────── */}
