@@ -516,9 +516,23 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     return true;
   });
 
+  // ── PAGINATION STATE ────────────────────────────────────────────────────────
+  const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeFilter, filterPerson, filterRole, filterStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const endIdx   = Math.min(startIdx + pageSize, filteredLeads.length);
+  const pagedLeads = useMemo(() => filteredLeads.slice(startIdx, endIdx), [filteredLeads, startIdx, endIdx]);
+
   // renderExcelRow inline — used directly inside vertical ScrollView
   const renderExcelRows = useCallback(() =>
-    filteredLeads.map((item, index) => (
+    pagedLeads.map((item, index) => (
       <View
         key={item.id}
         style={[
@@ -530,14 +544,14 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         ]}
       >
         <View style={[styles.excelRowNum, { backgroundColor: isDark ? '#0b1329' : '#f8fafc', borderRightColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b' }}>{index + 1}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b' }}>{startIdx + index + 1}</Text>
         </View>
         {columnOrder.map((colKey) =>
           renderExcelCell(item, colKey, columnWidths[colKey] || 140)
         )}
       </View>
     ))
-    , [filteredLeads, columnOrder, columnWidths, colors, isDark]);
+    , [pagedLeads, startIdx, columnOrder, columnWidths, colors, isDark]);
 
   // ── RENDER EXCEL CELL BY COLUMN KEY ────────────────────────────────────────
   const renderExcelCell = (item: LeadItem, colKey: string, width: number) => {
@@ -1261,7 +1275,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
             /* 📱 CLASSIC CARD FEED VIEW */
             <FlatList
-              data={filteredLeads}
+              data={pagedLeads}
               keyExtractor={(item) => item.id}
               contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]}
               renderItem={({ item }) => (
@@ -1365,6 +1379,97 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 </TouchableOpacity>
               )}
             />
+          )}
+
+          {/* ── PAGINATION CONTROLS BAR (ANDROID) ────────────────── */}
+          {filteredLeads.length > 0 && (
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              backgroundColor: isDark ? '#0b1329' : '#f8fafc',
+              borderTopWidth: 1,
+              borderTopColor: isDark ? '#1e293b' : '#e2e8f0',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}>
+              {/* Page size selector */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#94a3b8' : '#64748b' }}>Rows per page:</Text>
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {([10, 20, 50, 100] as const).map((sz) => (
+                    <TouchableOpacity
+                      key={sz}
+                      onPress={() => { setPageSize(sz); setCurrentPage(1); }}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        backgroundColor: pageSize === sz ? '#4f46e5' : (isDark ? '#0f172a' : '#ffffff'),
+                        borderColor: pageSize === sz ? '#818cf8' : (isDark ? '#334155' : '#cbd5e1'),
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 10,
+                        fontWeight: '900',
+                        color: pageSize === sz ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
+                      }}>
+                        {sz}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Range info and page navigation */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 10, color: isDark ? '#64748b' : '#94a3b8' }}>
+                  <Text style={{ fontWeight: '800', color: isDark ? '#f8fafc' : '#0f172a' }}>{startIdx + 1}–{endIdx}</Text> of{' '}
+                  <Text style={{ fontWeight: '800', color: '#818cf8' }}>{filteredLeads.length}</Text>
+                </Text>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <TouchableOpacity
+                    onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      borderColor: isDark ? '#334155' : '#cbd5e1',
+                      opacity: safePage === 1 ? 0.35 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#818cf8' }}>◀</Text>
+                  </TouchableOpacity>
+
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#cbd5e1' : '#334155' }}>
+                    {safePage}/{totalPages}
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      borderColor: isDark ? '#334155' : '#cbd5e1',
+                      opacity: safePage === totalPages ? 0.35 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#818cf8' }}>▶</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
           )}
 
         </View>

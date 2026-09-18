@@ -512,7 +512,7 @@ export default function LeadPipelinePage() {
   });
 
   // ── Pagination State ────────────────────────────────────────────────────────
-  const [pageSize, setPageSize] = useState<50 | 100>(50);
+  const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset to page 1 whenever the search query or lead list changes
@@ -1062,7 +1062,7 @@ export default function LeadPipelinePage() {
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-slate-400 font-semibold">Rows per page:</span>
                     <div className="flex gap-1">
-                      {([50, 100] as const).map(size => (
+                      {([10, 20, 50, 100] as const).map(size => (
                         <button
                           key={size}
                           onClick={() => { setPageSize(size); setCurrentPage(1); }}

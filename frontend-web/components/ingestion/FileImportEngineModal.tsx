@@ -314,15 +314,15 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
         </div>
       </div>
 
-      {/* ── Chunk-Loaded Virtual Row Body ──────────────────────────────── */}
-      <div className="flex-1 overflow-x-auto" style={{ background: 'rgb(2 6 23)' }}>
+      {/* ── Chunk-Loaded Virtual Row Body — always shows exactly 10 rows ── */}
+      <div className="shrink-0 overflow-x-auto" style={{ background: 'rgb(2 6 23)', height: 10 * ROW_HEIGHT }}>
         <FixedSizeList
           ref={listRef}
-          height={window?.innerHeight ? Math.max(300, window.innerHeight * 0.44) : 480}
-          itemCount={renderLimit}           /* only the currently unlocked chunk */
+          height={10 * ROW_HEIGHT}           /* exactly 10 rows visible at all times */
+          itemCount={renderLimit}            /* currently unlocked chunk */
           itemSize={ROW_HEIGHT}
           width={totalWidth}
-          overscanCount={20}                /* pre-paint 20 rows above+below viewport */
+          overscanCount={20}                 /* pre-paint 20 rows above+below viewport */
           onItemsRendered={handleItemsRendered}
           style={{ willChange: 'transform', overflowX: 'hidden' }}
         >

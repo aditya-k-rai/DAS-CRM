@@ -886,7 +886,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                     })}
                   </View>
 
-                  {/* ── VIRTUALIZED DATA ROWS ───────────────────────────────── */}
+                  {/* ── VIRTUALIZED DATA ROWS (10 VISIBLE ROWS AT A TIME) ────── */}
                   <FlatList
                     data={activeSheet.data}
                     renderItem={renderRow}
@@ -897,7 +897,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                     windowSize={10}
                     initialNumToRender={20}
                     key={activeIdx}
-                    style={styles.rowList}
+                    style={[styles.rowList, { height: 10 * ROW_H }]}
                     showsVerticalScrollIndicator={true}
                     nestedScrollEnabled
                   />
