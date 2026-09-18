@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, memo } from 'react';
+import { FixedSizeList, ListChildComponentProps } from 'react-window';
 import * as XLSX from 'xlsx';
 import {
   Upload, FileSpreadsheet, X, Plus, Sliders,
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
-  Cloud, CloudUpload, Zap, Folder, Check
+  Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
@@ -60,6 +61,245 @@ const FIELD_OPTIONS = [
   { value: 'custom', label: 'Custom Field' },
   { value: 'block', label: '🚫 Block Column' },
 ];
+
+// ─── Virtualized Grid Helpers ─────────────────────────────────────────────────
+
+interface VirtualizedGridProps {
+  activeSheet: ParsedSheet;
+  toggleBlockColumn: (cIdx: number) => void;
+  updateColumnMapping: (cIdx: number, value: string) => void;
+  handleMouseDownResize: (e: React.MouseEvent, cIdx: number) => void;
+  shiftRowUp: (rIdx: number) => void;
+  shiftRowDown: (rIdx: number) => void;
+  toggleBlockRow: (rIdx: number) => void;
+  updateCell: (rIdx: number, cIdx: number, value: string) => void;
+}
+
+interface GridRowProps {
+  rIdx: number;
+  row: string[];
+  isRowBlocked: boolean;
+  isHeaderRow: boolean;
+  rowCount: number;
+  columnWidths: number[];
+  blockedColumns: boolean[];
+  shiftRowUp: (rIdx: number) => void;
+  shiftRowDown: (rIdx: number) => void;
+  toggleBlockRow: (rIdx: number) => void;
+  updateCell: (rIdx: number, cIdx: number, value: string) => void;
+}
+
+const ROW_HEIGHT = 38; // px – fixed row height for the virtual list
+
+/**
+ * Memoized individual row renderer. Only re-renders when its own data changes,
+ * preventing the "all rows re-render on every keystroke" problem.
+ */
+const GridRow = memo(({
+  rIdx, row, isRowBlocked, isHeaderRow, rowCount,
+  columnWidths, blockedColumns,
+  shiftRowUp, shiftRowDown, toggleBlockRow, updateCell,
+}: GridRowProps) => {
+  return (
+    <div
+      style={{ display: 'flex', height: ROW_HEIGHT, borderBottom: '1px solid rgba(51,65,85,0.4)' }}
+      className={
+        isRowBlocked
+          ? 'bg-rose-950/20 opacity-60'
+          : isHeaderRow
+          ? 'bg-indigo-950/30'
+          : 'hover:bg-slate-800/60'
+      }
+    >
+      {/* Row Controls Cell */}
+      <div
+        style={{ width: 80, minWidth: 80 }}
+        className="flex flex-col items-center justify-center gap-0.5 border-r border-slate-700/40 bg-slate-950 select-none shrink-0"
+      >
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => shiftRowUp(rIdx)}
+            disabled={rIdx === 0}
+            title="Shift Row Up"
+            className="p-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold leading-none"
+          >▲</button>
+          <button
+            onClick={() => shiftRowDown(rIdx)}
+            disabled={rIdx === rowCount - 1}
+            title="Shift Row Down"
+            className="p-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold leading-none"
+          >▼</button>
+          <button
+            onClick={() => toggleBlockRow(rIdx)}
+            title={isRowBlocked ? 'Unblock Row' : 'Block Row'}
+            className={`p-0.5 rounded text-[9px] font-bold ${isRowBlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}
+          >
+            {isRowBlocked ? '👁️' : '🚫'}
+          </button>
+        </div>
+        <span className="text-[9px] font-bold text-slate-500">#{rIdx + 1}</span>
+      </div>
+
+      {/* Editable Data Cells */}
+      {row.map((cellVal, cIdx) => {
+        const isColBlocked = blockedColumns[cIdx];
+        const w = columnWidths[cIdx] || 160;
+        return (
+          <div
+            key={cIdx}
+            style={{ width: w, minWidth: w, maxWidth: w }}
+            className={`flex items-center border-r border-slate-700/40 last:border-0 shrink-0 ${isColBlocked || isRowBlocked ? 'bg-slate-950/80' : ''}`}
+          >
+            <input
+              defaultValue={cellVal}
+              onBlur={e => updateCell(rIdx, cIdx, e.target.value)}
+              disabled={isColBlocked || isRowBlocked}
+              className={`w-full bg-transparent border-0 px-2 py-1 text-xs rounded focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none truncate ${
+                isHeaderRow ? 'font-black text-indigo-300' : 'font-medium text-slate-200'
+              } ${isColBlocked || isRowBlocked ? 'line-through text-slate-600' : ''}`}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+GridRow.displayName = 'GridRow';
+
+/**
+ * VirtualizedGrid — renders only the visible rows using react-window FixedSizeList.
+ * The thead (column mapping controls) is a real sticky HTML table for full feature parity.
+ * The tbody is replaced with a virtualized list that renders ~25 rows at a time
+ * regardless of the total row count, giving buttery-smooth scrolling even with 10k+ rows.
+ */
+const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
+  activeSheet, toggleBlockColumn, updateColumnMapping,
+  handleMouseDownResize, shiftRowUp, shiftRowDown, toggleBlockRow, updateCell,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<FixedSizeList>(null);
+
+  // Total pixel width of the grid (controls col + all data cols)
+  const totalWidth = 80 + activeSheet.columnWidths.reduce((s, w) => s + (w || 160), 0);
+
+  // Row renderer passed to react-window — must be stable (defined inside FC is fine since we pass itemData)
+  const RowRenderer = useCallback(({ index, style }: ListChildComponentProps) => {
+    const row = activeSheet.data[index];
+    const isRowBlocked = activeSheet.blockedRows[index];
+    const isHeaderRow = index === 0 && activeSheet.rowMappings[0] === 'header';
+
+    return (
+      <div style={style}>
+        <GridRow
+          rIdx={index}
+          row={row}
+          isRowBlocked={isRowBlocked}
+          isHeaderRow={isHeaderRow}
+          rowCount={activeSheet.data.length}
+          columnWidths={activeSheet.columnWidths}
+          blockedColumns={activeSheet.blockedColumns}
+          shiftRowUp={shiftRowUp}
+          shiftRowDown={shiftRowDown}
+          toggleBlockRow={toggleBlockRow}
+          updateCell={updateCell}
+        />
+      </div>
+    );
+  }, [activeSheet, shiftRowUp, shiftRowDown, toggleBlockRow, updateCell]);
+
+  return (
+    <div className="flex-1 overflow-hidden rounded-xl border border-border/80 shadow-2xl flex flex-col" ref={containerRef}>
+      {/* ── Sticky Column-Mapping Header ───────────────────────────────── */}
+      <div className="overflow-x-auto shrink-0 bg-slate-900 border-b border-border select-none">
+        <div style={{ width: totalWidth, display: 'flex' }}>
+          {/* Controls column header */}
+          <div
+            style={{ width: 80, minWidth: 80 }}
+            className="p-2 text-center text-slate-500 border-r border-border/40 font-bold text-[10px] shrink-0"
+          >
+            Row Controls
+          </div>
+
+          {activeSheet.data[0]?.map((_, cIdx) => {
+            const w = activeSheet.columnWidths[cIdx] || 160;
+            return (
+              <div
+                key={cIdx}
+                style={{ width: w, minWidth: w }}
+                className={`p-2.5 border-r border-border/40 last:border-0 relative group shrink-0 ${
+                  activeSheet.blockedColumns[cIdx] ? 'bg-rose-950/40 text-rose-300' : 'bg-slate-900'
+                }`}
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      Col {cIdx + 1}
+                    </span>
+                    <button
+                      onClick={() => toggleBlockColumn(cIdx)}
+                      title={activeSheet.blockedColumns[cIdx] ? 'Unblock Column' : 'Block Column'}
+                      className={`p-1 rounded text-[10px] font-bold ${
+                        activeSheet.blockedColumns[cIdx]
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      }`}
+                    >
+                      {activeSheet.blockedColumns[cIdx] ? '👁️ Unblock' : '🚫 Block'}
+                    </button>
+                  </div>
+                  <select
+                    value={activeSheet.columnMappings[cIdx] || 'custom'}
+                    onChange={e => updateColumnMapping(cIdx, e.target.value)}
+                    disabled={activeSheet.blockedColumns[cIdx]}
+                    className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-300 py-1"
+                  >
+                    {FIELD_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Drag-to-resize handle */}
+                <div
+                  onMouseDown={e => handleMouseDownResize(e, cIdx)}
+                  title="Hold & Drag to Resize Column Width"
+                  className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 group-hover:bg-cyan-500/40 hover:bg-cyan-400 flex items-center justify-center transition-colors"
+                >
+                  <div className="w-[2px] h-full bg-slate-700/80 group-hover:bg-cyan-300" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Virtualized Row Body ────────────────────────────────────────── */}
+      <div className="flex-1 overflow-x-auto bg-slate-900/40">
+        <FixedSizeList
+          ref={listRef}
+          height={window?.innerHeight ? Math.max(300, window.innerHeight * 0.45) : 480}
+          itemCount={activeSheet.data.length}
+          itemSize={ROW_HEIGHT}
+          width={totalWidth}
+          overscanCount={10}
+          style={{ willChange: 'transform' }}
+        >
+          {RowRenderer}
+        </FixedSizeList>
+      </div>
+
+      {/* Row count badge */}
+      <div className="shrink-0 px-3 py-1.5 bg-slate-950 border-t border-border/40 flex items-center justify-between">
+        <span className="text-[10px] text-slate-500 font-bold">
+          {activeSheet.data.length.toLocaleString()} rows · {(activeSheet.data[0]?.length || 0)} cols
+        </span>
+        <span className="text-[10px] text-indigo-400 font-bold">
+          ⚡ Virtual Scroll — only visible rows rendered
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   isOpen,
@@ -689,8 +929,8 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </div>
         )}
 
-        {/* IN-POPUP EXCEL GRID EDITOR */}
-        <div className="flex-1 overflow-auto bg-slate-950 p-4 relative">
+        {/* IN-POPUP EXCEL GRID EDITOR — Virtual Scroll for performance with 3k+ rows */}
+        <div className="flex-1 overflow-hidden bg-slate-950 p-4 relative flex flex-col">
           {sheets.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center space-y-3 text-center text-muted">
               <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
@@ -708,153 +948,16 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               <p className="text-xs text-muted">Click the unblock icon in the SheetTab bar above to include this sheet's data.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border/80 shadow-2xl">
-              <table className="w-full text-left text-xs border-collapse">
-                
-                {/* COLUMN FIELD ASSIGNMENT HEADER ROW */}
-                <thead className="bg-slate-900 text-muted border-b border-border select-none">
-                  <tr>
-                    <th className="p-2 text-center text-slate-500 w-20 border-r border-border/40 font-bold text-[10px]">
-                      Row Controls
-                    </th>
-
-                    {activeSheet.data[0]?.map((_, cIdx) => (
-                      <th
-                        key={cIdx}
-                        style={{
-                          width: `${activeSheet.columnWidths[cIdx] || 160}px`,
-                          minWidth: `${activeSheet.columnWidths[cIdx] || 140}px`,
-                        }}
-                        className={`p-2.5 border-r border-border/40 last:border-0 relative group ${
-                          activeSheet.blockedColumns[cIdx] ? 'bg-rose-950/40 text-rose-300' : 'bg-slate-900'
-                        }`}
-                      >
-                        <div className="space-y-1.5">
-                          {/* Column Field Role Selector */}
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                              Col {cIdx + 1}
-                            </span>
-
-                            <button
-                              onClick={() => toggleBlockColumn(cIdx)}
-                              title={activeSheet.blockedColumns[cIdx] ? 'Unblock Column' : 'Block Column'}
-                              className={`p-1 rounded text-[10px] font-bold ${
-                                activeSheet.blockedColumns[cIdx]
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              {activeSheet.blockedColumns[cIdx] ? '👁️ Unblock' : '🚫 Block'}
-                            </button>
-                          </div>
-
-                          <select
-                            value={activeSheet.columnMappings[cIdx] || 'custom'}
-                            onChange={e => updateColumnMapping(cIdx, e.target.value)}
-                            disabled={activeSheet.blockedColumns[cIdx]}
-                            className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-300 py-1"
-                          >
-                            {FIELD_OPTIONS.map(opt => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Draggable Column Width Divider Line */}
-                        <div
-                          onMouseDown={(e) => handleMouseDownResize(e, cIdx)}
-                          title="Hold & Drag to Resize Column Width"
-                          className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 group-hover:bg-cyan-500/40 hover:bg-cyan-400 flex items-center justify-center transition-colors"
-                        >
-                          <div className="w-[2px] h-full bg-slate-700/80 group-hover:bg-cyan-300" />
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-
-                {/* GRID CELL DATA ROWS */}
-                <tbody className="divide-y divide-border/40 bg-slate-900/40">
-                  {activeSheet.data.map((row, rIdx) => {
-                    const isRowBlocked = activeSheet.blockedRows[rIdx];
-                    const isHeaderRow = rIdx === 0 && activeSheet.rowMappings[0] === 'header';
-
-                    return (
-                      <tr
-                        key={rIdx}
-                        className={`transition-colors ${
-                          isRowBlocked
-                            ? 'bg-rose-950/20 opacity-60 line-through'
-                            : isHeaderRow
-                            ? 'bg-indigo-950/30 font-bold'
-                            : 'hover:bg-slate-800/60'
-                        }`}
-                      >
-                        {/* Row Shift & Block Controls Cell */}
-                        <td className="p-2 border-r border-border/40 text-center select-none bg-slate-950">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => shiftRowUp(rIdx)}
-                              disabled={rIdx === 0}
-                              title="Shift Row Up"
-                              className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              onClick={() => shiftRowDown(rIdx)}
-                              disabled={rIdx === activeSheet.data.length - 1}
-                              title="Shift Row Down"
-                              className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold"
-                            >
-                              ▼
-                            </button>
-                            <button
-                              onClick={() => toggleBlockRow(rIdx)}
-                              title={isRowBlocked ? 'Unblock Row' : 'Block Row'}
-                              className={`p-1 rounded text-[9px] font-bold ${
-                                isRowBlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
-                              }`}
-                            >
-                              {isRowBlocked ? '👁️' : '🚫'}
-                            </button>
-                          </div>
-                          <span className="text-[9px] font-bold text-slate-500 block mt-0.5">#{rIdx + 1}</span>
-                        </td>
-
-                        {/* Editable Cells */}
-                        {row.map((cellVal, cIdx) => {
-                          const isColBlocked = activeSheet.blockedColumns[cIdx];
-
-                          return (
-                            <td
-                              key={cIdx}
-                              style={{
-                                width: `${activeSheet.columnWidths[cIdx] || 160}px`,
-                                maxWidth: `${activeSheet.columnWidths[cIdx] || 160}px`,
-                              }}
-                              className={`p-1.5 border-r border-border/40 last:border-0 ${
-                                isColBlocked || isRowBlocked ? 'bg-slate-950/80' : ''
-                              }`}
-                            >
-                              <input
-                                value={cellVal}
-                                onChange={e => updateCell(rIdx, cIdx, e.target.value)}
-                                disabled={isColBlocked || isRowBlocked}
-                                className={`w-full bg-transparent border-0 px-2 py-1 text-xs rounded focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none truncate transition-all ${
-                                  isHeaderRow ? 'font-black text-indigo-300' : 'font-medium text-slate-200'
-                                } ${isColBlocked || isRowBlocked ? 'line-through text-slate-600' : ''}`}
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <VirtualizedGrid
+              activeSheet={activeSheet}
+              toggleBlockColumn={toggleBlockColumn}
+              updateColumnMapping={updateColumnMapping}
+              handleMouseDownResize={handleMouseDownResize}
+              shiftRowUp={shiftRowUp}
+              shiftRowDown={shiftRowDown}
+              toggleBlockRow={toggleBlockRow}
+              updateCell={updateCell}
+            />
           )}
         </div>
 
@@ -879,26 +982,31 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 </div>
               </div>
 
-              {!isDriveUploaded && !isUploadingDrive && (
-                <button
-                  type="button"
-                  onClick={handleUploadToGoogleDrive}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all whitespace-nowrap active:scale-95"
-                >
-                  <CloudUpload size={15} /> Backup to Google Drive
-                </button>
-              )}
+              {/* Vault Storage Status */}
+              <div className="flex items-center gap-2">
+                {!isDriveUploaded && !isUploadingDrive && (
+                  <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                    <Clock size={13} className="text-amber-400" /> Pending Upload &amp; Cold Storage
+                  </span>
+                )}
 
-              {isDriveUploaded && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
-                    <CheckCircle size={14} /> Archived in Backup Vault
+                {isUploadingDrive && (
+                  <span className="text-[11px] font-bold text-sky-300 bg-sky-500/15 border border-sky-500/35 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-pulse shadow-sm">
+                    <RefreshCw size={13} className="animate-spin text-sky-400" /> Uploading to Vault...
                   </span>
-                  <span className="text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1.5 rounded-lg">
-                    📦 Queued for Month-End Admin Bundle
-                  </span>
-                </div>
-              )}
+                )}
+
+                {isDriveUploaded && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
+                      <CheckCircle size={14} /> Archived in Backup Vault
+                    </span>
+                    <span className="text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1.5 rounded-lg">
+                      📦 Queued for Month-End Admin Bundle
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Live Progress Bar & Speed Indicator */}
@@ -938,39 +1046,69 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           <div className="flex items-center gap-2 text-xs text-muted">
             {!fileName.trim() && (
               <span className="text-amber-400 font-bold flex items-center gap-1">
-                <AlertCircle size={14} /> Enter File Name above to unlock injection.
+                <AlertCircle size={14} /> Enter File Name above to unlock upload.
               </span>
             )}
             {!selectedPlatform && (
               <span className="text-amber-400 font-bold flex items-center gap-1">
-                <AlertCircle size={14} /> Select Source Platform above to unlock injection.
+                <AlertCircle size={14} /> Select Source Platform above to unlock upload.
               </span>
             )}
-            {isReadyToInject && (
+            {isReadyToInject && !isDriveUploaded && !isUploadingDrive && (
+              <span className="text-sky-400 font-bold flex items-center gap-1">
+                <CloudUpload size={14} /> Click &apos;Upload to Google Drive&apos; below to archive file before ingesting.
+              </span>
+            )}
+            {isUploadingDrive && (
+              <span className="text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+                <RefreshCw size={14} className="animate-spin" /> Archiving spreadsheet to Google Drive cold vault...
+              </span>
+            )}
+            {isDriveUploaded && (
               <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle size={14} /> Ready to Extract &amp; Ingest Lead Directory Records.
+                <CheckCircle size={14} /> Archived in Backup Vault! Click &apos;Confirm &amp; Ingest&apos; to finish.
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold">
+            <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold cursor-pointer">
               Cancel
             </button>
 
-            {/* Strict Validation Button: Unlocks as 'Next: Confirm & Ingest' after Google Drive Upload */}
-            <button
-              onClick={handleCommitIngestion}
-              disabled={!isReadyToInject || isUploadingDrive}
-              className={`px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all ${
-                isDriveUploaded
-                  ? 'bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/20 animate-pulse'
-                  : 'bg-gradient-to-r from-indigo-600 to-brand hover:from-indigo-500 hover:to-brand-400 text-white disabled:opacity-40 disabled:pointer-events-none'
-              }`}
-            >
-              <CheckCircle size={15} />
-              {isDriveUploaded ? 'Next: Confirm & Ingest Leads into Pipeline →' : 'Confirm & Ingest Leads into Pipeline'}
-            </button>
+            {!isDriveUploaded ? (
+              /* Step 1: Upload button appears in the Confirm button position */
+              <button
+                type="button"
+                onClick={handleUploadToGoogleDrive}
+                disabled={!isReadyToInject || isUploadingDrive}
+                className="px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-indigo-600/25 cursor-pointer"
+                title={!isReadyToInject ? "Enter File Name and select Source Platform above to unlock upload" : "Upload and archive file to Google Drive"}
+              >
+                {isUploadingDrive ? (
+                  <>
+                    <RefreshCw size={15} className="animate-spin text-sky-300" />
+                    <span>Uploading to Google Drive ({driveProgress?.progressPercent || 0}%)...</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload size={16} />
+                    <span>Upload to Google Drive</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              /* Step 2: After clicking upload, Confirm & Ingest button appears in that place */
+              <button
+                type="button"
+                onClick={handleCommitIngestion}
+                disabled={!isReadyToInject}
+                className="px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 active:scale-95 cursor-pointer animate-pulse"
+              >
+                <CheckCircle size={15} />
+                <span>Confirm &amp; Ingest Leads into Pipeline →</span>
+              </button>
+            )}
           </div>
         </div>
 
