@@ -13,7 +13,7 @@ import {
   CheckSquare, Layers, Lock, ArrowRight, Plus, Database, ClipboardList,
   PhoneCall, Play, Download, Clock, CheckCircle2, AlertCircle, Settings,
   Radio, Sliders, Eye, EyeOff, Bot, MessageSquare, Mail, RefreshCw, Activity,
-  UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X, GitBranch, Trash2
+  UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X, GitBranch, Trash2, Check
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 
@@ -175,6 +175,8 @@ export default function LeadPipelinePage() {
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<'TEXT' | 'NUMBER' | 'SELECT'>('TEXT');
   const [newColOptionsStr, setNewColOptionsStr] = useState('Hot Lead, Warm Lead, Cold Lead');
+  const [newColOptionInput, setNewColOptionInput] = useState(''); // single pill input
+  const [editingColId, setEditingColId] = useState<string | null>(null); // null = add mode
 
   // 📊 Spreadsheet Ingestion & Employee Allocation Audit History State
   const [webAuditLogs, setWebAuditLogs] = useState([
@@ -427,30 +429,77 @@ export default function LeadPipelinePage() {
     setNewLeadName(''); setNewLeadEmail(''); setNewLeadPhone(''); setNewLeadCompany('');
   };
 
-  // Handle Custom Column Addition
-  const handleAddCustomColumn = () => {
+  // Handle Custom Column Addition / Edit
+  const handleSaveColumn = () => {
     if (!newColName.trim()) return;
-    const colId = `col_${newColName.toLowerCase().replace(/\s+/g, '_')}`;
+    const colId = editingColId ?? `col_${newColName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
     const opts = newColType === 'SELECT'
       ? newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean)
       : undefined;
+    const colData = {
+      id: colId,
+      name: newColName.trim(),
+      type: newColType,
+      options: opts && opts.length > 0 ? opts : newColType === 'SELECT' ? ['Option 1', 'Option 2', 'Option 3'] : undefined,
+    };
 
-    setCustomColumns(prev => [
-      ...prev,
-      {
-        id: colId,
-        name: newColName.trim(),
-        type: newColType,
-        options: opts && opts.length > 0 ? opts : ['Option 1', 'Option 2', 'Option 3'],
-      }
-    ]);
-    setTableColumns(prev => [
-      ...prev,
-      { id: colId, label: newColName.trim(), isRestricted: false, hidden: false }
-    ]);
+    if (editingColId) {
+      // Edit existing column
+      setCustomColumns(prev => prev.map(c => c.id === editingColId ? colData : c));
+      setTableColumns(prev => prev.map(c => c.id === editingColId ? { ...c, label: colData.name } : c));
+    } else {
+      // Add new column
+      setCustomColumns(prev => [...prev, colData]);
+      setTableColumns(prev => [...prev, { id: colId, label: colData.name, isRestricted: false, hidden: false }]);
+    }
+    closeCustomColumnModal();
+  };
+
+  const handleDeleteColumn = (colId: string) => {
+    setCustomColumns(prev => prev.filter(c => c.id !== colId));
+    setTableColumns(prev => prev.filter(c => c.id !== colId));
+  };
+
+  const openEditColumn = (col: { id: string; name: string; type: string; options?: string[] }) => {
+    setEditingColId(col.id);
+    setNewColName(col.name);
+    setNewColType(col.type as 'TEXT' | 'NUMBER' | 'SELECT');
+    setNewColOptionsStr((col.options || []).join(', '));
+    setNewColOptionInput('');
+    setCustomColumnModalOpen(true);
+  };
+
+  const openAddColumn = () => {
+    setEditingColId(null);
+    setNewColName('');
+    setNewColType('TEXT');
+    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+    setNewColOptionInput('');
+    setCustomColumnModalOpen(true);
+  };
+
+  const closeCustomColumnModal = () => {
     setCustomColumnModalOpen(false);
+    setEditingColId(null);
     setNewColName('');
     setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+    setNewColOptionInput('');
+  };
+
+  // Pill option helpers for SELECT type
+  const addOptionPill = () => {
+    const trimmed = newColOptionInput.trim();
+    if (!trimmed) return;
+    const existing = newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean);
+    if (!existing.includes(trimmed)) {
+      setNewColOptionsStr([...existing, trimmed].join(', '));
+    }
+    setNewColOptionInput('');
+  };
+
+  const removeOptionPill = (opt: string) => {
+    const remaining = newColOptionsStr.split(',').map(s => s.trim()).filter(s => s && s !== opt);
+    setNewColOptionsStr(remaining.join(', '));
   };
 
   const filteredLeadDirectory = leadDirectory.filter(lead => {
@@ -461,6 +510,29 @@ export default function LeadPipelinePage() {
       lead.phone.toLowerCase().includes(q) ||
       lead.company.toLowerCase().includes(q);
   });
+
+  // ── Pagination State ────────────────────────────────────────────────────────
+  const [pageSize, setPageSize] = useState<50 | 100>(50);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 whenever the search query or lead list changes
+  const totalPages = Math.max(1, Math.ceil(filteredLeadDirectory.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;         // 0-based inclusive
+  const endIdx   = Math.min(startIdx + pageSize, filteredLeadDirectory.length); // exclusive
+  const pagedLeads = filteredLeadDirectory.slice(startIdx, endIdx);
+
+  // Keep safePage in sync (runs synchronously during render — safe because it
+  // only updates when currentPage drifts out of range after filtering)
+  if (currentPage !== safePage) setCurrentPage(safePage);
+
+  /** Page number buttons with ellipsis (up to 7 visible slots) */
+  const buildPageWindows = (cur: number, total: number): (number | '...')[] => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    if (cur <= 4)   return [1, 2, 3, 4, 5, '...', total];
+    if (cur >= total - 3) return [1, '...', total-4, total-3, total-2, total-1, total];
+    return [1, '...', cur - 1, cur, cur + 1, '...', total];
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -515,7 +587,7 @@ export default function LeadPipelinePage() {
                 <Upload size={14} className="text-indigo-400" /> Import CSV / Excel
               </button>
               <button
-                onClick={() => setCustomColumnModalOpen(true)}
+                onClick={() => openAddColumn()}
                 className="px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold text-xs flex items-center gap-1.5 transition-all"
               >
                 <Sliders size={14} /> + Custom Column
@@ -771,7 +843,8 @@ export default function LeadPipelinePage() {
                   Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
                 </h3>
                 <p className="text-[10px] text-muted">
-                  Use ▲/▼ to shift rows, ◀/▶ to re-order columns. Columns with <span className="text-amber-400 font-bold">*</span> are restricted to Admin &amp; Managers.
+                  Showing <span className="text-white font-bold">{startIdx + 1}–{endIdx}</span> of <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span> leads
+                  &nbsp;·&nbsp;Use ▲/▼ to shift rows, ◀/▶ to re-order columns. Columns with <span className="text-amber-400 font-bold">*</span> are restricted to Admin &amp; Managers.
                 </p>
               </div>
 
@@ -855,14 +928,14 @@ export default function LeadPipelinePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40 bg-slate-900/40">
-                  {filteredLeadDirectory.map((lead, rIdx) => (
+                  {pagedLeads.map((lead, rIdx) => (
                     <tr key={lead.id} className="hover:bg-slate-800/60 transition-colors group">
-                      {/* Excel Row Up / Down Control Cell */}
+                      {/* Row Shift Controls — disable at absolute boundaries of the full list */}
                       <td className="p-2 text-center border-r border-border/40">
                         <div className="flex items-center justify-center gap-0.5">
                           <button
                             onClick={() => moveRowUp(lead.id)}
-                            disabled={rIdx === 0}
+                            disabled={startIdx + rIdx === 0}
                             title="Shift Row Up"
                             className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
                           >
@@ -870,7 +943,7 @@ export default function LeadPipelinePage() {
                           </button>
                           <button
                             onClick={() => moveRowDown(lead.id)}
-                            disabled={rIdx === filteredLeadDirectory.length - 1}
+                            disabled={startIdx + rIdx === filteredLeadDirectory.length - 1}
                             title="Shift Row Down"
                             className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
                           >
@@ -979,6 +1052,97 @@ export default function LeadPipelinePage() {
                 </tbody>
               </table>
             </div>
+
+            {/* ── Pagination Bar ──────────────────────────────────────────────── */}
+            {filteredLeadDirectory.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 px-1">
+
+                {/* Left: page size selector + range info */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-400 font-semibold">Rows per page:</span>
+                    <div className="flex gap-1">
+                      {([50, 100] as const).map(size => (
+                        <button
+                          key={size}
+                          onClick={() => { setPageSize(size); setCurrentPage(1); }}
+                          className={`px-3 py-1 rounded-lg text-xs font-black border transition-all ${
+                            pageSize === size
+                              ? 'bg-indigo-600 text-white border-indigo-400 shadow shadow-indigo-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-indigo-300'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    <span className="text-white font-bold">{startIdx + 1}–{endIdx}</span>
+                    {' '}of{' '}
+                    <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span>
+                    {' '}leads
+                  </span>
+                </div>
+
+                {/* Right: prev / page numbers / next */}
+                <div className="flex items-center gap-1">
+                  {/* Prev */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-30 disabled:pointer-events-none transition-all text-xs font-bold"
+                    title="Previous page"
+                  >
+                    ◀
+                  </button>
+
+                  {/* Page number pills */}
+                  {buildPageWindows(safePage, totalPages).map((pg, i) =>
+                    pg === '...'
+                      ? <span key={`ellipsis-${i}`} className="px-1.5 text-slate-600 text-xs select-none">…</span>
+                      : <button
+                          key={pg}
+                          onClick={() => setCurrentPage(pg as number)}
+                          className={`min-w-[32px] px-2.5 py-1 rounded-lg text-xs font-black border transition-all ${
+                            safePage === pg
+                              ? 'bg-indigo-600 text-white border-indigo-400 shadow shadow-indigo-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-white hover:bg-indigo-500/10'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                  )}
+
+                  {/* Next */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-30 disabled:pointer-events-none transition-all text-xs font-bold"
+                    title="Next page"
+                  >
+                    ▶
+                  </button>
+
+                  {/* Jump to page */}
+                  <span className="ml-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    Page
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={safePage}
+                      onChange={e => {
+                        const v = parseInt(e.target.value);
+                        if (!isNaN(v) && v >= 1 && v <= totalPages) setCurrentPage(v);
+                      }}
+                      className="w-12 bg-slate-900 border border-slate-700 text-white text-xs text-center rounded-lg px-1 py-1 focus:outline-none focus:border-indigo-500"
+                    />
+                    of <span className="text-indigo-300 font-bold">{totalPages}</span>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1301,57 +1465,191 @@ export default function LeadPipelinePage() {
 
       {/* Custom Column Modal */}
       {customColumnModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="crm-card max-w-md w-full p-6 animate-scale-in space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Sliders size={16} className="text-cyan-400" /> Add Custom Field Column
-              </h3>
-              <button onClick={() => setCustomColumnModalOpen(false)} className="p-1 rounded text-muted hover:text-white"><X size={16} /></button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-muted block mb-1 font-semibold">Column Label *</label>
-                <input value={newColName} onChange={e => setNewColName(e.target.value)} placeholder="e.g. Lead Rating, GST Number, City, Budget Band" className="crm-input w-full" autoFocus />
-              </div>
-              <div>
-                <label className="text-muted block mb-1 font-semibold">Data Type</label>
-                <select value={newColType} onChange={e => setNewColType(e.target.value as any)} className="crm-input w-full font-semibold">
-                  <option value="TEXT">Text String</option>
-                  <option value="NUMBER">Numeric Value</option>
-                  <option value="SELECT">Dropdown Options</option>
-                </select>
-              </div>
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crm-card max-w-lg w-full p-0 animate-scale-in overflow-hidden flex flex-col max-h-[90vh]">
 
-              {/* Dropdown Options Builder when Data Type = SELECT */}
-              {newColType === 'SELECT' && (
-                <div className="space-y-2 bg-slate-900/90 p-3 rounded-xl border border-cyan-500/40 animate-fade-in">
-                  <label className="text-cyan-400 font-bold block text-xs flex items-center gap-1.5">
-                    <Sliders size={13} /> Dropdown Options (Comma-Separated) *
-                  </label>
-                  <input
-                    value={newColOptionsStr}
-                    onChange={e => setNewColOptionsStr(e.target.value)}
-                    placeholder="e.g. Hot Lead, Warm Lead, Cold Lead"
-                    className="crm-input w-full text-xs font-semibold text-white bg-slate-950"
-                  />
-                  {newColOptionsStr.trim() && (
-                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                      <span className="text-[10px] text-muted font-semibold">Options Preview:</span>
-                      {newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean).map((opt, i) => (
-                        <span key={i} className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                          {opt}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-slate-900 shrink-0">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Sliders size={16} className="text-cyan-400" />
+                {editingColId ? '✏️ Edit Custom Column' : '＋ Custom Column Manager'}
+              </h3>
+              <button onClick={closeCustomColumnModal} className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-all">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {/* Existing Columns Panel (only shown in add mode) */}
+              {!editingColId && customColumns.length > 0 && (
+                <div className="px-5 py-3 border-b border-border/60 bg-slate-950/60">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Existing Custom Columns</p>
+                  <div className="space-y-1.5">
+                    {customColumns.map(col => (
+                      <div
+                        key={col.id}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700/60 hover:border-indigo-500/40 transition-all group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${
+                            col.type === 'SELECT' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                            col.type === 'NUMBER' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                            'bg-slate-700 text-slate-300 border border-slate-600'
+                          }`}>
+                            {col.type === 'SELECT' ? '⬇ Select' : col.type === 'NUMBER' ? '# Num' : 'T Text'}
+                          </span>
+                          <span className="text-xs font-semibold text-white truncate">{col.name}</span>
+                          {col.options && (
+                            <span className="text-[9px] text-slate-500 truncate hidden sm:block">
+                              ({col.options.slice(0, 3).join(', ')}{col.options.length > 3 ? '...' : ''})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => openEditColumn(col)}
+                            title="Edit this column"
+                            className="p-1 rounded text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/15 transition-all text-[10px] font-bold"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteColumn(col.id)}
+                            title="Delete this column"
+                            className="p-1 rounded text-slate-500 hover:text-rose-300 hover:bg-rose-500/15 transition-all text-[10px] font-bold"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setCustomColumnModalOpen(false)} className="btn-secondary flex-1 py-2 text-xs">Cancel</button>
-                <button onClick={handleAddCustomColumn} disabled={!newColName.trim()} className="btn-primary flex-1 py-2 text-xs gap-1.5 disabled:opacity-40"><Plus size={13} /> Add Column</button>
+              {/* Add / Edit Form */}
+              <div className="px-5 py-4 space-y-4">
+                {/* Section label */}
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {editingColId ? `Editing: ${customColumns.find(c => c.id === editingColId)?.name}` : 'Add New Column'}
+                </p>
+
+                {/* Column Label */}
+                <div>
+                  <label className="text-slate-300 block mb-1 text-xs font-bold">Column Label *</label>
+                  <input
+                    value={newColName}
+                    onChange={e => setNewColName(e.target.value)}
+                    placeholder="e.g. Lead Rating, GST Number, City"
+                    className="crm-input w-full text-sm"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter' && newColName.trim()) handleSaveColumn(); }}
+                  />
+                </div>
+
+                {/* Data Type */}
+                <div>
+                  <label className="text-slate-300 block mb-1 text-xs font-bold">Data Type</label>
+                  <div className="flex gap-2">
+                    {(['TEXT', 'NUMBER', 'SELECT'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setNewColType(t)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          newColType === t
+                            ? t === 'SELECT' ? 'bg-cyan-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/20'
+                              : t === 'NUMBER' ? 'bg-amber-600 text-white border-amber-400 shadow-lg shadow-amber-500/20'
+                              : 'bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-500/20'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        {t === 'TEXT' ? '📝 Text' : t === 'NUMBER' ? '# Number' : '⬇️ Select'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SELECT Options Builder */}
+                {newColType === 'SELECT' && (
+                  <div className="space-y-3 bg-slate-900/80 p-3.5 rounded-xl border border-cyan-500/30">
+                    <label className="text-cyan-300 font-black text-xs block flex items-center gap-1.5">
+                      <Sliders size={12} /> Dropdown Options
+                    </label>
+
+                    {/* Pill preview */}
+                    <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+                      {newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean).map((opt, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40"
+                        >
+                          {opt}
+                          <button
+                            onClick={() => removeOptionPill(opt)}
+                            className="ml-0.5 text-cyan-400 hover:text-rose-300 font-black leading-none transition-colors"
+                            title={`Remove "${opt}"`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      {newColOptionsStr.split(',').filter(s => s.trim()).length === 0 && (
+                        <span className="text-xs text-slate-500 italic">No options yet — type below to add</span>
+                      )}
+                    </div>
+
+                    {/* Add option input */}
+                    <div className="flex gap-2">
+                      <input
+                        value={newColOptionInput}
+                        onChange={e => setNewColOptionInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOptionPill(); } }}
+                        placeholder="Type option name & press Enter or +"
+                        className="crm-input flex-1 text-xs bg-slate-950 text-white"
+                      />
+                      <button
+                        onClick={addOptionPill}
+                        disabled={!newColOptionInput.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black disabled:opacity-40 transition-all"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Tip: Press Enter after each option. Click × on a pill to remove it.</p>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex gap-2 px-5 py-4 border-t border-border/60 bg-slate-900/50 shrink-0">
+              {editingColId && (
+                <button
+                  onClick={() => {
+                    setEditingColId(null);
+                    setNewColName('');
+                    setNewColType('TEXT');
+                    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+                    setNewColOptionInput('');
+                  }}
+                  className="btn-secondary px-4 py-2 text-xs font-bold"
+                >
+                  ← Back
+                </button>
+              )}
+              <button onClick={closeCustomColumnModal} className="btn-secondary flex-1 py-2 text-xs font-bold">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveColumn}
+                disabled={!newColName.trim() || (newColType === 'SELECT' && newColOptionsStr.split(',').filter(s => s.trim()).length === 0)}
+                className="btn-primary flex-1 py-2 text-xs font-bold gap-1.5 disabled:opacity-40"
+              >
+                {editingColId
+                  ? <><Check size={13} /> Save Changes</>
+                  : <><Plus size={13} /> Add Column</>
+                }
+              </button>
             </div>
           </div>
         </div>
