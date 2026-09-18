@@ -380,6 +380,7 @@ function MainTabNavigator({
 }
 
 function RootAppContent() {
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
   const { token, currentUser, logout, hydrate, isHydrated } = useAuthStore();
@@ -573,13 +574,24 @@ function RootAppContent() {
         )}
 
         {/* ☰ LEFT-SLIDING HAMBURGER DRAWER MODAL */}
-        <Modal visible={drawerVisible} transparent animationType="none">
+        <Modal visible={drawerVisible} transparent animationType="none" statusBarTranslucent>
           <View style={styles.modalContainer}>
             <Animated.View style={[styles.drawerBackdrop, { opacity: fadeAnim }]}>
               <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => closeDrawer()} />
             </Animated.View>
 
-            <Animated.View style={[styles.leftDrawerContent, { width: DRAWER_WIDTH, backgroundColor: colors.drawerBg, borderRightColor: colors.border, transform: [{ translateX: slideAnim }] }]}>
+            <Animated.View
+              style={[
+                styles.leftDrawerContent,
+                {
+                  width: DRAWER_WIDTH,
+                  backgroundColor: colors.drawerBg,
+                  borderRightColor: colors.border,
+                  paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 24 : 16) + 12,
+                  transform: [{ translateX: slideAnim }],
+                }
+              ]}
+            >
               <View style={styles.drawerTopBar}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <View style={styles.drawerLogoBadge}>
@@ -744,18 +756,10 @@ function RootAppContent() {
                   ));
                 })()}
 
-                {/* SYSTEM & THEME PREFERENCE */}
+                {/* SYSTEM & SETTINGS */}
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{t.drawerSystemConfig || 'SYSTEM & THEME'}</Text>
+                  <Text style={[styles.drawerGroupTitle, { color: colors.textMuted }]}>{t.drawerSystemConfig || 'SYSTEM & SETTINGS'}</Text>
                   <View style={[styles.sectionLine, { backgroundColor: colors.border }]} />
-                </View>
-
-                {/* 3-Way Theme Switcher in Drawer */}
-                <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Theme Preference
-                  </Text>
-                  <ThemeToggle />
                 </View>
 
                 <TouchableOpacity
@@ -787,31 +791,40 @@ function RootAppContent() {
                 </TouchableOpacity>
               </ScrollView>
 
-              {/* 🚪 PINNED MODERN DRAWER FOOTER (Always visible, theme-adaptive) */}
-              <View style={[styles.drawerFooter, { borderTopColor: colors.border, backgroundColor: colors.drawerBg }]}>
+              {/* 🚪 PINNED MODERN DRAWER FOOTER (Safely elevated above Android down navigation) */}
+              <View
+                style={[
+                  styles.drawerFooter,
+                  {
+                    borderTopColor: colors.border,
+                    backgroundColor: colors.drawerBg,
+                    paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 14) + 12,
+                  }
+                ]}
+              >
                 <TouchableOpacity
                   style={[
                     styles.modernSignOutBtn,
                     {
-                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
-                      borderColor: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.18)',
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                      borderColor: isDark ? 'rgba(239, 68, 68, 0.32)' : 'rgba(239, 68, 68, 0.22)',
                     }
                   ]}
                   onPress={confirmAndHandleLogout}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.signOutIconCircle, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)', borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)' }]}>
+                  <View style={[styles.signOutIconCircle, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.22)' : 'rgba(239, 68, 68, 0.14)', borderColor: isDark ? 'rgba(239, 68, 68, 0.38)' : 'rgba(239, 68, 68, 0.25)' }]}>
                     <Text style={{ fontSize: 13 }}>🚪</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.signOutCardTitle, { color: isDark ? '#f87171' : '#dc2626' }]}>
-                      {t.drawerSignOut || 'Sign Out'}
+                      {t.drawerSignOut || 'Sign Out of DAS CRM'}
                     </Text>
                     <Text style={[styles.signOutCardSub, { color: colors.textMuted }]} numberOfLines={1}>
                       {currentUser?.email || 'End active session safely'}
                     </Text>
                   </View>
-                  <View style={[styles.signOutArrowPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.1)' }]}>
+                  <View style={[styles.signOutArrowPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)' }]}>
                     <Text style={{ color: isDark ? '#fca5a5' : '#b91c1c', fontSize: 12, fontWeight: '900' }}>→</Text>
                   </View>
                 </TouchableOpacity>
@@ -1100,7 +1113,7 @@ export default function App() {
 const styles = StyleSheet.create({
   modalContainer: { flex: 1 },
   drawerBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2, 6, 23, 0.8)' },
-  leftDrawerContent: { flex: 1, backgroundColor: '#090d16', borderRightWidth: 1, borderRightColor: '#1e293b', paddingTop: 40, paddingHorizontal: 16 },
+  leftDrawerContent: { flex: 1, backgroundColor: '#090d16', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 16 },
 
   drawerTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   drawerLogoBadge: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#4f46e5', justifyContent: 'center', alignItems: 'center' },
@@ -1131,40 +1144,40 @@ const styles = StyleSheet.create({
 
   drawerFooter: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
   },
   modernSignOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
   },
   signOutIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   signOutCardTitle: {
     fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   signOutCardSub: {
-    fontSize: 10,
-    marginTop: 1,
-    fontWeight: '500',
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600',
   },
   signOutArrowPill: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -123,13 +123,25 @@
   color: #4338ca !important;
 }
 
-.light h1, .light h2, .light h3, .light h4, .light h5, .light h6,
-[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3, [data-theme="light"] h4, [data-theme="light"] h5, [data-theme="light"] h6 {
-  color: #0f172a !important;
+/* Light Theme Headings Default (does not override explicit text-white, buttons, or dark contexts) */
+.light h1:not(.dark *, [class*="bg-"], .text-white, .btn *),
+.light h2:not(.dark *, [class*="bg-"], .text-white, .btn *),
+.light h3:not(.dark *, [class*="bg-"], .text-white, .btn *),
+.light h4:not(.dark *, [class*="bg-"], .text-white, .btn *),
+.light h5:not(.dark *, [class*="bg-"], .text-white, .btn *),
+.light h6:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h1:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h2:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h3:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h4:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h5:not(.dark *, [class*="bg-"], .text-white, .btn *),
+[data-theme="light"] h6:not(.dark *, [class*="bg-"], .text-white, .btn *) {
+  color: #0f172a;
 }
 
-.light .text-white, [data-theme="light"] .text-white {
-  color: #0f172a !important;
+/* White text MUST always remain white (used for colored buttons, badges, dark modals, and avatars) */
+.text-white, .dark .text-white, [data-theme="dark"] .text-white {
+  color: #ffffff !important;
 }
 
 /* Dark Theme Explicit Contrast Overrides */
@@ -138,33 +150,37 @@
   color: #ffffff !important;
 }
 
-.dark .text-white, [data-theme="dark"] .text-white {
-  color: #ffffff !important;
+.light .text-slate-100:not(.dark *), .light .text-slate-200:not(.dark *), .light .text-slate-300:not(.dark *),
+[data-theme="light"] .text-slate-100:not(.dark *), [data-theme="light"] .text-slate-200:not(.dark *), [data-theme="light"] .text-slate-300:not(.dark *) {
+  color: #334155;
 }
 
-.light .text-slate-100, .light .text-slate-200, .light .text-slate-300,
-[data-theme="light"] .text-slate-100, [data-theme="light"] .text-slate-200, [data-theme="light"] .text-slate-300 {
-  color: #334155 !important;
+.light .text-slate-400:not(.dark *), .light .text-slate-500:not(.dark *),
+[data-theme="light"] .text-slate-400:not(.dark *), [data-theme="light"] .text-slate-500:not(.dark *) {
+  color: #475569;
 }
 
-.light .text-slate-400, .light .text-slate-500,
-[data-theme="light"] .text-slate-400, [data-theme="light"] .text-slate-500 {
-  color: #475569 !important;
-}
-
-.light .bg-slate-900, .light .bg-slate-950,
-[data-theme="light"] .bg-slate-900, [data-theme="light"] .bg-slate-950 {
+.light .bg-slate-900:not(.dark *):not([data-theme="dark"] *),
+.light .bg-slate-950:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-900:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-950:not(.dark *):not([data-theme="dark"] *) {
   background-color: #f1f5f9 !important;
   border-color: #cbd5e1 !important;
 }
 
-.light .bg-slate-900\/60, .light .bg-slate-900\/40, .light .bg-slate-900\/80,
-[data-theme="light"] .bg-slate-900\/60, [data-theme="light"] .bg-slate-900\/40, [data-theme="light"] .bg-slate-900\/80 {
+.light .bg-slate-900\/60:not(.dark *):not([data-theme="dark"] *),
+.light .bg-slate-900\/40:not(.dark *):not([data-theme="dark"] *),
+.light .bg-slate-900\/80:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-900\/60:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-900\/40:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-900\/80:not(.dark *):not([data-theme="dark"] *) {
   background-color: #f8fafc !important;
 }
 
-.light .border-slate-800, .light .border-slate-700,
-[data-theme="light"] .border-slate-800, [data-theme="light"] .border-slate-700 {
+.light .border-slate-800:not(.dark *):not([data-theme="dark"] *),
+.light .border-slate-700:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .border-slate-800:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .border-slate-700:not(.dark *):not([data-theme="dark"] *) {
   border-color: #e2e8f0 !important;
 }
 
@@ -190,7 +206,8 @@
   background-color: #f8fafc !important;
 }
 
-.light .bg-slate-800, [data-theme="light"] .bg-slate-800 {
+.light .bg-slate-800:not(.dark *):not([data-theme="dark"] *),
+[data-theme="light"] .bg-slate-800:not(.dark *):not([data-theme="dark"] *) {
   background-color: #e2e8f0 !important;
   color: #1e293b !important;
 }
@@ -198,6 +215,57 @@
 .light .bg-black\/80, .light .bg-slate-950\/85, .light .bg-slate-950\/80,
 [data-theme="light"] .bg-black\/80, [data-theme="light"] .bg-slate-950\/85, [data-theme="light"] .bg-slate-950\/80 {
   background-color: rgba(15, 23, 42, 0.5) !important;
+}
+
+/* ─── Logout Confirmation Modal Contrast Enforcement ─── */
+.logout-confirm-dialog {
+  background: linear-gradient(180deg, #0f172a 0%, #090d16 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(244, 63, 94, 0.35) !important;
+}
+
+.logout-confirm-dialog h2,
+.logout-confirm-dialog .dialog-title {
+  color: #ffffff !important;
+}
+
+.logout-confirm-dialog .session-title {
+  color: #94a3b8 !important;
+}
+
+.logout-confirm-dialog .user-name {
+  color: #ffffff !important;
+}
+
+.logout-confirm-dialog .user-email {
+  color: #94a3b8 !important;
+}
+
+.logout-confirm-dialog .company-name {
+  color: #f1f5f9 !important;
+}
+
+.logout-confirm-dialog .btn-cancel {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+.logout-confirm-dialog .btn-cancel:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+.logout-confirm-dialog .btn-confirm {
+  background: linear-gradient(to right, #e11d48, #f43f5e, #dc2626) !important;
+  color: #ffffff !important;
+  border-color: rgba(251, 113, 133, 0.4) !important;
+}
+
+.logout-confirm-dialog .btn-confirm,
+.logout-confirm-dialog .btn-confirm span,
+.logout-confirm-dialog .btn-confirm svg {
+  color: #ffffff !important;
 }
 
 /* ─── Base Reset ─── */
