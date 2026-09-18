@@ -167,17 +167,17 @@ export default function LeadsScreen() {
   ]);
 
   const [columnNames, setColumnNames] = useState<Record<string, string>>({
-    name: 'NAME COLUMN',
-    email: 'EMAIL COLUMN',
-    phone: 'NUMBER / PHONE COLUMN',
-    company: 'COMPANY COLUMN',
+    name: 'NAME',
+    email: 'EMAIL',
+    phone: 'PHONE',
+    company: 'COMPANY',
     source: 'SOURCE',
-    status: 'SALES STAGE',
-    value: 'LEAD VALUE',
+    status: 'STAGE',
+    value: 'VALUE',
     assignedRep: 'ASSIGNED REP',
-    city: 'CITY (CUSTOM)',
-    budget: 'BUDGET (CUSTOM)',
-    requirement: 'REQUIREMENT (CUSTOM)',
+    city: 'CITY',
+    budget: 'BUDGET',
+    requirement: 'REQUIREMENT',
   });
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
@@ -529,8 +529,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           },
         ]}
       >
-        <View style={[styles.excelRowNum, { backgroundColor: colors.cardBgElevated, borderRightColor: colors.border }]}>
-          <Text style={[styles.excelRowNumText, { color: colors.textMuted }]}>{index + 1}</Text>
+        <View style={[styles.excelRowNum, { backgroundColor: isDark ? '#0b1329' : '#f8fafc', borderRightColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b' }}>{index + 1}</Text>
         </View>
         {columnOrder.map((colKey) =>
           renderExcelCell(item, colKey, columnWidths[colKey] || 140)
@@ -1156,45 +1156,88 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               >
                 <View style={{ minWidth: totalExcelWidth, flex: 1 }}>
                   {/* ── STICKY HEADER TOOLBAR ─────────────────────────── */}
-                  <View style={[styles.excelToolbar, { backgroundColor: colors.cardBgElevated, borderBottomColor: colors.border }]}>
-                    <View style={[styles.excelRowNumCorner, { backgroundColor: colors.cardBgElevated, borderBottomColor: colors.border }]}>
-                      <Text style={[styles.excelRowNumCornerText, { color: colors.textMuted }]}>#</Text>
+                  <View style={[styles.excelToolbar, { backgroundColor: isDark ? '#0b1329' : '#f1f5f9', borderBottomColor: isDark ? '#334155' : '#cbd5e1' }]}>
+                    <View style={[styles.excelRowNumCorner, { backgroundColor: isDark ? '#0f172a' : '#e2e8f0', borderBottomColor: isDark ? '#334155' : '#cbd5e1', borderRightColor: isDark ? '#334155' : '#cbd5e1' }]}>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>#</Text>
                     </View>
                     {columnOrder.map((colKey, colIdx) => {
                       const colWidth = columnWidths[colKey] || 140;
                       const colName = columnNames[colKey] || colKey;
                       return (
-                        <View key={colKey} style={[styles.excelColControl, { width: colWidth, borderRightColor: colors.border }]}>
+                        <View key={colKey} style={[styles.excelColControl, { width: colWidth, borderRightColor: isDark ? '#1e293b' : '#cbd5e1' }]}>
                           <TouchableOpacity
-                            style={[styles.excelColTitleBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+                            style={[
+                              styles.excelColTitleBtn,
+                              {
+                                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.08)',
+                                borderColor: isDark ? 'rgba(129, 140, 248, 0.5)' : 'rgba(99, 102, 241, 0.3)',
+                              }
+                            ]}
                             onPress={() => openHeaderRenameModal(colKey)}
                             activeOpacity={0.7}
                           >
-                            <Text style={[styles.excelColTitleText, { color: colors.primary }]} numberOfLines={1}>{colName}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: '900',
+                                  color: isDark ? '#ffffff' : '#0f172a',
+                                  letterSpacing: 0.4,
+                                  flex: 1,
+                                }}
+                                numberOfLines={1}
+                              >
+                                {colName}
+                              </Text>
+                              <Text style={{ fontSize: 8, opacity: isDark ? 0.7 : 0.5 }}>✏️</Text>
+                            </View>
                           </TouchableOpacity>
+
                           <View style={styles.excelColControls}>
                             <TouchableOpacity
-                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }, colIdx === 0 && styles.excelColBtnDisabled]}
+                              style={[
+                                styles.excelColBtn,
+                                {
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.08)',
+                                  borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.3)',
+                                },
+                                colIdx === 0 && styles.excelColBtnDisabled
+                              ]}
                               disabled={colIdx === 0}
                               onPress={() => moveColumnLeft(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>←</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>←</Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
-                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }, colIdx === columnOrder.length - 1 && styles.excelColBtnDisabled]}
+                              style={[
+                                styles.excelColBtn,
+                                {
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.08)',
+                                  borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.3)',
+                                },
+                                colIdx === columnOrder.length - 1 && styles.excelColBtnDisabled
+                              ]}
                               disabled={colIdx === columnOrder.length - 1}
                               onPress={() => moveColumnRight(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>→</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>→</Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
-                              style={[styles.excelColBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}
+                              style={[
+                                styles.excelColBtn,
+                                {
+                                  backgroundColor: isDark ? 'rgba(168, 85, 247, 0.15)' : 'rgba(147, 51, 234, 0.08)',
+                                  borderColor: isDark ? 'rgba(168, 85, 247, 0.4)' : 'rgba(147, 51, 234, 0.3)',
+                                }
+                              ]}
                               onPress={() => toggleColumnWidth(colKey)}
                               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                             >
-                              <Text style={[styles.excelColBtnText, { color: colors.primary }]}>↔</Text>
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: isDark ? '#c084fc' : '#9333ea' }}>↔</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -1919,25 +1962,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#0b1329',
     borderBottomWidth: 2,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#334155',
   },
   excelToolbarInner: { flexDirection: 'row', alignItems: 'stretch', minWidth: 1400 },
 
   // Row number corner cell (in sticky column header)
-  excelRowNumCorner: { width: 44, height: 56, backgroundColor: '#0b1329', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: '#1e293b' },
-  excelRowNumCornerText: { fontSize: 11, fontWeight: '900', color: '#475569' },
+  excelRowNumCorner: { width: 44, height: 52, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: '#334155', borderRightWidth: 1, borderRightColor: '#334155' },
+  excelRowNumCornerText: { fontSize: 12, fontWeight: '900', color: '#38bdf8' },
 
   // Row number cell (in the sticky column body)
   excelRowNumCell: { width: 44, height: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329' },
 
   // Column control cell (title + ← → ↔ buttons side by side)
-  excelColControl: { height: 56, flexDirection: 'row', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 6, overflow: 'hidden' },
-  excelColTitleBtn: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 5, justifyContent: 'center' },
-  excelColTitleText: { fontSize: 10, fontWeight: '800', color: '#818cf8' },
-  excelColControls: { flexDirection: 'row', gap: 2, marginLeft: 4, flexShrink: 0 },
-  excelColBtn: { backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', borderRadius: 5, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  excelColBtnDisabled: { opacity: 0.3 },
-  excelColBtnText: { fontSize: 10, fontWeight: '900', color: '#38bdf8' },
+  excelColControl: { height: 52, flexDirection: 'row', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#1e293b', paddingHorizontal: 6, overflow: 'hidden' },
+  excelColTitleBtn: { flex: 1, backgroundColor: 'rgba(99, 102, 241, 0.16)', borderWidth: 1, borderColor: 'rgba(129, 140, 248, 0.45)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, justifyContent: 'center' },
+  excelColTitleText: { fontSize: 11, fontWeight: '900', color: '#ffffff', letterSpacing: 0.4 },
+  excelColControls: { flexDirection: 'row', gap: 3, marginLeft: 4, flexShrink: 0 },
+  excelColBtn: { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderWidth: 1, borderColor: 'rgba(56, 189, 248, 0.4)', borderRadius: 6, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  excelColBtnDisabled: { opacity: 0.25 },
+  excelColBtnText: { fontSize: 11, fontWeight: '900', color: '#38bdf8' },
 
   // Data body (inside horizontal ScrollView — no horizontal scrolling needed here)
   excelBodyList: { flex: 1 },

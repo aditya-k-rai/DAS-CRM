@@ -215,44 +215,57 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* User section with Modern Logout */}
-        <div className="border-t mx-2 mb-2 pt-2 space-y-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-card/70 border border-transparent hover:border-border/60 transition-all">
-            <Link href="/profile" onClick={closeMobile} className="flex items-center gap-3 min-w-0 flex-1 group">
-              <div className="avatar w-8 h-8 text-xs flex-shrink-0 font-bold group-hover:ring-2 group-hover:ring-brand-500/40 transition-all">{currentUser.avatar}</div>
-              <div className="sidebar-user-info min-w-0">
-                <p className="text-xs font-bold truncate text-white group-hover:text-brand-400 transition-colors">{currentUser.name}</p>
-                <p className="text-[10px] truncate text-muted" style={{ color: 'rgb(var(--sidebar-text))' }}>{currentUser.email}</p>
-              </div>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShowLogoutModal(true)}
-              title="Sign Out of Workspace"
-              className="p-2 rounded-xl text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-600 border border-rose-500/25 hover:border-rose-500/50 shadow-xs hover:shadow-rose-600/30 transition-all duration-200 flex-shrink-0 group"
-            >
-              <LogOut size={15} className="group-hover:-translate-x-0.5 transition-transform" />
-            </button>
-          </div>
+        {/* User profile & single streamlined logout */}
+        <div className="border-t mx-2 mb-2 pt-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
+          {!collapsed ? (
+            <div className="flex items-center justify-between p-1.5 rounded-2xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800/80 hover:border-slate-700/70 transition-all duration-200 group">
+              <Link
+                href="/profile"
+                onClick={closeMobile}
+                className="flex items-center gap-2.5 min-w-0 flex-1 px-1 py-0.5 rounded-xl hover:bg-slate-800/50 transition-colors"
+                title="View Profile & Account Settings"
+              >
+                <div className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:ring-2 group-hover:ring-indigo-500/40 transition-all">
+                  {currentUser.avatar}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold truncate text-slate-200 group-hover:text-indigo-300 transition-colors">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] truncate text-slate-400 font-medium">
+                    {currentUser.email}
+                  </p>
+                </div>
+              </Link>
 
-          {/* Quick Sign Out Action Bar (Visible in expanded sidebar) */}
-          <div className="sidebar-user-info">
-            <button
-              type="button"
-              onClick={() => setShowLogoutModal(true)}
-              className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-500/10 via-rose-500/15 to-red-500/10 hover:from-rose-500/20 hover:to-red-500/20 border border-rose-500/20 hover:border-rose-500/40 text-rose-300 hover:text-white text-xs font-bold transition-all shadow-xs group"
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 group-hover:scale-110 transition-transform">
-                  <LogOut size={11} />
-                </span>
-                <span>Sign Out</span>
-              </div>
-              <span className="text-[9px] uppercase font-extrabold tracking-wider text-rose-400/80 px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20">
-                Exit
-              </span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(true)}
+                title="Sign Out of Workspace"
+                className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all duration-200 flex-shrink-0 group/btn"
+              >
+                <LogOut size={16} className="group-hover/btn:-translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 py-1">
+              <Link
+                href="/profile"
+                title={`${currentUser.name} (View Profile)`}
+                className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm hover:ring-2 hover:ring-indigo-500/40 transition-all"
+              >
+                {currentUser.avatar}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(true)}
+                title="Sign Out of Workspace"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all flex items-center justify-center"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 

@@ -785,24 +785,37 @@ function RootAppContent() {
                     <Text style={[styles.itemBadgeText, { color: '#818cf8' }]}>AUTHOR</Text>
                   </View>
                 </TouchableOpacity>
+              </ScrollView>
 
+              {/* 🚪 PINNED MODERN DRAWER FOOTER (Always visible, theme-adaptive) */}
+              <View style={[styles.drawerFooter, { borderTopColor: colors.border, backgroundColor: colors.drawerBg }]}>
                 <TouchableOpacity
-                  style={styles.modernSignOutCard}
+                  style={[
+                    styles.modernSignOutBtn,
+                    {
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)',
+                      borderColor: isDark ? 'rgba(239, 68, 68, 0.28)' : 'rgba(239, 68, 68, 0.18)',
+                    }
+                  ]}
                   onPress={confirmAndHandleLogout}
                   activeOpacity={0.75}
                 >
-                  <View style={styles.signOutIconCircle}>
-                    <Text style={{ fontSize: 14 }}>🚪</Text>
+                  <View style={[styles.signOutIconCircle, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)', borderColor: isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)' }]}>
+                    <Text style={{ fontSize: 13 }}>🚪</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.signOutCardTitle}>{t.drawerSignOut || 'Sign Out of DAS CRM'}</Text>
-                    <Text style={styles.signOutCardSub}>End active session safely</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.signOutCardTitle, { color: isDark ? '#f87171' : '#dc2626' }]}>
+                      {t.drawerSignOut || 'Sign Out'}
+                    </Text>
+                    <Text style={[styles.signOutCardSub, { color: colors.textMuted }]} numberOfLines={1}>
+                      {currentUser?.email || 'End active session safely'}
+                    </Text>
                   </View>
-                  <View style={styles.signOutPill}>
-                    <Text style={styles.signOutPillText}>EXIT</Text>
+                  <View style={[styles.signOutArrowPill, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(239, 68, 68, 0.1)' }]}>
+                    <Text style={{ color: isDark ? '#fca5a5' : '#b91c1c', fontSize: 12, fontWeight: '900' }}>→</Text>
                   </View>
                 </TouchableOpacity>
-              </ScrollView>
+              </View>
             </Animated.View>
           </View>
         </Modal>
@@ -1116,54 +1129,44 @@ const styles = StyleSheet.create({
   itemBadge: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   itemBadgeText: { color: '#818cf8', fontSize: 8, fontWeight: '800' },
 
-  modernSignOutCard: {
+  drawerFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  modernSignOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    marginTop: 22,
-    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
   },
   signOutIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: 'rgba(239,68,68,0.2)',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   signOutCardTitle: {
-    color: '#ffffff',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
   signOutCardSub: {
-    color: '#fca5a5',
     fontSize: 10,
     marginTop: 1,
     fontWeight: '500',
   },
-  signOutPill: {
-    backgroundColor: 'rgba(239,68,68,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  signOutArrowPill: {
+    width: 24,
+    height: 24,
     borderRadius: 8,
-  },
-  signOutPillText: {
-    color: '#fca5a5',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   topHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
