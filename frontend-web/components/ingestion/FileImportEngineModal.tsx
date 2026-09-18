@@ -89,7 +89,7 @@ interface GridRowProps {
   updateCell: (rIdx: number, cIdx: number, value: string) => void;
 }
 
-const ROW_HEIGHT = 38; // px – fixed row height for the virtual list
+const ROW_HEIGHT = 40; // px – fixed row height for the virtual list
 
 /**
  * Memoized individual row renderer. Only re-renders when its own data changes,
@@ -102,42 +102,44 @@ const GridRow = memo(({
 }: GridRowProps) => {
   return (
     <div
-      style={{ display: 'flex', height: ROW_HEIGHT, borderBottom: '1px solid rgba(51,65,85,0.4)' }}
+      style={{ display: 'flex', height: ROW_HEIGHT, borderBottom: '1px solid rgba(71,85,105,0.6)' }}
       className={
         isRowBlocked
-          ? 'bg-rose-950/20 opacity-60'
+          ? 'bg-rose-950/30 opacity-60'
           : isHeaderRow
-          ? 'bg-indigo-950/30'
-          : 'hover:bg-slate-800/60'
+          ? 'bg-indigo-700/40 border-b-2 border-indigo-500/60'
+          : rIdx % 2 === 0
+          ? 'bg-slate-900'
+          : 'bg-slate-950'
       }
     >
       {/* Row Controls Cell */}
       <div
         style={{ width: 80, minWidth: 80 }}
-        className="flex flex-col items-center justify-center gap-0.5 border-r border-slate-700/40 bg-slate-950 select-none shrink-0"
+        className="flex flex-col items-center justify-center gap-0.5 border-r-2 border-slate-600/60 bg-slate-900/80 select-none shrink-0"
       >
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => shiftRowUp(rIdx)}
             disabled={rIdx === 0}
             title="Shift Row Up"
-            className="p-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold leading-none"
+            className="p-0.5 rounded bg-slate-700 hover:bg-indigo-600 text-slate-200 disabled:opacity-20 text-[9px] font-bold leading-none"
           >▲</button>
           <button
             onClick={() => shiftRowDown(rIdx)}
             disabled={rIdx === rowCount - 1}
             title="Shift Row Down"
-            className="p-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[9px] font-bold leading-none"
+            className="p-0.5 rounded bg-slate-700 hover:bg-indigo-600 text-slate-200 disabled:opacity-20 text-[9px] font-bold leading-none"
           >▼</button>
           <button
             onClick={() => toggleBlockRow(rIdx)}
             title={isRowBlocked ? 'Unblock Row' : 'Block Row'}
-            className={`p-0.5 rounded text-[9px] font-bold ${isRowBlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}
+            className={`p-0.5 rounded text-[9px] font-bold ${isRowBlocked ? 'bg-emerald-500/30 text-emerald-200' : 'bg-rose-500/20 text-rose-300'}`}
           >
             {isRowBlocked ? '👁️' : '🚫'}
           </button>
         </div>
-        <span className="text-[9px] font-bold text-slate-500">#{rIdx + 1}</span>
+        <span className={`text-[9px] font-black block ${isHeaderRow ? 'text-indigo-300' : 'text-slate-400'}`}>#{rIdx + 1}</span>
       </div>
 
       {/* Editable Data Cells */}
@@ -148,14 +150,16 @@ const GridRow = memo(({
           <div
             key={cIdx}
             style={{ width: w, minWidth: w, maxWidth: w }}
-            className={`flex items-center border-r border-slate-700/40 last:border-0 shrink-0 ${isColBlocked || isRowBlocked ? 'bg-slate-950/80' : ''}`}
+            className={`flex items-center border-r border-slate-600/50 last:border-0 shrink-0 ${
+              isColBlocked || isRowBlocked ? 'bg-slate-950' : ''
+            }`}
           >
             <input
               defaultValue={cellVal}
               onBlur={e => updateCell(rIdx, cIdx, e.target.value)}
               disabled={isColBlocked || isRowBlocked}
-              className={`w-full bg-transparent border-0 px-2 py-1 text-xs rounded focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none truncate ${
-                isHeaderRow ? 'font-black text-indigo-300' : 'font-medium text-slate-200'
+              className={`w-full bg-transparent border-0 px-2 py-1 text-xs rounded focus:bg-slate-800 focus:ring-1 focus:ring-indigo-400 outline-none truncate ${
+                isHeaderRow ? 'font-black text-indigo-200' : 'font-medium text-slate-100'
               } ${isColBlocked || isRowBlocked ? 'line-through text-slate-600' : ''}`}
             />
           </div>
@@ -166,11 +170,20 @@ const GridRow = memo(({
 });
 GridRow.displayName = 'GridRow';
 
+const CHUNK_SIZE = 500;       // rows per batch
+const PRELOAD_THRESHOLD = 100; // expand when this many rows remain in current chunk
+
 /**
- * VirtualizedGrid — renders only the visible rows using react-window FixedSizeList.
- * The thead (column mapping controls) is a real sticky HTML table for full feature parity.
- * The tbody is replaced with a virtualized list that renders ~25 rows at a time
- * regardless of the total row count, giving buttery-smooth scrolling even with 10k+ rows.
+ * VirtualizedGrid — 500-row chunked rendering strategy.
+ *
+ * Instead of loading all N rows at once, it starts with the first 500 rows
+ * and tracks `renderLimit` (the number of rows currently active in the list).
+ * When the user scrolls to within PRELOAD_THRESHOLD rows of the limit,
+ * the next chunk of 500 is unlocked seamlessly — giving both smooth scrolling
+ * AND low initial memory/paint cost.
+ *
+ * The sticky column-mapping header is a flex div (not a table) for exact
+ * pixel-width alignment with the virtual row body.
  */
 const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
   activeSheet, toggleBlockColumn, updateColumnMapping,
@@ -179,15 +192,38 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<FixedSizeList>(null);
 
+  const totalRows = activeSheet.data.length;
+
+  // How many rows are currently unlocked for the list to render.
+  // Starts at CHUNK_SIZE and grows in CHUNK_SIZE increments as the user scrolls.
+  const [renderLimit, setRenderLimit] = useState(() => Math.min(CHUNK_SIZE, totalRows));
+
+  // Reset chunk window whenever the active sheet changes (different tab / new file)
+  React.useEffect(() => {
+    setRenderLimit(Math.min(CHUNK_SIZE, totalRows));
+    listRef.current?.scrollTo(0); // jump back to top on sheet switch
+  }, [activeSheet.name, totalRows]);
+
+  // Fired by react-window on every scroll / layout tick.
+  // When the last overscan row is within PRELOAD_THRESHOLD of the current limit,
+  // expand by another CHUNK_SIZE — capped at totalRows.
+  const handleItemsRendered = useCallback(
+    ({ overscanStopIndex }: { overscanStopIndex: number }) => {
+      if (overscanStopIndex >= renderLimit - PRELOAD_THRESHOLD && renderLimit < totalRows) {
+        setRenderLimit(prev => Math.min(prev + CHUNK_SIZE, totalRows));
+      }
+    },
+    [renderLimit, totalRows]
+  );
+
   // Total pixel width of the grid (controls col + all data cols)
   const totalWidth = 80 + activeSheet.columnWidths.reduce((s, w) => s + (w || 160), 0);
 
-  // Row renderer passed to react-window — must be stable (defined inside FC is fine since we pass itemData)
+  // Memoized per-row renderer — receives only the row index from react-window
   const RowRenderer = useCallback(({ index, style }: ListChildComponentProps) => {
     const row = activeSheet.data[index];
     const isRowBlocked = activeSheet.blockedRows[index];
     const isHeaderRow = index === 0 && activeSheet.rowMappings[0] === 'header';
-
     return (
       <div style={style}>
         <GridRow
@@ -195,7 +231,7 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
           row={row}
           isRowBlocked={isRowBlocked}
           isHeaderRow={isHeaderRow}
-          rowCount={activeSheet.data.length}
+          rowCount={totalRows}
           columnWidths={activeSheet.columnWidths}
           blockedColumns={activeSheet.blockedColumns}
           shiftRowUp={shiftRowUp}
@@ -205,67 +241,72 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
         />
       </div>
     );
-  }, [activeSheet, shiftRowUp, shiftRowDown, toggleBlockRow, updateCell]);
+  }, [activeSheet, totalRows, shiftRowUp, shiftRowDown, toggleBlockRow, updateCell]);
+
+  const loadPercent = Math.round((renderLimit / totalRows) * 100);
+  const isFullyLoaded = renderLimit >= totalRows;
 
   return (
     <div className="flex-1 overflow-hidden rounded-xl border border-border/80 shadow-2xl flex flex-col" ref={containerRef}>
+
       {/* ── Sticky Column-Mapping Header ───────────────────────────────── */}
-      <div className="overflow-x-auto shrink-0 bg-slate-900 border-b border-border select-none">
+      <div className="overflow-x-auto shrink-0 bg-slate-900 border-b-2 border-slate-700 select-none">
         <div style={{ width: totalWidth, display: 'flex' }}>
-          {/* Controls column header */}
+
+          {/* Row Controls column header */}
           <div
             style={{ width: 80, minWidth: 80 }}
-            className="p-2 text-center text-slate-500 border-r border-border/40 font-bold text-[10px] shrink-0"
+            className="px-2 py-3 text-center border-r-2 border-slate-600 font-black text-[10px] text-slate-300 uppercase tracking-widest shrink-0 bg-slate-800"
           >
-            Row Controls
+            # Controls
           </div>
 
           {activeSheet.data[0]?.map((_, cIdx) => {
             const w = activeSheet.columnWidths[cIdx] || 160;
+            const isBlocked = activeSheet.blockedColumns[cIdx];
             return (
               <div
                 key={cIdx}
                 style={{ width: w, minWidth: w }}
-                className={`p-2.5 border-r border-border/40 last:border-0 relative group shrink-0 ${
-                  activeSheet.blockedColumns[cIdx] ? 'bg-rose-950/40 text-rose-300' : 'bg-slate-900'
+                className={`p-2 border-r border-slate-600/70 last:border-0 relative group shrink-0 ${
+                  isBlocked ? 'bg-rose-950/50' : 'bg-slate-800'
                 }`}
               >
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <span className="text-[10px] font-black text-white uppercase tracking-wider">
                       Col {cIdx + 1}
                     </span>
                     <button
                       onClick={() => toggleBlockColumn(cIdx)}
-                      title={activeSheet.blockedColumns[cIdx] ? 'Unblock Column' : 'Block Column'}
-                      className={`p-1 rounded text-[10px] font-bold ${
-                        activeSheet.blockedColumns[cIdx]
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      title={isBlocked ? 'Unblock Column' : 'Block Column'}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                        isBlocked
+                          ? 'bg-emerald-500/25 text-emerald-200 border-emerald-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
                       }`}
                     >
-                      {activeSheet.blockedColumns[cIdx] ? '👁️ Unblock' : '🚫 Block'}
+                      {isBlocked ? '👁 On' : '🚫 Off'}
                     </button>
                   </div>
                   <select
                     value={activeSheet.columnMappings[cIdx] || 'custom'}
                     onChange={e => updateColumnMapping(cIdx, e.target.value)}
-                    disabled={activeSheet.blockedColumns[cIdx]}
-                    className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-300 py-1"
+                    disabled={isBlocked}
+                    className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-200 py-0.5"
                   >
                     {FIELD_OPTIONS.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
                 </div>
-
                 {/* Drag-to-resize handle */}
                 <div
                   onMouseDown={e => handleMouseDownResize(e, cIdx)}
-                  title="Hold & Drag to Resize Column Width"
-                  className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 group-hover:bg-cyan-500/40 hover:bg-cyan-400 flex items-center justify-center transition-colors"
+                  title="Drag to resize column"
+                  className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-20 hover:bg-cyan-400/60 flex items-center justify-center transition-colors"
                 >
-                  <div className="w-[2px] h-full bg-slate-700/80 group-hover:bg-cyan-300" />
+                  <div className="w-[2px] h-full bg-slate-600 group-hover:bg-cyan-300" />
                 </div>
               </div>
             );
@@ -273,28 +314,47 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
         </div>
       </div>
 
-      {/* ── Virtualized Row Body ────────────────────────────────────────── */}
-      <div className="flex-1 overflow-x-auto bg-slate-900/40">
+      {/* ── Chunk-Loaded Virtual Row Body ──────────────────────────────── */}
+      <div className="flex-1 overflow-x-auto" style={{ background: 'rgb(2 6 23)' }}>
         <FixedSizeList
           ref={listRef}
-          height={window?.innerHeight ? Math.max(300, window.innerHeight * 0.45) : 480}
-          itemCount={activeSheet.data.length}
+          height={window?.innerHeight ? Math.max(300, window.innerHeight * 0.44) : 480}
+          itemCount={renderLimit}           /* only the currently unlocked chunk */
           itemSize={ROW_HEIGHT}
           width={totalWidth}
-          overscanCount={10}
-          style={{ willChange: 'transform' }}
+          overscanCount={20}                /* pre-paint 20 rows above+below viewport */
+          onItemsRendered={handleItemsRendered}
+          style={{ willChange: 'transform', overflowX: 'hidden' }}
         >
           {RowRenderer}
         </FixedSizeList>
       </div>
 
-      {/* Row count badge */}
-      <div className="shrink-0 px-3 py-1.5 bg-slate-950 border-t border-border/40 flex items-center justify-between">
-        <span className="text-[10px] text-slate-500 font-bold">
-          {activeSheet.data.length.toLocaleString()} rows · {(activeSheet.data[0]?.length || 0)} cols
+      {/* ── Status Bar ─────────────────────────────────────────────────── */}
+      <div className="shrink-0 px-3 py-1.5 bg-slate-950 border-t border-slate-700/60 flex items-center justify-between gap-3">
+        {/* Left: counts */}
+        <span className="text-[10px] text-slate-400 font-bold">
+          {renderLimit.toLocaleString()} / {totalRows.toLocaleString()} rows loaded
+          &nbsp;·&nbsp;{(activeSheet.data[0]?.length || 0)} cols
         </span>
-        <span className="text-[10px] text-indigo-400 font-bold">
-          ⚡ Virtual Scroll — only visible rows rendered
+
+        {/* Centre: mini progress bar */}
+        <div className="flex-1 max-w-xs h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              isFullyLoaded
+                ? 'bg-emerald-500'
+                : 'bg-gradient-to-r from-indigo-500 via-sky-400 to-cyan-400'
+            }`}
+            style={{ width: `${loadPercent}%` }}
+          />
+        </div>
+
+        {/* Right: label */}
+        <span className={`text-[10px] font-bold ${isFullyLoaded ? 'text-emerald-400' : 'text-indigo-300'}`}>
+          {isFullyLoaded
+            ? '✅ All rows loaded'
+            : `⚡ ${loadPercent}% — scroll to load more`}
         </span>
       </div>
     </div>
@@ -802,66 +862,134 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </button>
         </div>
 
-        {/* METADATA & UPLOAD BAR */}
-        <div className="p-4 bg-slate-900/60 border-b border-border/60 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-          {/* File Picker / Dropzone */}
-          <div>
-            <label className="text-muted block mb-1 font-bold flex items-center gap-1">
-              <Upload size={13} className="text-indigo-400" /> Select / Drop Spreadsheet File
-            </label>
-            <input
-              type="file"
-              accept=".csv, .xls, .xlsx, .xml, .xlsm, .xltx, .xltm"
-              onChange={handleFileChange}
-              className="crm-input w-full text-xs font-semibold py-1.5"
-            />
-          </div>
-
-          {/* Mandatory File Name Input */}
-          <div>
-            <label className="text-muted block mb-1 font-bold flex items-center gap-1">
-              <Type size={13} className="text-amber-400" /> File Name (Required to Inject) *
-            </label>
-            <input
-              value={fileName}
-              onChange={e => setFileName(e.target.value)}
-              placeholder="e.g. Q3_Aug_Lead_Campaign"
-              className="crm-input w-full text-xs font-bold text-white bg-slate-950"
-            />
-          </div>
-
-          {/* Mandatory Platform Dropdown */}
-          <div>
-            <label className="text-muted block mb-1 font-bold flex items-center gap-1">
-              <Sliders size={13} className="text-emerald-400" /> Source Platform (Required to Inject) *
-            </label>
-            <select
-              value={selectedPlatform}
-              onChange={e => setSelectedPlatform(e.target.value)}
-              className="crm-input w-full text-xs font-bold text-emerald-300 bg-slate-950"
-            >
-              <option value="">-- Select Platform Source --</option>
-              {PLATFORMS.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Analytics Badge */}
-          <div className="flex items-center justify-around bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-            <div className="text-center">
-              <span className="text-[10px] text-muted font-bold block">TOTAL SHEETS</span>
-              <span className="text-sm font-black text-indigo-400">{sheets.length}</span>
+        {/* METADATA & UPLOAD BAR — Top control strip with action buttons */}
+        <div className="p-4 bg-slate-900/60 border-b border-border/60 flex flex-col gap-3 text-xs">
+          {/* Row 1: File pickers + Platform + Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* File Picker / Dropzone */}
+            <div>
+              <label className="text-slate-300 block mb-1 font-bold flex items-center gap-1">
+                <Upload size={13} className="text-indigo-400" /> Select / Drop Spreadsheet File
+              </label>
+              <input
+                type="file"
+                accept=".csv, .xls, .xlsx, .xml, .xlsm, .xltx, .xltm"
+                onChange={handleFileChange}
+                className="crm-input w-full text-xs font-semibold py-1.5"
+              />
             </div>
-            <div className="w-px h-6 bg-slate-800" />
-            <div className="text-center">
-              <span className="text-[10px] text-muted font-bold block">TOTAL ROWS</span>
-              <span className="text-sm font-black text-cyan-400">{totalRowsCount}</span>
+
+            {/* Mandatory File Name Input */}
+            <div>
+              <label className="text-slate-300 block mb-1 font-bold flex items-center gap-1">
+                <Type size={13} className="text-amber-400" /> File Name (Required) *
+              </label>
+              <input
+                value={fileName}
+                onChange={e => setFileName(e.target.value)}
+                placeholder="e.g. Q3_Aug_Lead_Campaign"
+                className="crm-input w-full text-xs font-bold text-white bg-slate-950"
+              />
             </div>
-            <div className="w-px h-6 bg-slate-800" />
-            <div className="text-center">
-              <span className="text-[10px] text-muted font-bold block">TOTAL COLS</span>
-              <span className="text-sm font-black text-emerald-400">{totalColsCount}</span>
+
+            {/* Mandatory Platform Dropdown */}
+            <div>
+              <label className="text-slate-300 block mb-1 font-bold flex items-center gap-1">
+                <Sliders size={13} className="text-emerald-400" /> Source Platform (Required) *
+              </label>
+              <select
+                value={selectedPlatform}
+                onChange={e => setSelectedPlatform(e.target.value)}
+                className="crm-input w-full text-xs font-bold text-emerald-300 bg-slate-950"
+              >
+                <option value="">-- Select Platform Source --</option>
+                {PLATFORMS.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Analytics Badge */}
+            <div className="flex items-center justify-around bg-slate-950 p-2.5 rounded-xl border border-slate-700">
+              <div className="text-center">
+                <span className="text-[10px] text-slate-400 font-bold block">SHEETS</span>
+                <span className="text-sm font-black text-indigo-400">{sheets.length}</span>
+              </div>
+              <div className="w-px h-6 bg-slate-700" />
+              <div className="text-center">
+                <span className="text-[10px] text-slate-400 font-bold block">ROWS</span>
+                <span className="text-sm font-black text-cyan-400">{totalRowsCount.toLocaleString()}</span>
+              </div>
+              <div className="w-px h-6 bg-slate-700" />
+              <div className="text-center">
+                <span className="text-[10px] text-slate-400 font-bold block">COLS</span>
+                <span className="text-sm font-black text-emerald-400">{totalColsCount}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Status hint + Action Buttons (moved UP here) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+            {/* Left: contextual status hint */}
+            <div className="flex items-center gap-2 text-xs">
+              {!fileName.trim() && (
+                <span className="text-amber-400 font-bold flex items-center gap-1">
+                  <AlertCircle size={13} /> Enter a File Name to unlock upload.
+                </span>
+              )}
+              {fileName.trim() && !selectedPlatform && (
+                <span className="text-amber-400 font-bold flex items-center gap-1">
+                  <AlertCircle size={13} /> Select Source Platform to unlock upload.
+                </span>
+              )}
+              {isReadyToInject && !isDriveUploaded && !isUploadingDrive && (
+                <span className="text-sky-300 font-bold flex items-center gap-1">
+                  <CloudUpload size={13} /> Ready — click &apos;Upload to Google Drive&apos; to archive &amp; ingest.
+                </span>
+              )}
+              {isUploadingDrive && (
+                <span className="text-amber-300 font-bold flex items-center gap-1 animate-pulse">
+                  <RefreshCw size={13} className="animate-spin" /> Archiving to Google Drive cold vault...
+                </span>
+              )}
+              {isDriveUploaded && (
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <CheckCircle size={13} /> Archived! Click &apos;Confirm &amp; Ingest&apos; to finish.
+                </span>
+              )}
+            </div>
+
+            {/* Right: Cancel + Primary Action */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold cursor-pointer">
+                Cancel
+              </button>
+
+              {!isDriveUploaded ? (
+                <button
+                  type="button"
+                  onClick={handleUploadToGoogleDrive}
+                  disabled={!isReadyToInject || isUploadingDrive}
+                  title={!isReadyToInject ? 'Enter File Name and select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
+                  className="px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-indigo-600/25 cursor-pointer"
+                >
+                  {isUploadingDrive ? (
+                    <><RefreshCw size={14} className="animate-spin text-sky-300" /><span>Uploading ({driveProgress?.progressPercent || 0}%)...</span></>
+                  ) : (
+                    <><CloudUpload size={15} /><span>Upload to Google Drive</span></>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCommitIngestion}
+                  disabled={!isReadyToInject}
+                  className="px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 active:scale-95 cursor-pointer animate-pulse"
+                >
+                  <CheckCircle size={14} />
+                  <span>Confirm &amp; Ingest Leads →</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -961,153 +1089,38 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           )}
         </div>
 
-        {/* GOOGLE DRIVE SYNC & UPLOAD PROGRESS BAR */}
-        {sheets.length > 0 && (
-          <div className="px-5 py-3.5 bg-slate-900/95 border-t border-indigo-500/20 flex flex-col gap-2.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-inner">
-                  <Cloud size={18} />
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-white">
-                    <span>Google Drive Cold Backup Vault:</span>
-                    <span className="text-indigo-300 font-mono text-[11px] bg-slate-800/90 px-2.5 py-0.5 rounded-md border border-slate-700">
-                      📁 Google Drive &gt; Acme Sales Solutions &gt; Leads &gt; {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Permanent Cold Storage Vault • Active CRM/Web retains 3-month data • Bundled for End-of-Month Admin Report Email.
-                  </p>
-                </div>
-              </div>
-
-              {/* Vault Storage Status */}
-              <div className="flex items-center gap-2">
-                {!isDriveUploaded && !isUploadingDrive && (
-                  <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-                    <Clock size={13} className="text-amber-400" /> Pending Upload &amp; Cold Storage
-                  </span>
-                )}
-
-                {isUploadingDrive && (
-                  <span className="text-[11px] font-bold text-sky-300 bg-sky-500/15 border border-sky-500/35 px-2.5 py-1 rounded-lg flex items-center gap-1.5 animate-pulse shadow-sm">
-                    <RefreshCw size={13} className="animate-spin text-sky-400" /> Uploading to Vault...
-                  </span>
-                )}
-
-                {isDriveUploaded && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
-                      <CheckCircle size={14} /> Archived in Backup Vault
-                    </span>
-                    <span className="text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1.5 rounded-lg">
-                      📦 Queued for Month-End Admin Bundle
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Live Progress Bar & Speed Indicator */}
+        {/* FOOTER — Google Drive cold vault status (action buttons are in the top metadata bar) */}
+        <div className="px-5 py-2.5 bg-slate-900 border-t border-border/60 flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <Cloud size={12} className="text-indigo-400 shrink-0" />
+            <span className="font-bold text-slate-400">Cold Vault:</span>
+            <span className="font-mono text-slate-500 truncate max-w-xs sm:max-w-md">
+              Google Drive › Acme Sales Solutions › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
+            </span>
+          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            {!isDriveUploaded && !isUploadingDrive && sheets.length > 0 && (
+              <span className="text-amber-400 font-semibold flex items-center gap-1">
+                <Clock size={11} /> Pending Upload
+              </span>
+            )}
             {isUploadingDrive && driveProgress && (
-              <div className="mt-1 bg-slate-950 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col gap-2 animate-fade-in shadow-inner">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <div className="flex items-center gap-2 text-indigo-300 font-bold">
-                    <span className="animate-spin text-sky-400">⏳</span>
-                    <span className="truncate max-w-xs sm:max-w-md">Uploading {driveProgress.fileName}...</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-amber-400 font-bold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                      <Zap size={13} className="text-amber-400 fill-amber-400" />
-                      Speed: {driveProgress.speedMbps} MB/s
-                    </span>
-                    <span className="text-slate-400 font-medium">
-                      {(driveProgress.bytesUploaded / 1024).toFixed(0)} KB / {(driveProgress.totalBytes / 1024).toFixed(0)} KB
-                    </span>
-                    <span className="text-emerald-400 font-extrabold">{driveProgress.progressPercent}%</span>
-                  </div>
-                </div>
-
-                {/* Progress Bar Track */}
-                <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-150 shadow-[0_0_12px_rgba(99,102,241,0.6)]"
+                    className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-150"
                     style={{ width: `${Math.max(4, driveProgress.progressPercent)}%` }}
                   />
                 </div>
+                <span className="text-sky-400 font-bold flex items-center gap-1 animate-pulse">
+                  <RefreshCw size={11} className="animate-spin" /> {driveProgress.progressPercent}% · {driveProgress.speedMbps} MB/s
+                </span>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* FOOTER ACTIONS BAR */}
-        <div className="p-4 bg-slate-900 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            {!fileName.trim() && (
-              <span className="text-amber-400 font-bold flex items-center gap-1">
-                <AlertCircle size={14} /> Enter File Name above to unlock upload.
-              </span>
-            )}
-            {!selectedPlatform && (
-              <span className="text-amber-400 font-bold flex items-center gap-1">
-                <AlertCircle size={14} /> Select Source Platform above to unlock upload.
-              </span>
-            )}
-            {isReadyToInject && !isDriveUploaded && !isUploadingDrive && (
-              <span className="text-sky-400 font-bold flex items-center gap-1">
-                <CloudUpload size={14} /> Click &apos;Upload to Google Drive&apos; below to archive file before ingesting.
-              </span>
-            )}
-            {isUploadingDrive && (
-              <span className="text-amber-400 font-bold flex items-center gap-1 animate-pulse">
-                <RefreshCw size={14} className="animate-spin" /> Archiving spreadsheet to Google Drive cold vault...
-              </span>
             )}
             {isDriveUploaded && (
               <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle size={14} /> Archived in Backup Vault! Click &apos;Confirm &amp; Ingest&apos; to finish.
+                <CheckCircle size={11} /> Archived in Vault
               </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold cursor-pointer">
-              Cancel
-            </button>
-
-            {!isDriveUploaded ? (
-              /* Step 1: Upload button appears in the Confirm button position */
-              <button
-                type="button"
-                onClick={handleUploadToGoogleDrive}
-                disabled={!isReadyToInject || isUploadingDrive}
-                className="px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-indigo-600/25 cursor-pointer"
-                title={!isReadyToInject ? "Enter File Name and select Source Platform above to unlock upload" : "Upload and archive file to Google Drive"}
-              >
-                {isUploadingDrive ? (
-                  <>
-                    <RefreshCw size={15} className="animate-spin text-sky-300" />
-                    <span>Uploading to Google Drive ({driveProgress?.progressPercent || 0}%)...</span>
-                  </>
-                ) : (
-                  <>
-                    <CloudUpload size={16} />
-                    <span>Upload to Google Drive</span>
-                  </>
-                )}
-              </button>
-            ) : (
-              /* Step 2: After clicking upload, Confirm & Ingest button appears in that place */
-              <button
-                type="button"
-                onClick={handleCommitIngestion}
-                disabled={!isReadyToInject}
-                className="px-5 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 active:scale-95 cursor-pointer animate-pulse"
-              >
-                <CheckCircle size={15} />
-                <span>Confirm &amp; Ingest Leads into Pipeline →</span>
-              </button>
             )}
           </div>
         </div>
