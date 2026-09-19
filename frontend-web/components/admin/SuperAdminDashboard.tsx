@@ -235,30 +235,6 @@ export function SuperAdminDashboard() {
   const [chatLogCompany, setChatLogCompany] = useState<CompanyRecord | null>(null);
   const [dailyLogs, setDailyLogs] = useState<WhatsAppDailyLog[]>([]);
 
-  // Key Generation Modal
-  const [genKeyModalOpen, setGenKeyModalOpen] = useState(false);
-  const [genCompanyName, setGenCompanyName] = useState('');
-  const [genPlan, setGenPlan] = useState<PlanType>('FREE_TRIAL');
-  const [genSeats, setGenSeats] = useState(10);
-  const [genValidityDays, setGenValidityDays] = useState(30);
-
-  const handleGenPlanChange = (newPlan: PlanType) => {
-    setGenPlan(newPlan);
-    if (newPlan === 'FREE_TRIAL') {
-      setGenSeats(10);
-      setGenValidityDays(30);
-    } else if (newPlan === 'GROWTH') {
-      setGenSeats(20);
-      setGenValidityDays(30);
-    } else if (newPlan === 'BUSINESS') {
-      setGenSeats(50);
-      setGenValidityDays(30);
-    } else if (newPlan === 'ENTERPRISE') {
-      setGenSeats(100);
-      setGenValidityDays(365);
-    }
-  };
-
   const { updateSubscription } = useAuth();
 
   // Metrics Calculations
@@ -360,32 +336,6 @@ export function SuperAdminDashboard() {
     setChatLogModalOpen(true);
   };
 
-  // Generate Key Handler
-  const handleGenerateKey = () => {
-    if (!genCompanyName.trim()) return;
-    const firstWord = genCompanyName.trim().split(/\s+/)[0]?.toUpperCase() || 'COMP';
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const alpha = Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const digits = Math.floor(1000 + Math.random() * 9000).toString();
-    const newKey = `${firstWord}-${alpha}-${digits}`;
-
-    const newRecord: KeyRecord = {
-      id: `key_${Date.now()}`,
-      key: newKey,
-      companyName: genCompanyName,
-      planTier: genPlan,
-      memberLimit: genSeats,
-      validityDays: genValidityDays,
-      status: 'ACTIVE',
-      expiresAt: new Date(Date.now() + genValidityDays * 86400000).toISOString().split('T')[0],
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-
-    setKeysList([newRecord, ...keysList]);
-    setGenKeyModalOpen(false);
-    setGenCompanyName('');
-  };
-
   const handleApproveUpgrade = (reqId: string) => {
     setUpgradeRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'APPROVED' } : r));
     updateSubscription({
@@ -421,13 +371,6 @@ export function SuperAdminDashboard() {
               <p className="text-xs text-muted mt-0.5">Control hub for managing company keys, subscriptions, WhatsApp Cloud usage, templates, and approvals.</p>
             </div>
           </div>
-
-          <button
-            onClick={() => setGenKeyModalOpen(true)}
-            className="btn-primary text-xs px-4 py-2.5 gap-2 flex items-center shadow-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold"
-          >
-            <Key size={15} /> Generate New Registration Key
-          </button>
         </div>
 
         {/* Core 7 Sections Navigation Bar */}
@@ -549,12 +492,9 @@ export function SuperAdminDashboard() {
               <p className="text-xs text-muted mt-0.5">Registration key registry mapped to companies, plan tiers, expiry dates, and seat quotas.</p>
             </div>
 
-            <button
-              onClick={() => setGenKeyModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center gap-1.5"
-            >
-              <Plus size={14} /> Add Company Key
-            </button>
+            <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
+              <Shield size={12} /> Auto-Created via Company Registration
+            </span>
           </div>
 
           <div className="overflow-x-auto">
@@ -1157,124 +1097,7 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* ── KEY GENERATOR MODAL ─────────────────────────────────────────────────── */}
-      {genKeyModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
-          <div className="bg-card border border-purple-500/40 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setGenKeyModalOpen(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
-            >
-              <X size={16} />
-            </button>
 
-            <div className="flex items-center gap-3 border-b pb-4 border-border">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold">
-                <Key size={18} />
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-white">Generate Company Registration Key</h3>
-                <p className="text-xs text-muted">Create security key for tenant activation (Format: ACME-KX-7421).</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="text-muted font-bold block mb-1">Company Name *</label>
-                <input
-                  className="crm-input text-sm h-10 w-full"
-                  placeholder="e.g. Global Logistics Corp"
-                  value={genCompanyName}
-                  onChange={e => setGenCompanyName(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-muted font-bold block mb-1">Plan Tier</label>
-                  <select
-                    className="crm-input text-sm h-10 w-full font-bold text-purple-300"
-                    value={genPlan}
-                    onChange={e => handleGenPlanChange(e.target.value as PlanType)}
-                  >
-                    <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
-                    <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
-                    <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
-                    <option value="ENTERPRISE">Enterprise Plan (100 Users · All Features)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-muted font-bold block mb-1">User Quota (Seats)</label>
-                  <input
-                    type="number"
-                    className="crm-input text-sm h-10 w-full font-mono font-bold"
-                    value={genSeats}
-                    onChange={e => setGenSeats(+e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {genPlan === 'FREE_TRIAL' ? (
-                <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                      <Clock size={14} /> Trial Validity Days (15 to 40 Days)
-                    </label>
-                    <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300">
-                      {genValidityDays} Days
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={15}
-                    max={40}
-                    step={1}
-                    value={genValidityDays}
-                    onChange={e => setGenValidityDays(Math.max(15, Math.min(40, +e.target.value)))}
-                    className="w-full accent-purple-400 cursor-pointer h-2 bg-slate-700 rounded-lg"
-                  />
-                  <div className="flex justify-between text-[10px] text-muted font-mono font-bold">
-                    <span>15d (Min)</span>
-                    <span>20d</span>
-                    <span>30d (Default)</span>
-                    <span>40d (Max)</span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-muted font-bold block mb-1">Validity Window (Days)</label>
-                  <select
-                    className="crm-input text-sm h-10 w-full font-bold"
-                    value={genValidityDays}
-                    onChange={e => setGenValidityDays(+e.target.value)}
-                  >
-                    <option value={30}>30 Days (1 Month)</option>
-                    <option value={90}>90 Days (3 Months)</option>
-                    <option value={180}>180 Days (6 Months)</option>
-                    <option value={365}>365 Days (1 Year)</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-border">
-              <button
-                onClick={() => setGenKeyModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl bg-background border border-border text-muted font-bold text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerateKey}
-                className="btn-primary text-xs px-5 py-2.5 font-bold shadow-lg bg-gradient-to-r from-purple-600 to-indigo-600"
-              >
-                Generate & Issue Key →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
