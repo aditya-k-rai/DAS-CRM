@@ -4,11 +4,36 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
-  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall
+  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, Bot, SlidersHorizontal
 } from 'lucide-react';
 import { useAuth, CompanySubscription, PlanType } from '@/context/AuthContext';
 
-interface CompanyRecord {
+export type AITierType = 'BASIC' | 'PRO' | 'ENTERPRISE_CUSTOM';
+
+export interface AICompanyConfig {
+  enabled: boolean;
+  tier: AITierType;
+  customSystemPrompt: string;
+  monthlyTokenLimit: number;
+  tokensUsed: number;
+}
+
+export interface WhatsAppCompanyConfig {
+  enabled: boolean;
+  monthlyLimit: number;
+  used: number;
+  status: 'CONNECTED' | 'DISCONNECTED' | 'NOT_CONFIGURED';
+  phoneNumber?: string;
+}
+
+export interface EmailCompanyConfig {
+  enabled: boolean;
+  monthlyLimit: number;
+  used: number;
+  senderDomain?: string;
+}
+
+export interface CompanyRecord {
   id: string;
   name: string;
   domain?: string;
@@ -27,11 +52,12 @@ interface CompanyRecord {
   isActive: boolean;
   createdAt: string;
   expiryDate: string;
-  whatsappUsed: number;
-  whatsappLimit: number;
+  emailConfig: EmailCompanyConfig;
+  whatsAppConfig: WhatsAppCompanyConfig;
+  aiConfig: AICompanyConfig;
 }
 
-interface CompanyEmployee {
+export interface CompanyEmployee {
   id: string;
   name: string;
   email: string;
@@ -42,7 +68,7 @@ interface CompanyEmployee {
   keyUsed: string;
 }
 
-interface KeyRecord {
+export interface KeyRecord {
   id: string;
   key: string;
   companyName: string;
@@ -55,7 +81,7 @@ interface KeyRecord {
   qrCodeDataUrl?: string;
 }
 
-interface UpgradeRequest {
+export interface UpgradeRequest {
   id: string;
   companyName: string;
   requestedPlan: string;
@@ -65,7 +91,7 @@ interface UpgradeRequest {
   requestedAt: string;
 }
 
-interface WhatsAppDailyLog {
+export interface WhatsAppDailyLog {
   date: string;
   messagesSent: number;
   deliveryRate: number;
@@ -84,19 +110,20 @@ const INITIAL_COMPANIES: CompanyRecord[] = [
     isExpired: false,
     seatsAllocated: 10,
     seatsUsed: 6,
-    totalUsersCount: 11, // 6 Assigned + 5 Unassigned
+    totalUsersCount: 11,
     totalLeads: 142,
     convertedLeads: 38,
     conversionRate: 26.7,
     isActive: true,
     createdAt: '2026-08-01',
     expiryDate: '2026-09-30',
-    whatsappUsed: 0,
-    whatsappLimit: 0,
+    emailConfig: { enabled: false, monthlyLimit: 5000, used: 120, senderDomain: 'acme.com' },
+    whatsAppConfig: { enabled: false, monthlyLimit: 10000, used: 0, status: 'NOT_CONFIGURED' },
+    aiConfig: { enabled: true, tier: 'BASIC', customSystemPrompt: 'Acme Sales AI Assistant.', monthlyTokenLimit: 100000, tokensUsed: 12000 },
   },
   {
     id: 'comp_growth',
-    name: 'NextGen Growth Technologies',
+    name: 'NextGen Growth Tech',
     adminName: 'Rohan Verma',
     adminEmail: 'rohan.admin@nextgen.com',
     registrationKey: 'NGEN-GR-2041',
@@ -112,8 +139,9 @@ const INITIAL_COMPANIES: CompanyRecord[] = [
     isActive: true,
     createdAt: '2026-07-15',
     expiryDate: '2026-12-31',
-    whatsappUsed: 0,
-    whatsappLimit: 0,
+    emailConfig: { enabled: true, monthlyLimit: 25000, used: 6400, senderDomain: 'nextgen.com' },
+    whatsAppConfig: { enabled: false, monthlyLimit: 20000, used: 0, status: 'DISCONNECTED' },
+    aiConfig: { enabled: true, tier: 'PRO', customSystemPrompt: 'Retail AI Lead Assistant.', monthlyTokenLimit: 250000, tokensUsed: 74000 },
   },
   {
     id: 'comp_business',
@@ -133,8 +161,9 @@ const INITIAL_COMPANIES: CompanyRecord[] = [
     isActive: true,
     createdAt: '2026-06-01',
     expiryDate: '2026-12-31',
-    whatsappUsed: 28400,
-    whatsappLimit: 100000,
+    emailConfig: { enabled: true, monthlyLimit: 100000, used: 28400, senderDomain: 'apexcorp.com' },
+    whatsAppConfig: { enabled: true, monthlyLimit: 100000, used: 28400, status: 'CONNECTED', phoneNumber: '+919876543210' },
+    aiConfig: { enabled: true, tier: 'PRO', customSystemPrompt: 'Enterprise Apex AI Assistant.', monthlyTokenLimit: 500000, tokensUsed: 198000 },
   },
   {
     id: 'comp_enterprise',
@@ -154,211 +183,107 @@ const INITIAL_COMPANIES: CompanyRecord[] = [
     isActive: true,
     createdAt: '2026-05-01',
     expiryDate: '2027-05-01',
-    whatsappUsed: 94200,
-    whatsappLimit: 500000,
+    emailConfig: { enabled: true, monthlyLimit: 500000, used: 198400, senderDomain: 'globalholdings.com' },
+    whatsAppConfig: { enabled: true, monthlyLimit: 500000, used: 94200, status: 'CONNECTED', phoneNumber: '+919988776655' },
+    aiConfig: { enabled: true, tier: 'ENTERPRISE_CUSTOM', customSystemPrompt: 'Global Enterprise Multi-regional AI Assistant.', monthlyTokenLimit: 2000000, tokensUsed: 740000 },
   },
 ];
 
 const INITIAL_KEYS: KeyRecord[] = [
-  {
-    id: 'key_1',
-    key: 'ACME-KX-7421',
-    companyName: 'Acme Sales Solutions',
-    planTier: 'FREE_TRIAL',
-    memberLimit: 10,
-    validityDays: 30,
-    status: 'ACTIVE',
-    expiresAt: '2026-09-30',
-    createdAt: '2026-08-01',
-  },
-  {
-    id: 'key_2',
-    key: 'NGEN-GR-2041',
-    companyName: 'NextGen Growth Technologies',
-    planTier: 'GROWTH',
-    memberLimit: 20,
-    validityDays: 365,
-    status: 'ACTIVE',
-    expiresAt: '2026-12-31',
-    createdAt: '2026-07-15',
-  },
-  {
-    id: 'key_3',
-    key: 'APEX-BZ-5088',
-    companyName: 'Apex Business Solutions',
-    planTier: 'BUSINESS',
-    memberLimit: 50,
-    validityDays: 365,
-    status: 'ACTIVE',
-    expiresAt: '2026-12-31',
-    createdAt: '2026-06-01',
-  },
-  {
-    id: 'key_4',
-    key: 'GLBL-EP-1002',
-    companyName: 'Global Enterprise Holdings',
-    planTier: 'ENTERPRISE',
-    memberLimit: 100,
-    validityDays: 365,
-    status: 'ACTIVE',
-    expiresAt: '2027-05-01',
-    createdAt: '2026-05-01',
-  },
+  { id: 'key_1', key: 'ACME-KX-7421', companyName: 'Acme Sales Solutions', planTier: 'FREE_TRIAL', memberLimit: 10, validityDays: 30, status: 'ACTIVE', expiresAt: '2026-09-30', createdAt: '2026-08-01' },
+  { id: 'key_2', key: 'NGEN-GR-2041', companyName: 'NextGen Growth Tech', planTier: 'GROWTH', memberLimit: 20, validityDays: 365, status: 'ACTIVE', expiresAt: '2026-12-31', createdAt: '2026-07-15' },
+  { id: 'key_3', key: 'APEX-BZ-5088', companyName: 'Apex Business Solutions', planTier: 'BUSINESS', memberLimit: 50, validityDays: 365, status: 'ACTIVE', expiresAt: '2026-12-31', createdAt: '2026-06-01' },
+  { id: 'key_4', key: 'GLBL-EP-1002', companyName: 'Global Enterprise Holdings', planTier: 'ENTERPRISE', memberLimit: 100, validityDays: 365, status: 'ACTIVE', expiresAt: '2027-05-01', createdAt: '2026-05-01' },
 ];
-
-const INITIAL_UPGRADE_REQUESTS: UpgradeRequest[] = [];
 
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(INITIAL_COMPANIES);
   const [keysList, setKeysList] = useState<KeyRecord[]>(INITIAL_KEYS);
-  const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>(INITIAL_UPGRADE_REQUESTS);
+  const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>([]);
   
-  // Navigation Section Selector
   const [activeSection, setActiveSection] = useState<
-    'overview' | 'keys' | 'edit_modal' | 'templates' | 'whatsapp' | 'pending' | 'employees'
+    'overview' | 'features_hub' | 'keys' | 'edit_modal' | 'templates' | 'whatsapp' | 'pending' | 'employees'
   >('overview');
 
-  // Active Template Sub-Tab
-  const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
-
-  // Company Details Edit Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalTab, setEditModalTab] = useState<'general' | 'email' | 'whatsapp' | 'ai'>('general');
   const [editingCompany, setEditingCompany] = useState<CompanyRecord | null>(null);
+
+  // Edit states
   const [editName, setEditName] = useState('');
   const [editPlan, setEditPlan] = useState<PlanType>('FREE_TRIAL');
   const [editSeats, setEditSeats] = useState(10);
-  const [editTrialDuration, setEditTrialDuration] = useState(30); // 15 to 40 days
   const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editEmailEnabled, setEditEmailEnabled] = useState(true);
+  const [editEmailLimit, setEditEmailLimit] = useState(25000);
+  const [editWAEnabled, setEditWAEnabled] = useState(true);
+  const [editWALimit, setEditWALimit] = useState(50000);
+  const [editAIEnabled, setEditAIEnabled] = useState(true);
+  const [editAITier, setEditAITier] = useState<AITierType>('PRO');
+  const [editAIPrompt, setEditAIPrompt] = useState('');
 
-  // WhatsApp Date-Wise Chat Log Modal
   const [chatLogModalOpen, setChatLogModalOpen] = useState(false);
   const [chatLogCompany, setChatLogCompany] = useState<CompanyRecord | null>(null);
   const [dailyLogs, setDailyLogs] = useState<WhatsAppDailyLog[]>([]);
 
   const { updateSubscription } = useAuth();
 
-  // Metrics Calculations
-  const totalCompanies = companies.length;
-  const totalUsers = companies.reduce((acc, c) => acc + c.totalUsersCount, 0);
-  const activeCompanies = companies.filter(c => c.isActive).length;
-  const activeUsers = companies.filter(c => c.isActive).reduce((acc, c) => acc + c.seatsUsed, 0);
-  const activeFreeTrials = companies.filter(c => c.plan === 'FREE_TRIAL').length;
-  const activePaidPlans = companies.filter(c => c.plan !== 'FREE_TRIAL').length;
-  const pendingRequestsCount = upgradeRequests.filter(r => r.status === 'PENDING_APPROVAL').length;
-
-  // Plan change in edit modal
-  const handleEditPlanChange = (newPlan: PlanType) => {
-    setEditPlan(newPlan);
-    if (newPlan === 'FREE_TRIAL') {
-      setEditSeats(10);
-      const expiry = new Date(Date.now() + editTrialDuration * 86400000).toISOString().split('T')[0];
-      setEditExpiryDate(expiry);
-    } else if (newPlan === 'GROWTH') {
-      setEditSeats(20);
-      const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-      setEditExpiryDate(expiry);
-    } else if (newPlan === 'BUSINESS' || newPlan === 'PRO' || newPlan === 'PRO_50') {
-      setEditSeats(50);
-      const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-      setEditExpiryDate(expiry);
-    } else if (newPlan === 'ENTERPRISE' || newPlan === 'PRO_MAX' || newPlan === 'MAX') {
-      setEditSeats(100);
-      const expiry = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
-      setEditExpiryDate(expiry);
-    }
-  };
-
-  // Adjust trial duration between 15 and 40 days
-  const handleTrialDurationChange = (days: number) => {
-    const clamped = Math.max(15, Math.min(40, days));
-    setEditTrialDuration(clamped);
-    const expiry = new Date(Date.now() + clamped * 86400000).toISOString().split('T')[0];
-    setEditExpiryDate(expiry);
-  };
-
-  // Open Edit Modal for a specific company
-  const handleOpenEditModal = (comp: CompanyRecord) => {
+  const handleOpenEditModal = (comp: CompanyRecord, tab: 'general' | 'email' | 'whatsapp' | 'ai' = 'general') => {
     setEditingCompany(comp);
+    setEditModalTab(tab);
     setEditName(comp.name);
     setEditPlan(comp.plan);
-    const defaultSeats = comp.seatsAllocated || (comp.plan === 'FREE_TRIAL' ? 10 : comp.plan === 'GROWTH' ? 20 : comp.plan === 'BUSINESS' ? 50 : 100);
-    setEditSeats(defaultSeats);
-    const defaultTrialDays = comp.trialDaysLeft > 0 ? Math.min(40, Math.max(15, comp.trialDaysLeft)) : 30;
-    setEditTrialDuration(defaultTrialDays);
-    setEditExpiryDate(comp.expiryDate || new Date(Date.now() + defaultTrialDays * 86400000).toISOString().split('T')[0]);
+    setEditSeats(comp.seatsAllocated);
+    setEditExpiryDate(comp.expiryDate);
+
+    setEditEmailEnabled(comp.emailConfig?.enabled ?? true);
+    setEditEmailLimit(comp.emailConfig?.monthlyLimit ?? 25000);
+
+    setEditWAEnabled(comp.whatsAppConfig?.enabled ?? true);
+    setEditWALimit(comp.whatsAppConfig?.monthlyLimit ?? 50000);
+
+    setEditAIEnabled(comp.aiConfig?.enabled ?? true);
+    setEditAITier(comp.aiConfig?.tier || 'PRO');
+    setEditAIPrompt(comp.aiConfig?.customSystemPrompt || '');
+
     setEditModalOpen(true);
   };
 
-  // Save Company Edit Changes
   const handleSaveCompanyEdit = () => {
     if (!editingCompany) return;
-    setCompanies(prev =>
-      prev.map(c =>
-        c.id === editingCompany.id
-          ? {
-              ...c,
-              name: editName,
-              plan: editPlan,
-              seatsAllocated: editSeats,
-              trialDaysLeft: editPlan === 'FREE_TRIAL' ? editTrialDuration : 0,
-              expiryDate: editExpiryDate,
-            }
-          : c
-      )
-    );
-    setKeysList(prev =>
-      prev.map(k =>
-        k.companyName === editingCompany.name
-          ? { ...k, companyName: editName, planTier: editPlan, memberLimit: editSeats, expiresAt: editExpiryDate }
-          : k
-      )
-    );
-    if (editingCompany.id === 'comp_acme' || editingCompany.name === 'Acme Sales Solutions') {
-      updateSubscription({
-        planType: editPlan,
-        userSeatsAllocated: editSeats,
-        trialDaysLeft: editPlan === 'FREE_TRIAL' ? editTrialDuration : 0,
-      });
-    }
+    setCompanies(prev => prev.map(c => c.id === editingCompany.id ? {
+      ...c,
+      name: editName,
+      plan: editPlan,
+      seatsAllocated: editSeats,
+      expiryDate: editExpiryDate,
+      emailConfig: { ...c.emailConfig, enabled: editEmailEnabled, monthlyLimit: editEmailLimit },
+      whatsAppConfig: { ...c.whatsAppConfig, enabled: editWAEnabled, monthlyLimit: editWALimit },
+      aiConfig: { ...c.aiConfig, enabled: editAIEnabled, tier: editAITier, customSystemPrompt: editAIPrompt },
+    } : c));
     setEditModalOpen(false);
   };
 
-  // Open WhatsApp Date-Wise Chat Log Modal
-  const handleOpenChatLogModal = (comp: CompanyRecord) => {
-    setChatLogCompany(comp);
-    setDailyLogs([
-      { date: '2026-08-14 (Today)', messagesSent: Math.floor(comp.whatsappUsed * 0.12), deliveryRate: 98.4, activeChats: 142 },
-      { date: '2026-08-13 (Yesterday)', messagesSent: Math.floor(comp.whatsappUsed * 0.18), deliveryRate: 97.8, activeChats: 210 },
-      { date: '2026-08-12', messagesSent: Math.floor(comp.whatsappUsed * 0.15), deliveryRate: 99.1, activeChats: 185 },
-      { date: '2026-08-11', messagesSent: Math.floor(comp.whatsappUsed * 0.14), deliveryRate: 96.5, activeChats: 164 },
-      { date: '2026-08-10', messagesSent: Math.floor(comp.whatsappUsed * 0.16), deliveryRate: 98.9, activeChats: 195 },
-    ]);
-    setChatLogModalOpen(true);
+  const handleToggleInstantFeature = (companyId: string, feature: 'email' | 'whatsapp' | 'ai', nextState: boolean) => {
+    setCompanies(prev => prev.map(c => {
+      if (c.id !== companyId) return c;
+      if (feature === 'email') return { ...c, emailConfig: { ...c.emailConfig, enabled: nextState } };
+      if (feature === 'whatsapp') return { ...c, whatsAppConfig: { ...c.whatsAppConfig, enabled: nextState } };
+      if (feature === 'ai') return { ...c, aiConfig: { ...c.aiConfig, enabled: nextState } };
+      return c;
+    }));
   };
 
-  const handleApproveUpgrade = (reqId: string) => {
-    setUpgradeRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'APPROVED' } : r));
-    updateSubscription({
-      planType: 'PRO',
-      features: { whatsApp: true, emailAutomation: true, aiLeadScoring: true, customSalaryBuilder: true, exportCSV: true },
-    });
-  };
-
-  const handleRejectUpgrade = (reqId: string) => {
-    setUpgradeRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'REJECTED' } : r));
-  };
-
-  const handleToggleBlockCompany = (comp: CompanyRecord) => {
-    setCompanies(prev => prev.map(c => c.id === comp.id ? { ...c, isActive: !c.isActive } : c));
-  };
+  const totalCompanies = companies.length;
+  const totalUsers = companies.reduce((acc, c) => acc + c.totalUsersCount, 0);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
+    <div className="space-y-8 max-w-7xl mx-auto pb-12 text-foreground">
       {/* ── TOP BANNER & SECTION TABS ─────────────────────────────────────────────── */}
-      <div className="crm-card p-6 border-l-4 border-l-cyan-500 bg-card shadow-2xl">
+      <div className="crm-card p-6 border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/80 to-slate-950 text-white shadow-2xl rounded-3xl">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white font-black flex items-center justify-center text-xl shadow-xl">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-300 font-black flex items-center justify-center text-xl shadow-xl border border-cyan-500/40">
               SA
             </div>
             <div>
@@ -368,185 +293,154 @@ export function SuperAdminDashboard() {
                   PLATFORM CONTROL HUB
                 </span>
               </div>
-              <p className="text-xs text-muted mt-0.5">Control hub for managing company keys, subscriptions, WhatsApp Cloud usage, templates, and approvals.</p>
+              <p className="text-xs text-slate-300 mt-0.5">Control hub for managing company keys, subscriptions, WhatsApp Cloud, Email Marketing, AI Engine, and User Seats.</p>
             </div>
           </div>
         </div>
 
-        {/* Core 7 Sections Navigation Bar */}
-        <div className="flex items-center gap-2 pt-6 mt-6 border-t border-border/60 overflow-x-auto">
-          {[
-            { id: 'overview', label: '1. Dashboard Metrics', icon: TrendingUp },
-            { id: 'keys', label: '2. Keys & Companies', icon: Key },
-            { id: 'templates', label: '4. System Templates', icon: Layers },
-            { id: 'whatsapp', label: '5. WhatsApp Cloud Uses', icon: MessageSquare },
-            { id: 'pending', label: '6. Pending Approvals', badge: pendingRequestsCount, icon: Clock },
-            { id: 'employees', label: '7. Companies & Staff', icon: Users },
-          ].map(sec => (
-            <button
-              key={sec.id}
-              onClick={() => setActiveSection(sec.id as any)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 flex-shrink-0 ${
-                activeSection === sec.id
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-lg'
-                  : 'bg-background/60 text-muted hover:text-white border border-border/50'
-              }`}
-            >
-              <sec.icon size={14} />
-              <span>{sec.label}</span>
-              {sec.badge && sec.badge > 0 ? (
-                <span className="w-4 h-4 rounded-full bg-amber-400 text-black text-[10px] font-black flex items-center justify-center">
-                  {sec.badge}
-                </span>
-              ) : null}
-            </button>
-          ))}
+        {/* Navigation Bar */}
+        <div className="flex items-center gap-2 pt-6 mt-6 border-t border-slate-800 overflow-x-auto">
+          <button onClick={() => setActiveSection('overview')} className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${activeSection === 'overview' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500 shadow' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+            🔑 Overview & Keys
+          </button>
+          <button onClick={() => setActiveSection('features_hub')} className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 ${activeSection === 'features_hub' ? 'bg-purple-500/20 text-purple-300 border-purple-500 shadow' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+            <Zap size={14} className="text-purple-400" /> ⚡ Company Features Hub
+          </button>
         </div>
       </div>
 
-      {/* ── FEATURE 1: DASHBOARD METRICS BANNER (CYAN PILL CARDS) ────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Companies & Users */}
-        <div className="crm-card p-5 border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 via-card to-card relative overflow-hidden group hover:border-cyan-500/60 transition-all shadow-xl">
-          <div className="flex justify-between items-start mb-3">
+      {/* FEATURES HUB TAB */}
+      {activeSection === 'features_hub' && (
+        <div className="crm-card p-5 border-purple-500/40 bg-card space-y-4 rounded-2xl shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">Number Of Companies & Users</p>
-              <h3 className="text-3xl font-black text-white mt-1">{totalCompanies} <span className="text-base font-normal text-muted">Companies</span></h3>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center border border-cyan-500/30">
-              <Building2 size={20} />
+              <h3 className="text-base font-black text-foreground flex items-center gap-2">
+                <Zap size={18} className="text-purple-500" /> Company Features & Quotas Hub
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Super Admin Master Control: Instantly enable/disable Email Marketing, WhatsApp Cloud, AI Engine, and adjust User Seats for any company.
+              </p>
             </div>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
-            <span>Total Registered Accounts:</span>
-            <strong className="text-white font-mono font-bold">{totalUsers} Users</strong>
+
+          <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
+                <tr>
+                  <th className="p-3.5">Company Name</th>
+                  <th className="p-3.5">User Seats Ratio</th>
+                  <th className="p-3.5">Email Marketing</th>
+                  <th className="p-3.5">WhatsApp Cloud</th>
+                  <th className="p-3.5">AI Engine & Tier</th>
+                  <th className="p-3.5 text-right">Configure Features</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {companies.map(c => (
+                  <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-3.5">
+                      <p className="font-black text-foreground">{c.name}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{c.registrationKey} • {c.plan}</p>
+                    </td>
+
+                    <td className="p-3.5 font-mono font-bold text-emerald-500 dark:text-emerald-400">
+                      {c.seatsUsed} / {c.seatsAllocated} Seats
+                    </td>
+
+                    <td className="p-3.5">
+                      <button
+                        onClick={() => handleToggleInstantFeature(c.id, 'email', !c.emailConfig?.enabled)}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.emailConfig?.enabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                      >
+                        <Mail size={12} /> {c.emailConfig?.enabled ? 'ENABLED' : 'DISABLED'}
+                      </button>
+                    </td>
+
+                    <td className="p-3.5">
+                      <button
+                        onClick={() => handleToggleInstantFeature(c.id, 'whatsapp', !c.whatsAppConfig?.enabled)}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                      >
+                        <MessageSquare size={12} /> {c.whatsAppConfig?.enabled ? 'ENABLED' : 'DISABLED'}
+                      </button>
+                    </td>
+
+                    <td className="p-3.5">
+                      <button
+                        onClick={() => handleToggleInstantFeature(c.id, 'ai', !c.aiConfig?.enabled)}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.aiConfig?.enabled ? 'bg-purple-500/15 border-purple-500/40 text-purple-600 dark:text-purple-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                      >
+                        <Bot size={12} /> {c.aiConfig?.enabled ? c.aiConfig?.tier : 'DISABLED'}
+                      </button>
+                    </td>
+
+                    <td className="p-3.5 text-right">
+                      <button
+                        onClick={() => handleOpenEditModal(c, 'email')}
+                        className="px-3.5 py-1.5 bg-purple-600/20 border border-purple-500/40 text-purple-600 dark:text-purple-300 hover:bg-purple-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1.5"
+                      >
+                        <SlidersHorizontal size={13} /> Edit Quotas & Prompts
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
 
-        {/* Card 2: Active Companies & Users */}
-        <div className="crm-card p-5 border border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 via-card to-card relative overflow-hidden group hover:border-emerald-500/60 transition-all shadow-xl">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Active Companies & Users</p>
-              <h3 className="text-3xl font-black text-emerald-400 mt-1">{activeCompanies} <span className="text-base font-normal text-muted">Active Orgs</span></h3>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30">
-              <UserCheck size={20} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
-            <span>Active Active Users:</span>
-            <strong className="text-emerald-300 font-mono font-bold">{activeUsers} Users</strong>
-          </div>
-        </div>
-
-        {/* Card 3: Active Free Trials & Paid Plans */}
-        <div className="crm-card p-5 border border-purple-500/30 bg-gradient-to-br from-purple-950/20 via-card to-card relative overflow-hidden group hover:border-purple-500/60 transition-all shadow-xl">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="text-[11px] font-bold text-purple-300 uppercase tracking-wider">Active Free Trials & Plans</p>
-              <h3 className="text-3xl font-black text-white mt-1">{activeFreeTrials} <span className="text-sm font-normal text-amber-400 font-bold">Trials</span></h3>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/30">
-              <CreditCard size={20} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
-            <span>Paid Subscriptions:</span>
-            <strong className="text-purple-300 font-mono font-bold">{activePaidPlans} Paid Plans</strong>
-          </div>
-        </div>
-
-        {/* Card 4: Number of Pending Requests */}
-        <div className="crm-card p-5 border border-amber-500/30 bg-gradient-to-br from-amber-950/20 via-card to-card relative overflow-hidden group hover:border-amber-500/60 transition-all shadow-xl">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Number of Pending Requests</p>
-              <h3 className="text-3xl font-black text-amber-400 mt-1">{pendingRequestsCount} <span className="text-base font-normal text-muted">Pending</span></h3>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30">
-              <Clock size={20} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-border/40">
-            <span>Awaiting Approval:</span>
-            <button
-              onClick={() => setActiveSection('pending')}
-              className="text-amber-400 font-bold hover:underline"
-            >
-              Review Requests →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── FEATURE 2: KEYS AND THEIR COMPANIES TABLE ───────────────────────────── */}
+      {/* OVERVIEW / KEYS TAB */}
       {(activeSection === 'overview' || activeSection === 'keys') && (
-        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-indigo-500/30">
-          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <Key size={18} className="text-cyan-400" />
-                <h2 className="font-extrabold text-lg text-white">Keys and Their Companies</h2>
-              </div>
-              <p className="text-xs text-muted mt-0.5">Registration key registry mapped to companies, plan tiers, expiry dates, and seat quotas.</p>
-            </div>
-
-            <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
+        <div className="crm-card p-5 border-border bg-card space-y-4 rounded-2xl shadow-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="font-extrabold text-lg text-foreground flex items-center gap-2">
+              <Key size={18} className="text-cyan-500" /> Keys and Their Companies Table
+            </h2>
+            <span className="text-[10px] font-extrabold text-cyan-600 dark:text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
               <Shield size={12} /> Auto-Created via Company Registration
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="crm-table w-full">
-              <thead>
+          <div className="overflow-x-auto border border-border rounded-2xl">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
                 <tr>
-                  <th>Keys</th>
-                  <th>Company Name</th>
-                  <th>Plan</th>
-                  <th>Expiry Date</th>
-                  <th>No of Users</th>
-                  <th className="text-right">Action</th>
+                  <th className="p-3.5">Registration Key</th>
+                  <th className="p-3.5">Company Name</th>
+                  <th className="p-3.5">Plan Tier</th>
+                  <th className="p-3.5">Active Features</th>
+                  <th className="p-3.5">Expiry Date</th>
+                  <th className="p-3.5">Users & Seats</th>
+                  <th className="p-3.5 text-right">Edit Controls</th>
                 </tr>
               </thead>
-              <tbody>
-                {companies.map(comp => (
-                  <tr key={comp.id} className="hover:bg-card/60 transition-colors">
-                    <td>
-                      <span className="font-mono font-bold text-xs text-cyan-300 bg-cyan-500/10 px-3 py-1 rounded-lg border border-cyan-500/30">
-                        {comp.registrationKey}
-                      </span>
-                    </td>
-                    <td>
-                      <p className="font-bold text-sm text-white">{comp.name}</p>
-                      <p className="text-[11px] text-muted">{comp.adminEmail}</p>
-                    </td>
-                    <td>
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-extrabold ${
-                        comp.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                        comp.plan === 'PRO_MAX' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                        'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      }`}>
-                        {comp.plan.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="text-xs">
-                        <p className="font-mono text-white font-semibold">{comp.expiryDate}</p>
-                        <p className="text-[10px] text-muted">{comp.trialDaysLeft > 0 ? `${comp.trialDaysLeft} days trial left` : 'Subscription Active'}</p>
+              <tbody className="divide-y divide-border">
+                {companies.map(c => (
+                  <tr key={c.id} className="hover:bg-muted/40 transition-colors">
+                    <td className="p-3.5 font-mono text-cyan-600 dark:text-cyan-400 font-extrabold">{c.registrationKey}</td>
+                    <td className="p-3.5 font-extrabold text-foreground">{c.name}</td>
+                    <td className="p-3.5 font-bold text-indigo-500">{c.plan}</td>
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.emailConfig?.enabled ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          MAIL: {c.emailConfig?.enabled ? 'ON' : 'OFF'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/20 text-indigo-500 border border-indigo-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          WA: {c.whatsAppConfig?.enabled ? 'ON' : 'OFF'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.aiConfig?.enabled ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          AI: {c.aiConfig?.enabled ? c.aiConfig.tier : 'OFF'}
+                        </span>
                       </div>
                     </td>
-                    <td>
-                      <span className="text-xs font-bold text-white">
-                        {comp.seatsUsed} / {comp.seatsAllocated} Users
-                      </span>
+                    <td className="p-3.5 font-mono text-muted-foreground">{c.expiryDate}</td>
+                    <td className="p-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      {c.seatsUsed} / {c.seatsAllocated} Allocated
                     </td>
-                    <td className="text-right">
-                      <button
-                        onClick={() => handleOpenEditModal(comp)}
-                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-md transition-all"
-                      >
-                        <Edit2 size={13} /> Edit
+                    <td className="p-3.5 text-right">
+                      <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-600 dark:text-cyan-300 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                        <Edit2 size={12} /> Edit & Features
                       </button>
                     </td>
                   </tr>
@@ -557,547 +451,61 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* ── FEATURE 4: SYSTEM TEMPLATES HUB (LEAD FUNNEL, WHATSAPP, EMAIL) ────── */}
-      {(activeSection === 'overview' || activeSection === 'templates') && (
-        <div className="crm-card space-y-6 border border-purple-500/30">
-          <div className="flex justify-between items-center flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Layers size={18} className="text-purple-400" />
-                <h2 className="font-extrabold text-lg text-white">System Templates</h2>
-              </div>
-              <p className="text-xs text-muted mt-0.5">Pre-configured platform defaults for Lead Funnels, WhatsApp Cloud messages, and Email templates.</p>
-            </div>
-
-            {/* Template Sub-Tabs */}
-            <div className="flex gap-2 p-1 bg-background rounded-2xl border border-border">
-              <button
-                onClick={() => setTemplateTab('funnel')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  templateTab === 'funnel' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-muted hover:text-white'
-                }`}
-              >
-                Lead Funnel Templates
-              </button>
-              <button
-                onClick={() => setTemplateTab('whatsapp')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  templateTab === 'whatsapp' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-muted hover:text-white'
-                }`}
-              >
-                WhatsApp Cloud Templates
-              </button>
-              <button
-                onClick={() => setTemplateTab('email')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  templateTab === 'email' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'text-muted hover:text-white'
-                }`}
-              >
-                Email Templates
-              </button>
-            </div>
-          </div>
-
-          {/* Sub-Tab 1: Lead Funnel Templates */}
-          {templateTab === 'funnel' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { name: 'Standard B2B Sales Funnel', stages: ['Lead Ingested', 'Contacted', 'Demo Scheduled', 'Proposal Sent', 'Closed Won'], defaultFor: 'General Sales' },
-                { name: 'Real Estate Buyer Journey', stages: ['Site Visit Inquiry', 'Property Shortlisted', 'Site Visit Done', 'Negotiation', 'Booking Done'], defaultFor: 'Real Estate' },
-                { name: 'Automobile Dealership Pipeline', stages: ['Test Drive Request', 'Test Drive Completed', 'Financing Option', 'Vehicle Booking', 'Delivered'], defaultFor: 'Automotive' },
-              ].map(f => (
-                <div key={f.name} className="p-4 rounded-2xl bg-background border border-purple-500/20 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-bold text-sm text-white">{f.name}</h4>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300">{f.defaultFor}</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {f.stages.map((stg, idx) => (
-                      <div key={stg} className="text-xs p-2 rounded-lg bg-card border border-border flex items-center justify-between text-muted">
-                        <span>{idx + 1}. {stg}</span>
-                        <CheckCircle2 size={13} className="text-emerald-400" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Sub-Tab 2: WhatsApp Cloud Templates */}
-          {templateTab === 'whatsapp' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { name: 'welcome_greeting_v1', category: 'UTILITY', content: 'Hello {{1}}, welcome to {{2}}! Your assigned representative is {{3}}. Reply YES to get started.', status: 'APPROVED' },
-                { name: 'demo_confirmation_alert', category: 'MARKETING', content: 'Hi {{1}}, your demo session with {{2}} is confirmed for {{3}}. Click link to join.', status: 'APPROVED' },
-                { name: 'payment_reminder_notice', category: 'UTILITY', content: 'Dear {{1}}, your subscription invoice {{2}} is due on {{3}}. Pay online to avoid suspension.', status: 'APPROVED' },
-                { name: 'lead_followup_reminder', category: 'MARKETING', content: 'Hi {{1}}, following up on your inquiry for {{2}}. Are you ready for next steps?', status: 'APPROVED' },
-              ].map(w => (
-                <div key={w.name} className="p-4 rounded-2xl bg-background border border-emerald-500/20 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/30">
-                      {w.name}
-                    </span>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                      {w.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted font-mono bg-card p-3 rounded-xl border border-border leading-relaxed">
-                    {w.content}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Sub-Tab 3: Email Templates */}
-          {templateTab === 'email' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { title: 'Cold Lead Introductory Pitch', subject: 'Transform your sales operations with {{companyName}}', preview: 'Hi {{firstName}}, I noticed your company is growing rapidly...' },
-                { title: 'Quotation & Proposal Delivery', subject: 'Your customized proposal from {{companyName}}', preview: 'Dear {{firstName}}, please find attached the formal proposal...' },
-              ].map(e => (
-                <div key={e.title} className="p-4 rounded-2xl bg-background border border-indigo-500/20 space-y-2">
-                  <h4 className="font-bold text-sm text-white">{e.title}</h4>
-                  <p className="text-xs font-semibold text-indigo-300">Subject: {e.subject}</p>
-                  <p className="text-xs text-muted bg-card p-3 rounded-xl border border-border italic">{e.preview}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── FEATURE 5: WHATSAPP CLOUD USES TABLE ────────────────────────────────── */}
-      {(activeSection === 'overview' || activeSection === 'whatsapp') && (
-        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-emerald-500/30">
-          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <MessageSquare size={18} className="text-emerald-400" />
-                <h2 className="font-extrabold text-lg text-white">Whatsapp Cloud Uses</h2>
-              </div>
-              <p className="text-xs text-muted mt-0.5">Platform WhatsApp Cloud API message throughput, quota limits, and date-wise log inspection.</p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="crm-table w-full">
-              <thead>
-                <tr>
-                  <th>Company Name</th>
-                  <th>Plan</th>
-                  <th>Uses (Sent)</th>
-                  <th>Limit Quota</th>
-                  <th>Date-Wise Chat Button</th>
-                  <th>Message Sent</th>
-                  <th className="text-right">Edit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map(comp => (
-                  <tr key={comp.id} className="hover:bg-card/60 transition-colors">
-                    <td>
-                      <p className="font-bold text-sm text-white">{comp.name}</p>
-                    </td>
-                    <td>
-                      <span className="text-xs font-bold text-indigo-300">{comp.plan.replace('_', ' ')}</span>
-                    </td>
-                    <td>
-                      <span className="font-mono text-xs font-extrabold text-emerald-400">
-                        {comp.whatsappUsed.toLocaleString('en-IN')} Msgs
-                      </span>
-                    </td>
-                    <td>
-                      <span className="font-mono text-xs font-bold text-muted">
-                        {comp.whatsappLimit.toLocaleString('en-IN')} Msgs
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => handleOpenChatLogModal(comp)}
-                        className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/30 flex items-center gap-1.5"
-                      >
-                        <Calendar size={13} /> View Date-Wise Logs
-                      </button>
-                    </td>
-                    <td>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        Active Delivery
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <button
-                        onClick={() => handleOpenEditModal(comp)}
-                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg"
-                      >
-                        Edit Quota
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── FEATURE 6: PENDING APPROVALS QUEUE ──────────────────────────────────── */}
-      {(activeSection === 'overview' || activeSection === 'pending') && (
-        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-amber-500/30">
-          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <Clock size={18} className="text-amber-400" />
-                <h2 className="font-extrabold text-lg text-white">Pending Approval Queue</h2>
-              </div>
-              <p className="text-xs text-muted mt-0.5">Payment-verified plan upgrade requests submitted by Tenant Admins via Razorpay.</p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="crm-table w-full">
-              <thead>
-                <tr>
-                  <th>Company Name</th>
-                  <th>Requested Plan</th>
-                  <th>Payment Amount</th>
-                  <th>Razorpay Order ID</th>
-                  <th>Status</th>
-                  <th className="text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upgradeRequests.map(req => (
-                  <tr key={req.id}>
-                    <td className="font-bold text-white text-sm">{req.companyName}</td>
-                    <td><span className="font-bold text-indigo-300">{req.requestedPlan}</span></td>
-                    <td className="font-mono font-bold text-emerald-400">₹{req.amountInr.toLocaleString('en-IN')}</td>
-                    <td className="font-mono text-xs text-muted">{req.razorpayOrderId}</td>
-                    <td>
-                      <span className={`text-xs px-2.5 py-0.5 rounded font-bold ${
-                        req.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-300' :
-                        req.status === 'REJECTED' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      {req.status === 'PENDING_APPROVAL' ? (
-                        <div className="flex gap-2 justify-end">
-                          <button onClick={() => handleApproveUpgrade(req.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md">
-                            Approve →
-                          </button>
-                          <button onClick={() => handleRejectUpgrade(req.id)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl">
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted italic">Reviewed</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── FEATURE 7: COMPANIES AND THEIR EMPLOYEES AND THEIR DETAILS ─────────── */}
-      {(activeSection === 'overview' || activeSection === 'employees') && (
-        <div className="crm-card p-0 overflow-hidden shadow-2xl border border-indigo-500/30">
-          <div className="p-5 border-b flex justify-between items-center flex-wrap gap-4 bg-card" style={{ borderColor: 'rgb(var(--border))' }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-purple-400" />
-                <h2 className="font-extrabold text-lg text-white">Companies and Their Employees and Their Details</h2>
-              </div>
-              <p className="text-xs text-muted mt-0.5">Full organizational staff directory listing Admins, Managers, Team Leaders, and Sales Reps with status controls.</p>
-            </div>
-          </div>
-
-          <div className="p-5 space-y-6">
-            {companies.map(comp => (
-              <div key={comp.id} className="p-4 rounded-2xl bg-background border border-border space-y-4">
-                <div className="flex justify-between items-center flex-wrap gap-2 border-b pb-3 border-border/60">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-black text-base text-white">{comp.name}</h3>
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded font-extrabold ${
-                        comp.isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      }`}>
-                        {comp.isActive ? 'WORKSPACE ACTIVE' : 'WORKSPACE BLOCKED'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted mt-0.5">
-                      Tenant Admin: <strong className="text-white">{comp.adminName}</strong> ({comp.adminEmail}) • Key: <strong className="font-mono text-purple-300">{comp.registrationKey}</strong>
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => handleToggleBlockCompany(comp)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                      comp.isActive ? 'bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30' : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300'
-                    }`}
-                  >
-                    {comp.isActive ? <Ban size={13} /> : <Unlock size={13} />}
-                    {comp.isActive ? 'Block Company' : 'Unblock Company'}
-                  </button>
-                </div>
-
-                {/* Employees Table */}
-                <div className="overflow-x-auto">
-                  <table className="crm-table w-full">
-                    <thead>
-                      <tr>
-                        <th>Employee Name & Email</th>
-                        <th>Role</th>
-                        <th>Key Used</th>
-                        <th>Last Login</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { id: `usr_${comp.id}_1`, name: comp.adminName, email: comp.adminEmail, role: 'ADMIN', key: comp.registrationKey, lastLogin: 'Today at 10:15 AM', active: comp.isActive },
-                        { id: `usr_${comp.id}_2`, name: 'Rajesh Mehta', email: 'rajesh.mgr@acme.com', role: 'MANAGER', key: `${comp.registrationKey.slice(0, 4)}-RX-1024`, lastLogin: 'Today at 09:30 AM', active: comp.isActive },
-                        { id: `usr_${comp.id}_3`, name: 'Sunita Verma', email: 'sunita.hr@acme.com', role: 'HR', key: `${comp.registrationKey.slice(0, 4)}-RX-1025`, lastLogin: 'Yesterday', active: comp.isActive },
-                        { id: `usr_${comp.id}_4`, name: 'Amit Shah', email: 'amit.tl@acme.com', role: 'TEAM_LEADER', key: `${comp.registrationKey.slice(0, 4)}-RX-1026`, lastLogin: 'Today at 08:45 AM', active: comp.isActive },
-                        { id: `usr_${comp.id}_5`, name: 'Rajesh Kumar', email: 'rajesh.rep@acme.com', role: 'SALES_EXEC', key: `${comp.registrationKey.slice(0, 4)}-RX-1027`, lastLogin: 'Today at 11:20 AM', active: comp.isActive },
-                      ].map(emp => (
-                        <tr key={emp.id}>
-                          <td>
-                            <p className="font-bold text-xs text-white">{emp.name}</p>
-                            <p className="text-[11px] text-muted">{emp.email}</p>
-                          </td>
-                          <td>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300">
-                              {emp.role}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                              {emp.key}
-                            </span>
-                          </td>
-                          <td><span className="text-[11px] text-muted font-mono">{emp.lastLogin}</span></td>
-                          <td>
-                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                              emp.active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
-                            }`}>
-                              {emp.active ? 'ACTIVE' : 'BLOCKED'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── FEATURE 3 MODAL: COMPANY DETAILS EDIT & UPGRADE PLAN ────────────────── */}
+      {/* MULTI TAB EDIT MODAL */}
       {editModalOpen && editingCompany && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
-          <div className="bg-card border border-indigo-500/40 rounded-3xl max-w-xl w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setEditModalOpen(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
-            >
-              <X size={16} />
-            </button>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="crm-card max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 bg-card border border-cyan-500/40 rounded-3xl shadow-2xl relative space-y-5 text-foreground">
+            <button onClick={() => setEditModalOpen(false)} className="absolute top-4 right-4 text-muted-foreground font-black text-lg">✕</button>
+            <h3 className="text-lg font-black text-foreground">Manage Company Features & Subscription</h3>
 
-            <div className="flex items-center gap-3 border-b pb-4 border-border">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold">
-                <Edit2 size={18} />
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-white">Company Details Edit & Upgrade Plan</h3>
-                <p className="text-xs text-muted">Modify company details, change subscription plan tier, set seat quota, or update expiry date.</p>
-              </div>
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-2xl border border-border text-xs font-extrabold">
+              <button onClick={() => setEditModalTab('general')} className={`px-3 py-1.5 rounded-xl ${editModalTab === 'general' ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground'}`}>General & Seats</button>
+              <button onClick={() => setEditModalTab('email')} className={`px-3 py-1.5 rounded-xl ${editModalTab === 'email' ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground'}`}>Email Marketing</button>
+              <button onClick={() => setEditModalTab('whatsapp')} className={`px-3 py-1.5 rounded-xl ${editModalTab === 'whatsapp' ? 'bg-cyan-500 text-slate-950' : 'text-muted-foreground'}`}>WhatsApp Cloud</button>
+              <button onClick={() => setEditModalTab('ai')} className={`px-3 py-1.5 rounded-xl ${editModalTab === 'ai' ? 'bg-purple-600 text-white' : 'text-muted-foreground'}`}>AI Customization</button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div>
-                <label className="text-muted font-bold block mb-1">Company Name</label>
-                <input
-                  className="crm-input text-sm h-10 w-full"
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                />
+            {editModalTab === 'general' && (
+              <div className="space-y-3 text-xs">
+                <input className="crm-input w-full font-bold" value={editName} onChange={e => setEditName(e.target.value)} />
+                <input type="number" className="crm-input w-full font-mono font-bold" value={editSeats} onChange={e => setEditSeats(+e.target.value)} />
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-muted font-bold block mb-1">Select Subscription Plan</label>
-                  <select
-                    className="crm-input text-sm h-10 w-full font-bold text-indigo-300"
-                    value={editPlan}
-                    onChange={e => handleEditPlanChange(e.target.value as PlanType)}
-                  >
-                    <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
-                    <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
-                    <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
-                    <option value="ENTERPRISE">Enterprise Plan (100 Users · All Features)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-muted font-bold block mb-1">Allocated User Seats</label>
-                  <input
-                    type="number"
-                    className="crm-input text-sm h-10 w-full font-mono font-bold"
-                    value={editSeats}
-                    onChange={e => setEditSeats(+e.target.value)}
-                  />
-                </div>
+            {editModalTab === 'email' && (
+              <div className="space-y-3 text-xs">
+                <label className="flex items-center gap-2 font-bold text-foreground">
+                  <input type="checkbox" checked={editEmailEnabled} onChange={e => setEditEmailEnabled(e.target.checked)} className="w-5 h-5 accent-emerald-500" /> Enable Email Marketing
+                </label>
+                <input type="number" className="crm-input w-full font-mono font-bold" value={editEmailLimit} onChange={e => setEditEmailLimit(+e.target.value)} disabled={!editEmailEnabled} />
               </div>
+            )}
 
-              {/* Free Trial Duration Adjustment Slider (15 to 40 days) */}
-              {editPlan === 'FREE_TRIAL' && (
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                      <Clock size={14} /> Free Trial Duration (15 to 40 Days)
-                    </label>
-                    <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      {editTrialDuration} Days Duration
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={15}
-                    max={40}
-                    step={1}
-                    value={editTrialDuration}
-                    onChange={e => handleTrialDurationChange(+e.target.value)}
-                    className="w-full accent-amber-400 cursor-pointer h-2 bg-slate-700 rounded-lg"
-                  />
-                  <div className="flex justify-between text-[10px] text-muted font-mono font-bold">
-                    <button type="button" onClick={() => handleTrialDurationChange(15)} className="hover:text-amber-300">15d (Min)</button>
-                    <button type="button" onClick={() => handleTrialDurationChange(20)} className="hover:text-amber-300">20d</button>
-                    <button type="button" onClick={() => handleTrialDurationChange(30)} className="hover:text-amber-300">30d (Default)</button>
-                    <button type="button" onClick={() => handleTrialDurationChange(40)} className="hover:text-amber-300">40d (Max)</button>
-                  </div>
-                  <p className="text-[11px] text-amber-200/80">
-                    Free Trial includes 10 Users and Basic AI (Lead Score only). Expiry date automatically recalibrated to {editExpiryDate}.
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <label className="text-muted font-bold block mb-1">Plan / Key Expiry Date</label>
-                <input
-                  type="date"
-                  className="crm-input text-sm h-10 w-full font-mono"
-                  value={editExpiryDate}
-                  onChange={e => setEditExpiryDate(e.target.value)}
-                />
+            {editModalTab === 'whatsapp' && (
+              <div className="space-y-3 text-xs">
+                <label className="flex items-center gap-2 font-bold text-foreground">
+                  <input type="checkbox" checked={editWAEnabled} onChange={e => setEditWAEnabled(e.target.checked)} className="w-5 h-5 accent-indigo-500" /> Enable WhatsApp Cloud
+                </label>
+                <input type="number" className="crm-input w-full font-mono font-bold" value={editWALimit} onChange={e => setEditWALimit(+e.target.value)} disabled={!editWAEnabled} />
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <button
-                onClick={() => handleToggleBlockCompany(editingCompany)}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ${
-                  editingCompany.isActive
-                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                }`}
-              >
-                {editingCompany.isActive ? <Ban size={14} /> : <Unlock size={14} />}
-                {editingCompany.isActive ? 'Block Company' : 'Unblock Company'}
-              </button>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-background border border-border text-muted font-bold text-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveCompanyEdit}
-                  className="btn-primary text-xs px-5 py-2.5 font-bold shadow-lg"
-                >
-                  Save Changes →
-                </button>
+            {editModalTab === 'ai' && (
+              <div className="space-y-3 text-xs">
+                <label className="flex items-center gap-2 font-bold text-foreground">
+                  <input type="checkbox" checked={editAIEnabled} onChange={e => setEditAIEnabled(e.target.checked)} className="w-5 h-5 accent-purple-500" /> Enable AI Sales Assistant
+                </label>
+                <textarea className="crm-input w-full h-20 font-mono" value={editAIPrompt} onChange={e => setEditAIPrompt(e.target.value)} disabled={!editAIEnabled} />
               </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-border">
+              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-muted text-muted-foreground rounded-xl text-xs font-bold">Cancel</button>
+              <button onClick={handleSaveCompanyEdit} className="btn-primary text-xs px-5 py-2">Save Settings ✓</button>
             </div>
           </div>
         </div>
       )}
-
-      {/* ── WHATSAPP DATE-WISE CHAT LOG MODAL ────────────────────────────────────── */}
-      {chatLogModalOpen && chatLogCompany && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4">
-          <div className="bg-card border border-emerald-500/40 rounded-3xl max-w-2xl w-full p-6 space-y-6 shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setChatLogModalOpen(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-muted text-white flex items-center justify-center hover:bg-red-500/20 hover:text-red-300"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex items-center gap-3 border-b pb-4 border-border">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold">
-                <MessageSquare size={18} />
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-white">Date-Wise WhatsApp Chat Logs</h3>
-                <p className="text-xs text-muted">{chatLogCompany.name} • Daily message throughput & delivery statistics.</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="p-3 rounded-2xl bg-background border border-border flex justify-between items-center text-xs">
-                <span>Total WhatsApp Messages Sent:</span>
-                <strong className="text-emerald-400 font-mono text-sm font-bold">
-                  {chatLogCompany.whatsappUsed.toLocaleString('en-IN')} / {chatLogCompany.whatsappLimit.toLocaleString('en-IN')}
-                </strong>
-              </div>
-
-              <table className="crm-table w-full">
-                <thead>
-                  <tr>
-                    <th>Date Window</th>
-                    <th>Messages Sent</th>
-                    <th>Delivery Success Rate</th>
-                    <th>Active Chats</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyLogs.map(log => (
-                    <tr key={log.date}>
-                      <td className="font-mono text-xs font-bold text-white">{log.date}</td>
-                      <td className="font-mono text-xs font-bold text-emerald-400">{log.messagesSent.toLocaleString('en-IN')}</td>
-                      <td>
-                        <span className="text-xs font-bold text-emerald-300">{log.deliveryRate}%</span>
-                      </td>
-                      <td className="font-mono text-xs text-muted">{log.activeChats} Conversations</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setChatLogModalOpen(false)}
-                className="btn-primary text-xs px-5 py-2.5 font-bold"
-              >
-                Close Logs Window
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
     </div>
   );
 }
