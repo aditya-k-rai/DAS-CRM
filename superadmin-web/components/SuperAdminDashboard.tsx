@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
-export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'STARTER' | 'PRO' | 'PRO_MAX';
+export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'STARTER' | 'PRO' | 'PRO_MAX';
 export type AITierType = 'BASIC' | 'PRO' | 'ENTERPRISE_CUSTOM';
 
 export interface AICompanyConfig {
@@ -98,6 +98,96 @@ export interface WhatsAppDailyLog {
   deliveryRate: number;
   activeChats: number;
 }
+
+export interface DelayInquiry {
+  senderName?: string;
+  senderEmail?: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface CouponRecord {
+  id: string;
+  code: string;
+  description?: string;
+  discountType: 'PERCENT_OFF' | 'FLAT_OFF';
+  discountValue: number;
+  maxUses?: number | null;
+  usedCount: number;
+  applicablePlans: string[];
+  isActive: boolean;
+  expiresAt?: string | null;
+  createdAt: string;
+  redemptionCount?: number;
+  isExpired?: boolean;
+  isExhausted?: boolean;
+}
+
+export interface PendingCompanyRecord {
+  id: string;
+  name: string;
+  domain?: string;
+  adminName: string;
+  adminEmail: string;
+  registrationKey: string;
+  requestedPlan: PlanType;
+  registeredAt: string;
+  seatsRequested?: number;
+  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectionReason?: string;
+  delayInquiries?: DelayInquiry[];
+  features?: {
+    emailMarketing?: boolean;
+    whatsappCloud?: boolean;
+    aiEngine?: boolean;
+  };
+}
+
+const MOCK_PENDING_COMPANIES: PendingCompanyRecord[] = [
+  {
+    id: 'comp_pending_apex_solar',
+    name: 'Apex Solar Energy Solutions',
+    domain: 'apexsolarenergy.in',
+    adminName: 'Rajesh Sharma',
+    adminEmail: 'rajesh.solar@apexenergy.in',
+    registrationKey: 'SOLAR-PV-9021',
+    requestedPlan: 'GROWTH',
+    registeredAt: '2026-09-20T14:30:00.000Z',
+    seatsRequested: 15,
+    verificationStatus: 'PENDING',
+    delayInquiries: [
+      {
+        senderName: 'Rajesh Sharma',
+        senderEmail: 'rajesh.solar@apexenergy.in',
+        message: 'Hello Super Admin, our team registration is complete. Could you please review and activate our workspace so we can start sales onboarding?',
+        timestamp: '2026-09-20T15:10:00.000Z',
+      },
+    ],
+    features: {
+      emailMarketing: true,
+      whatsappCloud: true,
+      aiEngine: true,
+    },
+  },
+  {
+    id: 'comp_pending_stellar_logistics',
+    name: 'Stellar Swift Logistics',
+    domain: 'stellarlogistics.com',
+    adminName: 'Kavita Patel',
+    adminEmail: 'kavita@stellarlogistics.com',
+    registrationKey: 'STLR-LG-5501',
+    requestedPlan: 'BUSINESS',
+    registeredAt: '2026-09-20T16:15:00.000Z',
+    seatsRequested: 35,
+    verificationStatus: 'PENDING',
+    delayInquiries: [],
+    features: {
+      emailMarketing: true,
+      whatsappCloud: false,
+      aiEngine: true,
+    },
+  },
+];
 
 export interface SystemTemplate {
   id: string;
@@ -276,10 +366,49 @@ export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(MOCK_DEMO_COMPANIES);
   const [keysList, setKeysList] = useState<KeyRecord[]>(MOCK_DEMO_KEYS);
   const [upgradeRequests, setUpgradeRequests] = useState<UpgradeRequest[]>([]);
+  const [pendingCompanies, setPendingCompanies] = useState<PendingCompanyRecord[]>(MOCK_PENDING_COMPANIES);
   const [templates, setTemplates] = useState<SystemTemplate[]>(INITIAL_TEMPLATES);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'company_approvals' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired' | 'coupons'>('overview');
   const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
+
+  // Coupon Management State
+  const [couponsList, setCouponsList] = useState<CouponRecord[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [newCouponModalOpen, setNewCouponModalOpen] = useState(false);
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponDescInput, setCouponDescInput] = useState('');
+  const [couponDiscountType, setCouponDiscountType] = useState<'PERCENT_OFF' | 'FLAT_OFF'>('PERCENT_OFF');
+  const [couponDiscountVal, setCouponDiscountVal] = useState<number>(20);
+  const [couponMaxUses, setCouponMaxUses] = useState<number | ''>(100);
+  const [couponExpiresAt, setCouponExpiresAt] = useState('');
+  const [couponPlans, setCouponPlans] = useState<string[]>(['GROW', 'BUSINESS', 'ENTERPRISE']);
+  const [couponCreating, setCouponCreating] = useState(false);
+  const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
+
+  // WhatsApp Quota Top-Up Modal State
+  const [topUpModalOpen, setTopUpModalOpen] = useState(false);
+  const [topUpCompany, setTopUpCompany] = useState<CompanyRecord | null>(null);
+  const [topUpAmount, setTopUpAmount] = useState(5000);
+  const [topUpProcessing, setTopUpProcessing] = useState(false);
+  const [topUpSuccessMsg, setTopUpSuccessMsg] = useState<string | null>(null);
+
+  // Plan Verification & Approval Modal State
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verifyingCompany, setVerifyingCompany] = useState<PendingCompanyRecord | null>(null);
+  const [verifyPlan, setVerifyPlan] = useState<PlanType>('GROWTH');
+  const [verifySeats, setVerifySeats] = useState<number>(15);
+  const [verifyValidityDays, setVerifyValidityDays] = useState<number>(30);
+  const [verifyEmailEnabled, setVerifyEmailEnabled] = useState(true);
+  const [verifyWAEnabled, setVerifyWAEnabled] = useState(true);
+  const [verifyAIEnabled, setVerifyAIEnabled] = useState(true);
+  const [verifyApproving, setVerifyApproving] = useState(false);
+  const [verifySuccessMsg, setVerifySuccessMsg] = useState<string | null>(null);
+
+  // Rejection Sub-Modal State
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('Incomplete business documentation. Please contact DAS CRM support to verify your account.');
+  const [rejecting, setRejecting] = useState(false);
 
   // Multi-tab Company Edit Modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -334,6 +463,7 @@ export function SuperAdminDashboard() {
 
   useEffect(() => {
     fetchBackendData();
+    fetchCoupons();
   }, []);
 
   useEffect(() => {
@@ -370,11 +500,341 @@ export function SuperAdminDashboard() {
         const data = await keysRes.json();
         if (data.companyKeys && data.companyKeys.length > 0) setKeysList(data.companyKeys);
       }
+
+      const pendingRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/pending`, { headers });
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        if (Array.isArray(pendingData) && pendingData.length > 0) {
+          setPendingCompanies(pendingData);
+        }
+      }
     } catch (err) {
       console.warn('Backend API notice:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenVerificationModal = (comp: PendingCompanyRecord) => {
+    let plan = comp.requestedPlan || 'GROW';
+    if ((plan as string) === 'GROWTH') plan = 'GROW';
+    setVerifyingCompany(comp);
+    setVerifyPlan(plan as PlanType);
+    const defaultSeats = plan === 'ENTERPRISE' ? 60 : plan === 'BUSINESS' ? 18 : 6;
+    setVerifySeats(comp.seatsRequested || defaultSeats);
+    setVerifyValidityDays(30);
+    setVerifyEmailEnabled(plan === 'GROW' ? false : (comp.features?.emailMarketing ?? true));
+    setVerifyWAEnabled(plan === 'GROW' ? false : (comp.features?.whatsappCloud ?? true));
+    setVerifyAIEnabled(plan === 'GROW' ? false : (comp.features?.aiEngine ?? true));
+    setVerifySuccessMsg(null);
+    setVerificationModalOpen(true);
+  };
+
+  const handleApproveCompany = async () => {
+    if (!verifyingCompany) return;
+    setVerifyApproving(true);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${verifyingCompany.id}/approve`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            plan: verifyPlan,
+            memberLimit: verifySeats,
+            validityDays: verifyValidityDays,
+            features: {
+              emailMarketing: verifyEmailEnabled,
+              whatsappCloud: verifyWAEnabled,
+              aiEngine: verifyAIEnabled,
+            },
+          }),
+        }
+      );
+    } catch (err) {
+      console.warn('Backend offline / demo approve mode:', err);
+    }
+
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + verifyValidityDays);
+    const newExpiryStr = futureDate.toISOString().split('T')[0];
+
+    const newlyActiveCompany: CompanyRecord = {
+      id: verifyingCompany.id,
+      name: verifyingCompany.name,
+      domain: verifyingCompany.domain,
+      adminName: verifyingCompany.adminName,
+      adminEmail: verifyingCompany.adminEmail,
+      registrationKey: verifyingCompany.registrationKey,
+      plan: verifyPlan,
+      trialDaysLeft: verifyValidityDays,
+      isExpired: false,
+      seatsAllocated: verifySeats,
+      seatsUsed: 1,
+      totalUsersCount: 1,
+      totalLeads: 0,
+      convertedLeads: 0,
+      conversionRate: 0,
+      isActive: true,
+      createdAt: verifyingCompany.registeredAt ? verifyingCompany.registeredAt.split('T')[0] : new Date().toISOString().split('T')[0],
+      expiryDate: newExpiryStr,
+      emailConfig: {
+        enabled: verifyEmailEnabled,
+        monthlyLimit: verifyPlan === 'ENTERPRISE' ? 0 : verifyPlan === 'BUSINESS' ? 5000 : 0,
+        used: 0,
+        senderDomain: verifyingCompany.domain,
+      },
+      whatsAppConfig: {
+        enabled: verifyWAEnabled,
+        monthlyLimit: verifyPlan === 'ENTERPRISE' ? 0 : verifyPlan === 'BUSINESS' ? 20000 : 0,
+        used: 0,
+        status: verifyWAEnabled ? 'CONNECTED' : 'DISCONNECTED',
+      },
+      aiConfig: {
+        enabled: verifyAIEnabled,
+        tier: verifyPlan === 'ENTERPRISE' ? 'ENTERPRISE_CUSTOM' : 'PRO',
+        customSystemPrompt: `AI Concierge for ${verifyingCompany.name}.`,
+        monthlyTokenLimit: verifyPlan === 'ENTERPRISE' ? 1000000 : 250000,
+        tokensUsed: 0,
+      },
+    };
+
+    setCompanies(prev => [newlyActiveCompany, ...prev.filter(c => c.id !== verifyingCompany.id)]);
+    setPendingCompanies(prev => prev.filter(p => p.id !== verifyingCompany.id));
+
+    setVerifySuccessMsg(`🎉 Successfully verified and activated ${verifyingCompany.name}! An approval confirmation email has been dispatched.`);
+    setTimeout(() => {
+      setVerifyApproving(false);
+      setVerificationModalOpen(false);
+    }, 1200);
+  };
+
+  const handleRejectCompany = async () => {
+    if (!verifyingCompany) return;
+    setRejecting(true);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${verifyingCompany.id}/reject`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ reason: rejectionReasonInput }),
+        }
+      );
+    } catch (err) {
+      console.warn('Backend offline / demo reject mode:', err);
+    }
+
+    setPendingCompanies(prev => prev.filter(p => p.id !== verifyingCompany.id));
+    setRejecting(false);
+    setRejectModalOpen(false);
+    setVerificationModalOpen(false);
+  };
+
+  const fetchCoupons = async () => {
+    setCouponsLoading(true);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/billing/coupons`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setCouponsList(data);
+      }
+    } catch (e) {
+      setCouponsList([
+        {
+          id: 'cpn_launch2026',
+          code: 'LAUNCH2026',
+          description: 'Grand Opening 25% discount for SaaS early adopters',
+          discountType: 'PERCENT_OFF',
+          discountValue: 25,
+          maxUses: 100,
+          usedCount: 14,
+          applicablePlans: ['GROW', 'BUSINESS', 'ENTERPRISE'],
+          isActive: true,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          createdAt: '2026-09-01T10:00:00.000Z',
+          redemptionCount: 14,
+        },
+        {
+          id: 'cpn_bizflat500',
+          code: 'BIZFLAT500',
+          description: '₹500 flat off on Business subscription',
+          discountType: 'FLAT_OFF',
+          discountValue: 500,
+          maxUses: 50,
+          usedCount: 8,
+          applicablePlans: ['BUSINESS', 'ENTERPRISE'],
+          isActive: true,
+          expiresAt: null,
+          createdAt: '2026-09-10T12:00:00.000Z',
+          redemptionCount: 8,
+        },
+      ]);
+    } finally {
+      setCouponsLoading(false);
+    }
+  };
+
+  const handleCreateCoupon = async () => {
+    if (!couponCodeInput.trim()) return;
+    setCouponCreating(true);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const payload = {
+      code: couponCodeInput.trim().toUpperCase(),
+      description: couponDescInput.trim() || undefined,
+      discountType: couponDiscountType,
+      discountValue: Number(couponDiscountVal),
+      maxUses: couponMaxUses === '' ? null : Number(couponMaxUses),
+      applicablePlans: couponPlans,
+      expiresAt: couponExpiresAt ? new Date(couponExpiresAt).toISOString() : undefined,
+    };
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/billing/coupons`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const createdCoupon = data.coupon || { ...payload, id: `cpn_${Date.now()}`, usedCount: 0, isActive: true, createdAt: new Date().toISOString() };
+        setCouponsList(prev => [createdCoupon, ...prev]);
+        setCouponSuccessMsg(`Coupon "${payload.code}" created successfully!`);
+        setTimeout(() => {
+          setNewCouponModalOpen(false);
+          setCouponSuccessMsg(null);
+          setCouponCodeInput('');
+          setCouponDescInput('');
+        }, 1200);
+      }
+    } catch {
+      const mockCpn: CouponRecord = {
+        id: `cpn_${Date.now()}`,
+        code: payload.code,
+        description: payload.description,
+        discountType: payload.discountType,
+        discountValue: payload.discountValue,
+        maxUses: payload.maxUses,
+        usedCount: 0,
+        applicablePlans: payload.applicablePlans,
+        isActive: true,
+        expiresAt: payload.expiresAt || null,
+        createdAt: new Date().toISOString(),
+        redemptionCount: 0,
+      };
+      setCouponsList(prev => [mockCpn, ...prev]);
+      setCouponSuccessMsg(`Coupon "${payload.code}" created!`);
+      setTimeout(() => {
+        setNewCouponModalOpen(false);
+        setCouponSuccessMsg(null);
+        setCouponCodeInput('');
+        setCouponDescInput('');
+      }, 1200);
+    } finally {
+      setCouponCreating(false);
+    }
+  };
+
+  const handleRevokeCoupon = async (couponId: string) => {
+    if (!confirm('Are you sure you want to revoke/deactivate this coupon?')) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/billing/coupons/${couponId}`, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch (e) {
+      console.warn('Backend delete coupon error:', e);
+    }
+
+    setCouponsList(prev => prev.map(c => c.id === couponId ? { ...c, isActive: false } : c));
+  };
+
+  const handleTopUpWhatsApp = async (companyId: string, amount: number) => {
+    setTopUpProcessing(true);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${companyId}/top-up-whatsapp`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ amount }),
+      });
+    } catch (e) {
+      console.warn('Backend offline / demo top-up:', e);
+    }
+
+    setCompanies(prev => prev.map(c => {
+      if (c.id === companyId) {
+        return {
+          ...c,
+          whatsAppConfig: {
+            ...c.whatsAppConfig,
+            monthlyLimit: (c.whatsAppConfig?.monthlyLimit || 0) + amount,
+          },
+        };
+      }
+      return c;
+    }));
+
+    setTopUpSuccessMsg(`Successfully added +${amount.toLocaleString()} WhatsApp credits!`);
+    setTimeout(() => {
+      setTopUpProcessing(false);
+      setTopUpModalOpen(false);
+      setTopUpSuccessMsg(null);
+    }, 1200);
+  };
+
+  const handleResetEmailQuota = async (companyId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${companyId}/reset-email-quota`, {
+        method: 'POST',
+        headers,
+      });
+    } catch (e) {
+      console.warn('Backend offline / demo email reset:', e);
+    }
+
+    setCompanies(prev => prev.map(c => {
+      if (c.id === companyId) {
+        return {
+          ...c,
+          emailConfig: {
+            ...c.emailConfig,
+            used: 0,
+          },
+        };
+      }
+      return c;
+    }));
+
+    alert('Monthly Email Quota has been reset to 0 used!');
   };
 
   const handleOpenEditModal = (comp: CompanyRecord, initialTab: 'general' | 'email' | 'whatsapp' | 'ai' = 'general') => {
@@ -483,21 +943,37 @@ export function SuperAdminDashboard() {
   const handleEditPlanChange = (newPlan: PlanType) => {
     setEditPlan(newPlan);
     if (newPlan === 'FREE_TRIAL') {
-      setEditSeats(10);
+      setEditSeats(6);
       const expiry = new Date(Date.now() + editTrialDuration * 86400000).toISOString().split('T')[0];
       setEditExpiryDate(expiry);
-    } else if (newPlan === 'GROWTH') {
-      setEditSeats(20);
+      setEditEmailEnabled(false);
+      setEditWAEnabled(false);
+      setEditAIEnabled(false);
+    } else if (newPlan === 'GROW' || newPlan === 'GROWTH') {
+      setEditSeats(6);
       const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
       setEditExpiryDate(expiry);
+      setEditEmailEnabled(false);
+      setEditWAEnabled(false);
+      setEditAIEnabled(false);
     } else if (newPlan === 'BUSINESS' || newPlan === 'PRO') {
-      setEditSeats(50);
+      setEditSeats(18);
       const expiry = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
       setEditExpiryDate(expiry);
+      setEditEmailEnabled(true);
+      setEditEmailLimit(5000);
+      setEditWAEnabled(true);
+      setEditWALimit(20000);
+      setEditAIEnabled(true);
     } else if (newPlan === 'ENTERPRISE' || newPlan === 'PRO_MAX') {
-      setEditSeats(100);
+      setEditSeats(60);
       const expiry = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
       setEditExpiryDate(expiry);
+      setEditEmailEnabled(true);
+      setEditEmailLimit(0);
+      setEditWAEnabled(true);
+      setEditWALimit(0);
+      setEditAIEnabled(true);
     }
   };
 
@@ -699,8 +1175,8 @@ export function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* 4 KPI CARDS (High contrast text in all themes) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        {/* 5 KPI CARDS (High contrast text in all themes) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-6">
           <div className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
             <span className="text-[11px] font-extrabold text-cyan-300 uppercase tracking-wider block">Total Companies & Users</span>
             <div className="mt-2 flex items-center justify-center gap-4">
@@ -731,14 +1207,33 @@ export function SuperAdminDashboard() {
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
-            <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider block">Trials & Paid Plans</span>
+          <div
+            onClick={() => setActiveTab('company_approvals')}
+            className={`p-4 rounded-2xl bg-slate-900/90 border ${
+              pendingCompanies.length > 0 ? 'border-amber-400 shadow-lg shadow-amber-500/20' : 'border-amber-500/40'
+            } text-center shadow-lg hover:scale-[1.02] transition-transform cursor-pointer relative overflow-hidden`}
+          >
+            {pendingCompanies.length > 0 && (
+              <span className="absolute top-2 right-2 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              </span>
+            )}
+            <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider block">Pending Approvals</span>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="text-2xl font-black text-amber-400">{pendingCompanies.length}</span>
+              <span className="text-xs text-slate-300 font-bold">Review Queue</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
+            <span className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-wider block">Trials & Paid Plans</span>
             <div className="mt-2 flex items-center justify-center gap-4">
               <div>
                 <span className="text-2xl font-black text-amber-400">{activeFreeTrials}</span>
                 <span className="text-[10px] text-slate-300 block font-bold">Free Trials</span>
               </div>
-              <div className="w-px h-8 bg-amber-500/40" />
+              <div className="w-px h-8 bg-indigo-500/40" />
               <div>
                 <span className="text-2xl font-black text-indigo-300">{activePaidPlans}</span>
                 <span className="text-[10px] text-slate-300 block font-bold">Paid Plans</span>
@@ -766,6 +1261,26 @@ export function SuperAdminDashboard() {
           className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'overview' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           🔑 Keys & Companies Table
+        </button>
+        <button
+          onClick={() => setActiveTab('company_approvals')}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${
+            activeTab === 'company_approvals'
+              ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Building2 size={14} className={activeTab === 'company_approvals' ? 'text-white' : 'text-amber-500'} />
+          🏢 Pending Approvals
+          {pendingCompanies.length > 0 && (
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'company_approvals' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white animate-pulse'
+              }`}
+            >
+              {pendingCompanies.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('features_hub')}
@@ -802,6 +1317,13 @@ export function SuperAdminDashboard() {
           className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'employees' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           👥 Tenant Employees
+        </button>
+        <button
+          onClick={() => setActiveTab('coupons')}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${activeTab === 'coupons' ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+        >
+          <Tag size={14} className={activeTab === 'coupons' ? 'text-white' : 'text-emerald-500'} />
+          🏷️ Discount Coupons ({couponsList.length})
         </button>
       </div>
 
@@ -875,22 +1397,55 @@ export function SuperAdminDashboard() {
                       </div>
                     </td>
 
-                    <td className="p-3.5">
-                      <button
-                        onClick={() => handleToggleInstantFeature(c.id, 'email', !c.emailConfig?.enabled)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.emailConfig?.enabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
-                      >
-                        <Mail size={12} /> {c.emailConfig?.enabled ? 'ENABLED' : 'DISABLED'}
-                      </button>
+                    <td className="p-3.5 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleInstantFeature(c.id, 'email', !c.emailConfig?.enabled)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.emailConfig?.enabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
+                        >
+                          <Mail size={12} /> {c.emailConfig?.enabled ? 'ON' : 'OFF'}
+                        </button>
+                        {c.emailConfig?.enabled && (
+                          <button
+                            onClick={() => handleResetEmailQuota(c.id)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-muted hover:bg-muted/80 border border-border text-foreground transition-colors"
+                            title="Reset monthly email quota used to 0"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {c.emailConfig?.used || 0} / {c.emailConfig?.monthlyLimit ? `${c.emailConfig.monthlyLimit.toLocaleString()}/mo` : 'Unlimited'}
+                      </p>
                     </td>
 
-                    <td className="p-3.5">
-                      <button
-                        onClick={() => handleToggleInstantFeature(c.id, 'whatsapp', !c.whatsAppConfig?.enabled)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
-                      >
-                        <MessageSquare size={12} /> {c.whatsAppConfig?.enabled ? 'ENABLED' : 'DISABLED'}
-                      </button>
+                    <td className="p-3.5 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleInstantFeature(c.id, 'whatsapp', !c.whatsAppConfig?.enabled)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
+                        >
+                          <MessageSquare size={12} /> {c.whatsAppConfig?.enabled ? 'ON' : 'OFF'}
+                        </button>
+                        {c.whatsAppConfig?.enabled && (
+                          <button
+                            onClick={() => {
+                              setTopUpCompany(c);
+                              setTopUpAmount(5000);
+                              setTopUpSuccessMsg(null);
+                              setTopUpModalOpen(true);
+                            }}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 transition-colors cursor-pointer"
+                            title="Top up WhatsApp credits wallet"
+                          >
+                            + Top Up
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {c.whatsAppConfig?.used || 0} / {c.whatsAppConfig?.monthlyLimit ? `${c.whatsAppConfig.monthlyLimit.toLocaleString()} credits` : 'Unlimited'}
+                      </p>
                     </td>
 
                     <td className="p-3.5">
@@ -925,7 +1480,130 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
-      {/* ⚠️ EXPIRED COMPANIES SECTION */}
+      {/* 🏢 NEW SECTION: PENDING COMPANY REGISTRATIONS & PLAN VERIFICATION */}
+      {activeTab === 'company_approvals' && (
+        <div className="crm-card p-5 border-amber-500/40 bg-card space-y-4 rounded-2xl shadow-xl animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-foreground flex items-center gap-2">
+                <Building2 size={18} className="text-amber-500" /> Pending Registrations & Plan Verification Queue
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                New companies registered via the onboarding gateway. Verify and activate their plan, user seats, validity duration, and feature permissions before employees can log in.
+              </p>
+            </div>
+            <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 font-extrabold text-xs flex items-center gap-1.5 w-max shadow-sm">
+              <Clock size={14} className="animate-spin text-amber-500" style={{ animationDuration: '6s' }} />
+              {pendingCompanies.length} Workspace{pendingCompanies.length !== 1 ? 's' : ''} Awaiting Approval
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
+            <Shield size={14} className="text-cyan-500 shrink-0" />
+            <span>
+              <strong>Onboarding Security Rule:</strong> While in <code className="font-mono text-amber-600 dark:text-amber-300 font-bold">PENDING</code> state, tenant workspace access is strictly gated. Employees and admins attempting login see a dedicated verification holding screen with live retry status and delay inquiry support.
+            </span>
+          </div>
+
+          {pendingCompanies.length === 0 ? (
+            <div className="p-12 text-center border border-border rounded-2xl bg-muted/20 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 size={32} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-foreground">Review Queue All Clear!</h4>
+                <p className="text-xs text-muted-foreground mt-1">There are currently no company registrations awaiting Super Admin plan verification.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3.5">Company & Domain</th>
+                    <th className="p-3.5">Admin & Contact</th>
+                    <th className="p-3.5">Registration Key</th>
+                    <th className="p-3.5">Requested Plan & Seats</th>
+                    <th className="p-3.5">Inquiries from Tenant</th>
+                    <th className="p-3.5 text-right">Verification Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border font-medium">
+                  {pendingCompanies.map(c => (
+                    <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
+                            🏢
+                          </div>
+                          <div>
+                            <p className="font-black text-foreground text-sm">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {c.domain ? <span className="text-cyan-600 dark:text-cyan-400">{c.domain} • </span> : null}
+                              Registered: {c.registeredAt ? new Date(c.registeredAt).toLocaleDateString() : 'Today'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <p className="font-bold text-foreground">{c.adminName}</p>
+                        <a
+                          href={`mailto:${c.adminEmail}`}
+                          className="text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-mono"
+                        >
+                          <Mail size={11} /> {c.adminEmail}
+                        </a>
+                      </td>
+
+                      <td className="p-3.5">
+                        <span className="font-mono font-bold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/30 text-xs">
+                          {c.registrationKey}
+                        </span>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="space-y-0.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                            {c.requestedPlan}
+                          </span>
+                          <p className="text-[10px] text-muted-foreground font-semibold">
+                            {c.seatsRequested || 15} User Seats Requested
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        {c.delayInquiries && c.delayInquiries.length > 0 ? (
+                          <div className="space-y-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-500/15 text-red-600 dark:text-red-300 border border-red-500/30 flex items-center gap-1 w-max">
+                              <AlertCircle size={11} /> {c.delayInquiries.length} Inquiry Received
+                            </span>
+                            <p className="text-[10px] text-muted-foreground italic truncate max-w-[200px]" title={c.delayInquiries[0].message}>
+                              "{c.delayInquiries[0].message}"
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground/60 italic">No inquiries received</span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5 text-right">
+                        <button
+                          onClick={() => handleOpenVerificationModal(c)}
+                          className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 shadow-md shadow-amber-600/25 transition-all cursor-pointer"
+                        >
+                          <Shield size={13} /> Review & Verify Plan →
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
       {activeTab === 'expired' && (
         <div className="crm-card p-5 border-red-500/30 bg-card space-y-4 rounded-2xl">
           <div className="flex items-center justify-between">
@@ -1312,6 +1990,361 @@ export function SuperAdminDashboard() {
         </div>
       )}
 
+      {/* 🏷️ SECTION: DISCOUNT COUPONS MANAGEMENT HUB */}
+      {activeTab === 'coupons' && (
+        <div className="crm-card p-5 border-emerald-500/40 bg-card space-y-5 rounded-2xl shadow-xl animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-foreground flex items-center gap-2">
+                <Tag size={18} className="text-emerald-500" /> Discount Coupons Management Hub
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Create and manage promotional discount coupons for new tenant registrations and subscription renewals across Grow, Business, and Enterprise plans.
+              </p>
+            </div>
+            <button
+              onClick={() => setNewCouponModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/25 transition-all cursor-pointer w-max"
+            >
+              <Plus size={14} /> Create New Coupon
+            </button>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl bg-muted/40 border border-border">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Coupons</span>
+              <span className="text-2xl font-black text-foreground">{couponsList.length}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+              <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-300 block">Active Coupons</span>
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {couponsList.filter(c => c.isActive && (!c.expiresAt || new Date(c.expiresAt) > new Date())).length}
+              </span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
+              <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-300 block">Total Redemptions</span>
+              <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                {couponsList.reduce((acc, c) => acc + (c.usedCount || c.redemptionCount || 0), 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Coupons Table */}
+          {couponsLoading ? (
+            <div className="p-8 text-center text-xs text-muted-foreground">Loading coupons...</div>
+          ) : couponsList.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-xl">
+              No discount coupons created yet. Click "Create New Coupon" to offer promotions.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3.5">Coupon Code & Description</th>
+                    <th className="p-3.5">Discount Value</th>
+                    <th className="p-3.5">Applicable Plans</th>
+                    <th className="p-3.5">Uses / Limit</th>
+                    <th className="p-3.5">Expiry Date</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border font-medium">
+                  {couponsList.map(c => {
+                    const isExp = c.expiresAt ? new Date(c.expiresAt) < new Date() : false;
+                    return (
+                      <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3.5">
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30 text-xs">
+                            {c.code}
+                          </span>
+                          {c.description && (
+                            <p className="text-[11px] text-muted-foreground mt-1">{c.description}</p>
+                          )}
+                        </td>
+                        <td className="p-3.5 font-bold text-foreground">
+                          {c.discountType === 'PERCENT_OFF' ? `${c.discountValue}% OFF` : `₹${c.discountValue} FLAT OFF`}
+                        </td>
+                        <td className="p-3.5">
+                          <div className="flex flex-wrap gap-1">
+                            {c.applicablePlans && c.applicablePlans.length > 0 ? (
+                              c.applicablePlans.map(p => (
+                                <span key={p} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                  {p}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">All Plans</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-mono">
+                          {c.usedCount ?? c.redemptionCount ?? 0} / {c.maxUses !== null && c.maxUses !== undefined ? c.maxUses : '∞'}
+                        </td>
+                        <td className="p-3.5 text-muted-foreground">
+                          {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : 'Never'}
+                        </td>
+                        <td className="p-3.5">
+                          {!c.isActive ? (
+                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/15 px-2 py-0.5 rounded border border-rose-500/30">
+                              DEACTIVATED
+                            </span>
+                          ) : isExp ? (
+                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                              EXPIRED
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                              ACTIVE
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-right">
+                          {c.isActive && (
+                            <button
+                              onClick={() => handleRevokeCoupon(c.id)}
+                              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25 transition-all cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🏷️ CREATE NEW COUPON MODAL */}
+      {newCouponModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card border border-emerald-500/40 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Tag size={18} className="text-emerald-500" />
+                <h3 className="text-base font-black text-foreground">Create Promotional Discount Coupon</h3>
+              </div>
+              <button
+                onClick={() => setNewCouponModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {couponSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} /> {couponSuccessMsg}
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-muted-foreground font-bold block mb-1">Coupon Code *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. FESTIVE2026 or SAVE50"
+                  className="crm-input w-full font-mono font-bold uppercase text-sm"
+                  value={couponCodeInput}
+                  onChange={e => setCouponCodeInput(e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div>
+                <label className="text-muted-foreground font-bold block mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 20% discount on Business and Enterprise subscriptions"
+                  className="crm-input w-full text-xs"
+                  value={couponDescInput}
+                  onChange={e => setCouponDescInput(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted-foreground font-bold block mb-1">Discount Type</label>
+                  <select
+                    className="crm-input w-full text-xs font-bold"
+                    value={couponDiscountType}
+                    onChange={e => setCouponDiscountType(e.target.value as any)}
+                  >
+                    <option value="PERCENT_OFF">Percentage Off (%)</option>
+                    <option value="FLAT_OFF">Flat Off (₹ INR)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-muted-foreground font-bold block mb-1">
+                    {couponDiscountType === 'PERCENT_OFF' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'} *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={couponDiscountType === 'PERCENT_OFF' ? 100 : 100000}
+                    className="crm-input w-full text-xs font-mono font-bold"
+                    value={couponDiscountVal}
+                    onChange={e => setCouponDiscountVal(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-muted-foreground font-bold block mb-1">Max Redemptions</label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="Leave empty for unlimited"
+                    className="crm-input w-full text-xs font-mono"
+                    value={couponMaxUses}
+                    onChange={e => setCouponMaxUses(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <label className="text-muted-foreground font-bold block mb-1">Expiry Date (Optional)</label>
+                  <input
+                    type="date"
+                    className="crm-input w-full text-xs font-mono"
+                    value={couponExpiresAt}
+                    onChange={e => setCouponExpiresAt(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-muted-foreground font-bold block mb-1.5">Applicable Plans</label>
+                <div className="flex gap-2">
+                  {['GROW', 'BUSINESS', 'ENTERPRISE'].map(p => {
+                    const isChecked = couponPlans.includes(p);
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) setCouponPlans(prev => prev.filter(x => x !== p));
+                          else setCouponPlans(prev => [...prev, p]);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          isChecked
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                            : 'bg-muted border-border text-muted-foreground'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setNewCouponModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-bold hover:bg-muted/80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCoupon}
+                disabled={couponCreating || !couponCodeInput.trim()}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-md shadow-emerald-600/30 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {couponCreating ? 'Creating Coupon...' : 'Create Coupon →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💬 WHATSAPP QUOTA TOP-UP MODAL */}
+      {topUpModalOpen && topUpCompany && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card border border-indigo-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={18} className="text-indigo-500" />
+                <h3 className="text-base font-black text-foreground">Top Up WhatsApp Credit Wallet</h3>
+              </div>
+              <button
+                onClick={() => setTopUpModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {topUpSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} /> {topUpSuccessMsg}
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-1">
+              <p className="font-bold text-foreground">{topUpCompany.name}</p>
+              <p className="text-muted-foreground font-mono">Plan: {topUpCompany.plan} • Current Limit: {topUpCompany.whatsAppConfig?.monthlyLimit?.toLocaleString() || 0} credits</p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="text-muted-foreground font-bold block">Select Top-Up Credits Amount:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[5000, 10000, 20000].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTopUpAmount(amt)}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer font-mono ${
+                      topUpAmount === amt
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                        : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    +{amt.toLocaleString()}
+                  </button>
+                ))}
+              </div>
+              <div className="pt-2">
+                <label className="text-muted-foreground font-bold block mb-1">Or Custom Amount:</label>
+                <input
+                  type="number"
+                  min={500}
+                  step={500}
+                  className="crm-input w-full font-mono font-bold text-sm"
+                  value={topUpAmount}
+                  onChange={e => setTopUpAmount(Math.max(100, Number(e.target.value)))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setTopUpModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-muted text-foreground text-xs font-bold hover:bg-muted/80 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTopUpWhatsApp(topUpCompany.id, topUpAmount)}
+                disabled={topUpProcessing}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-md shadow-indigo-600/30 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {topUpProcessing ? 'Adding Credits...' : `Add +${topUpAmount.toLocaleString()} Credits →`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 🛠️ SECTION 3 MULTI-TAB MODAL: COMPANY EDIT & FEATURE CONTROL HUB */}
       {editModalOpen && editingCompany && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1367,10 +2400,10 @@ export function SuperAdminDashboard() {
                   <div>
                     <label className="text-muted-foreground font-bold block mb-1">Subscription Plan Tier</label>
                     <select className="crm-input w-full text-sm font-bold text-cyan-600 dark:text-cyan-400" value={editPlan} onChange={e => handleEditPlanChange(e.target.value as PlanType)}>
-                      <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
-                      <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
-                      <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
-                      <option value="ENTERPRISE">Enterprise Plan (100 Users · All Features)</option>
+                      <option value="FREE_TRIAL">Free Trial (6 Users · 15-40 Days)</option>
+                      <option value="GROW">Grow Plan (6 Users · Core CRM · No WA/Email)</option>
+                      <option value="BUSINESS">Business Plan (18 Users · 5K Email · 20K WA)</option>
+                      <option value="ENTERPRISE">Enterprise Plan (60 Users · All Features No Limit)</option>
                     </select>
                   </div>
                   <div>
@@ -1868,6 +2901,368 @@ export function SuperAdminDashboard() {
                     <Check size={14} /> Confirm & Apply Custom Expiry Date
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PLAN VERIFICATION & APPROVAL MODAL (SUPER ADMIN REVIEW) ── */}
+      {verificationModalOpen && verifyingCompany && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+          <div className="bg-card border border-amber-500/40 rounded-3xl p-6 max-w-2xl w-full space-y-5 shadow-2xl my-8 text-foreground">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                      TENANT ONBOARDING REVIEW
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground font-mono">
+                      Key: {verifyingCompany.registrationKey}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-foreground mt-0.5">
+                    Verify & Activate Company Workspace
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setVerificationModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center justify-center text-sm font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Company Metadata Header Card */}
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Company Name</span>
+                <span className="font-black text-foreground text-sm">{verifyingCompany.name}</span>
+                {verifyingCompany.domain && (
+                  <span className="text-[11px] text-cyan-600 dark:text-cyan-400 block font-mono">{verifyingCompany.domain}</span>
+                )}
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Admin Contact</span>
+                <span className="font-bold text-foreground">{verifyingCompany.adminName}</span>
+                <span className="text-[11px] text-muted-foreground block font-mono truncate">{verifyingCompany.adminEmail}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Registration Key</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-block mt-0.5">
+                  {verifyingCompany.registrationKey}
+                </span>
+              </div>
+            </div>
+
+            {/* Delay Inquiries Notice Box (If tenant user sent any inquiry) */}
+            {verifyingCompany.delayInquiries && verifyingCompany.delayInquiries.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-red-600 dark:text-red-300 flex items-center gap-1.5">
+                    <AlertCircle size={14} /> Delay Inquiry Received from Tenant
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(verifyingCompany.delayInquiries[0].timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <p className="text-muted-foreground bg-card/60 p-2.5 rounded-xl border border-red-500/20 italic">
+                  "{verifyingCompany.delayInquiries[0].message}"
+                </p>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Sent by: <strong className="text-foreground">{verifyingCompany.delayInquiries[0].senderName || verifyingCompany.adminName}</strong> ({verifyingCompany.delayInquiries[0].senderEmail || verifyingCompany.adminEmail})
+                </p>
+              </div>
+            )}
+
+            {/* Step 1: Select Verified Plan Tier */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-muted-foreground block">
+                1. Approve / Select Plan Tier
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[
+                  {
+                    key: 'GROW',
+                    name: '🌱 Grow Plan',
+                    seats: 6,
+                    tag: '6 Users · Core CRM',
+                    desc: 'No WhatsApp Cloud · No Email Marketing · Upgrade Disabled',
+                    color: 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400',
+                  },
+                  {
+                    key: 'BUSINESS',
+                    name: '💼 Business Plan',
+                    seats: 18,
+                    tag: '18 Users · Most Popular',
+                    desc: '5K Email Quota/mo · 20K WhatsApp Credit Limit · AI Engine',
+                    color: 'border-amber-500/50 bg-amber-500/10 text-amber-400',
+                  },
+                  {
+                    key: 'ENTERPRISE',
+                    name: '👑 Enterprise Plan',
+                    seats: 60,
+                    tag: '60 Users · No Limits',
+                    desc: 'Unlimited WhatsApp · Unlimited Email · Full Custom AI Engine',
+                    color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
+                  },
+                ].map(p => {
+                  const isSelected = verifyPlan === p.key || (verifyPlan === 'GROWTH' && p.key === 'GROW');
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => {
+                        setVerifyPlan(p.key as PlanType);
+                        setVerifySeats(p.seats);
+                        if (p.key === 'GROW') {
+                          setVerifyEmailEnabled(false);
+                          setVerifyWAEnabled(false);
+                          setVerifyAIEnabled(false);
+                        } else {
+                          setVerifyEmailEnabled(true);
+                          setVerifyWAEnabled(true);
+                          setVerifyAIEnabled(true);
+                        }
+                      }}
+                      className={`p-3 rounded-2xl text-left border transition-all cursor-pointer space-y-1 ${
+                        isSelected
+                          ? 'bg-amber-600/15 border-amber-500 shadow-md ring-2 ring-amber-400/30'
+                          : 'bg-card border-border hover:border-muted-foreground/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-sm text-foreground">{p.name}</span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-muted text-foreground font-mono">
+                          {p.seats} Users
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block font-mono">
+                        {p.tag}
+                      </span>
+                      <p className="text-[10px] text-muted-foreground leading-tight">{p.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2: User Seats & 4 Presets Validity */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* User Seats Quota */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-muted/20 border border-border">
+                <label className="text-xs font-bold text-muted-foreground block">
+                  2. User Seats Quota Allocation
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={verifySeats}
+                    onChange={e => setVerifySeats(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="crm-input w-28 text-sm font-bold font-mono"
+                  />
+                  <div className="flex items-center gap-1">
+                    {[6, 18, 60].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setVerifySeats(s)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono border ${
+                          verifySeats === s
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-300'
+                            : 'bg-muted border-border text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {s} Seats
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Maximum simultaneous staff login keys for this workspace</p>
+              </div>
+
+              {/* Validity Presets (4 Strict Options) */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-muted/20 border border-border">
+                <label className="text-xs font-bold text-muted-foreground block">
+                  3. Validity Duration (4 Presets)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { label: '+7 Days (1 Week)', days: 7 },
+                    { label: '+15 Days (Half Month)', days: 15 },
+                    { label: '+30 Days (1 Month)', days: 30 },
+                    { label: '+60 Days (2 Months)', days: 60 },
+                  ].map(preset => (
+                    <button
+                      key={preset.days}
+                      type="button"
+                      onClick={() => setVerifyValidityDays(preset.days)}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                        verifyValidityDays === preset.days
+                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                          : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  ✓ Expiry Date: {new Date(Date.now() + verifyValidityDays * 86400000).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3: Feature Toggles for Company */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-muted/20 border border-border">
+              <label className="text-xs font-black uppercase tracking-wider text-muted-foreground block">
+                4. Global Feature Toggles for Workspace
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setVerifyEmailEnabled(!verifyEmailEnabled)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    verifyEmailEnabled
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-muted/40 border-border text-muted-foreground'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <Mail size={13} /> Email Marketing
+                  </span>
+                  <span className="text-[10px] font-black">{verifyEmailEnabled ? 'ON ✓' : 'OFF ✕'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVerifyWAEnabled(!verifyWAEnabled)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    verifyWAEnabled
+                      ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                      : 'bg-muted/40 border-border text-muted-foreground'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <MessageSquare size={13} /> WhatsApp Cloud
+                  </span>
+                  <span className="text-[10px] font-black">{verifyWAEnabled ? 'ON ✓' : 'OFF ✕'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVerifyAIEnabled(!verifyAIEnabled)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    verifyAIEnabled
+                      ? 'bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300'
+                      : 'bg-muted/40 border-border text-muted-foreground'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <Bot size={13} /> AI Engine
+                  </span>
+                  <span className="text-[10px] font-black">{verifyAIEnabled ? 'ON ✓' : 'OFF ✕'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Success Message Banner */}
+            {verifySuccessMsg && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-scale-in">
+                <CheckCircle2 size={16} /> {verifySuccessMsg}
+              </div>
+            )}
+
+            {/* Modal Footer Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(true)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-bold transition-all cursor-pointer"
+              >
+                Decline / Reject Registration
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setVerificationModalOpen(false)}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={verifyApproving}
+                  onClick={handleApproveCompany}
+                  className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-60"
+                >
+                  {verifyApproving ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Verifying & Activating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} /> Approve & Activate Company ✓
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REJECTION CONFIRMATION MODAL ── */}
+      {rejectModalOpen && verifyingCompany && (
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card border border-rose-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold">
+                <AlertCircle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Decline Company Registration</h3>
+                <p className="text-[11px] text-muted-foreground">This reason will be visible to the company when they query status.</p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-muted-foreground">Reason for Rejection *</label>
+              <textarea
+                rows={3}
+                required
+                value={rejectionReasonInput}
+                onChange={e => setRejectionReasonInput(e.target.value)}
+                className="crm-input w-full text-xs leading-relaxed"
+                placeholder="e.g. Incomplete business documents or duplicate registration"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-muted text-muted-foreground hover:text-foreground text-xs font-bold"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={rejecting || !rejectionReasonInput.trim()}
+                onClick={handleRejectCompany}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {rejecting ? 'Declining...' : 'Confirm Rejection'}
               </button>
             </div>
           </div>

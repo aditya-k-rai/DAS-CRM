@@ -244,4 +244,63 @@ export class MailService {
       console.warn('[MailService] Could not send Company Registration email:', err);
     }
   }
+
+  async sendCompanyApprovalEmail(opts: {
+    adminEmail: string;
+    adminName: string;
+    companyName: string;
+    planTier: string;
+    memberLimit: number;
+    expiryDate: string;
+  }): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: `"DAS CRM Team" <${process.env.SMTP_FROM || 'noreply@dascrm.app'}>`,
+        to: opts.adminEmail,
+        subject: `🎉 Workspace Verified & Activated: ${opts.companyName}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #10b981; border-radius: 16px; background: #ffffff;">
+            <h2 style="color: #10b981; margin-top: 0;">✓ Company Workspace Activated!</h2>
+            <p>Dear <strong>${opts.adminName}</strong>,</p>
+            <p>Your company workspace <strong>${opts.companyName}</strong> has been reviewed, approved, and activated by the Super Admin.</p>
+            <p>Plan Tier: <strong>${opts.planTier}</strong> (${opts.memberLimit} Seats Allocated)</p>
+            <p>Expiry Date: <strong>${opts.expiryDate}</strong></p>
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" style="display: inline-block; margin-top: 16px; padding: 14px 28px; background: #10b981; color: white; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; width: 100%; box-sizing: border-box;">
+              Login to Activated Workspace →
+            </a>
+          </div>`,
+      });
+    } catch (err) {
+      console.warn('[MailService] Could not send approval email:', err);
+    }
+  }
+
+  async sendDelayInquiryNotification(opts: {
+    companyName: string;
+    registrationKey?: string;
+    adminEmail?: string;
+    message?: string;
+  }): Promise<void> {
+    try {
+      const superAdminEmail = 'dynamicadvancesolution@gmail.com';
+      await this.transporter.sendMail({
+        from: `"DAS CRM System" <${process.env.SMTP_FROM || 'noreply@dascrm.app'}>`,
+        to: superAdminEmail,
+        subject: `⚠️ [Delay Inquiry] Company Plan Verification Pending: ${opts.companyName}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #f59e0b; border-radius: 16px; background: #ffffff;">
+            <h2 style="color: #d97706; margin-top: 0;">Delay Inquiry from Tenant</h2>
+            <p>Company: <strong>${opts.companyName}</strong></p>
+            <p>Key: <strong>${opts.registrationKey || 'N/A'}</strong></p>
+            <p>Admin Email: <strong>${opts.adminEmail || 'N/A'}</strong></p>
+            <p>Message: <em>${opts.message || 'Customer is awaiting plan verification and approval.'}</em></p>
+            <a href="${process.env.SUPER_ADMIN_URL || 'http://localhost:3002'}" style="display: inline-block; margin-top: 16px; padding: 14px 28px; background: #4f46e5; color: white; border-radius: 10px; text-decoration: none; font-weight: bold; text-align: center; width: 100%; box-sizing: border-box;">
+              Review in Super Admin Portal →
+            </a>
+          </div>`,
+      });
+    } catch (err) {
+      console.warn('[MailService] Could not send delay inquiry to Super Admin:', err);
+    }
+  }
 }

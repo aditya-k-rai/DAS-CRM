@@ -32,38 +32,39 @@ export default function BillingPage() {
       price: '₹0',
       taxNote: 'No Credit Card Required',
       period: '15 to 40 Days',
-      seats: 'Total 10 Users Quota',
+      seats: 'Total 6 Users Quota',
       seatNote: 'Adjustable by Super Admin per Company',
-      description: 'Test drive core CRM with Basic AI features (Lead Scoring only).',
+      description: 'Test drive core CRM features risk-free.',
       features: [
         { name: 'Core CRM Pipeline & Leads', enabled: true },
         { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'Basic AI: Lead Scoring Only', enabled: true },
+        { name: 'Mobile App (Android & iOS)', enabled: true },
         { name: 'Standard Reports & CSV Export', enabled: true },
-        { name: 'All AI (Chat, Prompts, Analytics)', enabled: false },
+        { name: 'AI Features & Scoring', enabled: false },
         { name: 'WhatsApp Cloud API', enabled: false },
         { name: 'Email Marketing Campaigns', enabled: false },
       ],
     },
     {
-      id: 'GROWTH',
-      name: '🌱 Growth Plan',
+      id: 'GROW',
+      name: '🌱 Grow Plan',
       price: '₹999',
       taxNote: '+ 18% GST (Total ₹1,178.82)',
       period: '/ month',
-      popular: true,
-      seats: 'Total 20 Users Quota',
-      seatNote: 'Tenant Admin + 19 Team Members',
-      description: 'All AI features included for scaling sales teams without WhatsApp/Email.',
+      popular: false,
+      seats: 'Total 6 Employees Quota',
+      seatNote: 'Fixed 6 Users · Core CRM Only',
+      description: 'Without WhatsApp (Cloud) and Email Marketing. Cannot self-upgrade.',
       features: [
         { name: 'Core CRM & Pipeline Management', enabled: true },
         { name: 'Role-Based Access Control (RBAC)', enabled: true },
-        { name: 'All AI Features (Scoring, Chat, Analytics)', enabled: true },
-        { name: 'AI Auto-Automations & Templates', enabled: true },
-        { name: 'HR Portal & Attendance Tracking', enabled: true },
+        { name: 'Mobile App (Android & iOS)', enabled: true },
+        { name: 'Task & Activity Management', enabled: true },
         { name: 'WhatsApp Cloud API Quota', enabled: false },
         { name: 'Email Marketing Campaigns', enabled: false },
+        { name: 'Self-Upgrade (Not Available)', enabled: false },
       ],
+      selfUpgradeDisabled: true,
     },
     {
       id: 'BUSINESS',
@@ -71,41 +72,45 @@ export default function BillingPage() {
       price: '₹2,499',
       taxNote: '+ 18% GST (Total ₹2,948.82)',
       period: '/ month',
-      seats: 'Total 50 Users Quota',
-      seatNote: 'Includes WhatsApp & Email Marketing',
-      description: 'Full-suite CRM with 50 users and all features included.',
+      popular: true,
+      seats: 'Total 18 Users Quota',
+      seatNote: 'Includes WhatsApp (20K) & Email (5K)',
+      description: 'All features with 5,000 monthly Email Quota and 20,000 WhatsApp Cloud Quota credits.',
       features: [
-        { name: 'Includes All Growth Plan Features', enabled: true },
-        { name: 'All AI Features & Learning Engine', enabled: true },
-        { name: 'WhatsApp Cloud API (25,000 Msgs / mo)', enabled: true },
-        { name: 'Email Marketing (10,000 Mails / mo)', enabled: true },
-        { name: 'Advanced Workflow Automations', enabled: true },
-        { name: 'Full HR & Custom Salary Builder', enabled: true },
-        { name: 'Custom Sales Pipelines & Funnels', enabled: true },
+        { name: 'Includes All Grow Plan Features', enabled: true },
+        { name: 'Email Marketing (5,000 Quota / month)', enabled: true },
+        { name: 'WhatsApp Cloud (20,000 Credit Limit)', enabled: true },
+        { name: 'AI Lead Scoring & Automation Engine', enabled: true },
+        { name: 'Advanced Reports & Dashboards', enabled: true },
+        { name: 'Total 18 Employee Seats', enabled: true },
       ],
     },
     {
       id: 'ENTERPRISE',
       name: '👑 Enterprise Plan',
-      price: '₹4,999',
-      taxNote: '+ 18% GST (Total ₹5,898.82)',
+      price: '₹6,999',
+      taxNote: '+ 18% GST (Total ₹8,258.82)',
       period: '/ month',
-      seats: 'Total 100 Users Quota',
+      seats: 'Total 60 Users Quota',
       seatNote: 'Enterprise Quota & Priority SLA',
-      description: 'Maximum capacity and performance with 100 users and all features.',
+      description: 'Full power for 60 users with all features and No Limit on WhatsApp Cloud and Email.',
       features: [
         { name: 'Includes All Business Plan Features', enabled: true },
-        { name: '100 Users Quota Allocated', enabled: true },
-        { name: 'All AI Features & High-Speed Inference', enabled: true },
-        { name: 'WhatsApp Cloud API (100,000 Msgs / mo)', enabled: true },
-        { name: 'Email Marketing (50,000 Mails / mo)', enabled: true },
-        { name: 'Enterprise Custom SLA & Backups', enabled: true },
-        { name: 'Dedicated 24/7 Account Manager', enabled: true },
+        { name: 'Unlimited Email Marketing (No Limit)', enabled: true },
+        { name: 'Unlimited WhatsApp Cloud (No Limit)', enabled: true },
+        { name: 'Custom AI Engine & System Prompts', enabled: true },
+        { name: 'Total 60 Employee Seats', enabled: true },
+        { name: 'Priority Support & 99.9% SLA', enabled: true },
       ],
     },
   ];
 
   const handleRazorpayUpgrade = async (planId: PlanType) => {
+    if (planId === 'GROW' || (subscription?.planType === 'GROW' && planId !== 'BUSINESS' && planId !== 'ENTERPRISE')) {
+      alert('Upgrade plan is not available directly on the Grow Plan. Please contact Super Admin to upgrade your workspace.');
+      return;
+    }
+
     setLoading(true);
     setSuccessMsg(null);
 
@@ -122,7 +127,6 @@ export default function BillingPage() {
       const orderData = await res.json();
 
       if (res.ok && orderData.orderId) {
-        // If real Razorpay SDK is loaded
         if (typeof window !== 'undefined' && (window as any).Razorpay) {
           const options = {
             key: orderData.razorpayKeyId,
@@ -162,14 +166,14 @@ export default function BillingPage() {
     // Fallback: Queue Upgrade Request
     setTimeout(() => {
       const isFree = planId === 'FREE_TRIAL';
-      const isGrowth = planId === 'GROWTH';
+      const isGrow = (planId as string) === 'GROW' || planId === 'GROWTH';
       updateSubscription({
         planType: planId,
-        userSeatsAllocated: planId === 'FREE_TRIAL' ? 10 : planId === 'GROWTH' ? 20 : planId === 'BUSINESS' ? 50 : 100,
+        userSeatsAllocated: planId === 'ENTERPRISE' ? 60 : planId === 'BUSINESS' ? 18 : 6,
         features: {
-          whatsApp: !isFree && !isGrowth,
-          emailAutomation: !isFree && !isGrowth,
-          aiLeadScoring: true,
+          whatsApp: !isFree && !isGrow,
+          emailAutomation: !isFree && !isGrow,
+          aiLeadScoring: !isFree && !isGrow,
           customSalaryBuilder: true,
           exportCSV: true,
         },
@@ -288,13 +292,21 @@ export default function BillingPage() {
                   <button disabled className="w-full py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-xs">
                     Current Plan
                   </button>
+                ) : (plan as any).selfUpgradeDisabled ? (
+                  <button
+                    disabled
+                    className="w-full py-2.5 rounded-xl bg-muted/40 border border-border text-muted-foreground font-bold text-xs cursor-not-allowed"
+                    title="Self-upgrade is not available on the Grow Plan. Contact Super Admin."
+                  >
+                    Upgrade Not Available
+                  </button>
                 ) : (
                   <button
                     onClick={() => handleRazorpayUpgrade(plan.id as PlanType)}
                     disabled={loading}
                     className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
                   >
-                    {loading ? 'Processing...' : plan.id === 'ENTERPRISE' ? 'Contact Support' : 'Upgrade Plan →'}
+                    {loading ? 'Processing...' : plan.id === 'ENTERPRISE' ? 'Contact Super Admin' : 'Upgrade Plan →'}
                   </button>
                 )}
               </div>

@@ -57,6 +57,7 @@ export function LoginGateway() {
     { id: 'comp_2', name: 'Sunita Real Estate Ltd', slug: 'sunita-re' },
     { id: 'comp_3', name: 'Lakshmi Auto Dealerships', slug: 'lakshmi-auto' },
     { id: 'comp_4', name: 'TechCorp Enterprise', slug: 'techcorp-io' },
+    { id: 'comp_pending_apex_solar', name: 'Apex Solar Energy Solutions (Pending Verification)', slug: 'apex-solar' },
   ]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('comp_1');
   const [companyKeyInput, setCompanyKeyInput] = useState('ACME-KX-7421');
@@ -172,6 +173,24 @@ export function LoginGateway() {
 
       const data = await res.json();
       if (!res.ok) {
+        if (
+          data.code === 'VERIFICATION_PENDING' ||
+          (res.status === 403 && (data.message?.toLowerCase().includes('verification') || data.message?.toLowerCase().includes('pending')))
+        ) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pending_company_key', companyKeyInput.trim());
+            localStorage.setItem('pending_company_name', data.company?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Apex Solar Energy Solutions');
+            localStorage.setItem('pending_user_email', email);
+            if (data.company?.id || selectedCompanyId) {
+              localStorage.setItem('pending_company_id', data.company?.id || selectedCompanyId);
+            }
+          }
+          setLoading(false);
+          router.push(
+            `/verification-pending?companyKey=${encodeURIComponent(companyKeyInput.trim())}&companyName=${encodeURIComponent(data.company?.name || '')}&email=${encodeURIComponent(email)}`
+          );
+          return;
+        }
         setError(data.message || 'Login failed. Please verify your company workspace selection and registration key.');
         setLoading(false);
         return;
@@ -207,6 +226,19 @@ export function LoginGateway() {
         return;
       }
     } catch (err) {
+      if (selectedCompanyId === 'comp_pending_apex_solar' || companyKeyInput.toUpperCase().startsWith('SOLAR')) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('pending_company_key', companyKeyInput.trim());
+          localStorage.setItem('pending_company_name', 'Apex Solar Energy Solutions');
+          localStorage.setItem('pending_user_email', email);
+          localStorage.setItem('pending_company_id', selectedCompanyId);
+        }
+        setLoading(false);
+        router.push(
+          `/verification-pending?companyKey=${encodeURIComponent(companyKeyInput.trim())}&companyName=Apex%20Solar%20Energy%20Solutions&email=${encodeURIComponent(email)}`
+        );
+        return;
+      }
       console.warn('Backend login unavailable, activating selected role mode:', err);
       const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
       switchRole(finalRole);
@@ -238,6 +270,26 @@ export function LoginGateway() {
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        if (
+          data.code === 'VERIFICATION_PENDING' ||
+          (res.status === 403 && (data.message?.toLowerCase().includes('verification') || data.message?.toLowerCase().includes('pending')))
+        ) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('pending_company_key', companyKeyInput.trim());
+            localStorage.setItem('pending_company_name', data.company?.name || '');
+            localStorage.setItem('pending_user_email', email);
+          }
+          setLoading(false);
+          router.push(
+            `/verification-pending?companyKey=${encodeURIComponent(companyKeyInput.trim())}&companyName=${encodeURIComponent(data.company?.name || '')}&email=${encodeURIComponent(email)}`
+          );
+          return;
+        }
+        setError(data.message || 'Google OAuth authentication failed.');
+        setLoading(false);
+        return;
+      }
       if (res.ok && data.accessToken) {
         const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
         const finalRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
@@ -593,7 +645,15 @@ export function LoginGateway() {
                     disabled={loading}
                     className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCompanyId}
-                    onChange={e => setSelectedCompanyId(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSelectedCompanyId(val);
+                      if (val === 'comp_pending_apex_solar') {
+                        setCompanyKeyInput('SOLAR-PV-9021');
+                        setEmail('rajesh.solar@apexenergy.in');
+                        setSelectedRole('ADMIN');
+                      }
+                    }}
                   >
                     {publicCompanies.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>

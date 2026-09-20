@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, Layers, MapPin, Search, RefreshCw
+  Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
+  Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -58,6 +59,86 @@ const INDUSTRY_SECTORS = [
   'Other / Custom Sector',
 ];
 
+// Plan definitions for the registration page (matches backend PLAN_DEFINITIONS)
+const PLAN_DEFS = {
+  GROW: {
+    key: 'GROW' as const,
+    label: 'Grow',
+    tagline: 'Perfect for small sales teams',
+    color: '#818cf8',
+    colorClass: 'indigo',
+    memberLimit: 6,
+    emailEnabled: false,
+    whatsAppEnabled: false,
+    aiEnabled: false,
+    upgradeable: false,
+    badge: null,
+    features: [
+      'CRM Core — Leads, Contacts, Deals',
+      'Sales Pipeline & Kanban Board',
+      'Task & Activity Management',
+      'Basic Reports & Analytics',
+      'Mobile App (Android & iOS)',
+    ],
+    restrictions: [
+      'No Email Marketing',
+      'No WhatsApp Cloud',
+      'No AI Engine',
+      'Max 6 users',
+    ],
+  },
+  BUSINESS: {
+    key: 'BUSINESS' as const,
+    label: 'Business',
+    tagline: 'All features for growing teams',
+    color: '#f59e0b',
+    colorClass: 'amber',
+    memberLimit: 18,
+    emailEnabled: true,
+    whatsAppEnabled: true,
+    aiEnabled: true,
+    upgradeable: true,
+    badge: 'Most Popular',
+    features: [
+      'All Grow plan features',
+      'Email Marketing — 5,000 emails/month',
+      'WhatsApp Cloud — 20,000 credit wallet',
+      'AI Lead Scoring & Automation',
+      'Advanced Dashboards & Reports',
+    ],
+    restrictions: [
+      '5K email quota (resets monthly)',
+      '20K WhatsApp credit wallet',
+      'Max 18 users',
+    ],
+  },
+  ENTERPRISE: {
+    key: 'ENTERPRISE' as const,
+    label: 'Enterprise',
+    tagline: 'No limits for large organizations',
+    color: '#22c55e',
+    colorClass: 'emerald',
+    memberLimit: 60,
+    emailEnabled: true,
+    whatsAppEnabled: true,
+    aiEnabled: true,
+    upgradeable: false,
+    badge: 'Enterprise',
+    features: [
+      'All Business features',
+      'Unlimited Email Marketing',
+      'Unlimited WhatsApp Cloud',
+      'Custom AI Engine & Prompts',
+      'Priority Support & SLA',
+    ],
+    restrictions: [
+      'Max 60 users',
+    ],
+  },
+} as const;
+
+type PlanKey = keyof typeof PLAN_DEFS;
+
 export default function RegisterCompanyPage() {
   const [companyName, setCompanyName]         = useState('');
   const [adminName, setAdminName]             = useState('');
@@ -70,7 +151,11 @@ export default function RegisterCompanyPage() {
   const [gstNumber, setGstNumber]             = useState('');
   const [companyType, setCompanyType]         = useState('Private Limited');
   const [sector, setSector]                   = useState('Technology & SaaS');
-  const [selectedPlan, setSelectedPlan]       = useState<'FREE_TRIAL' | 'GROWTH' | 'ENTERPRISE'>('FREE_TRIAL');
+  const [selectedPlan, setSelectedPlan]       = useState<PlanKey>('GROW');
+  const [showComparePlans, setShowComparePlans] = useState(false);
+  const [couponCode, setCouponCode]           = useState('');
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponResult, setCouponResult]       = useState<{ valid: boolean; discountLabel?: string; error?: string } | null>(null);
 
   const [pincodeLoading, setPincodeLoading]   = useState(false);
   const [pincodeSuccessMsg, setPincodeSuccessMsg] = useState<string | null>(null);
@@ -81,6 +166,7 @@ export default function RegisterCompanyPage() {
 
   const router = useRouter();
   const { setAuthSession } = useAuth();
+
 
   // Pincode Lookup & Auto-Sync Engine (City & State)
   const handlePincodeChange = async (val: string) => {
@@ -125,6 +211,25 @@ export default function RegisterCompanyPage() {
     }
   };
 
+  const handleValidateCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponValidating(true);
+    setCouponResult(null);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/billing/validate-coupon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode.trim().toUpperCase(), planKey: selectedPlan }),
+      });
+      const data = await res.json();
+      setCouponResult(data);
+    } catch {
+      setCouponResult({ valid: false, error: 'Could not validate coupon (backend offline)' });
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber) {
@@ -154,6 +259,7 @@ export default function RegisterCompanyPage() {
           companyType,
           sector,
           planTier: selectedPlan,
+          couponCode: couponCode.trim() || undefined,
         }),
       });
 
@@ -176,7 +282,7 @@ export default function RegisterCompanyPage() {
         companyName,
         adminEmail,
         planTier: selectedPlan,
-        memberLimit: selectedPlan === 'ENTERPRISE' ? 50 : selectedPlan === 'GROWTH' ? 15 : 6,
+        memberLimit: selectedPlan === 'ENTERPRISE' ? 60 : selectedPlan === 'BUSINESS' ? 18 : 6,
         validityDays: 7,
       };
     } finally {
@@ -212,17 +318,21 @@ export default function RegisterCompanyPage() {
                 ✓
               </div>
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">
-                  REGISTRATION SUCCESSFUL & MAIL DISPATCHED
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                  REGISTRATION SUBMITTED • VERIFICATION IN PROCESS
                 </span>
-                <h3 className="text-lg font-bold text-white mt-1">Company Registered & Credentials Emailed!</h3>
+                <h3 className="text-lg font-bold text-white mt-1">Company Registered & Super Admin Verification in Process</h3>
               </div>
             </div>
 
-            <p className="text-xs text-muted leading-relaxed">
-              We have generated your **Company Registration Key** and sent full account credentials and plan details to your official email ID:
-              <strong className="text-emerald-300 ml-1 font-mono">{registrationSuccess.adminEmail}</strong>
-            </p>
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-1.5 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                <Clock size={14} /> Next Step: Plan Verification by Super Admin
+              </p>
+              <p>
+                Your registration has been forwarded to Super Admin for plan quota verification and workspace activation. You can check live verification status or inquire with Super Admin at any time.
+              </p>
+            </div>
 
             {/* Email Summary Box */}
             <div className="p-5 rounded-2xl bg-background border border-border space-y-3 font-mono text-xs">
@@ -244,7 +354,7 @@ export default function RegisterCompanyPage() {
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-muted flex items-center gap-1.5"><Layers size={13} className="text-emerald-400" /> Current Plan:</span>
+                <span className="text-muted flex items-center gap-1.5"><Layers size={13} className="text-emerald-400" /> Requested Plan:</span>
                 <span className="font-bold text-emerald-400">
                   {registrationSuccess.planTier} ({registrationSuccess.memberLimit} Seats, Valid {registrationSuccess.validityDays || 7} Days)
                 </span>
@@ -256,12 +366,18 @@ export default function RegisterCompanyPage() {
               </div>
             </div>
 
-            <div className="pt-2 flex justify-center">
+            <div className="pt-2 flex flex-col sm:flex-row gap-3">
+              <Link
+                href={`/verification-pending?companyKey=${encodeURIComponent(registrationSuccess.registrationKey)}&companyName=${encodeURIComponent(registrationSuccess.companyName)}&email=${encodeURIComponent(registrationSuccess.adminEmail)}`}
+                className="flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30"
+              >
+                <Clock size={15} /> Check Verification Status →
+              </Link>
               <Link
                 href="/login"
-                className="w-full py-3 rounded-xl bg-brand hover:bg-brand-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand/25"
+                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 border border-slate-700"
               >
-                Proceed to Login Gateway with Your Key →
+                Proceed to Login Gateway
               </Link>
             </div>
           </div>
@@ -276,39 +392,81 @@ export default function RegisterCompanyPage() {
             )}
 
             {/* Step 1: Select Plan Tier */}
-            <div className="space-y-3">
-              <label className="text-xs font-extrabold uppercase tracking-wider text-brand-400 block">
-                1. Select Company Plan Tier
-              </label>
-              <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold uppercase tracking-wider text-brand-400 block">
+                  1. Select Your Plan
+                </label>
                 <button
                   type="button"
-                  onClick={() => setSelectedPlan('FREE_TRIAL')}
-                  className={`p-3 rounded-xl border text-left transition-all ${selectedPlan === 'FREE_TRIAL' ? 'bg-brand/20 border-brand text-white' : 'bg-background border-border text-muted hover:text-white'}`}
+                  onClick={() => setShowComparePlans(true)}
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 rounded-lg transition-all"
                 >
-                  <p className="font-bold text-xs">Free Trial</p>
-                  <p className="text-[10px] text-muted">6 Seats · 7 Days</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPlan('GROWTH')}
-                  className={`p-3 rounded-xl border text-left transition-all ${selectedPlan === 'GROWTH' ? 'bg-brand/20 border-brand text-white' : 'bg-background border-border text-muted hover:text-white'}`}
-                >
-                  <p className="font-bold text-xs">Growth Tier</p>
-                  <p className="text-[10px] text-muted">15 Seats · 30 Days</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPlan('ENTERPRISE')}
-                  className={`p-3 rounded-xl border text-left transition-all ${selectedPlan === 'ENTERPRISE' ? 'bg-brand/20 border-brand text-white' : 'bg-background border-border text-muted hover:text-white'}`}
-                >
-                  <p className="font-bold text-xs">Enterprise Tier</p>
-                  <p className="text-[10px] text-muted">50 Seats · Custom</p>
+                  <BarChart3 size={11} /> Compare All Plans
                 </button>
               </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                {(Object.values(PLAN_DEFS) as typeof PLAN_DEFS[PlanKey][]).map((plan) => {
+                  const isSelected = selectedPlan === plan.key;
+                  return (
+                    <button
+                      key={plan.key}
+                      type="button"
+                      onClick={() => { setSelectedPlan(plan.key); setCouponResult(null); }}
+                      className={`relative p-4 rounded-2xl border text-left transition-all duration-200 ${
+                        isSelected
+                          ? 'border-2 shadow-lg scale-[1.02]'
+                          : 'border-border bg-background hover:border-white/20 hover:bg-white/5'
+                      }`}
+                      style={isSelected ? { borderColor: plan.color, boxShadow: `0 0 24px ${plan.color}30`, background: `${plan.color}10` } : {}}
+                    >
+                      {plan.badge && (
+                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: plan.color, color: '#000' }}>
+                          {plan.badge}
+                        </span>
+                      )}
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: `${plan.color}20` }}>
+                        {plan.key === 'GROW' && <Zap size={16} style={{ color: plan.color }} />}
+                        {plan.key === 'BUSINESS' && <BarChart3 size={16} style={{ color: plan.color }} />}
+                        {plan.key === 'ENTERPRISE' && <Sparkles size={16} style={{ color: plan.color }} />}
+                      </div>
+                      <p className="font-extrabold text-sm text-white">{plan.label}</p>
+                      <p className="text-[10px] text-muted mt-0.5">{plan.tagline}</p>
+                      <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+                        <p className="text-[10px] flex items-center gap-1" style={{ color: plan.color }}>
+                          <Users size={9} /> {plan.memberLimit} Users Max
+                        </p>
+                        <p className="text-[10px] text-muted">
+                          {plan.emailEnabled ? '✓ Email Marketing' : '✗ No Email'}
+                        </p>
+                        <p className="text-[10px] text-muted">
+                          {plan.whatsAppEnabled ? '✓ WhatsApp Cloud' : '✗ No WhatsApp'}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white flex items-center justify-center">
+                          <Check size={11} style={{ color: plan.color }} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected plan highlight */}
+              <div className="p-3 rounded-xl border text-xs" style={{ borderColor: `${PLAN_DEFS[selectedPlan].color}40`, background: `${PLAN_DEFS[selectedPlan].color}08` }}>
+                <p className="font-bold" style={{ color: PLAN_DEFS[selectedPlan].color }}>
+                  {PLAN_DEFS[selectedPlan].label} Plan Selected
+                </p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {PLAN_DEFS[selectedPlan].restrictions.map((r, i) => (
+                    <span key={i} className="text-[10px] text-muted bg-black/20 px-1.5 py-0.5 rounded">⚠ {r}</span>
+                  ))}
+                </div>
+              </div>
             </div>
+
 
             {/* Step 2: Company & Administrative Credentials */}
             <div className="space-y-4 pt-2">
@@ -467,6 +625,40 @@ export default function RegisterCompanyPage() {
               </div>
             </div>
 
+            {/* Coupon Code */}
+            <div className="space-y-2">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-brand-400 flex items-center gap-1.5">
+                <Tag size={12} /> Coupon Code (Optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter coupon code e.g. LAUNCH20"
+                  className="crm-input text-sm font-mono uppercase flex-1"
+                  value={couponCode}
+                  onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponResult(null); }}
+                />
+                <button
+                  type="button"
+                  onClick={handleValidateCoupon}
+                  disabled={!couponCode.trim() || couponValidating}
+                  className="px-4 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1"
+                >
+                  {couponValidating ? <RefreshCw size={12} className="animate-spin" /> : 'Apply'}
+                </button>
+              </div>
+              {couponResult && (
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  couponResult.valid
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                    : 'bg-red-500/15 border border-red-500/30 text-red-400'
+                }`}>
+                  {couponResult.valid ? <Check size={14} /> : <X size={14} />}
+                  {couponResult.valid ? `🎉 Coupon applied! ${couponResult.discountLabel} discount will be noted for Super Admin.` : couponResult.error}
+                </div>
+              )}
+            </div>
+
             {/* Submit Button */}
             <div className="pt-2 flex flex-col gap-3">
               <button
@@ -475,9 +667,9 @@ export default function RegisterCompanyPage() {
                 className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 disabled:opacity-50"
               >
                 {loading ? (
-                  <>Registering Company & Dispatching Mail Key...</>
+                  <>Registering Company &amp; Dispatching Mail Key...</>
                 ) : (
-                  <>Register Company & Dispatch Key To Email →</>
+                  <>Register Company &amp; Dispatch Key To Email →</>
                 )}
               </button>
 
@@ -491,6 +683,77 @@ export default function RegisterCompanyPage() {
           </form>
         )}
       </div>
+
+      {/* ── COMPARE PLANS MODAL ─────────────────────────────────────────── */}
+      {showComparePlans && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="max-w-3xl w-full bg-card border border-border rounded-3xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <div>
+                <h2 className="text-lg font-extrabold text-white">Compare All Plans</h2>
+                <p className="text-xs text-muted mt-0.5">All plans require Super Admin approval after registration</p>
+              </div>
+              <button onClick={() => setShowComparePlans(false)} className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-muted hover:text-white transition-all">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left p-4 text-muted font-semibold">Feature</th>
+                    {Object.values(PLAN_DEFS).map((p) => (
+                      <th key={p.key} className="p-4 text-center">
+                        <div className="font-extrabold text-sm" style={{ color: p.color }}>{p.label}</div>
+                        {p.badge && <div className="text-[9px] font-bold rounded-full px-2 py-0.5 mt-1 inline-block" style={{ background: p.color, color: '#000' }}>{p.badge}</div>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {[
+                    { label: 'Max Users', vals: ['6 Users', '18 Users', '60 Users'] },
+                    { label: 'CRM Core (Leads, Deals, Contacts)', vals: ['✓', '✓', '✓'] },
+                    { label: 'Sales Pipeline & Kanban', vals: ['✓', '✓', '✓'] },
+                    { label: 'Task Management', vals: ['✓', '✓', '✓'] },
+                    { label: 'Mobile App', vals: ['✓', '✓', '✓'] },
+                    { label: 'Email Marketing', vals: ['✗', '5,000 / month', 'Unlimited'] },
+                    { label: 'WhatsApp Cloud', vals: ['✗', '20,000 credits', 'Unlimited'] },
+                    { label: 'AI Lead Scoring', vals: ['✗', '✓ PRO', '✓ Custom'] },
+                    { label: 'Advanced Reports', vals: ['Basic', '✓', '✓ Full'] },
+                    { label: 'Coupon Discounts', vals: ['✓', '✓', '✓'] },
+                    { label: 'Self Plan Upgrade', vals: ['✗ Contact SA', '✓ Request', '✗ Highest Tier'] },
+                    { label: 'Priority Support', vals: ['✗', '✗', '✓'] },
+                  ].map((row, i) => (
+                    <tr key={i} className="hover:bg-white/5 transition-colors">
+                      <td className="p-3 text-muted font-medium">{row.label}</td>
+                      {row.vals.map((val, j) => {
+                        const plan = Object.values(PLAN_DEFS)[j];
+                        const isYes = val.startsWith('✓');
+                        const isNo = val.startsWith('✗');
+                        return (
+                          <td key={j} className="p-3 text-center">
+                            <span className={isYes ? 'text-emerald-400 font-bold' : isNo ? 'text-red-400 font-bold' : 'text-white font-semibold'}>
+                              {val}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-4 border-t border-border flex gap-3 justify-end">
+              <button onClick={() => setShowComparePlans(false)} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all">
+                Got it, close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

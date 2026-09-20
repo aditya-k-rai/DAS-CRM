@@ -16,6 +16,7 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { OtpService } from './otp.service';
 import { CompanyKeyService } from './company-key.service';
 import { MailService } from './mail.service';
+import { PLAN_DEFINITIONS, getPlanDefinition, WHATSAPP_LOW_CREDIT_THRESHOLD_PERCENT } from '../../common/plan-config';
 
 @Injectable()
 export class AuthService {
@@ -165,6 +166,12 @@ export class AuthService {
           companyType: dto.companyType,
           sector: dto.sector,
           registrationKeyId: keyRecord.id,
+          isActive: false, // Inactive until Super Admin verifies and approves plan
+          settings: {
+            verificationStatus: 'PENDING',
+            requestedPlan: keyRecord.planTier,
+            registeredAt: new Date().toISOString(),
+          },
         },
       });
 
@@ -176,6 +183,8 @@ export class AuthService {
           planTier: keyRecord.planTier,
           memberLimit: keyRecord.memberLimit,
           trialExpiresAt,
+          isActive: false, // Inactive until Super Admin verifies and approves plan
+          isTrialActive: false,
           whatsAppEnabled: false,
           emailMarketingEnabled: false,
           aiEnabled: false,
@@ -312,7 +321,10 @@ export class AuthService {
 
     return {
       success: true,
-      message: `Company registered successfully! Your Registration Key and Login Credentials have been sent to ${dto.adminEmail}`,
+      status: 'VERIFICATION_PENDING',
+      verificationStatus: 'PENDING',
+      isCompanyVerified: false,
+      message: `Company registered successfully! Your workspace is currently pending Super Admin plan verification and activation. Registration Key: ${keyRecord.key}`,
       registrationKey: keyRecord.key,
       companyName: dto.companyName,
       adminEmail: dto.adminEmail,
@@ -634,17 +646,50 @@ export class AuthService {
       );
     }
 
-    // 4. Company Workspace & Suspension Verification
+    // 4. Company Workspace & Verification Status Check
     if (dto.organizationId && user.organizationId && user.organizationId !== dto.organizationId) {
       throw new ForbiddenException(
         'Selected company workspace does not match this user account. Please select your registered company workspace.',
       );
     }
 
-    if (user.organization && user.organization.isActive === false) {
-      throw new ForbiddenException(
-        `Company Account Suspended: Access to workspace "${user.organization.name}" has been suspended by System Administrator.`,
-      );
+    if (user.organization) {
+      const settings = (user.organization.settings as any) || {};
+      const regKey = user.organization.registrationKeyId || dto.key || 'N/A';
+
+      if (settings.verificationStatus === 'REJECTED') {
+        throw new ForbiddenException({
+          code: 'VERIFICATION_REJECTED',
+          message: `Company Registration Declined: ${settings.rejectionReason || 'Your company workspace registration was not approved by Super Admin.'}`,
+          company: {
+            id: user.organization.id,
+            name: user.organization.name,
+            rejectionReason: settings.rejectionReason,
+          },
+        });
+      }
+
+      if (settings.verificationStatus === 'PENDING' || (user.organization.isActive === false && settings.verificationStatus !== 'APPROVED')) {
+        throw new ForbiddenException({
+          code: 'VERIFICATION_PENDING',
+          message: 'Verification in process: Your company workspace plan is awaiting Super Admin verification. Please wait.',
+          company: {
+            id: user.organization.id,
+            name: user.organization.name,
+            adminEmail: user.organization.adminEmail,
+            registrationKey: regKey,
+            plan: settings.requestedPlan || 'FREE_TRIAL',
+            registeredAt: user.organization.createdAt,
+            verificationStatus: 'PENDING',
+          },
+        });
+      }
+
+      if (user.organization.isActive === false) {
+        throw new ForbiddenException(
+          `Company Account Suspended: Access to workspace "${user.organization.name}" has been suspended by System Administrator.`,
+        );
+      }
     }
 
     // 5. Subscription Plan Active & Expiry Date Verification
@@ -726,6 +771,8 @@ export class AuthService {
     return {
       user: this.sanitizeUser(user),
       organization: user.organization,
+      isCompanyVerified: true,
+      verificationStatus: 'APPROVED',
       ...tokens,
     };
   }
@@ -947,6 +994,360 @@ export class AuthService {
       expiryDate: parsedDate.toISOString().split('T')[0],
       isExpired: !isStillActive,
       message: `Company expiry date successfully updated to ${parsedDate.toISOString().split('T')[0]}`,
+    };
+  }
+
+  async getPendingCompanies() {
+    const orgs = await this.prisma.organization.findMany({
+      where: { isActive: false },
+      include: {
+        subscription: true,
+        users: { select: { id: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const regKeys = await this.prisma.companyRegistrationKey.findMany();
+    const keyMap = new Map(regKeys.map((k) => [k.usedByOrganizationId, k.key]));
+
+    return orgs
+      .filter((org) => {
+        const settings = (org.settings as any) || {};
+        return settings.verificationStatus !== 'REJECTED';
+      })
+      .map((org) => {
+        const settings = (org.settings as any) || {};
+        return {
+          id: org.id,
+          name: org.name,
+          adminName: org.adminName || 'Admin',
+          adminEmail: org.adminEmail,
+          phone: org.phone,
+          city: org.city,
+          state: org.state,
+          gstNumber: org.gstNumber,
+          companyType: org.companyType,
+          sector: org.sector,
+          registrationKey: keyMap.get(org.id) || org.registrationKeyId || 'N/A',
+          plan: org.subscription?.planTier || settings.requestedPlan || 'FREE_TRIAL',
+          requestedSeats: org.subscription?.memberLimit || 10,
+          registeredAt: org.createdAt,
+          verificationStatus: settings.verificationStatus || 'PENDING',
+          rejectionReason: settings.rejectionReason,
+        };
+      });
+  }
+
+  async approveCompany(
+    companyId: string,
+    dto: {
+      planTier?: any;
+      memberLimit?: number;
+      validityDays?: number;
+      emailEnabled?: boolean;
+      whatsAppEnabled?: boolean;
+      aiEnabled?: boolean;
+      note?: string;
+    },
+  ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: companyId },
+      include: { subscription: true },
+    });
+    if (!org) throw new BadRequestException('Company not found');
+
+    const planTier = dto.planTier || org.subscription?.planTier || 'FREE_TRIAL';
+    const memberLimit = dto.memberLimit ?? org.subscription?.memberLimit ?? 10;
+    const validityDays = dto.validityDays ?? 30;
+    const newExpiry = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+
+    const updatedSettings = {
+      ...((org.settings as any) || {}),
+      verificationStatus: 'APPROVED',
+      verifiedAt: new Date().toISOString(),
+      approvalNote: dto.note,
+    };
+
+    await this.prisma.organization.update({
+      where: { id: companyId },
+      data: {
+        isActive: true,
+        settings: updatedSettings,
+      },
+    });
+
+    if (org.subscription) {
+      // Use PLAN_DEFINITIONS as authoritative defaults, allow Super Admin to override per-company
+      const planDef = getPlanDefinition(planTier);
+      const emailEnabled = dto.emailEnabled ?? planDef.emailEnabled;
+      const whatsAppEnabled = dto.whatsAppEnabled ?? planDef.whatsAppEnabled;
+      const aiEnabled = dto.aiEnabled ?? planDef.aiEnabled;
+      const emailMonthlyQuota = planDef.emailMonthlyQuota; // e.g. 5000 for BUSINESS
+      const whatsAppCredits = planDef.whatsAppCreditAllocation; // e.g. 20000 for BUSINESS
+      const nextEmailReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+
+      await this.prisma.subscription.update({
+        where: { organizationId: companyId },
+        data: {
+          planTier,
+          memberLimit,
+          trialExpiresAt: newExpiry,
+          expiresAt: newExpiry,
+          isActive: true,
+          isTrialActive: true,
+          emailMarketingEnabled: emailEnabled,
+          whatsAppEnabled,
+          aiEnabled,
+          // Set quota fields from plan defaults
+          emailMonthlyQuota,
+          emailUsedThisMonth: 0,
+          emailQuotaResetAt: emailEnabled ? nextEmailReset : null,
+          whatsAppCreditBalance: whatsAppEnabled ? whatsAppCredits : 0,
+          whatsAppCreditAllocated: whatsAppEnabled ? whatsAppCredits : 0,
+          whatsAppLowCreditAlertSent: false,
+        },
+      });
+    }
+
+    // Try sending email if configured
+    try {
+      if (org.adminEmail) {
+        await this.mailService.sendCompanyApprovalEmail({
+          adminEmail: org.adminEmail,
+          adminName: org.adminName || 'Admin',
+          companyName: org.name,
+          planTier,
+          memberLimit,
+          expiryDate: newExpiry.toISOString().split('T')[0],
+        });
+      }
+    } catch (mailErr) {
+      this.logger.warn(`Mail notice: Approval email could not be sent: ${mailErr?.message}`);
+    }
+
+    return {
+      success: true,
+      companyId,
+      companyName: org.name,
+      status: 'ACTIVE',
+      verificationStatus: 'APPROVED',
+      planTier,
+      memberLimit,
+      expiryDate: newExpiry.toISOString().split('T')[0],
+      message: `Company workspace ${org.name} verified and approved successfully!`,
+    };
+  }
+
+  /**
+   * Super Admin: Top up WhatsApp credit wallet for a company
+   */
+  async topUpWhatsAppCredits(companyId: string, topUpAmount: number) {
+    if (topUpAmount <= 0) throw new BadRequestException('Top-up amount must be greater than 0');
+
+    const sub = await this.prisma.subscription.findUnique({ where: { organizationId: companyId } });
+    if (!sub) throw new BadRequestException('Subscription not found');
+    if (!sub.whatsAppEnabled) throw new BadRequestException('WhatsApp is not enabled for this company plan');
+
+    const newBalance = sub.whatsAppCreditBalance + topUpAmount;
+    const newAllocated = sub.whatsAppCreditAllocated + topUpAmount;
+
+    const updated = await this.prisma.subscription.update({
+      where: { organizationId: companyId },
+      data: {
+        whatsAppCreditBalance: newBalance,
+        whatsAppCreditAllocated: newAllocated,
+        whatsAppLowCreditAlertSent: false, // Reset alert flag on top-up
+      },
+    });
+
+    return {
+      companyId,
+      topUpAmount,
+      newBalance: updated.whatsAppCreditBalance,
+      totalAllocated: updated.whatsAppCreditAllocated,
+      message: `WhatsApp credits topped up by ${topUpAmount}. New balance: ${newBalance}`,
+    };
+  }
+
+  /**
+   * Super Admin: Reset monthly email quota for a company
+   */
+  async resetEmailQuota(companyId: string) {
+    const sub = await this.prisma.subscription.findUnique({ where: { organizationId: companyId } });
+    if (!sub) throw new BadRequestException('Subscription not found');
+
+    const nextReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    await this.prisma.subscription.update({
+      where: { organizationId: companyId },
+      data: {
+        emailUsedThisMonth: 0,
+        emailQuotaResetAt: nextReset,
+      },
+    });
+
+    return {
+      companyId,
+      message: `Email quota reset. ${sub.emailMonthlyQuota} emails available until ${nextReset.toISOString().split('T')[0]}`,
+      nextResetAt: nextReset.toISOString().split('T')[0],
+    };
+  }
+
+  /**
+   * Tenant: Get plan entitlements + quota usage for company admin dashboard
+   */
+  async getCompanyPlanEntitlements(organizationId: string) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) throw new BadRequestException('Subscription not found for this organization');
+
+    const planDef = getPlanDefinition(sub.planTier);
+    const waLowCreditThreshold = sub.whatsAppCreditAllocated > 0
+      ? Math.floor(sub.whatsAppCreditAllocated * WHATSAPP_LOW_CREDIT_THRESHOLD_PERCENT)
+      : 0;
+    const waLowCredit = sub.whatsAppEnabled && sub.whatsAppCreditAllocated > 0
+      && sub.whatsAppCreditBalance <= waLowCreditThreshold;
+
+    const emailUsagePct = sub.emailMonthlyQuota > 0
+      ? Math.round((sub.emailUsedThisMonth / sub.emailMonthlyQuota) * 100)
+      : 0;
+    const waUsagePct = sub.whatsAppCreditAllocated > 0
+      ? Math.round(((sub.whatsAppCreditAllocated - sub.whatsAppCreditBalance) / sub.whatsAppCreditAllocated) * 100)
+      : 0;
+
+    return {
+      planTier: sub.planTier,
+      planLabel: planDef.label,
+      memberLimit: sub.memberLimit,
+      isActive: sub.isActive,
+      expiresAt: sub.expiresAt,
+      features: {
+        emailMarketing: {
+          enabled: sub.emailMarketingEnabled,
+          monthlyQuota: sub.emailMonthlyQuota,
+          usedThisMonth: sub.emailUsedThisMonth,
+          usagePercent: emailUsagePct,
+          isUnlimited: sub.emailMonthlyQuota === 0 && sub.emailMarketingEnabled,
+          resetAt: sub.emailQuotaResetAt,
+          isExceeded: sub.emailMonthlyQuota > 0 && sub.emailUsedThisMonth >= sub.emailMonthlyQuota,
+        },
+        whatsApp: {
+          enabled: sub.whatsAppEnabled,
+          creditBalance: sub.whatsAppCreditBalance,
+          creditAllocated: sub.whatsAppCreditAllocated,
+          usagePercent: waUsagePct,
+          isUnlimited: sub.whatsAppCreditAllocated === 0 && sub.whatsAppEnabled,
+          isLowCredit: waLowCredit,
+          isExhausted: sub.whatsAppEnabled && sub.whatsAppCreditAllocated > 0 && sub.whatsAppCreditBalance <= 0,
+          lowCreditThreshold: waLowCreditThreshold,
+        },
+        ai: {
+          enabled: sub.aiEnabled,
+          tier: planDef.aiTier,
+        },
+      },
+      restrictions: planDef.restrictions,
+      upgradeable: planDef.upgradeable,
+    };
+  }
+
+  async rejectCompany(companyId: string, reason: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: companyId } });
+    if (!org) throw new BadRequestException('Company not found');
+
+    const updatedSettings = {
+      ...((org.settings as any) || {}),
+      verificationStatus: 'REJECTED',
+      rejectedAt: new Date().toISOString(),
+      rejectionReason: reason || 'Registration application declined by Super Admin',
+    };
+
+    await this.prisma.organization.update({
+      where: { id: companyId },
+      data: {
+        isActive: false,
+        settings: updatedSettings,
+      },
+    });
+
+    return {
+      success: true,
+      companyId,
+      verificationStatus: 'REJECTED',
+      message: `Company registration declined. Reason: ${reason}`,
+    };
+  }
+
+  async checkCompanyVerificationStatus(idOrKey: string) {
+    let org = await this.prisma.organization.findUnique({
+      where: { id: idOrKey },
+      include: { subscription: true },
+    });
+
+    if (!org) {
+      const keyRecord = await this.prisma.companyRegistrationKey.findUnique({
+        where: { key: idOrKey.trim().toUpperCase() },
+      });
+      if (keyRecord && keyRecord.usedByOrganizationId) {
+        org = await this.prisma.organization.findUnique({
+          where: { id: keyRecord.usedByOrganizationId },
+          include: { subscription: true },
+        });
+      }
+    }
+
+    if (!org) {
+      return {
+        found: false,
+        verificationStatus: 'NOT_FOUND',
+        isVerified: false,
+        message: 'No company workspace found for this identifier.',
+      };
+    }
+
+    const settings = (org.settings as any) || {};
+    const verificationStatus = settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING');
+    const isVerified = verificationStatus === 'APPROVED' && org.isActive !== false;
+
+    return {
+      found: true,
+      companyId: org.id,
+      companyName: org.name,
+      adminEmail: org.adminEmail,
+      registrationKey: org.registrationKeyId || idOrKey,
+      planTier: org.subscription?.planTier || settings.requestedPlan || 'FREE_TRIAL',
+      isVerified,
+      verificationStatus,
+      registeredAt: org.createdAt,
+      rejectionReason: settings.rejectionReason,
+    };
+  }
+
+  async sendDelayInquiry(dto: {
+    companyName: string;
+    registrationKey?: string;
+    adminEmail?: string;
+    message?: string;
+  }) {
+    this.logger.log(
+      `[DELAY INQUIRY] Company "${dto.companyName}" (${dto.registrationKey || 'No Key'}) inquiry: "${dto.message || 'Please expedite verification'}" from ${dto.adminEmail}`,
+    );
+
+    try {
+      await this.mailService.sendDelayInquiryNotification({
+        companyName: dto.companyName,
+        registrationKey: dto.registrationKey,
+        adminEmail: dto.adminEmail,
+        message: dto.message,
+      });
+    } catch (e) {
+      // Graceful fallback
+    }
+
+    return {
+      success: true,
+      message: 'Inquiry submitted successfully to Super Admin team at dynamicadvancesolution@gmail.com',
     };
   }
 

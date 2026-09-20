@@ -20,11 +20,18 @@ datasource db {
 
 enum PlanTier {
   FREE_TRIAL
+  GROW       // New: 6 seats, no Email/WA/AI
   STARTER
   PRO
   PRO_50
   PRO_MAX
-  ENTERPRISE
+  BUSINESS   // New: 18 seats, 5K email, 20K WA credits, AI
+  ENTERPRISE // 60 seats, unlimited all
+}
+
+enum CouponDiscountType {
+  PERCENT_OFF
+  FLAT_OFF
 }
 
 enum KeyStatus {
@@ -210,17 +217,64 @@ model Subscription {
   startsAt            DateTime?
   expiresAt           DateTime?
   isActive            Boolean   @default(true)
-  // Feature Gates (HARD-BLOCKED on FREE_TRIAL)
-  whatsAppEnabled     Boolean   @default(false)
+  // Feature Gates
+  whatsAppEnabled       Boolean @default(false)
   emailMarketingEnabled Boolean @default(false)
-  aiEnabled           Boolean   @default(false)
+  aiEnabled             Boolean @default(false)
+  // Email Quota (Business: 5000/mo, Enterprise: 0=unlimited, Grow: 0=disabled)
+  emailMonthlyQuota     Int     @default(0)  // 0 = not applicable or unlimited
+  emailUsedThisMonth    Int     @default(0)
+  emailQuotaResetAt     DateTime?            // Next reset timestamp
+  // WhatsApp Credit Wallet (Business: 20000 running balance, Enterprise: 0=unlimited)
+  whatsAppCreditBalance   Int   @default(0)
+  whatsAppCreditAllocated Int   @default(0)  // Original allocation for % threshold calculation
+  whatsAppLowCreditAlertSent Boolean @default(false) // Prevent duplicate email alerts
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   upgradeRequests PlanUpgradeRequest[]
+  couponRedemptions CouponRedemption[]
 
   @@map("subscriptions")
+}
+
+// ─────────────────────────────────────────────────────────
+// COUPON SYSTEM (Super Admin creates, applied at registration/upgrade)
+// ─────────────────────────────────────────────────────────
+
+model Coupon {
+  id             String              @id @default(cuid())
+  code           String              @unique
+  description    String?
+  discountType   CouponDiscountType
+  discountValue  Float               // Percent (0-100) or flat INR amount
+  maxUses        Int?                // null = unlimited uses
+  usedCount      Int                 @default(0)
+  applicablePlans String[]           // e.g. ["BUSINESS", "ENTERPRISE"], empty = all plans
+  isActive       Boolean             @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id             String   @id @default(cuid())
+  couponId       String
+  subscriptionId String
+  organizationId String
+  redeemedAt     DateTime @default(now())
+  discountApplied Float   // Actual discount value applied
+
+  coupon       Coupon       @relation(fields: [couponId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, organizationId]) // One redemption per org per coupon
+  @@map("coupon_redemptions")
 }
 
 model PlanEntitlement {

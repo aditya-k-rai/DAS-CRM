@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
-export type PlanType = 'FREE_TRIAL' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
+export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
 
 export interface PlanConfig {
   id: PlanType;
@@ -15,6 +15,9 @@ export interface PlanConfig {
   hasAllAiFeatures: boolean;
   hasWhatsApp: boolean;
   hasEmailMarketing: boolean;
+  upgradeable?: boolean;
+  emailMonthlyQuota?: number;
+  whatsAppCreditQuota?: number;
   description: string;
 }
 
@@ -22,41 +25,65 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   FREE_TRIAL: {
     id: 'FREE_TRIAL',
     name: 'Free Trial Plan',
-    seats: 10,
+    seats: 6,
     durationMinDays: 15,
     durationMaxDays: 40,
     defaultDurationDays: 30,
-    hasAllAiFeatures: false, // Basic AI only (Only Lead Score)
+    hasAllAiFeatures: false,
     hasWhatsApp: false,
     hasEmailMarketing: false,
-    description: '10 Users · Basic AI (Lead Score only) · 15-40 days duration',
+    upgradeable: true,
+    emailMonthlyQuota: 0,
+    whatsAppCreditQuota: 0,
+    description: '6 Users · Core CRM Pipeline · Trial period only',
+  },
+  GROW: {
+    id: 'GROW',
+    name: 'Grow Plan',
+    seats: 6,
+    hasAllAiFeatures: false, // Blocked
+    hasWhatsApp: false, // Blocked
+    hasEmailMarketing: false, // Blocked
+    upgradeable: false, // Self-upgrade not available — contact Super Admin
+    emailMonthlyQuota: 0,
+    whatsAppCreditQuota: 0,
+    description: 'Total 6 Employees Quota · Core CRM · No WhatsApp or Email · Cannot self-upgrade',
   },
   GROWTH: {
     id: 'GROWTH',
-    name: 'Growth Plan',
-    seats: 20,
-    hasAllAiFeatures: true, // All AI features included
-    hasWhatsApp: false, // Blocked
-    hasEmailMarketing: false, // Blocked
-    description: '20 Users · All AI Features · WhatsApp & Email excluded',
+    name: 'Grow Plan',
+    seats: 6,
+    hasAllAiFeatures: false,
+    hasWhatsApp: false,
+    hasEmailMarketing: false,
+    upgradeable: false,
+    emailMonthlyQuota: 0,
+    whatsAppCreditQuota: 0,
+    description: 'Total 6 Employees Quota · Core CRM · No WhatsApp or Email · Cannot self-upgrade',
   },
   BUSINESS: {
     id: 'BUSINESS',
     name: 'Business Plan',
-    seats: 50,
+    seats: 18,
     hasAllAiFeatures: true,
     hasWhatsApp: true,
     hasEmailMarketing: true,
-    description: '50 Users · All Features Included (All AI + WhatsApp + Email)',
+    upgradeable: true,
+    emailMonthlyQuota: 5000,
+    whatsAppCreditQuota: 20000,
+    description: 'Total 18 Users Quota · All Features · 5k Email/mo · 20k WhatsApp Credit Quota',
   },
   ENTERPRISE: {
     id: 'ENTERPRISE',
     name: 'Enterprise Plan',
-    seats: 100,
+    seats: 60,
     hasAllAiFeatures: true,
     hasWhatsApp: true,
     hasEmailMarketing: true,
-    description: '100 Users · All Features Included · Enterprise Scale & SLA',
+    upgradeable: false, // Highest tier
+    emailMonthlyQuota: 0, // Unlimited
+    whatsAppCreditQuota: 0, // Unlimited
+    description: 'Total 60 Users Quota · All Features No Limit (Unlimited Email & WhatsApp)',
   },
 };
 

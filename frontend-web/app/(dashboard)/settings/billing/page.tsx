@@ -6,10 +6,32 @@ import Link from 'next/link';
 export const metadata: Metadata = { title: 'Subscription & Billing | DAS CRM' };
 
 const PLANS = [
-  { name: 'Basic', price: '₹1,999', period: '/month', users: '5 Users included', features: ['Core Lead Management', 'Basic Reports', 'Web CRM Access', 'Standard Support'], badge: 'Starter' },
-  { name: 'Pro', price: '₹4,999', period: '/month', users: '15 Users included', features: ['All Basic Features', 'WatermelonDB Android App', 'Deals Kanban & Custom Pipelines', 'HR Portal (Attendance & Salary)'], badge: 'Popular', highlight: true },
-  { name: 'Pro 50', price: '₹12,499', period: '/month', users: '50 Users included', features: ['All Pro Features', 'Automations Engine', 'Advanced Lead Scoring', 'Dedicated Account Manager'], badge: 'Growth' },
-  { name: 'Pro Max', price: '₹24,999', period: '/month', users: 'Unlimited Users', features: ['All Pro 50 Features', 'Custom AI Scoring & Analytics', '99.9% SLA Guarantee', 'Custom API & Webhooks Integration'], badge: 'Enterprise' },
+  {
+    name: 'Grow',
+    price: '₹999',
+    period: '/month',
+    users: '6 Users Quota',
+    features: ['Core CRM & Pipeline', 'Mobile App (Android & iOS)', 'Task & Activity Tracking', 'No WhatsApp Cloud', 'No Email Marketing', 'Self-Upgrade Disabled'],
+    badge: 'Starter',
+    upgradeDisabled: true,
+  },
+  {
+    name: 'Business',
+    price: '₹2,499',
+    period: '/month',
+    users: '18 Users Quota',
+    features: ['All Grow Features', 'Email Marketing (5K / mo)', 'WhatsApp Cloud (20K Quota)', 'AI Lead Scoring Engine', 'Advanced Reports & Pipeline'],
+    badge: 'Popular',
+    highlight: true,
+  },
+  {
+    name: 'Enterprise',
+    price: '₹6,999',
+    period: '/month',
+    users: '60 Users Quota',
+    features: ['All Business Features', 'Unlimited Email Marketing', 'Unlimited WhatsApp Cloud', 'Enterprise Custom AI Engine', 'Priority SLA & Dedicated Support'],
+    badge: 'Enterprise',
+  },
 ];
 
 export default function BillingPage() {
@@ -81,8 +103,17 @@ export default function BillingPage() {
                   </ul>
                 </div>
 
-                <button className={`w-full text-xs py-2 rounded-lg font-semibold transition-all ${plan.highlight ? 'btn-primary' : 'btn-secondary'}`}>
-                  {plan.highlight ? 'Active Plan' : 'Upgrade Plan'}
+                <button
+                  disabled={plan.upgradeDisabled}
+                  className={`w-full text-xs py-2 rounded-lg font-semibold transition-all ${
+                    plan.highlight
+                      ? 'btn-primary'
+                      : plan.upgradeDisabled
+                      ? 'bg-muted/40 border border-border text-muted cursor-not-allowed'
+                      : 'btn-secondary'
+                  }`}
+                >
+                  {plan.highlight ? 'Active Plan' : plan.upgradeDisabled ? 'Upgrade Not Available' : 'Upgrade Plan'}
                 </button>
               </div>
             ))}

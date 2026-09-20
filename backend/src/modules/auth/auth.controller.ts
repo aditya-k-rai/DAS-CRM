@@ -286,6 +286,59 @@ export class AuthController {
     return this.authService.updateCompanyExpiry(id, expiryDate);
   }
 
+  @Get('super-admin/companies/pending')
+  @ApiOperation({ summary: '[Super Admin] Get all companies awaiting verification & approval' })
+  getPendingCompanies() {
+    return this.authService.getPendingCompanies();
+  }
+
+  @Patch('super-admin/companies/:id/approve')
+  @ApiOperation({ summary: '[Super Admin] Approve & activate company with verified plan' })
+  approveCompany(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      planTier?: any;
+      memberLimit?: number;
+      validityDays?: number;
+      emailEnabled?: boolean;
+      whatsAppEnabled?: boolean;
+      aiEnabled?: boolean;
+      note?: string;
+    },
+  ) {
+    return this.authService.approveCompany(id, dto);
+  }
+
+  @Patch('super-admin/companies/:id/reject')
+  @ApiOperation({ summary: '[Super Admin] Reject company registration' })
+  rejectCompany(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.authService.rejectCompany(id, reason);
+  }
+
+  @Get('company-verification-status/:idOrKey')
+  @ApiOperation({ summary: 'Check current company verification status' })
+  checkCompanyVerificationStatus(@Param('idOrKey') idOrKey: string) {
+    return this.authService.checkCompanyVerificationStatus(idOrKey);
+  }
+
+  @Post('inquire-verification-delay')
+  @ApiOperation({ summary: 'Submit delay inquiry to Super Admin' })
+  inquireVerificationDelay(
+    @Body()
+    dto: {
+      companyName: string;
+      registrationKey?: string;
+      adminEmail?: string;
+      message?: string;
+    },
+  ) {
+    return this.authService.sendDelayInquiry(dto);
+  }
+
   @Patch('super-admin/users/:userId/block')
   @ApiOperation({ summary: '[Super Admin] Toggle block/unblock for a user' })
   toggleUserBlock(@Param('userId') userId: string) {
@@ -312,5 +365,44 @@ export class AuthController {
   @ApiOperation({ summary: '[Super Admin] Revoke/block a staff key' })
   revokeUserKey(@Param('keyId') keyId: string) {
     return this.companyKeyService.revokeUserKey(keyId);
+  }
+
+  // ── Public Plan Definitions (for Registration page plan comparison) ──
+
+  @Get('plan-definitions')
+  @ApiOperation({ summary: 'Get all plan definitions with features and quotas (public)' })
+  getPlanDefinitions() {
+    // Import from plan-config and return as-is — no auth required
+    const { PLAN_DEFINITIONS, REGISTERABLE_PLANS } = require('../../common/plan-config');
+    return {
+      plans: REGISTERABLE_PLANS.map((key: string) => PLAN_DEFINITIONS[key]),
+      registerablePlans: REGISTERABLE_PLANS,
+    };
+  }
+
+  // ── Tenant Plan Entitlements & Quota Usage ──────────────────
+
+  @Get('company-plan-entitlements')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: '[Tenant Admin/Manager] Get plan feature entitlements + quota usage' })
+  getCompanyPlanEntitlements(@Req() req: any) {
+    return this.authService.getCompanyPlanEntitlements(req.user.org_id);
+  }
+
+  // ── Super Admin Quota Management ────────────────────────────
+
+  @Patch('super-admin/companies/:id/top-up-whatsapp')
+  @ApiOperation({ summary: '[Super Admin] Add WhatsApp credits to company wallet' })
+  topUpWhatsAppCredits(
+    @Param('id') id: string,
+    @Body('amount') amount: number,
+  ) {
+    return this.authService.topUpWhatsAppCredits(id, amount);
+  }
+
+  @Post('super-admin/companies/:id/reset-email-quota')
+  @ApiOperation({ summary: '[Super Admin] Reset monthly email quota for a company' })
+  resetEmailQuota(@Param('id') id: string) {
+    return this.authService.resetEmailQuota(id);
   }
 }
