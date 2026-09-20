@@ -836,7 +836,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-      <div className="crm-card max-w-7xl w-full h-[92vh] flex flex-col bg-slate-950 border-indigo-500/30 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="crm-card max-w-7xl w-full h-[92vh] flex flex-col bg-slate-950 border-indigo-500/30 rounded-2xl shadow-2xl overflow-hidden animate-scale-in dark-context">
         
         {/* HEADER TOOLBAR */}
         <div className="p-4 bg-slate-900 border-b border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

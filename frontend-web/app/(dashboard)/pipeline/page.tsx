@@ -1405,7 +1405,7 @@ export default function LeadPipelinePage() {
       {/* Single Lead Insert Modal */}
       {insertLeadModalOpen && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="crm-card max-w-lg w-full p-6 animate-scale-in space-y-4">
+          <div className="crm-card max-w-lg w-full p-6 animate-scale-in space-y-4 dark-context">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Plus size={16} className="text-indigo-400" /> Insert Single Lead Record
@@ -1466,7 +1466,7 @@ export default function LeadPipelinePage() {
       {/* Custom Column Modal */}
       {customColumnModalOpen && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="crm-card max-w-lg w-full p-0 animate-scale-in overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="crm-card max-w-lg w-full p-0 animate-scale-in overflow-hidden flex flex-col max-h-[90vh] dark-context">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-slate-900 shrink-0">
@@ -1703,7 +1703,7 @@ export default function LeadPipelinePage() {
       {/* ⚙️ Column & Excel Manager Modal */}
       {columnConfigModalOpen && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="crm-card max-w-xl w-full p-6 animate-scale-in space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="crm-card max-w-xl w-full p-6 animate-scale-in space-y-4 max-h-[85vh] overflow-y-auto dark-context">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1827,18 +1827,18 @@ export default function LeadPipelinePage() {
       {/* Web Sheet Audit Allocation Breakdown Modal */}
       {selectedWebAuditDetail && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="crm-card bg-slate-900 border border-slate-700 max-w-md w-full p-5 rounded-2xl space-y-4 shadow-2xl">
+          <div className="crm-card bg-slate-900 border border-slate-700 max-w-md w-full p-5 rounded-2xl space-y-4 shadow-2xl dark-context">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
                   <FileSpreadsheet size={16} className="text-indigo-400" />
                   📄 Sheet Ingestion &amp; Allocation Audit
                 </h3>
-                <p className="text-[11px] text-slate-400">Detailed employee allocation breakdown &amp; dimensions</p>
+                <p className="text-[11px] text-slate-300">Detailed employee allocation breakdown &amp; dimensions</p>
               </div>
               <button
                 onClick={() => setSelectedWebAuditDetail(null)}
-                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center font-bold text-xs"
+                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-xs"
               >
                 ✕
               </button>
