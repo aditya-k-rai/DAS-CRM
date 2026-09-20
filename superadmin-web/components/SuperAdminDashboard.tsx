@@ -1155,16 +1155,16 @@ export function SuperAdminDashboard() {
   return (
     <div className="space-y-6 animate-fade-in p-4 sm:p-6 max-w-7xl mx-auto pb-16 text-foreground">
       {/* 👑 SECTION 1: DASHBOARD HERO BANNER (Explicit High Contrast Dark Cyan Glassmorphic Banner) */}
-      <div className="crm-card p-6 border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/90 to-slate-950 relative overflow-hidden shadow-2xl rounded-3xl text-white dark-context">
+      <div className="p-6 border border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/90 to-slate-950 relative overflow-hidden shadow-2xl rounded-3xl text-white dark-context">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-4">
             <img src="/das-logo.png" alt="DAS CRM Logo" className="h-12 w-auto object-contain rounded-xl border border-cyan-500/40 shadow-lg bg-slate-900 p-1" />
             <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 bg-cyan-500/20 border border-cyan-500/40 px-3 py-1 rounded-full shadow-inner inline-flex items-center gap-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 bg-cyan-900/60 border border-cyan-400/50 px-3 py-1 rounded-full shadow-inner inline-flex items-center gap-1.5">
                 👑 SUPER ADMIN SYSTEM OVERLORD
               </span>
               <h1 className="text-2xl font-black text-white mt-1.5 tracking-tight">Super Admin Dashboard</h1>
-              <p className="text-xs text-cyan-100/70">Multi-Tenant Platform Control & Management Center</p>
+              <p className="text-xs text-slate-300 font-medium">Multi-Tenant Platform Control & Management Center</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

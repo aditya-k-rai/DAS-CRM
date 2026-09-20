@@ -29,7 +29,11 @@ const config: Config = {
         foreground:  'rgb(var(--foreground) / <alpha-value>)',
         card:        'rgb(var(--card) / <alpha-value>)',
         border:      'rgb(var(--border) / <alpha-value>)',
-        muted:       'rgb(var(--muted) / <alpha-value>)',
+        muted: {
+          DEFAULT: 'rgb(var(--muted-foreground) / <alpha-value>)',
+          bg:      'rgb(var(--muted) / <alpha-value>)',
+          foreground: 'rgb(var(--muted-foreground) / <alpha-value>)',
+        },
         primary:     'rgb(var(--primary) / <alpha-value>)',
         secondary:   'rgb(var(--secondary) / <alpha-value>)',
         destructive: 'rgb(var(--destructive) / <alpha-value>)',

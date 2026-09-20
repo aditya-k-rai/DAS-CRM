@@ -685,16 +685,16 @@ export default function LeadPipelinePage() {
                           : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
                       }`}
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
                           <button
                             onClick={() => setSelectedWebAuditDetail(item)}
-                            className="text-xs font-extrabold text-white dark:text-white hover:text-indigo-300 hover:underline truncate flex items-center gap-1.5 transition-all text-left"
+                            className="text-xs font-extrabold text-white dark:text-white hover:text-indigo-300 hover:underline flex items-center gap-1.5 transition-all text-left min-w-0 flex-1"
                             title="Click to view Assigned To Whom allocation breakdown"
                           >
-                            <FileSpreadsheet size={14} className={isPending ? 'text-amber-400' : 'text-indigo-400'} />
-                            {item.fileName}
-                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30">🔍 Assigned To</span>
+                            <FileSpreadsheet size={14} className={isPending ? 'text-amber-400 flex-shrink-0' : 'text-indigo-400 flex-shrink-0'} />
+                            <span className="truncate">{item.fileName}</span>
+                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30 whitespace-nowrap flex-shrink-0 hidden sm:inline-block">🔍 Assigned To</span>
                           </button>
                           <button
                             onClick={() => {
@@ -709,7 +709,7 @@ export default function LeadPipelinePage() {
                                 setSelectedWebAuditDetail(item);
                               }
                             }}
-                            className={`px-2.5 py-1 text-[9px] font-black rounded-lg border uppercase tracking-wider cursor-pointer transition-all shadow-sm ${
+                            className={`px-2.5 py-1 text-[9px] font-black rounded-lg border uppercase tracking-wider cursor-pointer transition-all shadow-sm flex-shrink-0 whitespace-nowrap ${
                               isPending
                                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 animate-pulse'
                                 : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
@@ -720,29 +720,29 @@ export default function LeadPipelinePage() {
                           </button>
                         </div>
 
-                        <div className="space-y-1.5 text-[11px] text-slate-300">
-                          <p className="flex items-center gap-1">
-                            <Clock size={12} className="text-slate-400" />
-                            Injected At: <span className="text-white font-bold">{item.injectedAt}</span>
+                        <div className="space-y-1.5 text-[11px] text-slate-300 py-0.5">
+                          <p className="flex items-center gap-1.5">
+                            <Clock size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Injected At:</span> <span className="text-white font-bold">{item.injectedAt}</span>
                           </p>
-                          <p className="flex items-center gap-1">
-                            <Zap size={12} className="text-slate-400" />
-                            Extracted Size: <span className="text-emerald-400 font-extrabold">{item.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{item.colsCount || 6} Columns</span>
+                          <p className="flex items-center gap-1.5">
+                            <Zap size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Extracted Size:</span> <span className="text-emerald-400 font-extrabold">{item.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{item.colsCount || 6} Columns</span>
                           </p>
-                          <p className="flex items-center gap-1">
-                            <Radio size={12} className="text-slate-400" />
-                            Source Platform: <span className="text-sky-300 font-bold">{item.platform}</span>
+                          <p className="flex items-center gap-1.5">
+                            <Radio size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Source Platform:</span> <span className="text-sky-300 font-bold">{item.platform}</span>
                           </p>
                         </div>
 
                         {/* Allocation Status & Action Callout Box */}
                         {isPending ? (
                           <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1">
-                                <UserX size={13} className="text-amber-400" /> Unassigned: {item.leadsCount} Leads
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1 min-w-0 flex-1 truncate">
+                                <UserX size={13} className="text-amber-400 flex-shrink-0" /> Unassigned: {item.leadsCount} Leads
                               </span>
-                              <span className="text-[9px] font-bold text-amber-400/90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">Action Required</span>
+                              <span className="text-[9px] font-bold text-amber-400/90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 flex-shrink-0 whitespace-nowrap">Action Required</span>
                             </div>
                             <button
                               onClick={() => {
@@ -753,7 +753,7 @@ export default function LeadPipelinePage() {
                                   auditId: item.id,
                                 });
                               }}
-                              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap"
                               title="Allocate these pending leads to employees"
                             >
                               <UserCheck size={14} /> ⚡ Allocate {item.leadsCount} Leads Now →
@@ -761,7 +761,7 @@ export default function LeadPipelinePage() {
                           </div>
                         ) : (
                           <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between gap-2 text-xs">
-                            <div className="truncate flex items-center gap-1.5 text-slate-300">
+                            <div className="flex items-center gap-1.5 text-slate-300 min-w-0 flex-1 truncate">
                               <UserCheck size={13} className="text-emerald-400 flex-shrink-0" />
                               <span className="truncate text-[11px] font-medium" title={item.allocationSummary}>
                                 {item.allocationSummary || 'Assigned to sales reps'}
@@ -776,7 +776,7 @@ export default function LeadPipelinePage() {
                                   auditId: item.id,
                                 });
                               }}
-                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20"
+                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 whitespace-nowrap"
                               title="Reallocate or adjust distribution rules"
                             >
                               Re-allocate
@@ -786,7 +786,7 @@ export default function LeadPipelinePage() {
                       </div>
 
                       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[11px]">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {isPending && (
                             <button
                               onClick={() => {
@@ -797,7 +797,7 @@ export default function LeadPipelinePage() {
                                   auditId: item.id,
                                 });
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] flex items-center gap-1 shadow-sm transition-all whitespace-nowrap"
                               title="Allocate leads in this spreadsheet"
                             >
                               <UserCheck size={12} /> Allocate Leads
@@ -807,7 +807,7 @@ export default function LeadPipelinePage() {
                             onClick={() => {
                               document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[10px] flex items-center gap-1 transition-all"
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
                             title="Open Sheet Editor to preview and edit row/column contents"
                           >
                             <Eye size={12} /> Preview &amp; Edit Sheet
@@ -818,13 +818,13 @@ export default function LeadPipelinePage() {
                                 setWebAuditLogs(prev => prev.filter(a => a.id !== item.id));
                               }
                             }}
-                            className="px-2 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-extrabold text-[10px] flex items-center gap-1 transition-all"
+                            className="px-2 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-extrabold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
                             title="Delete Sheet Allocation record (7-Day retention policy)"
                           >
                             <Trash2 size={12} /> Delete
                           </button>
                         </div>
-                        <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 flex items-center gap-1">
+                        <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                           <Clock size={10} /> Auto-Deletes in 7 Days
                         </span>
                       </div>

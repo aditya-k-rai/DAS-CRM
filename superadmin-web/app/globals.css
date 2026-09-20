@@ -18,9 +18,9 @@
   --primary: 99 102 241;
   --primary-foreground: 255 255 255;
   --secondary: 30 33 48;
-  --secondary-foreground: 203 213 225;
+  --secondary-foreground: 226 232 240;
   --muted: 30 33 48;
-  --muted-foreground: 100 116 139;
+  --muted-foreground: 161 174 195;
   --accent: 30 33 48;
   --accent-foreground: 248 250 252;
   --destructive: 239 68 68;
@@ -51,7 +51,7 @@
   --secondary: 241 245 249;
   --secondary-foreground: 51 65 85;
   --muted: 241 245 249;
-  --muted-foreground: 100 116 139;
+  --muted-foreground: 71 85 105;
   --accent: 241 245 249;
   --accent-foreground: 15 23 42;
   --destructive: 239 68 68;
@@ -73,7 +73,8 @@
   color: rgb(var(--foreground));
 }
 
-.light .crm-card, [data-theme="light"] .crm-card {
+.light .crm-card:not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]):not([class*="via-"]),
+[data-theme="light"] .crm-card:not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]):not([class*="via-"]) {
   background-color: rgb(var(--card));
   border-color: rgb(var(--border));
   color: rgb(var(--card-foreground));
@@ -87,31 +88,45 @@
 }
 
 /* Light Theme High-Contrast Color Adaptations */
-.light .text-blue-300:not(.dark-context *), [data-theme="light"] .text-blue-300:not(.dark-context *) { color: #2563eb !important; }
-.light .text-purple-300:not(.dark-context *), [data-theme="light"] .text-purple-300:not(.dark-context *) { color: #9333ea !important; }
-.light .text-amber-300:not(.dark-context *), [data-theme="light"] .text-amber-300:not(.dark-context *) { color: #d97706 !important; }
-.light .text-emerald-300:not(.dark-context *), [data-theme="light"] .text-emerald-300:not(.dark-context *) { color: #059669 !important; }
-.light .text-teal-300:not(.dark-context *), [data-theme="light"] .text-teal-300:not(.dark-context *) { color: #0d9488 !important; }
-.light .text-cyan-300:not(.dark-context *), [data-theme="light"] .text-cyan-300:not(.dark-context *) { color: #0891b2 !important; }
-.light .text-indigo-300:not(.dark-context *), [data-theme="light"] .text-indigo-300:not(.dark-context *) { color: #4f46e5 !important; }
+.light .text-blue-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-blue-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #2563eb !important; }
+
+.light .text-purple-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-purple-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #9333ea !important; }
+
+.light .text-amber-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-amber-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #d97706 !important; }
+
+.light .text-emerald-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-emerald-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #059669 !important; }
+
+.light .text-teal-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-teal-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #0d9488 !important; }
+
+.light .text-cyan-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-cyan-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #0891b2 !important; }
+
+.light .text-indigo-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
+[data-theme="light"] .text-indigo-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #4f46e5 !important; }
 
 /* Light Theme Hover Text Safeguards */
-.light .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *),
-[data-theme="light"] .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *) {
+.light .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+[data-theme="light"] .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]) {
   color: #0f172a !important;
 }
 
-.light .hover\:text-slate-100:hover:not(.dark-context *),
-.light .hover\:text-slate-200:hover:not(.dark-context *),
-.light .hover\:text-slate-300:hover:not(.dark-context *),
-[data-theme="light"] .hover\:text-slate-100:hover:not(.dark-context *),
-[data-theme="light"] .hover\:text-slate-200:hover:not(.dark-context *),
-[data-theme="light"] .hover\:text-slate-300:hover:not(.dark-context *) {
+.light .hover\:text-slate-100:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+.light .hover\:text-slate-200:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+.light .hover\:text-slate-300:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+[data-theme="light"] .hover\:text-slate-100:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+[data-theme="light"] .hover\:text-slate-200:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]),
+[data-theme="light"] .hover\:text-slate-300:hover:not(.dark-context *):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]) {
   color: #0f172a !important;
 }
 
 /* Explicit Dark Context Container (used for Hero Banners, Modals, and Dark Action Panels) */
 .dark-context, .light .dark-context, [data-theme="light"] .dark-context {
+  background-color: #0b0f19 !important;
   color: #ffffff !important;
 }
 
@@ -121,9 +136,9 @@
   color: #ffffff !important;
 }
 
-.dark-context p, .dark-context span:not([class*="text-"]):not(.btn *),
-.light .dark-context p, .light .dark-context span:not([class*="text-"]):not(.btn *),
-[data-theme="light"] .dark-context p, [data-theme="light"] .dark-context span:not([class*="text-"]):not(.btn *) {
+.dark-context p,
+.light .dark-context p,
+[data-theme="light"] .dark-context p {
   color: #cbd5e1 !important;
 }
 
@@ -243,6 +258,13 @@ body {
   background: rgb(var(--accent));
   border-color: rgba(99, 102, 241, 0.3);
 }
+
+/* ── Utility Classes ── */
+.text-muted, .text-muted-foreground { color: rgb(var(--muted-foreground)) !important; }
+.text-foreground { color: rgb(var(--foreground)) !important; }
+.bg-card { background-color: rgb(var(--card)) !important; }
+.bg-background { background-color: rgb(var(--background)) !important; }
+.border-border { border-color: rgb(var(--border)) !important; }
 
 /* ── Table ── */
 .crm-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; }

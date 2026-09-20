@@ -20,6 +20,26 @@
   --color-brand-700: rgb(67 56 202);
   --color-brand-800: rgb(55 48 163);
   --color-brand-900: rgb(49 46 129);
+
+  /* Semantic Theme Tokens for Tailwind v4 */
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+  --color-muted: rgb(var(--muted-foreground));
+  --color-muted-bg: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-border: rgb(var(--border));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--ring));
+  --color-destructive: rgb(var(--destructive));
+  --color-destructive-foreground: rgb(var(--destructive-foreground));
 }
 
 /* ─── CSS Custom Properties (Dark Theme) ─── */
@@ -33,9 +53,9 @@
   --primary: 99 102 241;
   --primary-foreground: 255 255 255;
   --secondary: 30 33 48;
-  --secondary-foreground: 203 213 225;
+  --secondary-foreground: 226 232 240;
   --muted: 30 33 48;
-  --muted-foreground: 100 116 139;
+  --muted-foreground: 161 174 195;
   --accent: 30 33 48;
   --accent-foreground: 248 250 252;
   --destructive: 239 68 68;
@@ -68,7 +88,7 @@
   --secondary: 241 245 249;
   --secondary-foreground: 51 65 85;
   --muted: 241 245 249;
-  --muted-foreground: 100 116 139;
+  --muted-foreground: 71 85 105;
   --accent: 241 245 249;
   --accent-foreground: 15 23 42;
   --destructive: 239 68 68;
@@ -123,30 +143,30 @@
   color: #4338ca !important;
 }
 
-/* Light Theme Headings Default (does not override explicit dark contexts or colored buttons) */
-.light h1:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-.light h2:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-.light h3:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-.light h4:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-.light h5:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-.light h6:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h1:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h2:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h3:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h4:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h5:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *),
-[data-theme="light"] h6:not(.dark *, .dark-context *, [class*="bg-slate-950"], [class*="bg-cyan-950"], .btn *) {
+/* Light Theme Headings Default (does not override explicit dark contexts, white text, or colored buttons) */
+.light h1:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+.light h2:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+.light h3:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+.light h4:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+.light h5:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+.light h6:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h1:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h2:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h3:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h4:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h5:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *),
+[data-theme="light"] h6:not(.text-white, [class*="text-white"], .dark *, .dark-context *, [class*="bg-slate-9"], [class*="bg-slate-8"], [class*="bg-cyan-9"], [class*="bg-black"], .btn *) {
   color: #0f172a;
 }
 
 /* White text MUST remain white in explicit dark banners, colored buttons, and dark modals */
-.dark .text-white, [data-theme="dark"] .text-white, .btn-primary, .btn-danger, .dark-context .text-white {
+.dark .text-white, [data-theme="dark"] .text-white, .btn-primary, .btn-danger, .dark-context .text-white, [class*="bg-slate-9"] .text-white, [class*="bg-black"] .text-white {
   color: #ffffff !important;
 }
 
 /* In Light Mode, generic text-white on light cards automatically adapts to dark slate unless inside explicit dark banner or button */
-.light .crm-card:not(.dark-context *):not([class*="bg-slate-950"]):not([class*="bg-cyan-950"]):not(.btn *) .text-white,
-[data-theme="light"] .crm-card:not(.dark-context *):not([class*="bg-slate-950"]):not([class*="bg-cyan-950"]):not(.btn *) .text-white {
+.light .crm-card:not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-cyan-9"]):not([class*="bg-black"]):not(.btn *) .text-white,
+[data-theme="light"] .crm-card:not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-cyan-9"]):not([class*="bg-black"]):not(.btn *) .text-white {
   color: #0f172a;
 }
 
@@ -156,19 +176,19 @@
   color: #ffffff !important;
 }
 
-.light .text-slate-100:not(.dark *):not(.dark-context *),
-.light .text-slate-200:not(.dark *):not(.dark-context *),
-.light .text-slate-300:not(.dark *):not(.dark-context *),
-[data-theme="light"] .text-slate-100:not(.dark *):not(.dark-context *),
-[data-theme="light"] .text-slate-200:not(.dark *):not(.dark-context *),
-[data-theme="light"] .text-slate-300:not(.dark *):not(.dark-context *) {
+.light .text-slate-100:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+.light .text-slate-200:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+.light .text-slate-300:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-100:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-200:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-300:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]) {
   color: #334155;
 }
 
-.light .text-slate-400:not(.dark *):not(.dark-context *),
-.light .text-slate-500:not(.dark *):not(.dark-context *),
-[data-theme="light"] .text-slate-400:not(.dark *):not(.dark-context *),
-[data-theme="light"] .text-slate-500:not(.dark *):not(.dark-context *) {
+.light .text-slate-400:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+.light .text-slate-500:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-400:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]),
+[data-theme="light"] .text-slate-500:not(.dark *):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]):not([class*="bg-black"]) {
   color: #475569;
 }
 
@@ -206,6 +226,7 @@
 
 /* Explicit Dark Context Container (used for Hero Banners, Modals, and Dark Action Panels) */
 .dark-context, .light .dark-context, [data-theme="light"] .dark-context {
+  background-color: #0b0f19 !important;
   color: #ffffff !important;
 }
 
@@ -903,7 +924,11 @@ body {
 .divider { height: 1px; background: rgb(var(--border)); }
 
 /* ── Text Utilities ── */
-.text-muted { color: rgb(var(--muted-foreground)); }
+.text-muted, .text-muted-foreground { color: rgb(var(--muted-foreground)) !important; }
+.text-foreground { color: rgb(var(--foreground)) !important; }
+.bg-card { background-color: rgb(var(--card)) !important; }
+.bg-background { background-color: rgb(var(--background)) !important; }
+.border-border { border-color: rgb(var(--border)) !important; }
 .text-brand { color: rgb(129 140 248); }
 
 /* ── Page Header ── */

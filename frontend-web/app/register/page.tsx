@@ -305,7 +305,7 @@ export default function RegisterCompanyPage() {
             <Shield size={14} /> TENANT WORKSPACE ONBOARDING GATEWAY
           </div>
           <h1 className="text-3xl font-extrabold text-foreground dark:text-white tracking-tight">Register Your Company Workspace</h1>
-          <p className="text-sm text-muted max-w-md mx-auto">
+          <p className="text-sm text-slate-600 dark:text-slate-300 font-medium max-w-md mx-auto">
             Fill in your company details below. Your Company Registration Key and login credentials will be dispatched to your official email ID.
           </p>
         </div>
@@ -318,15 +318,15 @@ export default function RegisterCompanyPage() {
                 ✓
               </div>
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-500/30">
                   REGISTRATION SUBMITTED • VERIFICATION IN PROCESS
                 </span>
-                <h3 className="text-lg font-bold text-white mt-1">Company Registered & Super Admin Verification in Process</h3>
+                <h3 className="text-lg font-bold text-foreground dark:text-white mt-1">Company Registered & Super Admin Verification in Process</h3>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-1.5 leading-relaxed">
-              <p className="font-bold flex items-center gap-1.5 text-amber-300">
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs space-y-1.5 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
                 <Clock size={14} /> Next Step: Plan Verification by Super Admin
               </p>
               <p>
@@ -337,32 +337,32 @@ export default function RegisterCompanyPage() {
             {/* Email Summary Box */}
             <div className="p-5 rounded-2xl bg-background border border-border space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-muted flex items-center gap-1.5"><Mail size={13} className="text-brand-400" /> Recipient Mail:</span>
-                <span className="font-bold text-white">{registrationSuccess.adminEmail}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Mail size={13} className="text-brand-400" /> Recipient Mail:</span>
+                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.adminEmail}</span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-muted flex items-center gap-1.5"><Building2 size={13} className="text-indigo-400" /> Company Name:</span>
-                <span className="font-bold text-white">{registrationSuccess.companyName}</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Building2 size={13} className="text-indigo-400" /> Company Name:</span>
+                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.companyName}</span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-muted flex items-center gap-1.5"><Key size={13} className="text-amber-400" /> Generated Registration Key:</span>
-                <span className="font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Key size={13} className="text-amber-400" /> Generated Registration Key:</span>
+                <span className="font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-500/30">
                   {registrationSuccess.registrationKey}
                 </span>
               </div>
 
               <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-muted flex items-center gap-1.5"><Layers size={13} className="text-emerald-400" /> Requested Plan:</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Layers size={13} className="text-emerald-400" /> Requested Plan:</span>
                 <span className="font-bold text-emerald-400">
                   {registrationSuccess.planTier} ({registrationSuccess.memberLimit} Seats, Valid {registrationSuccess.validityDays || 7} Days)
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-muted flex items-center gap-1.5"><Lock size={13} className="text-purple-400" /> Admin Credentials:</span>
-                <span className="font-bold text-white">{registrationSuccess.adminEmail} • Password Set ✓</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Lock size={13} className="text-purple-400" /> Admin Credentials:</span>
+                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.adminEmail} • Password Set ✓</span>
               </div>
             </div>
 
@@ -431,16 +431,16 @@ export default function RegisterCompanyPage() {
                         {plan.key === 'BUSINESS' && <BarChart3 size={16} style={{ color: plan.color }} />}
                         {plan.key === 'ENTERPRISE' && <Sparkles size={16} style={{ color: plan.color }} />}
                       </div>
-                      <p className="font-extrabold text-sm text-white">{plan.label}</p>
-                      <p className="text-[10px] text-muted mt-0.5">{plan.tagline}</p>
+                      <p className="font-extrabold text-sm text-foreground dark:text-white">{plan.label}</p>
+                      <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium mt-0.5">{plan.tagline}</p>
                       <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
                         <p className="text-[10px] flex items-center gap-1" style={{ color: plan.color }}>
                           <Users size={9} /> {plan.memberLimit} Users Max
                         </p>
-                        <p className="text-[10px] text-muted">
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
                           {plan.emailEnabled ? '✓ Email Marketing' : '✗ No Email'}
                         </p>
-                        <p className="text-[10px] text-muted">
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
                           {plan.whatsAppEnabled ? '✓ WhatsApp Cloud' : '✗ No WhatsApp'}
                         </p>
                       </div>
@@ -455,13 +455,18 @@ export default function RegisterCompanyPage() {
               </div>
 
               {/* Selected plan highlight */}
-              <div className="p-3 rounded-xl border text-xs" style={{ borderColor: `${PLAN_DEFS[selectedPlan].color}40`, background: `${PLAN_DEFS[selectedPlan].color}08` }}>
-                <p className="font-bold" style={{ color: PLAN_DEFS[selectedPlan].color }}>
+              <div className="p-3.5 rounded-2xl border text-xs" style={{ borderColor: `${PLAN_DEFS[selectedPlan].color}40`, background: `${PLAN_DEFS[selectedPlan].color}08` }}>
+                <p className="font-black text-sm" style={{ color: PLAN_DEFS[selectedPlan].color }}>
                   {PLAN_DEFS[selectedPlan].label} Plan Selected
                 </p>
-                <div className="mt-1 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {PLAN_DEFS[selectedPlan].restrictions.map((r, i) => (
-                    <span key={i} className="text-[10px] text-muted bg-black/20 px-1.5 py-0.5 rounded">⚠ {r}</span>
+                    <span
+                      key={i}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1.5 bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 shadow-xs"
+                    >
+                      ⚠ {r}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -470,13 +475,13 @@ export default function RegisterCompanyPage() {
 
             {/* Step 2: Company & Administrative Credentials */}
             <div className="space-y-4 pt-2">
-              <h3 className="font-bold text-sm text-white border-b border-border pb-2">
+              <h3 className="font-bold text-sm text-foreground dark:text-white border-b border-border pb-2">
                 2. Company & Administrative Credentials
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-muted block mb-1">Company Name *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Company Name *</label>
                   <input
                     type="text"
                     required
@@ -488,7 +493,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">Tenant Admin Full Name *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Tenant Admin Full Name *</label>
                   <input
                     type="text"
                     required
@@ -500,7 +505,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">Admin Official Email (Key Dispatched Here) *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Admin Official Email (Key Dispatched Here) *</label>
                   <input
                     type="email"
                     required
@@ -512,7 +517,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">Admin Password *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Admin Password *</label>
                   <input
                     type="password"
                     required
@@ -524,7 +529,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">Phone Number *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Phone Number *</label>
                   <input
                     type="text"
                     required
@@ -538,7 +543,7 @@ export default function RegisterCompanyPage() {
                 {/* ── PINCODE FIELD (PLACED DIRECTLY AFTER PHONE NUMBER) ─────────── */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-muted block">Pincode / ZIP Code (Auto Syncs City & State) *</label>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">Pincode / ZIP Code (Auto Syncs City & State) *</label>
                     {pincodeLoading && (
                       <span className="text-[10px] text-brand-400 font-bold flex items-center gap-1">
                         <RefreshCw size={10} className="animate-spin" /> Lookup...
@@ -549,7 +554,7 @@ export default function RegisterCompanyPage() {
                     type="text"
                     maxLength={6}
                     placeholder="e.g. 400001 or 110001"
-                    className="crm-input text-sm font-mono font-bold text-amber-300"
+                    className="crm-input text-sm font-mono font-bold text-amber-800 dark:text-amber-300"
                     value={pincode}
                     onChange={(e) => handlePincodeChange(e.target.value)}
                   />
@@ -559,7 +564,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">City (Auto-Synced & Editable) *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">City (Auto-Synced & Editable) *</label>
                   <input
                     type="text"
                     required
@@ -571,7 +576,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">State (Auto-Synced & Editable) *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">State (Auto-Synced & Editable) *</label>
                   <input
                     type="text"
                     placeholder="Maharashtra"
@@ -582,7 +587,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">GST Number *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">GST Number *</label>
                   <input
                     type="text"
                     required
@@ -594,7 +599,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted block mb-1">Company Type</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Company Type</label>
                   <select
                     className="crm-input text-sm font-bold"
                     value={companyType}
@@ -609,7 +614,7 @@ export default function RegisterCompanyPage() {
 
                 {/* ── EXPANDED INDUSTRY SECTOR SELECTOR (22 OPTIONS) ───────────────── */}
                 <div className="md:col-span-2">
-                  <label className="text-xs text-muted block mb-1">Industry Sector (22 Options) *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Industry Sector (22 Options) *</label>
                   <select
                     className="crm-input text-sm font-bold text-indigo-300"
                     value={sector}
@@ -673,7 +678,7 @@ export default function RegisterCompanyPage() {
                 )}
               </button>
 
-              <div className="text-center text-xs text-muted">
+              <div className="text-center text-xs text-slate-600 dark:text-slate-400">
                 Already registered your company?{' '}
                 <Link href="/login" className="text-brand-400 font-bold hover:underline">
                   Login to Workspace
@@ -686,32 +691,40 @@ export default function RegisterCompanyPage() {
 
       {/* ── COMPARE PLANS MODAL ─────────────────────────────────────────── */}
       {showComparePlans && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="max-w-3xl w-full bg-card border border-border rounded-3xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-border">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md dark-context">
+          <div className="max-w-3xl w-full bg-[#0f172a] border border-slate-700 rounded-3xl shadow-2xl overflow-hidden dark-context text-white">
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-[#0f172a]">
               <div>
-                <h2 className="text-lg font-extrabold text-white">Compare All Plans</h2>
-                <p className="text-xs text-muted mt-0.5">All plans require Super Admin approval after registration</p>
+                <h2 className="text-xl font-black text-white tracking-tight">Compare All Plans</h2>
+                <p className="text-xs text-slate-300 font-medium mt-1">All plans require Super Admin approval after registration</p>
               </div>
-              <button onClick={() => setShowComparePlans(false)} className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-muted hover:text-white transition-all">
+              <button
+                type="button"
+                onClick={() => setShowComparePlans(false)}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-all"
+              >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto bg-[#0f172a]">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4 text-muted font-semibold">Feature</th>
+                  <tr className="border-b border-slate-800 bg-slate-800/60">
+                    <th className="text-left p-4 text-slate-200 font-bold text-xs uppercase tracking-wider">Feature</th>
                     {Object.values(PLAN_DEFS).map((p) => (
                       <th key={p.key} className="p-4 text-center">
                         <div className="font-extrabold text-sm" style={{ color: p.color }}>{p.label}</div>
-                        {p.badge && <div className="text-[9px] font-bold rounded-full px-2 py-0.5 mt-1 inline-block" style={{ background: p.color, color: '#000' }}>{p.badge}</div>}
+                        {p.badge && (
+                          <div className="text-[9px] font-bold rounded-full px-2 py-0.5 mt-1 inline-block" style={{ background: p.color, color: '#000' }}>
+                            {p.badge}
+                          </div>
+                        )}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-slate-800 bg-[#0f172a]">
                   {[
                     { label: 'Max Users', vals: ['6 Users', '18 Users', '60 Users'] },
                     { label: 'CRM Core (Leads, Deals, Contacts)', vals: ['✓', '✓', '✓'] },
@@ -726,15 +739,14 @@ export default function RegisterCompanyPage() {
                     { label: 'Self Plan Upgrade', vals: ['✗ Contact SA', '✓ Request', '✗ Highest Tier'] },
                     { label: 'Priority Support', vals: ['✗', '✗', '✓'] },
                   ].map((row, i) => (
-                    <tr key={i} className="hover:bg-white/5 transition-colors">
-                      <td className="p-3 text-muted font-medium">{row.label}</td>
+                    <tr key={i} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3.5 text-slate-200 font-semibold text-xs">{row.label}</td>
                       {row.vals.map((val, j) => {
-                        const plan = Object.values(PLAN_DEFS)[j];
                         const isYes = val.startsWith('✓');
                         const isNo = val.startsWith('✗');
                         return (
-                          <td key={j} className="p-3 text-center">
-                            <span className={isYes ? 'text-emerald-400 font-bold' : isNo ? 'text-red-400 font-bold' : 'text-white font-semibold'}>
+                          <td key={j} className="p-3.5 text-center">
+                            <span className={isYes ? 'text-emerald-400 font-bold' : isNo ? 'text-rose-400 font-bold' : 'text-white font-bold'}>
                               {val}
                             </span>
                           </td>
@@ -746,8 +758,12 @@ export default function RegisterCompanyPage() {
               </table>
             </div>
 
-            <div className="p-4 border-t border-border flex gap-3 justify-end">
-              <button onClick={() => setShowComparePlans(false)} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all">
+            <div className="p-4 border-t border-slate-800 bg-[#0f172a] flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowComparePlans(false)}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
+              >
                 Got it, close
               </button>
             </div>
