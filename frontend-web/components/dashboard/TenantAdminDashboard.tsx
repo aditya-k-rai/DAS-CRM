@@ -1581,7 +1581,7 @@ export function TenantAdminDashboard() {
       {/* ============================================================ */}
       {importSuccessModalOpen && importSuccessDetails && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="crm-card max-w-md w-full p-6 bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl space-y-5 text-center">
+          <div className="crm-card max-w-md w-full p-6 bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl space-y-5 text-center dark-context">
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
               <CheckCircle2 size={36} className="animate-bounce" />
             </div>
@@ -1632,7 +1632,7 @@ export function TenantAdminDashboard() {
       {/* 🌟 CUSTOM ANIMATED GLASSMORPHISM POPUP MODAL (Replaces Browser Alert) */}
       {animatedPopup?.open && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95 duration-200">
-          <div className="crm-card max-w-md w-full border-emerald-500/50 bg-slate-900/95 p-6 rounded-3xl shadow-2xl space-y-4 text-center border relative overflow-hidden">
+          <div className="crm-card max-w-md w-full border-emerald-500/50 bg-slate-900/95 p-6 rounded-3xl shadow-2xl space-y-4 text-center border relative overflow-hidden dark-context">
             <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30 shadow-inner">
               <CheckCircle2 size={32} className="animate-pulse" />
             </div>
