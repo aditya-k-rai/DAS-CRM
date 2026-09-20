@@ -755,6 +755,11 @@ export class AuthService {
     return orgs.map((org) => {
       const totalLeads = org._count.leads;
       const activeUsers = org.users.filter((u) => u.isActive).length;
+      const effectiveExpiry = org.subscription?.expiresAt || org.subscription?.trialExpiresAt;
+      const isExpired = effectiveExpiry ? new Date(effectiveExpiry) < new Date() : false;
+      const trialDaysLeft = effectiveExpiry
+        ? Math.max(0, Math.ceil((new Date(effectiveExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 30;
 
       return {
         id: org.id,
@@ -775,6 +780,9 @@ export class AuthService {
         totalLeads,
         convertedLeads: 0,
         conversionRate: 0,
+        expiryDate: effectiveExpiry ? effectiveExpiry.toISOString().split('T')[0] : '2026-12-31',
+        isExpired,
+        trialDaysLeft,
         subscription: org.subscription,
       };
     });
@@ -907,6 +915,38 @@ export class AuthService {
       companyId,
       memberLimit: updated.memberLimit,
       message: `Member limit updated to ${memberLimit} seats`,
+    };
+  }
+
+  async updateCompanyExpiry(companyId: string, expiryDate: string) {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId: companyId },
+    });
+    if (!sub) throw new BadRequestException('Subscription not found');
+
+    const parsedDate = new Date(expiryDate);
+    if (isNaN(parsedDate.getTime())) {
+      throw new BadRequestException('Invalid expiry date format');
+    }
+
+    const now = new Date();
+    const isStillActive = parsedDate > now;
+
+    const updated = await this.prisma.subscription.update({
+      where: { organizationId: companyId },
+      data: {
+        expiresAt: parsedDate,
+        trialExpiresAt: parsedDate,
+        isActive: isStillActive,
+        isTrialActive: isStillActive,
+      },
+    });
+
+    return {
+      companyId,
+      expiryDate: parsedDate.toISOString().split('T')[0],
+      isExpired: !isStillActive,
+      message: `Company expiry date successfully updated to ${parsedDate.toISOString().split('T')[0]}`,
     };
   }
 

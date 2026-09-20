@@ -277,6 +277,15 @@ export class AuthController {
     return this.authService.updateCompanySeats(id, memberLimit);
   }
 
+  @Patch('super-admin/companies/:id/expiry')
+  @ApiOperation({ summary: '[Super Admin] Update custom subscription expiry date for a company' })
+  updateCompanyExpiry(
+    @Param('id') id: string,
+    @Body('expiryDate') expiryDate: string,
+  ) {
+    return this.authService.updateCompanyExpiry(id, expiryDate);
+  }
+
   @Patch('super-admin/users/:userId/block')
   @ApiOperation({ summary: '[Super Admin] Toggle block/unblock for a user' })
   toggleUserBlock(@Param('userId') userId: string) {

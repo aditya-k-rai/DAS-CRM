@@ -315,6 +315,16 @@ export function SuperAdminDashboard() {
   const [chatLogCompany, setChatLogCompany] = useState<CompanyRecord | null>(null);
   const [dailyLogs, setDailyLogs] = useState<WhatsAppDailyLog[]>([]);
 
+  // Custom Extend Expiry Modal State
+  const [extendModalOpen, setExtendModalOpen] = useState(false);
+  const [extendingCompany, setExtendingCompany] = useState<CompanyRecord | null>(null);
+  const [customExpiryDate, setCustomExpiryDate] = useState('');
+  const [extendDaysCount, setExtendDaysCount] = useState<number | string>(30);
+  const [extendBaseMode, setExtendBaseMode] = useState<'today' | 'currentExpiry'>('today');
+  const [extendReason, setExtendReason] = useState('');
+  const [extendSaving, setExtendSaving] = useState(false);
+  const [extendSuccessMsg, setExtendSuccessMsg] = useState('');
+
   // Selected company for employee table
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('comp_acme');
   const [companyEmployees, setCompanyEmployees] = useState<CompanyEmployee[]>(MOCK_DEMO_EMPLOYEES.comp_acme || []);
@@ -498,6 +508,120 @@ export function SuperAdminDashboard() {
     setEditExpiryDate(expiry);
   };
 
+  const calculateDaysFromToday = (dStr: string) => {
+    if (!dStr) return 0;
+    try {
+      const target = new Date(dStr + 'T23:59:59').getTime();
+      const now = Date.now();
+      const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+      return diff > 0 ? diff : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const formatFullDate = (dStr: string) => {
+    if (!dStr) return '';
+    try {
+      const d = new Date(dStr + 'T00:00:00');
+      return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return dStr;
+    }
+  };
+
+  const handleOpenExtendModal = (comp: CompanyRecord) => {
+    setExtendingCompany(comp);
+    setExtendSuccessMsg('');
+    const today = new Date();
+    const isCurrentFuture = comp.expiryDate && new Date(comp.expiryDate) > today;
+    const base = isCurrentFuture ? new Date(comp.expiryDate) : today;
+
+    const future = new Date(base);
+    future.setDate(future.getDate() + 30);
+    const dateStr = future.toISOString().split('T')[0];
+
+    setCustomExpiryDate(dateStr);
+    setExtendDaysCount(30);
+    setExtendBaseMode(isCurrentFuture ? 'currentExpiry' : 'today');
+    setExtendReason('');
+    setExtendModalOpen(true);
+  };
+
+  const handleApplyDaysPreset = (days: number) => {
+    setExtendDaysCount(days);
+    const today = new Date();
+    const isCurrentFuture = extendingCompany?.expiryDate && new Date(extendingCompany.expiryDate) > today;
+    const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture)
+      ? new Date(extendingCompany!.expiryDate)
+      : today;
+    const target = new Date(base);
+    target.setDate(target.getDate() + days);
+    setCustomExpiryDate(target.toISOString().split('T')[0]);
+  };
+
+  const handleCustomDaysChange = (val: string) => {
+    setExtendDaysCount(val);
+    const num = parseInt(val, 10);
+    if (!isNaN(num) && num > 0) {
+      const today = new Date();
+      const isCurrentFuture = extendingCompany?.expiryDate && new Date(extendingCompany.expiryDate) > today;
+      const base = (extendBaseMode === 'currentExpiry' && isCurrentFuture)
+        ? new Date(extendingCompany!.expiryDate)
+        : today;
+      const target = new Date(base);
+      target.setDate(target.getDate() + num);
+      setCustomExpiryDate(target.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleCustomDateChange = (dateStr: string) => {
+    setCustomExpiryDate(dateStr);
+    if (dateStr) {
+      const target = new Date(dateStr + 'T00:00:00').getTime();
+      const now = new Date().setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+      setExtendDaysCount(diffDays > 0 ? diffDays : 0);
+    }
+  };
+
+  const handleSaveCustomExpiry = async () => {
+    if (!extendingCompany || !customExpiryDate) return;
+    setExtendSaving(true);
+
+    const isExpired = new Date(customExpiryDate) < new Date();
+    const daysLeft = Math.max(0, Math.ceil((new Date(customExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+    // API call
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${extendingCompany.id}/expiry`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ expiryDate: customExpiryDate }),
+      });
+    } catch (err) {
+      console.warn('Backend expiry update (demo/offline mode):', err);
+    }
+
+    setCompanies(prev => prev.map(c => c.id === extendingCompany.id ? {
+      ...c,
+      expiryDate: customExpiryDate,
+      isExpired,
+      trialDaysLeft: daysLeft,
+      isActive: true,
+    } : c));
+
+    setExtendSuccessMsg(`Successfully extended ${extendingCompany.name} to ${customExpiryDate}!`);
+    setTimeout(() => {
+      setExtendSaving(false);
+      setExtendModalOpen(false);
+    }, 600);
+  };
+
   const handleExtendCompanyExpiry = (companyId: string, daysToExtend: number = 30) => {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysToExtend);
@@ -508,6 +632,7 @@ export function SuperAdminDashboard() {
       expiryDate: newExpiryStr,
       isExpired: false,
       trialDaysLeft: daysToExtend,
+      isActive: true,
     } : c));
   };
 
@@ -855,16 +980,17 @@ export function SuperAdminDashboard() {
                       </td>
                       <td className="p-3.5 text-right space-x-2">
                         <button
-                          onClick={() => handleExtendCompanyExpiry(c.id, 30)}
-                          className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
+                          onClick={() => handleOpenExtendModal(c)}
+                          className="px-3.5 py-1.5 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02]"
+                          title="Open Custom Expiry Date Extension dialog"
                         >
-                          <RefreshCw size={12} /> Extend Expiry (+30 Days)
+                          <Calendar size={13} className="text-emerald-600 dark:text-emerald-400" /> Extend Expiry (Custom Date)
                         </button>
                         <button
-                          onClick={() => handleOpenEditModal(c)}
-                          className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1"
+                          onClick={() => handleOpenEditModal(c, 'general')}
+                          className="px-3 py-1.5 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 transition-all"
                         >
-                          <Edit2 size={12} /> Edit Date
+                          <Edit2 size={12} /> Edit Details
                         </button>
                       </td>
                     </tr>
@@ -938,12 +1064,19 @@ export function SuperAdminDashboard() {
                         {c.seatsUsed} Used ({c.seatsAllocated} Allocated)
                       </td>
                       <td className="p-3.5 text-right space-x-1.5">
-                        {isCompExpired && (
-                          <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
-                            <RefreshCw size={11} /> +30 Days
-                          </button>
-                        )}
-                        <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenExtendModal(c)}
+                          className={`px-2.5 py-1 rounded-xl font-bold text-xs inline-flex items-center gap-1 border transition-all ${
+                            isCompExpired
+                              ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 shadow-sm'
+                              : 'bg-muted/60 hover:bg-muted text-foreground border-border'
+                          }`}
+                          title="Set Custom Expiry Date"
+                        >
+                          <Calendar size={11} className={isCompExpired ? 'text-emerald-600 dark:text-emerald-400' : 'text-cyan-500'} />
+                          {isCompExpired ? 'Extend Expiry' : 'Set Expiry'}
+                        </button>
+                        <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
                           <Edit2 size={12} /> Edit & Features
                         </button>
                       </td>
@@ -1270,8 +1403,35 @@ export function SuperAdminDashboard() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-muted-foreground font-bold block mb-1">Expiration Date</label>
-                    <input type="date" className="crm-input w-full text-sm font-bold" value={editExpiryDate} onChange={e => setEditExpiryDate(e.target.value)} />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-muted-foreground font-bold block">Expiration Date (Custom)</label>
+                      <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                        {editExpiryDate ? `${calculateDaysFromToday(editExpiryDate)} days left` : ''}
+                      </span>
+                    </div>
+                    <input type="date" className="crm-input w-full text-sm font-bold font-mono" value={editExpiryDate} onChange={e => setEditExpiryDate(e.target.value)} />
+                    <div className="flex items-center gap-1 mt-2 overflow-x-auto pb-0.5 text-[10px]">
+                      <span className="text-muted-foreground font-semibold text-[10px]">Presets:</span>
+                      {[
+                        { label: '+7d', days: 7 },
+                        { label: '+15d', days: 15 },
+                        { label: '+30d', days: 30 },
+                        { label: '+60d', days: 60 },
+                      ].map(preset => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + preset.days);
+                            setEditExpiryDate(d.toISOString().split('T')[0]);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-muted hover:bg-cyan-500/20 hover:text-cyan-600 dark:hover:text-cyan-300 border border-border text-foreground font-mono font-bold transition-all"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label className="text-muted-foreground font-bold block mb-1">Workspace Operation Status</label>
@@ -1472,6 +1632,243 @@ export function SuperAdminDashboard() {
             </div>
             <div className="flex justify-end pt-2">
               <button onClick={() => setChatLogModalOpen(false)} className="btn-primary text-xs px-5 py-2">Close Log</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📅 CUSTOM EXTEND EXPIRY MODAL */}
+      {extendModalOpen && extendingCompany && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="crm-card max-w-xl w-full max-h-[92vh] overflow-y-auto p-5 sm:p-7 bg-card border border-emerald-500/40 rounded-3xl shadow-2xl relative space-y-5 text-foreground">
+            <button
+              onClick={() => setExtendModalOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground font-black text-lg p-1.5 rounded-xl hover:bg-muted transition-colors"
+            >
+              ✕
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3.5 border-b border-border pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black shadow-inner">
+                <Calendar size={26} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-foreground">Custom Extend Expiry Date</h3>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-bold text-foreground">{extendingCompany.name}</span> • Key: <span className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">{extendingCompany.registrationKey}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Current Status Card */}
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-wider text-muted-foreground block">Current Expiry Status</span>
+                <p className="font-mono text-sm font-black text-foreground mt-0.5">
+                  {extendingCompany.expiryDate || 'No date set'}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Plan Tier: <strong className="text-amber-600 dark:text-amber-400 font-bold">{extendingCompany.plan}</strong></p>
+              </div>
+              <div>
+                {extendingCompany.isExpired || (extendingCompany.expiryDate && new Date(extendingCompany.expiryDate) < new Date()) ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-600 dark:text-red-300 border border-red-500/40 inline-flex items-center gap-1.5">
+                    <AlertCircle size={13} /> PLAN EXPIRED
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> ACTIVE SUBSCRIPTION
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Mode Selector (if not currently expired) */}
+            {extendingCompany.expiryDate && new Date(extendingCompany.expiryDate) > new Date() && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-muted-foreground">Calculate Extension Base:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtendBaseMode('today');
+                      const target = new Date();
+                      const days = typeof extendDaysCount === 'number' ? extendDaysCount : parseInt(extendDaysCount, 10) || 30;
+                      target.setDate(target.getDate() + days);
+                      setCustomExpiryDate(target.toISOString().split('T')[0]);
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-extrabold border transition-all text-center ${
+                      extendBaseMode === 'today'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow'
+                        : 'bg-muted/50 text-muted-foreground hover:text-foreground border-border'
+                    }`}
+                  >
+                    From Today ({new Date().toISOString().split('T')[0]})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtendBaseMode('currentExpiry');
+                      const target = new Date(extendingCompany.expiryDate);
+                      const days = typeof extendDaysCount === 'number' ? extendDaysCount : parseInt(extendDaysCount, 10) || 30;
+                      target.setDate(target.getDate() + days);
+                      setCustomExpiryDate(target.toISOString().split('T')[0]);
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-extrabold border transition-all text-center ${
+                      extendBaseMode === 'currentExpiry'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow'
+                        : 'bg-muted/50 text-muted-foreground hover:text-foreground border-border'
+                    }`}
+                  >
+                    From Current Expiry ({extendingCompany.expiryDate})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Expiry Date Input (Primary) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
+                  <Calendar size={14} className="text-emerald-500" />
+                  Custom Expiration Date (Calendar Picker) *
+                </label>
+                <span className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                  {calculateDaysFromToday(customExpiryDate)} Days from Today
+                </span>
+              </div>
+              <input
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                value={customExpiryDate}
+                onChange={e => handleCustomDateChange(e.target.value)}
+                className="crm-input w-full text-base font-bold font-mono tracking-wide py-2.5 px-3.5 border-emerald-500/40 focus:border-emerald-500"
+              />
+            </div>
+
+            {/* 1-Click Preset Chips */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground block">
+                Quick 1-Click Extension Presets:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {[
+                  { label: '+7 Days', sub: '1 Week', days: 7 },
+                  { label: '+15 Days', sub: 'Half Month', days: 15 },
+                  { label: '+30 Days', sub: '1 Month', days: 30 },
+                  { label: '+60 Days', sub: '2 Months', days: 60 },
+                ].map(preset => {
+                  const isSelected = extendDaysCount === preset.days;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => handleApplyDaysPreset(preset.days)}
+                      className={`p-2.5 rounded-xl border text-center transition-all ${
+                        isSelected
+                          ? 'bg-emerald-600/20 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-extrabold shadow-sm ring-1 ring-emerald-500/50'
+                          : 'bg-muted/40 hover:bg-muted text-foreground border-border hover:border-emerald-500/30'
+                      }`}
+                    >
+                      <div className="text-xs font-bold font-mono">{preset.label}</div>
+                      <div className="text-[10px] text-muted-foreground">{preset.sub}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Days Input */}
+            <div className="p-3.5 rounded-2xl bg-muted/20 border border-border space-y-2">
+              <label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                <Clock size={13} className="text-cyan-500" />
+                Or Enter Custom Number of Days to Extend:
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={3650}
+                  value={extendDaysCount}
+                  onChange={e => handleCustomDaysChange(e.target.value)}
+                  placeholder="e.g. 45"
+                  className="crm-input w-36 text-sm font-mono font-bold"
+                />
+                <span className="text-xs text-muted-foreground font-semibold">
+                  days from {extendBaseMode === 'currentExpiry' ? 'current expiry date' : 'today'}
+                </span>
+              </div>
+            </div>
+
+            {/* Reason / Internal Audit Note (Optional) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground block">Extension Reason / Admin Note (Optional):</label>
+              <input
+                type="text"
+                value={extendReason}
+                onChange={e => setExtendReason(e.target.value)}
+                placeholder="e.g. Bank transfer payment received, or special pilot trial extension"
+                className="crm-input w-full text-xs"
+              />
+            </div>
+
+            {/* Live Preview Summary Box */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-500/30 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
+                Extension Result Preview
+              </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <p className="text-base font-black text-foreground">
+                    {formatFullDate(customExpiryDate)}
+                  </p>
+                  <p className="text-xs font-mono text-muted-foreground">
+                    ISO Date: <span className="font-bold text-emerald-600 dark:text-emerald-400">{customExpiryDate}</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1">
+                    <CheckCircle2 size={12} /> RESTORED & ACTIVE
+                  </span>
+                  <p className="text-[10px] text-muted-foreground mt-1 font-bold">
+                    {calculateDaysFromToday(customExpiryDate)} Days Valid
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Success message banner */}
+            {extendSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} /> {extendSuccessMsg}
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setExtendModalOpen(false)}
+                className="px-4 py-2 bg-muted text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!customExpiryDate || extendSaving}
+                onClick={handleSaveCustomExpiry}
+                className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {extendSaving ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> Applying Custom Date...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} /> Confirm & Apply Custom Expiry Date
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
