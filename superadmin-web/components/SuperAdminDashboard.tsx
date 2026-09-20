@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
-  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal, ArrowRight
+  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -53,7 +53,6 @@ export interface CompanyRecord {
   isActive: boolean;
   createdAt: string;
   expiryDate: string;
-  // Major Feature Configurations
   emailConfig: EmailCompanyConfig;
   whatsAppConfig: WhatsAppCompanyConfig;
   aiConfig: AICompanyConfig;
@@ -346,7 +345,6 @@ export function SuperAdminDashboard() {
       if (compRes.ok) {
         const data = await compRes.json();
         if (Array.isArray(data) && data.length > 0) {
-          // Merge API results with feature config schema defaults
           const formatted = data.map((c: any) => ({
             ...c,
             emailConfig: c.emailConfig || { enabled: true, monthlyLimit: 25000, used: 1200 },
@@ -555,8 +553,8 @@ export function SuperAdminDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in p-4 sm:p-6 max-w-7xl mx-auto pb-16 text-foreground">
-      {/* 👑 SECTION 1: DASHBOARD HERO BANNER (Explicit High Contrast Gradient Wrapper) */}
-      <div className="crm-card p-6 border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/80 to-slate-950 relative overflow-hidden shadow-2xl rounded-3xl text-white">
+      {/* 👑 SECTION 1: DASHBOARD HERO BANNER (Explicit High Contrast Dark Cyan Glassmorphic Banner) */}
+      <div className="crm-card p-6 border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/90 to-slate-950 relative overflow-hidden shadow-2xl rounded-3xl text-white dark-context">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-4">
             <img src="/das-logo.png" alt="DAS CRM Logo" className="h-12 w-auto object-contain rounded-xl border border-cyan-500/40 shadow-lg bg-slate-900 p-1" />
@@ -576,7 +574,7 @@ export function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* 4 OVAL KPI CARDS (High contrast text in all themes) */}
+        {/* 4 KPI CARDS (High contrast text in all themes) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
           <div className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
             <span className="text-[11px] font-extrabold text-cyan-300 uppercase tracking-wider block">Total Companies & Users</span>
@@ -640,49 +638,49 @@ export function SuperAdminDashboard() {
       <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'overview' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 dark:text-cyan-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'overview' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           🔑 Keys & Companies Table
         </button>
         <button
           onClick={() => setActiveTab('features_hub')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${activeTab === 'features_hub' ? 'bg-purple-500/20 border-purple-500 text-purple-600 dark:text-purple-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${activeTab === 'features_hub' ? 'bg-purple-600 text-white border-purple-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
-          <Zap size={14} className="text-purple-400" /> ⚡ Company Features & Quotas Hub
+          <Zap size={14} className={activeTab === 'features_hub' ? 'text-white' : 'text-purple-400'} /> ⚡ Company Features & Quotas Hub
         </button>
         <button
           onClick={() => setActiveTab('expired')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'expired' ? 'bg-red-500/20 border-red-500 text-red-500 dark:text-red-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'expired' ? 'bg-red-600 text-white border-red-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           ⚠️ Expired Companies ({expiredCompanies.length})
         </button>
         <button
           onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'templates' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 dark:text-cyan-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'templates' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           📑 System Templates Hub
         </button>
         <button
           onClick={() => setActiveTab('whatsapp')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'whatsapp' ? 'bg-indigo-500/20 border-indigo-500 text-indigo-500 dark:text-indigo-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'whatsapp' ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           💬 WhatsApp Cloud Logs
         </button>
         <button
           onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'pending' ? 'bg-amber-500/20 border-amber-500 text-amber-500 dark:text-amber-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'pending' ? 'bg-amber-600 text-white border-amber-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           💳 Upgrades Pending ({upgradeRequests.length})
         </button>
         <button
           onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'employees' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-500 dark:text-cyan-300 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'employees' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
         >
           👥 Tenant Employees
         </button>
       </div>
 
-      {/* ⚡ NEW SECTION: COMPANY FEATURES & QUOTAS HUB (Side-by-side Feature Matrix & Instant Toggles) */}
+      {/* ⚡ NEW SECTION: COMPANY FEATURES & QUOTAS HUB */}
       {activeTab === 'features_hub' && (
         <div className="crm-card p-5 border-purple-500/40 bg-card space-y-4 rounded-2xl shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -694,14 +692,14 @@ export function SuperAdminDashboard() {
                 Super Admin Master Control: Instantly enable/disable Email Marketing, WhatsApp Cloud, AI Engine, and adjust User Seats for any company.
               </p>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400 font-extrabold text-xs flex items-center gap-1.5 w-max">
+            <div className="px-3 py-1.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-300 font-extrabold text-xs flex items-center gap-1.5 w-max">
               <Shield size={14} /> Instant Global Cascade (All Employees & Admins)
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground space-y-1">
             <p className="font-bold text-foreground flex items-center gap-1.5">
-              <AlertCircle size={14} className="text-amber-400" /> Super Admin Rule:
+              <AlertCircle size={14} className="text-amber-500" /> Super Admin Rule:
             </p>
             <p>
               Toggling feature switches below updates tenant company subscription capabilities in real-time. Disabling a feature immediately locks access for all employees & company admins belonging to that tenant workspace.
@@ -728,10 +726,9 @@ export function SuperAdminDashboard() {
                       <p className="text-[10px] text-muted-foreground font-mono">{c.registrationKey} • {c.plan}</p>
                     </td>
 
-                    {/* User Seats Allocation */}
                     <td className="p-3.5 font-mono">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-emerald-500 dark:text-emerald-400">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
                           {c.seatsUsed} / {c.seatsAllocated} Seats
                         </span>
                         <div className="flex items-center gap-1">
@@ -753,37 +750,34 @@ export function SuperAdminDashboard() {
                       </div>
                     </td>
 
-                    {/* Email Marketing Toggle */}
                     <td className="p-3.5">
                       <button
                         onClick={() => handleToggleInstantFeature(c.id, 'email', !c.emailConfig?.enabled)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.emailConfig?.enabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.emailConfig?.enabled ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
                       >
                         <Mail size={12} /> {c.emailConfig?.enabled ? 'ENABLED' : 'DISABLED'}
                       </button>
                     </td>
 
-                    {/* WhatsApp Cloud Toggle */}
                     <td className="p-3.5">
                       <button
                         onClick={() => handleToggleInstantFeature(c.id, 'whatsapp', !c.whatsAppConfig?.enabled)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                        className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
                       >
                         <MessageSquare size={12} /> {c.whatsAppConfig?.enabled ? 'ENABLED' : 'DISABLED'}
                       </button>
                     </td>
 
-                    {/* AI Engine & Tier Toggle */}
                     <td className="p-3.5">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleToggleInstantFeature(c.id, 'ai', !c.aiConfig?.enabled)}
-                          className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.aiConfig?.enabled ? 'bg-purple-500/15 border-purple-500/40 text-purple-600 dark:text-purple-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-300'}`}
+                          className={`px-3 py-1 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${c.aiConfig?.enabled ? 'bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300' : 'bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'}`}
                         >
                           <Bot size={12} /> {c.aiConfig?.enabled ? 'ENABLED' : 'DISABLED'}
                         </button>
                         {c.aiConfig?.enabled && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-muted border border-border text-foreground">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-700 dark:text-purple-300">
                             {c.aiConfig?.tier}
                           </span>
                         )}
@@ -793,7 +787,7 @@ export function SuperAdminDashboard() {
                     <td className="p-3.5 text-right">
                       <button
                         onClick={() => handleOpenEditModal(c, 'email')}
-                        className="px-3.5 py-1.5 bg-purple-600/20 border border-purple-500/40 text-purple-600 dark:text-purple-300 hover:bg-purple-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 shadow-sm"
+                        className="px-3.5 py-1.5 bg-purple-600/20 border border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-600/30 rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 shadow-sm"
                       >
                         <SlidersHorizontal size={13} /> Edit Quotas & Prompts
                       </button>
@@ -812,11 +806,11 @@ export function SuperAdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                <AlertCircle size={18} className="text-red-400" /> Plan Expired Companies List
+                <AlertCircle size={18} className="text-red-500" /> Plan Expired Companies List
               </h3>
               <p className="text-xs text-muted-foreground">Companies whose subscription plan or free trial expiry date has elapsed</p>
             </div>
-            <span className="px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-400 border border-red-500/40">
+            <span className="px-3 py-1 rounded-full text-xs font-black bg-red-500/20 text-red-600 dark:text-red-300 border border-red-500/40">
               {expiredCompanies.length} Expired Tenants
             </span>
           </div>
@@ -847,28 +841,28 @@ export function SuperAdminDashboard() {
                         <p className="font-extrabold text-foreground">{c.name}</p>
                         <p className="text-[10px] text-muted-foreground">{c.adminEmail}</p>
                       </td>
-                      <td className="p-3.5 font-mono text-cyan-500 font-bold">{c.registrationKey}</td>
+                      <td className="p-3.5 font-mono text-cyan-600 dark:text-cyan-400 font-bold">{c.registrationKey}</td>
                       <td className="p-3.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 border border-amber-500/30 text-amber-500">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-300">
                           {c.plan}
                         </span>
                       </td>
-                      <td className="p-3.5 font-mono text-red-500 font-bold">{c.expiryDate}</td>
+                      <td className="p-3.5 font-mono text-red-600 dark:text-red-400 font-bold">{c.expiryDate}</td>
                       <td className="p-3.5">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/20 border border-red-500/40 text-red-500 flex items-center gap-1 w-max">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-300 flex items-center gap-1 w-max">
                           <AlertCircle size={11} /> PLAN EXPIRED
                         </span>
                       </td>
                       <td className="p-3.5 text-right space-x-2">
                         <button
                           onClick={() => handleExtendCompanyExpiry(c.id, 30)}
-                          className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
+                          className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
                         >
                           <RefreshCw size={12} /> Extend Expiry (+30 Days)
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(c)}
-                          className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-600 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1"
+                          className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1"
                         >
                           <Edit2 size={12} /> Edit Date
                         </button>
@@ -889,7 +883,7 @@ export function SuperAdminDashboard() {
             <h3 className="text-base font-black text-foreground flex items-center gap-2">
               <Key size={18} className="text-cyan-500" /> Keys and Their Companies Table
             </h3>
-            <span className="text-[10px] font-extrabold text-cyan-600 dark:text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
+            <span className="text-[10px] font-extrabold text-cyan-700 dark:text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
               <Shield size={12} /> Auto-Created via Company Registration
             </span>
           </div>
@@ -920,19 +914,19 @@ export function SuperAdminDashboard() {
                         )}
                       </td>
                       <td className="p-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${isCompExpired ? 'bg-red-500/20 border-red-500/40 text-red-500' : c.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-500' : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-500'}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${isCompExpired ? 'bg-red-500/20 border-red-500/40 text-red-600 dark:text-red-300' : c.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300' : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'}`}>
                           {c.plan} {isCompExpired ? '(EXPIRED)' : ''}
                         </span>
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.emailConfig?.enabled ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.emailConfig?.enabled ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
                             MAIL: {c.emailConfig?.enabled ? 'ON' : 'OFF'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/20 text-indigo-500 border border-indigo-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
                             WA: {c.whatsAppConfig?.enabled ? 'ON' : 'OFF'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.aiConfig?.enabled ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30' : 'bg-muted text-muted-foreground'}`}>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.aiConfig?.enabled ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
                             AI: {c.aiConfig?.enabled ? c.aiConfig.tier : 'OFF'}
                           </span>
                         </div>
@@ -945,11 +939,11 @@ export function SuperAdminDashboard() {
                       </td>
                       <td className="p-3.5 text-right space-x-1.5">
                         {isCompExpired && (
-                          <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                          <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
                             <RefreshCw size={11} /> +30 Days
                           </button>
                         )}
-                        <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-600 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                        <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
                           <Edit2 size={12} /> Edit & Features
                         </button>
                       </td>
@@ -967,23 +961,23 @@ export function SuperAdminDashboard() {
         <div className="crm-card p-5 border-border bg-card space-y-4 rounded-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-              <Layers size={18} className="text-cyan-500" /> System Templates Hub ("Tamplets")
+              <Layers size={18} className="text-cyan-500" /> System Templates Hub
             </h3>
             <div className="flex items-center gap-2 bg-muted p-1 rounded-xl border border-border">
-              <button onClick={() => setTemplateTab('funnel')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'funnel' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
+              <button onClick={() => setTemplateTab('funnel')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'funnel' ? 'bg-cyan-600 text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
                 Lead Funnel Templates
               </button>
-              <button onClick={() => setTemplateTab('whatsapp')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'whatsapp' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
+              <button onClick={() => setTemplateTab('whatsapp')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'whatsapp' ? 'bg-cyan-600 text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
                 Whatsapp Cloud Templates
               </button>
-              <button onClick={() => setTemplateTab('email')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'email' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
+              <button onClick={() => setTemplateTab('email')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${templateTab === 'email' ? 'bg-cyan-600 text-white shadow-md' : 'text-muted-foreground hover:text-foreground'}`}>
                 Email Templates
               </button>
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-muted/50 border border-border space-y-3">
-            <h4 className="text-xs font-bold text-cyan-500 dark:text-cyan-300 uppercase tracking-wider">Add New {templateTab.toUpperCase()} Template</h4>
+            <h4 className="text-xs font-bold text-cyan-600 dark:text-cyan-300 uppercase tracking-wider">Add New {templateTab.toUpperCase()} Template</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input className="crm-input text-xs w-full" placeholder="Template Title" value={newTemplateTitle} onChange={e => setNewTemplateTitle(e.target.value)} />
               <button onClick={handleAddTemplate} className="btn-primary text-xs py-2 px-4 font-bold flex items-center justify-center gap-1.5">
@@ -1005,7 +999,7 @@ export function SuperAdminDashboard() {
                 <p className="text-xs text-muted-foreground font-mono bg-muted/60 p-3 rounded-xl border border-border leading-relaxed">
                   {t.content}
                 </p>
-                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-block">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-block">
                   STATUS: {t.status}
                 </span>
               </div>
@@ -1040,12 +1034,12 @@ export function SuperAdminDashboard() {
                   <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                     <td className="p-3.5 font-black text-foreground">{c.name}</td>
                     <td className="p-3.5">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-500 border border-indigo-500/30">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                         {c.plan}
                       </span>
                     </td>
                     <td className="p-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${c.whatsAppConfig?.enabled ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' : 'bg-rose-500/20 text-rose-500 border-rose-500/30'}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${c.whatsAppConfig?.enabled ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/30'}`}>
                         {c.whatsAppConfig?.enabled ? 'ENABLED' : 'DISABLED BY SUPER ADMIN'}
                       </span>
                     </td>
@@ -1053,12 +1047,12 @@ export function SuperAdminDashboard() {
                       {(c.whatsAppConfig?.used ?? 0).toLocaleString()} / {(c.whatsAppConfig?.monthlyLimit ?? 0).toLocaleString()} Msgs
                     </td>
                     <td className="p-3.5 text-center">
-                      <button onClick={() => handleOpenDateWiseChatModal(c)} className="px-3 py-1 bg-indigo-600/20 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600/30 rounded-xl font-bold text-[11px] inline-flex items-center gap-1">
+                      <button onClick={() => handleOpenDateWiseChatModal(c)} className="px-3 py-1 bg-indigo-600/20 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600/30 rounded-xl font-bold text-[11px] inline-flex items-center gap-1">
                         <Calendar size={12} /> Date Wise Chat Log
                       </button>
                     </td>
                     <td className="p-3.5 text-right">
-                      <button onClick={() => handleOpenEditModal(c, 'whatsapp')} className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-600 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                      <button onClick={() => handleOpenEditModal(c, 'whatsapp')} className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
                         <Edit2 size={12} /> Edit WA Settings
                       </button>
                     </td>
@@ -1086,17 +1080,17 @@ export function SuperAdminDashboard() {
                 <div key={req.id} className="p-4 rounded-2xl bg-muted/40 border border-purple-500/30 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-foreground">{req.companyName}</h4>
-                    <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
                       {req.status}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1 font-mono">
-                    <p>Requested Plan: <strong className="text-cyan-500">{req.requestedPlan}</strong></p>
-                    <p>Amount Paid: <strong className="text-emerald-500">₹{req.amountInr}</strong></p>
+                    <p>Requested Plan: <strong className="text-cyan-600 dark:text-cyan-300">{req.requestedPlan}</strong></p>
+                    <p>Amount Paid: <strong className="text-emerald-600 dark:text-emerald-400">₹{req.amountInr}</strong></p>
                     <p>Order ID: <span>{req.razorpayOrderId}</span></p>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
-                    <button className="px-3 py-1.5 bg-rose-600/20 text-rose-500 border border-rose-500/30 rounded-xl text-xs font-bold">Reject</button>
+                    <button className="px-3 py-1.5 bg-rose-600/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold">Reject</button>
                     <button className="btn-primary text-xs px-4 py-1.5">Approve Upgrade ✓</button>
                   </div>
                 </div>
@@ -1159,11 +1153,11 @@ export function SuperAdminDashboard() {
                       <td className="p-3.5 font-mono text-muted-foreground">{emp.keyUsed}</td>
                       <td className="p-3.5">
                         {emp.isActive ? (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                             ACTIVE
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-500 border border-rose-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
                             DEACTIVATED / BLOCKED
                           </span>
                         )}
@@ -1171,7 +1165,7 @@ export function SuperAdminDashboard() {
                       <td className="p-3.5 text-right">
                         <button
                           onClick={() => handleToggleBlockUser(emp.id)}
-                          className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${emp.isActive ? 'bg-rose-600/20 border-rose-500/30 text-rose-500 hover:bg-rose-600/30' : 'bg-emerald-600/20 border-emerald-500/30 text-emerald-500 hover:bg-emerald-600/30'}`}
+                          className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${emp.isActive ? 'bg-rose-600/20 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-600/30' : 'bg-emerald-600/20 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600/30'}`}
                         >
                           {emp.isActive ? 'Block Employee' : 'Unblock Employee'}
                         </button>
@@ -1205,19 +1199,19 @@ export function SuperAdminDashboard() {
             <div className="flex items-center gap-1.5 bg-muted p-1 rounded-2xl border border-border overflow-x-auto text-xs font-extrabold">
               <button
                 onClick={() => setEditModalTab('general')}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'general' ? 'bg-cyan-500 text-slate-950 shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'general' ? 'bg-cyan-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <SlidersHorizontal size={14} /> General & Seats
               </button>
               <button
                 onClick={() => setEditModalTab('email')}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'email' ? 'bg-cyan-500 text-slate-950 shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'email' ? 'bg-cyan-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <Mail size={14} /> Email Marketing
               </button>
               <button
                 onClick={() => setEditModalTab('whatsapp')}
-                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'whatsapp' ? 'bg-cyan-500 text-slate-950 shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${editModalTab === 'whatsapp' ? 'bg-cyan-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <MessageSquare size={14} /> WhatsApp Cloud
               </button>
@@ -1239,7 +1233,7 @@ export function SuperAdminDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-muted-foreground font-bold block mb-1">Subscription Plan Tier</label>
-                    <select className="crm-input w-full text-sm font-bold text-cyan-500" value={editPlan} onChange={e => handleEditPlanChange(e.target.value as PlanType)}>
+                    <select className="crm-input w-full text-sm font-bold text-cyan-600 dark:text-cyan-400" value={editPlan} onChange={e => handleEditPlanChange(e.target.value as PlanType)}>
                       <option value="FREE_TRIAL">Free Trial (10 Users · 15-40 Days)</option>
                       <option value="GROWTH">Growth Plan (20 Users · All AI · No WA/Email)</option>
                       <option value="BUSINESS">Business Plan (50 Users · All Features)</option>
@@ -1255,10 +1249,10 @@ export function SuperAdminDashboard() {
                 {editPlan === 'FREE_TRIAL' && (
                   <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
+                      <label className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                         <Clock size={14} /> Free Trial Duration (15 to 40 Days)
                       </label>
-                      <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-500">
+                      <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400">
                         {editTrialDuration} Days Duration
                       </span>
                     </div>
@@ -1468,8 +1462,8 @@ export function SuperAdminDashboard() {
                   {dailyLogs.map((log, idx) => (
                     <tr key={idx} className="hover:bg-muted/50">
                       <td className="p-3 font-mono font-bold text-foreground">{log.date}</td>
-                      <td className="p-3 font-mono text-cyan-500">{log.messagesSent}</td>
-                      <td className="p-3 font-mono text-emerald-500">{log.deliveryRate}%</td>
+                      <td className="p-3 font-mono text-cyan-600 dark:text-cyan-400 font-bold">{log.messagesSent}</td>
+                      <td className="p-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">{log.deliveryRate}%</td>
                       <td className="p-3 font-mono text-muted-foreground">{log.activeChats}</td>
                     </tr>
                   ))}

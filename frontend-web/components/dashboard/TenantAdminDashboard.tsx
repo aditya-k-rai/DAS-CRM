@@ -735,17 +735,17 @@ export function TenantAdminDashboard() {
       <div className="crm-card p-6 border-l-4 border-l-indigo-500 bg-card relative overflow-hidden">
         <div className="flex items-center justify-between flex-wrap gap-4 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="avatar w-12 h-12 text-base font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+            <div className="avatar w-12 h-12 text-base font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/40">
               {currentUser.avatar}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-extrabold text-white tracking-tight">TENANT ADMIN COMMAND CENTER</h1>
-                <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                <h1 className="text-xl font-extrabold text-foreground tracking-tight">TENANT ADMIN COMMAND CENTER</h1>
+                <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse">
                   ⏱️ {subscription.trialDaysLeft ?? 14} Days Remaining in Free Trial
                 </span>
               </div>
-              <p className="text-xs text-muted mt-0.5 font-medium">
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">
                 {subscription.companyName} · Executive Operating System & Multi-Tenant Control Hub
               </p>
             </div>
@@ -753,7 +753,7 @@ export function TenantAdminDashboard() {
 
           <div className="flex gap-2 flex-wrap">
             <Link href="/admin/team-leaders" className="btn-secondary text-xs gap-1.5 flex items-center font-bold">
-              <Shield size={14} className="text-indigo-400" /> Structure Builder
+              <Shield size={14} className="text-indigo-500 dark:text-indigo-400" /> Structure Builder
             </Link>
             <Link href="/admin/workflow" className="btn-primary text-xs gap-1.5 flex items-center font-bold" style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
               <Zap size={14} /> Workflow Rules
@@ -767,111 +767,112 @@ export function TenantAdminDashboard() {
       {/* ============================================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
         <div className="crm-card p-4 border border-border/70 hover:border-emerald-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>Revenue (Won)</span>
-            <DollarSign size={14} className="text-emerald-400" />
+            <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-400">$128,400</p>
-          <p className="text-[10px] text-emerald-400/80 font-bold mt-1">↑ +14.2% closed</p>
+          <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">$128,400</p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80 font-bold mt-1">↑ +14.2% closed</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>Active Pipeline</span>
-            <TrendingUp size={14} className="text-indigo-400" />
+            <TrendingUp size={14} className="text-indigo-500 dark:text-indigo-400" />
           </div>
-          <p className="text-xl font-extrabold text-white">$412,000</p>
-          <p className="text-[10px] text-indigo-400 font-bold mt-1">42 Open Deals</p>
+          <p className="text-xl font-extrabold text-foreground">$412,000</p>
+          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">42 Open Deals</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-blue-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>Total Leads</span>
-            <Target size={14} className="text-blue-400" />
+            <Target size={14} className="text-blue-500 dark:text-blue-400" />
           </div>
-          <p className="text-xl font-extrabold text-blue-300">3,420</p>
-          <p className="text-[10px] text-blue-400 font-bold mt-1">Ingested Multi-Source</p>
+          <p className="text-xl font-extrabold text-blue-600 dark:text-blue-300">3,420</p>
+          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">Ingested Multi-Source</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-purple-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>Conversion Rate</span>
-            <Activity size={14} className="text-purple-400" />
+            <Activity size={14} className="text-purple-500 dark:text-purple-400" />
           </div>
-          <p className="text-xl font-extrabold text-purple-300">14.2%</p>
-          <p className="text-[10px] text-purple-400 font-bold mt-1">Target: 15.0%</p>
+          <p className="text-xl font-extrabold text-purple-600 dark:text-purple-300">14.2%</p>
+          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Target: 15.0%</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-amber-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>Active Seats</span>
-            <Users size={14} className="text-amber-400" />
+            <Users size={14} className="text-amber-500 dark:text-amber-400" />
           </div>
-          <p className="text-xl font-extrabold text-amber-300">18 / 20</p>
-          <p className="text-[10px] text-amber-400 font-bold mt-1">2 Seats Available</p>
+          <p className="text-xl font-extrabold text-amber-600 dark:text-amber-300">18 / 20</p>
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">2 Seats Available</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>System Status</span>
-            <CheckCircle2 size={14} className="text-emerald-400" />
+            <CheckCircle2 size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-sm font-extrabold text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
-          <p className="text-[10px] text-muted font-semibold mt-1">Full Tier Enabled</p>
+          <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
+          <p className="text-[10px] text-muted-foreground font-semibold mt-1">Full Tier Enabled</p>
         </div>
 
         {/* 🆕 BOX 7: TOTAL EMPLOYEES & PRESENT TODAY */}
         <div className="crm-card p-4 border border-teal-500/40 bg-teal-500/5 hover:border-teal-500/60 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
-            <span className="text-teal-300 font-bold">Total Staff &amp; Present</span>
-            <UserCheck size={14} className="text-teal-400" />
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
+            <span className="text-teal-700 dark:text-teal-300 font-bold">Total Staff &amp; Present</span>
+            <UserCheck size={14} className="text-teal-500 dark:text-teal-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-xl font-extrabold text-teal-300">19 Present</p>
-            <span className="text-xs text-muted font-semibold">/ 24 Total</span>
+            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-300">19 Present</p>
+            <span className="text-xs text-muted-foreground font-semibold">/ 24 Total</span>
           </div>
-          <p className="text-[10px] text-teal-400/90 font-bold mt-1">🟢 79.2% Attendance · 3 Leave · 2 Absent</p>
+          <p className="text-[10px] text-teal-700 dark:text-teal-400/90 font-bold mt-1">🟢 79.2% Attendance · 3 Leave · 2 Absent</p>
         </div>
 
         {/* 🆕 BOX 8: TODAY'S OPERATIONS & SALES TELEMETRY */}
         <div className="crm-card p-4 border border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/60 transition-all">
-          <div className="flex items-center justify-between text-muted text-xs font-semibold mb-1">
-            <span className="text-emerald-300 font-bold">Today's Sales &amp; Activity</span>
-            <DollarSign size={14} className="text-emerald-400" />
+          <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
+            <span className="text-emerald-700 dark:text-emerald-300 font-bold">Today's Sales &amp; Activity</span>
+            <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-300">$18,450 Today</p>
-          <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-border/40 text-[9px] text-muted font-medium">
-            <div>Leads: <span className="text-blue-300 font-bold">142</span></div>
-            <div>Calls: <span className="text-indigo-300 font-bold">384</span></div>
-            <div>Msgs: <span className="text-emerald-300 font-bold">820</span></div>
+          <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">$18,450 Today</p>
+          <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-border/40 text-[9px] text-muted-foreground font-medium">
+            <div>Leads: <span className="text-blue-600 dark:text-blue-300 font-bold">142</span></div>
+            <div>Calls: <span className="text-indigo-600 dark:text-indigo-300 font-bold">384</span></div>
+            <div>Msgs: <span className="text-emerald-600 dark:text-emerald-300 font-bold">820</span></div>
           </div>
         </div>
       </div>
       {/* ── Lead Pipeline & Ingestion Banner ── */}
-      <div className="crm-card p-5 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/20 to-slate-900 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="crm-card p-5 border-indigo-500/30 bg-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 font-black">
             <Zap size={20} />
           </div>
           <div>
-            <h3 className="text-white font-bold text-sm flex items-center gap-2">
+            <h3 className="text-foreground font-extrabold text-sm flex items-center gap-2">
               Lead Integration, Ingestion Control Center & Routing Widgets
             </h3>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
               Widget 1 (Ingestion & Routing), Widget 2 (Hierarchy Builder), Widget 3 (Permissions Policy), and Lead Directory Table are now hosted under Lead Pipeline.
             </p>
+          </div>
         </div>
         <Link
           href="/pipeline"
-          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-brand hover:from-indigo-500 hover:to-brand-400 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all flex-shrink-0"
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg transition-all flex-shrink-0"
         >
           Open Lead Pipeline →
         </Link>
       </div>
 
         {editingLead && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="crm-card max-w-lg w-full p-6 border-indigo-500/40 bg-slate-900 space-y-4 rounded-2xl shadow-2xl">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in dark-context">
+            <div className="crm-card max-w-lg w-full p-6 border-indigo-500/40 bg-slate-900 space-y-4 rounded-2xl shadow-2xl text-white">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
                   <span className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 font-extrabold text-sm">✏️</span>
@@ -1064,7 +1065,6 @@ export function TenantAdminDashboard() {
             </div>
           </div>
         )}
-      </div>
 
       {/* ============================================================ */}
       {/* 2X3 MAIN WIDGETS GRID                                         */}

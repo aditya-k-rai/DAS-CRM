@@ -69,47 +69,59 @@
 }
 
 .light body, [data-theme="light"] body {
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: rgb(var(--background));
+  color: rgb(var(--foreground));
 }
 
 .light .crm-card, [data-theme="light"] .crm-card {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-  color: #0f172a !important;
+  background-color: rgb(var(--card));
+  border-color: rgb(var(--border));
+  color: rgb(var(--card-foreground));
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
 }
 
 .light .glass-panel, [data-theme="light"] .glass-panel {
-  background: rgba(255, 255, 255, 0.9) !important;
-  border-color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgb(var(--border));
+  color: rgb(var(--foreground));
+}
+
+/* Light Theme High-Contrast Color Adaptations */
+.light .text-blue-300:not(.dark-context *), [data-theme="light"] .text-blue-300:not(.dark-context *) { color: #2563eb !important; }
+.light .text-purple-300:not(.dark-context *), [data-theme="light"] .text-purple-300:not(.dark-context *) { color: #9333ea !important; }
+.light .text-amber-300:not(.dark-context *), [data-theme="light"] .text-amber-300:not(.dark-context *) { color: #d97706 !important; }
+.light .text-emerald-300:not(.dark-context *), [data-theme="light"] .text-emerald-300:not(.dark-context *) { color: #059669 !important; }
+.light .text-teal-300:not(.dark-context *), [data-theme="light"] .text-teal-300:not(.dark-context *) { color: #0d9488 !important; }
+.light .text-cyan-300:not(.dark-context *), [data-theme="light"] .text-cyan-300:not(.dark-context *) { color: #0891b2 !important; }
+.light .text-indigo-300:not(.dark-context *), [data-theme="light"] .text-indigo-300:not(.dark-context *) { color: #4f46e5 !important; }
+
+/* Light Theme Hover Text Safeguards */
+.light .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *),
+[data-theme="light"] .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *) {
   color: #0f172a !important;
 }
 
-.light .text-slate-100, .light .text-slate-200, .light .text-slate-300,
-[data-theme="light"] .text-slate-100, [data-theme="light"] .text-slate-200, [data-theme="light"] .text-slate-300 {
-  color: #334155 !important;
+.light .hover\:text-slate-100:hover:not(.dark-context *),
+.light .hover\:text-slate-200:hover:not(.dark-context *),
+.light .hover\:text-slate-300:hover:not(.dark-context *),
+[data-theme="light"] .hover\:text-slate-100:hover:not(.dark-context *),
+[data-theme="light"] .hover\:text-slate-200:hover:not(.dark-context *),
+[data-theme="light"] .hover\:text-slate-300:hover:not(.dark-context *) {
+/* Explicit Dark Context Container (used for Hero Banners, Modals, and Dark Action Panels) */
+.dark-context, .light .dark-context, [data-theme="light"] .dark-context {
+  color: #ffffff !important;
 }
 
-.light .text-slate-400, .light .text-slate-500,
-[data-theme="light"] .text-slate-400, [data-theme="light"] .text-slate-500 {
-  color: #475569 !important;
+.dark-context h1, .dark-context h2, .dark-context h3, .dark-context h4, .dark-context h5, .dark-context h6,
+.light .dark-context h1, .light .dark-context h2, .light .dark-context h3, .light .dark-context h4, .light .dark-context h5, .light .dark-context h6,
+[data-theme="light"] .dark-context h1, [data-theme="light"] .dark-context h2, [data-theme="light"] .dark-context h3, [data-theme="light"] .dark-context h4, [data-theme="light"] .dark-context h5, [data-theme="light"] .dark-context h6 {
+  color: #ffffff !important;
 }
 
-.light .bg-slate-950, .light .bg-slate-900,
-[data-theme="light"] .bg-slate-950, [data-theme="light"] .bg-slate-900 {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-}
-
-.light .bg-slate-900\/60, .light .bg-slate-900\/50, .light .bg-slate-900\/80,
-[data-theme="light"] .bg-slate-900\/60, [data-theme="light"] .bg-slate-900\/50, [data-theme="light"] .bg-slate-900\/80 {
-  background-color: #f8fafc !important;
-}
-
-.light .border-slate-800, .light .border-slate-700,
-[data-theme="light"] .border-slate-800, [data-theme="light"] .border-slate-700 {
-  border-color: #e2e8f0 !important;
+.dark-context p, .dark-context span:not([class*="text-"]):not(.btn *),
+.light .dark-context p, .light .dark-context span:not([class*="text-"]):not(.btn *),
+[data-theme="light"] .dark-context p, [data-theme="light"] .dark-context span:not([class*="text-"]):not(.btn *) {
+  color: #cbd5e1 !important;
 }
 
 *, *::before, *::after {

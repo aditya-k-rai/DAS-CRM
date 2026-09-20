@@ -130,13 +130,13 @@ export function Sidebar() {
                   className="h-9 w-9 flex-shrink-0 object-contain rounded-lg shadow-md"
                 />
                 <div className="sidebar-logo-text min-w-0">
-                  <span className="text-white font-bold text-base tracking-tight block truncate">DAS CRM</span>
-                  <p className="text-xs text-muted font-medium truncate">{subscription.companyName}</p>
+                  <span className="text-foreground font-bold text-base tracking-tight block truncate">DAS CRM</span>
+                  <p className="text-xs text-muted-foreground font-medium truncate">{subscription.companyName}</p>
                 </div>
               </div>
 
               {/* Mobile close button */}
-              <button onClick={closeMobile} className="lg:hidden p-1 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-colors">
+              <button onClick={closeMobile} className="lg:hidden p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <X size={18} />
               </button>
 
@@ -156,7 +156,7 @@ export function Sidebar() {
                 className="hamburger-btn glowing flex items-center justify-center p-2 rounded-lg"
                 title="Expand Sidebar"
               >
-                <PanelLeft size={18} className="text-indigo-400" />
+                <PanelLeft size={18} className="text-indigo-500 dark:text-indigo-400" />
               </button>
             </div>
           )}
@@ -165,14 +165,9 @@ export function Sidebar() {
         {/* Authenticated User Role Badge */}
         <div className="px-3 my-3 sidebar-role-badge">
           <div
-            className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold"
-            style={{
-              background: 'rgba(99,102,241,0.12)',
-              borderColor: 'rgba(99,102,241,0.3)',
-              color: 'rgb(129,140,248)',
-            }}
+            className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold bg-indigo-500/10 border-indigo-500/30 text-indigo-700 dark:text-indigo-300"
           >
-            <Shield size={14} className="text-brand-400 flex-shrink-0" />
+            <Shield size={14} className="text-indigo-500 dark:text-brand-400 flex-shrink-0" />
             <span className="sidebar-label truncate">ROLE: {currentNormalizedRole}</span>
           </div>
         </div>
@@ -192,7 +187,7 @@ export function Sidebar() {
                   >
                     <item.icon size={17} className="flex-shrink-0" />
                     <span className="sidebar-label truncate">{item.label}</span>
-                    <span className="sidebar-upcoming-badge ml-auto text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 flex-shrink-0 whitespace-nowrap">
+                    <span className="sidebar-upcoming-badge ml-auto text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 flex-shrink-0 whitespace-nowrap">
                       Upcoming
                     </span>
                   </div>
@@ -216,23 +211,23 @@ export function Sidebar() {
         </nav>
 
         {/* User profile & single streamlined logout */}
-        <div className="border-t mx-2 mb-2 pt-2" style={{ borderColor: 'rgb(var(--sidebar-border))' }}>
+        <div className="border-t mx-2 mb-2 pt-2 border-border">
           {!collapsed ? (
-            <div className="flex items-center justify-between p-1.5 rounded-2xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800/80 hover:border-slate-700/70 transition-all duration-200 group">
+            <div className="flex items-center justify-between p-1.5 rounded-2xl bg-muted hover:bg-muted/80 border border-border transition-all duration-200 group">
               <Link
                 href="/profile"
                 onClick={closeMobile}
-                className="flex items-center gap-2.5 min-w-0 flex-1 px-1 py-0.5 rounded-xl hover:bg-slate-800/50 transition-colors"
+                className="flex items-center gap-2.5 min-w-0 flex-1 px-1 py-0.5 rounded-xl hover:bg-card transition-colors"
                 title="View Profile & Account Settings"
               >
                 <div className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:ring-2 group-hover:ring-indigo-500/40 transition-all">
                   {currentUser.avatar}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate text-slate-200 group-hover:text-indigo-300 transition-colors">
+                  <p className="text-xs font-bold truncate text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                     {currentUser.name}
                   </p>
-                  <p className="text-[10px] truncate text-slate-400 font-medium">
+                  <p className="text-[10px] truncate text-muted-foreground font-medium">
                     {currentUser.email}
                   </p>
                 </div>
@@ -242,7 +237,7 @@ export function Sidebar() {
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
                 title="Sign Out of Workspace"
-                className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all duration-200 flex-shrink-0 group/btn"
+                className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all duration-200 flex-shrink-0 group/btn"
               >
                 <LogOut size={16} className="group-hover/btn:-translate-x-0.5 transition-transform" />
               </button>
@@ -260,7 +255,7 @@ export function Sidebar() {
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
                 title="Sign Out of Workspace"
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all flex items-center justify-center"
+                className="p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all flex items-center justify-center"
               >
                 <LogOut size={16} />
               </button>
