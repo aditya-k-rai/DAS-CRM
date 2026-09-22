@@ -364,8 +364,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                   : '⚡ Google Sheets Live Routing Engine'}
               </Text>
               <View style={styles.badge}><Text style={styles.badgeText}>{totalLeadsCount} Leads</Text></View>
-              <View style={{ backgroundColor: 'rgba(245,158,11,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)' }}>
-                <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '800' }}>⏳ Auto-Deletes in 7 Days</Text>
+              <View style={{ backgroundColor: 'rgba(59,130,246,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(59,130,246,0.3)' }}>
+                <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '800' }}>⏳ 6-Month Auto-Purge</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' }}>

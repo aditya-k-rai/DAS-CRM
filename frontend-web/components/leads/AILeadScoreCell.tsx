@@ -136,7 +136,7 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
               </div>
               <button
                 onClick={() => setExpanded(false)}
-                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <X size={20} />
               </button>

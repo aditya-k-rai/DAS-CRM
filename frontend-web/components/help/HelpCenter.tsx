@@ -73,19 +73,19 @@ export function HelpCenter() {
       <div className="flex gap-2 border-b pb-2" style={{ borderColor: 'rgb(var(--border))' }}>
         <button
           onClick={() => setActiveTab('kb')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'kb' ? 'bg-brand/20 text-brand-400 border border-brand/30' : 'text-muted'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'kb' ? 'bg-brand/20 text-brand-600 dark:text-brand-400 border border-brand/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
         >
           <BookOpen size={15} /> Knowledge Base
         </button>
         <button
           onClick={() => setActiveTab('tickets')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'tickets' ? 'bg-brand/20 text-brand-400 border border-brand/30' : 'text-muted'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'tickets' ? 'bg-brand/20 text-brand-600 dark:text-brand-400 border border-brand/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
         >
           <MessageSquare size={15} /> Support Tickets ({TICKETS.length})
         </button>
         <button
           onClick={() => setActiveTab('about')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'about' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-muted hover:text-white'}`}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab === 'about' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
         >
           <Info size={15} /> About &amp; Developer
         </button>
@@ -101,7 +101,7 @@ export function HelpCenter() {
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${cat.color}15`, color: cat.color }}>
                   <cat.icon size={18} />
                 </div>
-                <h3 className="font-bold text-sm text-white group-hover:text-brand-400 transition-colors">{cat.title}</h3>
+                <h3 className="font-bold text-sm text-foreground group-hover:text-brand-500 transition-colors">{cat.title}</h3>
                 <p className="text-xs text-muted mt-1 leading-relaxed">{cat.desc}</p>
                 <p className="text-[11px] font-semibold mt-3" style={{ color: cat.color }}>{cat.count} articles →</p>
               </div>
@@ -122,7 +122,7 @@ export function HelpCenter() {
                   className="py-3.5 flex items-start justify-between cursor-pointer hover:bg-muted/10 transition-all group px-2 rounded-lg"
                 >
                   <div>
-                    <h4 className="text-sm font-semibold text-white group-hover:text-brand-400 transition-colors">{art.title}</h4>
+                    <h4 className="text-sm font-semibold text-foreground group-hover:text-brand-500 transition-colors">{art.title}</h4>
                     <p className="text-xs text-muted mt-1 line-clamp-1">{art.snippet}</p>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted flex-shrink-0 ml-4">

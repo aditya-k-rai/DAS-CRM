@@ -11,8 +11,8 @@ const themeScript = `
   (function() {
     try {
       var saved = localStorage.getItem('das_crm_theme');
-      var theme = (saved && ['light', 'dark', 'system'].indexOf(saved) !== -1) ? saved : 'system';
-      var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var theme = (saved === 'light') ? 'light' : 'dark';
+      var isDark = theme === 'dark';
       var root = document.documentElement;
       if (isDark) {
         root.classList.remove('light');

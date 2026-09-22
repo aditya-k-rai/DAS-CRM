@@ -159,7 +159,7 @@ export function CustomFieldsBuilder() {
 
                   {/* Controls */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => toggle(f.id, 'visible')} className="text-xs flex items-center gap-1 text-muted hover:text-white">
+                    <button onClick={() => toggle(f.id, 'visible')} className="text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground">
                       {f.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
                     <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center">

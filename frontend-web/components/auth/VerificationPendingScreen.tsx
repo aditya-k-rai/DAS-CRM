@@ -382,7 +382,7 @@ export function VerificationPendingScreen() {
               </div>
               <button
                 onClick={() => setInquiryModalOpen(false)}
-                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm"
+                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 flex items-center justify-center text-sm transition-colors"
               >
                 ✕
               </button>

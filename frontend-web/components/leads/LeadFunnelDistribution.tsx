@@ -350,7 +350,7 @@ export function LeadFunnelDistribution() {
           </div>
           <button
             onClick={() => setPushNotificationAlert(null)}
-            className="text-xs text-muted hover:text-white px-2 py-1"
+            className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
           >
             Dismiss ✕
           </button>
@@ -361,25 +361,25 @@ export function LeadFunnelDistribution() {
       <div className="crm-card">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-bold text-base text-white flex items-center gap-2">
-              <Target size={18} className="text-brand-400" /> Multi-Source Lead Ingestion Channels (10 Sources)
+            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+              <Target size={18} className="text-brand-500" /> Multi-Source Lead Ingestion Channels (10 Sources)
             </h3>
-            <p className="text-xs text-muted mt-0.5">Real-time incoming lead channels captured across web, ads, social, and webhooks</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Real-time incoming lead channels captured across web, ads, social, and webhooks</p>
           </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
             303 Leads Ingested Today
           </span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {SOURCES.map(src => (
-            <div key={src.id} className="p-3 rounded-xl border border-border bg-background hover:border-brand/40 transition-all">
+            <div key={src.id} className="p-3 rounded-xl border border-border bg-card hover:border-brand/40 transition-all">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xl">{src.icon}</span>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Live</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Live</span>
               </div>
-              <p className="font-bold text-xs text-white truncate">{src.name}</p>
-              <p className="text-xs font-extrabold text-brand-400 mt-1">+{src.todayCount} leads</p>
+              <p className="font-bold text-xs text-foreground truncate">{src.name}</p>
+              <p className="text-xs font-extrabold text-brand-500 mt-1">+{src.todayCount} leads</p>
             </div>
           ))}
         </div>
@@ -389,21 +389,21 @@ export function LeadFunnelDistribution() {
       <div className="crm-card space-y-5">
         <div className="flex items-center justify-between pb-3 border-b border-border flex-wrap gap-2">
           <div>
-            <h3 className="font-bold text-base text-white flex items-center gap-2">
-              <Sliders size={18} className="text-indigo-400" /> Admin Lead Funnel Distribution Engine & Access Guard
+            <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+              <Sliders size={18} className="text-indigo-500" /> Admin Lead Funnel Distribution Engine & Access Guard
             </h3>
-            <p className="text-xs text-muted mt-0.5">Configure how ingested leads funnel to Managers, Team Leaders, and claim pools</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Configure how ingested leads funnel to Managers, Team Leaders, and claim pools</p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowWhitelistModal(true)}
-              className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs border border-purple-500/30 flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-600 dark:text-purple-300 font-bold text-xs border border-purple-500/30 flex items-center gap-1.5"
             >
               <Shield size={13} /> Admin Whitelist Control ({whitelistManagers.filter(m => m.isWhitelisted).length} Authorized)
             </button>
 
-            <span className="text-xs px-2.5 py-1 rounded font-bold bg-indigo-500/20 text-indigo-300">
+            <span className="text-xs px-2.5 py-1 rounded font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
               MODE: {distMode}
             </span>
           </div>
@@ -414,13 +414,13 @@ export function LeadFunnelDistribution() {
           {/* Model 1 */}
           <button
             onClick={() => setDistMode('VOLUME')}
-            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'VOLUME' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-background border-border text-muted hover:text-white'}`}
+            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'VOLUME' ? 'bg-indigo-500/20 border-indigo-500 text-foreground font-semibold shadow-lg' : 'bg-card border-border text-foreground hover:bg-muted/50'}`}
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="font-bold text-sm">Model 1: Custom Batch Quota</p>
-              {distMode === 'VOLUME' && <span className="text-xs text-indigo-400 font-bold">Active ✓</span>}
+              <p className="font-bold text-sm text-foreground">Model 1: Custom Batch Quota</p>
+              {distMode === 'VOLUME' && <span className="text-xs text-indigo-500 font-bold">Active ✓</span>}
             </div>
-            <p className="text-[11px] text-muted leading-relaxed">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
               Batch quota ranges (e.g. Leads 1–100 to Manager A, Leads 101–200 to Manager B) with global capacity limits.
             </p>
           </button>
@@ -428,13 +428,13 @@ export function LeadFunnelDistribution() {
           {/* Model 2 */}
           <button
             onClick={() => setDistMode('SPEED_CLAIM')}
-            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'SPEED_CLAIM' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-background border-border text-muted hover:text-white'}`}
+            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'SPEED_CLAIM' ? 'bg-indigo-500/20 border-indigo-500 text-foreground font-semibold shadow-lg' : 'bg-card border-border text-foreground hover:bg-muted/50'}`}
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="font-bold text-sm">Model 2: Dynamic "Grab" Flow</p>
-              {distMode === 'SPEED_CLAIM' && <span className="text-xs text-indigo-400 font-bold">Active ✓</span>}
+              <p className="font-bold text-sm text-foreground">Model 2: Dynamic "Grab" Flow</p>
+              {distMode === 'SPEED_CLAIM' && <span className="text-xs text-indigo-500 font-bold">Active ✓</span>}
             </div>
-            <p className="text-[11px] text-muted leading-relaxed">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
               Anonymized Serial # Pool. First View/Mark Acquires Lead; lead vanishes for all other Managers instantly!
             </p>
           </button>
@@ -442,13 +442,13 @@ export function LeadFunnelDistribution() {
           {/* Model 3 */}
           <button
             onClick={() => setDistMode('DIRECT_ADMIN')}
-            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'DIRECT_ADMIN' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-background border-border text-muted hover:text-white'}`}
+            className={`p-4 rounded-xl border text-left transition-all ${distMode === 'DIRECT_ADMIN' ? 'bg-indigo-500/20 border-indigo-500 text-foreground font-semibold shadow-lg' : 'bg-card border-border text-foreground hover:bg-muted/50'}`}
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="font-bold text-sm">Model 3: Direct Admin Funnel</p>
-              {distMode === 'DIRECT_ADMIN' && <span className="text-xs text-indigo-400 font-bold">Active ✓</span>}
+              <p className="font-bold text-sm text-foreground">Model 3: Direct Admin Funnel</p>
+              {distMode === 'DIRECT_ADMIN' && <span className="text-xs text-indigo-500 font-bold">Active ✓</span>}
             </div>
-            <p className="text-[11px] text-muted leading-relaxed">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
               Manual targeting by Admin directly to a specific designated Manager or Department.
             </p>
           </button>
@@ -481,8 +481,8 @@ export function LeadFunnelDistribution() {
                   onClick={() => setPoolSubTab('ADMIN_MASTER_AUDIT')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     poolSubTab === 'ADMIN_MASTER_AUDIT'
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                      : 'bg-muted text-muted-foreground hover:text-white'
+                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30'
+                      : 'bg-card border border-border text-foreground hover:bg-muted/60'
                   }`}
                 >
                   <FileText size={13} /> Admin Master Audit View (All Pool Leads + Allocation + Last Updated)
@@ -491,8 +491,8 @@ export function LeadFunnelDistribution() {
                   onClick={() => setPoolSubTab('CLAIM_QUEUE')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     poolSubTab === 'CLAIM_QUEUE'
-                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                      : 'bg-muted text-muted-foreground hover:text-white'
+                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30'
+                      : 'bg-card border border-border text-foreground hover:bg-muted/60'
                   }`}
                 >
                   <Lock size={13} /> Managers' Blind Claim Queue (Anonymized Serial #)

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type Theme = 'dark' | 'light' | 'system';
+export type Theme = 'dark' | 'light';
 export type ResolvedTheme = 'dark' | 'light';
 
 export interface ThemePalette {
@@ -38,19 +38,19 @@ export const DARK_THEME: ThemePalette = {
   cardBg: '#0f172a',
   cardBgElevated: '#1e293b',
   border: '#1e293b',
-  borderSubtle: '#334155',
-  text: '#ffffff',
+  borderSubtle: '#141e33',
+  text: '#f8fafc',
   textSecondary: '#cbd5e1',
-  textMuted: '#94a3b8',
+  textMuted: '#64748b',
   headerBg: '#090d16',
-  tabBarBg: '#070c18',
-  tabBarBorder: '#1a2333',
-  tabBarActive: '#818cf8',
+  tabBarBg: '#0b1120',
+  tabBarBorder: '#1e293b',
+  tabBarActive: '#6366f1',
   tabBarInactive: '#64748b',
-  drawerBg: '#090d16',
-  inputBg: '#0f172a',
-  inputBorder: '#334155',
-  primary: '#4f46e5',
+  drawerBg: '#0b1120',
+  inputBg: '#131d31',
+  inputBorder: '#1e293b',
+  primary: '#6366f1',
   primaryLight: 'rgba(99, 102, 241, 0.15)',
   danger: '#ef4444',
   success: '#10b981',
@@ -74,7 +74,7 @@ export const LIGHT_THEME: ThemePalette = {
   tabBarInactive: '#94a3b8',
   drawerBg: '#ffffff',
   inputBg: '#f8fafc',
-  inputBorder: '#e2e8f0',
+  inputBorder: '#cbd5e1',
   primary: '#4f46e5',
   primaryLight: 'rgba(79, 70, 229, 0.1)',
   danger: '#dc2626',
@@ -96,78 +96,44 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = 'das_crm_theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemColorScheme = useColorScheme();
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
-    systemColorScheme === 'light' ? 'light' : 'dark'
-  );
+  const [theme, setThemeState] = useState<Theme>('dark');
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Compute resolved theme based on current preference and system setting
-  const computeResolvedTheme = useCallback((activeTheme: Theme, systemScheme: string | null | undefined): ResolvedTheme => {
-    if (activeTheme === 'system') {
-      return systemScheme === 'light' ? 'light' : 'dark';
-    }
-    return activeTheme;
-  }, []);
-
-  // Apply theme to root styles and update resolved theme
-  const applyTheme = useCallback((activeTheme: Theme) => {
-    const computed = computeResolvedTheme(activeTheme, systemColorScheme);
-    setResolvedTheme(computed);
-  }, [computeResolvedTheme, systemColorScheme]);
-
-  // Load saved theme from AsyncStorage on mount
   useEffect(() => {
     const loadTheme = async () => {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
-        const validThemes = ['light', 'dark', 'system'];
-        const loadedTheme = (saved && validThemes.includes(saved)) ? (saved as Theme) : 'system';
-
+        const loadedTheme: Theme = saved === 'light' ? 'light' : 'dark';
         setThemeState(loadedTheme);
-        applyTheme(loadedTheme);
       } catch (error) {
         console.warn('Failed to load theme preference:', error);
-        applyTheme('system');
       } finally {
         setIsLoaded(true);
       }
     };
 
     loadTheme();
-  }, [applyTheme]);
-
-  // React to system color scheme changes when theme is 'system'
-  useEffect(() => {
-    if (theme === 'system') {
-      applyTheme('system');
-    }
-  }, [systemColorScheme, theme, applyTheme]);
+  }, []);
 
   const setTheme = useCallback(async (newTheme: Theme) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, newTheme);
-      setThemeState(newTheme);
-      applyTheme(newTheme);
+      const validated: Theme = newTheme === 'light' ? 'light' : 'dark';
+      await AsyncStorage.setItem(STORAGE_KEY, validated);
+      setThemeState(validated);
     } catch (error) {
       console.warn('Failed to save theme preference:', error);
     }
-  }, [applyTheme]);
+  }, []);
 
   const toggleTheme = useCallback(() => {
-    // Cycle: system -> light -> dark -> system
-    const themes: Theme[] = ['system', 'light', 'dark'];
-    const currentIndex = themes.indexOf(theme);
-    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % themes.length : 0;
-    setTheme(themes[nextIndex]);
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   }, [theme, setTheme]);
 
-  const isDark = resolvedTheme === 'dark';
+  const isDark = theme === 'dark';
   const colors = isDark ? DARK_THEME : LIGHT_THEME;
 
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, isDark, colors, setTheme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme: theme, isDark, colors, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -177,7 +143,7 @@ export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
   if (!context) {
     return {
-      theme: 'system',
+      theme: 'dark',
       resolvedTheme: 'dark',
       isDark: true,
       colors: DARK_THEME,

@@ -984,7 +984,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             onPress={() => {
                               Alert.alert(
                                 '🗑️ Delete Sheet Allocation',
-                                `Are you sure you want to delete the allocation record for ${item.fileName}?\n\nℹ️ 7-Day Retention Policy: Historical allocation logs automatically auto-delete after 7 days.`,
+                                `Are you sure you want to delete the allocation record for ${item.fileName}?\n\nℹ️ 6-Month Retention Policy: Company operational history automatically auto-deletes after 6 months (180 days). Verified Employee Documents are permanently preserved.`,
                                 [
                                   { text: 'Cancel', style: 'cancel' },
                                   {
@@ -1008,7 +1008,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                         {/* Retention Policy Indicator Pill (Informative, NOT button) */}
                         <View style={auditStyles.retentionBadge}>
                           <Text style={auditStyles.retentionBadgeIcon}>⏳</Text>
-                          <Text style={auditStyles.retentionBadgeText}>7-Day Retention</Text>
+                          <Text style={auditStyles.retentionBadgeText}>6-Month Retention</Text>
                         </View>
                       </View>
                     </View>

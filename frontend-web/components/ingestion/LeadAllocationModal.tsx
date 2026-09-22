@@ -390,8 +390,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                   {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
                   {isOnline ? 'Online (Verified)' : 'Offline (Allocation Blocked)'}
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-md flex items-center gap-1">
-                  <Clock size={10} /> Auto-Deletes in 7 Days
+                <span className="px-2 py-0.5 text-[10px] font-bold text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center gap-1">
+                  <Clock size={10} /> 6-Month Auto-Purge
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium mt-0.5">
@@ -424,14 +424,14 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="px-2.5 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-extrabold flex items-center gap-1 transition-all"
-              title="Delete Sheet Allocation record (7-Day retention policy)"
+              title="Delete Sheet Allocation record (6-Month retention policy)"
             >
               <Trash2 size={13} /> Delete
             </button>
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <X size={18} />
             </button>
@@ -599,7 +599,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Are you sure you want to delete this sheet allocation record for <span className="font-bold text-white">{fileName}</span>?
                   <br /><br />
-                  <span className="text-amber-400 font-semibold">ℹ️ 7-Day Retention Notice:</span> Expired sheet allocation history is automatically purged after 7 days.
+                  <span className="text-amber-400 font-semibold">ℹ️ 6-Month Retention Policy:</span> Company operational history is automatically auto-deleted after 6 months (180 days). Verified Employee Documents are permanently preserved.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                   <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold">Cancel</button>

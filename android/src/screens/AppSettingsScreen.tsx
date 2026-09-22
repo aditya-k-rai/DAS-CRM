@@ -104,15 +104,8 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
   const backBannerBg = isDark ? '#0f172a' : '#ffffff';
 
   const THEME_OPTIONS: { key: Theme; label: string; subLabel: string; icon: string; badge?: string }[] = [
-    {
-      key: 'system',
-      label: 'System Sync',
-      subLabel: `Auto-syncs with device Day/Night theme (${resolvedTheme === 'dark' ? '🌙 Dark Active' : '☀️ Light Active'})`,
-      icon: '⚙️',
-      badge: 'DEFAULT',
-    },
     { key: 'light', label: 'Light Mode', subLabel: 'Clean high-contrast daytime interface', icon: '☀️' },
-    { key: 'dark', label: 'Dark Mode', subLabel: 'OLED-optimized low-glare nighttime interface', icon: '🌙' },
+    { key: 'dark', label: 'Dark Mode', subLabel: 'OLED-optimized low-glare nighttime interface', icon: '🌙', badge: 'DEFAULT' },
   ];
 
   const LANGUAGE_OPTIONS: { key: AppLanguage; label: string; subLabel: string; flag: string; badge?: string }[] = [

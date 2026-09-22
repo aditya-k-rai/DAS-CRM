@@ -188,6 +188,12 @@ export const DataStorageFolderVault: React.FC = () => {
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Service Account Connected
                 </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-bold text-blue-400 border border-blue-500/30 shadow-sm">
+                  🛡️ 6-Month Auto-Purge Active
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-bold text-indigo-400 border border-indigo-500/30 shadow-sm">
+                  🔒 Employee Verified Documents Permanently Protected
+                </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Hierarchical folder structure: <span className="text-foreground/80 font-medium">Company</span> &gt; <span className="text-foreground/80 font-medium">Employees</span> &gt; <span className="text-indigo-400 font-semibold">[Employee Name]</span> &gt; <span className="text-foreground/80 font-medium">[DP | Documents | Details]</span>
@@ -249,6 +255,23 @@ export const DataStorageFolderVault: React.FC = () => {
               <Mail className="h-3.5 w-3.5" />
               Request Data on Mail
             </button>
+          </div>
+        </div>
+
+        {/* 6-Month Data Retention Policy Info Strip */}
+        <div className="mt-4 p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🛡️</span>
+            <div>
+              <span className="font-extrabold text-foreground">6-Month Company History Auto-Purge Policy:</span>{' '}
+              <span className="text-muted-foreground">
+                Company operational records and non-employee files older than 6 months (180 days) are automatically deleted daily.
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-[11px]">
+            <span>🔒 Strict Exemption:</span>
+            <span>All Verified Employee Documents &amp; KYC Files Retained Permanently</span>
           </div>
         </div>
 

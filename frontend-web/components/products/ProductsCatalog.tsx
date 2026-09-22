@@ -463,7 +463,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   <p className="text-xs text-slate-400 font-mono">SKU: {inspectorProduct.sku} • {inspectorProduct.category}</p>
                 </div>
               </div>
-              <button onClick={() => setInspectorProduct(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-800">
+              <button onClick={() => setInspectorProduct(null)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <X size={18} />
               </button>
             </div>

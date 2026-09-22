@@ -719,4 +719,131 @@ export class DriveService {
   getAppReleases(): AppReleaseInfo[] {
     return this.appReleases;
   }
+
+  /**
+   * Helper to check if a stored file is an Employee Verified Document or KYC record
+   * that is permanently protected from company history purges.
+   */
+  isEmployeeDocument(file: StoredFileInfo): boolean {
+    if (file.category === 'EMPLOYEES' || file.category === 'PROFILES') {
+      return true;
+    }
+    const sub = file.subCategory?.toLowerCase();
+    if (sub === 'documents' || sub === 'dp' || sub === 'details') {
+      return true;
+    }
+    if (file.employeeName && file.employeeName.trim().length > 0) {
+      return true;
+    }
+    if (file.folderHierarchy && file.folderHierarchy.some((h) => h.toLowerCase() === 'employees')) {
+      return true;
+    }
+    if (file.folderPath && file.folderPath.toLowerCase().includes('employees')) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Data Retention Purge: Automatically purges company files older than cutoffDate (6 months / 180 days)
+   * while STRICTLY PRESERVING all Verified Employee Documents and KYC records.
+   */
+  async purgeExpiredCompanyFiles(
+    cutoffDate: Date,
+    companyName?: string,
+  ): Promise<{
+    purgedCount: number;
+    protectedEmployeeDocCount: number;
+    purgedFiles: string[];
+    retainedFilesCount: number;
+  }> {
+    const purgedFiles: string[] = [];
+    let protectedEmployeeDocCount = 0;
+    const remainingFiles: StoredFileInfo[] = [];
+
+    for (const file of this.storedFilesRegistry) {
+      if (companyName && file.companyName.toLowerCase() !== companyName.toLowerCase()) {
+        remainingFiles.push(file);
+        continue;
+      }
+
+      const uploadDate = file.uploadedAt ? new Date(file.uploadedAt) : new Date(0);
+      const isExpired = uploadDate < cutoffDate;
+
+      if (isExpired) {
+        // STRICT EXEMPTION: Never delete Employee Verified Documents or employee vault items
+        if (this.isEmployeeDocument(file)) {
+          protectedEmployeeDocCount++;
+          remainingFiles.push(file);
+          this.logger.log(
+            `🔒 Data Retention: Preserved verified employee document: ${file.fileName} (${file.employeeName || 'Staff'})`,
+          );
+          continue;
+        }
+
+        // Expired company non-employee file: purge from disk and Google Drive
+        try {
+          if (this.drive && file.driveFileId) {
+            await this.drive.files.delete({ fileId: file.driveFileId }).catch(() => null);
+          }
+          if (file.localPath && fs.existsSync(file.localPath)) {
+            fs.unlinkSync(file.localPath);
+          }
+          purgedFiles.push(file.fileName);
+          this.logger.log(
+            `🗑️ Data Retention: Purged expired company file: ${file.fileName} (uploaded: ${file.uploadedAt})`,
+          );
+        } catch (e) {
+          this.logger.warn(`Data Retention: Error deleting file ${file.fileId}:`, e);
+        }
+      } else {
+        if (this.isEmployeeDocument(file)) {
+          protectedEmployeeDocCount++;
+        }
+        remainingFiles.push(file);
+      }
+    }
+
+    this.storedFilesRegistry = remainingFiles;
+    this.saveRegistry();
+
+    return {
+      purgedCount: purgedFiles.length,
+      protectedEmployeeDocCount,
+      purgedFiles,
+      retainedFilesCount: this.storedFilesRegistry.length,
+    };
+  }
+
+  getStorageRetentionStats(
+    cutoffDate: Date,
+    companyName?: string,
+  ): {
+    totalFiles: number;
+    expiredCompanyFilesCount: number;
+    protectedEmployeeDocCount: number;
+  } {
+    let expiredCompanyFilesCount = 0;
+    let protectedEmployeeDocCount = 0;
+
+    for (const file of this.storedFilesRegistry) {
+      if (companyName && file.companyName.toLowerCase() !== companyName.toLowerCase()) {
+        continue;
+      }
+      const isEmp = this.isEmployeeDocument(file);
+      if (isEmp) {
+        protectedEmployeeDocCount++;
+      }
+      const uploadDate = file.uploadedAt ? new Date(file.uploadedAt) : new Date(0);
+      if (uploadDate < cutoffDate && !isEmp) {
+        expiredCompanyFilesCount++;
+      }
+    }
+
+    return {
+      totalFiles: this.storedFilesRegistry.length,
+      expiredCompanyFilesCount,
+      protectedEmployeeDocCount,
+    };
+  }
 }

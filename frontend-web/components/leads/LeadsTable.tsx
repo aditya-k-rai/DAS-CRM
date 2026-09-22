@@ -373,9 +373,9 @@ export function LeadsTable() {
     <div className="crm-card overflow-hidden p-0 space-y-0 relative">
       {/* Toast Feedback Banner */}
       {tableToast && (
-        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 flex items-center justify-between text-xs text-emerald-300 animate-in fade-in duration-200">
+        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-300 animate-in fade-in duration-200">
           <span className="font-semibold">{tableToast}</span>
-          <button onClick={() => setTableToast(null)} className="text-emerald-400 hover:text-white">✕</button>
+          <button onClick={() => setTableToast(null)} className="text-emerald-600 dark:text-emerald-400 hover:opacity-75">✕</button>
         </div>
       )}
 
@@ -483,7 +483,7 @@ export function LeadsTable() {
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm font-bold px-1 rounded"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm font-bold px-1 rounded transition-colors"
                 title="Clear search"
               >
                 ✕
@@ -539,11 +539,11 @@ export function LeadsTable() {
 
                     {/* Excel Column Tools (Reorder, Rename, Resize) */}
                     {isExcelMode && (
-                      <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
                         {/* Shift Left */}
                         <button
                           onClick={() => moveColumn(colKey, 'left')}
-                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           title="Move Column Left (←)"
                         >
                           ←
@@ -551,7 +551,7 @@ export function LeadsTable() {
                         {/* Shift Right */}
                         <button
                           onClick={() => moveColumn(colKey, 'right')}
-                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           title="Move Column Right (→)"
                         >
                           →
@@ -736,8 +736,8 @@ export function LeadsTable() {
                   </td>
                 ))}
 
-                <td className="px-3 py-3 border-b border-slate-800/60">
-                  <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center text-slate-400 hover:text-white">
+                <td className="px-3 py-3 border-b border-border">
+                  <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted">
                     <MoreHorizontal size={15} />
                   </button>
                 </td>

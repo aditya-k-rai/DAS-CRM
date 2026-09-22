@@ -42,7 +42,7 @@ export function Topbar({ title, actions }: TopbarProps) {
             <Menu size={18} />
           </button>
 
-          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-white dark:text-white truncate max-w-[200px] sm:max-w-none">{title}</h1>
+          <h1 className="text-sm sm:text-lg font-bold tracking-tight text-foreground truncate max-w-[200px] sm:max-w-none">{title}</h1>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap">
@@ -50,7 +50,7 @@ export function Topbar({ title, actions }: TopbarProps) {
           <button
             type="button"
             onClick={() => setCmdOpen(true)}
-            className="md:hidden p-2 rounded-lg bg-secondary border border-border text-muted hover:text-foreground transition-colors"
+            className="md:hidden p-2 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Search (⌘K)"
           >
             <Search size={16} />

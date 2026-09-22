@@ -1,0 +1,42 @@
+[
+  {
+    "fileId": "emp_pan_doc",
+    "fileName": "EMPLOYEE_PAN_CARD.pdf",
+    "mimeType": "application/pdf",
+    "sizeBytes": 3000,
+    "companyName": "Test Org",
+    "category": "EMPLOYEES",
+    "employeeName": "Rahul Verma",
+    "subCategory": "Documents",
+    "folderHierarchy": [
+      "Test Org",
+      "Employees",
+      "Rahul Verma",
+      "Documents"
+    ],
+    "folderPath": "Google Drive > Test Org > Employees > Rahul Verma > Documents",
+    "driveViewUrl": "http://example.com/emp_pan",
+    "driveDownloadUrl": "http://example.com/emp_pan_dl",
+    "uploadedAt": "2026-02-12T20:14:39.088Z"
+  },
+  {
+    "fileId": "emp_aadhaar_doc",
+    "fileName": "AADHAAR_CARD.pdf",
+    "mimeType": "application/pdf",
+    "sizeBytes": 2500,
+    "companyName": "Test Org",
+    "category": "EMPLOYEES",
+    "employeeName": "Rahul Verma",
+    "subCategory": "Documents",
+    "folderHierarchy": [
+      "Test Org",
+      "Employees",
+      "Rahul Verma",
+      "Documents"
+    ],
+    "folderPath": "Google Drive > Test Org > Employees > Rahul Verma > Documents",
+    "driveViewUrl": "http://example.com/emp_aadhaar",
+    "driveDownloadUrl": "http://example.com/emp_aadhaar_dl",
+    "uploadedAt": "2025-11-24T20:14:39.088Z"
+  }
+]

@@ -208,7 +208,7 @@ export function LeadAllocationTrail({
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+            className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
           >
             {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </button>

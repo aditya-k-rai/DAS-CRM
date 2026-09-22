@@ -814,18 +814,18 @@ export default function LeadPipelinePage() {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Delete sheet allocation record for "${item.fileName}"?\n\nℹ️ 7-Day Retention Notice: Expired sheet allocation history automatically purges after 7 days.`)) {
+                              if (confirm(`Delete sheet allocation record for "${item.fileName}"?\n\nℹ️ 6-Month Retention Policy: Company operational history automatically purges after 6 months (180 days). Verified Employee Documents are permanently preserved.`)) {
                                 setWebAuditLogs(prev => prev.filter(a => a.id !== item.id));
                               }
                             }}
                             className="px-2 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-extrabold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
-                            title="Delete Sheet Allocation record (7-Day retention policy)"
+                            title="Delete Sheet Allocation record (6-Month retention policy)"
                           >
                             <Trash2 size={12} /> Delete
                           </button>
                         </div>
-                        <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                          <Clock size={10} /> Auto-Deletes in 7 Days
+                        <span className="text-[9px] font-bold text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                          <Clock size={10} /> 6-Month Auto-Purge
                         </span>
                       </div>
                     </div>

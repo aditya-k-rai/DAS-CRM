@@ -87,6 +87,19 @@
   color: rgb(var(--foreground));
 }
 
+/* Ensure text-muted always renders as high-contrast muted text, never muted background */
+.text-muted {
+  color: rgb(var(--muted-foreground));
+}
+
+.light .text-muted, [data-theme="light"] .text-muted {
+  color: #475569 !important;
+}
+
+.dark .text-muted, [data-theme="dark"] .text-muted {
+  color: #94a3b8 !important;
+}
+
 /* Light Theme High-Contrast Color Adaptations */
 .light .text-blue-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]),
 [data-theme="light"] .text-blue-300:not(.dark-context *):not(.dark-context):not([class*="bg-slate"]):not([class*="bg-cyan"]):not([class*="bg-black"]):not([class*="from-"]) { color: #2563eb !important; }

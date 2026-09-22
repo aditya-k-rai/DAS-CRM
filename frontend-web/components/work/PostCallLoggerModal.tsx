@@ -47,18 +47,18 @@ export function PostCallLoggerModal({ open, leadName, leadPhone, onClose, onSave
               <PhoneCall size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Call Ended — Update Lead Status</h3>
-              <p className="text-xs text-muted">Call completed for <strong className="text-white">{leadName}</strong> ({leadPhone})</p>
+              <h3 className="font-bold text-base text-foreground">Call Ended — Update Lead Status</h3>
+              <p className="text-xs text-muted-foreground">Call completed for <strong className="text-foreground">{leadName}</strong> ({leadPhone})</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-white p-1 rounded-lg">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
             <X size={16} />
           </button>
         </div>
 
         {/* Outcome Selector */}
         <div>
-          <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-2">1. Select Call Outcome</label>
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">1. Select Call Outcome</label>
           <div className="grid grid-cols-2 gap-2">
             {CALL_OUTCOMES.map(o => {
               const selected = outcome === o.id;
@@ -66,7 +66,7 @@ export function PostCallLoggerModal({ open, leadName, leadPhone, onClose, onSave
                 <button
                   key={o.id}
                   onClick={() => setOutcome(o.id)}
-                  className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${selected ? 'border-emerald-500 shadow-md' : 'border-border text-muted hover:text-white'}`}
+                  className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${selected ? 'border-emerald-500 shadow-md' : 'border-border text-foreground hover:bg-muted/50'}`}
                   style={{ background: selected ? o.bg : 'rgb(var(--background))', color: selected ? o.color : undefined }}
                 >
                   {o.label}
@@ -78,7 +78,7 @@ export function PostCallLoggerModal({ open, leadName, leadPhone, onClose, onSave
 
         {/* Follow-up Date */}
         <div>
-          <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1">2. Schedule Next Follow-up Date</label>
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">2. Schedule Next Follow-up Date</label>
           <input
             type="date"
             className="crm-input text-sm h-10 w-full"
@@ -89,7 +89,7 @@ export function PostCallLoggerModal({ open, leadName, leadPhone, onClose, onSave
 
         {/* Call Notes */}
         <div>
-          <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1">3. Customer Response & Call Notes</label>
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">3. Customer Response & Call Notes</label>
           <textarea
             className="crm-input text-sm w-full h-20 resize-none"
             placeholder="Type key response details from customer during the call..."

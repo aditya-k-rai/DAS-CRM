@@ -213,18 +213,18 @@ export function Sidebar() {
         {/* User profile & single streamlined logout */}
         <div className="border-t mx-2 mb-2 pt-2 border-border">
           {!collapsed ? (
-            <div className="flex items-center justify-between p-1.5 rounded-2xl bg-muted hover:bg-muted/80 border border-border transition-all duration-200 group">
+            <div className="flex items-center justify-between p-2 rounded-2xl bg-secondary/80 hover:bg-secondary border border-border transition-all duration-200 shadow-sm">
               <Link
                 href="/profile"
                 onClick={closeMobile}
-                className="flex items-center gap-2.5 min-w-0 flex-1 px-1 py-0.5 rounded-xl hover:bg-card transition-colors"
+                className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-background/60 transition-colors"
                 title="View Profile & Account Settings"
               >
-                <div className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm group-hover:ring-2 group-hover:ring-indigo-500/40 transition-all">
+                <div className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm">
                   {currentUser.avatar}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold truncate text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
+                  <p className="text-xs font-bold truncate text-foreground">
                     {currentUser.name}
                   </p>
                   <p className="text-[10px] truncate text-muted-foreground font-medium">
@@ -237,9 +237,9 @@ export function Sidebar() {
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
                 title="Sign Out of Workspace"
-                className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all duration-200 flex-shrink-0 group/btn"
+                className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all duration-200 flex-shrink-0"
               >
-                <LogOut size={16} className="group-hover/btn:-translate-x-0.5 transition-transform" />
+                <LogOut size={16} />
               </button>
             </div>
           ) : (

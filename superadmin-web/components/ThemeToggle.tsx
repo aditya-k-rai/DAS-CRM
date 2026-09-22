@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme, Theme } from '@/context/ThemeContext';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 
 interface ThemeToggleProps {
   className?: string;
@@ -12,7 +12,6 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
 
   const options: { value: Theme; label: string; icon: typeof Sun }[] = [
     { value: 'light', label: 'Light', icon: Sun },
-    { value: 'system', label: 'System', icon: Monitor },
     { value: 'dark', label: 'Dark', icon: Moon },
   ];
 
@@ -24,7 +23,7 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
         borderColor: 'rgb(var(--border))',
       }}
       role="group"
-      aria-label="Theme selection"
+      aria-label="Theme selection (Light or Dark)"
     >
       {options.map((opt) => {
         const Icon = opt.icon;
@@ -35,12 +34,12 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
             key={opt.value}
             type="button"
             onClick={() => setTheme(opt.value)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 select-none ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 select-none cursor-pointer ${
               isActive
                 ? 'bg-indigo-600 text-white shadow-sm scale-[1.02]'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }`}
-            title={`Set theme preference to ${opt.label}${opt.value === 'system' ? ' (OS Default)' : ''}`}
+            title={`Set theme to ${opt.label} Mode`}
           >
             <Icon
               size={14}
@@ -49,12 +48,10 @@ export function ThemeToggle({ className = '' }: ThemeToggleProps) {
                   ? 'text-white'
                   : opt.value === 'light'
                   ? 'text-amber-500'
-                  : opt.value === 'dark'
-                  ? 'text-indigo-400'
-                  : 'text-indigo-300'
+                  : 'text-indigo-400'
               }`}
             />
-            <span className="hidden xs:inline">{opt.label}</span>
+            <span>{opt.label}</span>
           </button>
         );
       })}

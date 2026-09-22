@@ -260,10 +260,10 @@ export function WhatsAppThread() {
                   <button
                     key={tpl.id}
                     onClick={() => { setInput(interpolated); setShowQR(false); }}
-                    className="text-left p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-indigo-500/50 transition-all group"
+                    className="text-left p-2.5 rounded-xl border border-border bg-card hover:border-indigo-500/50 transition-all group"
                   >
-                    <p className="text-xs font-bold text-slate-200 group-hover:text-indigo-300">{tpl.title}</p>
-                    <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{interpolated}</p>
+                    <p className="text-xs font-bold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-300">{tpl.title}</p>
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{interpolated}</p>
                   </button>
                 );
               })}

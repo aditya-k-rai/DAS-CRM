@@ -32,7 +32,7 @@
   --color-primary-foreground: rgb(var(--primary-foreground));
   --color-secondary: rgb(var(--secondary));
   --color-secondary-foreground: rgb(var(--secondary-foreground));
-  --color-muted: rgb(var(--muted-foreground));
+  --color-muted: rgb(var(--muted));
   --color-muted-bg: rgb(var(--muted));
   --color-muted-foreground: rgb(var(--muted-foreground));
   --color-border: rgb(var(--border));
@@ -169,8 +169,12 @@
 }
 
 /* In Light Mode, generic text-white on light cards automatically adapts to dark slate unless inside explicit dark-context banner or button */
-.light .crm-card:not(.dark-context *):not([class*="bg-black"]):not(.btn *) .text-white,
-[data-theme="light"] .crm-card:not(.dark-context *):not([class*="bg-black"]):not(.btn *) .text-white {
+.light .crm-card:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white,
+.light [class*="bg-card"]:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white,
+.light [class*="bg-background"]:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white,
+[data-theme="light"] .crm-card:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white,
+[data-theme="light"] [class*="bg-card"]:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white,
+[data-theme="light"] [class*="bg-background"]:not(.dark-context *):not([class*="bg-black"]):not([class*="bg-slate-9"]):not(.btn *) .text-white {
   color: #0f172a;
 }
 
@@ -205,9 +209,22 @@
 .light .text-cyan-300:not(.dark-context *), [data-theme="light"] .text-cyan-300:not(.dark-context *) { color: #0891b2 !important; }
 .light .text-indigo-300:not(.dark-context *), [data-theme="light"] .text-indigo-300:not(.dark-context *) { color: #4f46e5 !important; }
 
+/* Ensure text-muted always renders as high-contrast muted text, never muted background */
+.text-muted {
+  color: rgb(var(--muted-foreground));
+}
+
+.light .text-muted, [data-theme="light"] .text-muted {
+  color: #475569 !important;
+}
+
+.dark .text-muted, [data-theme="dark"] .text-muted {
+  color: #94a3b8 !important;
+}
+
 /* Light Theme Hover Text & Background Safeguards */
-.light .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *),
-[data-theme="light"] .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *) {
+.light .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-indigo-6"]):not([class*="bg-brand"]):not([class*="bg-emerald-6"]),
+[data-theme="light"] .hover\:text-white:hover:not(.btn-primary:hover):not(.btn-danger:hover):not(.dark-context *):not([class*="bg-slate-9"]):not([class*="bg-indigo-6"]):not([class*="bg-brand"]):not([class*="bg-emerald-6"]) {
   color: #0f172a !important;
 }
 

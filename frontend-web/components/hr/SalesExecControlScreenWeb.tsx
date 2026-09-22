@@ -302,7 +302,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
             ) : (
               <button onClick={handleInitiate10DayDelete} className="w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl">Initiate 10-Day Purge →</button>
             )}
-            <button onClick={() => setDeleteModalOpen(false)} className="w-full mt-3 text-xs text-slate-400 hover:text-white font-bold text-center">Cancel</button>
+            <button onClick={() => setDeleteModalOpen(false)} className="w-full mt-3 text-xs text-slate-400 hover:text-slate-200 font-bold text-center transition-colors">Cancel</button>
           </div>
         </div>
       )}

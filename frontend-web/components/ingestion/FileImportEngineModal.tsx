@@ -861,7 +861,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
             <X size={18} />
           </button>
         </div>

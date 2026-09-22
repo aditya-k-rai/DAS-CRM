@@ -881,7 +881,7 @@ export function TenantAdminDashboard() {
                     <p className="text-xs text-muted">Update contact details, sales stage, value, and custom properties.</p>
                   </div>
                 </div>
-                <button onClick={() => setEditingLead(null)} className="text-muted hover:text-white p-1">
+                <button onClick={() => setEditingLead(null)} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
                   <X size={18} />
                 </button>
               </div>
@@ -1087,7 +1087,7 @@ export function TenantAdminDashboard() {
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <Plus size={18} className="text-indigo-400" /> Insert New Lead Record
               </h3>
-              <button onClick={() => setInsertLeadModalOpen(false)} className="text-muted hover:text-white">
+              <button onClick={() => setInsertLeadModalOpen(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -1183,7 +1183,7 @@ export function TenantAdminDashboard() {
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <Upload size={18} className="text-purple-400" /> Import Leads Batch (CSV / Excel)
               </h3>
-              <button onClick={() => setImportCsvModalOpen(false)} className="text-muted hover:text-white">
+              <button onClick={() => setImportCsvModalOpen(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -1247,7 +1247,7 @@ export function TenantAdminDashboard() {
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <Plus size={18} className="text-cyan-400" /> Create Custom Lead Table Column
               </h3>
-              <button onClick={() => setAddCustomColModalOpen(false)} className="text-muted hover:text-white">
+              <button onClick={() => setAddCustomColModalOpen(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -1298,7 +1298,7 @@ export function TenantAdminDashboard() {
                   <p className="text-[11px] text-muted">Select Workbook & Sheets, Set Row Offset, Map Cell Addresses & Test Sync</p>
                 </div>
               </div>
-              <button onClick={() => setGoogleSheetsModalOpen(false)} className="text-muted hover:text-white">
+              <button onClick={() => setGoogleSheetsModalOpen(false)} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>

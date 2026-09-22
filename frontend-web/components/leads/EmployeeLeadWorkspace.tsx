@@ -514,8 +514,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       onClick={() => setSelectedCallDisposition(opt.key as any)}
                       className={`p-3 rounded-xl text-xs font-bold transition-all text-left border ${
                         selectedCallDisposition === (opt.key as any)
-                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-300 shadow-md'
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-600 dark:text-emerald-300 shadow-md'
+                          : 'bg-card border-border text-foreground hover:bg-muted/50'
                       }`}
                     >
                       {opt.label} {selectedCallDisposition === (opt.key as any) && '✓'}
@@ -667,8 +667,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     onClick={() => setWaDirectDisposition(opt as DispositionOption)}
                     className={`p-2.5 rounded-xl text-xs font-bold border transition-all text-left ${
                       waDirectDisposition === opt
-                        ? 'bg-amber-500/25 border-amber-500 text-amber-300'
-                        : 'bg-card border-border text-muted hover:text-white'
+                        ? 'bg-amber-500/25 border-amber-500 text-amber-600 dark:text-amber-300'
+                        : 'bg-card border-border text-foreground hover:bg-muted/50'
                     }`}
                   >
                     {opt} {waDirectDisposition === opt && '✓'}
@@ -824,7 +824,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">📝 Update Lead Status & Stage</h3>
-              <button onClick={() => setShowUpdateStatusModal(false)} className="text-slate-400 hover:text-white p-1">✕</button>
+              <button onClick={() => setShowUpdateStatusModal(false)} className="text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-lg transition-colors">✕</button>
             </div>
 
             <div className="space-y-3">
@@ -932,7 +932,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 </span>
                 <h3 className="text-base font-extrabold text-white mt-1">Invoice Payment Outcome</h3>
               </div>
-              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-white p-1">✕</button>
+              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-lg transition-colors">✕</button>
             </div>
 
             <p className="text-xs text-slate-300">

@@ -30,6 +30,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { DriveModule } from './modules/drive/drive.module';
 import { EmailModule } from './modules/email/email.module';
 import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
+import { DataRetentionModule } from './modules/data-retention/data-retention.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
     DriveModule,
     EmailModule,
     AIScoringModule,
+    DataRetentionModule,
   ],
   providers: [
     {

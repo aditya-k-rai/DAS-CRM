@@ -1372,14 +1372,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* View Mode Switcher Controls */}
-            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 p-1 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-muted border border-border p-1 rounded-xl">
               <button
                 onClick={() => {
                   setViewMode('SPLIT');
                   setZoomScale(calculateFitScale());
                 }}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  viewMode === 'SPLIT' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  viewMode === 'SPLIT' ? 'bg-indigo-600 text-white shadow-md' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Columns size={14} /> Split Builder
@@ -1390,7 +1390,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   setZoomScale(calculateFitScale());
                 }}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  viewMode === 'FULL_PREVIEW' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                  viewMode === 'FULL_PREVIEW' ? 'bg-indigo-600 text-white shadow-md' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Maximize2 size={14} /> Full A4 Preview
@@ -1481,7 +1481,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               className={`px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
                 docType === type
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                  : 'bg-card text-foreground hover:bg-muted/50 border border-border'
               }`}
             >
               {docType === type && <Check size={12} />}
@@ -1493,11 +1493,11 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
       {/* 📱 MOBILE VIEW TAB SWITCHER (BUILDER FORM vs LIVE A4 SHEET) FOR SMARTPHONES */}
       {viewMode === 'SPLIT' && (
-        <div className="flex lg:hidden bg-slate-900 border border-slate-800 p-1 rounded-xl w-full print-hide">
+        <div className="flex lg:hidden bg-muted border border-border p-1 rounded-xl w-full print-hide">
           <button
             onClick={() => setMobileActiveTab('BUILDER')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
-              mobileActiveTab === 'BUILDER' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              mobileActiveTab === 'BUILDER' ? 'bg-indigo-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Sliders size={14} /> 🛠️ Form Builder Inputs
@@ -1508,7 +1508,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               setZoomScale(calculateFitScale());
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
-              mobileActiveTab === 'PREVIEW' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              mobileActiveTab === 'PREVIEW' ? 'bg-indigo-600 text-white shadow' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Eye size={14} /> 📄 Live A4 Document
@@ -1754,7 +1754,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   }`}>
                     {isStep1Done ? '✓ Completed' : 'Pending'}
                   </span>
-                  <button className="text-slate-400 hover:text-white p-1">
+                  <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.metadata ? 'rotate-180 text-amber-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
@@ -1867,7 +1867,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   }`}>
                     {isStep2Done ? '✓ Completed' : 'Pending'}
                   </span>
-                  <button className="text-slate-400 hover:text-white p-1">
+                  <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.company ? 'rotate-180 text-sky-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
@@ -1968,7 +1968,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   }`}>
                     {isStep3Done ? '✓ Completed' : 'Pending'}
                   </span>
-                  <button className="text-slate-400 hover:text-white p-1">
+                  <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.party ? 'rotate-180 text-emerald-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
@@ -2075,7 +2075,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   }`}>
                     {isStep4Done ? '✓ Completed' : 'Pending'}
                   </span>
-                  <button className="text-slate-400 hover:text-white p-1">
+                  <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                     <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.items ? 'rotate-180 text-purple-400' : 'rotate-0 text-slate-400'}`} />
                   </button>
                 </div>
@@ -2495,7 +2495,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     }`}>
                       {isStep5Done ? '✓ Configured' : 'Optional'}
                     </span>
-                    <button className="text-slate-400 hover:text-white p-1">
+                    <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                       <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.terms ? 'rotate-180 text-sky-400' : 'rotate-0 text-slate-400'}`} />
                     </button>
                   </div>
@@ -2631,7 +2631,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     <span className="text-[10.5px] sm:text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-lg">
                       {gstType === 'EXEMPT' || globalGstRate === 0 ? 'Exempt (0%)' : `${globalGstRate}% (${gstType.replace('_', '+')})`}
                     </span>
-                    <button className="text-slate-400 hover:text-white p-1">
+                    <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                       <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.gst ? 'rotate-180 text-amber-400' : 'rotate-0 text-slate-400'}`} />
                     </button>
                   </div>
@@ -2780,7 +2780,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     }`}>
                       {isStep7Done ? `✓ ${pdfMargin}mm Margin` : 'Pending'}
                     </span>
-                    <button className="text-slate-400 hover:text-white p-1">
+                    <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                       <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.pdf ? 'rotate-180 text-indigo-400' : 'rotate-0 text-slate-400'}`} />
                     </button>
                   </div>
@@ -2935,7 +2935,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                     }`}>
                       {isStep8Done ? '✓ Completed' : 'Pending'}
                     </span>
-                    <button className="text-slate-400 hover:text-white p-1">
+                    <button className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                       <ChevronDown size={18} className={`transition-transform duration-300 transform ${openSections.layout ? 'rotate-180 text-violet-400' : 'rotate-0 text-slate-400'}`} />
                     </button>
                   </div>
@@ -3026,7 +3026,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                   type="button"
                                   onClick={() => moveSectionUp(secId)}
                                   disabled={idx === 0}
-                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
                                   title="Move Section Up"
                                 >
                                   <ArrowUp size={13} />
@@ -3037,7 +3037,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                                   type="button"
                                   onClick={() => moveSectionDown(secId)}
                                   disabled={idx === sectionOrder.length - 1}
-                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors"
                                   title="Move Section Down"
                                 >
                                   <ArrowDown size={13} />
@@ -3111,7 +3111,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   <Smartphone size={11} /> Fit Screen
                 </button>
 
-                <button onClick={() => setZoomScale(Math.max(0.20, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom Out">
+                <button onClick={() => setZoomScale(Math.max(0.20, Math.round((zoomScale - 0.05) * 100) / 100))} className="p-1 hover:text-foreground text-muted-foreground transition-colors" title="Zoom Out">
                   <ZoomOut size={13} />
                 </button>
                 
@@ -3122,14 +3122,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   step="0.05"
                   value={zoomScale}
                   onChange={e => setZoomScale(Number(e.target.value))}
-                  className="w-14 sm:w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  className="w-14 sm:w-24 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
 
-                <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-1 hover:text-white text-slate-400" title="Zoom In">
+                <button onClick={() => setZoomScale(Math.min(1.0, Math.round((zoomScale + 0.05) * 100) / 100))} className="p-1 hover:text-foreground text-muted-foreground transition-colors" title="Zoom In">
                   <ZoomIn size={13} />
                 </button>
 
-                <span className="text-indigo-400 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded">
+                <span className="text-indigo-500 font-mono font-black text-[10px] bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded">
                   {Math.round(zoomScale * 100)}%
                 </span>
 
@@ -3139,7 +3139,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                       key={s}
                       onClick={() => setZoomScale(s)}
                       className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${
-                        zoomScale === s ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                        zoomScale === s ? 'bg-indigo-600 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       {Math.round(s * 100)}%
@@ -3436,7 +3436,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 </button>
                 <button
                   onClick={() => setHistoryDrawerOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl cursor-pointer"
+                  className="p-1.5 text-muted-foreground hover:text-foreground bg-muted rounded-xl cursor-pointer transition-colors"
                 >
                   <X size={18} />
                 </button>

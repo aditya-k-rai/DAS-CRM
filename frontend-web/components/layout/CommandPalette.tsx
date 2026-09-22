@@ -71,15 +71,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       >
         {/* Search Input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'rgb(var(--border))' }}>
-          <Search size={18} className="text-muted" />
+          <Search size={18} className="text-muted-foreground" />
           <input
-            className="w-full bg-transparent text-white text-base focus:outline-none placeholder:text-muted"
+            className="w-full bg-transparent text-foreground text-base focus:outline-none placeholder:text-muted-foreground"
             placeholder="Search leads, contacts, deals, or type a command..."
             value={query}
             onChange={e => setQuery(e.target.value)}
             autoFocus
           />
-          <button onClick={onClose} className="text-muted hover:text-white p-1 rounded-lg">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground hover:bg-muted p-1 rounded-lg transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -89,21 +89,21 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           {/* Quick Actions */}
           {filteredActions.length > 0 && (
             <div>
-              <p className="text-[11px] font-bold text-muted uppercase tracking-wider px-3 mb-1.5">Quick Actions</p>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Quick Actions</p>
               <div className="space-y-0.5">
                 {filteredActions.map(action => (
                   <button
                     key={action.label}
                     onClick={() => navigate(action.href)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all hover:bg-muted/20 group"
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all hover:bg-muted/50 group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${action.color}15`, color: action.color }}>
                         <action.icon size={14} />
                       </div>
-                      <span className="text-sm font-medium text-white">{action.label}</span>
+                      <span className="text-sm font-medium text-foreground">{action.label}</span>
                     </div>
-                    <ArrowRight size={14} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowRight size={14} className="text-muted-foreground opacity-60 group-hover:opacity-100 transition-opacity" />
                   </button>
                 ))}
               </div>
@@ -113,24 +113,24 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           {/* Recent Records */}
           {filteredRecent.length > 0 && (
             <div>
-              <p className="text-[11px] font-bold text-muted uppercase tracking-wider px-3 mb-1.5">Recent & Matching Records</p>
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Recent & Matching Records</p>
               <div className="space-y-0.5">
                 {filteredRecent.map(item => (
                   <button
                     key={item.title}
                     onClick={() => navigate(item.href)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all hover:bg-muted/20 group"
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all hover:bg-muted/50 group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${item.color}15`, color: item.color }}>
                         <item.icon size={14} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white leading-tight truncate">{item.title}</p>
-                        <p className="text-xs text-muted truncate">{item.sub}</p>
+                        <p className="text-sm font-semibold text-foreground leading-tight truncate">{item.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.sub}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded font-mono uppercase text-muted" style={{ background: 'rgb(var(--muted))' }}>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono uppercase text-muted-foreground bg-muted">
                       {item.type}
                     </span>
                   </button>
@@ -140,20 +140,20 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           )}
 
           {filteredActions.length === 0 && filteredRecent.length === 0 && (
-            <div className="py-8 text-center text-muted text-sm">
+            <div className="py-8 text-center text-muted-foreground text-sm">
               No results found for "{query}"
             </div>
           )}
         </div>
 
         {/* Footer shortcuts */}
-        <div className="px-4 py-2.5 border-t flex items-center justify-between text-xs text-muted" style={{ borderColor: 'rgb(var(--border))', background: 'rgb(var(--background))' }}>
+        <div className="px-4 py-2.5 border-t flex items-center justify-between text-xs text-muted-foreground" style={{ borderColor: 'rgb(var(--border))', background: 'rgb(var(--background))' }}>
           <div className="flex items-center gap-3">
-            <span><kbd className="px-1.5 py-0.5 rounded bg-muted">↑↓</kbd> to navigate</span>
-            <span><kbd className="px-1.5 py-0.5 rounded bg-muted">↵</kbd> to select</span>
-            <span><kbd className="px-1.5 py-0.5 rounded bg-muted">ESC</kbd> to close</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground">↑↓</kbd> to navigate</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground">↵</kbd> to select</span>
+            <span><kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground">ESC</kbd> to close</span>
           </div>
-          <span className="font-semibold text-brand-400">DAS CRM Search</span>
+          <span className="font-semibold text-brand-500">DAS CRM Search</span>
         </div>
       </div>
     </div>

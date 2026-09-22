@@ -537,8 +537,8 @@ export function LoginGateway() {
             </div>
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-2">Select Gateway Option</h2>
-          <p className="text-xs text-muted mb-6 leading-relaxed">
+          <h2 className="text-xl font-bold text-foreground mb-2">Select Gateway Option</h2>
+          <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
             Choose your authentication plane. Access requires valid Company Key and unblocked tenant status.
           </p>
 
@@ -546,15 +546,15 @@ export function LoginGateway() {
             {/* 1. Tenant Admin / Workspace Option */}
             <div
               onClick={() => { setEntryPoint('workspace'); setError(null); setSuccessMsg(null); }}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${entryPoint === 'workspace' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-card border-border text-muted hover:text-white'}`}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${entryPoint === 'workspace' ? 'bg-indigo-500/20 border-indigo-500 text-foreground shadow-lg' : 'bg-card border-border text-foreground hover:border-indigo-500/50 hover:bg-muted/30'}`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
                   <Laptop size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-xs">Tenant Admin & Staff Login</p>
-                  <p className="text-[10px] text-muted">Company Key & Email Workspace Login</p>
+                  <p className="font-bold text-xs text-foreground">Tenant Admin & Staff Login</p>
+                  <p className="text-[10px] text-muted-foreground">Company Key & Email Workspace Login</p>
                 </div>
               </div>
             </div>
@@ -562,15 +562,15 @@ export function LoginGateway() {
             {/* 2. Staff User Key Redeem Option */}
             <div
               onClick={() => { setEntryPoint('staff_key'); setError(null); setSuccessMsg(null); }}
-              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${entryPoint === 'staff_key' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-lg' : 'bg-card border-border text-muted hover:text-white'}`}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${entryPoint === 'staff_key' ? 'bg-indigo-500/20 border-indigo-500 text-foreground shadow-lg' : 'bg-card border-border text-foreground hover:border-emerald-500/50 hover:bg-muted/30'}`}
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
                   <Key size={16} />
                 </div>
                 <div>
-                  <p className="font-bold text-xs">Staff User Key Registration</p>
-                  <p className="text-[10px] text-muted">Redeem Staff Invite Key (e.g. ACME-RX-4312)</p>
+                  <p className="font-bold text-xs text-foreground">Staff User Key Registration</p>
+                  <p className="text-[10px] text-muted-foreground">Redeem Staff Invite Key (e.g. ACME-RX-4312)</p>
                 </div>
               </div>
             </div>
@@ -625,8 +625,8 @@ export function LoginGateway() {
                       loading ? 'opacity-50 cursor-not-allowed' : ''
                     } ${
                       selectedRole === r
-                        ? 'bg-indigo-500/25 border-indigo-500 text-indigo-300 shadow-md'
-                        : 'bg-background border-border text-muted hover:text-white'
+                        ? 'bg-indigo-500/25 border-indigo-500 text-indigo-600 dark:text-indigo-300 shadow-md font-bold'
+                        : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     }`}
                   >
                     {r.replace('_', ' ')}
@@ -638,7 +638,7 @@ export function LoginGateway() {
             <div className={`space-y-3 pt-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {/* Company Selection Dropdown */}
               <div>
-                <label className="text-xs text-muted block mb-1">Select Company / Workspace *</label>
+                <label className="text-xs text-muted-foreground block mb-1 font-semibold">Select Company / Workspace *</label>
                 <div className="relative flex items-center">
                   <Building2 size={15} className="absolute left-3 text-indigo-400" />
                   <select
@@ -754,7 +754,7 @@ export function LoginGateway() {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-background border border-border hover:bg-card text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+                className="w-full py-2.5 px-4 rounded-xl bg-secondary/80 border border-border hover:bg-card text-foreground font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -868,7 +868,7 @@ export function LoginGateway() {
             <button
               type="button"
               onClick={() => setForgotModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-lg transition-colors font-bold"
             >
               ✕
             </button>

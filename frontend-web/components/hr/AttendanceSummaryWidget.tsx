@@ -349,7 +349,7 @@ export function AttendanceSummaryWidget() {
                   <button
                     key={pg}
                     onClick={() => setCurrentPage(pg)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${currentPage === pg ? 'bg-brand text-white border-brand shadow' : 'bg-card border-border text-muted hover:text-white'}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${currentPage === pg ? 'bg-brand text-white border-brand shadow' : 'bg-card border-border text-foreground hover:bg-muted/50'}`}
                   >
                     Page {pg} (20 Days)
                   </button>
@@ -374,7 +374,7 @@ export function AttendanceSummaryWidget() {
               {/* Close Button */}
               <button
                 onClick={() => setSelectedLogModal(null)}
-                className="absolute top-5 right-5 p-2 rounded-xl bg-background border border-border hover:bg-card text-muted hover:text-white transition-all"
+                className="absolute top-5 right-5 p-2 rounded-xl bg-secondary/80 border border-border hover:bg-card text-muted-foreground hover:text-foreground transition-all"
               >
                 <X size={16} />
               </button>

@@ -133,10 +133,10 @@ export function NotificationCenter() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-tight ${!n.read ? 'font-semibold text-white' : 'text-muted'}`}>
+                    <p className={`text-sm leading-tight ${!n.read ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
                       {n.title}
                     </p>
-                    <p className="text-xs text-muted mt-0.5 leading-relaxed">{n.body}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
                     <p className="text-xs mt-1" style={{ color: 'rgb(var(--muted-foreground))' }}>{n.time}</p>
                   </div>
 

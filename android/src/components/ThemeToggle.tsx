@@ -13,7 +13,6 @@ export function ThemeToggle({ style, compact = false }: ThemeToggleProps) {
   const options: Array<{ value: Theme; label: string; icon: string }> = [
     { value: 'light', label: 'Light', icon: '☀️' },
     { value: 'dark', label: 'Dark', icon: '🌙' },
-    { value: 'system', label: 'System sync', icon: '⚙️' },
   ];
 
   return (

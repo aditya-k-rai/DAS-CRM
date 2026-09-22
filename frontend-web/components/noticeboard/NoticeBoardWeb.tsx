@@ -252,7 +252,7 @@ export function NoticeBoardWeb() {
                         ? p === 'CRITICAL' ? 'bg-rose-500 text-white border-rose-500' :
                           p === 'IMPORTANT' ? 'bg-amber-500 text-white border-amber-500' :
                           'bg-indigo-500 text-white border-indigo-500'
-                        : 'bg-background border-border text-muted hover:text-white'
+                        : 'bg-card border-border text-foreground hover:bg-muted/50'
                     }`}
                   >
                     {p === 'CRITICAL' ? '🔴 Critical' : p === 'IMPORTANT' ? '🟡 Important' : '🔵 General'}
@@ -263,7 +263,7 @@ export function NoticeBoardWeb() {
 
             {/* Staff Mentions Selector */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted block">Mention Staff Members (@Mentions)</label>
+              <label className="text-xs font-bold text-muted-foreground block">Mention Staff Members (@Mentions)</label>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 rounded-xl bg-background border border-border">
                 {STAFF_LIST.map((staff) => {
                   const isSel = selectedMentions.includes(staff);
@@ -274,8 +274,8 @@ export function NoticeBoardWeb() {
                       onClick={() => toggleMention(staff)}
                       className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all ${
                         isSel
-                          ? 'bg-brand/20 text-brand-300 border-brand/40 font-bold'
-                          : 'bg-card border-border text-muted hover:text-white'
+                          ? 'bg-brand/20 text-brand-400 border-brand/40 font-bold'
+                          : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/50'
                       }`}
                     >
                       {staff} {isSel ? '✓' : ''}
@@ -374,8 +374,8 @@ export function NoticeBoardWeb() {
                       onClick={() => handleAcknowledge(n.id)}
                       className={`px-3.5 py-1.5 rounded-xl font-bold text-xs border transition-all flex items-center gap-1.5 ${
                         isAcked
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                          : 'bg-card text-muted hover:text-white border-border'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                          : 'bg-card text-foreground hover:bg-muted/50 border-border'
                       }`}
                     >
                       {isAcked ? <Check size={14} className="text-emerald-400" /> : null}

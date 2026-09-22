@@ -440,7 +440,7 @@ export function AttendanceControlWeb() {
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 activeTab === 'AUDIT'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'bg-card text-muted hover:text-white border border-border'
+                  : 'bg-card text-foreground hover:bg-muted/50 border border-border'
               }`}
             >
               <UserCheck size={14} /> Attendance Audit & Grid
@@ -850,7 +850,7 @@ export function AttendanceControlWeb() {
           <div className="crm-card max-w-lg w-full p-6 rounded-3xl border border-indigo-500/40 shadow-2xl space-y-4 relative">
             <button
               onClick={closeCameraPunchModal}
-              className="absolute top-5 right-5 p-2 rounded-xl bg-background border border-border hover:bg-card text-muted hover:text-white transition-all"
+              className="absolute top-5 right-5 p-2 rounded-xl bg-secondary/80 border border-border hover:bg-card text-muted-foreground hover:text-foreground transition-all"
             >
               <X size={16} />
             </button>
