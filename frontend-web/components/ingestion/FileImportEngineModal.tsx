@@ -295,10 +295,18 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
                       value={activeSheet.columnMappings[cIdx] || 'custom'}
                       onChange={e => updateColumnMapping(cIdx, e.target.value)}
                       disabled={isBlocked}
+                      style={{ colorScheme: 'dark' }}
                       className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-200 py-0.5"
                     >
                       {FIELD_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <option
+                          key={opt.value}
+                          value={opt.value}
+                          className="bg-slate-900 text-slate-100 font-semibold"
+                          style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
+                        >
+                          {opt.label}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -907,15 +915,29 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               <select
                 value={selectedPlatform}
                 onChange={e => setSelectedPlatform(e.target.value)}
+                style={{ colorScheme: 'dark' }}
                 className={`crm-input w-full text-xs font-bold bg-slate-950 transition-all ${
                   !selectedPlatform && sheets.length > 0
                     ? 'border-amber-500 text-amber-300 ring-2 ring-amber-500/30'
                     : 'text-emerald-300'
                 }`}
               >
-                <option value="">-- Select Platform Source --</option>
+                <option
+                  value=""
+                  className="bg-slate-900 text-slate-300"
+                  style={{ backgroundColor: '#0f172a', color: '#cbd5e1' }}
+                >
+                  -- Select Platform Source --
+                </option>
                 {PLATFORMS.map(p => (
-                  <option key={p} value={p}>{p}</option>
+                  <option
+                    key={p}
+                    value={p}
+                    className="bg-slate-900 text-white font-medium"
+                    style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
+                  >
+                    {p}
+                  </option>
                 ))}
               </select>
             </div>

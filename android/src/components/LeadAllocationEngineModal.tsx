@@ -207,6 +207,142 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     }
   }, [visible, sourceType, isTeamLeaderMode]);
 
+  // Custom Batch Distribution State (Mobile Parity)
+  const [customBatchSize, setCustomBatchSize] = useState<string>('100');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(activeTeam.map(m => m.id));
+
+  // Compute allocated rows & remaining rows
+  const allocatedRowsCount = React.useMemo(() => {
+    return batchRules.reduce((acc, rule) => {
+      const from = Number(rule.fromRow);
+      const to = Number(rule.toRow);
+      if (!isNaN(from) && !isNaN(to) && from >= 1 && to >= from) {
+        return acc + (to - from + 1);
+      }
+      return acc;
+    }, 0);
+  }, [batchRules]);
+
+  const remainingRowsCount = Math.max(0, totalLeadsCount - allocatedRowsCount);
+
+  const handleToggleMember = (id: string) => {
+    setSelectedMemberIds(prev =>
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllMembers = () => {
+    if (selectedMemberIds.length === activeTeam.length) {
+      setSelectedMemberIds([]);
+    } else {
+      setSelectedMemberIds(activeTeam.map(m => m.id));
+    }
+  };
+
+  const handleApplyCustomBatch = () => {
+    const size = Number(customBatchSize);
+    if (!size || isNaN(size) || size <= 0) {
+      Alert.alert('Invalid Size', 'Please enter a valid batch size greater than 0 (e.g. 100).');
+      return;
+    }
+    if (selectedMemberIds.length === 0) {
+      Alert.alert('Assignees Required', 'Please select at least one team member to receive batch.');
+      return;
+    }
+
+    const selectedMembers = activeTeam.filter(m => selectedMemberIds.includes(m.id));
+    let currentStart = 1;
+    const newRules: BatchRule[] = [];
+
+    for (let i = 0; i < selectedMembers.length; i++) {
+      if (currentStart > totalLeadsCount) break;
+      const member = selectedMembers[i];
+      const endRow = Math.min(currentStart + size - 1, totalLeadsCount);
+      newRules.push({
+        id: `batch-${Date.now()}-${i}`,
+        fromRow: currentStart,
+        toRow: endRow,
+        assigneeId: member.id,
+        assigneeName: `${member.name} (${member.role})`,
+        role: member.role,
+      });
+      currentStart = endRow + 1;
+    }
+
+    setBatchRules(newRules);
+  };
+
+  const handleAssignRemainingToMember = (assigneeId: string) => {
+    if (remainingRowsCount <= 0) {
+      Alert.alert('Done', 'All leads in the dataset have already been allocated.');
+      return;
+    }
+    const member = activeTeam.find(m => m.id === assigneeId) || activeTeam[0];
+
+    let maxTo = 0;
+    batchRules.forEach(r => {
+      const to = Number(r.toRow);
+      if (!isNaN(to) && to > maxTo) maxTo = to;
+    });
+
+    const startRow = maxTo + 1;
+    if (startRow > totalLeadsCount) {
+      Alert.alert('Dataset Full', 'Dataset range is already fully occupied.');
+      return;
+    }
+
+    const newRule: BatchRule = {
+      id: `batch-remaining-${Date.now()}`,
+      fromRow: startRow,
+      toRow: totalLeadsCount,
+      assigneeId: member.id,
+      assigneeName: `${member.name} (${member.role})`,
+      role: member.role,
+    };
+
+    setBatchRules(prev => [...prev, newRule]);
+  };
+
+  const handleSplitRemainingEvenly = () => {
+    if (remainingRowsCount <= 0) {
+      Alert.alert('Done', 'All leads are already allocated.');
+      return;
+    }
+    const membersToUse = selectedMemberIds.length > 0
+      ? activeTeam.filter(m => selectedMemberIds.includes(m.id))
+      : activeTeam;
+
+    let maxTo = 0;
+    batchRules.forEach(r => {
+      const to = Number(r.toRow);
+      if (!isNaN(to) && to > maxTo) maxTo = to;
+    });
+
+    let currentStart = maxTo + 1;
+    const remainingToDistribute = totalLeadsCount - maxTo;
+    if (remainingToDistribute <= 0) return;
+
+    const countPerMember = Math.max(1, Math.floor(remainingToDistribute / membersToUse.length));
+    const additionalRules: BatchRule[] = [];
+
+    membersToUse.forEach((member, idx) => {
+      if (currentStart > totalLeadsCount) return;
+      const isLast = idx === membersToUse.length - 1;
+      const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerMember - 1, totalLeadsCount);
+      additionalRules.push({
+        id: `batch-rem-split-${Date.now()}-${idx}`,
+        fromRow: currentStart,
+        toRow: endRow,
+        assigneeId: member.id,
+        assigneeName: `${member.name} (${member.role})`,
+        role: member.role,
+      });
+      currentStart = endRow + 1;
+    });
+
+    setBatchRules(prev => [...prev, ...additionalRules]);
+  };
+
   const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
@@ -435,6 +571,137 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                 <View style={styles.totalBadgeBox}>
                   <Text style={styles.totalBadgeLabel}>Total Dataset Size:</Text>
                   <Text style={styles.totalBadgeValue}>{totalLeadsCount} Rows</Text>
+                </View>
+
+                {/* ⚡ SMART CUSTOM BATCH DISTRIBUTION ENGINE (MOBILE PARITY) */}
+                <View style={styles.customBatchCard}>
+                  <View style={styles.customBatchHeader}>
+                    <View>
+                      <Text style={styles.customBatchTitle}>⚡ Custom Batch Distribution Engine</Text>
+                      <Text style={styles.customBatchSub}>Enter quota (e.g. 100) to distribute equal leads to each selected rep</Text>
+                    </View>
+                  </View>
+
+                  {/* Preset chips */}
+                  <View style={styles.presetRow}>
+                    {['50', '100', '200', '500'].map(p => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[styles.presetChip, customBatchSize === p && styles.presetChipActive]}
+                        onPress={() => setCustomBatchSize(p)}
+                      >
+                        <Text style={[styles.presetText, customBatchSize === p && styles.presetTextActive]}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Batch Size Input */}
+                  <Text style={styles.fieldLabel}>Batch Size (Leads Each):</Text>
+                  <TextInput
+                    style={styles.batchInput}
+                    value={customBatchSize}
+                    onChangeText={v => setCustomBatchSize(v.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 100"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                  />
+
+                  {/* Member Selector Chips */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 4 }}>
+                    <Text style={styles.fieldLabel}>Select Assignees ({selectedMemberIds.length}):</Text>
+                    <TouchableOpacity onPress={handleSelectAllMembers}>
+                      <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800' }}>
+                        {selectedMemberIds.length === activeTeam.length ? 'Deselect All' : 'Select All'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {activeTeam.map(usr => {
+                        const isSel = selectedMemberIds.includes(usr.id);
+                        return (
+                          <TouchableOpacity
+                            key={usr.id}
+                            style={[styles.memberChip, isSel && styles.memberChipActive]}
+                            onPress={() => handleToggleMember(usr.id)}
+                          >
+                            <Text style={{ color: isSel ? '#818cf8' : '#64748b', fontSize: 10, fontWeight: '900' }}>
+                              {isSel ? '✓' : '○'}
+                            </Text>
+                            <Text style={[styles.memberChipText, isSel && styles.memberChipTextActive]}>
+                              {usr.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  {/* Distribute Button */}
+                  <TouchableOpacity style={styles.distributeBtn} onPress={handleApplyCustomBatch}>
+                    <Text style={styles.distributeBtnText}>
+                      ⚡ Distribute {customBatchSize || '0'} Leads Each ({selectedMemberIds.length} Reps) →
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Live Remaining Telemetry Bar */}
+                  <View style={styles.remainingTelemetryBox}>
+                    <View style={styles.remainingTelemetryRow}>
+                      <Text style={styles.telemetryText}>
+                        Allocated: <Text style={{ color: '#34d399', fontWeight: '900' }}>{allocatedRowsCount}</Text>
+                      </Text>
+                      <Text style={[styles.telemetryText, remainingRowsCount > 0 ? styles.telemetryHighlight : { color: '#34d399' }]}>
+                        {remainingRowsCount > 0 ? `⚠️ Remaining: ${remainingRowsCount}` : '✓ 100% Assigned'}
+                      </Text>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={styles.progressBarContainer}>
+                      <View
+                        style={[
+                          styles.progressBarAllocated,
+                          { width: `${Math.min(100, (allocatedRowsCount / totalLeadsCount) * 100)}%` },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.progressBarRemaining,
+                          { width: `${Math.min(100, (remainingRowsCount / totalLeadsCount) * 100)}%` },
+                        ]}
+                      />
+                    </View>
+
+                    {/* Remaining Assignment Controls */}
+                    {remainingRowsCount > 0 && (
+                      <View style={styles.remainingActionRow}>
+                        <Text style={{ fontSize: 10, color: '#fbbf24', fontWeight: '800', marginBottom: 4 }}>
+                          Assign remaining {remainingRowsCount} leads to:
+                        </Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {activeTeam.map(usr => (
+                              <TouchableOpacity
+                                key={usr.id}
+                                style={styles.assignRemainingBtn}
+                                onPress={() => handleAssignRemainingToMember(usr.id)}
+                              >
+                                <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '800' }}>
+                                  + Assign {remainingRowsCount} to {usr.name.split(' ')[0]}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.splitRemainingBtn} onPress={handleSplitRemainingEvenly}>
+                          <Text style={{ color: '#818cf8', fontSize: 10, fontWeight: '900' }}>
+                            ⚖️ Split {remainingRowsCount} Remaining Evenly Across Selected Reps
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
                 {/* ERROR NOTIFICATION BANNER */}
@@ -714,8 +981,35 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 10, color: '#64748b', marginTop: 2 },
   badge: { backgroundColor: 'rgba(79,70,229,0.2)', borderWidth: 1, borderColor: '#818cf8', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
   badgeText: { fontSize: 9, fontWeight: '900', color: '#818cf8' },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
-  closeBtnText: { color: '#94a3b8', fontSize: 14, fontWeight: '900' },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1e293b', borderWidth: 1.5, borderColor: '#334155', alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { color: '#f8fafc', fontSize: 15, fontWeight: '900' },
+
+  customBatchCard: { backgroundColor: '#090d16', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(99,102,241,0.35)', padding: 12, marginBottom: 12 },
+  customBatchHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  customBatchTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  customBatchSub: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+  presetRow: { flexDirection: 'row', gap: 6, marginVertical: 6 },
+  presetChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' },
+  presetChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
+  presetText: { fontSize: 10, fontWeight: '800', color: '#94a3b8' },
+  presetTextActive: { color: '#ffffff' },
+  batchInput: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: '#ffffff', fontSize: 12, fontWeight: '800' },
+  memberChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155' },
+  memberChipActive: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#6366f1' },
+  memberChipText: { fontSize: 10, fontWeight: '700', color: '#cbd5e1' },
+  memberChipTextActive: { color: '#ffffff', fontWeight: '800' },
+  distributeBtn: { backgroundColor: '#4f46e5', borderRadius: 10, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  distributeBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+  remainingTelemetryBox: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginTop: 10 },
+  remainingTelemetryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  telemetryText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
+  telemetryHighlight: { fontSize: 10, fontWeight: '900', color: '#f59e0b' },
+  progressBarContainer: { height: 6, backgroundColor: '#0b1329', borderRadius: 3, overflow: 'hidden', flexDirection: 'row', marginBottom: 6 },
+  progressBarAllocated: { height: '100%', backgroundColor: '#10b981' },
+  progressBarRemaining: { height: '100%', backgroundColor: '#f59e0b' },
+  remainingActionRow: { borderTopWidth: 1, borderTopColor: '#1e293b', paddingTop: 6, marginTop: 4 },
+  assignRemainingBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', borderRadius: 7, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
+  splitRemainingBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 8, alignItems: 'center', marginTop: 6 },
 
   modeTabBar: { flexDirection: 'row', backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   modeTab: { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },

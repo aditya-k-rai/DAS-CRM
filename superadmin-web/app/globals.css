@@ -9,6 +9,7 @@
    ───────────────────────────────────── */
 
 :root {
+  color-scheme: dark;
   --background: 11 13 23;
   --foreground: 248 250 252;
   --card: 17 19 31;
@@ -40,6 +41,7 @@
 }
 
 .light, [data-theme="light"] {
+  color-scheme: light;
   --background: 248 250 252;
   --foreground: 15 23 42;
   --card: 255 255 255;
@@ -66,6 +68,10 @@
   --sidebar-item-active: 238 242 255;
   --sidebar-text: 71 85 105;
   --sidebar-text-active: 79 70 229;
+}
+
+.dark, [data-theme="dark"] {
+  color-scheme: dark;
 }
 
 .light body, [data-theme="light"] body {
@@ -209,6 +215,60 @@ body {
   background: rgb(var(--input));
   border: 1px solid rgb(var(--border));
   color: rgb(var(--foreground));
+}
+
+/* ── Form Controls: Native Select & Option High-Contrast Contrast Fix ── */
+select {
+  color-scheme: dark;
+}
+
+.light select,
+[data-theme="light"] select {
+  color-scheme: light !important;
+}
+
+.dark select,
+[data-theme="dark"] select {
+  color-scheme: dark !important;
+}
+
+select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  font-weight: 500;
+  padding: 6px 12px;
+}
+
+.light select option,
+[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.dark select option,
+[data-theme="dark"] select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Modal and dark container select overrides */
+select.bg-slate-950,
+select.bg-slate-900,
+select.bg-slate-800,
+.bg-slate-950 select,
+.bg-slate-900 select,
+.bg-slate-800 select {
+  color-scheme: dark !important;
+}
+
+select.bg-slate-950 option,
+select.bg-slate-900 option,
+select.bg-slate-800 option,
+.bg-slate-950 select option,
+.bg-slate-900 select option,
+.bg-slate-800 select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
 }
 
 .crm-input.pl-8, input.pl-8, select.pl-8 { padding-left: 2.25rem !important; }

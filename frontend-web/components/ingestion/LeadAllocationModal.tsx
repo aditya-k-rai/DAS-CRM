@@ -1,8 +1,8 @@
 'use me';
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Layers, UserCheck, X, Check, ArrowRight, ShieldCheck, Sparkles, RefreshCw, Eye, Edit3, Trash2, Clock, Plus, Save, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Layers, UserCheck, X, Check, ArrowRight, ShieldCheck, Sparkles, RefreshCw, Eye, Edit3, Trash2, Clock, Plus, Save, AlertTriangle, Wifi, WifiOff, Zap, Hash, Users, CheckCircle } from 'lucide-react';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 
 export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN';
@@ -153,6 +153,143 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   // Batchwise Allocation State
   const [batchRules, setBatchRules] = useState<WebBatchRule[]>([]);
   const [runLoop, setRunLoop] = useState(true);
+
+  // Custom Batch Distribution State
+  const [customBatchSize, setCustomBatchSize] = useState<number | ''>(100);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(MOCK_TEAM.map(m => m.id));
+  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(MOCK_TEAM[0].id);
+
+  // Compute allocated rows & remaining rows
+  const allocatedRowsCount = useMemo(() => {
+    return batchRules.reduce((acc, rule) => {
+      const from = Number(rule.fromRow);
+      const to = Number(rule.toRow);
+      if (!isNaN(from) && !isNaN(to) && from >= 1 && to >= from) {
+        return acc + (to - from + 1);
+      }
+      return acc;
+    }, 0);
+  }, [batchRules]);
+
+  const remainingRowsCount = Math.max(0, totalLeadsCount - allocatedRowsCount);
+
+  const handleToggleMember = (id: string) => {
+    setSelectedMemberIds(prev =>
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllMembers = () => {
+    if (selectedMemberIds.length === MOCK_TEAM.length) {
+      setSelectedMemberIds([]);
+    } else {
+      setSelectedMemberIds(MOCK_TEAM.map(m => m.id));
+    }
+  };
+
+  const handleApplyCustomBatch = () => {
+    const size = Number(customBatchSize);
+    if (!size || isNaN(size) || size <= 0) {
+      alert('Please enter a valid batch size greater than 0 (e.g. 100).');
+      return;
+    }
+    if (selectedMemberIds.length === 0) {
+      alert('Please select at least one team member to distribute leads to.');
+      return;
+    }
+
+    const selectedMembers = MOCK_TEAM.filter(m => selectedMemberIds.includes(m.id));
+    let currentStart = 1;
+    const newRules: WebBatchRule[] = [];
+
+    for (let i = 0; i < selectedMembers.length; i++) {
+      if (currentStart > totalLeadsCount) break;
+      const member = selectedMembers[i];
+      const endRow = Math.min(currentStart + size - 1, totalLeadsCount);
+      newRules.push({
+        id: `batch-${Date.now()}-${i}`,
+        fromRow: currentStart,
+        toRow: endRow,
+        assigneeId: member.id,
+        assigneeName: `${member.name} (${member.role})`,
+        role: member.role,
+      });
+      currentStart = endRow + 1;
+    }
+
+    setBatchRules(newRules);
+  };
+
+  const handleAssignRemainingToMember = (assigneeId: string) => {
+    if (remainingRowsCount <= 0) {
+      alert('All leads in the dataset have already been allocated.');
+      return;
+    }
+    const member = MOCK_TEAM.find(m => m.id === assigneeId) || MOCK_TEAM[0];
+
+    let maxTo = 0;
+    batchRules.forEach(r => {
+      const to = Number(r.toRow);
+      if (!isNaN(to) && to > maxTo) maxTo = to;
+    });
+
+    const startRow = maxTo + 1;
+    if (startRow > totalLeadsCount) {
+      alert('Dataset range is already fully occupied.');
+      return;
+    }
+
+    const newRule: WebBatchRule = {
+      id: `batch-remaining-${Date.now()}`,
+      fromRow: startRow,
+      toRow: totalLeadsCount,
+      assigneeId: member.id,
+      assigneeName: `${member.name} (${member.role})`,
+      role: member.role,
+    };
+
+    setBatchRules(prev => [...prev, newRule]);
+  };
+
+  const handleSplitRemainingEvenly = () => {
+    if (remainingRowsCount <= 0) {
+      alert('All leads are already allocated.');
+      return;
+    }
+    const membersToUse = selectedMemberIds.length > 0
+      ? MOCK_TEAM.filter(m => selectedMemberIds.includes(m.id))
+      : MOCK_TEAM;
+
+    let maxTo = 0;
+    batchRules.forEach(r => {
+      const to = Number(r.toRow);
+      if (!isNaN(to) && to > maxTo) maxTo = to;
+    });
+
+    let currentStart = maxTo + 1;
+    const remainingToDistribute = totalLeadsCount - maxTo;
+    if (remainingToDistribute <= 0) return;
+
+    const countPerMember = Math.max(1, Math.floor(remainingToDistribute / membersToUse.length));
+    const additionalRules: WebBatchRule[] = [];
+
+    membersToUse.forEach((member, idx) => {
+      if (currentStart > totalLeadsCount) return;
+      const isLast = idx === membersToUse.length - 1;
+      const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerMember - 1, totalLeadsCount);
+      additionalRules.push({
+        id: `batch-rem-split-${Date.now()}-${idx}`,
+        fromRow: currentStart,
+        toRow: endRow,
+        assigneeId: member.id,
+        assigneeName: `${member.name} (${member.role})`,
+        role: member.role,
+      });
+      currentStart = endRow + 1;
+    });
+
+    setBatchRules(prev => [...prev, ...additionalRules]);
+  };
 
   // Direct Assign State
   const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
@@ -431,9 +568,10 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Close Lead Allocation Modal"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 shadow-sm transition-all cursor-pointer flex items-center justify-center active:scale-95"
             >
-              <X size={18} />
+              <X size={18} className="text-slate-200 hover:text-white" />
             </button>
           </div>
         </div>
@@ -621,9 +759,211 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
           {/* 📦 1. BATCHWISE MODE */}
           {mode === 'BATCHWISE' && (
             <div className="space-y-4">
+              {/* ⚡ SMART CUSTOM BATCH DISTRIBUTION & REMAINING QUOTA CONTROLS */}
+              <div className="p-4 bg-slate-950/90 rounded-2xl border border-indigo-500/30 space-y-3.5 shadow-xl">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                      <Zap size={15} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        Custom Batch Distribution Engine
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          Automated Split
+                        </span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Enter batch size (e.g. 100) and tap distribute to assign equal lead quotas across selected team members.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Preset chips */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-slate-500">Presets:</span>
+                    {[50, 100, 200, 500].map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setCustomBatchSize(preset)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold transition-all border ${
+                          customBatchSize === preset
+                            ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Batch Size Input & Member Selector */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  {/* Batch Size */}
+                  <div className="md:col-span-4">
+                    <label className="text-[10px] font-bold text-slate-300 block mb-1 flex items-center gap-1">
+                      <Hash size={11} className="text-indigo-400" /> Enter Batch Size (Leads Each)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max={totalLeadsCount}
+                        value={customBatchSize}
+                        onChange={e => {
+                          const val = e.target.value === '' ? '' : Math.max(1, Number(e.target.value));
+                          setCustomBatchSize(val);
+                        }}
+                        placeholder="e.g. 100"
+                        className="w-full pl-3 pr-16 py-2 bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl text-xs font-black text-white outline-none"
+                      />
+                      <span className="absolute right-3 top-2 text-[10px] font-bold text-slate-400">
+                        leads / rep
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Assignee Checkboxes */}
+                  <div className="md:col-span-8 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                        <Users size={11} className="text-emerald-400" /> Select Assignees ({selectedMemberIds.length} selected):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleSelectAllMembers}
+                        className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300"
+                      >
+                        {selectedMemberIds.length === MOCK_TEAM.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+
+                    <div className="flex gap-1.5 flex-wrap">
+                      {MOCK_TEAM.map(member => {
+                        const isSelected = selectedMemberIds.includes(member.id);
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => handleToggleMember(member.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all border ${
+                              isSelected
+                                ? 'bg-indigo-600/25 text-indigo-200 border-indigo-500 shadow-sm'
+                                : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] border ${
+                              isSelected
+                                ? 'bg-indigo-600 border-indigo-400 text-white'
+                                : 'border-slate-700 bg-slate-950'
+                            }`}>
+                              {isSelected ? '✓' : ''}
+                            </span>
+                            <span>{member.name}</span>
+                            <span className="text-[9px] text-slate-400">({member.role})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Button */}
+                <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                  <div className="text-[11px] text-slate-400">
+                    Will allocate <span className="font-extrabold text-white">{Number(customBatchSize || 0) * selectedMemberIds.length}</span> leads total ({customBatchSize || 0} × {selectedMemberIds.length} reps).
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleApplyCustomBatch}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Zap size={14} className="text-amber-300" />
+                    Distribute {customBatchSize || 0} Leads Each →
+                  </button>
+                </div>
+
+                {/* LIVE REMAINING TELEMETRY & CONTROLS */}
+                <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-400 font-bold">Total: <strong className="text-white">{totalLeadsCount}</strong></span>
+                      <span className="text-emerald-400 font-bold">Allocated: <strong>{allocatedRowsCount}</strong></span>
+                      <span className={`font-black px-2 py-0.5 rounded-md border ${
+                        remainingRowsCount === 0
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30 animate-pulse'
+                      }`}>
+                        Remaining Unassigned: {remainingRowsCount} Leads
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dual Color Progress Bar */}
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100, (allocatedRowsCount / totalLeadsCount) * 100)}%` }}
+                    />
+                    <div
+                      className="h-full bg-amber-500/60 transition-all duration-300"
+                      style={{ width: `${Math.min(100, (remainingRowsCount / totalLeadsCount) * 100)}%` }}
+                    />
+                  </div>
+
+                  {/* WHOM TO ASSIGN CONTROLS (Active when remaining > 0) */}
+                  {remainingRowsCount > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                          <UserCheck size={13} /> Assign remaining {remainingRowsCount} to:
+                        </span>
+                        <select
+                          value={remainingAssigneeId}
+                          onChange={e => setRemainingAssigneeId(e.target.value)}
+                          className="bg-slate-950 border border-slate-700 text-white font-bold text-xs rounded-lg px-2.5 py-1 focus:border-indigo-500 outline-none"
+                          style={{ colorScheme: 'dark' }}
+                        >
+                          {MOCK_TEAM.map(m => (
+                            <option key={m.id} value={m.id} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>
+                              {m.name} ({m.role})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleAssignRemainingToMember(remainingAssigneeId)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-black transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          + Assign All {remainingRowsCount} Leads
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSplitRemainingEvenly}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[11px] font-black transition-all cursor-pointer flex items-center gap-1 self-start sm:self-auto"
+                      >
+                        ⚖️ Split {remainingRowsCount} Evenly
+                      </button>
+                    </div>
+                  )}
+
+                  {remainingRowsCount === 0 && (
+                    <div className="text-[11px] font-black text-emerald-400 flex items-center gap-1.5 pt-1">
+                      <CheckCircle size={13} /> 100% of dataset is fully assigned! Ready for verification.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between p-3.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                <span className="text-xs font-bold text-slate-300">Total Ingested Dataset Size:</span>
-                <span className="text-sm font-black text-sky-400">{totalLeadsCount} Rows</span>
+                <span className="text-xs font-bold text-slate-300">Detailed Batch Rules Breakdown:</span>
+                <span className="text-xs font-black text-indigo-400">{batchRules.length} Active Rules</span>
               </div>
 
               {/* ERROR NOTIFICATION BANNER (When overlap or boundary conflict occurs) */}
