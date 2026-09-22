@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PlanTier } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -119,9 +120,12 @@ export class AuthService {
     phone: string;
     city: string;
     state: string;
+    pincode?: string;
     gstNumber?: string;
     companyType?: string;
     sector?: string;
+    planTier?: string;
+    couponCode?: string;
   }) {
     let keyRecord = dto.registrationKey
       ? await this.companyKeyService.validateCompanyKey(dto.registrationKey)
@@ -129,10 +133,23 @@ export class AuthService {
 
     if (!keyRecord) {
       // Auto-generate Company Registration Key
+      const validTiers = Object.values(PlanTier);
+      const chosenTier = (dto.planTier && validTiers.includes(dto.planTier as PlanTier)
+        ? dto.planTier
+        : 'FREE_TRIAL') as PlanTier;
+      const memberLimit =
+        chosenTier === PlanTier.ENTERPRISE
+          ? 60
+          : chosenTier === PlanTier.BUSINESS
+          ? 18
+          : chosenTier === PlanTier.PRO || chosenTier === PlanTier.PRO_50 || chosenTier === PlanTier.PRO_MAX
+          ? 15
+          : 6;
+
       keyRecord = await this.companyKeyService.generateCompanyKey({
         companyName: dto.companyName,
-        planTier: 'FREE_TRIAL',
-        memberLimit: 6,
+        planTier: chosenTier,
+        memberLimit,
         validityDays: 7,
       });
     }
@@ -300,16 +317,45 @@ export class AuthService {
     // Send Confirmation Email with Key & Credentials (safely caught if SMTP unconfigured)
     try {
       await this.mailService.sendCompanyRegistrationEmail({
-        adminEmail: dto.adminEmail,
-        adminName: dto.adminName,
-        companyName: dto.companyName,
-        key: keyRecord.key,
-        planTier: keyRecord.planTier,
-        memberLimit: keyRecord.memberLimit,
-        validityDays: keyRecord.validityDays,
+        adminEmail:    dto.adminEmail,
+        adminName:     dto.adminName,
+        companyName:   dto.companyName,
+        key:           keyRecord.key,
+        planTier:      keyRecord.planTier,
+        memberLimit:   keyRecord.memberLimit,
+        validityDays:  keyRecord.validityDays,
+        adminPassword: dto.adminPassword,   // plain text — included in PDF attachment only
+        pincode:       dto.pincode,
+        phone:         dto.phone,
+        city:          dto.city,
+        state:         dto.state,
+        gstNumber:     dto.gstNumber,
+        companyType:   dto.companyType,
+        sector:        dto.sector,
+        couponCode:    dto.couponCode,
       });
     } catch (mailErr) {
       this.logger.warn(`SMTP Mail Dispatch Notice: Registration confirmation email could not be sent to ${dto.adminEmail}: ${mailErr?.message}`);
+    }
+
+    // Notify Super Admin about new company registration
+    try {
+      await this.mailService.sendNewCompanyRegistrationNotification({
+        companyName: dto.companyName,
+        adminName: dto.adminName,
+        adminEmail: dto.adminEmail,
+        key: keyRecord.key,
+        planTier: keyRecord.planTier,
+        memberLimit: keyRecord.memberLimit,
+        phone: dto.phone,
+        city: dto.city,
+        state: dto.state,
+        gstNumber: dto.gstNumber,
+        companyType: dto.companyType,
+        sector: dto.sector,
+      });
+    } catch (notifyErr) {
+      this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);
     }
 
     const tokens = await this.generateTokens(
@@ -326,7 +372,9 @@ export class AuthService {
       isCompanyVerified: false,
       message: `Company registered successfully! Your workspace is currently pending Super Admin plan verification and activation. Registration Key: ${keyRecord.key}`,
       registrationKey: keyRecord.key,
+      qrCodeDataUrl: keyRecord.qrCodeDataUrl,
       companyName: dto.companyName,
+      adminName: dto.adminName,
       adminEmail: dto.adminEmail,
       planTier: keyRecord.planTier,
       memberLimit: keyRecord.memberLimit,

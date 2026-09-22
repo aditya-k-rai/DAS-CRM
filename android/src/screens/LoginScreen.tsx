@@ -4,7 +4,7 @@
  * Supports: Workspace Entry, Staff Invite Key, Forgot Password modal.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
   validateEmailRoleMatch,
   getPostLoginDefaultTab,
 } from '../store/authStore';
+import { apiService } from '../services/apiService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,12 +80,7 @@ function formatCompanyKey(input: string): string {
   return formatted;
 }
 
-const PUBLIC_COMPANIES: PublicCompany[] = [
-  { id: 'comp_1', name: 'Acme Sales Solutions' },
-  { id: 'comp_2', name: 'Sunita Real Estate Ltd' },
-  { id: 'comp_3', name: 'Lakshmi Auto Dealerships' },
-  { id: 'comp_4', name: 'TechCorp Enterprise' },
-];
+const PUBLIC_COMPANIES: PublicCompany[] = [];
 
 const ALL_ROLES: UserRole[] = [
   'ADMIN',
@@ -103,12 +99,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [entryPoint, setEntryPoint] = useState<EntryPoint>('workspace');
 
   // Workspace login state
-  const [publicCompanies] = useState<PublicCompany[]>(PUBLIC_COMPANIES);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('comp_1');
-  const [companyKeyInput, setCompanyKeyInput] = useState('ACME-KX-7421');
+  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [companyKeyInput, setCompanyKeyInput] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
-  const [email, setEmail] = useState('vikram.admin@acme.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   // Staff key state
   const [userKey, setUserKey] = useState('');
@@ -138,9 +134,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    apiService.getPublicCompanies().then((comps: PublicCompany[]) => {
+      if (Array.isArray(comps)) {
+        setPublicCompanies(comps);
+        if (comps.length > 0) {
+          setSelectedCompanyId((prev) => prev || comps[0].id);
+        } else {
+          setSelectedCompanyId('');
+        }
+      }
+    });
+  }, []);
+
   const selectedCompanyName =
     publicCompanies.find((c) => c.id === selectedCompanyId)?.name ||
-    'Acme Sales Solutions';
+    (publicCompanies.length === 0 ? 'No Active Companies Registered' : 'Select Company');
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 

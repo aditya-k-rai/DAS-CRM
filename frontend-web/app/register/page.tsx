@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
-  Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3
+  Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3,
+  Download, PartyPopper, Crown, Calendar, Phone
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -139,6 +140,244 @@ const PLAN_DEFS = {
 
 type PlanKey = keyof typeof PLAN_DEFS;
 
+// ── Client-side PDF Generator ─────────────────────────────────────────────────
+async function generateRegistrationPdf(data: {
+  companyName: string;
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+  registrationKey: string;
+  planTier: string;
+  memberLimit: number;
+  validityDays: number;
+  pincode?: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  gstNumber?: string;
+  companyType?: string;
+  sector?: string;
+  couponCode?: string;
+  qrCodeDataUrl?: string;
+}) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210;
+
+  // ── Background
+  doc.setFillColor(10, 12, 30);
+  doc.rect(0, 0, W, 297, 'F');
+
+  // Top accent bar
+  doc.setFillColor(99, 102, 241);
+  doc.rect(0, 0, W, 2.5, 'F');
+
+  // ── Header section
+  doc.setFillColor(18, 22, 52);
+  doc.roundedRect(10, 8, W - 20, 42, 4, 4, 'F');
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(10, 8, W - 20, 42, 4, 4, 'D');
+
+  doc.setTextColor(99, 102, 241);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text('DAS CRM', 20, 23);
+
+  doc.setTextColor(160, 170, 230);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Company Registration Certificate — Confidential Document', 20, 31);
+  doc.text(`Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`, 20, 38);
+
+  // Contact info right-aligned in header
+  doc.setTextColor(120, 130, 180);
+  doc.setFontSize(7.5);
+  doc.text('support@dascrm.app', W - 15, 23, { align: 'right' });
+  doc.text('dynamicadvancesolution@gmail.com', W - 15, 30, { align: 'right' });
+  doc.text('https://dascrm.app', W - 15, 37, { align: 'right' });
+
+  // ── Certificate Title
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('Congratulations! Company Workspace Registered', W / 2, 63, { align: 'center' });
+
+  doc.setTextColor(160, 170, 210);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Submitted for Super Admin plan verification — activation within 24-48 hrs. Check your email for a copy.', W / 2, 71, { align: 'center' });
+
+  // ── REGISTRATION KEY box
+  doc.setFillColor(28, 31, 72);
+  doc.roundedRect(10, 78, W - 20, 28, 4, 4, 'F');
+  doc.setDrawColor(99, 102, 241);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(10, 78, W - 20, 28, 4, 4, 'D');
+
+  doc.setTextColor(140, 150, 200);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COMPANY REGISTRATION KEY', W / 2, 85, { align: 'center' });
+
+  doc.setTextColor(99, 102, 241);
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.registrationKey, W / 2, 99, { align: 'center' });
+
+  // ── COMPANY DETAILS table
+  doc.setFillColor(22, 26, 60);
+  doc.roundedRect(10, 110, W - 20, 7, 2, 2, 'F');
+  doc.setTextColor(99, 102, 241);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COMPANY & REGISTRATION DETAILS', 15, 115.5);
+
+  const companyRows = [
+    ['Company Name', data.companyName],
+    ['Company Type', data.companyType || 'N/A'],
+    ['Industry Sector', data.sector || 'N/A'],
+    ['GST Number', data.gstNumber || 'N/A'],
+    ['Phone Number', data.phone || 'N/A'],
+    ['Pincode', data.pincode || 'N/A'],
+    ['City', data.city || 'N/A'],
+    ['State', data.state || 'N/A'],
+    ['Subscription Plan', `${data.planTier} — ${data.memberLimit} User Seats`],
+    ['Key Validity', `${data.validityDays} Days from Registration`],
+    ['Coupon Applied', data.couponCode || 'None'],
+    ['Registration Date', new Date().toLocaleDateString('en-IN')],
+    ['Verification Status', 'Pending Super Admin Approval'],
+  ];
+
+  let y = 118;
+  companyRows.forEach((row, i) => {
+    doc.setFillColor(i % 2 === 0 ? 18 : 23, i % 2 === 0 ? 22 : 27, i % 2 === 0 ? 52 : 60);
+    doc.rect(10, y, W - 20, 8.5, 'F');
+    doc.setTextColor(130, 140, 190);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(row[0], 15, y + 5.8);
+    doc.setTextColor(215, 220, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    const val = row[1];
+    doc.text(val.length > 50 ? val.slice(0, 47) + '...' : val, W - 15, y + 5.8, { align: 'right' });
+    y += 8.5;
+  });
+
+  y += 5;
+
+  // ── ADMIN CREDENTIALS section (highlighted)
+  doc.setFillColor(15, 28, 52);
+  doc.roundedRect(10, y, W - 20, 7, 2, 2, 'F');
+  doc.setTextColor(245, 158, 11);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ADMIN LOGIN CREDENTIALS (Keep Confidential)', 15, y + 5);
+  y += 7;
+
+  const credRows = [
+    ['Admin Full Name', data.adminName],
+    ['Admin Email (Login ID)', data.adminEmail],
+    ['Admin Password', data.adminPassword],
+  ];
+
+  credRows.forEach((row, i) => {
+    doc.setFillColor(i % 2 === 0 ? 20 : 25, i % 2 === 0 ? 16 : 20, i % 2 === 0 ? 45 : 50);
+    doc.rect(10, y, W - 20, 8.5, 'F');
+    // Amber left border for credentials
+    doc.setFillColor(245, 158, 11);
+    doc.rect(10, y, 2, 8.5, 'F');
+    doc.setTextColor(180, 150, 100);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(row[0], 16, y + 5.8);
+    doc.setTextColor(255, 230, 150);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    const val = row[1] === data.adminPassword ? row[1] : row[1]; // show password as-is
+    doc.text(val.length > 48 ? val.slice(0, 45) + '...' : val, W - 15, y + 5.8, { align: 'right' });
+    y += 8.5;
+  });
+
+  y += 4;
+
+  // ── QR Code (if available)
+  if (data.qrCodeDataUrl && y < 240) {
+    try {
+      doc.addImage(data.qrCodeDataUrl, 'PNG', W / 2 - 16, y, 32, 32);
+      doc.setTextColor(120, 130, 190);
+      doc.setFontSize(7);
+      doc.text('QR: Scan to verify key authenticity', W / 2, y + 36, { align: 'center' });
+      y += 42;
+    } catch (_) { y += 4; }
+  } else {
+    y += 2;
+  }
+
+  // ── Contact & Support box
+  const contactH = 22;
+  if (y + contactH < 272) {
+    doc.setFillColor(12, 22, 45);
+    doc.roundedRect(10, y, W - 20, contactH, 3, 3, 'F');
+    doc.setDrawColor(34, 197, 94);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(10, y, W - 20, contactH, 3, 3, 'D');
+
+    doc.setTextColor(34, 197, 94);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DAS CRM — Contact & Support', 15, y + 7);
+
+    doc.setTextColor(160, 220, 180);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Email: support@dascrm.app   |   Admin Portal: dynamicadvancesolution@gmail.com', 15, y + 14);
+    doc.text('Website: https://dascrm.app   |   Login: https://dascrm.app/login', 15, y + 20);
+    y += contactH + 4;
+  }
+
+  // ── Instructions box
+  const instrH = 36;
+  if (y + instrH < 272) {
+    doc.setFillColor(14, 28, 52);
+    doc.roundedRect(10, y, W - 20, instrH, 3, 3, 'F');
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(10, y, W - 20, instrH, 3, 3, 'D');
+
+    doc.setTextColor(245, 158, 11);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Important Instructions & Next Steps', 15, y + 8);
+
+    doc.setTextColor(200, 210, 240);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('1. This PDF has also been sent to your registered email address. Please check your inbox.', 15, y + 16);
+    doc.text('2. Save this document securely — it contains your Registration Key and Admin credentials.', 15, y + 22);
+    doc.text('3. Super Admin will verify your plan and activate the workspace within 24-48 hours.', 15, y + 28);
+    doc.text('4. Upon activation, login at https://dascrm.app/login using the credentials above.', 15, y + 34);
+  }
+
+  // ── Footer
+  doc.setFillColor(8, 10, 24);
+  doc.rect(0, 279, W, 16, 'F');
+  doc.setFillColor(99, 102, 241);
+  doc.rect(0, 295, W, 2, 'F');
+
+  doc.setTextColor(80, 90, 140);
+  doc.setFontSize(6.5);
+  doc.text(
+    'DAS CRM — Powered by Dynamic Advance Solution  |  support@dascrm.app  |  Confidential system-generated certificate. Do not share.',
+    W / 2, 289,
+    { align: 'center' }
+  );
+
+  const safeName = data.companyName.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+  doc.save(`DAS_CRM_Registration_${safeName}_${data.registrationKey}.pdf`);
+}
+
 export default function RegisterCompanyPage() {
   const [companyName, setCompanyName]         = useState('');
   const [adminName, setAdminName]             = useState('');
@@ -163,9 +402,66 @@ export default function RegisterCompanyPage() {
   const [error, setError]                     = useState<string | null>(null);
   const [loading, setLoading]                 = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState<any>(null);
+  const [pdfDownloading, setPdfDownloading]   = useState(false);
+  const pdfTriggeredRef                       = useRef(false);
 
   const router = useRouter();
   const { setAuthSession } = useAuth();
+
+  // Auto-trigger PDF download once on registration success
+  useEffect(() => {
+    if (registrationSuccess && !pdfTriggeredRef.current) {
+      pdfTriggeredRef.current = true;
+      setPdfDownloading(true);
+      generateRegistrationPdf({
+        companyName:     registrationSuccess.companyName,
+        adminName:       registrationSuccess.adminName || adminName,
+        adminEmail:      registrationSuccess.adminEmail,
+        adminPassword,
+        registrationKey: registrationSuccess.registrationKey,
+        planTier:        registrationSuccess.planTier,
+        memberLimit:     registrationSuccess.memberLimit,
+        validityDays:    registrationSuccess.validityDays ?? 7,
+        pincode,
+        phone,
+        city,
+        state,
+        gstNumber,
+        companyType,
+        sector,
+        couponCode:      couponCode || undefined,
+        qrCodeDataUrl:   registrationSuccess.qrCodeDataUrl,
+      }).finally(() => setPdfDownloading(false));
+    }
+  }, [registrationSuccess]);
+
+  const handleManualPdfDownload = async () => {
+    if (!registrationSuccess) return;
+    setPdfDownloading(true);
+    try {
+      await generateRegistrationPdf({
+        companyName:     registrationSuccess.companyName,
+        adminName:       registrationSuccess.adminName || adminName,
+        adminEmail:      registrationSuccess.adminEmail,
+        adminPassword,
+        registrationKey: registrationSuccess.registrationKey,
+        planTier:        registrationSuccess.planTier,
+        memberLimit:     registrationSuccess.memberLimit,
+        validityDays:    registrationSuccess.validityDays ?? 7,
+        pincode,
+        phone,
+        city,
+        state,
+        gstNumber,
+        companyType,
+        sector,
+        couponCode:      couponCode || undefined,
+        qrCodeDataUrl:   registrationSuccess.qrCodeDataUrl,
+      });
+    } finally {
+      setPdfDownloading(false);
+    }
+  };
 
 
   // Pincode Lookup & Auto-Sync Engine (City & State)
@@ -310,78 +606,156 @@ export default function RegisterCompanyPage() {
           </p>
         </div>
 
-        {/* ── REGISTRATION SUCCESS CARD ────────────────────────────────────────── */}
-        {registrationSuccess ? (
-          <div className="p-8 rounded-3xl bg-card border border-emerald-500/40 shadow-2xl space-y-6 animate-scale-in">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl">
-                ✓
-              </div>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-500/30">
-                  REGISTRATION SUBMITTED • VERIFICATION IN PROCESS
-                </span>
-                <h3 className="text-lg font-bold text-foreground dark:text-white mt-1">Company Registered & Super Admin Verification in Process</h3>
-              </div>
-            </div>
+        {/* ── REGISTRATION SUCCESS FULLSCREEN POPUP ────────────────────────── */}
+        {registrationSuccess && (
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6"
+            style={{ background: 'rgba(4,5,15,0.97)', backdropFilter: 'blur(20px)' }}
+          >
+            {/* Confetti glow effects */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-80 h-80 bg-emerald-600/15 rounded-full blur-[80px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-600/10 rounded-full blur-[80px] pointer-events-none" />
 
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs space-y-1.5 leading-relaxed">
-              <p className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
-                <Clock size={14} /> Next Step: Plan Verification by Super Admin
-              </p>
-              <p>
-                Your registration has been forwarded to Super Admin for plan quota verification and workspace activation. You can check live verification status or inquire with Super Admin at any time.
-              </p>
-            </div>
+            <div className="relative max-w-2xl w-full max-h-[95vh] overflow-y-auto rounded-3xl border border-indigo-500/30 shadow-[0_0_80px_rgba(99,102,241,0.25)]" style={{ background: 'linear-gradient(145deg,#0d0f2a,#0a0c20)' }}>
 
-            {/* Email Summary Box */}
-            <div className="p-5 rounded-2xl bg-background border border-border space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Mail size={13} className="text-brand-400" /> Recipient Mail:</span>
-                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.adminEmail}</span>
-              </div>
-
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Building2 size={13} className="text-indigo-400" /> Company Name:</span>
-                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.companyName}</span>
+              {/* Header ribbon */}
+              <div className="relative overflow-hidden rounded-t-3xl px-6 sm:px-8 pt-8 pb-6" style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#1e3a5f 100%)' }}>
+                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(45deg,#6366f1 0,#6366f1 1px,transparent 0,transparent 50%)', backgroundSize: '20px 20px' }} />
+                <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-xl" style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}>
+                    <PartyPopper size={30} className="text-white" />
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider mb-2">
+                      <CheckCircle2 size={11} /> Registration Successful
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                      Congratulations! 🎉
+                    </h2>
+                    <p className="text-indigo-200 text-sm font-medium mt-1">
+                      <span className="font-bold text-white">{registrationSuccess.companyName}</span> is now registered in DAS CRM.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Key size={13} className="text-amber-400" /> Generated Registration Key:</span>
-                <span className="font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-500/30">
-                  {registrationSuccess.registrationKey}
-                </span>
+              {/* PDF auto-download notice + email note */}
+              <div className="px-6 sm:px-8 pt-5 space-y-2">
+                <div className="flex items-center gap-3 p-4 rounded-2xl border" style={{ background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.3)' }}>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                    {pdfDownloading
+                      ? <RefreshCw size={18} className="text-indigo-400 animate-spin" />
+                      : <Download size={18} className="text-indigo-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-indigo-300">
+                      {pdfDownloading ? '⏳ Generating Registration Certificate PDF...' : '✅ Registration Certificate PDF Downloaded!'}
+                    </p>
+                    <p className="text-[10px] text-indigo-400/70 mt-0.5">
+                      {pdfDownloading ? 'Your PDF is being prepared — it includes your key, all details & admin credentials.' : 'Check your Downloads folder. Contains key, company details & admin credentials.'}
+                    </p>
+                  </div>
+                </div>
+                {/* Email copy note */}
+                <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)' }}>
+                  <Mail size={15} className="text-emerald-400 flex-shrink-0" />
+                  <p className="text-[11px] text-emerald-300 font-medium leading-relaxed">
+                    📧 <strong>Check your inbox at {registrationSuccess.adminEmail}</strong> — a copy of this Registration Certificate PDF (with all details including your key and admin credentials) has been emailed to you.
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Layers size={13} className="text-emerald-400" /> Requested Plan:</span>
-                <span className="font-bold text-emerald-400">
-                  {registrationSuccess.planTier} ({registrationSuccess.memberLimit} Seats, Valid {registrationSuccess.validityDays || 7} Days)
-                </span>
+
+              {/* ── REGISTRATION KEY HIGHLIGHT ── */}
+              <div className="px-6 sm:px-8 pt-5">
+                <div className="p-5 rounded-2xl relative overflow-hidden" style={{ background: 'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1))', border: '1px solid rgba(99,102,241,0.4)' }}>
+                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl" />
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-indigo-400 mb-2 flex items-center gap-1.5">
+                    <Key size={11} /> Your Company Registration Key
+                  </p>
+                  <p className="text-3xl sm:text-4xl font-black tracking-widest text-white" style={{ textShadow: '0 0 30px rgba(99,102,241,0.8)', letterSpacing: '0.15em' }}>
+                    {registrationSuccess.registrationKey}
+                  </p>
+                  <p className="text-[10px] text-indigo-300/70 mt-2 font-medium">
+                    🔐 Keep this key safe. It has been emailed to {registrationSuccess.adminEmail}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1.5"><Lock size={13} className="text-purple-400" /> Admin Credentials:</span>
-                <span className="font-bold text-foreground dark:text-white">{registrationSuccess.adminEmail} • Password Set ✓</span>
+              {/* ── DETAILS GRID ── */}
+              <div className="px-6 sm:px-8 pt-5">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-3">Registration Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { icon: <Building2 size={13} />, label: 'Company', value: registrationSuccess.companyName, color: 'indigo' },
+                    { icon: <Mail size={13} />, label: 'Admin Email', value: registrationSuccess.adminEmail, color: 'blue' },
+                    { icon: <Crown size={13} />, label: 'Plan', value: `${registrationSuccess.planTier} — ${registrationSuccess.memberLimit} Seats`, color: 'amber' },
+                    { icon: <Calendar size={13} />, label: 'Key Validity', value: `${registrationSuccess.validityDays ?? 7} Days`, color: 'emerald' },
+                    { icon: <Phone size={13} />, label: 'Phone', value: phone || 'N/A', color: 'purple' },
+                    { icon: <MapPin size={13} />, label: 'Location', value: city && state ? `${city}, ${state}` : city || state || 'N/A', color: 'rose' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="flex-shrink-0 text-slate-400">{item.icon}</div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{item.label}</p>
+                        <p className="text-xs font-bold text-white truncate">{item.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              <Link
-                href={`/verification-pending?companyKey=${encodeURIComponent(registrationSuccess.registrationKey)}&companyName=${encodeURIComponent(registrationSuccess.companyName)}&email=${encodeURIComponent(registrationSuccess.adminEmail)}`}
-                className="flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30"
-              >
-                <Clock size={15} /> Check Verification Status →
-              </Link>
-              <Link
-                href="/login"
-                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 border border-slate-700"
-              >
-                Proceed to Login Gateway
-              </Link>
+              {/* ── PENDING VERIFICATION NOTICE ── */}
+              <div className="px-6 sm:px-8 pt-4">
+                <div className="p-4 rounded-2xl flex gap-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <Clock size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-300">Awaiting Super Admin Verification</p>
+                    <p className="text-[10px] text-amber-400/70 mt-0.5 leading-relaxed">
+                      Your workspace will be activated within 24-48 hours after plan quota verification by Super Admin. You'll receive a confirmation email at <strong className="text-amber-300">{registrationSuccess.adminEmail}</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── ACTION BUTTONS ── */}
+              <div className="px-6 sm:px-8 pt-5 pb-8 flex flex-col gap-3">
+                <button
+                  onClick={handleManualPdfDownload}
+                  disabled={pdfDownloading}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', boxShadow: '0 8px 32px rgba(99,102,241,0.35)' }}
+                >
+                  {pdfDownloading
+                    ? <><RefreshCw size={16} className="animate-spin" /> Generating PDF...</>
+                    : <><Download size={16} /> Download Registration Certificate PDF</>}
+                </button>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link
+                    href={`/verification-pending?companyKey=${encodeURIComponent(registrationSuccess.registrationKey)}&companyName=${encodeURIComponent(registrationSuccess.companyName)}&email=${encodeURIComponent(registrationSuccess.adminEmail)}`}
+                    className="flex-1 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all"
+                    style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.35)', color: '#fbbf24' }}
+                  >
+                    <Clock size={15} /> Check Verification Status
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="flex-1 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
+                  >
+                    <ArrowRight size={15} /> Proceed to Login
+                  </Link>
+                </div>
+              </div>
+
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* ── REGISTRATION FORM (always rendered, blur when success popup is open) ── */}
+        {!registrationSuccess && (
           /* ── REGISTRATION FORM ────────────────────────────────────────────────── */
           <form onSubmit={handleRegister} className="p-8 rounded-3xl bg-card border border-border space-y-6 shadow-2xl">
             {error && (

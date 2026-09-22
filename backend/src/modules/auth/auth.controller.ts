@@ -127,7 +127,7 @@ export class AuthController {
   registerCompanyWithKey(
     @Body()
     body: {
-      registrationKey: string;
+      registrationKey?: string;
       companyName: string;
       adminName: string;
       adminEmail: string;
@@ -135,9 +135,12 @@ export class AuthController {
       phone: string;
       city: string;
       state: string;
+      pincode?: string;
       gstNumber?: string;
       companyType?: string;
       sector?: string;
+      planTier?: string;
+      couponCode?: string;
     },
   ) {
     return this.authService.registerCompanyWithKey(body);

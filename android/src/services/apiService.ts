@@ -203,12 +203,7 @@ class ApiService {
     } catch {
       // Backend offline fallback
     }
-    return [
-      { id: 'comp_1', name: 'Acme Sales Solutions' },
-      { id: 'comp_2', name: 'Sunita Real Estate Ltd' },
-      { id: 'comp_3', name: 'Lakshmi Auto Dealerships' },
-      { id: 'comp_4', name: 'TechCorp Enterprise' },
-    ];
+    return [];
   }
 
   /** Fetch current authenticated user profile (/auth/me) */

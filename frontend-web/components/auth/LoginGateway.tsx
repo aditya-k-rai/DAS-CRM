@@ -52,18 +52,12 @@ export function LoginGateway() {
   const [entryPoint, setEntryPoint] = useState<'workspace' | 'staff_key' | 'superadmin'>('workspace');
   
   // Workspace Login State with Company & Key Enforced
-  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([
-    { id: 'comp_1', name: 'Acme Sales Solutions', slug: 'acme-sales' },
-    { id: 'comp_2', name: 'Sunita Real Estate Ltd', slug: 'sunita-re' },
-    { id: 'comp_3', name: 'Lakshmi Auto Dealerships', slug: 'lakshmi-auto' },
-    { id: 'comp_4', name: 'TechCorp Enterprise', slug: 'techcorp-io' },
-    { id: 'comp_pending_apex_solar', name: 'Apex Solar Energy Solutions (Pending Verification)', slug: 'apex-solar' },
-  ]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('comp_1');
-  const [companyKeyInput, setCompanyKeyInput] = useState('ACME-KX-7421');
+  const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [companyKeyInput, setCompanyKeyInput] = useState('');
 
-  const [email, setEmail] = useState('vikram.admin@acme.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
 
   // Staff Key State
@@ -105,10 +99,17 @@ export function LoginGateway() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) setPublicCompanies(data);
+        if (Array.isArray(data)) {
+          setPublicCompanies(data);
+          if (data.length > 0) {
+            setSelectedCompanyId(prev => prev || data[0].id);
+          } else {
+            setSelectedCompanyId('');
+          }
+        }
       }
     } catch (e) {
-      // Fallback
+      setPublicCompanies([]);
     }
   };
 
@@ -642,22 +643,21 @@ export function LoginGateway() {
                 <div className="relative flex items-center">
                   <Building2 size={15} className="absolute left-3 text-indigo-400" />
                   <select
-                    disabled={loading}
+                    disabled={loading || publicCompanies.length === 0}
                     className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCompanyId}
                     onChange={e => {
                       const val = e.target.value;
                       setSelectedCompanyId(val);
-                      if (val === 'comp_pending_apex_solar') {
-                        setCompanyKeyInput('SOLAR-PV-9021');
-                        setEmail('rajesh.solar@apexenergy.in');
-                        setSelectedRole('ADMIN');
-                      }
                     }}
                   >
-                    {publicCompanies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {publicCompanies.length === 0 ? (
+                      <option value="">No Active Companies Registered</option>
+                    ) : (
+                      publicCompanies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>

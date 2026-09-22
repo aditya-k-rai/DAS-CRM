@@ -35,12 +35,7 @@ ROLE_EMAILS = {
 
 ALL_ROLES = list(ROLE_EMAILS.keys())
 
-PUBLIC_COMPANIES = [
-    {"id": "comp_1", "name": "Acme Sales Solutions"},
-    {"id": "comp_2", "name": "Sunita Real Estate Ltd"},
-    {"id": "comp_3", "name": "Lakshmi Auto Dealerships"},
-    {"id": "comp_4", "name": "TechCorp Enterprise"},
-]
+PUBLIC_COMPANIES = []
 
 
 def infer_role_from_email(email: str):
