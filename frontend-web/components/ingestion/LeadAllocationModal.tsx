@@ -149,10 +149,10 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 }) => {
   const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
 
   // Batchwise Allocation State
   const [batchRules, setBatchRules] = useState<WebBatchRule[]>([]);
-  const [runLoop, setRunLoop] = useState(true);
 
   // Custom Batch Distribution State
   const [customBatchSize, setCustomBatchSize] = useState<number | ''>(100);
@@ -172,6 +172,64 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   }, [batchRules]);
 
   const remainingRowsCount = Math.max(0, totalLeadsCount - allocatedRowsCount);
+
+  // 📊 Live breakdown of who got how many leads
+  const assigneeLeadBreakdown = useMemo(() => {
+    const stats: Record<string, {
+      id: string;
+      name: string;
+      role: string;
+      color: string;
+      totalLeads: number;
+      batchCount: number;
+      ranges: string[];
+    }> = {};
+
+    MOCK_TEAM.forEach(m => {
+      stats[m.id] = {
+        id: m.id,
+        name: m.name,
+        role: m.role,
+        color: m.color || '#6366f1',
+        totalLeads: 0,
+        batchCount: 0,
+        ranges: [],
+      };
+    });
+
+    if (mode === 'BATCHWISE') {
+      batchRules.forEach(rule => {
+        const from = Number(rule.fromRow);
+        const to = Number(rule.toRow);
+        if (!isNaN(from) && !isNaN(to) && from >= 1 && to >= from && rule.assigneeId) {
+          if (!stats[rule.assigneeId]) {
+            stats[rule.assigneeId] = {
+              id: rule.assigneeId,
+              name: rule.assigneeName || 'Assigned Staff',
+              role: rule.role || 'Sales Rep',
+              color: '#6366f1',
+              totalLeads: 0,
+              batchCount: 0,
+              ranges: [],
+            };
+          }
+          const item = stats[rule.assigneeId];
+          const count = to - from + 1;
+          item.totalLeads += count;
+          item.batchCount += 1;
+          item.ranges.push(`R${from}-${to}`);
+        }
+      });
+    } else if (mode === 'DIRECT_ASSIGN') {
+      if (selectedUser && stats[selectedUser.id]) {
+        stats[selectedUser.id].totalLeads = totalLeadsCount;
+        stats[selectedUser.id].batchCount = 1;
+        stats[selectedUser.id].ranges.push(`All 1-${totalLeadsCount}`);
+      }
+    }
+
+    return Object.values(stats);
+  }, [batchRules, mode, selectedUser, totalLeadsCount]);
 
   const handleToggleMember = (id: string) => {
     setSelectedMemberIds(prev =>
@@ -290,9 +348,6 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
     setBatchRules(prev => [...prev, ...additionalRules]);
   };
-
-  // Direct Assign State
-  const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
 
   // 👁️ Preview & Edit Sheet State
   const [isSheetPreviewMode, setIsSheetPreviewMode] = useState(false);
@@ -470,10 +525,6 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
         ? batchRules.map(r => `• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName} (In-App Notification Dispatched ✓)`)
         : [`• All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role})`];
 
-      if (mode === 'BATCHWISE' && runLoop) {
-        items.push('• Continuous Loop Routing: Enabled');
-      }
-
       items.push(`• 🌐 Internet Verified: Authoritative DB transaction verified (${verifiedData?.totalAllocated || totalLeadsCount} leads)`);
       items.push(`• 🔔 Employee Notification: Real-time alert dispatched to assigned staff`);
 
@@ -550,12 +601,12 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
               className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border ${
                 isSheetPreviewMode
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white border-slate-600 hover:border-slate-500'
               }`}
               title="Open Sheet Editor to preview & edit rows and columns"
             >
-              <Eye size={13} />
-              {isSheetPreviewMode ? 'Close Sheet Editor' : '👁️ Preview & Edit Sheet'}
+              <Eye size={13} className="text-cyan-400" />
+              {isSheetPreviewMode ? 'Close Sheet Editor' : 'Preview & Edit Sheet'}
             </button>
 
             <button
@@ -1020,7 +1071,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                         </div>
                         <button
                           onClick={() => handleRemoveBatchRule(rule.id)}
-                          className="text-xs font-extrabold text-rose-400 hover:text-rose-300"
+                          className="px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all flex items-center gap-1"
                         >
                           Remove ✕
                         </button>
@@ -1028,14 +1079,15 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">From Row</label>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">From Row</label>
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
                             placeholder="e.g. 1"
-                            className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
-                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
+                            style={{ backgroundColor: '#090d16', color: '#ffffff', colorScheme: 'dark' }}
+                            className={`w-full px-3 py-2 bg-slate-900 border-2 rounded-lg text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
+                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-700 focus:border-indigo-500'
                             }`}
                             value={rule.fromRow === '' ? '' : rule.fromRow}
                             onChange={e => {
@@ -1045,14 +1097,15 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 block mb-1">To Row (Max {totalLeadsCount})</label>
+                          <label className="text-[10px] font-bold text-slate-300 block mb-1">To Row (Max {totalLeadsCount})</label>
                           <input
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
                             placeholder={`Max ${totalLeadsCount}`}
-                            className={`w-full px-3 py-1.5 bg-slate-900 border rounded-lg text-xs font-bold text-white focus:outline-none ${
-                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-800 focus:border-indigo-500'
+                            style={{ backgroundColor: '#090d16', color: '#ffffff', colorScheme: 'dark' }}
+                            className={`w-full px-3 py-2 bg-slate-900 border-2 rounded-lg text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
+                              isConflicting ? 'border-rose-500 focus:border-rose-400' : 'border-slate-700 focus:border-indigo-500'
                             }`}
                             value={rule.toRow === '' ? '' : rule.toRow}
                             onChange={e => {
@@ -1064,8 +1117,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                       </div>
 
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 block mb-1">Assignee (TL / Sales Rep)</label>
-                      <div className="flex gap-2 overflow-x-auto pb-1">
+                      <label className="text-[10px] font-bold text-slate-300 block mb-1">Assignee (TL / Sales Rep)</label>
+                      <div className="flex gap-2 overflow-x-auto pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                         {MOCK_TEAM.map(usr => {
                           const isSel = rule.assigneeId === usr.id;
                           return (
@@ -1074,8 +1127,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                               onClick={() => handleUpdateBatchRule(rule.id, { assigneeId: usr.id, assigneeName: `${usr.name} (${usr.role})`, role: usr.role })}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border ${
                                 isSel
-                                  ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                                  ? 'bg-indigo-600 border-indigo-400 text-white font-black shadow-md shadow-indigo-600/30'
+                                  : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
                               }`}
                             >
                               {usr.name} ({usr.role})
@@ -1091,25 +1144,124 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
               <button
                 onClick={handleAddBatchRule}
-                className="w-full py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 text-xs font-extrabold transition-all"
+                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md shadow-indigo-600/30 border border-indigo-400/50 flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-[0.99]"
               >
                 + Add Custom Batch Range
               </button>
 
-              {/* Loop Switch */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                <div>
-                  <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
-                    <RefreshCw size={12} className="text-indigo-400" /> Continuous Loop Routing
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Automatically cycle batch distribution rules for new leads</p>
+              {/* 📊 LIVE BREAKDOWN: WHO GOT HOW MANY LEADS */}
+              <div className="p-4 bg-slate-950/90 rounded-2xl border border-indigo-500/30 space-y-3 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
+                      <Users size={15} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                        Lead Distribution Breakdown
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          Who Got How Many Leads
+                        </span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Live breakdown across team members from {totalLeadsCount} total ingested leads
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-emerald-400">
+                      {allocatedRowsCount} / {totalLeadsCount} Leads
+                    </span>
+                    <p className="text-[10px] font-bold text-slate-400">
+                      {totalLeadsCount > 0 ? Math.round((allocatedRowsCount / totalLeadsCount) * 100) : 0}% Allocated
+                    </p>
+                  </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={runLoop}
-                  onChange={e => setRunLoop(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
-                />
+
+                {/* Grid of Team Members and their Allocated Leads */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {assigneeLeadBreakdown.map(member => {
+                    const pct = totalLeadsCount > 0 ? Math.round((member.totalLeads / totalLeadsCount) * 100) : 0;
+                    const hasLeads = member.totalLeads > 0;
+                    const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+                    return (
+                      <div
+                        key={member.id}
+                        className={`p-3 rounded-xl border transition-all ${
+                          hasLeads
+                            ? 'bg-slate-900/95 border-indigo-500/40 shadow-sm'
+                            : 'bg-slate-950/50 border-slate-800/80 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                              hasLeads ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-black text-white truncate">{member.name}</h5>
+                              <p className="text-[10px] font-bold text-slate-400 truncate">{member.role}</p>
+                            </div>
+                          </div>
+
+                          <div className="text-right flex-shrink-0">
+                            <span className={`text-xs font-black ${hasLeads ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {member.totalLeads.toLocaleString()} Leads
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 block">
+                              {pct}% share
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress bar per member */}
+                        <div className="mt-2 w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                          <div
+                            className={`h-full transition-all duration-300 ${
+                              hasLeads ? 'bg-gradient-to-r from-indigo-500 to-emerald-400' : 'bg-transparent'
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+
+                        {/* Batch details pills */}
+                        {hasLeads && member.ranges.length > 0 && (
+                          <div className="mt-2 flex items-center gap-1 flex-wrap">
+                            <span className="text-[9px] font-bold text-slate-400">Batches:</span>
+                            {member.ranges.map((rng, rIdx) => (
+                              <span key={rIdx} className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                                {rng}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Remaining unassigned notification if any */}
+                {remainingRowsCount > 0 ? (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+                    <span className="text-amber-300 font-bold flex items-center gap-1.5 text-[11px]">
+                      ⚠️ <strong className="font-extrabold">{remainingRowsCount} Leads</strong> are unassigned ({totalLeadsCount > 0 ? Math.round((remainingRowsCount / totalLeadsCount) * 100) : 0}% of dataset)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAssignRemainingToMember(remainingAssigneeId)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-black cursor-pointer transition-all"
+                    >
+                      Assign All Remaining →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1.5 text-[11px] font-black text-emerald-400">
+                    <CheckCircle size={13} /> 100% of dataset is fully distributed across team members!
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1151,7 +1303,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
         <div className="flex items-center gap-3 px-6 py-4 bg-slate-950 border-t border-slate-800">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
+            className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white text-xs font-bold transition-all border border-slate-600 hover:border-slate-500 cursor-pointer shadow-sm"
           >
             Skip Allocation
           </button>

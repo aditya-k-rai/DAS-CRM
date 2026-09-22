@@ -176,7 +176,6 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0].id, assigneeName: `${activeTeam[0].name} (${activeTeam[0].role})`, role: activeTeam[0].role },
     { id: 'b-2', fromRow: '', toRow: '', assigneeId: activeTeam[1].id, assigneeName: `${activeTeam[1].name} (${activeTeam[1].role})`, role: activeTeam[1].role },
   ]);
-  const [runLoop, setRunLoop] = useState(true);
 
   // Direct Assign State
   const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
@@ -210,6 +209,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   // Custom Batch Distribution State (Mobile Parity)
   const [customBatchSize, setCustomBatchSize] = useState<string>('100');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(activeTeam.map(m => m.id));
+  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(activeTeam[0]?.id || '1');
 
   // Compute allocated rows & remaining rows
   const allocatedRowsCount = React.useMemo(() => {
@@ -224,6 +224,64 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   }, [batchRules]);
 
   const remainingRowsCount = Math.max(0, totalLeadsCount - allocatedRowsCount);
+
+  // 📊 Live breakdown of who got how many leads (Mobile)
+  const assigneeLeadBreakdown = React.useMemo(() => {
+    const stats: Record<string, {
+      id: string;
+      name: string;
+      role: string;
+      color: string;
+      totalLeads: number;
+      batchCount: number;
+      ranges: string[];
+    }> = {};
+
+    activeTeam.forEach(m => {
+      stats[m.id] = {
+        id: m.id,
+        name: m.name,
+        role: m.role,
+        color: m.color || '#6366f1',
+        totalLeads: 0,
+        batchCount: 0,
+        ranges: [],
+      };
+    });
+
+    if (mode === 'BATCHWISE') {
+      batchRules.forEach(rule => {
+        const from = Number(rule.fromRow);
+        const to = Number(rule.toRow);
+        if (!isNaN(from) && !isNaN(to) && from >= 1 && to >= from && rule.assigneeId) {
+          if (!stats[rule.assigneeId]) {
+            stats[rule.assigneeId] = {
+              id: rule.assigneeId,
+              name: rule.assigneeName || 'Assigned Staff',
+              role: rule.role || 'Sales Rep',
+              color: '#6366f1',
+              totalLeads: 0,
+              batchCount: 0,
+              ranges: [],
+            };
+          }
+          const item = stats[rule.assigneeId];
+          const count = to - from + 1;
+          item.totalLeads += count;
+          item.batchCount += 1;
+          item.ranges.push(`R${from}-${to}`);
+        }
+      });
+    } else if (mode === 'DIRECT_ASSIGN') {
+      if (selectedUser && stats[selectedUser.id]) {
+        stats[selectedUser.id].totalLeads = totalLeadsCount;
+        stats[selectedUser.id].batchCount = 1;
+        stats[selectedUser.id].ranges.push(`All 1-${totalLeadsCount}`);
+      }
+    }
+
+    return Object.values(stats);
+  }, [batchRules, mode, selectedUser, totalLeadsCount, activeTeam]);
 
   const handleToggleMember = (id: string) => {
     setSelectedMemberIds(prev =>
@@ -438,7 +496,6 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
 
       if (mode === 'BATCHWISE') {
         batchRules.forEach(r => items.push(`• Rows ${r.fromRow}-${r.toRow} ➔ ${r.assigneeName} (Notification Sent ✓)`));
-        if (runLoop) items.push('• Continuous Loop Routing: Enabled');
       } else if (mode === 'DIRECT_ASSIGN') {
         items.push(`• All ${totalLeadsCount} leads assigned directly to ${selectedUser.name} (${selectedUser.role})`);
       } else if (mode === 'LEAD_POOL') {
@@ -806,13 +863,104 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                   <Text style={styles.addRuleBtnText}>+ Add Custom Batch Range</Text>
                 </TouchableOpacity>
 
-                {/* Loop Option Toggle */}
-                <View style={styles.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.toggleTitle}>🔄 Run Loop Batching</Text>
-                    <Text style={styles.toggleSub}>Automatically cycle batch rules continuously for new leads</Text>
+                {/* 📊 LIVE BREAKDOWN: WHO GOT HOW MANY LEADS */}
+                <View style={styles.breakdownCard}>
+                  <View style={styles.breakdownHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.breakdownTitle}>👥 Lead Distribution Breakdown</Text>
+                        <View style={styles.breakdownBadge}>
+                          <Text style={styles.breakdownBadgeText}>Live</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.breakdownSub}>
+                        Who got how many leads from total {totalLeadsCount} leads
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.breakdownTotalAllocated}>
+                        {allocatedRowsCount} / {totalLeadsCount}
+                      </Text>
+                      <Text style={styles.breakdownPctText}>
+                        {totalLeadsCount > 0 ? Math.round((allocatedRowsCount / totalLeadsCount) * 100) : 0}% Allocated
+                      </Text>
+                    </View>
                   </View>
-                  <Switch value={runLoop} onValueChange={setRunLoop} trackColor={{ false: '#1e293b', true: '#4f46e5' }} />
+
+                  <View style={{ gap: 8, marginTop: 10 }}>
+                    {assigneeLeadBreakdown.map(member => {
+                      const pct = totalLeadsCount > 0 ? Math.round((member.totalLeads / totalLeadsCount) * 100) : 0;
+                      const hasLeads = member.totalLeads > 0;
+                      const initials = member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+                      return (
+                        <View
+                          key={member.id}
+                          style={[
+                            styles.memberBreakdownRow,
+                            hasLeads && { borderColor: member.color + '55', backgroundColor: '#090d16' },
+                          ]}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                              <View style={[styles.memberAvatar, { backgroundColor: hasLeads ? member.color : '#1e293b' }]}>
+                                <Text style={[styles.memberAvatarText, { color: hasLeads ? '#ffffff' : '#94a3b8' }]}>{initials}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.memberBreakdownName} numberOfLines={1}>{member.name}</Text>
+                                <Text style={styles.memberBreakdownRole}>{member.role}</Text>
+                              </View>
+                            </View>
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={[styles.memberLeadCount, hasLeads && { color: '#10b981' }]}>
+                                {member.totalLeads.toLocaleString()} Leads
+                              </Text>
+                              <Text style={styles.memberShareText}>{pct}% share</Text>
+                            </View>
+                          </View>
+
+                          {/* Mini Progress Bar */}
+                          <View style={styles.memberProgressBarBg}>
+                            <View
+                              style={[
+                                styles.memberProgressBarFill,
+                                { width: `${pct}%`, backgroundColor: hasLeads ? (member.color || '#4f46e5') : 'transparent' },
+                              ]}
+                            />
+                          </View>
+
+                          {/* Batch Ranges */}
+                          {hasLeads && member.ranges.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                              {member.ranges.map((rng, rIdx) => (
+                                <View key={rIdx} style={[styles.rangePill, { borderColor: member.color + '44' }]}>
+                                  <Text style={[styles.rangePillText, { color: member.color }]}>{rng}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {remainingRowsCount > 0 ? (
+                    <View style={styles.remainingBreakdownNotice}>
+                      <Text style={styles.remainingBreakdownText}>
+                        ⚠️ {remainingRowsCount} Leads unassigned ({totalLeadsCount > 0 ? Math.round((remainingRowsCount / totalLeadsCount) * 100) : 0}%)
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.assignRemainingSmallBtn}
+                        onPress={() => handleAssignRemainingToMember(remainingAssigneeId)}
+                      >
+                        <Text style={styles.assignRemainingSmallText}>Assign All →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.allAssignedNotice}>
+                      <Text style={styles.allAssignedNoticeText}>✓ 100% of dataset is fully assigned!</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -1030,16 +1178,42 @@ const styles = StyleSheet.create({
   ruleCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ruleIdx: { fontSize: 11, fontWeight: '900', color: '#818cf8' },
   fieldLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 },
-  inputField: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, color: '#ffffff', fontWeight: '700' },
-  userChip: { backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  userChipText: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
+  inputField: { backgroundColor: '#090d16', borderWidth: 1.5, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12, color: '#ffffff', fontWeight: '800' },
+  userChip: { backgroundColor: '#090d16', borderWidth: 1.5, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  userChipText: { fontSize: 10, color: '#cbd5e1', fontWeight: '700' },
 
-  addRuleBtn: { backgroundColor: 'rgba(79,70,229,0.15)', borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginVertical: 6 },
-  addRuleBtnText: { color: '#818cf8', fontSize: 11, fontWeight: '900' },
+  addRuleBtn: { backgroundColor: '#4338ca', borderWidth: 1.5, borderColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginVertical: 6, shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+  addRuleBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
 
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   toggleTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
   toggleSub: { fontSize: 10, color: '#64748b', marginTop: 1 },
+
+  breakdownCard: { backgroundColor: '#020617', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', padding: 12, marginTop: 8 },
+  breakdownHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
+  breakdownTitle: { fontSize: 12, fontWeight: '900', color: '#ffffff' },
+  breakdownBadge: { backgroundColor: 'rgba(99,102,241,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: '#6366f1' },
+  breakdownBadgeText: { fontSize: 9, fontWeight: '900', color: '#818cf8' },
+  breakdownSub: { fontSize: 9, color: '#94a3b8', marginTop: 2 },
+  breakdownTotalAllocated: { fontSize: 11, fontWeight: '900', color: '#10b981' },
+  breakdownPctText: { fontSize: 9, color: '#94a3b8', fontWeight: '700' },
+  memberBreakdownRow: { backgroundColor: '#0b1329', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 9 },
+  memberAvatar: { width: 28, height: 28, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  memberAvatarText: { fontSize: 11, fontWeight: '900' },
+  memberBreakdownName: { fontSize: 11, fontWeight: '800', color: '#ffffff' },
+  memberBreakdownRole: { fontSize: 9, color: '#94a3b8', fontWeight: '600' },
+  memberLeadCount: { fontSize: 11, fontWeight: '900', color: '#cbd5e1' },
+  memberShareText: { fontSize: 9, color: '#64748b', fontWeight: '700' },
+  memberProgressBarBg: { height: 4, backgroundColor: '#020617', borderRadius: 2, overflow: 'hidden', marginTop: 6 },
+  memberProgressBarFill: { height: '100%', borderRadius: 2 },
+  rangePill: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: 'rgba(15,23,42,0.6)' },
+  rangePillText: { fontSize: 8, fontWeight: '800' },
+  remainingBreakdownNotice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)', borderRadius: 8, padding: 8, marginTop: 10 },
+  remainingBreakdownText: { fontSize: 10, fontWeight: '800', color: '#fbbf24', flex: 1 },
+  assignRemainingSmallBtn: { backgroundColor: 'rgba(245,158,11,0.25)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  assignRemainingSmallText: { fontSize: 9, fontWeight: '900', color: '#fef3c7' },
+  allAssignedNotice: { backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)', borderRadius: 8, padding: 8, marginTop: 10, alignItems: 'center' },
+  allAssignedNoticeText: { fontSize: 10, fontWeight: '900', color: '#34d399' },
 
   assigneeCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12 },
   assigneeName: { fontSize: 13, fontWeight: '900', color: '#ffffff' },
@@ -1063,8 +1237,8 @@ const styles = StyleSheet.create({
   claimBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 
   footer: { flexDirection: 'row', gap: 8, backgroundColor: '#0f172a', borderTopWidth: 1, borderTopColor: '#1e293b', paddingHorizontal: 14, paddingTop: 10 },
-  cancelBtn: { flex: 1, backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  cancelBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '800' },
+  cancelBtn: { flex: 1, backgroundColor: '#1e293b', borderWidth: 1.5, borderColor: '#475569', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  cancelBtnText: { color: '#f1f5f9', fontSize: 13, fontWeight: '800' },
   confirmBtn: { flex: 2, backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   confirmBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
 
