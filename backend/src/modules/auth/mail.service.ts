@@ -209,6 +209,7 @@ export class MailService {
     planTier: string;
     memberLimit: number;
     validityDays: number;
+    accountType?: string;
     pincode?: string;
     phone?: string;
     city?: string;
@@ -288,6 +289,7 @@ export class MailService {
         ['City', opts.city || 'N/A'],
         ['State', opts.state || 'N/A'],
         ['Subscription Plan', `${opts.planTier} — ${opts.memberLimit} User Seats`],
+        ['Request Mode', opts.accountType === 'BUY_REQUEST' ? 'Buy Request (30 Days)' : 'Free Trial (15 Days)'],
         ['Key Validity', `${opts.validityDays} Days from Registration`],
         ['Coupon Applied', opts.couponCode || 'None'],
         ['Registration Date', new Date().toLocaleDateString('en-IN')],
@@ -373,6 +375,7 @@ export class MailService {
     planTier: string;
     memberLimit: number;
     validityDays: number;
+    accountType?: string;
     adminPassword?: string;
     pincode?: string;
     phone?: string;
@@ -399,6 +402,7 @@ export class MailService {
         planTier: opts.planTier,
         memberLimit: opts.memberLimit,
         validityDays: opts.validityDays,
+        accountType: opts.accountType,
         pincode: opts.pincode,
         phone: opts.phone,
         city: opts.city,
@@ -525,6 +529,7 @@ export class MailService {
                           ['Pincode', opts.pincode || 'N/A'],
                           ['City / State', opts.city && opts.state ? `${opts.city}, ${opts.state}` : opts.city || opts.state || 'N/A'],
                           ['Subscription Plan', `${opts.planTier} — ${opts.memberLimit} User Seats`],
+                          ['Request Mode', opts.accountType === 'BUY_REQUEST' ? 'Buy Request (30 Days Validity)' : 'Free Trial (15 Days Evaluation)'],
                           ['Key Validity', `${opts.validityDays} Days`],
                           ['Coupon Applied', opts.couponCode || 'None'],
                           ['Registered At', registeredAt + ' IST'],
@@ -611,6 +616,8 @@ export class MailService {
     key: string;
     planTier: string;
     memberLimit: number;
+    accountType?: string;
+    validityDays?: number;
     phone?: string;
     city?: string;
     state?: string;

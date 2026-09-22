@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
   Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
   Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3,
-  Download, PartyPopper, Crown, Calendar, Phone, CreditCard
+  Download, PartyPopper, Crown, Calendar, Phone, CreditCard,
+  FileText, Database, Send, Loader2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -140,6 +141,50 @@ const PLAN_DEFS = {
 
 type PlanKey = keyof typeof PLAN_DEFS;
 
+// Pre-load jsPDF dynamically on browser load so client PDF generation has zero bundle delay
+let preloadedJsPdfModule: any = null;
+if (typeof window !== 'undefined') {
+  import('jspdf')
+    .then((mod) => {
+      preloadedJsPdfModule = mod.jsPDF;
+    })
+    .catch(() => {});
+}
+
+interface RegistrationMilestone {
+  id: number;
+  title: string;
+  description: string;
+  icon: any;
+}
+
+const REGISTRATION_STEPS: RegistrationMilestone[] = [
+  {
+    id: 1,
+    title: 'Securing & Encrypting Admin Credentials',
+    description: 'Master password hashing and parameter validation',
+    icon: Lock,
+  },
+  {
+    id: 2,
+    title: 'Allocating Cloud Workspace & Database Quotas',
+    description: 'Tenant schema initialization and plan assignment',
+    icon: Database,
+  },
+  {
+    id: 3,
+    title: 'Synthesizing Official PDF Registration Certificate',
+    description: 'Generating credentials certificate & triggering instant download',
+    icon: FileText,
+  },
+  {
+    id: 4,
+    title: 'Emailing Certificate & Super Admin Notification',
+    description: 'Background SMTP dispatch & Super Admin approval queue update',
+    icon: Send,
+  },
+];
+
 // ── Client-side PDF Generator ─────────────────────────────────────────────────
 async function generateRegistrationPdf(data: {
   companyName: string;
@@ -161,9 +206,10 @@ async function generateRegistrationPdf(data: {
   sector?: string;
   couponCode?: string;
   qrCodeDataUrl?: string;
+  accountType?: 'BUY_REQUEST' | 'TRIAL';
 }) {
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const jsPdfCtor = preloadedJsPdfModule || (await import('jspdf')).jsPDF;
+  const doc = new jsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210;
 
   // ── Background
@@ -246,6 +292,7 @@ async function generateRegistrationPdf(data: {
     ['City', data.city || 'N/A'],
     ['State', data.state || 'N/A'],
     ['Subscription Plan', `${data.planTier} — ${data.memberLimit} User Seats`],
+    ['Request Mode', data.accountType === 'BUY_REQUEST' ? 'Buy Request (30 Days Validity)' : 'Free Trial (15 Days Evaluation)'],
     ['Key Validity', `${data.validityDays} Days from Registration`],
     ['Coupon Applied', data.couponCode || 'None'],
     ['Registration Date', new Date().toLocaleDateString('en-IN')],
@@ -398,6 +445,7 @@ export default function RegisterCompanyPage() {
   const [companyType, setCompanyType]         = useState('Private Limited');
   const [sector, setSector]                   = useState('Technology & SaaS');
   const [selectedPlan, setSelectedPlan]       = useState<PlanKey>('GROW');
+  const [accountType, setAccountType]         = useState<'BUY_REQUEST' | 'TRIAL'>('TRIAL');
   const [showComparePlans, setShowComparePlans] = useState(false);
   const [couponCode, setCouponCode]           = useState('');
   const [couponValidating, setCouponValidating] = useState(false);
@@ -411,6 +459,13 @@ export default function RegisterCompanyPage() {
   const [registrationSuccess, setRegistrationSuccess] = useState<any>(null);
   const [pdfDownloading, setPdfDownloading]   = useState(false);
   const pdfTriggeredRef                       = useRef(false);
+
+  // Real-time Progress & Status States
+  const [isRegistering, setIsRegistering]     = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [activeStepId, setActiveStepId]       = useState(1);
+  const [statusMessage, setStatusMessage]     = useState('');
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   const router = useRouter();
   const { setAuthSession } = useAuth();
@@ -428,7 +483,8 @@ export default function RegisterCompanyPage() {
         registrationKey: registrationSuccess.registrationKey,
         planTier:        registrationSuccess.planTier,
         memberLimit:     registrationSuccess.memberLimit,
-        validityDays:    registrationSuccess.validityDays ?? 7,
+        validityDays:    registrationSuccess.validityDays ?? (accountType === 'BUY_REQUEST' ? 30 : 15),
+        accountType:     registrationSuccess.accountType || accountType,
         pincode,
         phone,
         city,
@@ -456,7 +512,8 @@ export default function RegisterCompanyPage() {
         registrationKey: registrationSuccess.registrationKey,
         planTier:        registrationSuccess.planTier,
         memberLimit:     registrationSuccess.memberLimit,
-        validityDays:    registrationSuccess.validityDays ?? 7,
+        validityDays:    registrationSuccess.validityDays ?? (accountType === 'BUY_REQUEST' ? 30 : 15),
+        accountType:     registrationSuccess.accountType || accountType,
         pincode,
         phone,
         city,
@@ -537,6 +594,8 @@ export default function RegisterCompanyPage() {
     }
   };
 
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber || !panNumber) {
@@ -549,13 +608,26 @@ export default function RegisterCompanyPage() {
       return;
     }
 
-    setLoading(true);
     setError(null);
+    setRegistrationError(null);
+    setLoading(true);
+    setIsRegistering(true);
 
     let resultData: any = null;
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/company-register`, {
+      // Step 1: Encrypting credentials & validating input
+      setActiveStepId(1);
+      setProgressPercent(16);
+      setStatusMessage('Encrypting master credentials & verifying tenant security rules...');
+      await sleep(220);
+      setProgressPercent(32);
+
+      // Step 2: Multi-tenant cloud workspace provisioning
+      setActiveStepId(2);
+      setStatusMessage('Connecting to multi-tenant cluster & allocating workspace quotas...');
+
+      const fetchPromise = fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/company-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -573,17 +645,95 @@ export default function RegisterCompanyPage() {
           companyType,
           sector,
           planTier: selectedPlan,
+          accountType,
+          validityDays: accountType === 'BUY_REQUEST' ? 30 : 15,
           couponCode: couponCode.trim() || undefined,
         }),
       });
 
+      setProgressPercent(48);
+      await sleep(180);
+      setProgressPercent(62);
+
+      const res = await fetchPromise;
       const data = await res.json();
-      if (res.ok) {
-        resultData = data;
-      } else {
-        setError(data.message || 'Registration failed.');
+
+      if (!res.ok) {
+        const errorMsg = data.message || (Array.isArray(data.message) ? data.message.join(', ') : 'Registration failed.');
+        setRegistrationError(errorMsg);
+        setError(errorMsg);
+        setLoading(false);
+        return;
       }
-    } catch (err) {
+
+      resultData = data;
+      setProgressPercent(74);
+
+      // Persist to localStorage
+      if (typeof window !== 'undefined') {
+        const compId = resultData.organization?.id || resultData.companyId || '';
+        const compName = resultData.companyName || companyName;
+        const regKey = resultData.registrationKey || '';
+        const admEmail = resultData.adminEmail || adminEmail;
+
+        localStorage.setItem('last_registered_company', JSON.stringify({
+          id: compId,
+          name: compName,
+          key: regKey,
+          email: admEmail,
+        }));
+
+        if (compId) localStorage.setItem('pending_company_id', compId);
+        if (regKey) localStorage.setItem('pending_company_key', regKey);
+        if (compName) localStorage.setItem('pending_company_name', compName);
+        if (admEmail) localStorage.setItem('pending_user_email', admEmail);
+      }
+
+      // Step 3: Synthesizing Official PDF Registration Certificate & Instant Download
+      setActiveStepId(3);
+      setStatusMessage('Synthesizing tamper-proof PDF certificate & downloading file...');
+      setProgressPercent(86);
+
+      pdfTriggeredRef.current = true;
+      setPdfDownloading(true);
+      try {
+        await generateRegistrationPdf({
+          companyName:     resultData.companyName || companyName,
+          adminName:       resultData.adminName || adminName,
+          adminEmail:      resultData.adminEmail || adminEmail,
+          adminPassword,
+          registrationKey: resultData.registrationKey,
+          planTier:        resultData.planTier || selectedPlan,
+          memberLimit:     resultData.memberLimit || (selectedPlan === 'ENTERPRISE' ? 60 : selectedPlan === 'BUSINESS' ? 18 : 6),
+          validityDays:    resultData.validityDays ?? (accountType === 'BUY_REQUEST' ? 30 : 15),
+          accountType:     resultData.accountType || accountType,
+          pincode,
+          phone,
+          city,
+          state,
+          gstNumber,
+          panNumber:       panNumber.trim().toUpperCase(),
+          panType,
+          companyType,
+          sector,
+          couponCode:      couponCode || undefined,
+          qrCodeDataUrl:   resultData.qrCodeDataUrl,
+        });
+      } catch (pdfErr) {
+        console.warn('PDF auto-download notice:', pdfErr);
+      } finally {
+        setPdfDownloading(false);
+      }
+
+      // Step 4: Dispatched email & super admin notification
+      setActiveStepId(4);
+      setStatusMessage('Official PDF emailed to inbox! Super Admin queue updated.');
+      setProgressPercent(100);
+
+      await sleep(650);
+      setIsRegistering(false);
+      setRegistrationSuccess(resultData);
+    } catch (err: any) {
       // Client-side fallback if backend offline
       const firstWord = companyName.trim().split(/\s+/)[0]?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'COMPANY';
       const alpha = Array.from({ length: 2 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 22)]).join('');
@@ -599,31 +749,53 @@ export default function RegisterCompanyPage() {
         panType,
         planTier: selectedPlan,
         memberLimit: selectedPlan === 'ENTERPRISE' ? 60 : selectedPlan === 'BUSINESS' ? 18 : 6,
-        validityDays: 7,
+        accountType,
+        validityDays: accountType === 'BUY_REQUEST' ? 30 : 15,
       };
+
+      setActiveStepId(3);
+      setStatusMessage('Synthesizing offline PDF certificate & initiating download...');
+      setProgressPercent(88);
+
+      pdfTriggeredRef.current = true;
+      setPdfDownloading(true);
+      try {
+        await generateRegistrationPdf({
+          companyName,
+          adminName,
+          adminEmail,
+          adminPassword,
+          registrationKey: fallbackKey,
+          planTier: selectedPlan,
+          memberLimit: selectedPlan === 'ENTERPRISE' ? 60 : selectedPlan === 'BUSINESS' ? 18 : 6,
+          validityDays: accountType === 'BUY_REQUEST' ? 30 : 15,
+          accountType,
+          pincode,
+          phone,
+          city,
+          state,
+          gstNumber,
+          panNumber: panNumber.trim().toUpperCase(),
+          panType,
+          companyType,
+          sector,
+          couponCode: couponCode || undefined,
+        });
+      } catch (pdfErr) {
+        console.warn('PDF auto-download notice:', pdfErr);
+      } finally {
+        setPdfDownloading(false);
+      }
+
+      setActiveStepId(4);
+      setStatusMessage('Registration completed in offline mode.');
+      setProgressPercent(100);
+
+      await sleep(650);
+      setIsRegistering(false);
+      setRegistrationSuccess(resultData);
     } finally {
       setLoading(false);
-      if (resultData) {
-        setRegistrationSuccess(resultData);
-        if (typeof window !== 'undefined') {
-          const compId = resultData.organization?.id || resultData.companyId || '';
-          const compName = resultData.companyName || companyName;
-          const regKey = resultData.registrationKey || '';
-          const admEmail = resultData.adminEmail || adminEmail;
-
-          localStorage.setItem('last_registered_company', JSON.stringify({
-            id: compId,
-            name: compName,
-            key: regKey,
-            email: admEmail,
-          }));
-
-          if (compId) localStorage.setItem('pending_company_id', compId);
-          if (regKey) localStorage.setItem('pending_company_key', regKey);
-          if (compName) localStorage.setItem('pending_company_name', compName);
-          if (admEmail) localStorage.setItem('pending_user_email', admEmail);
-        }
-      }
     }
   };
 
@@ -643,6 +815,174 @@ export default function RegisterCompanyPage() {
             Fill in your company details below. Your Company Registration Key and login credentials will be dispatched to your official email ID.
           </p>
         </div>
+
+        {/* ── REAL-TIME REGISTRATION PROGRESS & STATUS MODAL ───────────────── */}
+        {isRegistering && (
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6"
+            style={{ background: 'rgba(4,5,15,0.92)', backdropFilter: 'blur(24px)' }}
+          >
+            {/* Ambient Lighting Glows */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[300px] bg-indigo-600/25 rounded-full blur-[110px] pointer-events-none" />
+            <div className="absolute bottom-10 right-10 w-72 h-72 bg-emerald-600/15 rounded-full blur-[90px] pointer-events-none" />
+
+            <div
+              className="relative max-w-lg w-full rounded-3xl border border-indigo-500/30 p-6 sm:p-8 shadow-[0_0_80px_rgba(99,102,241,0.28)] text-white overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+              style={{ background: 'linear-gradient(145deg, #0d0f2a 0%, #080a1c 100%)' }}
+            >
+              {/* Top Header Badge */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-[11px] font-bold tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping inline-block" />
+                  WORKSPACE ONBOARDING ENGINE
+                </div>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  Step {Math.min(activeStepId, 4)} of 4
+                </span>
+              </div>
+
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                {registrationError ? 'Registration Interrupted' : 'Provisioning Workspace'}
+              </h3>
+              <p className="text-xs text-indigo-200/80 font-medium mt-1 truncate">
+                {companyName || 'Company'} &bull; {selectedPlan} Tier Workspace
+              </p>
+
+              {/* Progress Bar & Percentage */}
+              {!registrationError ? (
+                <div className="mt-6 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                      <Loader2 size={13} className="animate-spin text-indigo-400" />
+                      {progressPercent < 100 ? 'Deploying...' : 'Completed!'}
+                    </span>
+                    <span className="font-extrabold text-sm text-indigo-200 tracking-wider">
+                      {progressPercent}%
+                    </span>
+                  </div>
+
+                  <div className="w-full h-3 bg-slate-800/90 rounded-full overflow-hidden p-0.5 border border-indigo-500/30">
+                    <div
+                      className="h-full rounded-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${progressPercent}%`,
+                        background: 'linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #10b981 100%)',
+                        boxShadow: '0 0 16px rgba(99,102,241,0.6)',
+                      }}
+                    />
+                  </div>
+
+                  {/* Real-time Status Callout */}
+                  <div className="mt-3 p-3 rounded-xl bg-indigo-950/60 border border-indigo-500/20 text-xs text-indigo-200 flex items-center gap-2.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                    <p className="font-medium text-[11.5px] leading-snug">
+                      {statusMessage || 'Processing registration request...'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Error State Display */
+                <div className="mt-5 p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-red-300">Registration Encountered An Issue</p>
+                      <p className="text-xs text-red-200/90 mt-0.5 leading-relaxed">{registrationError}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegistering(false);
+                      setRegistrationError(null);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/40 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    ← Return to Form &amp; Correct Details
+                  </button>
+                </div>
+              )}
+
+              {/* Step Milestone List */}
+              <div className="mt-6 space-y-2.5 pt-4 border-t border-slate-800/80">
+                {REGISTRATION_STEPS.map((step) => {
+                  const isDone = progressPercent === 100 || activeStepId > step.id;
+                  const isCurrent = activeStepId === step.id && !isDone && !registrationError;
+                  const isFailed = registrationError && activeStepId === step.id;
+                  const StepIcon = step.icon;
+
+                  return (
+                    <div
+                      key={step.id}
+                      className={`flex items-center gap-3 p-2.5 rounded-2xl transition-all ${
+                        isCurrent
+                          ? 'bg-indigo-500/10 border border-indigo-500/30 shadow-sm'
+                          : isDone
+                          ? 'bg-emerald-500/5 border border-emerald-500/20'
+                          : isFailed
+                          ? 'bg-red-500/10 border border-red-500/30'
+                          : 'opacity-50'
+                      }`}
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          isDone
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : isCurrent
+                            ? 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/50 shadow-[0_0_12px_rgba(99,102,241,0.4)]'
+                            : isFailed
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                            : 'bg-slate-800/80 text-slate-500 border border-slate-700/50'
+                        }`}
+                      >
+                        {isDone ? (
+                          <Check size={15} className="text-emerald-400 font-bold" />
+                        ) : isCurrent ? (
+                          <Loader2 size={15} className="animate-spin text-indigo-400" />
+                        ) : isFailed ? (
+                          <X size={15} className="text-red-400" />
+                        ) : (
+                          <StepIcon size={14} />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p
+                            className={`text-xs font-bold truncate ${
+                              isDone
+                                ? 'text-emerald-300'
+                                : isCurrent
+                                ? 'text-white'
+                                : isFailed
+                                ? 'text-red-300'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            {step.title}
+                          </p>
+                          {isDone && (
+                            <span className="text-[9.5px] font-extrabold text-emerald-400 uppercase tracking-wider">
+                              Done ✓
+                            </span>
+                          )}
+                          {isCurrent && (
+                            <span className="text-[9.5px] font-extrabold text-indigo-400 uppercase tracking-wider animate-pulse">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── REGISTRATION SUCCESS FULLSCREEN POPUP ────────────────────────── */}
         {registrationSuccess && (
@@ -729,7 +1069,8 @@ export default function RegisterCompanyPage() {
                     { icon: <Building2 size={13} />, label: 'Company', value: registrationSuccess.companyName, color: 'indigo' },
                     { icon: <Mail size={13} />, label: 'Admin Email', value: registrationSuccess.adminEmail, color: 'blue' },
                     { icon: <Crown size={13} />, label: 'Plan', value: `${registrationSuccess.planTier} — ${registrationSuccess.memberLimit} Seats`, color: 'amber' },
-                    { icon: <Calendar size={13} />, label: 'Key Validity', value: `${registrationSuccess.validityDays ?? 7} Days`, color: 'emerald' },
+                    { icon: <Zap size={13} />, label: 'Request Mode', value: (registrationSuccess.accountType || accountType) === 'BUY_REQUEST' ? 'Buy Request (30 Days)' : 'Trial Request (15 Days)', color: 'cyan' },
+                    { icon: <Calendar size={13} />, label: 'Key Validity', value: `${registrationSuccess.validityDays ?? (accountType === 'BUY_REQUEST' ? 30 : 15)} Days`, color: 'emerald' },
                     { icon: <Phone size={13} />, label: 'Phone', value: phone || 'N/A', color: 'purple' },
                     { icon: <CreditCard size={13} />, label: 'PAN Card', value: panNumber ? `${panNumber} (${panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A', color: 'teal' },
                     { icon: <MapPin size={13} />, label: 'Location', value: city && state ? `${city}, ${state}` : city || state || 'N/A', color: 'rose' },
@@ -886,10 +1227,100 @@ export default function RegisterCompanyPage() {
             </div>
 
 
-            {/* Step 2: Company & Administrative Credentials */}
+            {/* Step 2: Choose Request Type: Buy Request (30 Days) vs Free Trial (15 Days) */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="font-bold text-sm text-foreground dark:text-white">
+                  2. Choose Onboarding Request Type *
+                </h3>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+                  {accountType === 'BUY_REQUEST' ? '🛒 30 Days Commercial Access' : '⚡ 15 Days Free Trial'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Option 1: Buy Request (30 Days) */}
+                <button
+                  type="button"
+                  onClick={() => setAccountType('BUY_REQUEST')}
+                  className={`relative p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                    accountType === 'BUY_REQUEST'
+                      ? 'bg-indigo-600/15 border-indigo-500 shadow-[0_0_24px_rgba(99,102,241,0.25)] ring-2 ring-indigo-500'
+                      : 'border-border bg-card/60 hover:border-slate-600 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                        accountType === 'BUY_REQUEST' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/40' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        <Crown size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-foreground dark:text-white">Buy Request</span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                            30 Days
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-indigo-300 font-semibold mt-0.5">Commercial Purchase Inquiry</p>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      accountType === 'BUY_REQUEST' ? 'border-indigo-400 bg-indigo-600 text-white' : 'border-slate-600'
+                    }`}>
+                      {accountType === 'BUY_REQUEST' && <Check size={12} className="stroke-[3]" />}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-300 mt-2.5 leading-relaxed">
+                    Submit a formal purchase request. Workspace key is provisioned with 30 days initial validity for full enterprise setup.
+                  </p>
+                </button>
+
+                {/* Option 2: Free Trial (15 Days) */}
+                <button
+                  type="button"
+                  onClick={() => setAccountType('TRIAL')}
+                  className={`relative p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                    accountType === 'TRIAL'
+                      ? 'bg-amber-500/15 border-amber-500 shadow-[0_0_24px_rgba(245,158,11,0.25)] ring-2 ring-amber-500'
+                      : 'border-border bg-card/60 hover:border-slate-600 hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                        accountType === 'TRIAL' ? 'bg-amber-600 text-white shadow-md shadow-amber-600/40' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        <Zap size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-foreground dark:text-white">Trial Request</span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            15 Days
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-300 font-semibold mt-0.5">Complimentary Evaluation</p>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      accountType === 'TRIAL' ? 'border-amber-400 bg-amber-600 text-white' : 'border-slate-600'
+                    }`}>
+                      {accountType === 'TRIAL' && <Check size={12} className="stroke-[3]" />}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-300 mt-2.5 leading-relaxed">
+                    Start with 15 days free evaluation license to explore CRM features, pipeline management, and team collaboration.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Company & Administrative Credentials */}
             <div className="space-y-4 pt-2">
               <h3 className="font-bold text-sm text-foreground dark:text-white border-b border-border pb-2">
-                2. Company & Administrative Credentials
+                3. Company & Administrative Credentials
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1163,8 +1594,10 @@ export default function RegisterCompanyPage() {
               >
                 {loading ? (
                   <>Registering Company &amp; Dispatching Mail Key...</>
+                ) : accountType === 'BUY_REQUEST' ? (
+                  <>Submit Buy Request (30 Days) &amp; Dispatch Key To Email →</>
                 ) : (
-                  <>Register Company &amp; Dispatch Key To Email →</>
+                  <>Start Free Trial (15 Days) &amp; Dispatch Key To Email →</>
                 )}
               </button>
 

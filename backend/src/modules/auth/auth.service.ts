@@ -128,10 +128,14 @@ export class AuthService {
     sector?: string;
     planTier?: string;
     couponCode?: string;
+    accountType?: 'BUY_REQUEST' | 'TRIAL';
+    validityDays?: number;
   }) {
     let keyRecord = dto.registrationKey
       ? await this.companyKeyService.validateCompanyKey(dto.registrationKey)
       : null;
+
+    const requestValidity = dto.accountType === 'BUY_REQUEST' ? 30 : (dto.validityDays || 15);
 
     if (!keyRecord) {
       // Auto-generate Company Registration Key
@@ -152,7 +156,7 @@ export class AuthService {
         companyName: dto.companyName,
         planTier: chosenTier,
         memberLimit,
-        validityDays: 7,
+        validityDays: requestValidity,
       });
     }
 
@@ -190,6 +194,8 @@ export class AuthService {
           settings: {
             verificationStatus: 'PENDING',
             requestedPlan: keyRecord.planTier,
+            accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+            requestedValidityDays: requestValidity,
             registeredAt: new Date().toISOString(),
             panNumber: dto.panNumber || null,
             panType: dto.panType || 'BUSINESS',
@@ -199,7 +205,7 @@ export class AuthService {
         },
       });
 
-      const trialExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const trialExpiresAt = new Date(Date.now() + requestValidity * 24 * 60 * 60 * 1000);
 
       await tx.subscription.create({
         data: {
@@ -321,53 +327,59 @@ export class AuthService {
       result.org.id,
     );
 
-    // Send Confirmation Email with Key & Credentials (safely caught if SMTP unconfigured)
-    try {
-      await this.mailService.sendCompanyRegistrationEmail({
-        adminEmail:    dto.adminEmail,
-        adminName:     dto.adminName,
-        companyName:   dto.companyName,
-        key:           keyRecord.key,
-        planTier:      keyRecord.planTier,
-        memberLimit:   keyRecord.memberLimit,
-        validityDays:  keyRecord.validityDays,
-        adminPassword: dto.adminPassword,   // plain text — included in PDF attachment only
-        pincode:       dto.pincode,
-        phone:         dto.phone,
-        city:          dto.city,
-        state:         dto.state,
-        gstNumber:     dto.gstNumber,
-        panNumber:     dto.panNumber,
-        panType:       dto.panType,
-        companyType:   dto.companyType,
-        sector:        dto.sector,
-        couponCode:    dto.couponCode,
-      });
-    } catch (mailErr) {
-      this.logger.warn(`SMTP Mail Dispatch Notice: Registration confirmation email could not be sent to ${dto.adminEmail}: ${mailErr?.message}`);
-    }
-
-    // Notify Super Admin about new company registration
-    try {
-      await this.mailService.sendNewCompanyRegistrationNotification({
-        companyName: dto.companyName,
-        adminName:   dto.adminName,
-        adminEmail:  dto.adminEmail,
-        key:         keyRecord.key,
-        planTier:    keyRecord.planTier,
-        memberLimit: keyRecord.memberLimit,
-        phone:       dto.phone,
-        city:        dto.city,
-        state:       dto.state,
-        gstNumber:   dto.gstNumber,
-        panNumber:   dto.panNumber,
-        panType:     dto.panType,
-        companyType: dto.companyType,
-        sector:      dto.sector,
-      });
-    } catch (notifyErr) {
-      this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);
-    }
+    // Dispatch confirmation email to Admin & notification to Super Admin asynchronously
+    // Runs in the background so the HTTP response returns immediately (~100ms)
+    Promise.all([
+      this.mailService
+        .sendCompanyRegistrationEmail({
+          adminEmail: dto.adminEmail,
+          adminName: dto.adminName,
+          companyName: dto.companyName,
+          key: keyRecord.key,
+          planTier: keyRecord.planTier,
+          memberLimit: keyRecord.memberLimit,
+          validityDays: keyRecord.validityDays,
+          adminPassword: rawPassword, // plain text — included in PDF attachment
+          pincode: dto.pincode,
+          phone: dto.phone,
+          city: dto.city,
+          state: dto.state,
+          gstNumber: dto.gstNumber,
+          panNumber: dto.panNumber,
+          panType: dto.panType,
+          companyType: dto.companyType,
+          sector: dto.sector,
+          couponCode: dto.couponCode,
+          accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+        })
+        .catch((mailErr) => {
+          this.logger.warn(
+            `SMTP Mail Dispatch Notice: Registration confirmation email could not be sent to ${dto.adminEmail}: ${mailErr?.message}`,
+          );
+        }),
+      this.mailService
+        .sendNewCompanyRegistrationNotification({
+          companyName: dto.companyName,
+          adminName: dto.adminName,
+          adminEmail: dto.adminEmail,
+          key: keyRecord.key,
+          planTier: keyRecord.planTier,
+          memberLimit: keyRecord.memberLimit,
+          accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+          validityDays: requestValidity,
+          phone: dto.phone,
+          city: dto.city,
+          state: dto.state,
+          gstNumber: dto.gstNumber,
+          panNumber: dto.panNumber,
+          panType: dto.panType,
+          companyType: dto.companyType,
+          sector: dto.sector,
+        })
+        .catch((notifyErr) => {
+          this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);
+        }),
+    ]);
 
     const tokens = await this.generateTokens(
       result.user.id,
@@ -389,7 +401,8 @@ export class AuthService {
       adminEmail: dto.adminEmail,
       planTier: keyRecord.planTier,
       memberLimit: keyRecord.memberLimit,
-      validityDays: keyRecord.validityDays,
+      accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+      validityDays: requestValidity,
       user: this.sanitizeUser(result.user),
       organization: result.org,
       ...tokens,
@@ -1098,6 +1111,10 @@ export class AuthService {
           seatsRequested: seats,
           registeredAt: org.createdAt,
           verificationStatus: 'PENDING',
+          accountType: settings.accountType || (settings.requestedValidityDays === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+          validityDays: settings.requestedValidityDays || (settings.accountType === 'BUY_REQUEST' ? 30 : 15),
+          panNumber: settings.panNumber || null,
+          panType: settings.panType || 'BUSINESS',
           rejectionReason: settings.rejectionReason,
           delayInquiries: settings.delayInquiries || [],
           features: {

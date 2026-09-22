@@ -143,6 +143,8 @@ export class AuthController {
       sector?: string;
       planTier?: string;
       couponCode?: string;
+      accountType?: 'BUY_REQUEST' | 'TRIAL';
+      validityDays?: number;
     },
   ) {
     return this.authService.registerCompanyWithKey(body);

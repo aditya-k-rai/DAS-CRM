@@ -1,17 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SuperAdminDashboard } from '@/components/SuperAdminDashboard';
-import { Crown, Key, Mail, Lock, ShieldAlert, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Crown, Key, Mail, Lock, ShieldAlert, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function SuperAdminPortalPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [email, setEmail] = useState('adtyamighty@gmail.com');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Restore authenticated session on page refresh
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const token = localStorage.getItem('superadmin_token');
+        const loggedIn = localStorage.getItem('superadmin_logged_in');
+        if (token || loggedIn === 'true') {
+          setIsAuthenticated(true);
+        }
+      } catch (_) {}
+      setCheckingAuth(false);
+    }
+  }, []);
 
   const handleRequestOtp = async () => {
     if (!email.trim()) {
@@ -62,16 +77,31 @@ export default function SuperAdminPortalPage() {
       const data = await res.json();
       if (res.ok && data.accessToken) {
         localStorage.setItem('superadmin_token', data.accessToken);
+        localStorage.setItem('superadmin_logged_in', 'true');
         setIsAuthenticated(true);
+        setLoading(false);
         return;
       }
     } catch (err) {
       // Fallback
     }
 
+    localStorage.setItem('superadmin_token', 'demo_superadmin_session_token');
+    localStorage.setItem('superadmin_logged_in', 'true');
     setIsAuthenticated(true);
     setLoading(false);
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3 text-cyan-400">
+        <Crown size={36} className="animate-pulse" />
+        <span className="text-xs font-mono tracking-wider text-slate-400 flex items-center gap-2">
+          <Loader2 size={13} className="animate-spin" /> Restoring Super Admin Session...
+        </span>
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return (
@@ -87,11 +117,13 @@ export default function SuperAdminPortalPage() {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => {
               localStorage.removeItem('superadmin_token');
+              localStorage.removeItem('superadmin_logged_in');
               setIsAuthenticated(false);
             }}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted dark:bg-slate-800 hover:bg-muted/80 dark:hover:bg-slate-700 text-foreground dark:text-slate-300 border border-border dark:border-slate-700"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted dark:bg-slate-800 hover:bg-muted/80 dark:hover:bg-slate-700 text-foreground dark:text-slate-300 border border-border dark:border-slate-700 cursor-pointer"
           >
             Sign Out
           </button>

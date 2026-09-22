@@ -136,6 +136,10 @@ export interface PendingCompanyRecord {
   verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
   rejectionReason?: string;
   delayInquiries?: DelayInquiry[];
+  accountType?: 'BUY_REQUEST' | 'TRIAL';
+  validityDays?: number;
+  panNumber?: string;
+  panType?: string;
   features?: {
     emailMarketing?: boolean;
     whatsappCloud?: boolean;
@@ -188,8 +192,26 @@ export function SuperAdminDashboard() {
   const [pendingCompanies, setPendingCompanies] = useState<PendingCompanyRecord[]>(MOCK_PENDING_COMPANIES);
   const [templates, setTemplates] = useState<SystemTemplate[]>(INITIAL_TEMPLATES);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'company_approvals' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired' | 'coupons' | 'data_retention'>('overview');
   const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
+  const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'company_approvals' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired' | 'coupons' | 'data_retention'>('overview');
+
+  // Restore activeTab from localStorage on mount and sync on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('superadmin_active_tab') as any;
+        if (saved) setActiveTab(saved);
+      } catch (_) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeTab) {
+      try {
+        localStorage.setItem('superadmin_active_tab', activeTab);
+      } catch (_) {}
+    }
+  }, [activeTab]);
 
   // 6-Month Data Retention Policy State
   const [retentionStatus, setRetentionStatus] = useState<any>(null);
@@ -388,7 +410,7 @@ export function SuperAdminDashboard() {
     setVerifyPlan(plan as PlanType);
     const defaultSeats = plan === 'ENTERPRISE' ? 60 : plan === 'BUSINESS' ? 18 : 6;
     setVerifySeats(comp.seatsRequested || defaultSeats);
-    setVerifyValidityDays(30);
+    setVerifyValidityDays(comp.validityDays || (comp.accountType === 'BUY_REQUEST' ? 30 : 15));
     setVerifyEmailEnabled(plan === 'GROW' ? false : (comp.features?.emailMarketing ?? true));
     setVerifyWAEnabled(plan === 'GROW' ? false : (comp.features?.whatsappCloud ?? true));
     setVerifyAIEnabled(plan === 'GROW' ? false : (comp.features?.aiEngine ?? true));
@@ -1410,7 +1432,11 @@ export function SuperAdminDashboard() {
                 {pendingCompanies.length} Workspace{pendingCompanies.length !== 1 ? 's' : ''} Awaiting Approval
               </div>
               <button
-                onClick={fetchBackendData}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  fetchBackendData();
+                }}
                 disabled={loading}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 title="Refresh Pending Verification List"
@@ -1486,12 +1512,23 @@ export function SuperAdminDashboard() {
                       </td>
 
                       <td className="p-3.5">
-                        <div className="space-y-0.5">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
-                            {c.requestedPlan}
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                              {c.requestedPlan}
+                            </span>
+                            {c.accountType === 'BUY_REQUEST' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                🛒 Buy (30D)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                ⚡ Trial (15D)
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-muted-foreground font-semibold">
-                            {c.seatsRequested || 15} User Seats Requested
+                            {c.seatsRequested || 15} User Seats &bull; {c.validityDays || (c.accountType === 'BUY_REQUEST' ? 30 : 15)} Days Validity
                           </p>
                         </div>
                       </td>
@@ -3117,6 +3154,17 @@ export function SuperAdminDashboard() {
                 <span className="font-mono font-bold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-block mt-0.5">
                   {verifyingCompany.registrationKey}
                 </span>
+                <div className="mt-1">
+                  {verifyingCompany.accountType === 'BUY_REQUEST' ? (
+                    <span className="text-[10px] font-extrabold text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                      🛒 Buy Request (30 Days)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-extrabold text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30">
+                      ⚡ Free Trial (15 Days)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
