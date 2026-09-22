@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useCallback, memo } from 'react';
+import React, { useState, useRef, useCallback, memo, useMemo } from 'react';
 import { FixedSizeList, ListChildComponentProps } from 'react-window';
 import * as XLSX from 'xlsx';
 import {
   Upload, FileSpreadsheet, X, Plus, Sliders,
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
   Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw,
-  AlertTriangle, Target, Filter, Phone, Mail, User, ShieldAlert
+  AlertTriangle, Target, Filter, Phone, Mail, User, ShieldAlert,
+  Save, FastForward, UserX
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
@@ -50,6 +51,22 @@ export interface DuplicateLeadRecord {
     createdAt?: string;
   };
   resolution: 'UNRESOLVED' | 'RETARGET' | 'FILTER';
+}
+
+export interface IncompleteContactRecord {
+  sheetIndex: number;
+  sheetName: string;
+  rowIndex: number;
+  leadName: string;
+  phone: string;
+  email: string;
+  phoneColIndex: number;
+  emailColIndex: number;
+  phoneColLabel: string;
+  emailColLabel: string;
+  isPhoneMissing: boolean;
+  isEmailMissing: boolean;
+  isSkipped: boolean;
 }
 
 const DEFAULT_PREVIOUS_LEADS = [
@@ -341,15 +358,15 @@ const VirtualizedGrid: React.FC<VirtualizedGridProps> = ({
                       value={activeSheet.columnMappings[cIdx] || 'custom'}
                       onChange={e => updateColumnMapping(cIdx, e.target.value)}
                       disabled={isBlocked}
-                      style={{ colorScheme: 'dark' }}
-                      className="crm-input w-full text-[10px] font-extrabold bg-slate-950 text-indigo-200 py-0.5"
+                      style={{ backgroundColor: '#090d16', color: '#c7d2fe', colorScheme: 'dark', borderColor: '#334155' }}
+                      className="w-full text-[10px] font-extrabold bg-[#090d16] text-indigo-200 py-1 px-1.5 rounded-lg border border-slate-700 outline-none"
                     >
                       {FIELD_OPTIONS.map(opt => (
                         <option
                           key={opt.value}
                           value={opt.value}
                           className="bg-slate-900 text-slate-100 font-semibold"
-                          style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}
+                          style={{ backgroundColor: '#090d16', color: '#f8fafc' }}
                         >
                           {opt.label}
                         </option>
@@ -443,6 +460,156 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicatesResolved, setDuplicatesResolved] = useState(true);
   const previousLeadsRef = useRef<any[]>(DEFAULT_PREVIOUS_LEADS);
+
+  // ⚠️ Missing Contact Info (No Phone / No Email) Sanitation State
+  const [isMissingContactModalOpen, setIsMissingContactModalOpen] = useState(false);
+  const [skippedRowKeys, setSkippedRowKeys] = useState<Set<string>>(new Set());
+  const [missingFilterTab, setMissingFilterTab] = useState<'ALL' | 'NO_PHONE' | 'NO_EMAIL' | 'NO_BOTH' | 'SKIPPED'>('ALL');
+  const [editingValues, setEditingValues] = useState<Record<string, { phone?: string; email?: string }>>({});
+
+  // Memoized Incomplete Contacts Scanner
+  const incompleteContactRecords: IncompleteContactRecord[] = useMemo(() => {
+    const list: IncompleteContactRecord[] = [];
+    sheets.forEach((sheet, sIdx) => {
+      if (sheet.isBlocked) return;
+
+      const phoneColIdx = sheet.columnMappings.findIndex(m => m === 'phone');
+      const emailColIdx = sheet.columnMappings.findIndex(m => m === 'email');
+      const nameColIdx = sheet.columnMappings.findIndex(m => m === 'name');
+
+      if (phoneColIdx < 0 && emailColIdx < 0) return;
+
+      sheet.data.forEach((row, rIdx) => {
+        if (rIdx === 0 && sheet.rowMappings[0] === 'header') return;
+        if (sheet.blockedRows[rIdx]) return;
+
+        const phone = phoneColIdx >= 0 ? (row[phoneColIdx] || '').trim() : '';
+        const email = emailColIdx >= 0 ? (row[emailColIdx] || '').trim() : '';
+        const name = nameColIdx >= 0 && row[nameColIdx]?.trim() ? row[nameColIdx].trim() : `Row #${rIdx + 1}`;
+
+        const isPhoneMissing = phoneColIdx >= 0 && !phone;
+        const isEmailMissing = emailColIdx >= 0 && !email;
+
+        if (isPhoneMissing || isEmailMissing) {
+          const rowKey = `${sIdx}_${rIdx}`;
+          const isSkipped = skippedRowKeys.has(rowKey);
+          list.push({
+            sheetIndex: sIdx,
+            sheetName: sheet.name || `Sheet ${sIdx + 1}`,
+            rowIndex: rIdx,
+            leadName: name,
+            phone,
+            email,
+            phoneColIndex: phoneColIdx,
+            emailColIndex: emailColIdx,
+            phoneColLabel: phoneColIdx >= 0 ? `COL ${phoneColIdx + 1} (Phone Number)` : 'Phone (Not Mapped)',
+            emailColLabel: emailColIdx >= 0 ? `COL ${emailColIdx + 1} (Email Address)` : 'Email (Not Mapped)',
+            isPhoneMissing,
+            isEmailMissing,
+            isSkipped,
+          });
+        }
+      });
+    });
+    return list;
+  }, [sheets, skippedRowKeys]);
+
+  const activeIncompleteRecords = useMemo(() => {
+    return incompleteContactRecords.filter((r: IncompleteContactRecord) => !r.isSkipped);
+  }, [incompleteContactRecords]);
+
+  const missingPhoneCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isPhoneMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const missingEmailCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isEmailMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const missingBothCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isPhoneMissing && r.isEmailMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const handleSaveMissingField = (sIdx: number, rIdx: number, field: 'phone' | 'email', val: string) => {
+    setSheets(prev => prev.map((s, idx) => {
+      if (idx !== sIdx) return s;
+      const colIdx = s.columnMappings.findIndex(m => m === field);
+      if (colIdx < 0) return s;
+      const copyData = s.data.map((r, i) => i === rIdx ? [...r] : r);
+      copyData[rIdx][colIdx] = val.trim();
+      return { ...s, data: copyData };
+    }));
+  };
+
+  const handleToggleSkipRow = (sIdx: number, rIdx: number) => {
+    const key = `${sIdx}_${rIdx}`;
+    setSkippedRowKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveIncompleteRow = (sIdx: number, rIdx: number) => {
+    setSheets(prev => prev.map((s, idx) => {
+      if (idx !== sIdx) return s;
+      const copyBlocked = [...s.blockedRows];
+      copyBlocked[rIdx] = true;
+      return { ...s, blockedRows: copyBlocked };
+    }));
+  };
+
+  const handleBulkRemoveIncomplete = () => {
+    setSheets(prev => prev.map((sheet, sIdx) => {
+      const copyBlocked = [...sheet.blockedRows];
+      activeIncompleteRecords.forEach((rec: IncompleteContactRecord) => {
+        if (rec.sheetIndex === sIdx) {
+          copyBlocked[rec.rowIndex] = true;
+        }
+      });
+      return { ...sheet, blockedRows: copyBlocked };
+    }));
+  };
+
+  const handleBulkSkipIncomplete = () => {
+    setSkippedRowKeys(prev => {
+      const next = new Set(prev);
+      activeIncompleteRecords.forEach((rec: IncompleteContactRecord) => {
+        next.add(`${rec.sheetIndex}_${rec.rowIndex}`);
+      });
+      return next;
+    });
+  };
+
+  const filteredIncompleteList = useMemo(() => {
+    return incompleteContactRecords.filter((rec: IncompleteContactRecord) => {
+      if (missingFilterTab === 'NO_PHONE') return rec.isPhoneMissing && !rec.isSkipped;
+      if (missingFilterTab === 'NO_EMAIL') return rec.isEmailMissing && !rec.isSkipped;
+      if (missingFilterTab === 'NO_BOTH') return rec.isPhoneMissing && rec.isEmailMissing && !rec.isSkipped;
+      if (missingFilterTab === 'SKIPPED') return rec.isSkipped;
+      return true; // 'ALL'
+    });
+  }, [incompleteContactRecords, missingFilterTab]);
+
+  const getEditingPhone = (key: string, defaultVal: string) => {
+    return editingValues[key]?.phone !== undefined ? editingValues[key]?.phone! : defaultVal;
+  };
+  const getEditingEmail = (key: string, defaultVal: string) => {
+    return editingValues[key]?.email !== undefined ? editingValues[key]?.email! : defaultVal;
+  };
+  const setFieldEdit = (key: string, field: 'phone' | 'email', val: string) => {
+    setEditingValues(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: val,
+      },
+    }));
+  };
 
   // Deduplication Scanner Function
   const runDeduplicationScan = useCallback((currentSheets: ParsedSheet[]) => {
@@ -1230,6 +1397,34 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 </button>
               )}
 
+              {/* ⚠️ Prominent Missing Contact Details Button */}
+              {sheets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsMissingContactModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer border ${
+                    activeIncompleteRecords.length > 0
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-amber-950/40 animate-pulse ring-2 ring-amber-500/40'
+                      : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                  }`}
+                  title={activeIncompleteRecords.length > 0 ? 'Review leads with missing email or phone number' : 'All leads have phone and email'}
+                >
+                  {activeIncompleteRecords.length > 0 ? (
+                    <>
+                      <AlertTriangle size={14} className="text-amber-300 shrink-0" />
+                      <span>
+                        ⚠️ {activeIncompleteRecords.length} Missing Contact ({missingPhoneCount} No Phone · {missingEmailCount} No Email)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={14} className="text-emerald-400 shrink-0" />
+                      <span>✓ All Contact Info Complete</span>
+                    </>
+                  )}
+                </button>
+              )}
+
               <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold cursor-pointer">
                 Cancel
               </button>
@@ -1625,6 +1820,298 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   Save &amp; Apply Resolution →
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ Incomplete / Missing Contact Details Resolution Center Popup */}
+      {isMissingContactModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in dark-context">
+          <div className="crm-card max-w-4xl w-full max-h-[92vh] flex flex-col bg-slate-950 border border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-amber-950/30 to-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    Incomplete Contact Details Resolution Center
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                      {activeIncompleteRecords.length} Active Conflict{activeIncompleteRecords.length !== 1 ? 's' : ''}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Spreadsheet rows missing Phone Number or Email Address. Add details manually, remove row, or skip/keep as-is.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMissingContactModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Summary Counters Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 bg-slate-900/60 border-b border-slate-800/80 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Total Incomplete:</span>
+                <span className="font-black text-amber-400 text-sm">{activeIncompleteRecords.length}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 font-bold">No Phone:</span>
+                <span className="font-black text-amber-300 text-sm">{missingPhoneCount}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 font-bold">No Email:</span>
+                <span className="font-black text-rose-300 text-sm">{missingEmailCount}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 font-bold">No Phone &amp; Email:</span>
+                <span className="font-black text-rose-400 text-sm">{missingBothCount}</span>
+              </div>
+            </div>
+
+            {/* Filter Tabs & Bulk Actions Bar */}
+            <div className="p-3 bg-slate-950 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'ALL', label: `All (${incompleteContactRecords.length})` },
+                  { id: 'NO_PHONE', label: `No Phone (${missingPhoneCount})` },
+                  { id: 'NO_EMAIL', label: `No Email (${missingEmailCount})` },
+                  { id: 'NO_BOTH', label: `No Both (${missingBothCount})` },
+                  { id: 'SKIPPED', label: `Skipped (${incompleteContactRecords.filter(r => r.isSkipped).length})` },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setMissingFilterTab(tab.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                      missingFilterTab === tab.id
+                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Bulk Quick Actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleBulkRemoveIncomplete}
+                  disabled={activeIncompleteRecords.length === 0}
+                  className="px-3 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                >
+                  <Ban size={12} />
+                  Remove All Incomplete ({activeIncompleteRecords.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkSkipIncomplete}
+                  disabled={activeIncompleteRecords.length === 0}
+                  className="px-3 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
+                >
+                  <FastForward size={12} />
+                  Skip All &amp; Keep As-Is
+                </button>
+              </div>
+            </div>
+
+            {/* Incomplete Leads List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950">
+              {filteredIncompleteList.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 space-y-2">
+                  <CheckCircle size={36} className="mx-auto text-emerald-400" />
+                  <p className="text-sm font-bold text-white">No incomplete records matching this filter!</p>
+                  <p className="text-xs">All records have valid phone and email contact details.</p>
+                </div>
+              ) : (
+                filteredIncompleteList.map((rec: IncompleteContactRecord) => {
+                  const rowKey = `${rec.sheetIndex}_${rec.rowIndex}`;
+                  const currentPhoneInput = getEditingPhone(rowKey, rec.phone);
+                  const currentEmailInput = getEditingEmail(rowKey, rec.email);
+
+                  return (
+                    <div
+                      key={rowKey}
+                      className={`p-3.5 rounded-xl border transition-all space-y-2.5 ${
+                        rec.isSkipped
+                          ? 'bg-slate-900/40 border-slate-800 opacity-70'
+                          : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-md'
+                      }`}
+                    >
+                      {/* Lead Title & Meta */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-indigo-500/20 border border-indigo-500/30 text-indigo-300">
+                            Row #{rec.rowIndex + 1}
+                          </span>
+                          {sheets.length > 1 && (
+                            <span className="text-[10px] font-bold text-slate-400">
+                              Sheet: <strong className="text-slate-200">{rec.sheetName}</strong>
+                            </span>
+                          )}
+                          <strong className="text-xs font-black text-white">{rec.leadName}</strong>
+                          {rec.isSkipped && (
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-800 border border-slate-700 text-slate-300">
+                              ⏭️ Skipped (Allowed As-Is)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Row Actions */}
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSkipRow(rec.sheetIndex, rec.rowIndex)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                              rec.isSkipped
+                                ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/40'
+                                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                            }`}
+                          >
+                            <FastForward size={12} />
+                            {rec.isSkipped ? '↩️ Unskip' : 'Skip (Keep As-Is)'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIncompleteRow(rec.sheetIndex, rec.rowIndex)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Ban size={12} />
+                            Remove Row
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Fields: Phone & Email with Column Number and Manual Entry */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        {/* Phone Column Field */}
+                        <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                              <Phone size={11} className="text-amber-400" />
+                              {rec.phoneColLabel}
+                            </span>
+                            {rec.isPhoneMissing ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                MISSING PHONE
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5">
+                                <Check size={10} /> Valid
+                              </span>
+                            )}
+                          </div>
+
+                          {rec.isPhoneMissing ? (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <input
+                                type="text"
+                                value={currentPhoneInput}
+                                onChange={e => setFieldEdit(rowKey, 'phone', e.target.value)}
+                                placeholder="Enter phone number..."
+                                style={{ backgroundColor: '#090d16', color: '#ffffff', colorScheme: 'dark' }}
+                                className="flex-1 px-2.5 py-1 bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-lg text-xs font-bold text-white outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveMissingField(rec.sheetIndex, rec.rowIndex, 'phone', currentPhoneInput)}
+                                disabled={!currentPhoneInput.trim()}
+                                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Save size={12} />
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-xs font-semibold text-slate-200">
+                              {rec.phone}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Email Column Field */}
+                        <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                              <Mail size={11} className="text-rose-400" />
+                              {rec.emailColLabel}
+                            </span>
+                            {rec.isEmailMissing ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                MISSING EMAIL
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5">
+                                <Check size={10} /> Valid
+                              </span>
+                            )}
+                          </div>
+
+                          {rec.isEmailMissing ? (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <input
+                                type="email"
+                                value={currentEmailInput}
+                                onChange={e => setFieldEdit(rowKey, 'email', e.target.value)}
+                                placeholder="Enter email address..."
+                                style={{ backgroundColor: '#090d16', color: '#ffffff', colorScheme: 'dark' }}
+                                className="flex-1 px-2.5 py-1 bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-lg text-xs font-bold text-white outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveMissingField(rec.sheetIndex, rec.rowIndex, 'email', currentEmailInput)}
+                                disabled={!currentEmailInput.trim()}
+                                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Save size={12} />
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-xs font-semibold text-slate-200">
+                              {rec.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
+              <div className="text-xs text-slate-400">
+                {activeIncompleteRecords.length === 0 ? (
+                  <span className="text-emerald-400 font-black flex items-center gap-1.5">
+                    <CheckCircle size={14} />
+                    All records sanitized! Ready for import.
+                  </span>
+                ) : (
+                  <span>
+                    <strong className="text-white">{activeIncompleteRecords.length}</strong> incomplete records remaining. You may manually complete them or click &apos;Skip All&apos; to proceed.
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMissingContactModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-lg shadow-indigo-600/25 cursor-pointer transition-all"
+              >
+                Done / Close
+              </button>
             </div>
           </div>
         </div>

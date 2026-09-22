@@ -136,6 +136,22 @@ export interface DuplicateLeadRecord {
   resolution: 'UNRESOLVED' | 'RETARGET' | 'FILTER';
 }
 
+export interface IncompleteContactRecord {
+  sheetIndex: number;
+  sheetName: string;
+  rowIndex: number;
+  leadName: string;
+  phone: string;
+  email: string;
+  phoneColIndex: number;
+  emailColIndex: number;
+  phoneColLabel: string;
+  emailColLabel: string;
+  isPhoneMissing: boolean;
+  isEmailMissing: boolean;
+  isSkipped: boolean;
+}
+
 const DEFAULT_PREVIOUS_LEADS = [
   { id: 'prev-1', name: 'Sonu Sharma', phone: '91999689978', email: 'kant0959@gmail.com', createdAt: '2026-09-09' },
   { id: 'prev-2', name: 'Deepak Bhabar', phone: '916267012760', email: 'djbbr77@gmail.com', createdAt: '2026-09-09' },
@@ -339,6 +355,151 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicatesResolved, setDuplicatesResolved] = useState(true);
   const previousLeadsRef = React.useRef<any[]>(DEFAULT_PREVIOUS_LEADS);
+
+  // ⚠️ Missing Contact Details Sanitation State
+  const [missingContactModalOpen, setMissingContactModalOpen] = useState(false);
+  const [skippedRowKeys, setSkippedRowKeys] = useState<Set<string>>(new Set());
+  const [missingFilterTab, setMissingFilterTab] = useState<'ALL' | 'NO_PHONE' | 'NO_EMAIL' | 'NO_BOTH' | 'SKIPPED'>('ALL');
+  const [editingValues, setEditingValues] = useState<Record<string, { phone?: string; email?: string }>>({});
+
+  const incompleteContactRecords: IncompleteContactRecord[] = useMemo(() => {
+    const list: IncompleteContactRecord[] = [];
+    sheets.forEach((sheet, sIdx) => {
+      if (sheet.isBlocked) return;
+
+      const phoneCol = sheet.columns.find(c => c.role === 'phone');
+      const emailCol = sheet.columns.find(c => c.role === 'email');
+      const nameCol = sheet.columns.find(c => c.role === 'name');
+
+      if (!phoneCol && !emailCol) return;
+
+      sheet.data.forEach((row, rIdx) => {
+        if (sheet.blockedRows[rIdx]) return;
+
+        const phone = phoneCol ? (row[phoneCol.index] || '').trim() : '';
+        const email = emailCol ? (row[emailCol.index] || '').trim() : '';
+        const name = nameCol && row[nameCol.index]?.trim() ? row[nameCol.index].trim() : `Lead #${rIdx + 1}`;
+
+        const isPhoneMissing = !!phoneCol && !phone;
+        const isEmailMissing = !!emailCol && !email;
+
+        if (isPhoneMissing || isEmailMissing) {
+          const rowKey = `${sIdx}_${rIdx}`;
+          const isSkipped = skippedRowKeys.has(rowKey);
+          list.push({
+            sheetIndex: sIdx,
+            sheetName: sheet.name || `Sheet ${sIdx + 1}`,
+            rowIndex: rIdx,
+            leadName: name,
+            phone,
+            email,
+            phoneColIndex: phoneCol ? phoneCol.index : -1,
+            emailColIndex: emailCol ? emailCol.index : -1,
+            phoneColLabel: phoneCol ? `COL ${phoneCol.index + 1} (Phone)` : 'Phone (Not Mapped)',
+            emailColLabel: emailCol ? `COL ${emailCol.index + 1} (Email)` : 'Email (Not Mapped)',
+            isPhoneMissing,
+            isEmailMissing,
+            isSkipped,
+          });
+        }
+      });
+    });
+    return list;
+  }, [sheets, skippedRowKeys]);
+
+  const activeIncompleteRecords = useMemo(() => {
+    return incompleteContactRecords.filter((r: IncompleteContactRecord) => !r.isSkipped);
+  }, [incompleteContactRecords]);
+
+  const missingPhoneCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isPhoneMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const missingEmailCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isEmailMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const missingBothCount = useMemo(() => {
+    return activeIncompleteRecords.filter((r: IncompleteContactRecord) => r.isPhoneMissing && r.isEmailMissing).length;
+  }, [activeIncompleteRecords]);
+
+  const handleSaveMissingField = (sIdx: number, rIdx: number, field: 'phone' | 'email', val: string) => {
+    setSheets(prev => prev.map((s, idx) => {
+      if (idx !== sIdx) return s;
+      const targetCol = s.columns.find(c => c.role === field);
+      if (!targetCol) return s;
+      const copyData = s.data.map((r, i) => i === rIdx ? [...r] : r);
+      copyData[rIdx][targetCol.index] = val.trim();
+      return { ...s, data: copyData };
+    }));
+  };
+
+  const handleToggleSkipRow = (sIdx: number, rIdx: number) => {
+    const key = `${sIdx}_${rIdx}`;
+    setSkippedRowKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleRemoveIncompleteRow = (sIdx: number, rIdx: number) => {
+    setSheets(prev => prev.map((s, idx) => {
+      if (idx !== sIdx) return s;
+      const copyBlocked = [...s.blockedRows];
+      copyBlocked[rIdx] = true;
+      return { ...s, blockedRows: copyBlocked };
+    }));
+  };
+
+  const handleBulkRemoveIncomplete = () => {
+    setSheets(prev => prev.map((sheet, sIdx) => {
+      const copyBlocked = [...sheet.blockedRows];
+      activeIncompleteRecords.forEach((rec: IncompleteContactRecord) => {
+        if (rec.sheetIndex === sIdx) {
+          copyBlocked[rec.rowIndex] = true;
+        }
+      });
+      return { ...sheet, blockedRows: copyBlocked };
+    }));
+  };
+
+  const handleBulkSkipIncomplete = () => {
+    setSkippedRowKeys(prev => {
+      const next = new Set(prev);
+      activeIncompleteRecords.forEach((rec: IncompleteContactRecord) => {
+        next.add(`${rec.sheetIndex}_${rec.rowIndex}`);
+      });
+      return next;
+    });
+  };
+
+  const filteredIncompleteList = useMemo(() => {
+    return incompleteContactRecords.filter((rec: IncompleteContactRecord) => {
+      if (missingFilterTab === 'NO_PHONE') return rec.isPhoneMissing && !rec.isSkipped;
+      if (missingFilterTab === 'NO_EMAIL') return rec.isEmailMissing && !rec.isSkipped;
+      if (missingFilterTab === 'NO_BOTH') return rec.isPhoneMissing && rec.isEmailMissing && !rec.isSkipped;
+      if (missingFilterTab === 'SKIPPED') return rec.isSkipped;
+      return true;
+    });
+  }, [incompleteContactRecords, missingFilterTab]);
+
+  const getEditingPhone = (key: string, defaultVal: string) => {
+    return editingValues[key]?.phone !== undefined ? editingValues[key]?.phone! : defaultVal;
+  };
+  const getEditingEmail = (key: string, defaultVal: string) => {
+    return editingValues[key]?.email !== undefined ? editingValues[key]?.email! : defaultVal;
+  };
+  const setFieldEdit = (key: string, field: 'phone' | 'email', val: string) => {
+    setEditingValues(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: val,
+      },
+    }));
+  };
 
   // Deduplication Scanner Function
   const runDeduplicationScan = useCallback((currentSheets: ParsedSheet[]) => {
@@ -956,6 +1117,43 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   </React.Fragment>
                 ))}
               </View>
+
+              {/* Conflict & Sanitation Action Badges */}
+              <View style={{ flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {duplicateRecords.length > 0 && (
+                  <TouchableOpacity
+                    style={[
+                      styles.dupBadgeBtn,
+                      !duplicatesResolved ? styles.dupBadgeBtnAlert : styles.dupBadgeBtnResolved,
+                    ]}
+                    onPress={() => setDuplicateModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.dupBadgeBtnText, { color: !duplicatesResolved ? '#fda4af' : '#6ee7b7' }]}>
+                      {!duplicatesResolved
+                        ? `⚠️ ${duplicateRecords.length} Duplicates Found (Tap to Resolve)`
+                        : `✓ ${duplicateRecords.length} Duplicates Handled`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {sheets.length > 0 && (
+                  <TouchableOpacity
+                    style={[
+                      styles.missingBadgeBtn,
+                      activeIncompleteRecords.length > 0 ? styles.missingBadgeBtnAlert : styles.missingBadgeBtnResolved,
+                    ]}
+                    onPress={() => setMissingContactModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.missingBadgeBtnText}>
+                      {activeIncompleteRecords.length > 0
+                        ? `⚠️ ${activeIncompleteRecords.length} Incomplete Leads (${missingPhoneCount} Phone · ${missingEmailCount} Email)`
+                        : '✓ All Contact Details Complete'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           ) : null}
         </View>
@@ -1114,9 +1312,18 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             {!inputFileName.trim() && <Text style={styles.warnText}>⚠️ Enter File Name above</Text>}
             {!selectedPlatform && inputFileName.trim() && <Text style={styles.warnText}>⚠️ Select Source Platform above</Text>}
             {duplicateRecords.length > 0 && !duplicatesResolved && (
-              <Text style={[styles.warnText, { color: '#f43f5e', fontWeight: '900' }]}>
-                ⚠️ {duplicateRecords.length} Duplicate Leads Found — Resolve before ingesting
-              </Text>
+              <TouchableOpacity onPress={() => setDuplicateModalOpen(true)} activeOpacity={0.7}>
+                <Text style={[styles.warnText, { color: '#f43f5e', fontWeight: '900' }]}>
+                  ⚠️ {duplicateRecords.length} Duplicate Leads Found — Tap to Resolve
+                </Text>
+              </TouchableOpacity>
+            )}
+            {sheets.length > 0 && activeIncompleteRecords.length > 0 && (
+              <TouchableOpacity onPress={() => setMissingContactModalOpen(true)} activeOpacity={0.7}>
+                <Text style={[styles.warnText, { color: '#f59e0b', fontWeight: '900' }]}>
+                  ⚠️ {activeIncompleteRecords.length} Leads Missing Phone / Email — Tap to Resolve
+                </Text>
+              </TouchableOpacity>
             )}
             {isReady && duplicatesResolved && <Text style={styles.readyText}>✅ Ready to import {totalDataRows} lead record{totalDataRows !== 1 ? 's' : ''}</Text>}
           </View>
@@ -1223,7 +1430,6 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                           ]}
                           onPress={() => {
                             if (opt.value === 'custom') {
-                              // keep picker open to edit custom name below
                               setSheets(prev => prev.map((s, i) =>
                                 i !== activeIdx ? s : { ...s, columns: s.columns.map(c => c.key === pickerColKey ? { ...c, role: 'custom' } : c) }
                               ));
@@ -1264,6 +1470,346 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
                 <TouchableOpacity style={styles.pickerCloseDoneBtn} onPress={() => setPickerColKey(null)}>
                   <Text style={styles.pickerCloseDoneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        )}
+
+        {/* ── DUPLICATE LEADS RESOLUTION MODAL ───────────────────────── */}
+        {duplicateModalOpen && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setDuplicateModalOpen(false)}>
+            <View style={styles.dupModalOverlay}>
+              <View style={[styles.dupModalCard, isTablet && { maxWidth: 540 }]}>
+                {/* Header */}
+                <View style={styles.dupModalHeader}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.dupModalTitle}>⚠️ Duplicate Leads Detected</Text>
+                      <View style={styles.dupCountPill}>
+                        <Text style={styles.dupCountPillText}>{duplicateRecords.length}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.dupModalSub}>
+                      These leads already exist in your CRM. Choose to Retarget or Filter (remove) each lead.
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.dupCloseBtn} onPress={() => setDuplicateModalOpen(false)}>
+                    <Text style={styles.dupCloseBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Bulk Actions */}
+                <View style={styles.dupBulkRow}>
+                  <TouchableOpacity
+                    style={styles.dupBulkBtnRetarget}
+                    onPress={() => handleBulkSetResolution('RETARGET')}
+                  >
+                    <Text style={styles.dupBulkBtnText}>🎯 Mark All as Retargeting</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dupBulkBtnFilter}
+                    onPress={() => handleBulkSetResolution('FILTER')}
+                  >
+                    <Text style={styles.dupBulkBtnText}>🚫 Filter Out All Duplicates</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Counter Strip */}
+                <View style={styles.dupCounterStrip}>
+                  <Text style={styles.dupCounterText}>
+                    🎯 {duplicateRecords.filter(d => d.resolution === 'RETARGET').length} Retargeting · 🚫 {duplicateRecords.filter(d => d.resolution === 'FILTER').length} Filtered
+                  </Text>
+                  {duplicateRecords.filter(d => d.resolution === 'UNRESOLVED').length > 0 && (
+                    <Text style={styles.dupPendingText}>
+                      ⚠️ {duplicateRecords.filter(d => d.resolution === 'UNRESOLVED').length} Unresolved
+                    </Text>
+                  )}
+                </View>
+
+                {/* List of Duplicates */}
+                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                  {duplicateRecords.map((dup) => {
+                    const isRetarget = dup.resolution === 'RETARGET';
+                    const isFilter = dup.resolution === 'FILTER';
+                    return (
+                      <View key={`${dup.sheetIndex}_${dup.rowIndex}`} style={styles.dupLeadCard}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={styles.dupLeadName} numberOfLines={1}>
+                            Row #{dup.rowIndex + 1}: {dup.leadName}
+                          </Text>
+                          <View style={styles.dupMatchBadge}>
+                            <Text style={styles.dupMatchBadgeText}>MATCH: {dup.matchType}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.dupContactText}>
+                          {dup.phone ? `📞 ${dup.phone}` : ''} {dup.email ? `✉️ ${dup.email}` : ''}
+                        </Text>
+                        {dup.matchedExistingLead && (
+                          <Text style={styles.dupMatchedPrevText}>
+                            Matched CRM lead: {dup.matchedExistingLead.name || 'Unnamed'} ({dup.matchedExistingLead.phone || dup.matchedExistingLead.email})
+                          </Text>
+                        )}
+
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                          <TouchableOpacity
+                            style={[styles.dupActionBtn, isRetarget && styles.dupActionBtnRetargetActive]}
+                            onPress={() => handleSetSingleResolution(dup.sheetIndex, dup.rowIndex, 'RETARGET')}
+                          >
+                            <Text style={[styles.dupActionBtnText, isRetarget && { color: '#ffffff', fontWeight: '900' }]}>
+                              {isRetarget ? '✓ Retargeting' : 'Retarget'}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.dupActionBtn, isFilter && styles.dupActionBtnFilterActive]}
+                            onPress={() => handleSetSingleResolution(dup.sheetIndex, dup.rowIndex, 'FILTER')}
+                          >
+                            <Text style={[styles.dupActionBtnText, isFilter && { color: '#ffffff', fontWeight: '900' }]}>
+                              {isFilter ? '✓ Filtered' : 'Filter Out'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Save and Apply */}
+                <TouchableOpacity
+                  style={[
+                    styles.dupApplyBtn,
+                    duplicateRecords.some(d => d.resolution === 'UNRESOLVED') && { opacity: 0.6 }
+                  ]}
+                  onPress={handleApplyDuplicateResolutions}
+                >
+                  <Text style={styles.dupApplyBtnText}>Save & Apply Resolution ✓</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {/* ── INCOMPLETE / MISSING CONTACT DETAILS RESOLUTION MODAL ───── */}
+        {missingContactModalOpen && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setMissingContactModalOpen(false)}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.missingModalOverlay}
+            >
+              <View style={[styles.missingModalCard, isTablet && { maxWidth: 560 }]}>
+                {/* Header */}
+                <View style={styles.missingModalHeader}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.missingModalTitle}>⚠️ Missing Contact Details</Text>
+                      <View style={styles.missingCountPill}>
+                        <Text style={styles.missingCountPillText}>
+                          {activeIncompleteRecords.length} Active
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.missingModalSub}>
+                      Leads with missing phone numbers or emails. Add details manually, remove row, or skip/keep as-is.
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.dupCloseBtn} onPress={() => setMissingContactModalOpen(false)}>
+                    <Text style={styles.dupCloseBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Counters Bar */}
+                <View style={styles.missingCounterGrid}>
+                  <View style={styles.missingCounterBox}>
+                    <Text style={styles.missingCounterBoxLabel}>Total Incomplete</Text>
+                    <Text style={[styles.missingCounterBoxVal, { color: '#f59e0b' }]}>{activeIncompleteRecords.length}</Text>
+                  </View>
+                  <View style={styles.missingCounterBox}>
+                    <Text style={styles.missingCounterBoxLabel}>No Phone</Text>
+                    <Text style={[styles.missingCounterBoxVal, { color: '#fcd34d' }]}>{missingPhoneCount}</Text>
+                  </View>
+                  <View style={styles.missingCounterBox}>
+                    <Text style={styles.missingCounterBoxLabel}>No Email</Text>
+                    <Text style={[styles.missingCounterBoxVal, { color: '#fda4af' }]}>{missingEmailCount}</Text>
+                  </View>
+                  <View style={styles.missingCounterBox}>
+                    <Text style={styles.missingCounterBoxLabel}>No Both</Text>
+                    <Text style={[styles.missingCounterBoxVal, { color: '#f43f5e' }]}>{missingBothCount}</Text>
+                  </View>
+                </View>
+
+                {/* Filter Tabs */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8, maxHeight: 36 }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {[
+                      { id: 'ALL', label: `All (${incompleteContactRecords.length})` },
+                      { id: 'NO_PHONE', label: `No Phone (${missingPhoneCount})` },
+                      { id: 'NO_EMAIL', label: `No Email (${missingEmailCount})` },
+                      { id: 'NO_BOTH', label: `No Both (${missingBothCount})` },
+                      { id: 'SKIPPED', label: `Skipped (${incompleteContactRecords.filter(r => r.isSkipped).length})` },
+                    ].map(tab => {
+                      const isActive = missingFilterTab === tab.id;
+                      return (
+                        <TouchableOpacity
+                          key={tab.id}
+                          style={[styles.filterChip, isActive && styles.filterChipActive]}
+                          onPress={() => setMissingFilterTab(tab.id as any)}
+                        >
+                          <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                            {tab.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Bulk Actions */}
+                <View style={styles.dupBulkRow}>
+                  <TouchableOpacity
+                    style={styles.bulkActionBtnDanger}
+                    onPress={handleBulkRemoveIncomplete}
+                    disabled={activeIncompleteRecords.length === 0}
+                  >
+                    <Text style={styles.dupBulkBtnText}>🚫 Remove All Incomplete</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.bulkActionBtnNeutral}
+                    onPress={handleBulkSkipIncomplete}
+                    disabled={activeIncompleteRecords.length === 0}
+                  >
+                    <Text style={styles.dupBulkBtnText}>⏭️ Skip All & Keep</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Incomplete Records List */}
+                <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={false}>
+                  {filteredIncompleteList.length === 0 ? (
+                    <View style={{ padding: 24, alignItems: 'center' }}>
+                      <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '800' }}>✓ No matching incomplete leads in this view</Text>
+                    </View>
+                  ) : (
+                    filteredIncompleteList.map(rec => {
+                      const rowKey = `${rec.sheetIndex}_${rec.rowIndex}`;
+                      const phoneVal = getEditingPhone(rowKey, rec.phone);
+                      const emailVal = getEditingEmail(rowKey, rec.email);
+
+                      return (
+                        <View key={rowKey} style={[styles.incompleteCard, rec.isSkipped && styles.incompleteCardSkipped]}>
+                          {/* Row Header */}
+                          <View style={styles.incompleteCardHeader}>
+                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <View style={styles.rowPill}>
+                                <Text style={styles.rowPillText}>R#{rec.rowIndex + 1}</Text>
+                              </View>
+                              <Text style={styles.incompleteLeadName} numberOfLines={1}>
+                                {rec.leadName}
+                              </Text>
+                            </View>
+                            {rec.isSkipped ? (
+                              <View style={styles.skippedBadge}>
+                                <Text style={styles.skippedBadgeText}>SKIPPED / KEPT</Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          {/* Phone Field Box with Column Info & Manual Add */}
+                          <View style={styles.fieldBox}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <Text style={styles.fieldBoxLabel}>
+                                📞 {rec.phoneColLabel}
+                              </Text>
+                              <Text style={[styles.fieldStatusText, rec.isPhoneMissing ? { color: '#f59e0b' } : { color: '#10b981' }]}>
+                                {rec.isPhoneMissing ? 'Missing Number' : 'Available'}
+                              </Text>
+                            </View>
+                            {rec.isPhoneMissing ? (
+                              <View style={{ flexDirection: 'row', gap: 6 }}>
+                                <TextInput
+                                  style={styles.inlineFieldInput}
+                                  value={phoneVal}
+                                  onChangeText={val => setFieldEdit(rowKey, 'phone', val)}
+                                  placeholder="Type phone number..."
+                                  placeholderTextColor="#64748b"
+                                  keyboardType="phone-pad"
+                                />
+                                <TouchableOpacity
+                                  style={[styles.inlineSaveBtn, !phoneVal.trim() && { opacity: 0.4 }]}
+                                  disabled={!phoneVal.trim()}
+                                  onPress={() => handleSaveMissingField(rec.sheetIndex, rec.rowIndex, 'phone', phoneVal)}
+                                >
+                                  <Text style={styles.inlineSaveBtnText}>Save</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <Text style={styles.fieldExistingValue}>{rec.phone}</Text>
+                            )}
+                          </View>
+
+                          {/* Email Field Box with Column Info & Manual Add */}
+                          <View style={[styles.fieldBox, { marginTop: 6 }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <Text style={styles.fieldBoxLabel}>
+                                ✉️ {rec.emailColLabel}
+                              </Text>
+                              <Text style={[styles.fieldStatusText, rec.isEmailMissing ? { color: '#f43f5e' } : { color: '#10b981' }]}>
+                                {rec.isEmailMissing ? 'Missing Email' : 'Available'}
+                              </Text>
+                            </View>
+                            {rec.isEmailMissing ? (
+                              <View style={{ flexDirection: 'row', gap: 6 }}>
+                                <TextInput
+                                  style={styles.inlineFieldInput}
+                                  value={emailVal}
+                                  onChangeText={val => setFieldEdit(rowKey, 'email', val)}
+                                  placeholder="Type email address..."
+                                  placeholderTextColor="#64748b"
+                                  keyboardType="email-address"
+                                  autoCapitalize="none"
+                                />
+                                <TouchableOpacity
+                                  style={[styles.inlineSaveBtn, !emailVal.trim() && { opacity: 0.4 }]}
+                                  disabled={!emailVal.trim()}
+                                  onPress={() => handleSaveMissingField(rec.sheetIndex, rec.rowIndex, 'email', emailVal)}
+                                >
+                                  <Text style={styles.inlineSaveBtnText}>Save</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <Text style={styles.fieldExistingValue}>{rec.email}</Text>
+                            )}
+                          </View>
+
+                          {/* Card Footer Actions: Skip vs Remove */}
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.cardActionBtn, rec.isSkipped ? styles.cardActionBtnUnskip : styles.cardActionBtnSkip]}
+                              onPress={() => handleToggleSkipRow(rec.sheetIndex, rec.rowIndex)}
+                            >
+                              <Text style={styles.cardActionBtnText}>
+                                {rec.isSkipped ? '↩️ Unskip Row' : '⏭️ Skip & Keep'}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.cardActionBtn, styles.cardActionBtnRemove]}
+                              onPress={() => handleRemoveIncompleteRow(rec.sheetIndex, rec.rowIndex)}
+                            >
+                              <Text style={[styles.cardActionBtnText, { color: '#fca5a5' }]}>
+                                🗑️ Remove Row
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+
+                {/* Done Button */}
+                <TouchableOpacity
+                  style={styles.missingDoneBtn}
+                  onPress={() => setMissingContactModalOpen(false)}
+                >
+                  <Text style={styles.missingDoneBtnText}>Done / Return to Import Grid ✓</Text>
                 </TouchableOpacity>
               </View>
             </KeyboardAvoidingView>
@@ -1452,4 +1998,57 @@ const styles = StyleSheet.create({
 
   dupApplyBtn: { backgroundColor: '#10b981', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   dupApplyBtnText: { color: '#020617', fontSize: 12, fontWeight: '900' },
+
+  // ⚠️ Missing Contact Details Sanitation Styles
+  missingBadgeBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderColor: '#f59e0b', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginTop: 4, alignItems: 'center', borderWidth: 1.5 },
+  missingBadgeBtnAlert: { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: '#f59e0b' },
+  missingBadgeBtnResolved: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981' },
+  missingBadgeBtnText: { fontSize: 11, fontWeight: '900', color: '#fcd34d' },
+
+  missingModalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.92)', justifyContent: 'center', alignItems: 'center', padding: 14 },
+  missingModalCard: { width: '100%', maxWidth: 480, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 2, borderColor: '#f59e0b', padding: 16 },
+  missingModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 8 },
+  missingModalTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  missingCountPill: { backgroundColor: 'rgba(245,158,11,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: '#f59e0b' },
+  missingCountPillText: { fontSize: 10, fontWeight: '900', color: '#fef08a' },
+  missingModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 3, lineHeight: 14 },
+
+  missingCounterGrid: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  missingCounterBox: { flex: 1, backgroundColor: '#020617', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  missingCounterBoxLabel: { fontSize: 8, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
+  missingCounterBoxVal: { fontSize: 13, fontWeight: '900', marginTop: 2 },
+
+  filterChip: { backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  filterChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
+  filterChipText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
+  filterChipTextActive: { color: '#ffffff', fontWeight: '900' },
+
+  bulkActionBtnDanger: { flex: 1, backgroundColor: 'rgba(244,63,94,0.2)', borderWidth: 1, borderColor: '#f43f5e', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  bulkActionBtnNeutral: { flex: 1, backgroundColor: 'rgba(99,102,241,0.2)', borderWidth: 1, borderColor: '#6366f1', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+
+  incompleteCard: { backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#334155', padding: 12, marginBottom: 8 },
+  incompleteCardSkipped: { borderColor: '#475569', opacity: 0.75 },
+  incompleteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  rowPill: { backgroundColor: '#1e293b', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  rowPillText: { fontSize: 9, fontWeight: '900', color: '#cbd5e1' },
+  incompleteLeadName: { fontSize: 12, fontWeight: '900', color: '#ffffff', flex: 1 },
+  skippedBadge: { backgroundColor: 'rgba(100,116,139,0.2)', borderWidth: 1, borderColor: '#64748b', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  skippedBadgeText: { fontSize: 8, fontWeight: '900', color: '#94a3b8' },
+
+  fieldBox: { backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', padding: 8 },
+  fieldBoxLabel: { fontSize: 9, fontWeight: '800', color: '#cbd5e1' },
+  fieldStatusText: { fontSize: 8, fontWeight: '900' },
+  inlineFieldInput: { flex: 1, backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, color: '#ffffff', fontSize: 11, fontWeight: '700' },
+  inlineSaveBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  inlineSaveBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '900' },
+  fieldExistingValue: { color: '#6ee7b7', fontSize: 11, fontWeight: '700' },
+
+  cardActionBtn: { flex: 1, paddingVertical: 7, borderRadius: 6, alignItems: 'center', borderWidth: 1 },
+  cardActionBtnSkip: { backgroundColor: '#0f172a', borderColor: '#334155' },
+  cardActionBtnUnskip: { backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#818cf8' },
+  cardActionBtnRemove: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
+  cardActionBtnText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
+
+  missingDoneBtn: { backgroundColor: '#f59e0b', paddingVertical: 11, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  missingDoneBtnText: { color: '#020617', fontSize: 12, fontWeight: '900' },
 });

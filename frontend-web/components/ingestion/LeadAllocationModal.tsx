@@ -869,6 +869,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                           setCustomBatchSize(val);
                         }}
                         placeholder="e.g. 100"
+                        style={{ backgroundColor: '#090d16', color: '#ffffff', colorScheme: 'dark' }}
                         className="w-full pl-3 pr-16 py-2 bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl text-xs font-black text-white outline-none"
                       />
                       <span className="absolute right-3 top-2 text-[10px] font-bold text-slate-400">
@@ -939,48 +940,60 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                 </div>
 
                 {/* LIVE REMAINING TELEMETRY & CONTROLS */}
-                <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2.5">
+                <div className="p-3.5 bg-slate-950/90 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between text-xs flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400 font-bold">Total: <strong className="text-white">{totalLeadsCount}</strong></span>
-                      <span className="text-emerald-400 font-bold">Allocated: <strong>{allocatedRowsCount}</strong></span>
-                      <span className={`font-black px-2 py-0.5 rounded-md border ${
-                        remainingRowsCount === 0
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30 animate-pulse'
-                      }`}>
-                        Remaining Unassigned: {remainingRowsCount} Leads
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-slate-300 font-bold">Total: <strong className="text-white font-black">{totalLeadsCount}</strong></span>
+                      <span className="text-emerald-400 font-bold">Allocated: <strong className="text-emerald-300 font-black">{allocatedRowsCount}</strong></span>
+                      <span
+                        className="font-black px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 shadow-sm"
+                        style={
+                          remainingRowsCount === 0
+                            ? { backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', borderColor: 'rgba(52, 211, 153, 0.5)' }
+                            : { backgroundColor: 'rgba(245, 158, 11, 0.25)', color: '#fef08a', borderColor: 'rgba(251, 191, 36, 0.6)' }
+                        }
+                      >
+                        {remainingRowsCount === 0 ? '✓ 100% Leads Allocated' : `⚠️ Remaining Unassigned: ${remainingRowsCount} Leads`}
                       </span>
                     </div>
                   </div>
 
                   {/* Dual Color Progress Bar */}
-                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800">
+                  <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800 shadow-inner">
                     <div
                       className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-300"
                       style={{ width: `${Math.min(100, (allocatedRowsCount / totalLeadsCount) * 100)}%` }}
                     />
                     <div
-                      className="h-full bg-amber-500/60 transition-all duration-300"
+                      className="h-full bg-amber-500 transition-all duration-300 shadow-sm"
                       style={{ width: `${Math.min(100, (remainingRowsCount / totalLeadsCount) * 100)}%` }}
                     />
                   </div>
 
                   {/* WHOM TO ASSIGN CONTROLS (Active when remaining > 0) */}
                   {remainingRowsCount > 0 && (
-                    <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="pt-2.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-                          <UserCheck size={13} /> Assign remaining {remainingRowsCount} to:
+                        <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <UserCheck size={14} className="text-amber-400" /> Assign remaining {remainingRowsCount} to:
                         </span>
                         <select
                           value={remainingAssigneeId}
                           onChange={e => setRemainingAssigneeId(e.target.value)}
-                          className="bg-slate-950 border border-slate-700 text-white font-bold text-xs rounded-lg px-2.5 py-1 focus:border-indigo-500 outline-none"
-                          style={{ colorScheme: 'dark' }}
+                          className="border-2 rounded-lg px-3 py-1.5 text-xs font-black outline-none shadow-sm cursor-pointer"
+                          style={{
+                            backgroundColor: '#090d16',
+                            color: '#ffffff',
+                            colorScheme: 'dark',
+                            borderColor: '#475569',
+                          }}
                         >
                           {MOCK_TEAM.map(m => (
-                            <option key={m.id} value={m.id} style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>
+                            <option
+                              key={m.id}
+                              value={m.id}
+                              style={{ backgroundColor: '#090d16', color: '#ffffff' }}
+                            >
                               {m.name} ({m.role})
                             </option>
                           ))}
@@ -988,8 +1001,14 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleAssignRemainingToMember(remainingAssigneeId)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-black transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
+                          style={{
+                            backgroundColor: '#f59e0b',
+                            color: '#090d16',
+                            border: '1px solid #fbbf24',
+                          }}
                         >
+                          <UserCheck size={13} style={{ color: '#090d16' }} />
                           + Assign All {remainingRowsCount} Leads
                         </button>
                       </div>
@@ -997,7 +1016,12 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                       <button
                         type="button"
                         onClick={handleSplitRemainingEvenly}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[11px] font-black transition-all cursor-pointer flex items-center gap-1 self-start sm:self-auto"
+                        className="px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 self-start sm:self-auto"
+                        style={{
+                          backgroundColor: '#4f46e5',
+                          color: '#ffffff',
+                          border: '1px solid #818cf8',
+                        }}
                       >
                         ⚖️ Split {remainingRowsCount} Evenly
                       </button>
@@ -1005,8 +1029,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                   )}
 
                   {remainingRowsCount === 0 && (
-                    <div className="text-[11px] font-black text-emerald-400 flex items-center gap-1.5 pt-1">
-                      <CheckCircle size={13} /> 100% of dataset is fully assigned! Ready for verification.
+                    <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5 pt-1">
+                      <CheckCircle size={14} /> 100% of dataset is fully assigned! Ready for verification.
                     </div>
                   )}
                 </div>

@@ -743,7 +743,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                                 style={styles.assignRemainingBtn}
                                 onPress={() => handleAssignRemainingToMember(usr.id)}
                               >
-                                <Text style={{ color: '#f59e0b', fontSize: 10, fontWeight: '800' }}>
+                                <Text style={{ color: '#090d16', fontSize: 10, fontWeight: '900' }}>
                                   + Assign {remainingRowsCount} to {usr.name.split(' ')[0]}
                                 </Text>
                               </TouchableOpacity>
@@ -752,7 +752,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                         </ScrollView>
 
                         <TouchableOpacity style={styles.splitRemainingBtn} onPress={handleSplitRemainingEvenly}>
-                          <Text style={{ color: '#818cf8', fontSize: 10, fontWeight: '900' }}>
+                          <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: '900' }}>
                             ⚖️ Split {remainingRowsCount} Remaining Evenly Across Selected Reps
                           </Text>
                         </TouchableOpacity>
@@ -1151,13 +1151,13 @@ const styles = StyleSheet.create({
   remainingTelemetryBox: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', padding: 10, marginTop: 10 },
   remainingTelemetryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   telemetryText: { fontSize: 10, fontWeight: '700', color: '#94a3b8' },
-  telemetryHighlight: { fontSize: 10, fontWeight: '900', color: '#f59e0b' },
+  telemetryHighlight: { fontSize: 10, fontWeight: '900', color: '#fef08a', backgroundColor: 'rgba(245,158,11,0.25)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#f59e0b' },
   progressBarContainer: { height: 6, backgroundColor: '#0b1329', borderRadius: 3, overflow: 'hidden', flexDirection: 'row', marginBottom: 6 },
   progressBarAllocated: { height: '100%', backgroundColor: '#10b981' },
   progressBarRemaining: { height: '100%', backgroundColor: '#f59e0b' },
   remainingActionRow: { borderTopWidth: 1, borderTopColor: '#1e293b', paddingTop: 6, marginTop: 4 },
-  assignRemainingBtn: { backgroundColor: 'rgba(245,158,11,0.15)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', borderRadius: 7, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
-  splitRemainingBtn: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 8, alignItems: 'center', marginTop: 6 },
+  assignRemainingBtn: { backgroundColor: '#f59e0b', borderWidth: 1, borderColor: '#fbbf24', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center' },
+  splitRemainingBtn: { backgroundColor: '#4f46e5', borderWidth: 1, borderColor: '#818cf8', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', marginTop: 8 },
 
   modeTabBar: { flexDirection: 'row', backgroundColor: '#0b1329', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   modeTab: { flex: 1, paddingVertical: 8, paddingHorizontal: 4, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },

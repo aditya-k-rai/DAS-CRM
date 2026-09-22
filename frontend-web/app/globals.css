@@ -293,8 +293,18 @@
   border-color: #e2e8f0 !important;
 }
 
-.light .crm-input, .light input[type="text"], .light input[type="email"], .light input[type="search"], .light textarea, .light select,
-[data-theme="light"] .crm-input, [data-theme="light"] input[type="text"], [data-theme="light"] input[type="email"], [data-theme="light"] input[type="search"], [data-theme="light"] textarea, [data-theme="light"] select {
+.light .crm-input:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+.light input[type="text"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+.light input[type="email"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+.light input[type="search"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+.light textarea:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+.light select:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] .crm-input:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] input[type="text"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] input[type="email"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] input[type="search"]:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] textarea:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *),
+[data-theme="light"] select:not(.dark-context *):not(.dark *):not([data-theme="dark"] *):not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *) {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
@@ -665,16 +675,27 @@ select option {
   color: #f8fafc !important;
 }
 
-/* Modal and dark container select overrides */
+/* Modal and dark container select & input overrides */
+.dark-context select,
+.dark-context input,
+.dark-context textarea,
+.dark-context .crm-input,
 select.bg-slate-950,
 select.bg-slate-900,
 select.bg-slate-800,
 .bg-slate-950 select,
 .bg-slate-900 select,
-.bg-slate-800 select {
+.bg-slate-800 select,
+.bg-slate-950 input,
+.bg-slate-900 input,
+.bg-slate-800 input {
+  background-color: #090d16 !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
   color-scheme: dark !important;
 }
 
+.dark-context select option,
 select.bg-slate-950 option,
 select.bg-slate-900 option,
 select.bg-slate-800 option,
