@@ -400,7 +400,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     const rawExt = file.name.split('.').pop()?.toUpperCase() || 'FILE';
     setDetectedFormat(rawExt);
     setFileName(file.name.replace(/\.[^/.]+$/, ''));
-    setFileSize((file.size / 1024).toFixed(1) + ' KB');
+    const formattedSize = file.size >= 1024 * 1024
+      ? (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+      : (file.size / 1024).toFixed(1) + ' KB';
+    setFileSize(formattedSize);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -904,7 +907,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               <select
                 value={selectedPlatform}
                 onChange={e => setSelectedPlatform(e.target.value)}
-                className="crm-input w-full text-xs font-bold text-emerald-300 bg-slate-950"
+                className={`crm-input w-full text-xs font-bold bg-slate-950 transition-all ${
+                  !selectedPlatform && sheets.length > 0
+                    ? 'border-amber-500 text-amber-300 ring-2 ring-amber-500/30'
+                    : 'text-emerald-300'
+                }`}
               >
                 <option value="">-- Select Platform Source --</option>
                 {PLATFORMS.map(p => (
@@ -929,6 +936,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 <span className="text-[10px] text-slate-400 font-bold block">COLS</span>
                 <span className="text-sm font-black text-emerald-400">{totalColsCount}</span>
               </div>
+              <div className="w-px h-6 bg-slate-700" />
+              <div className="text-center">
+                <span className="text-[10px] text-slate-400 font-bold block">FILE SIZE</span>
+                <span className="text-sm font-black text-amber-400">{fileSize || '—'}</span>
+              </div>
             </div>
           </div>
 
@@ -942,23 +954,23 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 </span>
               )}
               {fileName.trim() && !selectedPlatform && (
-                <span className="text-amber-400 font-bold flex items-center gap-1">
-                  <AlertCircle size={13} /> Select Source Platform to unlock upload.
+                <span className="text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+                  <AlertCircle size={13} /> Select Source Platform above to unlock upload (File Size: {fileSize || '—'} · Status: 0%).
                 </span>
               )}
               {isReadyToInject && !isDriveUploaded && !isUploadingDrive && (
                 <span className="text-sky-300 font-bold flex items-center gap-1">
-                  <CloudUpload size={13} /> Ready — click &apos;Upload to Google Drive&apos; to archive &amp; ingest.
+                  <CloudUpload size={13} /> Ready — click &apos;Upload to Google Drive&apos; ({fileSize || '0%'}) to archive &amp; ingest.
                 </span>
               )}
               {isUploadingDrive && (
                 <span className="text-amber-300 font-bold flex items-center gap-1 animate-pulse">
-                  <RefreshCw size={13} className="animate-spin" /> Archiving to Google Drive cold vault...
+                  <RefreshCw size={13} className="animate-spin" /> Archiving to Google Drive cold vault... {driveProgress?.progressPercent || 0}% ({fileSize})
                 </span>
               )}
               {isDriveUploaded && (
                 <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <CheckCircle size={13} /> Archived! Click &apos;Confirm &amp; Ingest&apos; to finish.
+                  <CheckCircle size={13} /> Archived (100%)! Click &apos;Confirm &amp; Ingest&apos; to finish.
                 </span>
               )}
             </div>
@@ -974,13 +986,13 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   type="button"
                   onClick={handleUploadToGoogleDrive}
                   disabled={!isReadyToInject || isUploadingDrive}
-                  title={!isReadyToInject ? 'Enter File Name and select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
+                  title={!isReadyToInject ? 'Select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
                   className="px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-indigo-600/25 cursor-pointer"
                 >
                   {isUploadingDrive ? (
-                    <><RefreshCw size={14} className="animate-spin text-sky-300" /><span>Uploading ({driveProgress?.progressPercent || 0}%)...</span></>
+                    <><RefreshCw size={14} className="animate-spin text-sky-300" /><span>Uploading ({driveProgress?.progressPercent || 0}% · {fileSize})...</span></>
                   ) : (
-                    <><CloudUpload size={15} /><span>Upload to Google Drive</span></>
+                    <><CloudUpload size={15} /><span>Upload to Google Drive {!isReadyToInject ? '(Locked: Select Platform)' : ''}</span></>
                   )}
                 </button>
               ) : (
@@ -1094,22 +1106,41 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         </div>
 
         {/* FOOTER — Google Drive cold vault status (action buttons are in the top metadata bar) */}
-        <div className="px-5 py-2.5 bg-slate-900 border-t border-border/60 flex items-center justify-between text-[11px]">
-          <span className="flex items-center gap-1.5 text-slate-500">
-            <Cloud size={12} className="text-indigo-400 shrink-0" />
+        <div className="px-5 py-2.5 bg-slate-900 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+          <span className="flex items-center gap-1.5 text-slate-500 flex-wrap">
+            <Cloud size={13} className="text-indigo-400 shrink-0" />
             <span className="font-bold text-slate-400">Cold Vault:</span>
-            <span className="font-mono text-slate-500 truncate max-w-xs sm:max-w-md">
+            <span className="font-mono text-slate-400 truncate max-w-xs sm:max-w-md">
               Google Drive › Acme Sales Solutions › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
             </span>
+            {fileSize && (
+              <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px] font-bold border border-slate-700">
+                Size: {fileSize}
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-3 shrink-0">
             {!isDriveUploaded && !isUploadingDrive && sheets.length > 0 && (
-              <span className="text-amber-400 font-semibold flex items-center gap-1">
-                <Clock size={11} /> Pending Upload
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-mono text-[10px]">
+                  Status: 0% · {fileSize || '0 KB'}
+                </span>
+                {!selectedPlatform ? (
+                  <span className="text-amber-400 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30">
+                    <AlertCircle size={12} className="text-amber-400 animate-pulse" /> Pending: Select Platform (0%)
+                  </span>
+                ) : (
+                  <span className="text-sky-400 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/15 border border-sky-500/30">
+                    <Clock size={12} /> Ready to Upload (0%)
+                  </span>
+                )}
+              </div>
             )}
             {isUploadingDrive && driveProgress && (
               <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-mono text-[10px]">
+                  {fileSize && `${fileSize} · `}{driveProgress.progressPercent}%
+                </span>
                 <div className="w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-150"
@@ -1122,9 +1153,12 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               </div>
             )}
             {isDriveUploaded && (
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle size={11} /> Archived in Vault
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-mono text-[10px]">{fileSize}</span>
+                <span className="text-emerald-400 font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30">
+                  <CheckCircle size={12} /> Archived to Cold Vault (100%)
+                </span>
+              </div>
             )}
           </div>
         </div>
