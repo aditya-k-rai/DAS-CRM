@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
   Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3,
-  Download, PartyPopper, Crown, Calendar, Phone
+  Download, PartyPopper, Crown, Calendar, Phone, CreditCard
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -155,6 +155,8 @@ async function generateRegistrationPdf(data: {
   city?: string;
   state?: string;
   gstNumber?: string;
+  panNumber?: string;
+  panType?: string;
   companyType?: string;
   sector?: string;
   couponCode?: string;
@@ -238,6 +240,7 @@ async function generateRegistrationPdf(data: {
     ['Company Type', data.companyType || 'N/A'],
     ['Industry Sector', data.sector || 'N/A'],
     ['GST Number', data.gstNumber || 'N/A'],
+    ['PAN Card', data.panNumber ? `${data.panNumber} (${data.panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A'],
     ['Phone Number', data.phone || 'N/A'],
     ['Pincode', data.pincode || 'N/A'],
     ['City', data.city || 'N/A'],
@@ -249,32 +252,33 @@ async function generateRegistrationPdf(data: {
     ['Verification Status', 'Pending Super Admin Approval'],
   ];
 
-  let y = 118;
+  let y = 114;
   companyRows.forEach((row, i) => {
+    const rowH = 7;
     doc.setFillColor(i % 2 === 0 ? 18 : 23, i % 2 === 0 ? 22 : 27, i % 2 === 0 ? 52 : 60);
-    doc.rect(10, y, W - 20, 8.5, 'F');
+    doc.rect(10, y, W - 20, rowH, 'F');
     doc.setTextColor(130, 140, 190);
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.text(row[0], 15, y + 5.8);
+    doc.text(row[0], 15, y + 4.8);
     doc.setTextColor(215, 220, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     const val = row[1];
-    doc.text(val.length > 50 ? val.slice(0, 47) + '...' : val, W - 15, y + 5.8, { align: 'right' });
-    y += 8.5;
+    doc.text(val.length > 50 ? val.slice(0, 47) + '...' : val, W - 15, y + 4.8, { align: 'right' });
+    y += rowH;
   });
 
-  y += 5;
+  y += 4;
 
   // ── ADMIN CREDENTIALS section (highlighted)
   doc.setFillColor(15, 28, 52);
-  doc.roundedRect(10, y, W - 20, 7, 2, 2, 'F');
+  doc.roundedRect(10, y, W - 20, 6.5, 2, 2, 'F');
   doc.setTextColor(245, 158, 11);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('ADMIN LOGIN CREDENTIALS (Keep Confidential)', 15, y + 5);
-  y += 7;
+  doc.text('ADMIN LOGIN CREDENTIALS (Keep Confidential)', 15, y + 4.8);
+  y += 6.5;
 
   const credRows = [
     ['Admin Full Name', data.adminName],
@@ -283,21 +287,22 @@ async function generateRegistrationPdf(data: {
   ];
 
   credRows.forEach((row, i) => {
+    const rowH = 7;
     doc.setFillColor(i % 2 === 0 ? 20 : 25, i % 2 === 0 ? 16 : 20, i % 2 === 0 ? 45 : 50);
-    doc.rect(10, y, W - 20, 8.5, 'F');
+    doc.rect(10, y, W - 20, rowH, 'F');
     // Amber left border for credentials
     doc.setFillColor(245, 158, 11);
-    doc.rect(10, y, 2, 8.5, 'F');
+    doc.rect(10, y, 2, rowH, 'F');
     doc.setTextColor(180, 150, 100);
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.text(row[0], 16, y + 5.8);
+    doc.text(row[0], 16, y + 4.8);
     doc.setTextColor(255, 230, 150);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    const val = row[1] === data.adminPassword ? row[1] : row[1]; // show password as-is
-    doc.text(val.length > 48 ? val.slice(0, 45) + '...' : val, W - 15, y + 5.8, { align: 'right' });
-    y += 8.5;
+    doc.setFontSize(7.5);
+    const val = row[1];
+    doc.text(val.length > 48 ? val.slice(0, 45) + '...' : val, W - 15, y + 4.8, { align: 'right' });
+    y += rowH;
   });
 
   y += 4;
@@ -388,6 +393,8 @@ export default function RegisterCompanyPage() {
   const [city, setCity]                       = useState('');
   const [state, setState]                     = useState('');
   const [gstNumber, setGstNumber]             = useState('');
+  const [panType, setPanType]                 = useState<'BUSINESS' | 'PERSONAL'>('BUSINESS');
+  const [panNumber, setPanNumber]             = useState('');
   const [companyType, setCompanyType]         = useState('Private Limited');
   const [sector, setSector]                   = useState('Technology & SaaS');
   const [selectedPlan, setSelectedPlan]       = useState<PlanKey>('GROW');
@@ -427,6 +434,8 @@ export default function RegisterCompanyPage() {
         city,
         state,
         gstNumber,
+        panNumber,
+        panType,
         companyType,
         sector,
         couponCode:      couponCode || undefined,
@@ -453,6 +462,8 @@ export default function RegisterCompanyPage() {
         city,
         state,
         gstNumber,
+        panNumber,
+        panType,
         companyType,
         sector,
         couponCode:      couponCode || undefined,
@@ -528,8 +539,13 @@ export default function RegisterCompanyPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber) {
+    if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber || !panNumber) {
       setError('Please fill all required fields (*)');
+      return;
+    }
+
+    if (panNumber.trim().length !== 10) {
+      setError('Please enter a valid 10-character PAN Card Number (e.g. ABCDE1234F)');
       return;
     }
 
@@ -552,6 +568,8 @@ export default function RegisterCompanyPage() {
           city,
           state,
           gstNumber,
+          panNumber: panNumber.trim().toUpperCase(),
+          panType,
           companyType,
           sector,
           planTier: selectedPlan,
@@ -577,6 +595,8 @@ export default function RegisterCompanyPage() {
         registrationKey: fallbackKey,
         companyName,
         adminEmail,
+        panNumber: panNumber.trim().toUpperCase(),
+        panType,
         planTier: selectedPlan,
         memberLimit: selectedPlan === 'ENTERPRISE' ? 60 : selectedPlan === 'BUSINESS' ? 18 : 6,
         validityDays: 7,
@@ -693,6 +713,7 @@ export default function RegisterCompanyPage() {
                     { icon: <Crown size={13} />, label: 'Plan', value: `${registrationSuccess.planTier} — ${registrationSuccess.memberLimit} Seats`, color: 'amber' },
                     { icon: <Calendar size={13} />, label: 'Key Validity', value: `${registrationSuccess.validityDays ?? 7} Days`, color: 'emerald' },
                     { icon: <Phone size={13} />, label: 'Phone', value: phone || 'N/A', color: 'purple' },
+                    { icon: <CreditCard size={13} />, label: 'PAN Card', value: panNumber ? `${panNumber} (${panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A', color: 'teal' },
                     { icon: <MapPin size={13} />, label: 'Location', value: city && state ? `${city}, ${state}` : city || state || 'N/A', color: 'rose' },
                   ].map((item, i) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -968,7 +989,17 @@ export default function RegisterCompanyPage() {
                     placeholder="e.g. 27AAAAA0000A1Z5"
                     className="crm-input text-sm font-mono font-bold uppercase text-indigo-300"
                     value={gstNumber}
-                    onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setGstNumber(val);
+                      // Auto-extract PAN from 15-char GSTIN if PAN is empty
+                      if (val.length >= 12 && !panNumber) {
+                        const extracted = val.slice(2, 12);
+                        if (/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(extracted)) {
+                          setPanNumber(extracted);
+                        }
+                      }
+                    }}
                   />
                 </div>
 
@@ -984,6 +1015,73 @@ export default function RegisterCompanyPage() {
                     <option value="Proprietorship">Proprietorship</option>
                     <option value="Enterprise / Public">Enterprise / Public</option>
                   </select>
+                </div>
+
+                {/* ── PAN CARD SECTION (PERSONAL OR BUSINESS OPTION) ───────────── */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">
+                    PAN Card Type *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setPanType('BUSINESS')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        panType === 'BUSINESS'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Building2 size={13} /> Business PAN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPanType('PERSONAL')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        panType === 'PERSONAL'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <Users size={13} /> Personal PAN
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {panType === 'BUSINESS' ? '🏢 For Company, LLP, Partnership Firm' : '👤 For Proprietor, Director, Individual'}
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">
+                      PAN Card Number (10 Alphanumeric) *
+                    </label>
+                    {panNumber.length === 10 && (
+                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                        <CheckCircle2 size={11} /> 10 Digits
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      maxLength={10}
+                      placeholder={panType === 'BUSINESS' ? 'e.g. AAACB1234F' : 'e.g. ABCDP1234F'}
+                      className="crm-input text-sm font-mono font-bold uppercase text-amber-600 dark:text-amber-300 pr-9 tracking-wider"
+                      value={panNumber}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+                        setPanNumber(cleaned);
+                      }}
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <CreditCard size={15} />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Format: 5 letters, 4 numbers, 1 letter (e.g. ABCDE1234F)
+                  </p>
                 </div>
 
                 {/* ── EXPANDED INDUSTRY SECTOR SELECTOR (22 OPTIONS) ───────────────── */}

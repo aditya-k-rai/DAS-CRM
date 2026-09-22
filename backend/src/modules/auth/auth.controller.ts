@@ -137,6 +137,8 @@ export class AuthController {
       state: string;
       pincode?: string;
       gstNumber?: string;
+      panNumber?: string;
+      panType?: string;
       companyType?: string;
       sector?: string;
       planTier?: string;

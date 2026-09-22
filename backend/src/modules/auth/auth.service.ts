@@ -122,6 +122,8 @@ export class AuthService {
     state: string;
     pincode?: string;
     gstNumber?: string;
+    panNumber?: string;
+    panType?: string;
     companyType?: string;
     sector?: string;
     planTier?: string;
@@ -188,6 +190,10 @@ export class AuthService {
             verificationStatus: 'PENDING',
             requestedPlan: keyRecord.planTier,
             registeredAt: new Date().toISOString(),
+            panNumber: dto.panNumber || null,
+            panType: dto.panType || 'BUSINESS',
+            pincode: dto.pincode || null,
+            couponCode: dto.couponCode || null,
           },
         },
       });
@@ -330,6 +336,8 @@ export class AuthService {
         city:          dto.city,
         state:         dto.state,
         gstNumber:     dto.gstNumber,
+        panNumber:     dto.panNumber,
+        panType:       dto.panType,
         companyType:   dto.companyType,
         sector:        dto.sector,
         couponCode:    dto.couponCode,
@@ -342,17 +350,19 @@ export class AuthService {
     try {
       await this.mailService.sendNewCompanyRegistrationNotification({
         companyName: dto.companyName,
-        adminName: dto.adminName,
-        adminEmail: dto.adminEmail,
-        key: keyRecord.key,
-        planTier: keyRecord.planTier,
+        adminName:   dto.adminName,
+        adminEmail:  dto.adminEmail,
+        key:         keyRecord.key,
+        planTier:    keyRecord.planTier,
         memberLimit: keyRecord.memberLimit,
-        phone: dto.phone,
-        city: dto.city,
-        state: dto.state,
-        gstNumber: dto.gstNumber,
+        phone:       dto.phone,
+        city:        dto.city,
+        state:       dto.state,
+        gstNumber:   dto.gstNumber,
+        panNumber:   dto.panNumber,
+        panType:     dto.panType,
         companyType: dto.companyType,
-        sector: dto.sector,
+        sector:      dto.sector,
       });
     } catch (notifyErr) {
       this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);

@@ -214,6 +214,8 @@ export class MailService {
     city?: string;
     state?: string;
     gstNumber?: string;
+    panNumber?: string;
+    panType?: string;
     companyType?: string;
     sector?: string;
     couponCode?: string;
@@ -280,6 +282,7 @@ export class MailService {
         ['Company Type', opts.companyType || 'N/A'],
         ['Industry Sector', opts.sector || 'N/A'],
         ['GST Number', opts.gstNumber || 'N/A'],
+        ['PAN Card', opts.panNumber ? `${opts.panNumber} (${opts.panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A'],
         ['Phone Number', opts.phone || 'N/A'],
         ['Pincode', opts.pincode || 'N/A'],
         ['City', opts.city || 'N/A'],
@@ -376,6 +379,8 @@ export class MailService {
     city?: string;
     state?: string;
     gstNumber?: string;
+    panNumber?: string;
+    panType?: string;
     companyType?: string;
     sector?: string;
     couponCode?: string;
@@ -399,6 +404,8 @@ export class MailService {
         city: opts.city,
         state: opts.state,
         gstNumber: opts.gstNumber,
+        panNumber: opts.panNumber,
+        panType: opts.panType,
         companyType: opts.companyType,
         sector: opts.sector,
         couponCode: opts.couponCode,
@@ -513,6 +520,7 @@ export class MailService {
                           ['Company Type', opts.companyType || 'N/A'],
                           ['Industry Sector', opts.sector || 'N/A'],
                           ['GST Number', opts.gstNumber || 'N/A'],
+                          ['PAN Card', opts.panNumber ? `${opts.panNumber} (${opts.panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A'],
                           ['Phone Number', opts.phone || 'N/A'],
                           ['Pincode', opts.pincode || 'N/A'],
                           ['City / State', opts.city && opts.state ? `${opts.city}, ${opts.state}` : opts.city || opts.state || 'N/A'],
@@ -607,6 +615,8 @@ export class MailService {
     city?: string;
     state?: string;
     gstNumber?: string;
+    panNumber?: string;
+    panType?: string;
     companyType?: string;
     sector?: string;
   }): Promise<void> {
@@ -655,6 +665,7 @@ export class MailService {
                           ['Phone', opts.phone || 'N/A'],
                           ['Location', opts.city && opts.state ? `${opts.city}, ${opts.state}` : 'N/A'],
                           ['GST', opts.gstNumber || 'N/A'],
+                          ['PAN Card', opts.panNumber ? `${opts.panNumber} (${opts.panType === 'PERSONAL' ? 'Personal' : 'Business'})` : 'N/A'],
                           ['Type', opts.companyType || 'N/A'],
                           ['Sector', opts.sector || 'N/A'],
                           ['Requested Plan', `${opts.planTier} — ${opts.memberLimit} Seats`],
