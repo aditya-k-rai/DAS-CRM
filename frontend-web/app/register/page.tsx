@@ -605,6 +605,24 @@ export default function RegisterCompanyPage() {
       setLoading(false);
       if (resultData) {
         setRegistrationSuccess(resultData);
+        if (typeof window !== 'undefined') {
+          const compId = resultData.organization?.id || resultData.companyId || '';
+          const compName = resultData.companyName || companyName;
+          const regKey = resultData.registrationKey || '';
+          const admEmail = resultData.adminEmail || adminEmail;
+
+          localStorage.setItem('last_registered_company', JSON.stringify({
+            id: compId,
+            name: compName,
+            key: regKey,
+            email: admEmail,
+          }));
+
+          if (compId) localStorage.setItem('pending_company_id', compId);
+          if (regKey) localStorage.setItem('pending_company_key', regKey);
+          if (compName) localStorage.setItem('pending_company_name', compName);
+          if (admEmail) localStorage.setItem('pending_user_email', admEmail);
+        }
       }
     }
   };
@@ -762,7 +780,7 @@ export default function RegisterCompanyPage() {
                     <Clock size={15} /> Check Verification Status
                   </Link>
                   <Link
-                    href="/login"
+                    href={`/login?companyId=${encodeURIComponent(registrationSuccess.organization?.id || '')}&companyName=${encodeURIComponent(registrationSuccess.companyName || '')}&key=${encodeURIComponent(registrationSuccess.registrationKey || '')}&email=${encodeURIComponent(registrationSuccess.adminEmail || '')}`}
                     className="flex-1 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}
                   >

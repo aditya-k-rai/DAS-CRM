@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Shield, Key, Lock, Mail, Building2, UserCheck, ArrowRight,
-  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check
+  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check, RefreshCw, PlusCircle
 } from 'lucide-react';
 import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail, validateEmailRoleMatch } from '@/context/AuthContext';
 
@@ -13,6 +13,8 @@ interface PublicCompany {
   id: string;
   name: string;
   slug: string;
+  isActive?: boolean;
+  status?: string;
 }
 
 function formatCompanyKey(input: string): string {
@@ -88,28 +90,74 @@ export function LoginGateway() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlCompanyId = searchParams?.get('companyId') || '';
+  const urlCompanyName = searchParams?.get('companyName') || '';
+  const urlKey = searchParams?.get('key') || '';
+  const urlEmail = searchParams?.get('email') || '';
+
+  const [fetchingCompanies, setFetchingCompanies] = useState(false);
   const { switchRole, setAuthSession } = useAuth();
 
   useEffect(() => {
     fetchPublicCompanies();
-  }, []);
+  }, [urlCompanyId, urlKey, urlEmail]);
 
   const fetchPublicCompanies = async () => {
+    setFetchingCompanies(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/public-companies`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setPublicCompanies(data);
-          if (data.length > 0) {
-            setSelectedCompanyId(prev => prev || data[0].id);
-          } else {
-            setSelectedCompanyId('');
+          let companies = [...data];
+
+          // Check if there is a company passed via query param or saved in localStorage
+          let storedCompany: any = null;
+          if (typeof window !== 'undefined') {
+            try {
+              const raw = localStorage.getItem('last_registered_company');
+              if (raw) storedCompany = JSON.parse(raw);
+            } catch (_) {}
+          }
+
+          const targetCompanyId = urlCompanyId || storedCompany?.id || '';
+          const targetCompanyName = urlCompanyName || storedCompany?.name || '';
+          const targetKey = urlKey || storedCompany?.key || '';
+          const targetEmail = urlEmail || storedCompany?.email || '';
+
+          // If the target company is not in the list, prepend it so user can select it immediately
+          if (targetCompanyId && targetCompanyName && !companies.some(c => c.id === targetCompanyId)) {
+            companies.unshift({
+              id: targetCompanyId,
+              name: targetCompanyName,
+              slug: targetCompanyName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+              isActive: true,
+              status: 'APPROVED',
+            });
+          }
+
+          setPublicCompanies(companies);
+
+          // Select the target company or preserve current selection or pick first available
+          if (targetCompanyId && companies.some(c => c.id === targetCompanyId)) {
+            setSelectedCompanyId(targetCompanyId);
+          } else if (companies.length > 0) {
+            setSelectedCompanyId(prev => (prev && companies.some(c => c.id === prev) ? prev : companies[0].id));
+          }
+
+          if (targetKey && !companyKeyInput) {
+            setCompanyKeyInput(targetKey);
+          }
+          if (targetEmail && !email) {
+            setEmail(targetEmail);
           }
         }
       }
     } catch (e) {
       setPublicCompanies([]);
+    } finally {
+      setFetchingCompanies(false);
     }
   };
 
@@ -147,6 +195,12 @@ export function LoginGateway() {
       return;
     }
 
+    const effectiveCompanyId = selectedCompanyId || (publicCompanies.length > 0 ? publicCompanies[0].id : '');
+    if (!effectiveCompanyId) {
+      setError('Please select your company workspace. If you have not registered yet, please register your company first.');
+      return;
+    }
+
     // Role vs Email validation check
     const matchCheck = validateEmailRoleMatch(email, selectedRole);
     if (!matchCheck.valid && matchCheck.expectedRole) {
@@ -168,7 +222,7 @@ export function LoginGateway() {
           email,
           password,
           key: companyKeyInput.trim(),
-          organizationId: selectedCompanyId,
+          organizationId: effectiveCompanyId,
         }),
       });
 
@@ -639,27 +693,75 @@ export function LoginGateway() {
             <div className={`space-y-3 pt-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {/* Company Selection Dropdown */}
               <div>
-                <label className="text-xs text-muted-foreground block mb-1 font-semibold">Select Company / Workspace *</label>
-                <div className="relative flex items-center">
-                  <Building2 size={15} className="absolute left-3 text-indigo-400" />
-                  <select
-                    disabled={loading || publicCompanies.length === 0}
-                    className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-                    value={selectedCompanyId}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setSelectedCompanyId(val);
-                    }}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+                    <Building2 size={13} className="text-indigo-400" /> Select Company / Workspace *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={fetchPublicCompanies}
+                    disabled={fetchingCompanies || loading}
+                    className="text-[11px] font-bold text-indigo-500 dark:text-indigo-400 hover:underline flex items-center gap-1 transition-all"
+                    title="Refresh registered companies list"
                   >
-                    {publicCompanies.length === 0 ? (
-                      <option value="">No Active Companies Registered</option>
-                    ) : (
-                      publicCompanies.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))
-                    )}
-                  </select>
+                    <RefreshCw size={11} className={fetchingCompanies ? 'animate-spin' : ''} />
+                    {fetchingCompanies ? 'Refreshing...' : 'Refresh List'}
+                  </button>
                 </div>
+
+                {publicCompanies.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <div className="relative flex items-center">
+                      <Building2 size={15} className="absolute left-3 text-indigo-400 pointer-events-none" />
+                      <select
+                        disabled={loading}
+                        className="crm-input pl-9 text-sm font-bold h-10 w-full"
+                        value={selectedCompanyId}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setSelectedCompanyId(val);
+                        }}
+                      >
+                        {publicCompanies.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} {c.status === 'PENDING' ? '⏳ (Pending Approval)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                      <span>Don&apos;t see your company?</span>
+                      <Link href="/register" className="font-bold text-indigo-500 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                        <PlusCircle size={11} /> Register New Company
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+                    <p className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                      <AlertCircle size={14} className="text-amber-400 flex-shrink-0" />
+                      No registered companies found yet
+                    </p>
+                    <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                      Register your company workspace first to generate your Company Key &amp; Admin credentials.
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Link
+                        href="/register"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-all shadow-xs"
+                      >
+                        <PlusCircle size={12} /> Register Company Workspace →
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={fetchPublicCompanies}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-1"
+                      >
+                        <RefreshCw size={11} className={fetchingCompanies ? 'animate-spin' : ''} /> Check Again
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Company Key or User Key Input */}

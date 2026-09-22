@@ -169,7 +169,8 @@ export class AuthService {
       '-' +
       Date.now().toString(36);
 
-    const passwordHash = await bcrypt.hash(dto.adminPassword, 12);
+    const rawPassword = dto.adminPassword || (dto as any).password || 'Admin@123456';
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
@@ -206,7 +207,7 @@ export class AuthService {
           planTier: keyRecord.planTier,
           memberLimit: keyRecord.memberLimit,
           trialExpiresAt,
-          isActive: false, // Inactive until Super Admin verifies and approves plan
+          isActive: false, // Inactive until Super Admin approves
           isTrialActive: false,
           whatsAppEnabled: false,
           emailMarketingEnabled: false,
@@ -889,6 +890,7 @@ export class AuthService {
         isExpired,
         trialDaysLeft,
         subscription: org.subscription,
+        verificationStatus: ((org.settings as any)?.verificationStatus) || (org.isActive ? 'APPROVED' : 'PENDING'),
       };
     });
   }
@@ -1057,7 +1059,6 @@ export class AuthService {
 
   async getPendingCompanies() {
     const orgs = await this.prisma.organization.findMany({
-      where: { isActive: false },
       include: {
         subscription: true,
         users: { select: { id: true, email: true } },
@@ -1071,10 +1072,14 @@ export class AuthService {
     return orgs
       .filter((org) => {
         const settings = (org.settings as any) || {};
-        return settings.verificationStatus !== 'REJECTED';
+        const status = settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING');
+        return status === 'PENDING' || (!org.isActive && status !== 'APPROVED' && status !== 'REJECTED');
       })
       .map((org) => {
         const settings = (org.settings as any) || {};
+        const regKey = keyMap.get(org.id) || org.registrationKeyId || 'N/A';
+        const plan = org.subscription?.planTier || settings.requestedPlan || 'GROW';
+        const seats = org.subscription?.memberLimit || 15;
         return {
           id: org.id,
           name: org.name,
@@ -1086,12 +1091,20 @@ export class AuthService {
           gstNumber: org.gstNumber,
           companyType: org.companyType,
           sector: org.sector,
-          registrationKey: keyMap.get(org.id) || org.registrationKeyId || 'N/A',
-          plan: org.subscription?.planTier || settings.requestedPlan || 'FREE_TRIAL',
-          requestedSeats: org.subscription?.memberLimit || 10,
+          registrationKey: regKey,
+          plan,
+          requestedPlan: plan,
+          requestedSeats: seats,
+          seatsRequested: seats,
           registeredAt: org.createdAt,
-          verificationStatus: settings.verificationStatus || 'PENDING',
+          verificationStatus: 'PENDING',
           rejectionReason: settings.rejectionReason,
+          delayInquiries: settings.delayInquiries || [],
+          features: {
+            emailMarketing: org.subscription?.emailMarketingEnabled ?? false,
+            whatsappCloud: org.subscription?.whatsAppEnabled ?? false,
+            aiEngine: org.subscription?.aiEnabled ?? false,
+          },
         };
       });
   }
@@ -1100,11 +1113,17 @@ export class AuthService {
     companyId: string,
     dto: {
       planTier?: any;
+      plan?: any;
       memberLimit?: number;
       validityDays?: number;
       emailEnabled?: boolean;
       whatsAppEnabled?: boolean;
       aiEnabled?: boolean;
+      features?: {
+        emailMarketing?: boolean;
+        whatsappCloud?: boolean;
+        aiEngine?: boolean;
+      };
       note?: string;
     },
   ) {
@@ -1114,7 +1133,7 @@ export class AuthService {
     });
     if (!org) throw new BadRequestException('Company not found');
 
-    const planTier = dto.planTier || org.subscription?.planTier || 'FREE_TRIAL';
+    const planTier = dto.planTier || dto.plan || org.subscription?.planTier || 'FREE_TRIAL';
     const memberLimit = dto.memberLimit ?? org.subscription?.memberLimit ?? 10;
     const validityDays = dto.validityDays ?? 30;
     const newExpiry = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -1137,9 +1156,9 @@ export class AuthService {
     if (org.subscription) {
       // Use PLAN_DEFINITIONS as authoritative defaults, allow Super Admin to override per-company
       const planDef = getPlanDefinition(planTier);
-      const emailEnabled = dto.emailEnabled ?? planDef.emailEnabled;
-      const whatsAppEnabled = dto.whatsAppEnabled ?? planDef.whatsAppEnabled;
-      const aiEnabled = dto.aiEnabled ?? planDef.aiEnabled;
+      const emailEnabled = dto.emailEnabled ?? dto.features?.emailMarketing ?? planDef.emailEnabled;
+      const whatsAppEnabled = dto.whatsAppEnabled ?? dto.features?.whatsappCloud ?? planDef.whatsAppEnabled;
+      const aiEnabled = dto.aiEnabled ?? dto.features?.aiEngine ?? planDef.aiEnabled;
       const emailMonthlyQuota = planDef.emailMonthlyQuota; // e.g. 5000 for BUSINESS
       const whatsAppCredits = planDef.whatsAppCreditAllocation; // e.g. 20000 for BUSINESS
       const nextEmailReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
@@ -1393,6 +1412,36 @@ export class AuthService {
     );
 
     try {
+      const org = await this.prisma.organization.findFirst({
+        where: {
+          OR: [
+            { name: dto.companyName },
+            { adminEmail: dto.adminEmail },
+          ],
+        },
+      });
+      if (org) {
+        const settings = (org.settings as any) || {};
+        const inquiries = Array.isArray(settings.delayInquiries) ? [...settings.delayInquiries] : [];
+        inquiries.unshift({
+          id: `inq_${Date.now()}`,
+          message: dto.message || 'Verification inquiry from tenant',
+          submittedAt: new Date().toISOString(),
+          adminEmail: dto.adminEmail,
+        });
+        await this.prisma.organization.update({
+          where: { id: org.id },
+          data: {
+            settings: {
+              ...settings,
+              delayInquiries: inquiries,
+            },
+          },
+        });
+      }
+    } catch (_) {}
+
+    try {
       await this.mailService.sendDelayInquiryNotification({
         companyName: dto.companyName,
         registrationKey: dto.registrationKey,
@@ -1410,10 +1459,28 @@ export class AuthService {
   }
 
   async getPublicCompanies() {
-    return this.prisma.organization.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, slug: true },
-      orderBy: { name: 'asc' },
+    const orgs = await this.prisma.organization.findMany({
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isActive: true,
+        settings: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orgs.map((org) => {
+      const settings = (org.settings as any) || {};
+      const status = settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING');
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        isActive: org.isActive,
+        status,
+      };
     });
   }
 

@@ -370,7 +370,7 @@ export function SuperAdminDashboard() {
       const pendingRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/pending`, { headers });
       if (pendingRes.ok) {
         const pendingData = await pendingRes.json();
-        if (Array.isArray(pendingData) && pendingData.length > 0) {
+        if (Array.isArray(pendingData)) {
           setPendingCompanies(pendingData);
         }
       }
@@ -1404,9 +1404,20 @@ export function SuperAdminDashboard() {
                 New companies registered via the onboarding gateway. Verify and activate their plan, user seats, validity duration, and feature permissions before employees can log in.
               </p>
             </div>
-            <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 font-extrabold text-xs flex items-center gap-1.5 w-max shadow-sm">
-              <Clock size={14} className="animate-spin text-amber-500" style={{ animationDuration: '6s' }} />
-              {pendingCompanies.length} Workspace{pendingCompanies.length !== 1 ? 's' : ''} Awaiting Approval
+            <div className="flex items-center gap-2">
+              <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300 font-extrabold text-xs flex items-center gap-1.5 w-max shadow-sm">
+                <Clock size={14} className="animate-spin text-amber-500" style={{ animationDuration: '6s' }} />
+                {pendingCompanies.length} Workspace{pendingCompanies.length !== 1 ? 's' : ''} Awaiting Approval
+              </div>
+              <button
+                onClick={fetchBackendData}
+                disabled={loading}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                title="Refresh Pending Verification List"
+              >
+                <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                Refresh List
+              </button>
             </div>
           </div>
 

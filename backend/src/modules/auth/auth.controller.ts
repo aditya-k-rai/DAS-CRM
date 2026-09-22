@@ -261,6 +261,12 @@ export class AuthController {
     return this.authService.getAllCompanies();
   }
 
+  @Get('super-admin/companies/pending')
+  @ApiOperation({ summary: '[Super Admin] Get all companies awaiting verification & approval' })
+  getPendingCompanies() {
+    return this.authService.getPendingCompanies();
+  }
+
   @Get('super-admin/companies/:id')
   @ApiOperation({ summary: '[Super Admin] Get full in-depth company details' })
   getCompanyDetails(@Param('id') id: string) {
@@ -291,12 +297,6 @@ export class AuthController {
     return this.authService.updateCompanyExpiry(id, expiryDate);
   }
 
-  @Get('super-admin/companies/pending')
-  @ApiOperation({ summary: '[Super Admin] Get all companies awaiting verification & approval' })
-  getPendingCompanies() {
-    return this.authService.getPendingCompanies();
-  }
-
   @Patch('super-admin/companies/:id/approve')
   @ApiOperation({ summary: '[Super Admin] Approve & activate company with verified plan' })
   approveCompany(
@@ -304,11 +304,17 @@ export class AuthController {
     @Body()
     dto: {
       planTier?: any;
+      plan?: any;
       memberLimit?: number;
       validityDays?: number;
       emailEnabled?: boolean;
       whatsAppEnabled?: boolean;
       aiEnabled?: boolean;
+      features?: {
+        emailMarketing?: boolean;
+        whatsappCloud?: boolean;
+        aiEngine?: boolean;
+      };
       note?: string;
     },
   ) {
