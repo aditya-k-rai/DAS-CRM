@@ -1450,29 +1450,42 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   )}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleCommitIngestion}
-                  disabled={!isReadyToInject || (!duplicatesResolved && duplicateRecords.length > 0)}
-                  title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : 'Confirm & Ingest Leads'}
-                  className={`px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer ${
-                    !duplicatesResolved && duplicateRecords.length > 0
-                      ? 'bg-slate-800 border-2 border-rose-500/60 text-rose-300 opacity-60 cursor-not-allowed shadow-none'
-                      : 'bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 animate-pulse'
-                  }`}
-                >
-                  {!duplicatesResolved && duplicateRecords.length > 0 ? (
-                    <>
-                      <Ban size={14} className="text-rose-400" />
-                      <span>Resolve {duplicateRecords.length} Duplicates to Ingest</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={14} />
-                      <span>Confirm &amp; Ingest Leads →</span>
-                    </>
+                <div className="flex items-center gap-2">
+                  {committedLeadsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAllocationModalOpen(true)}
+                      className="px-4 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+                      title="Return to Post-Import Lead Allocation"
+                    >
+                      <Zap size={14} className="text-amber-400" />
+                      <span>⚡ Return to Allocation ({committedLeadsCount}) →</span>
+                    </button>
                   )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleCommitIngestion}
+                    disabled={!isReadyToInject || (!duplicatesResolved && duplicateRecords.length > 0)}
+                    title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : 'Confirm & Ingest Leads'}
+                    className={`px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer ${
+                      !duplicatesResolved && duplicateRecords.length > 0
+                        ? 'bg-slate-800 border-2 border-rose-500/60 text-rose-300 opacity-60 cursor-not-allowed shadow-none'
+                        : 'bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 animate-pulse'
+                    }`}
+                  >
+                    {!duplicatesResolved && duplicateRecords.length > 0 ? (
+                      <>
+                        <Ban size={14} className="text-rose-400" />
+                        <span>Resolve {duplicateRecords.length} Duplicates to Ingest</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={14} />
+                        <span>Confirm &amp; Ingest Leads →</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -2124,6 +2137,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           onClose={() => {
             setIsAllocationModalOpen(false);
             onClose();
+          }}
+          onPreviewSheet={() => {
+            // Return user to the previous interactive spreadsheet engine
+            setIsAllocationModalOpen(false);
           }}
           totalLeadsCount={committedLeadsCount}
           fileName={fileName}

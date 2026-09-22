@@ -40,6 +40,7 @@ export interface LeadAllocationEngineModalProps {
   visible: boolean;
   onClose: () => void;
   totalLeadsCount?: number;
+  fileName?: string;
   sourceType?: 'EXCEL_CSV' | 'GOOGLE_SHEETS';
   isTeamLeaderMode?: boolean;
   /** Called when user taps Preview & Edit Sheet — closes modal and navigates to the spreadsheet grid */
@@ -160,6 +161,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   visible,
   onClose,
   totalLeadsCount = 214,
+  fileName = 'Spreadsheet_Import_Data',
   sourceType = 'EXCEL_CSV',
   isTeamLeaderMode = false,
   onPreviewSheet,
@@ -561,6 +563,11 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                 <Text style={{ color: '#60a5fa', fontSize: 9, fontWeight: '800' }}>⏳ 6-Month Auto-Purge</Text>
               </View>
             </View>
+            {fileName ? (
+              <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '700', marginTop: 3 }}>
+                File: <Text style={{ color: '#f1f5f9', fontWeight: '800' }}>{fileName}</Text>
+              </Text>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' }}>
               <TouchableOpacity
                 style={[
@@ -568,8 +575,11 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                   onPreviewSheet && { borderColor: '#0ea5e9' },
                 ]}
                 onPress={() => {
-                  onClose();
-                  onPreviewSheet?.();
+                  if (onPreviewSheet) {
+                    onPreviewSheet();
+                  } else {
+                    onClose();
+                  }
                 }}
               >
                 <Text style={styles.previewSheetBtnText}>

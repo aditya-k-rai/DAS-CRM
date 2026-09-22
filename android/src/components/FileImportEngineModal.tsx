@@ -23,6 +23,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
+import { LeadAllocationEngineModal } from './LeadAllocationEngineModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -349,6 +350,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [inputFileName, setInputFileName] = useState(initialSession?.inputFileName || '');
   const [selectedPlatform, setSelectedPlatform] = useState(initialSession?.selectedPlatform || 'Google Ads');
   const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
+
+  // ⚡ Post-Import Lead Allocation Modal State (Parity with Web)
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [committedLeadsCount, setCommittedLeadsCount] = useState(0);
 
   // 🔍 Duplicate Leads Detection & Retargeting Resolution State
   const [duplicateRecords, setDuplicateRecords] = useState<DuplicateLeadRecord[]>([]);
@@ -970,9 +975,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         });
       } catch (_) { /* offline fallback */ }
 
+      setCommittedLeadsCount(leads.length);
       onSaveSession?.(currentSession);
       onImportSuccess(leads, audit);
-      handleClose();
+      setAllocationModalOpen(true);
     } catch (err) {
       Alert.alert('Ingestion Error', (err as Error).message || 'Unknown error');
       onImportError?.((err as Error).message || '');
@@ -1331,6 +1337,16 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={loading}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
+            {committedLeadsCount > 0 && (
+              <TouchableOpacity
+                style={styles.returnAllocBtn}
+                onPress={() => setAllocationModalOpen(true)}
+              >
+                <Text style={styles.returnAllocBtnText}>
+                  ⚡ Allocation ({committedLeadsCount}) →
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[
                 styles.injectBtn,
@@ -1816,6 +1832,24 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           </Modal>
         )}
 
+        {/* ── POST-IMPORT LEAD ALLOCATION MODAL (PARITY WITH WEB) ──────── */}
+        {allocationModalOpen && (
+          <LeadAllocationEngineModal
+            visible={allocationModalOpen}
+            onClose={() => {
+              setAllocationModalOpen(false);
+              handleClose();
+            }}
+            totalLeadsCount={committedLeadsCount || totalDataRows}
+            fileName={fileName || inputFileName}
+            sourceType="EXCEL_CSV"
+            onPreviewSheet={() => {
+              // Return user immediately to the previous interactive spreadsheet grid!
+              setAllocationModalOpen(false);
+            }}
+          />
+        )}
+
       </View>
     </Modal>
   );
@@ -2051,4 +2085,7 @@ const styles = StyleSheet.create({
 
   missingDoneBtn: { backgroundColor: '#f59e0b', paddingVertical: 11, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   missingDoneBtnText: { color: '#020617', fontSize: 12, fontWeight: '900' },
+
+  returnAllocBtn: { backgroundColor: 'rgba(79,70,229,0.25)', borderWidth: 1.5, borderColor: '#818cf8', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  returnAllocBtnText: { color: '#a5b4fc', fontSize: 11, fontWeight: '900' },
 });

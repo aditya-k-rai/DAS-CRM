@@ -1785,9 +1785,7 @@ export default function LeadPipelinePage() {
           fileName={pendingAllocationSheet.fileName}
           onPreviewSheet={() => {
             setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
-            setTimeout(() => {
-              document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
+            setImportCsvModalOpen(true);
           }}
           onAllocationComplete={(result) => {
             // Update webAuditLogs item to ALLOCATED

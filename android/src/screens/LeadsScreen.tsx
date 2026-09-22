@@ -283,15 +283,6 @@ export default function LeadsScreen() {
     setLeadsList(prev => [...converted, ...prev]);
     setAllocatedLeadsCount(leads.length);
     setAllocationSourceType('EXCEL_CSV');
-
-    Alert.alert(
-      `📥 Import Complete — ${audit.count} Leads`,
-      `File: ${audit.filename}\nPlatform: ${audit.platform}\nIngested: ${audit.date}\n\nConfigure Batchwise Allocation or Assign to Team Members now?`,
-      [
-        { text: 'Later', style: 'cancel' },
-        { text: '⚡ Allocate Leads Now', onPress: () => setAllocationModalOpen(true) },
-      ]
-    );
   };
 
   const [insertModalOpen, setInsertModalOpen] = useState(false);
@@ -1737,6 +1728,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
         visible={allocationModalOpen}
         onClose={() => setAllocationModalOpen(false)}
         totalLeadsCount={allocatedLeadsCount}
+        fileName={savedImportSession?.fileName || savedImportSession?.inputFileName || 'Spreadsheet_Import_Data'}
         sourceType={allocationSourceType}
         onPreviewSheet={() => {
           setAllocationModalOpen(false);

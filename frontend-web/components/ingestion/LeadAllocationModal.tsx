@@ -592,21 +592,20 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
             <button
               onClick={() => {
                 if (onPreviewSheet) {
-                  onClose();
                   onPreviewSheet();
                 } else {
                   setIsSheetPreviewMode(!isSheetPreviewMode);
                 }
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
                 isSheetPreviewMode
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white border-slate-600 hover:border-slate-500'
               }`}
-              title="Open Sheet Editor to preview & edit rows and columns"
+              title="Return to previous sheet to preview & edit rows and columns"
             >
               <Eye size={13} className="text-cyan-400" />
-              {isSheetPreviewMode ? 'Close Sheet Editor' : 'Preview & Edit Sheet'}
+              Preview &amp; Edit Sheet
             </button>
 
             <button
