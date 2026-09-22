@@ -143,51 +143,7 @@ export interface PendingCompanyRecord {
   };
 }
 
-const MOCK_PENDING_COMPANIES: PendingCompanyRecord[] = [
-  {
-    id: 'comp_pending_apex_solar',
-    name: 'Apex Solar Energy Solutions',
-    domain: 'apexsolarenergy.in',
-    adminName: 'Rajesh Sharma',
-    adminEmail: 'rajesh.solar@apexenergy.in',
-    registrationKey: 'SOLAR-PV-9021',
-    requestedPlan: 'GROWTH',
-    registeredAt: '2026-09-20T14:30:00.000Z',
-    seatsRequested: 15,
-    verificationStatus: 'PENDING',
-    delayInquiries: [
-      {
-        senderName: 'Rajesh Sharma',
-        senderEmail: 'rajesh.solar@apexenergy.in',
-        message: 'Hello Super Admin, our team registration is complete. Could you please review and activate our workspace so we can start sales onboarding?',
-        timestamp: '2026-09-20T15:10:00.000Z',
-      },
-    ],
-    features: {
-      emailMarketing: true,
-      whatsappCloud: true,
-      aiEngine: true,
-    },
-  },
-  {
-    id: 'comp_pending_stellar_logistics',
-    name: 'Stellar Swift Logistics',
-    domain: 'stellarlogistics.com',
-    adminName: 'Kavita Patel',
-    adminEmail: 'kavita@stellarlogistics.com',
-    registrationKey: 'STLR-LG-5501',
-    requestedPlan: 'BUSINESS',
-    registeredAt: '2026-09-20T16:15:00.000Z',
-    seatsRequested: 35,
-    verificationStatus: 'PENDING',
-    delayInquiries: [],
-    features: {
-      emailMarketing: true,
-      whatsappCloud: false,
-      aiEngine: true,
-    },
-  },
-];
+const MOCK_PENDING_COMPANIES: PendingCompanyRecord[] = [];
 
 export interface SystemTemplate {
   id: string;
@@ -221,146 +177,9 @@ const INITIAL_TEMPLATES: SystemTemplate[] = [
   },
 ];
 
-const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
-  {
-    id: 'comp_acme',
-    name: 'Acme Sales Solutions',
-    adminName: 'Vikram Singh',
-    adminEmail: 'vikram.admin@acme.com',
-    registrationKey: 'ACME-KX-7421',
-    plan: 'FREE_TRIAL',
-    trialDaysLeft: 30,
-    isExpired: false,
-    seatsAllocated: 10,
-    seatsUsed: 6,
-    totalUsersCount: 11,
-    totalLeads: 142,
-    convertedLeads: 38,
-    conversionRate: 26.7,
-    isActive: true,
-    createdAt: '2026-08-01',
-    expiryDate: '2026-09-30',
-    emailConfig: { enabled: false, monthlyLimit: 5000, used: 120, senderDomain: 'acme.com' },
-    whatsAppConfig: { enabled: false, monthlyLimit: 10000, used: 0, status: 'NOT_CONFIGURED' },
-    aiConfig: {
-      enabled: true,
-      tier: 'BASIC',
-      customSystemPrompt: 'You are Acme Sales AI Assistant. Prioritize high intent B2B software leads.',
-      monthlyTokenLimit: 100000,
-      tokensUsed: 14200,
-    },
-  },
-  {
-    id: 'comp_nextgen',
-    name: 'NextGen Retail Tech',
-    adminName: 'Aditya Rai',
-    adminEmail: 'dynamicadvancesolution@gmail.com',
-    registrationKey: 'NEXT-GT-2026',
-    plan: 'GROWTH',
-    trialDaysLeft: 28,
-    isExpired: false,
-    seatsAllocated: 20,
-    seatsUsed: 14,
-    totalUsersCount: 17,
-    totalLeads: 215,
-    convertedLeads: 62,
-    conversionRate: 28.8,
-    isActive: true,
-    createdAt: '2026-08-10',
-    expiryDate: '2026-09-10',
-    emailConfig: { enabled: true, monthlyLimit: 25000, used: 8400, senderDomain: 'nextgenretail.in' },
-    whatsAppConfig: { enabled: false, monthlyLimit: 20000, used: 0, status: 'DISCONNECTED' },
-    aiConfig: {
-      enabled: true,
-      tier: 'PRO',
-      customSystemPrompt: 'Assist retail store owners with lead scoring, sentiment analysis, and quick deals pitch.',
-      monthlyTokenLimit: 250000,
-      tokensUsed: 89000,
-    },
-  },
-  {
-    id: 'comp_apex',
-    name: 'Apex Global Industries',
-    adminName: 'Sanjay Kumar',
-    adminEmail: 'sanjay@apex.com',
-    registrationKey: 'APEX-MX-9021',
-    plan: 'BUSINESS',
-    trialDaysLeft: 310,
-    isExpired: false,
-    seatsAllocated: 50,
-    seatsUsed: 38,
-    totalUsersCount: 44,
-    totalLeads: 540,
-    convertedLeads: 140,
-    conversionRate: 25.9,
-    isActive: true,
-    createdAt: '2026-02-01',
-    expiryDate: '2027-02-01',
-    emailConfig: { enabled: true, monthlyLimit: 100000, used: 42100, senderDomain: 'apexcorp.com' },
-    whatsAppConfig: { enabled: true, monthlyLimit: 100000, used: 42345, status: 'CONNECTED', phoneNumber: '+919876543210' },
-    aiConfig: {
-      enabled: true,
-      tier: 'PRO',
-      customSystemPrompt: 'Enterprise Apex AI Concierge. Analyze lead sentiment and automate deal closing proposals.',
-      monthlyTokenLimit: 500000,
-      tokensUsed: 210000,
-    },
-  },
-  {
-    id: 'comp_enterprise',
-    name: 'Global Dynamics Enterprise',
-    adminName: 'Sunita Sharma',
-    adminEmail: 'sunita.admin@sunitarealty.com',
-    registrationKey: 'GLOB-ENT-100X',
-    plan: 'ENTERPRISE',
-    trialDaysLeft: 340,
-    isExpired: false,
-    seatsAllocated: 100,
-    seatsUsed: 72,
-    totalUsersCount: 90,
-    totalLeads: 1840,
-    convertedLeads: 490,
-    conversionRate: 26.6,
-    isActive: true,
-    createdAt: '2026-01-01',
-    expiryDate: '2027-01-01',
-    emailConfig: { enabled: true, monthlyLimit: 500000, used: 198400, senderDomain: 'globaldynamics.com' },
-    whatsAppConfig: { enabled: true, monthlyLimit: 500000, used: 120400, status: 'CONNECTED', phoneNumber: '+919988776655' },
-    aiConfig: {
-      enabled: true,
-      tier: 'ENTERPRISE_CUSTOM',
-      customSystemPrompt: 'You are Global Dynamics AI Overlord. Fully custom prompt for multi-regional real estate lead scoring and automated WhatsApp dispatch.',
-      monthlyTokenLimit: 2000000,
-      tokensUsed: 780000,
-    },
-  },
-];
-
-const MOCK_DEMO_KEYS: KeyRecord[] = [
-  { id: 'key_1', key: 'ACME-KX-7421', companyName: 'Acme Sales Solutions', planTier: 'FREE_TRIAL', memberLimit: 10, validityDays: 30, status: 'ACTIVE', expiresAt: '2026-09-30', createdAt: '2026-08-01' },
-  { id: 'key_2', key: 'NEXT-GT-2026', companyName: 'NextGen Retail Tech', planTier: 'GROWTH', memberLimit: 20, validityDays: 30, status: 'ACTIVE', expiresAt: '2026-09-10', createdAt: '2026-08-10' },
-  { id: 'key_3', key: 'APEX-MX-9021', companyName: 'Apex Global Industries', planTier: 'BUSINESS', memberLimit: 50, validityDays: 365, status: 'ACTIVE', expiresAt: '2027-02-01', createdAt: '2026-02-01' },
-  { id: 'key_4', key: 'GLOB-ENT-100X', companyName: 'Global Dynamics Enterprise', planTier: 'ENTERPRISE', memberLimit: 100, validityDays: 365, status: 'ACTIVE', expiresAt: '2027-01-01', createdAt: '2026-01-01' },
-];
-
-const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
-  comp_acme: [
-    { id: 'usr_admin', name: 'Vikram Singh', email: 'vikram.admin@acme.com', role: 'ADMIN', isActive: true, createdAt: '2026-01-10', keyUsed: 'ACME-KX-7421', lastLoginAt: '2026-08-14' },
-    { id: 'usr_hr', name: 'Sunita Verma', email: 'sunita.hr@acme.com', role: 'HR', isActive: true, createdAt: '2026-01-12', keyUsed: 'ACME-RX-4312', lastLoginAt: '2026-08-14' },
-    { id: 'usr_mgr', name: 'Rajesh Mehta', email: 'rajesh.mgr@acme.com', role: 'MANAGER', isActive: true, createdAt: '2026-01-15', keyUsed: 'ACME-RX-4312', lastLoginAt: '2026-08-14' },
-    { id: 'usr_tl', name: 'Amit Shah', email: 'amit.tl@acme.com', role: 'TEAM_LEADER', isActive: true, createdAt: '2026-01-18', keyUsed: 'ACME-RX-4312', lastLoginAt: '2026-08-13' },
-    { id: 'usr_rep', name: 'Rajesh Kumar', email: 'rajesh.rep@acme.com', role: 'SALES_EXEC', isActive: true, createdAt: '2026-01-20', keyUsed: 'ACME-RX-4312', lastLoginAt: '2026-08-14' },
-  ],
-  comp_nextgen: [
-    { id: 'usr_aditya', name: 'Aditya Rai', email: 'dynamicadvancesolution@gmail.com', role: 'ADMIN', isActive: true, createdAt: '2026-08-14', keyUsed: 'NEXT-GT-2026', lastLoginAt: '2026-08-14' },
-  ],
-  comp_apex: [
-    { id: 'usr_sanjay', name: 'Sanjay Kumar', email: 'sanjay@apex.com', role: 'ADMIN', isActive: true, createdAt: '2026-02-01', keyUsed: 'APEX-MX-9021', lastLoginAt: '2026-08-10' },
-  ],
-  comp_enterprise: [
-    { id: 'usr_sunita', name: 'Sunita Sharma', email: 'sunita.admin@sunitarealty.com', role: 'ADMIN', isActive: true, createdAt: '2026-01-01', keyUsed: 'GLOB-ENT-100X', lastLoginAt: '2026-07-28' },
-  ],
-};
+const MOCK_DEMO_COMPANIES: CompanyRecord[] = [];
+const MOCK_DEMO_KEYS: KeyRecord[] = [];
+const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {};
 
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(MOCK_DEMO_COMPANIES);
@@ -461,8 +280,8 @@ export function SuperAdminDashboard() {
   const [extendSuccessMsg, setExtendSuccessMsg] = useState('');
 
   // Selected company for employee table
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('comp_acme');
-  const [companyEmployees, setCompanyEmployees] = useState<CompanyEmployee[]>(MOCK_DEMO_EMPLOYEES.comp_acme || []);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [companyEmployees, setCompanyEmployees] = useState<CompanyEmployee[]>([]);
 
   const [newTemplateTitle, setNewTemplateTitle] = useState('');
   const [newTemplateContent, setNewTemplateContent] = useState('');
