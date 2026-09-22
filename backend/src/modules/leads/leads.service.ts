@@ -795,6 +795,57 @@ export class LeadsService {
     };
   }
 
+  /** Check incoming leads for duplicates against existing database records */
+  async checkDuplicates(
+    organizationId: string,
+    dto: { phones?: string[]; emails?: string[] },
+  ) {
+    const rawPhones = (dto.phones || []).map(p => (p || '').toString().trim());
+    const rawEmails = (dto.emails || []).map(e => (e || '').toString().trim().toLowerCase());
+
+    const cleanPhones = rawPhones
+      .map(p => p.replace(/[^0-9]/g, ''))
+      .filter(p => p.length >= 7);
+    const cleanEmails = rawEmails
+      .filter(e => e.includes('@') && e.length > 3);
+
+    let existingLeads: any[] = [];
+    if (cleanPhones.length > 0 || cleanEmails.length > 0) {
+      existingLeads = await this.prisma.lead.findMany({
+        where: {
+          organizationId,
+          OR: [
+            ...(cleanPhones.length > 0 ? [{ phone: { in: cleanPhones } }] : []),
+            ...(cleanEmails.length > 0 ? [{ email: { in: cleanEmails } }] : []),
+          ],
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          email: true,
+          status: true,
+          createdAt: true,
+        },
+        take: 1000,
+      });
+    }
+
+    return {
+      success: true,
+      duplicatesFound: existingLeads.length,
+      duplicates: existingLeads.map(l => ({
+        id: l.id,
+        name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Existing Lead',
+        phone: l.phone || '',
+        email: l.email || '',
+        status: l.status || 'NEW',
+        createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Previously',
+      })),
+    };
+  }
+
   /** Import Leads from CSV / Excel File */
   async importFileLeads(
     organizationId: string,

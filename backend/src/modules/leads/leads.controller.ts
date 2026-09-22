@@ -197,6 +197,16 @@ export class LeadsController {
     return this.leadsService.syncGoogleSheets(user.organizationId, user.id, dto);
   }
 
+  @Post('check-duplicates')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check for duplicate leads by phone and email across previous uploads' })
+  checkDuplicates(
+    @CurrentUser() user: any,
+    @Body() dto: { phones: string[]; emails: string[] },
+  ) {
+    return this.leadsService.checkDuplicates(user.organizationId, dto);
+  }
+
   @Post('import-file')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Import Leads from CSV / Excel file' })

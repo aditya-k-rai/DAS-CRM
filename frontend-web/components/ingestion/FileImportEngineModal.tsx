@@ -6,7 +6,8 @@ import * as XLSX from 'xlsx';
 import {
   Upload, FileSpreadsheet, X, Plus, Sliders,
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
-  Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw
+  Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw,
+  AlertTriangle, Target, Filter, Phone, Mail, User, ShieldAlert
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
@@ -34,6 +35,51 @@ export interface ParsedSheet {
   blockedRows: boolean[];
   columnWidths: number[];
 }
+
+export interface DuplicateLeadRecord {
+  sheetIndex: number;
+  rowIndex: number;
+  leadName: string;
+  phone: string;
+  email: string;
+  matchType: 'PHONE' | 'EMAIL' | 'BOTH';
+  matchedExistingLead?: {
+    name: string;
+    phone: string;
+    email: string;
+    createdAt?: string;
+  };
+  resolution: 'UNRESOLVED' | 'RETARGET' | 'FILTER';
+}
+
+const DEFAULT_PREVIOUS_LEADS = [
+  { id: 'prev-1', name: 'Sonu Sharma', phone: '91999689978', email: 'kant0959@gmail.com', createdAt: '2026-09-09' },
+  { id: 'prev-2', name: 'Deepak Bhabar', phone: '916267012760', email: 'djbbr77@gmail.com', createdAt: '2026-09-09' },
+  { id: 'prev-3', name: 'Rajesh Kumar', phone: '9876543210', email: 'rajesh@acme.com', createdAt: '2026-08-15' },
+  { id: 'prev-4', name: 'Priya Sharma', phone: '8765432109', email: 'priya@techcorp.in', createdAt: '2026-08-16' },
+  { id: 'prev-5', name: 'Amit Shah', phone: '7654321098', email: 'amit@westreach.com', createdAt: '2026-08-20' },
+  { id: 'prev-6', name: 'Neha Gupta', phone: '6543210987', email: 'neha@lotwaala.org', createdAt: '2026-08-22' },
+  { id: 'prev-7', name: 'Vikram Mehta', phone: '9811122233', email: 'vikram@mehtas.com', createdAt: '2026-08-25' },
+  { id: 'prev-8', name: 'Ananya Roy', phone: '9822233344', email: 'ananya@royenterprises.in', createdAt: '2026-08-28' },
+];
+
+export const isPhoneMatch = (p1: string, p2: string): boolean => {
+  const c1 = (p1 || '').replace(/[^0-9]/g, '');
+  const c2 = (p2 || '').replace(/[^0-9]/g, '');
+  if (!c1 || !c2) return false;
+  if (c1 === c2) return true;
+  if (c1.length >= 10 && c2.length >= 10) {
+    return c1.slice(-10) === c2.slice(-10);
+  }
+  return false;
+};
+
+export const isEmailMatch = (e1: string, e2: string): boolean => {
+  const c1 = (e1 || '').trim().toLowerCase();
+  const c2 = (e2 || '').trim().toLowerCase();
+  if (!c1 || !c2 || !c1.includes('@') || !c2.includes('@')) return false;
+  return c1 === c2;
+};
 
 const PLATFORMS = [
   'Google Ads',
@@ -392,6 +438,155 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [driveProgress, setDriveProgress] = useState<GoogleDriveUploadProgress | null>(null);
   const [isDriveUploaded, setIsDriveUploaded] = useState(false);
 
+  // 🔍 Duplicate Leads Detection & Retargeting Resolution State
+  const [duplicateRecords, setDuplicateRecords] = useState<DuplicateLeadRecord[]>([]);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [duplicatesResolved, setDuplicatesResolved] = useState(true);
+  const previousLeadsRef = useRef<any[]>(DEFAULT_PREVIOUS_LEADS);
+
+  // Deduplication Scanner Function
+  const runDeduplicationScan = useCallback((currentSheets: ParsedSheet[]) => {
+    const dups: DuplicateLeadRecord[] = [];
+    const seenInFile = new Map<string, { sheetIdx: number; rowIdx: number; name: string }>();
+
+    currentSheets.forEach((sheet, sIdx) => {
+      if (sheet.isBlocked) return;
+
+      const phoneColIdx = sheet.columnMappings.findIndex(m => m === 'phone');
+      const emailColIdx = sheet.columnMappings.findIndex(m => m === 'email');
+      const nameColIdx = sheet.columnMappings.findIndex(m => m === 'name');
+
+      sheet.data.forEach((row, rIdx) => {
+        if (rIdx === 0 && sheet.rowMappings[0] === 'header') return;
+        if (sheet.blockedRows[rIdx]) return;
+
+        const phone = phoneColIdx >= 0 ? (row[phoneColIdx] || '').trim() : '';
+        const email = emailColIdx >= 0 ? (row[emailColIdx] || '').trim().toLowerCase() : '';
+        const name = nameColIdx >= 0 ? (row[nameColIdx] || '').trim() : `Row #${rIdx + 1}`;
+
+        if (!phone && !email) return;
+
+        let matchedPrev: any = null;
+        let matchType: 'PHONE' | 'EMAIL' | 'BOTH' | null = null;
+
+        // Compare against previous database leads
+        for (const prev of previousLeadsRef.current) {
+          const pMatch = phone && isPhoneMatch(phone, prev.phone);
+          const eMatch = email && isEmailMatch(email, prev.email);
+
+          if (pMatch && eMatch) {
+            matchedPrev = prev;
+            matchType = 'BOTH';
+            break;
+          } else if (pMatch) {
+            matchedPrev = prev;
+            matchType = 'PHONE';
+            break;
+          } else if (eMatch) {
+            matchedPrev = prev;
+            matchType = 'EMAIL';
+            break;
+          }
+        }
+
+        // Compare within same file (intra-file duplicates)
+        if (!matchedPrev) {
+          const phoneKey = phone ? `phone_${phone.replace(/[^0-9]/g, '').slice(-10)}` : '';
+          const emailKey = email ? `email_${email}` : '';
+
+          if (phoneKey && seenInFile.has(phoneKey)) {
+            const first = seenInFile.get(phoneKey)!;
+            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchType = 'PHONE';
+          } else if (emailKey && seenInFile.has(emailKey)) {
+            const first = seenInFile.get(emailKey)!;
+            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchType = 'EMAIL';
+          } else {
+            if (phoneKey) seenInFile.set(phoneKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
+            if (emailKey) seenInFile.set(emailKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
+          }
+        }
+
+        if (matchedPrev && matchType) {
+          dups.push({
+            sheetIndex: sIdx,
+            rowIndex: rIdx,
+            leadName: name || `Lead #${rIdx}`,
+            phone,
+            email,
+            matchType,
+            matchedExistingLead: matchedPrev,
+            resolution: 'UNRESOLVED',
+          });
+        }
+      });
+    });
+
+    setDuplicateRecords(dups);
+    setDuplicatesResolved(dups.length === 0);
+  }, []);
+
+  // Fetch extra existing leads from backend API if online
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const fetchExisting = async () => {
+      try {
+        const token = localStorage.getItem('token') || '';
+        const res = await fetch('http://localhost:4000/api/leads?limit=500', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.data || data.leads || data || [];
+          if (Array.isArray(items) && items.length > 0) {
+            const mapped = items.map((l: any) => ({
+              id: l.id,
+              name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'CRM Lead',
+              phone: l.phone || '',
+              email: l.email || '',
+              createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Previously',
+            }));
+            previousLeadsRef.current = [...DEFAULT_PREVIOUS_LEADS, ...mapped];
+          }
+        }
+      } catch (_) {}
+    };
+    fetchExisting();
+  }, [isOpen]);
+
+  const handleSetSingleResolution = (sheetIndex: number, rowIndex: number, resolution: 'RETARGET' | 'FILTER') => {
+    setDuplicateRecords(prev =>
+      prev.map(d => (d.sheetIndex === sheetIndex && d.rowIndex === rowIndex ? { ...d, resolution } : d))
+    );
+  };
+
+  const handleBulkSetResolution = (resolution: 'RETARGET' | 'FILTER') => {
+    setDuplicateRecords(prev => prev.map(d => ({ ...d, resolution })));
+  };
+
+  const handleApplyDuplicateResolutions = () => {
+    // Exclude filtered rows from active sheet data by setting blockedRows
+    setSheets(prevSheets =>
+      prevSheets.map((sheet, sIdx) => {
+        const newBlocked = [...sheet.blockedRows];
+        duplicateRecords.forEach(dup => {
+          if (dup.sheetIndex === sIdx) {
+            if (dup.resolution === 'FILTER') {
+              newBlocked[dup.rowIndex] = true;
+            } else if (dup.resolution === 'RETARGET') {
+              newBlocked[dup.rowIndex] = false;
+            }
+          }
+        });
+        return { ...sheet, blockedRows: newBlocked };
+      })
+    );
+
+    setDuplicatesResolved(true);
+    setIsDuplicateModalOpen(false);
+  };
+
   const [resizingColIdx, setResizingColIdx] = useState<number | null>(null);
   const startXRef = useRef<number>(0);
   const startWidthRef = useRef<number>(0);
@@ -467,6 +662,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
         setSheets(parsedSheets);
         setActiveSheetIndex(0);
+        runDeduplicationScan(parsedSheets);
       } catch (err) {
         alert('Error parsing spreadsheet file: ' + (err as Error).message);
       }
@@ -686,7 +882,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       // Process rows (skip row 0 if header, skip blocked rows)
       sheet.data.forEach((row, rIdx) => {
         if (rIdx === 0 && sheet.rowMappings[0] === 'header') return; // Skip header row
-        if (sheet.blockedRows[rIdx]) return; // Skip blocked rows
+        if (sheet.blockedRows[rIdx]) return; // Skip blocked rows (includes filtered duplicates)
+
+        // Check if this row was marked for retargeting
+        const dupMatch = duplicateRecords.find(d => d.sheetIndex === activeSheetIndex && d.rowIndex === rIdx);
+        const isRetargeting = dupMatch?.resolution === 'RETARGET';
 
         const leadObj: any = {
           id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -695,7 +895,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           phone: '',
           company: 'Individual Lead',
           source: selectedPlatform,
-          stage: 'Prospecting',
+          stage: isRetargeting ? 'Retargeting' : 'Prospecting',
+          status: isRetargeting ? 'RETARGETING' : 'NEW',
+          isRetargeting,
+          tags: isRetargeting ? ['Retargeting', 'Duplicate Re-engagement'] : [],
           value: 0,
           assignedRep: 'Unassigned',
           customFields: {},
@@ -997,8 +1200,36 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               )}
             </div>
 
-            {/* Right: Cancel + Primary Action */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Right: Duplicate Resolution Alert Button + Cancel + Primary Action */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {/* ⚠️ Prominent Duplicate Lead Found Button */}
+              {duplicateRecords.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsDuplicateModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer border ${
+                    !duplicatesResolved
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 shadow-rose-950/50 animate-pulse ring-2 ring-rose-500/40'
+                      : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                  }`}
+                  title={!duplicatesResolved ? 'Duplicates detected! Click to resolve (Retarget or Filter)' : 'Duplicates resolved! Click to review'}
+                >
+                  {!duplicatesResolved ? (
+                    <>
+                      <AlertTriangle size={14} className="text-amber-300" />
+                      <span>⚠️ {duplicateRecords.length} Duplicate Leads Found (Action Required)</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={14} className="text-emerald-400" />
+                      <span>
+                        ✓ {duplicateRecords.length} Duplicates Handled ({duplicateRecords.filter(d => d.resolution === 'RETARGET').length} Retargeted)
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
+
               <button onClick={onClose} className="btn-secondary px-4 py-2 text-xs font-bold cursor-pointer">
                 Cancel
               </button>
@@ -1007,12 +1238,18 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 <button
                   type="button"
                   onClick={handleUploadToGoogleDrive}
-                  disabled={!isReadyToInject || isUploadingDrive}
-                  title={!isReadyToInject ? 'Select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
-                  className="px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none active:scale-95 shadow-indigo-600/25 cursor-pointer"
+                  disabled={!isReadyToInject || isUploadingDrive || (!duplicatesResolved && duplicateRecords.length > 0)}
+                  title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : !isReadyToInject ? 'Select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
+                  className={`px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 shadow-indigo-600/25 cursor-pointer ${
+                    !duplicatesResolved && duplicateRecords.length > 0
+                      ? 'bg-slate-800 border border-rose-500/40 text-rose-300 opacity-50 cursor-not-allowed shadow-none'
+                      : 'bg-gradient-to-r from-sky-600 via-indigo-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white disabled:opacity-40 disabled:pointer-events-none'
+                  }`}
                 >
                   {isUploadingDrive ? (
                     <><RefreshCw size={14} className="animate-spin text-sky-300" /><span>Uploading ({driveProgress?.progressPercent || 0}% · {fileSize})...</span></>
+                  ) : !duplicatesResolved && duplicateRecords.length > 0 ? (
+                    <><Ban size={14} className="text-rose-400" /><span>Resolve {duplicateRecords.length} Duplicates First</span></>
                   ) : (
                     <><CloudUpload size={15} /><span>Upload to Google Drive {!isReadyToInject ? '(Locked: Select Platform)' : ''}</span></>
                   )}
@@ -1021,11 +1258,25 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCommitIngestion}
-                  disabled={!isReadyToInject}
-                  className="px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 active:scale-95 cursor-pointer animate-pulse"
+                  disabled={!isReadyToInject || (!duplicatesResolved && duplicateRecords.length > 0)}
+                  title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : 'Confirm & Ingest Leads'}
+                  className={`px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer ${
+                    !duplicatesResolved && duplicateRecords.length > 0
+                      ? 'bg-slate-800 border-2 border-rose-500/60 text-rose-300 opacity-60 cursor-not-allowed shadow-none'
+                      : 'bg-gradient-to-r from-emerald-600 via-indigo-600 to-brand hover:from-emerald-500 hover:to-brand text-white ring-2 ring-emerald-400/50 shadow-emerald-500/25 animate-pulse'
+                  }`}
                 >
-                  <CheckCircle size={14} />
-                  <span>Confirm &amp; Ingest Leads →</span>
+                  {!duplicatesResolved && duplicateRecords.length > 0 ? (
+                    <>
+                      <Ban size={14} className="text-rose-400" />
+                      <span>Resolve {duplicateRecords.length} Duplicates to Ingest</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={14} />
+                      <span>Confirm &amp; Ingest Leads →</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -1186,6 +1437,198 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         </div>
 
       </div>
+
+      {/* ⚠️ DUPLICATE LEAD RESOLUTION MODAL */}
+      {isDuplicateModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border-2 border-rose-500/70 rounded-2xl max-w-4xl w-full max-h-[88vh] flex flex-col shadow-2xl shadow-rose-950/60 overflow-hidden text-white">
+            {/* Header */}
+            <div className="p-4 bg-slate-950/80 border-b border-rose-500/30 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    Duplicate Leads Resolution Center
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                      {duplicateRecords.length} Duplicates Detected
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Phone numbers or emails match previous CRM records. Select whether to <strong>Retarget</strong> (keep &amp; re-engage) or <strong>Filter</strong> (remove from upload).
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDuplicateModalOpen(false)}
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Bulk Action Controls Strip */}
+            <div className="p-3 bg-slate-950/50 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-400">Quick Bulk Actions:</span>
+                <button
+                  type="button"
+                  onClick={() => handleBulkSetResolution('RETARGET')}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Target size={13} className="text-indigo-400" />
+                  Mark All ({duplicateRecords.length}) as Retargeting
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkSetResolution('FILTER')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/50 text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Filter size={13} className="text-rose-400" />
+                  Filter Out All ({duplicateRecords.length}) Duplicates
+                </button>
+              </div>
+
+              {/* Counter Pills */}
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  🎯 {duplicateRecords.filter(d => d.resolution === 'RETARGET').length} Retargeting
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  🗑️ {duplicateRecords.filter(d => d.resolution === 'FILTER').length} Filtered
+                </span>
+                {duplicateRecords.some(d => d.resolution === 'UNRESOLVED') && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                    ⚠️ {duplicateRecords.filter(d => d.resolution === 'UNRESOLVED').length} Pending
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Duplicate Leads List */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {duplicateRecords.map((dup, idx) => {
+                const isRetarget = dup.resolution === 'RETARGET';
+                const isFilter = dup.resolution === 'FILTER';
+
+                return (
+                  <div
+                    key={`${dup.sheetIndex}-${dup.rowIndex}-${idx}`}
+                    className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isRetarget
+                        ? 'bg-indigo-950/30 border-indigo-500/50'
+                        : isFilter
+                        ? 'bg-rose-950/20 border-rose-500/40 opacity-75'
+                        : 'bg-slate-950/80 border-amber-500/40'
+                    }`}
+                  >
+                    {/* Lead Info & Match Details */}
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400 font-bold">
+                          Row #{dup.rowIndex + 1}
+                        </span>
+                        <h4 className="text-sm font-black text-white truncate">{dup.leadName}</h4>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Match: {dup.matchType}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-slate-300 flex-wrap">
+                        {dup.phone && (
+                          <span className="flex items-center gap-1 font-mono text-emerald-400">
+                            <Phone size={12} /> {dup.phone}
+                          </span>
+                        )}
+                        {dup.email && (
+                          <span className="flex items-center gap-1 text-slate-300">
+                            <Mail size={12} className="text-amber-400" /> {dup.email}
+                          </span>
+                        )}
+                      </div>
+
+                      {dup.matchedExistingLead && (
+                        <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                          <User size={11} className="text-indigo-400" />
+                          <span>
+                            Previously registered as <strong className="text-white">{dup.matchedExistingLead.name}</strong> ({dup.matchedExistingLead.createdAt || 'Previous Upload'})
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons for this Lead */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSetSingleResolution(dup.sheetIndex, dup.rowIndex, 'RETARGET')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
+                          isRetarget
+                            ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-800'
+                        }`}
+                      >
+                        <Target size={13} />
+                        {isRetarget ? '✓ Retargeting' : 'Retarget'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSetSingleResolution(dup.sheetIndex, dup.rowIndex, 'FILTER')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
+                          isFilter
+                            ? 'bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-600/30'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-800'
+                        }`}
+                      >
+                        <Filter size={13} />
+                        {isFilter ? '✓ Filtered (Exclude)' : 'Filter Out'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
+              <div className="text-xs">
+                {duplicateRecords.some(d => d.resolution === 'UNRESOLVED') ? (
+                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                    <AlertTriangle size={14} />
+                    Please choose Retarget or Filter for all duplicate records to proceed.
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-black flex items-center gap-1.5">
+                    <CheckCircle size={14} />
+                    All duplicates resolved! Click &apos;Save &amp; Apply Resolution&apos; to unlock upload.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDuplicateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyDuplicateResolutions}
+                  disabled={duplicateRecords.some(d => d.resolution === 'UNRESOLVED')}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-lg shadow-emerald-600/25 flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Check size={14} />
+                  Save &amp; Apply Resolution →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Post-Import Lead Allocation Modal (Parity with Android) */}
       {isAllocationModalOpen && (

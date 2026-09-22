@@ -120,6 +120,51 @@ export interface ParsedSheet {
   blockedRows: boolean[];
 }
 
+export interface DuplicateLeadRecord {
+  sheetIndex: number;
+  rowIndex: number;
+  leadName: string;
+  phone: string;
+  email: string;
+  matchType: 'PHONE' | 'EMAIL' | 'BOTH';
+  matchedExistingLead?: {
+    name: string;
+    phone: string;
+    email: string;
+    createdAt?: string;
+  };
+  resolution: 'UNRESOLVED' | 'RETARGET' | 'FILTER';
+}
+
+const DEFAULT_PREVIOUS_LEADS = [
+  { id: 'prev-1', name: 'Sonu Sharma', phone: '91999689978', email: 'kant0959@gmail.com', createdAt: '2026-09-09' },
+  { id: 'prev-2', name: 'Deepak Bhabar', phone: '916267012760', email: 'djbbr77@gmail.com', createdAt: '2026-09-09' },
+  { id: 'prev-3', name: 'Rajesh Kumar', phone: '9876543210', email: 'rajesh@acme.com', createdAt: '2026-08-15' },
+  { id: 'prev-4', name: 'Priya Sharma', phone: '8765432109', email: 'priya@techcorp.in', createdAt: '2026-08-16' },
+  { id: 'prev-5', name: 'Amit Shah', phone: '7654321098', email: 'amit@westreach.com', createdAt: '2026-08-20' },
+  { id: 'prev-6', name: 'Neha Gupta', phone: '6543210987', email: 'neha@lotwaala.org', createdAt: '2026-08-22' },
+  { id: 'prev-7', name: 'Vikram Mehta', phone: '9811122233', email: 'vikram@mehtas.com', createdAt: '2026-08-25' },
+  { id: 'prev-8', name: 'Ananya Roy', phone: '9822233344', email: 'ananya@royenterprises.in', createdAt: '2026-08-28' },
+];
+
+export const isPhoneMatch = (p1: string, p2: string): boolean => {
+  const c1 = (p1 || '').replace(/[^0-9]/g, '');
+  const c2 = (p2 || '').replace(/[^0-9]/g, '');
+  if (!c1 || !c2) return false;
+  if (c1 === c2) return true;
+  if (c1.length >= 10 && c2.length >= 10) {
+    return c1.slice(-10) === c2.slice(-10);
+  }
+  return false;
+};
+
+export const isEmailMatch = (e1: string, e2: string): boolean => {
+  const c1 = (e1 || '').trim().toLowerCase();
+  const c2 = (e2 || '').trim().toLowerCase();
+  if (!c1 || !c2 || !c1.includes('@') || !c2.includes('@')) return false;
+  return c1 === c2;
+};
+
 export interface SavedImportSession {
   fileName: string;
   inputFileName: string;
@@ -289,6 +334,142 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [selectedPlatform, setSelectedPlatform] = useState(initialSession?.selectedPlatform || 'Google Ads');
   const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
 
+  // 🔍 Duplicate Leads Detection & Retargeting Resolution State
+  const [duplicateRecords, setDuplicateRecords] = useState<DuplicateLeadRecord[]>([]);
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicatesResolved, setDuplicatesResolved] = useState(true);
+  const previousLeadsRef = React.useRef<any[]>(DEFAULT_PREVIOUS_LEADS);
+
+  // Deduplication Scanner Function
+  const runDeduplicationScan = useCallback((currentSheets: ParsedSheet[]) => {
+    const dups: DuplicateLeadRecord[] = [];
+    const seenInFile = new Map<string, { sheetIdx: number; rowIdx: number; name: string }>();
+
+    currentSheets.forEach((sheet, sIdx) => {
+      if (sheet.isBlocked) return;
+      const phoneCol = sheet.columns.find(c => c.role === 'phone');
+      const emailCol = sheet.columns.find(c => c.role === 'email');
+      const nameCol = sheet.columns.find(c => c.role === 'name');
+
+      sheet.data.forEach((row, rIdx) => {
+        if (sheet.blockedRows[rIdx]) return;
+
+        const phone = phoneCol ? (row[phoneCol.index] || '').trim() : '';
+        const email = emailCol ? (row[emailCol.index] || '').trim().toLowerCase() : '';
+        const name = nameCol ? (row[nameCol.index] || '').trim() : `Row #${rIdx + 1}`;
+
+        if (!phone && !email) return;
+
+        let matchedPrev: any = null;
+        let matchType: 'PHONE' | 'EMAIL' | 'BOTH' | null = null;
+
+        for (const prev of previousLeadsRef.current) {
+          const pMatch = phone && isPhoneMatch(phone, prev.phone);
+          const eMatch = email && isEmailMatch(email, prev.email);
+
+          if (pMatch && eMatch) {
+            matchedPrev = prev;
+            matchType = 'BOTH';
+            break;
+          } else if (pMatch) {
+            matchedPrev = prev;
+            matchType = 'PHONE';
+            break;
+          } else if (eMatch) {
+            matchedPrev = prev;
+            matchType = 'EMAIL';
+            break;
+          }
+        }
+
+        if (!matchedPrev) {
+          const phoneKey = phone ? `phone_${phone.replace(/[^0-9]/g, '').slice(-10)}` : '';
+          const emailKey = email ? `email_${email}` : '';
+          if (phoneKey && seenInFile.has(phoneKey)) {
+            const first = seenInFile.get(phoneKey)!;
+            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchType = 'PHONE';
+          } else if (emailKey && seenInFile.has(emailKey)) {
+            const first = seenInFile.get(emailKey)!;
+            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchType = 'EMAIL';
+          } else {
+            if (phoneKey) seenInFile.set(phoneKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
+            if (emailKey) seenInFile.set(emailKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
+          }
+        }
+
+        if (matchedPrev && matchType) {
+          dups.push({
+            sheetIndex: sIdx,
+            rowIndex: rIdx,
+            leadName: name,
+            phone,
+            email,
+            matchType,
+            matchedExistingLead: matchedPrev,
+            resolution: 'UNRESOLVED',
+          });
+        }
+      });
+    });
+
+    setDuplicateRecords(dups);
+    setDuplicatesResolved(dups.length === 0);
+  }, []);
+
+  // Fetch extra existing leads from backend API if online
+  useEffect(() => {
+    if (!visible) return;
+    const fetchExisting = async () => {
+      try {
+        const res = await apiService.getLeads(token || '');
+        if (res && Array.isArray(res) && res.length > 0) {
+          const mapped = res.map((l: any) => ({
+            id: l.id,
+            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'CRM Lead',
+            phone: l.phone || '',
+            email: l.email || '',
+            createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Previously',
+          }));
+          previousLeadsRef.current = [...DEFAULT_PREVIOUS_LEADS, ...mapped];
+        }
+      } catch (_) {}
+    };
+    fetchExisting();
+  }, [visible, token]);
+
+  const handleSetSingleResolution = (sheetIndex: number, rowIndex: number, resolution: 'RETARGET' | 'FILTER') => {
+    setDuplicateRecords(prev =>
+      prev.map(d => (d.sheetIndex === sheetIndex && d.rowIndex === rowIndex ? { ...d, resolution } : d))
+    );
+  };
+
+  const handleBulkSetResolution = (resolution: 'RETARGET' | 'FILTER') => {
+    setDuplicateRecords(prev => prev.map(d => ({ ...d, resolution })));
+  };
+
+  const handleApplyDuplicateResolutions = () => {
+    setSheets(prevSheets =>
+      prevSheets.map((sheet, sIdx) => {
+        const newBlocked = [...sheet.blockedRows];
+        duplicateRecords.forEach(dup => {
+          if (dup.sheetIndex === sIdx) {
+            if (dup.resolution === 'FILTER') {
+              newBlocked[dup.rowIndex] = true;
+            } else if (dup.resolution === 'RETARGET') {
+              newBlocked[dup.rowIndex] = false;
+            }
+          }
+        });
+        return { ...sheet, blockedRows: newBlocked };
+      })
+    );
+
+    setDuplicatesResolved(true);
+    setDuplicateModalOpen(false);
+  };
+
   // Role / Custom Name Modal State
   const [pickerColKey, setPickerColKey]   = useState<string | null>(null);
   const [customNameInput, setCustomNameInput] = useState('');
@@ -412,6 +593,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
       setSheets(parsed);
       setActiveIdx(0);
+      runDeduplicationScan(parsed);
     } catch (err) {
       Alert.alert('Parse Error', 'Could not read or parse the selected spreadsheet file.');
       console.error(err);
@@ -548,6 +730,15 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const handleCommit = async () => {
     if (!inputFileName.trim()) { Alert.alert('Missing Info', 'Please enter a File Name.'); return; }
     if (!selectedPlatform)      { Alert.alert('Missing Info', 'Please select a Source Platform.'); return; }
+
+    if (!duplicatesResolved && duplicateRecords.length > 0) {
+      Alert.alert(
+        'Action Required: Duplicate Leads Found',
+        `This file contains ${duplicateRecords.length} duplicate leads. Please tap the red duplicate button above to either Retarget or Filter them out before proceeding.`,
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const leads: ImportedLead[] = [];
@@ -555,14 +746,21 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         if (sheet.isBlocked) return;
         sheet.data.forEach((row, rIdx) => {
           if (sheet.blockedRows[rIdx]) return;
+
+          // Check if this row was marked for retargeting
+          const dupRecord = duplicateRecords.find(d => d.sheetIndex === activeIdx && d.rowIndex === rIdx);
+          const isRetargeting = dupRecord?.resolution === 'RETARGET';
+
           const lead: ImportedLead = {
             id: `lead_${Date.now()}_${rIdx}`,
             name:'', email:'No Email Provided', phone:'',
             company:'Independent Prospect', source: selectedPlatform,
-            status:'NEW LEAD', value:'₹25,000', assignedRep:'Rajesh Kumar',
+            status: isRetargeting ? 'RETARGETING' : 'NEW LEAD',
+            value:'₹25,000', assignedRep:'Rajesh Kumar',
             city:'', budget:'', requirement:'',
             callSyncStatus:'Synced: Just Now • Pending',
-            customFields:{}, createdAt:'Just now',
+            customFields: isRetargeting ? { isRetargeting: 'true', campaign: 'Retargeting Campaign' } : {},
+            createdAt:'Just now',
           };
           let hasData = false;
           sheet.columns.forEach(col => {
@@ -915,14 +1113,35 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           <View style={styles.validationRow}>
             {!inputFileName.trim() && <Text style={styles.warnText}>⚠️ Enter File Name above</Text>}
             {!selectedPlatform && inputFileName.trim() && <Text style={styles.warnText}>⚠️ Select Source Platform above</Text>}
-            {isReady && <Text style={styles.readyText}>✅ Ready to import {totalDataRows} lead record{totalDataRows !== 1 ? 's' : ''}</Text>}
+            {duplicateRecords.length > 0 && !duplicatesResolved && (
+              <Text style={[styles.warnText, { color: '#f43f5e', fontWeight: '900' }]}>
+                ⚠️ {duplicateRecords.length} Duplicate Leads Found — Resolve before ingesting
+              </Text>
+            )}
+            {isReady && duplicatesResolved && <Text style={styles.readyText}>✅ Ready to import {totalDataRows} lead record{totalDataRows !== 1 ? 's' : ''}</Text>}
           </View>
           <View style={styles.footerActions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={loading}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.injectBtn, !isReady && styles.injectBtnDisabled]} onPress={handleCommit} disabled={!isReady || loading}>
-              {loading ? <ActivityIndicator size="small" color="#ffffff" /> : <Text style={styles.injectBtnText}>🚀 Confirm &amp; Ingest Leads →</Text>}
+            <TouchableOpacity
+              style={[
+                styles.injectBtn,
+                (!isReady || (!duplicatesResolved && duplicateRecords.length > 0)) && styles.injectBtnDisabled,
+                (!duplicatesResolved && duplicateRecords.length > 0) && { backgroundColor: '#1e293b', borderColor: '#f43f5e', borderWidth: 1.5 },
+              ]}
+              onPress={handleCommit}
+              disabled={!isReady || loading || (!duplicatesResolved && duplicateRecords.length > 0)}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={[styles.injectBtnText, (!duplicatesResolved && duplicateRecords.length > 0) && { color: '#f43f5e' }]}>
+                  {!duplicatesResolved && duplicateRecords.length > 0
+                    ? `Resolve ${duplicateRecords.length} Duplicates First`
+                    : '🚀 Confirm & Ingest Leads →'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -1193,4 +1412,44 @@ const styles = StyleSheet.create({
 
   pickerCloseDoneBtn: { backgroundColor: '#1e293b', paddingVertical: 11, borderRadius: 10, alignItems: 'center', marginTop: 12 },
   pickerCloseDoneBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+
+  // ⚠️ Duplicate Resolution Modal Styles
+  dupBadgeBtn: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginTop: 10, alignItems: 'center', borderWidth: 1.5 },
+  dupBadgeBtnAlert: { backgroundColor: 'rgba(244,63,94,0.2)', borderColor: '#f43f5e' },
+  dupBadgeBtnResolved: { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: '#10b981' },
+  dupBadgeBtnText: { fontSize: 11, fontWeight: '900' },
+
+  dupModalOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.9)', justifyContent: 'center', alignItems: 'center', padding: 14 },
+  dupModalCard: { width: '100%', maxWidth: 460, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 2, borderColor: '#f43f5e', padding: 16 },
+  dupModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 10 },
+  dupModalTitle: { fontSize: 14, fontWeight: '900', color: '#ffffff' },
+  dupCountPill: { backgroundColor: 'rgba(244,63,94,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: '#f43f5e' },
+  dupCountPillText: { fontSize: 10, fontWeight: '900', color: '#fda4af' },
+  dupModalSub: { fontSize: 10, color: '#94a3b8', marginTop: 3, lineHeight: 14 },
+  dupCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' },
+  dupCloseBtnText: { color: '#cbd5e1', fontSize: 14, fontWeight: '800' },
+
+  dupBulkRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
+  dupBulkBtnRetarget: { flex: 1, backgroundColor: 'rgba(99,102,241,0.25)', borderWidth: 1, borderColor: '#6366f1', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  dupBulkBtnFilter: { flex: 1, backgroundColor: 'rgba(244,63,94,0.2)', borderWidth: 1, borderColor: '#f43f5e', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  dupBulkBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '900' },
+
+  dupCounterStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: 8, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#1e293b' },
+  dupCounterText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
+  dupPendingText: { fontSize: 10, fontWeight: '900', color: '#f59e0b' },
+
+  dupLeadCard: { backgroundColor: '#020617', borderRadius: 10, borderWidth: 1, borderColor: '#334155', padding: 10, marginBottom: 6 },
+  dupLeadName: { fontSize: 12, fontWeight: '900', color: '#ffffff', flex: 1 },
+  dupMatchBadge: { backgroundColor: 'rgba(245,158,11,0.2)', borderWidth: 1, borderColor: '#f59e0b', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  dupMatchBadgeText: { fontSize: 8, fontWeight: '900', color: '#fbbf24' },
+  dupContactText: { fontSize: 10, color: '#94a3b8', marginTop: 3 },
+  dupMatchedPrevText: { fontSize: 9, color: '#818cf8', fontWeight: '700', marginTop: 2 },
+
+  dupActionBtn: { flex: 1, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155', paddingVertical: 7, borderRadius: 6, alignItems: 'center' },
+  dupActionBtnRetargetActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
+  dupActionBtnFilterActive: { backgroundColor: '#dc2626', borderColor: '#f87171' },
+  dupActionBtnText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
+
+  dupApplyBtn: { backgroundColor: '#10b981', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  dupApplyBtnText: { color: '#020617', fontSize: 12, fontWeight: '900' },
 });
