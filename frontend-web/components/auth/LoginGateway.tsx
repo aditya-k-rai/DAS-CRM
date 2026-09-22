@@ -50,6 +50,83 @@ function formatCompanyKey(input: string): string {
   return formatted;
 }
 
+// ── Cookie Helpers for Previous Login Autofill ──────────────────────────────
+interface SavedLoginCredentials {
+  email: string;
+  password?: string;
+  companyKey?: string;
+  companyId?: string;
+  companyName?: string;
+  role?: UserRole;
+  savedAt: string;
+}
+
+const LOGIN_COOKIE_KEY = 'das_crm_prev_login';
+
+function setCookie(name: string, value: string, days = 30) {
+  if (typeof document === 'undefined') return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+  return match ? decodeURIComponent(match[3]) : null;
+}
+
+function removeCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+}
+
+function saveLoginCredentials(creds: SavedLoginCredentials) {
+  const jsonStr = JSON.stringify(creds);
+  setCookie(LOGIN_COOKIE_KEY, jsonStr, 30);
+  if (creds.role) {
+    setCookie(`${LOGIN_COOKIE_KEY}_${creds.role}`, jsonStr, 30);
+  }
+  try {
+    localStorage.setItem(LOGIN_COOKIE_KEY, jsonStr);
+    if (creds.role) localStorage.setItem(`${LOGIN_COOKIE_KEY}_${creds.role}`, jsonStr);
+  } catch (_) {}
+}
+
+function loadLoginCredentials(role?: UserRole): SavedLoginCredentials | null {
+  if (role) {
+    const roleCookie = getCookie(`${LOGIN_COOKIE_KEY}_${role}`);
+    if (roleCookie) {
+      try { return JSON.parse(roleCookie); } catch (_) {}
+    }
+  }
+  const genCookie = getCookie(LOGIN_COOKIE_KEY);
+  if (genCookie) {
+    try { return JSON.parse(genCookie); } catch (_) {}
+  }
+  try {
+    if (role) {
+      const stored = localStorage.getItem(`${LOGIN_COOKIE_KEY}_${role}`);
+      if (stored) return JSON.parse(stored);
+    }
+    const genStored = localStorage.getItem(LOGIN_COOKIE_KEY);
+    if (genStored) return JSON.parse(genStored);
+  } catch (_) {}
+  return null;
+}
+
+function clearLoginCredentials() {
+  removeCookie(LOGIN_COOKIE_KEY);
+  (['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).forEach(r => {
+    removeCookie(`${LOGIN_COOKIE_KEY}_${r}`);
+  });
+  try {
+    localStorage.removeItem(LOGIN_COOKIE_KEY);
+    (['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).forEach(r => {
+      localStorage.removeItem(`${LOGIN_COOKIE_KEY}_${r}`);
+    });
+  } catch (_) {}
+}
+
 export function LoginGateway() {
   const [entryPoint, setEntryPoint] = useState<'workspace' | 'staff_key' | 'superadmin'>('workspace');
   
@@ -61,6 +138,8 @@ export function LoginGateway() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [hasAutofilled, setHasAutofilled] = useState(false);
 
   // Staff Key State
   const [userKey, setUserKey] = useState('');
@@ -98,6 +177,19 @@ export function LoginGateway() {
 
   const [fetchingCompanies, setFetchingCompanies] = useState(false);
   const { switchRole, setAuthSession } = useAuth();
+
+  // Load previous login credentials ONLY from cookie on initial mount
+  useEffect(() => {
+    const saved = loadLoginCredentials();
+    if (saved) {
+      if (saved.email) setEmail(saved.email);
+      if (saved.password) setPassword(saved.password);
+      if (saved.companyKey && !urlKey) setCompanyKeyInput(saved.companyKey);
+      if (saved.companyId && !urlCompanyId) setSelectedCompanyId(saved.companyId);
+      if (saved.role) setSelectedRole(saved.role);
+      setHasAutofilled(true);
+    }
+  }, []);
 
   useEffect(() => {
     fetchPublicCompanies();
@@ -257,6 +349,20 @@ export function LoginGateway() {
         const finalRole: UserRole = normalizeRoleStr(inferred || backendRoleName || selectedRole);
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
+        if (rememberMe) {
+          saveLoginCredentials({
+            email,
+            password,
+            companyKey: companyKeyInput.trim(),
+            companyId: effectiveCompanyId,
+            companyName: data.organization?.name || publicCompanies.find(c => c.id === effectiveCompanyId)?.name,
+            role: finalRole,
+            savedAt: new Date().toISOString(),
+          });
+        } else {
+          clearLoginCredentials();
+        }
+
         const redirectUrl = getPostLoginRedirectRoute(finalRole);
         setAuthSession(
           {
@@ -275,6 +381,16 @@ export function LoginGateway() {
         return;
       } else {
         const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
+        if (rememberMe) {
+          saveLoginCredentials({
+            email,
+            password,
+            companyKey: companyKeyInput.trim(),
+            companyId: effectiveCompanyId,
+            role: finalRole,
+            savedAt: new Date().toISOString(),
+          });
+        }
         switchRole(finalRole);
         setLoading(false);
         navigateToRoute(getPostLoginRedirectRoute(finalRole));
@@ -670,11 +786,23 @@ export function LoginGateway() {
                     disabled={loading}
                     onClick={() => {
                       setSelectedRole(r);
-                      if (r === 'ADMIN') setEmail('vikram.admin@acme.com');
-                      if (r === 'HR') setEmail('sunita.hr@acme.com');
-                      if (r === 'MANAGER') setEmail('rajesh.mgr@acme.com');
-                      if (r === 'TEAM_LEADER') setEmail('amit.tl@acme.com');
-                      if (r === 'SALES_EXEC') setEmail('rajesh.rep@acme.com');
+                      setError(null);
+                      // Autofill ONLY if there is a saved previous login cookie for this role
+                      const savedForRole = loadLoginCredentials(r);
+                      if (savedForRole && savedForRole.email) {
+                        setEmail(savedForRole.email);
+                        if (savedForRole.password) setPassword(savedForRole.password);
+                        if (savedForRole.companyKey && !companyKeyInput) setCompanyKeyInput(savedForRole.companyKey);
+                        setHasAutofilled(true);
+                      } else {
+                        // NO fake demo emails! If current email was from another role's saved login, clear it
+                        const gen = loadLoginCredentials();
+                        if (gen && gen.role !== r && email === gen.email) {
+                          setEmail('');
+                          setPassword('');
+                          setHasAutofilled(false);
+                        }
+                      }
                     }}
                     className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${
                       loading ? 'opacity-50 cursor-not-allowed' : ''
@@ -815,21 +943,50 @@ export function LoginGateway() {
                       onChange={e => setPassword(e.target.value)}
                     />
                   </div>
-                  <div className="flex justify-end mt-1">
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => {
-                        setForgotModalOpen(true);
-                        setForgotEmail(email);
-                        setForgotStep('email');
-                        setForgotError(null);
-                        setForgotMsg(null);
-                      }}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium underline disabled:opacity-40"
-                    >
-                      Forgot Password?
-                    </button>
+                  <div className="flex items-center justify-between mt-1.5 px-0.5">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => {
+                          setRememberMe(e.target.checked);
+                          if (!e.target.checked) clearLoginCredentials();
+                        }}
+                        className="rounded border-border text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                      />
+                      <span>Remember credentials (Cookies)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {hasAutofilled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearLoginCredentials();
+                            setEmail('');
+                            setPassword('');
+                            setHasAutofilled(false);
+                          }}
+                          className="text-[10px] text-slate-500 hover:text-red-400 font-medium transition-colors"
+                          title="Clear remembered cookies"
+                        >
+                          Clear Saved
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          setForgotModalOpen(true);
+                          setForgotEmail(email);
+                          setForgotStep('email');
+                          setForgotError(null);
+                          setForgotMsg(null);
+                        }}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium underline disabled:opacity-40"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

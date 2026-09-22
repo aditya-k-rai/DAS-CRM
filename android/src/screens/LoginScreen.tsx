@@ -20,6 +20,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   useAuthStore,
   UserRole,
@@ -105,6 +106,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [hasAutofilled, setHasAutofilled] = useState(false);
+
+  const STORAGE_KEY_PREV_LOGIN = '@das_crm_prev_login';
 
   // Staff key state
   const [userKey, setUserKey] = useState('');
@@ -135,6 +140,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Autofill from previous login storage ONLY
+    AsyncStorage.getItem(STORAGE_KEY_PREV_LOGIN).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.email) setEmail(parsed.email);
+          if (parsed.password) setPassword(parsed.password);
+          if (parsed.companyKey) setCompanyKeyInput(parsed.companyKey);
+          if (parsed.companyId) setSelectedCompanyId(parsed.companyId);
+          if (parsed.role) setSelectedRole(parsed.role);
+          setHasAutofilled(true);
+        } catch (_) {}
+      }
+    });
+
     apiService.getPublicCompanies().then((comps: PublicCompany[]) => {
       if (Array.isArray(comps)) {
         setPublicCompanies(comps);
@@ -155,16 +175,33 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
-    const roleEmails: Record<UserRole, string> = {
-      ADMIN: 'vikram.admin@acme.com',
-      HR: 'sunita.hr@acme.com',
-      MANAGER: 'rajesh.mgr@acme.com',
-      TEAM_LEADER: 'amit.tl@acme.com',
-      SALES_EXEC: 'rajesh.rep@acme.com',
-      SUPER_ADMIN: 'adtyamighty@gmail.com',
-    };
-    setEmail(roleEmails[role]);
     setError(null);
+    // Autofill ONLY if there is a saved previous login for this role; otherwise do NOT fill fake emails!
+    AsyncStorage.getItem(`${STORAGE_KEY_PREV_LOGIN}_${role}`).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed.email) setEmail(parsed.email);
+          if (parsed.password) setPassword(parsed.password);
+          if (parsed.companyKey && !companyKeyInput) setCompanyKeyInput(parsed.companyKey);
+          setHasAutofilled(true);
+        } catch (_) {}
+      } else {
+        // Clear if email was from another role's saved login
+        AsyncStorage.getItem(STORAGE_KEY_PREV_LOGIN).then((genRaw) => {
+          if (genRaw) {
+            try {
+              const gen = JSON.parse(genRaw);
+              if (gen.role !== role && email === gen.email) {
+                setEmail('');
+                setPassword('');
+                setHasAutofilled(false);
+              }
+            } catch (_) {}
+          }
+        });
+      }
+    });
   };
 
   /** Mirrors LoginGateway.tsx handleWorkspaceLogin */
@@ -216,6 +253,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         );
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
+        if (rememberMe) {
+          const credsStr = JSON.stringify({
+            email,
+            password,
+            companyKey: companyKeyInput.trim(),
+            companyId: selectedCompanyId,
+            role: finalRole,
+            savedAt: new Date().toISOString(),
+          });
+          AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+          AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
+        } else {
+          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+        }
+
         await setAuthSession(
           {
             id: data.user?.id || demoProfile.id,
@@ -255,6 +307,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const finalRole = normalizeRoleStr(
       inferRoleFromEmail(email) || selectedRole,
     );
+    if (rememberMe) {
+      const credsStr = JSON.stringify({
+        email,
+        password,
+        companyKey: companyKeyInput.trim(),
+        companyId: selectedCompanyId,
+        role: finalRole,
+        savedAt: new Date().toISOString(),
+      });
+      AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+      AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
+    }
     await switchRole(finalRole);
     setLoading(false);
     onLoginSuccess(getPostLoginDefaultTab(finalRole));
@@ -717,21 +781,54 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     secureTextEntry
                   />
                 </View>
-                <TouchableOpacity
-                  disabled={loading}
-                  style={{ alignSelf: 'flex-end', marginTop: 6 }}
-                  onPress={() => {
-                    setForgotModalOpen(true);
-                    setForgotEmail(email);
-                    setForgotStep('email');
-                    setForgotError(null);
-                    setForgotMsg(null);
-                  }}
-                >
-                  <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
-                    Forgot Password?
-                  </Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                  <TouchableOpacity
+                    disabled={loading}
+                    onPress={() => {
+                      const next = !rememberMe;
+                      setRememberMe(next);
+                      if (!next) {
+                        AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+                        setHasAutofilled(false);
+                      }
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, color: rememberMe ? '#6366f1' : '#64748b' }}>
+                      {rememberMe ? '☑' : '☐'}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>Remember Me</Text>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    {hasAutofilled ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+                          setEmail('');
+                          setPassword('');
+                          setHasAutofilled(false);
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, color: '#ef4444' }}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      disabled={loading}
+                      onPress={() => {
+                        setForgotModalOpen(true);
+                        setForgotEmail(email);
+                        setForgotStep('email');
+                        setForgotError(null);
+                        setForgotMsg(null);
+                      }}
+                    >
+                      <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
+                        Forgot Password?
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
 
               {/* Sign In Button */}
