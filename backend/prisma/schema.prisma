@@ -157,6 +157,7 @@ model Organization {
   city            String?
   state           String?
   gstNumber       String?
+  panNumber       String?
   companyType     String?   // Private Ltd, LLP, Proprietorship, etc.
   sector          String?   // Real Estate, Auto, Tech, etc.
   registrationKeyId String? // Reference to the CompanyRegistrationKey used
@@ -201,6 +202,10 @@ model Organization {
   leadAIScores          LeadAIScore[]
   aiScoreConfig         AIScoreConfig?
 
+  @@index([panNumber])
+  @@index([gstNumber])
+  @@index([phone])
+  @@index([adminEmail])
   @@map("organizations")
 }
 

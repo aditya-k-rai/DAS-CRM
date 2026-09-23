@@ -16,7 +16,7 @@ import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { OtpService } from './otp.service';
 import { CompanyKeyService } from './company-key.service';
-import { MailService } from './mail.service';
+import { MailService, MailDeliveryResult } from './mail.service';
 import { PLAN_DEFINITIONS, getPlanDefinition, WHATSAPP_LOW_CREDIT_THRESHOLD_PERCENT } from '../../common/plan-config';
 
 @Injectable()
@@ -111,6 +111,188 @@ export class AuthService {
   // COMPANY REGISTRATION (Tenant Admin)
   // ═══════════════════════════════════════════════════════════
 
+  /**
+   * Enterprise Multi-Tenant Duplicate Checker:
+   * Validates Email, Phone Number, GSTIN, and Business PAN against existing companies and users.
+   * If ANY identifier matches an existing record:
+   * 1. Logs duplicate attempt.
+   * 2. Asynchronously sends security/credentials reminder email to the registered admin.
+   * 3. Throws ConflictException with the required exact message:
+   *    "The company is already registered. Please check the Admin email for details."
+   */
+  async validateCompanyUniqueness(input: {
+    email: string;
+    phone?: string;
+    gstNumber?: string;
+    panNumber?: string;
+  }): Promise<{ isUnique: boolean; matchedField?: string }> {
+    const rawEmail = (input.email || '').trim().toLowerCase();
+    const rawPhone = (input.phone || '').trim();
+    const cleanDigitsPhone = rawPhone.replace(/\D/g, '');
+    const corePhone = cleanDigitsPhone.length >= 10 ? cleanDigitsPhone.slice(-10) : cleanDigitsPhone;
+
+    const rawGst = (input.gstNumber || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    let rawPan = (input.panNumber || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    // Cross-derivation: in India, characters 3-12 of a 15-character GSTIN are the entity's PAN
+    if (!rawPan && rawGst.length === 15) {
+      rawPan = rawGst.slice(2, 12);
+    }
+
+    // Cross-consistency check: if both GST and PAN are provided, ensure PAN matches GST characters 3-12
+    if (rawGst.length === 15 && rawPan.length === 10) {
+      const panFromGst = rawGst.slice(2, 12);
+      if (panFromGst !== rawPan) {
+        throw new BadRequestException(
+          `Business PAN "${rawPan}" does not match the PAN embedded in GSTIN "${rawGst}" (${panFromGst}). Please verify your credentials.`,
+        );
+      }
+    }
+
+    let matchedField: string | null = null;
+    let conflictOrg: any = null;
+
+    // 1. Check Email (against Organization adminEmail and User email)
+    if (rawEmail) {
+      const orgWithEmail = await this.prisma.organization.findFirst({
+        where: { adminEmail: { equals: rawEmail, mode: 'insensitive' } },
+      });
+      if (orgWithEmail) {
+        matchedField = 'Email';
+        conflictOrg = orgWithEmail;
+      } else {
+        const userWithEmail = await this.prisma.user.findFirst({
+          where: { email: { equals: rawEmail, mode: 'insensitive' } },
+          include: { organization: true },
+        });
+        if (userWithEmail) {
+          matchedField = 'Email';
+          conflictOrg = userWithEmail.organization;
+        }
+      }
+    }
+
+    // 2. Check Phone / Number (if not already matched)
+    if (!matchedField && corePhone.length >= 10) {
+      const orgWithPhone = await this.prisma.organization.findFirst({
+        where: {
+          OR: [
+            { phone: { equals: rawPhone } },
+            { phone: { endsWith: corePhone } },
+          ],
+        },
+      });
+      if (orgWithPhone) {
+        matchedField = 'Phone Number';
+        conflictOrg = orgWithPhone;
+      }
+    }
+
+    // 3. Check GST Number (if not already matched)
+    if (!matchedField && rawGst.length >= 10) {
+      const orgWithGst = await this.prisma.organization.findFirst({
+        where: {
+          gstNumber: { equals: rawGst, mode: 'insensitive' },
+        },
+      });
+      if (orgWithGst) {
+        matchedField = 'GST Number';
+        conflictOrg = orgWithGst;
+      }
+    }
+
+    // 4. Check Business PAN (if not already matched)
+    if (!matchedField && rawPan.length === 10) {
+      let orgWithPan = await this.prisma.organization.findFirst({
+        where: {
+          OR: [
+            { panNumber: { equals: rawPan, mode: 'insensitive' } },
+            { gstNumber: { contains: rawPan, mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      // Fallback check in settings JSON for legacy records
+      if (!orgWithPan) {
+        const orgs = await this.prisma.organization.findMany({
+          select: {
+            id: true,
+            name: true,
+            adminEmail: true,
+            adminName: true,
+            settings: true,
+            panNumber: true,
+            gstNumber: true,
+            registrationKeyId: true,
+          },
+          take: 500,
+        });
+        for (const o of orgs) {
+          const s = (o.settings as any) || {};
+          const pan = s.panNumber ? String(s.panNumber).toUpperCase().trim() : '';
+          if (pan === rawPan) {
+            orgWithPan = o as any;
+            break;
+          }
+        }
+      }
+
+      if (orgWithPan) {
+        matchedField = 'Business PAN';
+        conflictOrg = orgWithPan;
+      }
+    }
+
+    // If any conflict was detected:
+    if (matchedField && conflictOrg) {
+      const adminEmail = conflictOrg.adminEmail || rawEmail;
+      const adminName = conflictOrg.adminName || 'Admin';
+      const companyName = conflictOrg.name || 'Your Company';
+      const regKey = conflictOrg.registrationKeyId || undefined;
+
+      this.logger.warn(
+        `Duplicate company registration prevented: ${matchedField} matched existing company "${companyName}" (ID: ${conflictOrg.id}). Admin Email: ${adminEmail}`,
+      );
+
+      // Asynchronously send notification notice to the registered admin's inbox
+      this.mailService
+        .sendCompanyAlreadyRegisteredNotice({
+          adminEmail,
+          adminName,
+          companyName,
+          matchedField,
+          registrationKey: regKey,
+        })
+        .catch((err) => {
+          this.logger.warn(`Could not dispatch duplicate notice email to ${adminEmail}: ${err?.message}`);
+        });
+
+      // Mask admin email for secure client-side guidance
+      const maskedEmail = this.maskEmail(adminEmail);
+
+      throw new ConflictException({
+        statusCode: 409,
+        error: 'Conflict',
+        code: 'COMPANY_ALREADY_REGISTERED',
+        message: 'The company is already registered. Please check the Admin email for details.',
+        matchedField,
+        companyName,
+        maskedAdminEmail: maskedEmail,
+      });
+    }
+
+    return { isUnique: true };
+  }
+
+  private maskEmail(email: string): string {
+    if (!email || !email.includes('@')) return 'Admin Email';
+    const [user, domain] = email.split('@');
+    if (user.length <= 2) return `${user[0]}*@${domain}`;
+    const start = user.slice(0, 2);
+    const end = user.slice(-1);
+    return `${start}${'*'.repeat(Math.min(Math.max(user.length - 3, 2), 6))}${end}@${domain}`;
+  }
+
   async registerCompanyWithKey(dto: {
     registrationKey?: string;
     companyName: string;
@@ -131,6 +313,14 @@ export class AuthService {
     accountType?: 'BUY_REQUEST' | 'TRIAL';
     validityDays?: number;
   }) {
+    // 1. Enforce strict uniqueness validation across Email, Phone Number, GSTIN, and Business PAN
+    await this.validateCompanyUniqueness({
+      email: dto.adminEmail,
+      phone: dto.phone,
+      gstNumber: dto.gstNumber,
+      panNumber: dto.panNumber,
+    });
+
     let keyRecord = dto.registrationKey
       ? await this.companyKeyService.validateCompanyKey(dto.registrationKey)
       : null;
@@ -160,11 +350,6 @@ export class AuthService {
       });
     }
 
-    const existing = await this.prisma.user.findFirst({
-      where: { email: dto.adminEmail },
-    });
-    if (existing) throw new ConflictException('Email already in use');
-
     const slug =
       dto.companyName
         .toLowerCase()
@@ -187,6 +372,7 @@ export class AuthService {
           city: dto.city,
           state: dto.state,
           gstNumber: dto.gstNumber,
+          panNumber: dto.panNumber || (dto.gstNumber && dto.gstNumber.length === 15 ? dto.gstNumber.slice(2, 12).toUpperCase() : null),
           companyType: dto.companyType,
           sector: dto.sector,
           registrationKeyId: keyRecord.id,
@@ -197,7 +383,7 @@ export class AuthService {
             accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
             requestedValidityDays: requestValidity,
             registeredAt: new Date().toISOString(),
-            panNumber: dto.panNumber || null,
+            panNumber: dto.panNumber || (dto.gstNumber && dto.gstNumber.length === 15 ? dto.gstNumber.slice(2, 12).toUpperCase() : null),
             panType: dto.panType || 'BUSINESS',
             pincode: dto.pincode || null,
             couponCode: dto.couponCode || null,
@@ -327,59 +513,61 @@ export class AuthService {
       result.org.id,
     );
 
-    // Dispatch confirmation email to Admin & notification to Super Admin asynchronously
-    // Runs in the background so the HTTP response returns immediately (~100ms)
-    Promise.all([
-      this.mailService
-        .sendCompanyRegistrationEmail({
-          adminEmail: dto.adminEmail,
-          adminName: dto.adminName,
-          companyName: dto.companyName,
-          key: keyRecord.key,
-          planTier: keyRecord.planTier,
-          memberLimit: keyRecord.memberLimit,
-          validityDays: keyRecord.validityDays,
-          adminPassword: rawPassword, // plain text — included in PDF attachment
-          pincode: dto.pincode,
-          phone: dto.phone,
-          city: dto.city,
-          state: dto.state,
-          gstNumber: dto.gstNumber,
-          panNumber: dto.panNumber,
-          panType: dto.panType,
-          companyType: dto.companyType,
-          sector: dto.sector,
-          couponCode: dto.couponCode,
-          accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
-        })
-        .catch((mailErr) => {
-          this.logger.warn(
-            `SMTP Mail Dispatch Notice: Registration confirmation email could not be sent to ${dto.adminEmail}: ${mailErr?.message}`,
-          );
-        }),
-      this.mailService
-        .sendNewCompanyRegistrationNotification({
-          companyName: dto.companyName,
-          adminName: dto.adminName,
-          adminEmail: dto.adminEmail,
-          key: keyRecord.key,
-          planTier: keyRecord.planTier,
-          memberLimit: keyRecord.memberLimit,
-          accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
-          validityDays: requestValidity,
-          phone: dto.phone,
-          city: dto.city,
-          state: dto.state,
-          gstNumber: dto.gstNumber,
-          panNumber: dto.panNumber,
-          panType: dto.panType,
-          companyType: dto.companyType,
-          sector: dto.sector,
-        })
-        .catch((notifyErr) => {
-          this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);
-        }),
-    ]);
+    // Dispatch confirmation email to Admin via resilient delivery pipeline
+    const mailResult: MailDeliveryResult = await this.mailService
+      .sendCompanyRegistrationEmail({
+        adminEmail: dto.adminEmail,
+        adminName: dto.adminName,
+        companyName: dto.companyName,
+        key: keyRecord.key,
+        planTier: keyRecord.planTier,
+        memberLimit: keyRecord.memberLimit,
+        validityDays: keyRecord.validityDays,
+        adminPassword: rawPassword, // plain text — included in PDF attachment
+        pincode: dto.pincode,
+        phone: dto.phone,
+        city: dto.city,
+        state: dto.state,
+        gstNumber: dto.gstNumber,
+        panNumber: dto.panNumber,
+        panType: dto.panType,
+        companyType: dto.companyType,
+        sector: dto.sector,
+        couponCode: dto.couponCode,
+        accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+      })
+      .catch((mailErr) => {
+        this.logger.warn(`SMTP Mail Dispatch Notice: Registration confirmation email error for ${dto.adminEmail}: ${mailErr?.message}`);
+        return {
+          success: false,
+          provider: 'outbox_only' as const,
+          error: mailErr?.message,
+        };
+      });
+
+    // Notify Super Admin asynchronously in the background
+    this.mailService
+      .sendNewCompanyRegistrationNotification({
+        companyName: dto.companyName,
+        adminName: dto.adminName,
+        adminEmail: dto.adminEmail,
+        key: keyRecord.key,
+        planTier: keyRecord.planTier,
+        memberLimit: keyRecord.memberLimit,
+        accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+        validityDays: requestValidity,
+        phone: dto.phone,
+        city: dto.city,
+        state: dto.state,
+        gstNumber: dto.gstNumber,
+        panNumber: dto.panNumber,
+        panType: dto.panType,
+        companyType: dto.companyType,
+        sector: dto.sector,
+      })
+      .catch((notifyErr) => {
+        this.logger.warn(`Super Admin notification could not be sent: ${notifyErr?.message}`);
+      });
 
     const tokens = await this.generateTokens(
       result.user.id,
@@ -387,6 +575,15 @@ export class AuthService {
       'ADMIN',
     );
     await this.saveRefreshToken(result.user.id, tokens.refreshToken);
+
+    const emailStatusMessage =
+      mailResult.provider === 'primary_smtp'
+        ? `Official Registration Certificate emailed to ${dto.adminEmail}`
+        : mailResult.provider === 'fallback_smtp'
+        ? `Delivered via secondary mail service to ${dto.adminEmail}`
+        : mailResult.provider === 'ethereal'
+        ? `Live SMTP quota exceeded. Sandbox preview generated and saved to outbox.`
+        : `Email saved to system outbox (${mailResult.outboxId || 'saved'}).`;
 
     return {
       success: true,
@@ -403,6 +600,13 @@ export class AuthService {
       memberLimit: keyRecord.memberLimit,
       accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
       validityDays: requestValidity,
+      emailDelivery: {
+        sent: mailResult.success,
+        provider: mailResult.provider,
+        previewUrl: mailResult.previewUrl,
+        outboxId: mailResult.outboxId,
+        message: emailStatusMessage,
+      },
       user: this.sanitizeUser(result.user),
       organization: result.org,
       ...tokens,
@@ -1502,10 +1706,9 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findFirst({
-      where: { email: dto.email },
+    await this.validateCompanyUniqueness({
+      email: dto.email,
     });
-    if (existing) throw new ConflictException('Email already in use');
 
     const slug =
       dto.organizationName
@@ -1627,6 +1830,43 @@ export class AuthService {
       return { org, user, ownerRole };
     });
 
+    const keyRecord = await this.companyKeyService.generateCompanyKey({
+      companyName: dto.organizationName,
+      planTier: 'FREE_TRIAL' as any,
+      memberLimit: 6,
+      validityDays: 15,
+    });
+
+    await this.prisma.organization.update({
+      where: { id: result.org.id },
+      data: {
+        adminEmail: dto.email,
+        adminName: `${dto.firstName} ${dto.lastName}`.trim(),
+        registrationKeyId: keyRecord.id,
+      },
+    });
+
+    const mailResult: MailDeliveryResult = await this.mailService
+      .sendCompanyRegistrationEmail({
+        adminEmail: dto.email,
+        adminName: `${dto.firstName} ${dto.lastName}`.trim(),
+        companyName: dto.organizationName,
+        key: keyRecord.key,
+        planTier: 'FREE_TRIAL',
+        memberLimit: 6,
+        validityDays: 15,
+        adminPassword: dto.password,
+        sector: dto.industry,
+      })
+      .catch((mailErr) => {
+        this.logger.warn(`Register confirmation email error: ${mailErr?.message}`);
+        return {
+          success: false,
+          provider: 'outbox_only' as const,
+          error: mailErr?.message,
+        };
+      });
+
     const tokens = await this.generateTokens(
       result.user.id,
       result.org.id,
@@ -1634,9 +1874,26 @@ export class AuthService {
     );
     await this.saveRefreshToken(result.user.id, tokens.refreshToken);
 
+    const emailStatusMessage =
+      mailResult.provider === 'primary_smtp'
+        ? `Official Registration Certificate emailed to ${dto.email}`
+        : mailResult.provider === 'fallback_smtp'
+        ? `Delivered via secondary mail service to ${dto.email}`
+        : mailResult.provider === 'ethereal'
+        ? `Live SMTP quota exceeded. Sandbox preview generated and saved to outbox.`
+        : `Email saved to system outbox (${mailResult.outboxId || 'saved'}).`;
+
     return {
       user: this.sanitizeUser(result.user),
       organization: result.org,
+      registrationKey: keyRecord.key,
+      emailDelivery: {
+        sent: mailResult.success,
+        provider: mailResult.provider,
+        previewUrl: mailResult.previewUrl,
+        outboxId: mailResult.outboxId,
+        message: emailStatusMessage,
+      },
       ...tokens,
     };
   }
@@ -1820,5 +2077,25 @@ export class AuthService {
       success: true,
       message: 'Password reset successfully! You can now log in with your new password.',
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // MAIL DIAGNOSTICS & OUTBOX MANAGEMENT
+  // ═══════════════════════════════════════════════════════════
+
+  async getMailStatus() {
+    return this.mailService.getSmtpStatus();
+  }
+
+  async getMailOutbox(limit?: number) {
+    return this.mailService.getOutboxHistory(limit);
+  }
+
+  async getMailOutboxItem(id: string) {
+    return this.mailService.getOutboxItem(id);
+  }
+
+  async sendTestMail(to: string) {
+    return this.mailService.sendTestMail(to);
   }
 }

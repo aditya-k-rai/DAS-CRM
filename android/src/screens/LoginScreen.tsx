@@ -39,8 +39,6 @@ interface LoginScreenProps {
   onLoginSuccess: (defaultTab: string) => void;
 }
 
-type EntryPoint = 'workspace' | 'staff_key';
-
 interface PublicCompany {
   id: string;
   name: string;
@@ -96,9 +94,6 @@ const ALL_ROLES: UserRole[] = [
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const { switchRole, setAuthSession } = useAuthStore();
 
-  // Gateway mode
-  const [entryPoint, setEntryPoint] = useState<EntryPoint>('workspace');
-
   // Workspace login state
   const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -110,17 +105,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [hasAutofilled, setHasAutofilled] = useState(false);
 
   const STORAGE_KEY_PREV_LOGIN = '@das_crm_prev_login';
-
-  // Staff key state
-  const [userKey, setUserKey] = useState('');
-  const [staffName, setStaffName] = useState('');
-  const [staffEmail, setStaffEmail] = useState('');
-  const [staffPassword, setStaffPassword] = useState('');
-  const [keyValidating, setKeyValidating] = useState(false);
-  const [keyInfo, setKeyInfo] = useState<{
-    valid: boolean;
-    assignedRole?: string;
-  } | null>(null);
 
   // Forgot password state
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -395,78 +379,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     onLoginSuccess(getPostLoginDefaultTab(finalRole));
   };
 
-  /** Mirrors LoginGateway.tsx handleValidateUserKey */
-  const handleValidateUserKey = async () => {
-    if (!userKey.trim()) return;
-    setKeyValidating(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/auth/validate-user-key`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: userKey }),
-      });
-      const data = await res.json();
-      setKeyInfo(data);
-      if (!data.valid) setError('Invalid, blocked, or expired Staff Invite Key.');
-    } catch {
-      setKeyInfo({ valid: true, assignedRole: 'SALES_EXEC' });
-    } finally {
-      setKeyValidating(false);
-    }
-  };
-
-  /** Mirrors LoginGateway.tsx handleStaffKeyRegister */
-  const handleStaffKeyRegister = async () => {
-    if (!userKey || !staffEmail || !staffPassword || !staffName) {
-      setError('Please fill all required fields including a valid User Key.');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-
-    const assignedRole = normalizeRoleStr(
-      keyInfo?.assignedRole || inferRoleFromEmail(staffEmail) || 'SALES_EXEC',
-    );
-
-    try {
-      const res = await fetch(`${API_BASE}/auth/staff-register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userKey,
-          name: staffName,
-          email: staffEmail,
-          password: staffPassword,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.accessToken) {
-        await setAuthSession(
-          {
-            id: data.user.id,
-            name: staffName,
-            email: staffEmail,
-            role: assignedRole,
-            avatar: staffName.slice(0, 2).toUpperCase(),
-            companyId: 'comp_acme',
-            companyName: 'Acme Sales Solutions',
-          },
-          data.accessToken,
-        );
-        setLoading(false);
-        onLoginSuccess(getPostLoginDefaultTab(assignedRole));
-        return;
-      }
-    } catch {
-      // Demo fallback
-    }
-
-    await switchRole(assignedRole);
-    setLoading(false);
-    onLoginSuccess(getPostLoginDefaultTab(assignedRole));
-  };
-
   /** Forgot password — step 1 */
   const handleRequestResetOtp = async () => {
     if (!forgotEmail.trim()) {
@@ -569,99 +481,23 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </View>
             <Text style={styles.title}>DAS CRM Platform</Text>
             <Text style={styles.subtitle}>
-              Select your gateway option &amp; authenticate
+              Sign In to Your Company Workspace
             </Text>
           </View>
 
-          {/* ── GATEWAY SWITCHER (mirrors left panel of LoginGateway) ── */}
-          <View style={styles.gatewayPanel}>
-            {/* Workspace Entry */}
-            <TouchableOpacity
-              style={[
-                styles.gatewayOption,
-                entryPoint === 'workspace' && styles.gatewayOptionActive,
-              ]}
-              onPress={() => {
-                setEntryPoint('workspace');
-                setError(null);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.gatewayIconWrap}>
-                <Text style={styles.gatewayIcon}>🏢</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.gatewayOptionLabel,
-                    entryPoint === 'workspace' && styles.gatewayOptionLabelActive,
-                  ]}
-                >
-                  Tenant Admin &amp; Staff Login
-                </Text>
-                <Text style={styles.gatewayOptionSub}>
-                  Company Key &amp; Email Workspace Login
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Staff Invite Key */}
-            <TouchableOpacity
-              style={[
-                styles.gatewayOption,
-                entryPoint === 'staff_key' && styles.gatewayOptionActiveGreen,
-              ]}
-              onPress={() => {
-                setEntryPoint('staff_key');
-                setError(null);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.gatewayIconWrap, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-                <Text style={styles.gatewayIcon}>🔑</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.gatewayOptionLabel,
-                    entryPoint === 'staff_key' && { color: '#6ee7b7' },
-                  ]}
-                >
-                  Staff User Key Registration
-                </Text>
-                <Text style={styles.gatewayOptionSub}>
-                  Redeem Staff Invite Key (e.g. ACME-RX-4312)
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Register CTA */}
-            <View style={styles.registerBox}>
-              <Text style={styles.registerPrompt}>
-                New Company? Activate workspace with Registration Key:
-              </Text>
-              <TouchableOpacity style={styles.registerCtaButton} activeOpacity={0.8}>
-                <Text style={styles.registerCtaText}>
-                  🏢 Register Company Workspace →
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
-          {entryPoint === 'workspace' && (
-            <View style={styles.formCard}>
-              <View style={styles.entryTagRow}>
-                <View style={styles.entryTag}>
-                  <Text style={styles.entryTagText}>WORKSPACE ENTRY</Text>
-                </View>
+          <View style={styles.formCard}>
+            <View style={styles.entryTagRow}>
+              <View style={styles.entryTag}>
+                <Text style={styles.entryTagText}>WORKSPACE LOGIN</Text>
               </View>
-              <Text style={styles.formTitle}>
-                Sign In to Your Company Workspace
-              </Text>
-              <Text style={styles.formSubtitle}>
-                Select your company and provide your assigned key to authenticate.
-              </Text>
+            </View>
+            <Text style={styles.formTitle}>
+              Sign In to Your Company Workspace
+            </Text>
+            <Text style={styles.formSubtitle}>
+              Select your company and provide your assigned key to authenticate.
+            </Text>
 
               {/* Error Banner */}
               {error ? (
@@ -859,113 +695,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
-
-          {/* ── STAFF INVITE KEY FORM ─────────────────────────────────── */}
-          {entryPoint === 'staff_key' && (
-            <View style={[styles.formCard, { borderColor: 'rgba(16,185,129,0.4)' }]}>
-              <View style={styles.entryTagRow}>
-                <View style={[styles.entryTag, styles.entryTagGreen]}>
-                  <Text style={[styles.entryTagText, { color: '#6ee7b7' }]}>
-                    STAFF USER INVITE KEY
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.formTitle}>Redeem Staff Invite Key</Text>
-              <Text style={styles.formSubtitle}>
-                Enter the user key generated by your Tenant Admin (e.g. ACME-RX-4312).
-              </Text>
-
-              {error ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>⚠️ {error}</Text>
-                </View>
-              ) : null}
-
-              {/* Key Input + Validate */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>User Invite Key (Format: ACME-RX-4312) *</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.input, styles.monoInput, { flex: 1 }]}
-                    placeholder="ACME-RX-4312"
-                    placeholderTextColor="#64748b"
-                    value={userKey}
-                    maxLength={12}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    keyboardType={userKey.length >= 8 ? 'numeric' : 'default'}
-                    onChangeText={(t) => setUserKey(formatCompanyKey(t))}
-                  />
-                  <TouchableOpacity
-                    style={styles.validateButton}
-                    onPress={handleValidateUserKey}
-                    disabled={keyValidating}
-                  >
-                    <Text style={styles.validateButtonText}>
-                      {keyValidating ? '...' : 'Validate'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {keyInfo?.valid ? (
-                  <Text style={styles.validKeyText}>
-                    ✓ Valid Key! Grants Role: {keyInfo.assignedRole}
-                  </Text>
-                ) : null}
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Your Full Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Rahul Sharma"
-                  placeholderTextColor="#64748b"
-                  value={staffName}
-                  onChangeText={setStaffName}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Official Email *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="rahul@company.com"
-                  placeholderTextColor="#64748b"
-                  value={staffEmail}
-                  onChangeText={setStaffEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Create Password *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#64748b"
-                  value={staffPassword}
-                  onChangeText={setStaffPassword}
-                  secureTextEntry
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: '#10b981' }]}
-                onPress={handleStaffKeyRegister}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>
-                    Redeem Key &amp; Register Account →
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1144,67 +873,6 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 12, color: '#94a3b8', textAlign: 'center' },
 
   // Gateway Panel
-  gatewayPanel: {
-    width: '100%',
-    maxWidth: 560,
-    backgroundColor: '#0f172a',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    padding: 14,
-    marginBottom: 16,
-    gap: 10,
-  },
-  gatewayOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    backgroundColor: '#020617',
-  },
-  gatewayOptionActive: {
-    backgroundColor: 'rgba(99,102,241,0.2)',
-    borderColor: '#6366f1',
-  },
-  gatewayOptionActiveGreen: {
-    backgroundColor: 'rgba(16,185,129,0.2)',
-    borderColor: '#10b981',
-  },
-  gatewayIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gatewayIcon: { fontSize: 18 },
-  gatewayOptionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#94a3b8',
-    marginBottom: 2,
-  },
-  gatewayOptionLabelActive: { color: '#a5b4fc' },
-  gatewayOptionSub: { fontSize: 10, color: '#64748b' },
-
-  // Register CTA
-  registerBox: { marginTop: 6 },
-  registerPrompt: { fontSize: 11, color: '#64748b', marginBottom: 6 },
-  registerCtaButton: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(99,102,241,0.3)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  registerCtaText: { color: '#a5b4fc', fontSize: 12, fontWeight: '700' },
-
   // Form Card
   formCard: {
     width: '100%',
@@ -1345,24 +1013,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   googleButtonText: { color: '#f8fafc', fontSize: 12, fontWeight: '600' },
-
-  // Validate button
-  validateButton: {
-    backgroundColor: 'rgba(16,185,129,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  validateButtonText: { color: '#6ee7b7', fontSize: 12, fontWeight: '700' },
-  validKeyText: {
-    color: '#34d399',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 4,
-  },
 
   // Modals
   modalOverlay: {

@@ -150,6 +150,32 @@ export class AuthController {
     return this.authService.registerCompanyWithKey(body);
   }
 
+  @Post('check-company-exists')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Check if Email, Phone, GSTIN, or Business PAN is already registered',
+  })
+  async checkCompanyExists(
+    @Body()
+    body: {
+      email?: string;
+      phone?: string;
+      gstNumber?: string;
+      panNumber?: string;
+    },
+  ) {
+    if (!body.email && !body.phone && !body.gstNumber && !body.panNumber) {
+      return { isUnique: true };
+    }
+    return this.authService.validateCompanyUniqueness({
+      email: body.email || '',
+      phone: body.phone,
+      gstNumber: body.gstNumber,
+      panNumber: body.panNumber,
+    });
+  }
+
   @Post('validate-company-key')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -168,6 +194,34 @@ export class AuthController {
       expiresAt: record.expiresAt,
       qrCodeDataUrl: record.qrCodeDataUrl,
     };
+  }
+
+  // ── Mail Diagnostics & Outbox ───────────────────────────────
+
+  @Get('mail-status')
+  @ApiOperation({ summary: 'Check SMTP delivery status, outbox counts, and health' })
+  getMailStatus() {
+    return this.authService.getMailStatus();
+  }
+
+  @Post('test-mail')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send a diagnostic test email to verify delivery pipeline' })
+  sendTestMail(@Body('to') to?: string) {
+    const targetEmail = to || 'adtyamighty@gmail.com';
+    return this.authService.sendTestMail(targetEmail);
+  }
+
+  @Get('mail-outbox')
+  @ApiOperation({ summary: 'List recent local outbox manifests' })
+  getMailOutbox() {
+    return this.authService.getMailOutbox(50);
+  }
+
+  @Get('mail-outbox/:id')
+  @ApiOperation({ summary: 'Get details and HTML content of a specific outbox item' })
+  getMailOutboxItem(@Param('id') id: string) {
+    return this.authService.getMailOutboxItem(id);
   }
 
   // ── Staff User Key ─────────────────────────────────────────

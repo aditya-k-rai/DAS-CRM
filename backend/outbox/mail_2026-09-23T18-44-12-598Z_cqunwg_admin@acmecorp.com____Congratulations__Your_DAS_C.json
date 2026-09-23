@@ -1,0 +1,15 @@
+{
+  "outboxId": "mail_2026-09-23T18-44-12-598Z_cqunwg",
+  "createdAt": "2026-09-23T18:44:19.509Z",
+  "to": "admin@acmecorp.com",
+  "from": "\"DAS CRM Registration\" <dynamicadvancesolution@gmail.com>",
+  "subject": "🎉 Congratulations! Your DAS CRM Workspace is Registered — Key: ACME-TK-9021",
+  "provider": "ethereal",
+  "status": "SANDBOX_PREVIEW_GENERATED",
+  "messageId": "<d45fd9cf-d17d-8ccf-a208-8594ab321a1c@gmail.com>",
+  "previewUrl": "https://ethereal.email/message/arQeAHr.3nbIYurMarQeBV31x4oQUDNjAAAAAYZi8QwxjfduATam9SjrjZU",
+  "pdfFile": null,
+  "htmlFile": "mail_2026-09-23T18-44-12-598Z_cqunwg_admin@acmecorp.com____Congratulations__Your_DAS_C.html",
+  "error": "Missing credentials for \"PLAIN\"",
+  "primaryError": "Missing credentials for \"PLAIN\""
+}

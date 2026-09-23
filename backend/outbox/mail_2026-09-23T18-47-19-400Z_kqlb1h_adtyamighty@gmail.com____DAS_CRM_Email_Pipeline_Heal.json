@@ -1,0 +1,15 @@
+{
+  "outboxId": "mail_2026-09-23T18-47-19-400Z_kqlb1h",
+  "createdAt": "2026-09-23T18:47:26.713Z",
+  "to": "adtyamighty@gmail.com",
+  "from": "\"DAS CRM Diagnostic\" <dynamicadvancesolution@gmail.com>",
+  "subject": "🧪 DAS CRM Email Pipeline Health Check — 12:17:19 am",
+  "provider": "ethereal",
+  "status": "SANDBOX_PREVIEW_GENERATED",
+  "messageId": "<a3a57804-74bd-2276-0f76-f3f8563d504a@gmail.com>",
+  "previewUrl": "https://ethereal.email/message/arQevHr.3nbIZSbKarQewF31x4oQUDOhAAAAAW3N1kLuKpZYd7FyPKv249I",
+  "pdfFile": null,
+  "htmlFile": "mail_2026-09-23T18-47-19-400Z_kqlb1h_adtyamighty@gmail.com____DAS_CRM_Email_Pipeline_Heal.html",
+  "error": "Data command failed: 550-5.4.5 Daily user sending limit exceeded. For more information on Gmail\n550-5.4.5 sending limits go to\n550 5.4.5  https://support.google.com/a/answer/166852 d2e1a72fcca58-87d1afb9416sm1766191b3a.7 - gsmtp",
+  "primaryError": "Data command failed: 550-5.4.5 Daily user sending limit exceeded. For more information on Gmail\n550-5.4.5 sending limits go to\n550 5.4.5  https://support.google.com/a/answer/166852 d2e1a72fcca58-87d1afb9416sm1766191b3a.7 - gsmtp"
+}

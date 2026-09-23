@@ -7,7 +7,7 @@ import {
   Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
   Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3,
   Download, PartyPopper, Crown, Calendar, Phone, CreditCard,
-  FileText, Database, Send, Loader2
+  FileText, Database, Send, Loader2, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -466,6 +466,13 @@ export default function RegisterCompanyPage() {
   const [activeStepId, setActiveStepId]       = useState(1);
   const [statusMessage, setStatusMessage]     = useState('');
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [conflictDetails, setConflictDetails] = useState<{
+    code?: string;
+    matchedField?: string;
+    companyName?: string;
+    maskedAdminEmail?: string;
+    message?: string;
+  } | null>(null);
 
   const router = useRouter();
   const { setAuthSession } = useAuth();
@@ -598,18 +605,53 @@ export default function RegisterCompanyPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !adminName || !adminEmail || !adminPassword || !phone || !gstNumber || !panNumber) {
+
+    const cleanEmail = adminEmail.trim().toLowerCase();
+    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanGst = gstNumber.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanPan = panNumber.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (!companyName.trim() || !adminName.trim() || !cleanEmail || !adminPassword || !cleanPhone || !cleanGst || !cleanPan) {
       setError('Please fill all required fields (*)');
+      setConflictDetails(null);
       return;
     }
 
-    if (panNumber.trim().length !== 10) {
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid official email address');
+      setConflictDetails(null);
+      return;
+    }
+
+    if (cleanPhone.length < 10) {
+      setError('Please enter a valid 10-digit mobile number');
+      setConflictDetails(null);
+      return;
+    }
+
+    if (cleanGst.length !== 15) {
+      setError('Please enter a valid 15-character GSTIN (e.g. 27ABCDE1234F1Z5)');
+      setConflictDetails(null);
+      return;
+    }
+
+    if (cleanPan.length !== 10) {
       setError('Please enter a valid 10-character PAN Card Number (e.g. ABCDE1234F)');
+      setConflictDetails(null);
+      return;
+    }
+
+    // Consistency check between GSTIN and PAN
+    const panFromGst = cleanGst.slice(2, 12);
+    if (panFromGst !== cleanPan) {
+      setError(`Business PAN (${cleanPan}) does not match the PAN embedded in your GST Number (${panFromGst}). Please verify.`);
+      setConflictDetails(null);
       return;
     }
 
     setError(null);
     setRegistrationError(null);
+    setConflictDetails(null);
     setLoading(true);
     setIsRegistering(true);
 
@@ -631,16 +673,16 @@ export default function RegisterCompanyPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyName,
-          adminName,
-          adminEmail,
+          companyName: companyName.trim(),
+          adminName: adminName.trim(),
+          adminEmail: cleanEmail,
           adminPassword,
-          phone,
+          phone: cleanPhone,
           pincode,
           city,
           state,
-          gstNumber,
-          panNumber: panNumber.trim().toUpperCase(),
+          gstNumber: cleanGst,
+          panNumber: cleanPan,
           panType,
           companyType,
           sector,
@@ -659,9 +701,30 @@ export default function RegisterCompanyPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        const errorMsg = data.message || (Array.isArray(data.message) ? data.message.join(', ') : 'Registration failed.');
+        const isConflict =
+          res.status === 409 ||
+          data.code === 'COMPANY_ALREADY_REGISTERED' ||
+          (data.message && String(data.message).toLowerCase().includes('already registered'));
+
+        const errorMsg = isConflict
+          ? 'The company is already registered. Please check the Admin email for details.'
+          : (data.message || (Array.isArray(data.message) ? data.message.join(', ') : 'Registration failed.'));
+
         setRegistrationError(errorMsg);
         setError(errorMsg);
+
+        if (isConflict) {
+          setConflictDetails({
+            code: data.code || 'COMPANY_ALREADY_REGISTERED',
+            matchedField: data.matchedField || 'Email / Phone / GST / Business PAN',
+            companyName: data.companyName,
+            maskedAdminEmail: data.maskedAdminEmail,
+            message: 'The company is already registered. Please check the Admin email for details.',
+          });
+        } else {
+          setConflictDetails(null);
+        }
+
         setLoading(false);
         return;
       }
@@ -881,24 +944,47 @@ export default function RegisterCompanyPage() {
                   </div>
                 </div>
               ) : (
-                /* Error State Display */
-                <div className="mt-5 p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-200 space-y-3">
+                /* Error / Conflict State Display */
+                <div className={`mt-5 p-4 rounded-2xl border space-y-3 ${conflictDetails ? 'bg-amber-500/15 border-amber-500/30 text-amber-200' : 'bg-red-500/15 border-red-500/30 text-red-200'}`}>
                   <div className="flex items-start gap-3">
-                    <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+                    <AlertCircle size={20} className={`${conflictDetails ? 'text-amber-400' : 'text-red-400'} flex-shrink-0 mt-0.5`} />
                     <div>
-                      <p className="text-xs font-bold text-red-300">Registration Encountered An Issue</p>
-                      <p className="text-xs text-red-200/90 mt-0.5 leading-relaxed">{registrationError}</p>
+                      <p className={`text-xs font-bold ${conflictDetails ? 'text-amber-300' : 'text-red-300'}`}>
+                        {conflictDetails ? '🏢 Company Already Registered' : 'Registration Encountered An Issue'}
+                      </p>
+                      <p className={`text-xs ${conflictDetails ? 'text-amber-200/90 font-medium' : 'text-red-200/90'} mt-0.5 leading-relaxed`}>
+                        {registrationError}
+                      </p>
+                      {conflictDetails?.maskedAdminEmail && (
+                        <p className="text-[11px] text-amber-300/80 mt-1">
+                          Registration details sent to Admin: <strong>{conflictDetails.maskedAdminEmail}</strong>
+                        </p>
+                      )}
                     </div>
                   </div>
+                  {conflictDetails && (
+                    <div className="pt-1">
+                      <Link
+                        href="/login"
+                        className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                      >
+                        Sign In to Your Workspace →
+                      </Link>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       setIsRegistering(false);
                       setRegistrationError(null);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/40 text-white font-bold text-xs transition-all flex items-center justify-center gap-2"
+                    className={`w-full py-2.5 rounded-xl border text-white font-bold text-xs transition-all flex items-center justify-center gap-2 ${
+                      conflictDetails
+                        ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
+                        : 'bg-red-600/30 hover:bg-red-600/40 border-red-500/40'
+                    }`}
                   >
-                    ← Return to Form &amp; Correct Details
+                    ← Return to Form &amp; Edit Details
                   </button>
                 </div>
               )}
@@ -1035,13 +1121,46 @@ export default function RegisterCompanyPage() {
                     </p>
                   </div>
                 </div>
-                {/* Email copy note */}
-                <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)' }}>
-                  <Mail size={15} className="text-emerald-400 flex-shrink-0" />
-                  <p className="text-[11px] text-emerald-300 font-medium leading-relaxed">
-                    📧 <strong>Check your inbox at {registrationSuccess.adminEmail}</strong> — a copy of this Registration Certificate PDF (with all details including your key and admin credentials) has been emailed to you.
-                  </p>
-                </div>
+                {/* Email Delivery Status Card */}
+                {registrationSuccess.emailDelivery?.provider === 'primary_smtp' || (!registrationSuccess.emailDelivery && registrationSuccess.adminEmail) ? (
+                  <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.25)' }}>
+                    <Mail size={15} className="text-emerald-400 flex-shrink-0" />
+                    <p className="text-[11px] text-emerald-300 font-medium leading-relaxed">
+                      📧 <strong>Check your inbox at {registrationSuccess.adminEmail}</strong> — your Registration Certificate PDF (with your Registration Key & Admin credentials) has been emailed to you.
+                    </p>
+                  </div>
+                ) : registrationSuccess.emailDelivery?.provider === 'ethereal' ? (
+                  <div className="p-3.5 rounded-2xl space-y-2" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)' }}>
+                    <div className="flex items-start gap-2.5">
+                      <Mail size={15} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-[11px] text-indigo-200 font-medium leading-relaxed">
+                          📧 <strong>Registration Email Generated:</strong> Live SMTP daily sending quota is temporarily active on Google SMTP. Your complete registration package (credentials, key & certificate) was captured in our sandbox and persisted to system outbox.
+                        </p>
+                        {registrationSuccess.emailDelivery.previewUrl && (
+                          <div className="mt-2">
+                            <a
+                              href={registrationSuccess.emailDelivery.previewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition shadow-sm"
+                            >
+                              <span>📨 View Live Email & Certificate in Sandbox Preview</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                    <Mail size={15} className="text-amber-400 flex-shrink-0" />
+                    <p className="text-[11px] text-amber-300 font-medium leading-relaxed">
+                      📁 <strong>Email Safely Archived:</strong> {registrationSuccess.emailDelivery?.message || `Saved to outbox for ${registrationSuccess.adminEmail}`}. Your official PDF certificate has also been downloaded directly to your computer.
+                    </p>
+                  </div>
+                )}
               </div>
 
 
@@ -1138,12 +1257,56 @@ export default function RegisterCompanyPage() {
         {!registrationSuccess && (
           /* ── REGISTRATION FORM ────────────────────────────────────────────────── */
           <form onSubmit={handleRegister} className="p-8 rounded-3xl bg-card border border-border space-y-6 shadow-2xl">
-            {error && (
+            {conflictDetails ? (
+              <div className="p-6 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-200 space-y-4 shadow-xl">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-xl flex-shrink-0">
+                    🏢
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-base font-black text-white tracking-tight">
+                      Company Already Registered
+                    </h4>
+                    <p className="text-sm font-bold text-amber-300 mt-1">
+                      The company is already registered. Please check the Admin email for details.
+                    </p>
+                    <div className="mt-3 p-3.5 rounded-xl bg-slate-900/70 border border-amber-500/20 text-xs space-y-1.5 text-slate-300">
+                      {conflictDetails.matchedField && (
+                        <p><span className="text-slate-400">Matched Identifier:</span> <strong className="text-white">{conflictDetails.matchedField}</strong></p>
+                      )}
+                      {conflictDetails.companyName && (
+                        <p><span className="text-slate-400">Registered Workspace:</span> <strong className="text-white">{conflictDetails.companyName}</strong></p>
+                      )}
+                      {conflictDetails.maskedAdminEmail && (
+                        <p><span className="text-slate-400">Registered Admin Email:</span> <strong className="text-amber-300">{conflictDetails.maskedAdminEmail}</strong></p>
+                      )}
+                    </div>
+                    <p className="text-[11.5px] text-slate-400 mt-2.5 leading-relaxed">
+                      Your workspace key and access credentials have already been issued to the administrator inbox above.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <Link
+                    href="/login"
+                    className="py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs text-center transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                  >
+                    Sign In to Company Workspace →
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs text-center transition-all flex items-center justify-center gap-2"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+              </div>
+            ) : error ? (
               <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center gap-2">
                 <AlertCircle size={16} className="flex-shrink-0" />
                 <span>{error}</span>
               </div>
-            )}
+            ) : null}
 
             {/* Step 1: Select Plan Tier */}
             <div className="space-y-4">
