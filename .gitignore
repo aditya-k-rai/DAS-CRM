@@ -41,3 +41,5 @@ service-account*.json
 *credentials*.json
 secrets.txt
 backend/service-account.json
+backend/outbox/
+outbox/

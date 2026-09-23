@@ -483,7 +483,7 @@ export class MailService {
   // ──────────────────────────────────────────────────
   // PDF Generator (pdfkit) — Registration Certificate
   // ──────────────────────────────────────────────────
-  private generateRegistrationPdfBuffer(opts: {
+  public generateRegistrationPdfBuffer(opts: {
     companyName: string;
     adminName: string;
     adminEmail: string;

@@ -1577,6 +1577,136 @@ export class AuthService {
     };
   }
 
+  /**
+   * Super Admin: Resolve payload for generating/sending company registration certificate PDF
+   */
+  async getCompanyRegistrationPdfPayload(companyId: string) {
+    let org = await this.prisma.organization.findUnique({
+      where: { id: companyId },
+      include: {
+        subscription: true,
+        users: { select: { id: true, email: true, firstName: true, lastName: true }, take: 1 },
+      },
+    });
+
+    if (!org) {
+      const regKey = await this.prisma.companyRegistrationKey.findFirst({
+        where: { key: companyId },
+      });
+      if (regKey?.usedByOrganizationId) {
+        org = await this.prisma.organization.findUnique({
+          where: { id: regKey.usedByOrganizationId },
+          include: {
+            subscription: true,
+            users: { select: { id: true, email: true, firstName: true, lastName: true }, take: 1 },
+          },
+        });
+      }
+    }
+
+    if (!org) {
+      const fallbackName = companyId.replace(/^comp_/, '').replace(/[_-]/g, ' ').toUpperCase() || 'DEMO ENTERPRISE';
+      return {
+        org: null,
+        key: companyId.startsWith('ACME') ? companyId : 'DAS-REG-DEMO',
+        adminEmail: 'dynamicadvancesolution@gmail.com',
+        adminName: 'Platform Administrator',
+        companyName: fallbackName,
+        planTier: 'BUSINESS' as any,
+        memberLimit: 25,
+        validityDays: 30,
+        accountType: 'BUY_REQUEST',
+        adminPassword: '(protected)',
+        pincode: '110001',
+        phone: '+91 98765 43210',
+        city: 'New Delhi',
+        state: 'Delhi',
+        gstNumber: '07AAAAA0000A1Z5',
+        panNumber: 'ABCDE1234F',
+        panType: 'BUSINESS',
+        companyType: 'Private Limited',
+        sector: 'Technology & Software',
+        couponCode: undefined,
+      };
+    }
+
+    const regKey = await this.prisma.companyRegistrationKey.findFirst({
+      where: { usedByOrganizationId: org.id },
+    });
+
+    const settings = (org.settings as any) || {};
+    const key = regKey?.key || org.registrationKeyId || 'DAS-KEY';
+    const adminEmail = org.adminEmail || org.users[0]?.email || 'admin@company.com';
+    const adminName =
+      org.adminName ||
+      (org.users[0]
+        ? `${org.users[0].firstName} ${org.users[0].lastName}`.trim()
+        : 'Workspace Admin');
+    const planTier = org.subscription?.planTier || settings.requestedPlan || 'FREE_TRIAL';
+    const memberLimit = org.subscription?.memberLimit || 6;
+    const validityDays =
+      settings.requestedValidityDays || (settings.accountType === 'BUY_REQUEST' ? 30 : 15);
+
+    return {
+      org,
+      key,
+      adminEmail,
+      adminName,
+      companyName: org.name,
+      planTier,
+      memberLimit,
+      validityDays,
+      accountType: settings.accountType || (validityDays === 30 ? 'BUY_REQUEST' : 'TRIAL'),
+      adminPassword: '(as set during registration)',
+      pincode: settings.pincode || undefined,
+      phone: org.phone || undefined,
+      city: org.city || undefined,
+      state: org.state || undefined,
+      gstNumber: org.gstNumber || undefined,
+      panNumber: org.panNumber || settings.panNumber || undefined,
+      panType: settings.panType || 'BUSINESS',
+      companyType: org.companyType || undefined,
+      sector: org.sector || undefined,
+      couponCode: settings.couponCode || undefined,
+    };
+  }
+
+  /**
+   * Super Admin: Dispatch Registration Certificate PDF to the company's admin email
+   */
+  async sendCompanyRegistrationPdf(companyId: string, recipientEmail?: string) {
+    const payload = await this.getCompanyRegistrationPdfPayload(companyId);
+    if (recipientEmail && recipientEmail.trim()) {
+      payload.adminEmail = recipientEmail.trim();
+    }
+    const result = await this.mailService.sendCompanyRegistrationEmail(payload);
+    return {
+      success: result.success,
+      provider: result.provider,
+      previewUrl: result.previewUrl,
+      outboxId: result.outboxId,
+      adminEmail: payload.adminEmail,
+      companyName: payload.companyName,
+      message: `Registration Certificate PDF dispatched to ${payload.adminEmail}`,
+      delivery: result,
+    };
+  }
+
+  /**
+   * Super Admin: Generate Registration Certificate PDF buffer for direct client download
+   */
+  async generateCompanyRegistrationPdf(companyId: string): Promise<{ buffer: Buffer; filename: string; companyName: string }> {
+    const payload = await this.getCompanyRegistrationPdfPayload(companyId);
+    const registeredAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    const buffer = await this.mailService.generateRegistrationPdfBuffer({
+      ...payload,
+      registeredAt,
+    });
+    const safeName = payload.companyName.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+    const filename = `DAS_CRM_Registration_${safeName}_${payload.key}.pdf`;
+    return { buffer, filename, companyName: payload.companyName };
+  }
+
   async checkCompanyVerificationStatus(idOrKey: string) {
     let org = await this.prisma.organization.findUnique({
       where: { id: idOrKey },

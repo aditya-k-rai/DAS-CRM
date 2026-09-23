@@ -11,7 +11,9 @@ import {
   HttpStatus,
   Req,
   Ip,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -384,6 +386,27 @@ export class AuthController {
     @Body('reason') reason: string,
   ) {
     return this.authService.rejectCompany(id, reason);
+  }
+
+  @Post('super-admin/companies/:id/send-registration-pdf')
+  @ApiOperation({ summary: '[Super Admin] Send registration certificate PDF to company admin or custom email' })
+  sendCompanyRegistrationPdf(
+    @Param('id') id: string,
+    @Body('recipientEmail') recipientEmail?: string,
+  ) {
+    return this.authService.sendCompanyRegistrationPdf(id, recipientEmail);
+  }
+
+  @Get('super-admin/companies/:id/registration-pdf')
+  @ApiOperation({ summary: '[Super Admin] Download company registration certificate PDF' })
+  async downloadCompanyRegistrationPdf(@Param('id') id: string, @Res() res: Response) {
+    const { buffer, filename } = await this.authService.generateCompanyRegistrationPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get('company-verification-status/:idOrKey')

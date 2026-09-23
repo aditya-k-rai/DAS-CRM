@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Shield, Zap, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw,
-  CreditCard, Calendar, SlidersHorizontal, Bot, AlertCircle, Clock, Layers
+  CreditCard, Calendar, SlidersHorizontal, Bot, AlertCircle, Clock, Layers,
+  Download, Loader2
 } from 'lucide-react';
 import { useAuth, PlanType } from '@/context/AuthContext';
 
@@ -143,6 +144,68 @@ export function SuperAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired'>('overview');
   const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
+
+  // PDF Action State & Notification
+  const [sendingPdfCompanyId, setSendingPdfCompanyId] = useState<string | null>(null);
+  const [pdfNotification, setPdfNotification] = useState<{ type: 'success' | 'error'; message: string; previewUrl?: string } | null>(null);
+
+  // Dedicated PDF Dispatch & Download Hub Modal
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfSelectedCompany, setPdfSelectedCompany] = useState<any>(null);
+  const [pdfCustomEmail, setPdfCustomEmail] = useState('');
+
+  const handleOpenPdfModal = (comp?: any) => {
+    const targetComp = comp || companies[0] || null;
+    setPdfSelectedCompany(targetComp);
+    setPdfCustomEmail(targetComp?.adminEmail || '');
+    setPdfModalOpen(true);
+  };
+
+  const handleSendPdfEmail = async (comp: { id: string; name: string; adminEmail?: string }, customEmail?: string) => {
+    setSendingPdfCompanyId(comp.id);
+    setPdfNotification(null);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const targetEmail = customEmail || comp.adminEmail;
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}/send-registration-pdf`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ recipientEmail: targetEmail }),
+        },
+      );
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPdfNotification({
+          type: 'success',
+          message: data.message || `Registration Certificate PDF dispatched to ${targetEmail || 'Admin email'}`,
+          previewUrl: data.previewUrl || data.delivery?.previewUrl,
+        });
+      } else {
+        setPdfNotification({
+          type: 'error',
+          message: data.message || 'Failed to dispatch Registration PDF email.',
+        });
+      }
+    } catch (err: any) {
+      setPdfNotification({
+        type: 'error',
+        message: 'Could not connect to backend server: ' + err?.message,
+      });
+    } finally {
+      setSendingPdfCompanyId(null);
+    }
+  };
+
+  const handleDownloadPdf = (comp: { id: string; name: string }) => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.open(`${apiUrl}/auth/super-admin/companies/${comp.id}/registration-pdf`, '_blank');
+  };
 
   // Multi-tab Company Edit Modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -445,7 +508,14 @@ export function SuperAdminDashboard() {
               <p className="text-xs text-cyan-100/70">Multi-Tenant Platform Control & Management Center</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => handleOpenPdfModal()}
+              className="px-4 py-2 text-xs font-extrabold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/40 cursor-pointer"
+              title="Open Certificate PDF Management Hub"
+            >
+              <Mail size={14} /> Send PDF with Mail / Download
+            </button>
             <button onClick={fetchBackendData} className="px-4 py-2 text-xs font-extrabold rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-2 shadow-lg transition-all border border-cyan-400/30">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
             </button>
@@ -511,6 +581,44 @@ export function SuperAdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── NOTIFICATION BANNER FOR PDF ACTIONS ── */}
+      {pdfNotification && (
+        <div
+          className={`p-4 rounded-2xl flex items-center justify-between gap-3 shadow-lg border transition-all ${
+            pdfNotification.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {pdfNotification.type === 'success' ? (
+              <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+            ) : (
+              <AlertCircle size={18} className="text-rose-500 shrink-0" />
+            )}
+            <p className="text-xs font-bold">{pdfNotification.message}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {pdfNotification.previewUrl && (
+              <a
+                href={pdfNotification.previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition-all flex items-center gap-1 shadow-sm"
+              >
+                <span>View Email Preview</span> &rarr;
+              </a>
+            )}
+            <button
+              onClick={() => setPdfNotification(null)}
+              className="text-xs opacity-70 hover:opacity-100 px-1 font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Section Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
@@ -663,12 +771,37 @@ export function SuperAdminDashboard() {
                     </td>
 
                     <td className="p-3.5 text-right">
-                      <button
-                        onClick={() => handleOpenEditModal(c, 'email')}
-                        className="px-3.5 py-1.5 bg-purple-600/20 border border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-600/30 rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 shadow-sm"
-                      >
-                        <SlidersHorizontal size={13} /> Edit Quotas & Prompts
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleSendPdfEmail(c)}
+                          disabled={sendingPdfCompanyId === c.id}
+                          className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                          title={`Send Registration Certificate PDF to ${c.adminEmail}`}
+                        >
+                          {sendingPdfCompanyId === c.id ? (
+                            <Loader2 size={13} className="animate-spin text-indigo-500" />
+                          ) : (
+                            <Mail size={13} className="text-indigo-500" />
+                          )}
+                          Send PDF Email
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPdf(c)}
+                          className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          title="Download Official Registration Certificate PDF"
+                        >
+                          <Download size={13} className="text-emerald-500" />
+                          Download PDF
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(c, 'email')}
+                          className="px-3.5 py-1.5 bg-purple-600/20 border border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-600/30 rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 shadow-sm"
+                        >
+                          <SlidersHorizontal size={13} /> Edit Quotas & Prompts
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -731,19 +864,44 @@ export function SuperAdminDashboard() {
                           <AlertCircle size={11} /> PLAN EXPIRED
                         </span>
                       </td>
-                      <td className="p-3.5 text-right space-x-2">
-                        <button
-                          onClick={() => handleExtendCompanyExpiry(c.id, 30)}
-                          className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
-                        >
-                          <RefreshCw size={12} /> Extend Expiry (+30 Days)
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(c)}
-                          className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1"
-                        >
-                          <Edit2 size={12} /> Edit Date
-                        </button>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleSendPdfEmail(c)}
+                            disabled={sendingPdfCompanyId === c.id}
+                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                            title={`Send Registration Certificate PDF to ${c.adminEmail}`}
+                          >
+                            {sendingPdfCompanyId === c.id ? (
+                              <Loader2 size={12} className="animate-spin text-indigo-500" />
+                            ) : (
+                              <Mail size={12} className="text-indigo-500" />
+                            )}
+                            Send PDF Email
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(c)}
+                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                            title="Download Official Registration Certificate PDF"
+                          >
+                            <Download size={12} className="text-emerald-500" />
+                            Download PDF
+                          </button>
+                          <button
+                            onClick={() => handleExtendCompanyExpiry(c.id, 30)}
+                            className="px-3 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow"
+                          >
+                            <RefreshCw size={12} /> Extend Expiry (+30 Days)
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(c)}
+                            className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1"
+                          >
+                            <Edit2 size={12} /> Edit Date
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -815,15 +973,40 @@ export function SuperAdminDashboard() {
                       <td className="p-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">
                         {c.seatsUsed} Used ({c.seatsAllocated} Allocated)
                       </td>
-                      <td className="p-3.5 text-right space-x-1.5">
-                        {isCompExpired && (
-                          <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
-                            <RefreshCw size={11} /> +30 Days
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleSendPdfEmail(c)}
+                            disabled={sendingPdfCompanyId === c.id}
+                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                            title={`Send Registration Certificate PDF to ${c.adminEmail}`}
+                          >
+                            {sendingPdfCompanyId === c.id ? (
+                              <Loader2 size={12} className="animate-spin text-indigo-500" />
+                            ) : (
+                              <Mail size={12} className="text-indigo-500" />
+                            )}
+                            Send PDF Email
                           </button>
-                        )}
-                        <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
-                          <Edit2 size={12} /> Edit & Features
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(c)}
+                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                            title="Download Official Registration Certificate PDF"
+                          >
+                            <Download size={12} className="text-emerald-500" />
+                            Download PDF
+                          </button>
+                          {isCompExpired && (
+                            <button onClick={() => handleExtendCompanyExpiry(c.id, 30)} className="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                              <RefreshCw size={11} /> +30 Days
+                            </button>
+                          )}
+                          <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3.5 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
+                            <Edit2 size={12} /> Edit & Features
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1306,13 +1489,40 @@ export function SuperAdminDashboard() {
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-border">
-              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2.5 bg-muted text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold">
-                Cancel
-              </button>
-              <button onClick={handleSaveCompanyEdit} className="btn-primary text-xs px-6 py-2.5 shadow-lg bg-gradient-to-r from-cyan-600 to-indigo-600 text-white font-extrabold">
-                Save Company Features & Quotas ✓
-              </button>
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-border flex-wrap">
+              {editingCompany && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendPdfEmail(editingCompany)}
+                    disabled={sendingPdfCompanyId === editingCompany.id}
+                    className="px-3 py-1.5 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingPdfCompanyId === editingCompany.id ? (
+                      <Loader2 size={13} className="animate-spin text-indigo-500" />
+                    ) : (
+                      <Mail size={13} className="text-indigo-500" />
+                    )}
+                    Send PDF Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdf(editingCompany)}
+                    className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  >
+                    <Download size={13} className="text-emerald-500" />
+                    Download PDF
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 bg-muted text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold">
+                  Cancel
+                </button>
+                <button onClick={handleSaveCompanyEdit} className="btn-primary text-xs px-5 py-2 shadow-lg bg-gradient-to-r from-cyan-600 to-indigo-600 text-white font-extrabold">
+                  Save Company Features & Quotas ✓
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1350,6 +1560,127 @@ export function SuperAdminDashboard() {
             </div>
             <div className="flex justify-end pt-2">
               <button onClick={() => setChatLogModalOpen(false)} className="btn-primary text-xs px-5 py-2">Close Log</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📄 DEDICATED PDF DISPATCH & DOWNLOAD MODAL */}
+      {pdfModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="crm-card max-w-lg w-full p-6 bg-card border border-indigo-500/40 rounded-3xl shadow-2xl relative space-y-5 text-foreground">
+            <button
+              onClick={() => setPdfModalOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                <Mail size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-foreground">Registration Certificate Hub</h3>
+                <p className="text-xs text-muted-foreground">Send certificate PDF via email or download directly</p>
+              </div>
+            </div>
+
+            {/* Company Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground">Select Company / Tenant Workspace</label>
+              <select
+                className="crm-input w-full text-xs font-bold"
+                value={pdfSelectedCompany?.id || ''}
+                onChange={(e) => {
+                  const comp = companies.find((c: any) => c.id === e.target.value);
+                  setPdfSelectedCompany(comp || null);
+                  if (comp?.adminEmail) setPdfCustomEmail(comp.adminEmail);
+                }}
+              >
+                {companies.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — ({c.registrationKey || 'Key'} • {c.plan || 'Plan'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Company Info Badge */}
+            {pdfSelectedCompany && (
+              <div className="p-3.5 rounded-2xl bg-muted/40 border border-border space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-bold">Company Name:</span>
+                  <span className="font-extrabold text-foreground">{pdfSelectedCompany.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-bold">Registration Key:</span>
+                  <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{pdfSelectedCompany.registrationKey}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-bold">Plan Tier:</span>
+                  <span className="font-black px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 text-[10px]">
+                    {pdfSelectedCompany.plan || 'FREE_TRIAL'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Recipient Email Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground flex items-center justify-between">
+                <span>Send PDF with Mail to Address:</span>
+                <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-normal">Editable recipient</span>
+              </label>
+              <input
+                type="email"
+                className="crm-input w-full text-xs font-mono font-bold"
+                value={pdfCustomEmail}
+                onChange={(e) => setPdfCustomEmail(e.target.value)}
+                placeholder="company-admin@domain.com"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-border flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  if (pdfSelectedCompany) handleDownloadPdf(pdfSelectedCompany);
+                }}
+                disabled={!pdfSelectedCompany}
+                className="px-4 py-2.5 rounded-xl font-extrabold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                <Download size={14} className="text-emerald-500" />
+                Download PDF
+              </button>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setPdfModalOpen(false)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (pdfSelectedCompany) {
+                      await handleSendPdfEmail(pdfSelectedCompany, pdfCustomEmail);
+                    }
+                  }}
+                  disabled={!pdfSelectedCompany || sendingPdfCompanyId === pdfSelectedCompany?.id}
+                  className="px-4 py-2.5 rounded-xl font-extrabold text-xs bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {sendingPdfCompanyId === pdfSelectedCompany?.id ? (
+                    <Loader2 size={14} className="animate-spin text-white" />
+                  ) : (
+                    <Mail size={14} />
+                  )}
+                  Send PDF with Mail
+                </button>
+              </div>
             </div>
           </div>
         </div>
