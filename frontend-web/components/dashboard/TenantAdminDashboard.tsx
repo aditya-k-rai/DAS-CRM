@@ -108,56 +108,6 @@ export function TenantAdminDashboard() {
   // Widget 6: Telemetry Filter / Export
   const [telemetryExporting, setTelemetryExporting] = useState(false);
 
-  // Registration PDF Action State
-  const [sendingPdf, setSendingPdf] = useState(false);
-  const [pdfNotice, setPdfNotice] = useState<{ type: 'success' | 'error'; message: string; previewUrl?: string } | null>(null);
-
-  const handleSendPdfEmail = async () => {
-    const compId = currentUser.companyId || subscription.id;
-    if (!compId) return;
-    setSendingPdf(true);
-    setPdfNotice(null);
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${compId}/send-registration-pdf`,
-        {
-          method: 'POST',
-          headers,
-        },
-      );
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setPdfNotice({
-          type: 'success',
-          message: data.message || `Registration Certificate PDF sent to ${currentUser.email}`,
-          previewUrl: data.previewUrl || data.delivery?.previewUrl,
-        });
-      } else {
-        setPdfNotice({
-          type: 'error',
-          message: data.message || 'Failed to dispatch Registration PDF email.',
-        });
-      }
-    } catch (err: any) {
-      setPdfNotice({
-        type: 'error',
-        message: 'Could not connect to server: ' + err?.message,
-      });
-    } finally {
-      setSendingPdf(false);
-    }
-  };
-
-  const handleDownloadPdf = () => {
-    const compId = currentUser.companyId || subscription.id;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    window.open(`${apiUrl}/auth/super-admin/companies/${compId}/registration-pdf`, '_blank');
-  };
-
   // ============================================================
   // LEAD INCOMING HISTORY & DATA AUDIT LOG STATE
   // ============================================================
@@ -797,35 +747,12 @@ export function TenantAdminDashboard() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                {subscription.companyName} · Executive Operating System & Multi-Tenant Control Hub
+                {currentUser?.companyName || subscription?.companyName || 'Adorable Trading'} · Executive Operating System & Multi-Tenant Control Hub
               </p>
             </div>
           </div>
 
           <div className="flex gap-2 flex-wrap items-center">
-            <button
-              type="button"
-              onClick={handleSendPdfEmail}
-              disabled={sendingPdf}
-              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              title={`Send Official Registration Certificate to ${currentUser.email}`}
-            >
-              {sendingPdf ? (
-                <Loader2 size={13} className="animate-spin text-indigo-500" />
-              ) : (
-                <Mail size={13} className="text-indigo-500" />
-              )}
-              Send PDF Email
-            </button>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-              title="Download Official Registration Certificate PDF"
-            >
-              <Download size={13} className="text-emerald-500" />
-              Download PDF
-            </button>
             <Link href="/admin/team-leaders" className="btn-secondary text-xs gap-1.5 flex items-center font-bold">
               <Shield size={14} className="text-indigo-500 dark:text-indigo-400" /> Structure Builder
             </Link>
@@ -835,44 +762,6 @@ export function TenantAdminDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ── NOTIFICATION BANNER FOR PDF ACTIONS ── */}
-      {pdfNotice && (
-        <div
-          className={`p-4 rounded-2xl flex items-center justify-between gap-3 shadow-lg border transition-all ${
-            pdfNotice.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            {pdfNotice.type === 'success' ? (
-              <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
-            ) : (
-              <AlertCircle size={18} className="text-rose-500 shrink-0" />
-            )}
-            <p className="text-xs font-bold">{pdfNotice.message}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {pdfNotice.previewUrl && (
-              <a
-                href={pdfNotice.previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition-all flex items-center gap-1 shadow-sm"
-              >
-                <span>View Email Preview</span> &rarr;
-              </a>
-            )}
-            <button
-              onClick={() => setPdfNotice(null)}
-              className="text-xs opacity-70 hover:opacity-100 px-1 font-bold cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ============================================================ */}
       {/* TOP KPI METRICS BAR (RESPONSIVE STAT CARDS)                 */}

@@ -915,7 +915,10 @@ export class AuthService {
     }
 
     // 3. Password Verification
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    let valid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!valid && dto.password && typeof dto.password === 'string' && dto.password.trim() !== dto.password) {
+      valid = await bcrypt.compare(dto.password.trim(), user.passwordHash);
+    }
     if (!valid) {
       throw new UnauthorizedException(
         `Wrong Password: The password entered for account "${emailLower}" is incorrect. Please check your password or click "Forgot Password?" to reset.`,
@@ -1348,10 +1351,23 @@ export class AuthService {
       note?: string;
     },
   ) {
-    const org = await this.prisma.organization.findUnique({
+    let org = await this.prisma.organization.findUnique({
       where: { id: companyId },
       include: { subscription: true },
     });
+
+    if (!org) {
+      const keyRec = await this.prisma.companyRegistrationKey.findFirst({
+        where: { key: companyId },
+      });
+      if (keyRec?.usedByOrganizationId) {
+        org = await this.prisma.organization.findUnique({
+          where: { id: keyRec.usedByOrganizationId },
+          include: { subscription: true },
+        });
+      }
+    }
+
     if (!org) throw new BadRequestException('Company not found');
 
     const planTier = dto.planTier || dto.plan || org.subscription?.planTier || 'FREE_TRIAL';
@@ -1367,11 +1383,16 @@ export class AuthService {
     };
 
     await this.prisma.organization.update({
-      where: { id: companyId },
+      where: { id: org.id },
       data: {
         isActive: true,
         settings: updatedSettings,
       },
+    });
+
+    await this.prisma.user.updateMany({
+      where: { organizationId: org.id },
+      data: { isActive: true },
     });
 
     if (org.subscription) {
@@ -1385,7 +1406,7 @@ export class AuthService {
       const nextEmailReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
 
       await this.prisma.subscription.update({
-        where: { organizationId: companyId },
+        where: { organizationId: org.id },
         data: {
           planTier,
           memberLimit,

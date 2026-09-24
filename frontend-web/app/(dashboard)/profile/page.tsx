@@ -488,7 +488,7 @@ export default function UserProfilePage() {
         userEmail={currentUser?.email}
         userRole={currentUser?.role}
         userAvatar={currentUser?.avatar}
-        companyName={subscription?.companyName || 'Acme Sales Solutions'}
+        companyName={currentUser?.companyName || subscription?.companyName || 'Adorable Trading'}
       />
 
     </div>

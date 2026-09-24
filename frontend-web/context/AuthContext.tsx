@@ -280,6 +280,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
               parsed.role = 'ADMIN';
             }
+            if (!parsed.companyName || parsed.companyName === 'Acme Sales Solutions') {
+              const lastReg = localStorage.getItem('last_registered_company');
+              if (lastReg) {
+                try {
+                  const regData = JSON.parse(lastReg);
+                  if (regData?.name) parsed.companyName = regData.name;
+                } catch (_) {}
+              }
+            }
             return parsed;
           }
         } catch (e) {}
@@ -287,13 +296,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const roleStr = localStorage.getItem('das_crm_active_role');
       if (roleStr) {
         const safeRole = normalizeRoleStr(roleStr);
-        return DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
+        const baseUser = DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
+        const lastReg = localStorage.getItem('last_registered_company');
+        let compName = baseUser.companyName;
+        if (lastReg) {
+          try {
+            const regData = JSON.parse(lastReg);
+            if (regData?.name) compName = regData.name;
+          } catch (_) {}
+        }
+        return { ...baseUser, companyName: compName };
       }
     }
     return DEMO_USERS.ADMIN;
   });
 
-  const [subscription, setSubscription] = useState<CompanySubscription>(MOCK_COMPANY_SUB);
+  const [subscription, setSubscription] = useState<CompanySubscription>(() => {
+    if (typeof window !== 'undefined') {
+      const storedSub = localStorage.getItem('das_crm_subscription');
+      if (storedSub) {
+        try {
+          const parsed = JSON.parse(storedSub);
+          if (parsed && parsed.companyName && parsed.companyName !== 'Acme Sales Solutions') {
+            return parsed;
+          }
+        } catch (_) {}
+      }
+      const storedUser = localStorage.getItem('das_crm_user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          if (parsedUser && parsedUser.companyName && parsedUser.companyName !== 'Acme Sales Solutions') {
+            return {
+              ...MOCK_COMPANY_SUB,
+              id: parsedUser.companyId || 'comp_current',
+              companyName: parsedUser.companyName,
+            };
+          }
+        } catch (_) {}
+      }
+      const lastReg = localStorage.getItem('last_registered_company');
+      if (lastReg) {
+        try {
+          const parsedReg = JSON.parse(lastReg);
+          if (parsedReg?.name) {
+            return {
+              ...MOCK_COMPANY_SUB,
+              id: parsedReg.id || 'comp_current',
+              companyName: parsedReg.name,
+            };
+          }
+        } catch (_) {}
+      }
+    }
+    return MOCK_COMPANY_SUB;
+  });
+
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('das_crm_token');
@@ -301,6 +359,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
   const [roleTransitionLock, setRoleTransitionLock] = useState<RoleTransitionLock | null>(null);
+
+  // Sync subscription companyName with currentUser companyName whenever currentUser changes
+  useEffect(() => {
+    if (currentUser?.companyName && currentUser.companyName !== 'Acme Sales Solutions' && subscription.companyName !== currentUser.companyName) {
+      setSubscription(prev => ({
+        ...prev,
+        id: currentUser.companyId || prev.id,
+        companyName: currentUser.companyName,
+      }));
+    }
+  }, [currentUser?.companyName, currentUser?.companyId]);
 
   // localStorage hydration is fully handled by the lazy useState initializer above.
   // Enforce plan features
@@ -382,12 +451,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...user,
       role: normalizeRoleStr(user.role || inferRoleFromEmail(user.email)),
     };
+    const compName = user.companyName || sub?.companyName || 'Adorable Trading';
+    const effectiveSub: CompanySubscription = sub ? {
+      ...sub,
+      companyName: compName,
+    } : {
+      ...subscription,
+      id: user.companyId || subscription.id,
+      companyName: compName,
+    };
+
     setCurrentUser(normalizedUser);
     setToken(newTok);
-    if (sub) setSubscription(sub);
+    setSubscription(effectiveSub);
+
     localStorage.setItem('das_crm_user', JSON.stringify(normalizedUser));
     localStorage.setItem('das_crm_token', newTok);
     localStorage.setItem('das_crm_active_role', normalizedUser.role);
+    localStorage.setItem('das_crm_subscription', JSON.stringify(effectiveSub));
   };
 
   const logout = () => {
@@ -397,6 +478,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('das_crm_user');
     localStorage.removeItem('das_crm_token');
     localStorage.removeItem('das_crm_active_role');
+    localStorage.removeItem('das_crm_subscription');
   };
 
   const setRoleLockState = (lock: RoleTransitionLock | null) => {

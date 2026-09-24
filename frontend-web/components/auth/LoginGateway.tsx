@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Shield, Key, Lock, Mail, Building2, UserCheck, ArrowRight,
-  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check, RefreshCw, PlusCircle
+  Sparkles, CheckCircle2, AlertCircle, Laptop, QrCode, Check, RefreshCw, PlusCircle,
+  Eye, EyeOff
 } from 'lucide-react';
-import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail, validateEmailRoleMatch } from '@/context/AuthContext';
+import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail, validateEmailRoleMatch, CompanySubscription } from '@/context/AuthContext';
 
 interface PublicCompany {
   id: string;
@@ -137,6 +138,7 @@ export function LoginGateway() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
   const [rememberMe, setRememberMe] = useState(true);
   const [hasAutofilled, setHasAutofilled] = useState(false);
@@ -146,6 +148,7 @@ export function LoginGateway() {
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [keyValidating, setKeyValidating] = useState(false);
   const [keyInfo, setKeyInfo] = useState<{ valid: boolean; assignedRole?: string } | null>(null);
 
@@ -159,6 +162,7 @@ export function LoginGateway() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState<'email' | 'otp'>('email');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMsg, setForgotMsg] = useState<string | null>(null);
@@ -364,6 +368,26 @@ export function LoginGateway() {
         }
 
         const redirectUrl = getPostLoginRedirectRoute(finalRole);
+        const compName = data.organization?.name || data.user?.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Adorable Trading';
+        const compId = data.organization?.id || data.user?.organization?.id || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
+        const subData: CompanySubscription = {
+          id: compId,
+          companyName: compName,
+          planType: (data.organization?.subscription?.planTier || data.organization?.settings?.requestedPlan || 'BUSINESS') as any,
+          trialDaysLeft: data.organization?.settings?.requestedValidityDays || 15,
+          isExpired: false,
+          userSeatsAllocated: 18,
+          userSeatsUsed: 1,
+          hasTeamLeaders: true,
+          features: {
+            whatsApp: true,
+            emailAutomation: true,
+            aiLeadScoring: true,
+            customSalaryBuilder: true,
+            exportCSV: true,
+          },
+        };
+
         setAuthSession(
           {
             id: data.user?.id || demoProfile.id,
@@ -371,10 +395,11 @@ export function LoginGateway() {
             email: data.user?.email || email,
             role: finalRole,
             avatar: data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : demoProfile.avatar,
-            companyId: data.organization?.id || selectedCompanyId,
-            companyName: data.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Acme Sales Solutions',
+            companyId: compId,
+            companyName: compName,
           },
-          data.accessToken
+          data.accessToken,
+          subData
         );
         setLoading(false);
         navigateToRoute(redirectUrl);
@@ -934,14 +959,28 @@ export function LoginGateway() {
                 <div>
                   <label className="text-xs text-muted block mb-1">Password *</label>
                   <div className="relative flex items-center">
-                    <Lock size={15} className="absolute left-3 text-muted" />
+                    <Lock size={15} className="absolute left-3 text-muted pointer-events-none" />
                     <input
                       disabled={loading}
-                      type="password"
-                      className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+                      type={showPassword ? 'text' : 'password'}
+                      className="crm-input pl-9 pr-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
+                        showPassword
+                          ? 'text-indigo-400 bg-indigo-500/15 border border-indigo-500/30 shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      }`}
+                      title={showPassword ? 'Hide password (currently visible)' : 'Show password'}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
                   <div className="flex items-center justify-between mt-1.5 px-0.5">
                     <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
@@ -1091,13 +1130,28 @@ export function LoginGateway() {
                 </div>
                 <div>
                   <label className="text-xs text-muted block mb-1">Password *</label>
-                  <input
-                    type="password"
-                    className="crm-input text-sm h-10 w-full"
-                    placeholder="••••••••"
-                    value={staffPassword}
-                    onChange={e => setStaffPassword(e.target.value)}
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type={showStaffPassword ? 'text' : 'password'}
+                      className="crm-input text-sm h-10 w-full pr-9"
+                      placeholder="••••••••"
+                      value={staffPassword}
+                      onChange={e => setStaffPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStaffPassword(!showStaffPassword)}
+                      className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
+                        showStaffPassword
+                          ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title={showStaffPassword ? 'Hide password' : 'Show password'}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showStaffPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1184,13 +1238,28 @@ export function LoginGateway() {
                 </div>
                 <div>
                   <label className="text-xs text-slate-300 block mb-1">New Secure Password *</label>
-                  <input
-                    type="password"
-                    className="crm-input text-sm h-10 w-full"
-                    placeholder="Enter new password"
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      className="crm-input text-sm h-10 w-full pr-9"
+                      placeholder="Enter new password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
+                        showResetPassword
+                          ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title={showResetPassword ? 'Hide password' : 'Show password'}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showResetPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"

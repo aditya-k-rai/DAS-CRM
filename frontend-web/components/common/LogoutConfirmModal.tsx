@@ -29,7 +29,7 @@ export function LogoutConfirmModal({
   userName = 'Current User',
   userEmail = '',
   userRole = 'ADMIN',
-  companyName = 'Acme Sales Solutions',
+  companyName = 'Adorable Trading',
   userAvatar = 'AU',
 }: LogoutConfirmModalProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);

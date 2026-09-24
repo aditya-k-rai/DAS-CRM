@@ -7,7 +7,7 @@ import {
   Building2, Key, CheckCircle2, AlertCircle, ArrowRight, Shield, QrCode, Mail, Lock, Check, X,
   Layers, MapPin, Search, RefreshCw, Clock, ChevronDown, Tag, Sparkles, Zap, Users, BarChart3,
   Download, PartyPopper, Crown, Calendar, Phone, CreditCard,
-  FileText, Database, Send, Loader2, ExternalLink
+  FileText, Database, Send, Loader2, ExternalLink, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -435,6 +435,7 @@ export default function RegisterCompanyPage() {
   const [adminName, setAdminName]             = useState('');
   const [adminEmail, setAdminEmail]           = useState('');
   const [adminPassword, setAdminPassword]     = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [phone, setPhone]                     = useState('');
   const [pincode, setPincode]                 = useState('');
   const [city, setCity]                       = useState('');
@@ -1525,14 +1526,29 @@ export default function RegisterCompanyPage() {
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Admin Password *</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••••••"
-                    className="crm-input text-sm"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      required
+                      placeholder="••••••••••••"
+                      className="crm-input text-sm pr-9 w-full"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
+                        showAdminPassword
+                          ? 'text-indigo-400 bg-indigo-500/15 border border-indigo-500/30'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                      title={showAdminPassword ? 'Hide password (currently visible)' : 'Show password'}
+                      aria-label="Toggle password visibility"
+                    >
+                      {showAdminPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
