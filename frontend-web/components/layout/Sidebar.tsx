@@ -26,7 +26,7 @@ interface NavItem {
 // ─── Navigation Items in exact order specified ───
 // Displayed for ADMIN and MANAGER roles
 const adminNavigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'SUPER_ADMIN'] },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
@@ -74,11 +74,11 @@ export function Sidebar() {
 
   const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'ADMIN');
 
-  const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(currentNormalizedRole);
+  const isAdminOrManager = ['ADMIN', 'MANAGER'].includes(currentNormalizedRole);
 
   // Filter navigation items for Admin & Manager (all 20) vs other roles
   const filteredNav = adminNavigation.filter(item => {
-    if (isAdminOrManager) return true; // Admin & Manager get all 20 items
+    if (isAdminOrManager) return true;
     if (!item.roles) return true;
     const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
     return normalizedItemRoles.includes(currentNormalizedRole);
@@ -90,7 +90,6 @@ export function Sidebar() {
     if (currentNormalizedRole === 'MANAGER') return '/dashboard/manager';
     if (currentNormalizedRole === 'TEAM_LEADER') return '/dashboard/team-leader';
     if (currentNormalizedRole === 'SALES_EXEC') return '/dashboard/sales';
-    if (currentNormalizedRole === 'SUPER_ADMIN') return '/admin/super';
     return '/dashboard';
   };
 

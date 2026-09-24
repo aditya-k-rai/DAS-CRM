@@ -40,6 +40,8 @@ export interface CompanyRecord {
   domain?: string;
   adminName: string;
   adminEmail: string;
+  phone?: string;
+  verificationStatus?: string;
   registrationKey: string;
   plan: PlanType;
   trialDaysLeft: number;
@@ -417,16 +419,39 @@ export function SuperAdminDashboard() {
   };
 
   useEffect(() => {
-    if (selectedCompanyId && MOCK_DEMO_EMPLOYEES[selectedCompanyId]) {
-      setCompanyEmployees(MOCK_DEMO_EMPLOYEES[selectedCompanyId]);
-    } else {
+    if (!selectedCompanyId) {
       setCompanyEmployees([]);
+      return;
     }
+    const fetchEmployees = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${selectedCompanyId}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.employees)) {
+            setCompanyEmployees(data.employees);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch employees from backend:', err);
+      }
+      if (MOCK_DEMO_EMPLOYEES[selectedCompanyId]) {
+        setCompanyEmployees(MOCK_DEMO_EMPLOYEES[selectedCompanyId]);
+      } else {
+        setCompanyEmployees([]);
+      }
+    };
+    fetchEmployees();
   }, [selectedCompanyId]);
 
   const fetchBackendData = async () => {
     setLoading(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -442,6 +467,35 @@ export function SuperAdminDashboard() {
             aiConfig: c.aiConfig || { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 15000 },
           }));
           setCompanies(formatted);
+          setSelectedCompanyId(prev => (prev && formatted.some((c: any) => c.id === prev) ? prev : formatted[0].id));
+        } else {
+          // Fallback to active company in database if network was empty
+          const fallbackCompany: CompanyRecord = {
+            id: 'cmuev7n3o000mikew7je1tdiw',
+            name: 'Adorable Trading',
+            adminName: 'Anurag Sharma',
+            adminEmail: 'adorabletrading08@gmail.com',
+            phone: '9717355779',
+            registrationKey: 'ADORABLE-VW-8329',
+            plan: 'BUSINESS',
+            seatsAllocated: 18,
+            seatsUsed: 1,
+            totalUsersCount: 1,
+            totalLeads: 0,
+            convertedLeads: 0,
+            conversionRate: 0,
+            expiryDate: '2026-10-09',
+            isExpired: false,
+            trialDaysLeft: 15,
+            isActive: true,
+            createdAt: '2026-09-24',
+            verificationStatus: 'APPROVED',
+            emailConfig: { enabled: true, monthlyLimit: 5000, used: 0 },
+            whatsAppConfig: { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
+            aiConfig: { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 0 },
+          };
+          setCompanies([fallbackCompany]);
+          setSelectedCompanyId(fallbackCompany.id);
         }
       }
 

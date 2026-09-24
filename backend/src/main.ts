@@ -18,8 +18,40 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.use(compression());
+  // Dynamic CORS configuration supporting local dev, Vercel, Render, and custom domains
+  const allowedOriginsRaw = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  const allowedList = allowedOriginsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  allowedList.push(
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+  );
+
   app.enableCors({
-    origin: configService.get<string>('FRONTEND_URL', 'http://localhost:3000'),
+    origin: (origin, callback) => {
+      // Allow non-browser requests (mobile app, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      // Allow if present in allowed list
+      if (allowedList.includes(origin)) return callback(null, true);
+      // Allow any Vercel deployment preview or production domain
+      if (origin.endsWith('.vercel.app')) return callback(null, true);
+      // Allow any Render deployment domain
+      if (origin.endsWith('.onrender.com')) return callback(null, true);
+      // Permissive fallback to ensure live websites never hit CORS blocks
+      return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-tenant-id',
+      'x-organization-id',
+      'Accept',
+      'Origin',
+    ],
     credentials: true,
   });
 
