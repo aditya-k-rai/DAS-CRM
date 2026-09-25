@@ -249,8 +249,8 @@ export function LoginGateway() {
 
       const targetCompanyId = urlCompanyId || storedCompany?.id || DEFAULT_ACTIVE_COMPANY.id;
       const targetCompanyName = urlCompanyName || storedCompany?.name || DEFAULT_ACTIVE_COMPANY.name;
-      const targetKey = urlKey || storedCompany?.key || 'DAS-VW-8329';
-      const targetEmail = urlEmail || storedCompany?.email || 'adorabletrading08@gmail.com';
+      const targetKey = urlKey || storedCompany?.key || '';
+      const targetEmail = urlEmail || storedCompany?.email || '';
 
       // If target company is not in the list, prepend it
       if (targetCompanyId && targetCompanyName && !companies.some(c => c.id === targetCompanyId)) {
@@ -290,7 +290,7 @@ export function LoginGateway() {
         },
       ]);
       setSelectedCompanyId('cmuev7n3o000mikew7je1tdiw');
-      setCompanyKeyInput('DAS-VW-8329');
+      setCompanyKeyInput('');
     } finally {
       setFetchingCompanies(false);
     }
@@ -975,15 +975,18 @@ export function LoginGateway() {
                 )}
               </div>
 
-              {/* Company Key or User Key Input */}
+              {/* Company Key Input */}
               <div>
-                <label className="text-xs text-muted block mb-1">Company / User Key (Format: DAS-KX-7421) *</label>
+                <label className="text-xs text-muted block mb-1">
+                  Company Key (Format: ADO-EC-7187) *
+                  <span className="ml-2 text-[10px] text-indigo-400 font-normal">Use your own company&apos;s key</span>
+                </label>
                 <div className="relative flex items-center">
                   <Key size={15} className="absolute left-3 text-purple-400" />
                   <input
                     disabled={loading}
                     className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-                    placeholder="DAS-KX-7421"
+                    placeholder="e.g. ADO-EC-7187"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -993,6 +996,11 @@ export function LoginGateway() {
                     onChange={e => setCompanyKeyInput(formatCompanyKey(e.target.value))}
                   />
                 </div>
+                {!companyKeyInput && (
+                  <p className="text-[10px] text-amber-400/80 mt-1 flex items-center gap-1">
+                    <AlertCircle size={10} /> Enter the Company Key sent to your admin email during registration.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

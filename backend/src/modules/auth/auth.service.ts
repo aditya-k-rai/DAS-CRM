@@ -883,26 +883,126 @@ export class AuthService {
   async login(dto: LoginDto) {
     const emailLower = (dto.email || '').toLowerCase().trim();
 
-    // 1. Email Account Lookup Verification
+    // ══════════════════════════════════════════════════════════
+    // STEP 1: Company Key is the PRIMARY identifier.
+    // The key resolves which company/organization the user
+    // is trying to access. This prevents cross-company login.
+    // ══════════════════════════════════════════════════════════
+    const keyInput = (dto.key || '').trim().toUpperCase();
+
+    let resolvedOrgId: string | null = null;
+    let resolvedCompanyKey: any = null;
+
+    if (keyInput) {
+      // Look up company registration key directly
+      resolvedCompanyKey = await this.prisma.companyRegistrationKey.findUnique({
+        where: { key: keyInput },
+      });
+
+      // Backward compatibility: old DAS-VW-8329 or ADORABLE- prefix keys map to ADO-EC-7187
+      if (!resolvedCompanyKey && (keyInput === 'DAS-VW-8329' || keyInput.startsWith('ADORABLE-'))) {
+        resolvedCompanyKey = await this.prisma.companyRegistrationKey.findFirst({
+          where: {
+            OR: [
+              { key: 'ADO-EC-7187' },
+              { key: 'DAS-VW-8329' },
+              { key: keyInput.replace(/^ADORABLE-/, 'DAS-') },
+            ],
+          },
+        });
+      }
+
+      if (resolvedCompanyKey) {
+        // Key found — validate status
+        if (resolvedCompanyKey.status === 'REVOKED') {
+          throw new ForbiddenException(
+            `Company Key Revoked: The key "${keyInput}" has been revoked by Super Admin. Please contact support.`,
+          );
+        }
+        if (resolvedCompanyKey.expiresAt && resolvedCompanyKey.expiresAt < new Date()) {
+          const keyExpiryStr = resolvedCompanyKey.expiresAt.toLocaleDateString('en-IN', {
+            day: 'numeric', month: 'long', year: 'numeric',
+          });
+          throw new ForbiddenException(
+            `Company Key Expired: The key "${keyInput}" expired on ${keyExpiryStr}. Please contact Super Admin to renew your plan.`,
+          );
+        }
+        // Key is valid — resolve the organization it belongs to
+        resolvedOrgId = resolvedCompanyKey.usedByOrganizationId || null;
+      } else {
+        // Key not found as a company key — check if it's a user invite key
+        const userKey = await this.prisma.userInviteKey.findUnique({
+          where: { key: keyInput },
+        });
+        if (userKey) {
+          if (userKey.status === 'REVOKED' || (userKey.expiresAt && userKey.expiresAt < new Date())) {
+            throw new ForbiddenException(
+              `User Invite Key Expired/Revoked: The invite key "${keyInput}" is invalid or expired. Contact your Tenant Admin.`,
+            );
+          }
+          resolvedOrgId = userKey.organizationId || null;
+        } else {
+          throw new UnauthorizedException(
+            `Invalid Company Key: No company workspace found for key "${keyInput}". Please check your Company Key and try again.`,
+          );
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // STEP 2: Find user — SCOPED to the key's organization.
+    // A user can only authenticate within their own company.
+    // ══════════════════════════════════════════════════════════
     let user = await this.prisma.user.findFirst({
-      where: { email: emailLower },
+      where: {
+        email: emailLower,
+        ...(resolvedOrgId ? { organizationId: resolvedOrgId } : {}),
+      },
       include: {
         organization: true,
         role: { include: { permissions: { include: { permission: true } } } },
       },
     });
 
-    if (!user) {
+    // Demo user provisioning (no key scope restriction for demo accounts)
+    if (!user && !resolvedOrgId) {
       user = await this.autoProvisionDemoRoleUser(dto.email, dto.password);
     }
 
     if (!user) {
+      if (resolvedOrgId) {
+        // User was not found IN the key's company — give a clear message
+        const keyOrg = await this.prisma.organization.findUnique({
+          where: { id: resolvedOrgId },
+          select: { name: true },
+        });
+        throw new UnauthorizedException(
+          `Wrong Key or Email: No account for "${emailLower}" was found in company workspace "${keyOrg?.name || resolvedOrgId}". Please use your own Company Key.`,
+        );
+      }
       throw new UnauthorizedException(
-        `Wrong Email: No registered user account found for email "${emailLower}". Please check your email address or register your company.`,
+        `Wrong Email: No registered user account found for "${emailLower}". Please check your email address or register your company.`,
       );
     }
 
-    // 2. User Account Status Verification
+    // ══════════════════════════════════════════════════════════
+    // STEP 3: Cross-verify — if key resolved an org, ensure the
+    // user actually belongs to THAT org (belt + suspenders).
+    // ══════════════════════════════════════════════════════════
+    if (resolvedOrgId && user.organizationId !== resolvedOrgId) {
+      throw new ForbiddenException(
+        `Wrong Company Key: This key belongs to a different company workspace. Please use your own Company Key to log in.`,
+      );
+    }
+
+    // If organizationId was passed from UI, also verify it matches
+    if (dto.organizationId && user.organizationId && user.organizationId !== dto.organizationId) {
+      throw new ForbiddenException(
+        'Selected company workspace does not match this user account. Please select your registered company workspace.',
+      );
+    }
+
+    // 4. User Account Status Verification
     if (user.isActive === false) {
       throw new ForbiddenException(
         `User Account Deactivated: Your account (${emailLower}) has been deactivated by your Tenant Admin. Please contact your company administrator.`,
@@ -928,7 +1028,7 @@ export class AuthService {
       }
     }
 
-    // 3. Password Verification
+    // 5. Password Verification
     let valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid && dto.password && typeof dto.password === 'string' && dto.password.trim() !== dto.password) {
       valid = await bcrypt.compare(dto.password.trim(), user.passwordHash);
@@ -939,16 +1039,10 @@ export class AuthService {
       );
     }
 
-    // 4. Company Workspace & Verification Status Check
-    if (dto.organizationId && user.organizationId && user.organizationId !== dto.organizationId) {
-      throw new ForbiddenException(
-        'Selected company workspace does not match this user account. Please select your registered company workspace.',
-      );
-    }
-
+    // 6. Company Workspace & Verification Status Check
     if (user.organization) {
       const settings = (user.organization.settings as any) || {};
-      const regKey = user.organization.registrationKeyId || dto.key || 'N/A';
+      const regKey = user.organization.registrationKeyId || keyInput || 'N/A';
 
       if (settings.verificationStatus === 'REJECTED') {
         throw new ForbiddenException({
@@ -985,7 +1079,7 @@ export class AuthService {
       }
     }
 
-    // 5. Subscription Plan Active & Expiry Date Verification
+    // 7. Subscription Plan Active & Expiry Check (Key tells us if the plan is active)
     if (user.organizationId) {
       const subscription = await this.prisma.subscription.findUnique({
         where: { organizationId: user.organizationId },
@@ -1008,54 +1102,8 @@ export class AuthService {
             : 'recently';
 
           throw new ForbiddenException(
-            `Plan Expired: Your company subscription plan (${subscription.planTier}) expired on ${expiryDateFormatted}. Please contact your Tenant Admin or Super Admin to upgrade your plan.`,
+            `Plan Expired: Your company subscription plan (${subscription.planTier}) expired on ${expiryDateFormatted}. Please contact your Tenant Admin or Super Admin to renew your plan.`,
           );
-        }
-      }
-    }
-
-    // 6. Registration / Invite Key Verification
-    const keyToValidate = (dto.key || user.inviteKeyUsed || '').trim().toUpperCase();
-    if (keyToValidate) {
-      let companyKey = await this.prisma.companyRegistrationKey.findUnique({
-        where: { key: keyToValidate },
-      });
-      if (!companyKey && (keyToValidate === 'DAS-VW-8329' || keyToValidate.startsWith('ADORABLE-'))) {
-        companyKey = await this.prisma.companyRegistrationKey.findFirst({
-          where: {
-            OR: [
-              { key: 'ADO-EC-7187' },
-              { key: 'DAS-VW-8329' },
-              { key: keyToValidate.replace(/^ADORABLE-/, 'DAS-') },
-            ],
-          },
-        });
-      }
-
-      if (companyKey) {
-        if (companyKey.status === 'REVOKED' || companyKey.expiresAt < new Date()) {
-          const keyExpiryStr = companyKey.expiresAt
-            ? companyKey.expiresAt.toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })
-            : 'recently';
-          throw new ForbiddenException(
-            `Company Key Expired/Revoked: The registration key "${keyToValidate}" expired on ${keyExpiryStr} or was revoked by Super Admin.`,
-          );
-        }
-      } else {
-        const userKey = await this.prisma.userInviteKey.findUnique({
-          where: { key: keyToValidate },
-        });
-
-        if (userKey) {
-          if (userKey.status === 'REVOKED' || userKey.expiresAt < new Date()) {
-            throw new ForbiddenException(
-              `User Invite Key Expired/Revoked: The invite key "${keyToValidate}" is invalid or expired. Contact your Tenant Admin.`,
-            );
-          }
         }
       }
     }
