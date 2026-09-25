@@ -150,11 +150,12 @@ export function LoginGateway() {
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
+  const [staffRole, setStaffRole] = useState<UserRole>('SALES_EXEC');
   const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [keyValidating, setKeyValidating] = useState(false);
   const [keyInfo, setKeyInfo] = useState<{
     valid: boolean;
-    assignedRole?: string;
+    keyType?: 'COMPANY_KEY';
     organizationId?: string;
     organizationName?: string;
     expiresAt?: string;
@@ -619,7 +620,7 @@ export function LoginGateway() {
     setLoading(true);
     setError(null);
 
-    const assignedRole = normalizeRoleStr(keyInfo?.assignedRole || 'SALES_EXEC');
+    const assignedRole = normalizeRoleStr(staffRole);
     // Use the company resolved from key validation — never hardcoded
     const resolvedCompanyId = keyInfo?.organizationId || '';
     const resolvedCompanyName = keyInfo?.organizationName || 'Your Company';
@@ -633,6 +634,7 @@ export function LoginGateway() {
           name: staffName,
           email: staffEmail,
           password: staffPassword,
+          role: assignedRole, // passed for company key registrations
         }),
       });
 
@@ -1166,22 +1168,22 @@ export function LoginGateway() {
           <div className="space-y-4">
             <div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                STAFF USER INVITE KEY
+                COMPANY KEY REGISTRATION
               </span>
               <h3 className="text-xl font-bold text-white mt-2">Join Your Company Workspace</h3>
               <p className="text-xs text-muted mt-0.5">
-                Enter the Staff Invite Key your Admin sent you. The key will automatically link you to your company and assign your role.
+                Enter your Company Key (provided by your Admin). The key auto-links you to your company workspace — then pick your role and create your account.
               </p>
             </div>
 
             <div className="space-y-3">
               {/* Key Input + Validate */}
               <div>
-                <label className="text-xs text-muted block mb-1">Staff Invite Key (e.g. ADO-RX-4312) *</label>
+                <label className="text-xs text-muted block mb-1">Company Key (e.g. ADO-EC-7187) *</label>
                 <div className="flex gap-2">
                   <input
                     className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider pl-4"
-                    placeholder="ADO-RX-4312"
+                    placeholder="ADO-EC-7187"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -1189,7 +1191,7 @@ export function LoginGateway() {
                     value={userKey}
                     onChange={e => {
                       setUserKey(formatCompanyKey(e.target.value));
-                      setKeyInfo(null); // reset validation if user edits key
+                      setKeyInfo(null);
                       setError(null);
                     }}
                     onKeyDown={e => e.key === 'Enter' && handleValidateUserKey()}
@@ -1203,7 +1205,7 @@ export function LoginGateway() {
                     {keyValidating ? 'Verifying...' : 'Validate Key'}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted mt-1">Your Admin generates this key from the HR / Team Management panel.</p>
+                <p className="text-[10px] text-muted mt-1">Your Admin can find this key in the Super Admin panel under Keys &amp; Companies.</p>
               </div>
 
               {/* Company Workspace Card — shown after successful key validation */}
@@ -1212,7 +1214,7 @@ export function LoginGateway() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 size={15} className="text-emerald-400 flex-shrink-0" />
-                      <span className="text-xs font-bold text-emerald-300">Key Validated Successfully</span>
+                      <span className="text-xs font-bold text-emerald-300">Company Key Verified</span>
                     </div>
                     {keyInfo.expiresAt && (
                       <span className="text-[10px] text-slate-400">
@@ -1225,10 +1227,10 @@ export function LoginGateway() {
                       <p className="text-[10px] text-slate-400 uppercase tracking-wide">Company Workspace</p>
                       <p className="text-sm font-bold text-white">{keyInfo.organizationName}</p>
                     </div>
-                    <div className="ml-auto">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Assigned Role</p>
-                      <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        {keyInfo.assignedRole}
+                    <div className="ml-auto text-right">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Select your role below</p>
+                      <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                        {staffRole.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
@@ -1237,6 +1239,28 @@ export function LoginGateway() {
 
               {/* Registration Fields — enabled only after key is validated */}
               <div className={`space-y-3 transition-opacity duration-200 ${keyInfo?.valid ? 'opacity-100' : 'opacity-40 pointer-events-none select-none'}`}>
+                {/* Role Selector — always shown once key is validated */}
+                {keyInfo?.valid && (
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Your Role in the Company *</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'] as UserRole[]).map(r => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setStaffRole(r)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                            staffRole === r
+                              ? 'bg-indigo-500 border-indigo-400 text-white'
+                              : 'bg-secondary/50 border-border text-muted-foreground hover:border-indigo-400 hover:text-white'
+                          }`}
+                        >
+                          {r.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs text-muted block mb-1">Your Full Name *</label>
                   <input
@@ -1304,7 +1328,7 @@ export function LoginGateway() {
               {loading
                 ? 'Creating Account...'
                 : keyInfo?.valid
-                ? `Join ${keyInfo.organizationName || 'Company'} as ${keyInfo.assignedRole}`
+                ? `Join ${keyInfo.organizationName || 'Company'} as ${keyInfo.keyType === 'COMPANY_KEY' ? staffRole.replace('_', ' ') : (keyInfo.assignedRole || 'Staff')}`
                 : 'Validate Key First'}
               {!loading && <ArrowRight size={15} />}
             </button>

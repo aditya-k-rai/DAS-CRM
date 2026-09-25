@@ -220,16 +220,10 @@ export class AuthController {
     return this.authService.getMailOutbox(50);
   }
 
-  @Get('mail-outbox/:id')
-  @ApiOperation({ summary: 'Get details and HTML content of a specific outbox item' })
-  getMailOutboxItem(@Param('id') id: string) {
-    return this.authService.getMailOutboxItem(id);
-  }
-
-  // ── Staff User Key ─────────────────────────────────────────
+  // ── Staff User Key (Company Key) ───────────────────────────
 
   @Post('staff-register')
-  @ApiOperation({ summary: 'Staff member registers using a User Invite Key' })
+  @ApiOperation({ summary: 'Employee registers using their Company Key' })
   staffLoginWithKey(
     @Body()
     body: {
@@ -238,6 +232,7 @@ export class AuthController {
       email: string;
       password: string;
       phone?: string;
+      role?: string;
     },
   ) {
     return this.authService.staffLoginWithKey(body);
@@ -245,37 +240,54 @@ export class AuthController {
 
   @Post('validate-user-key')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate a Staff Invite Key — returns company & role info' })
+  @ApiOperation({ summary: 'Validate a Company Key for employee self-registration' })
   async validateUserKey(@Body('key') key: string) {
-    const record = await this.companyKeyService.validateUserKey(key);
-    if (!record) {
+    const cleanKey = (key || '').trim().toUpperCase();
+    if (!cleanKey) {
+      return { valid: false, message: 'Please enter your Company Key.' };
+    }
+
+    // Each company has exactly ONE key — the rule-based Company Registration Key
+    const companyKey = await this.companyKeyService.validateCompanyKey(cleanKey);
+
+    if (!companyKey) {
       return {
         valid: false,
-        message: 'Invalid, expired, or already used Staff Invite Key.',
+        message: `Key "${cleanKey}" is not a valid Company Key. Please check the key your Admin provided and try again.`,
       };
     }
 
-    // Fetch the organization this key belongs to so the employee knows which company they're joining
-    const org = record.organizationId
-      ? await this.companyKeyService.getOrganizationById(record.organizationId)
-      : null;
-
-    if (org && org.isActive === false) {
+    if (!companyKey.usedByOrganizationId) {
       return {
         valid: false,
-        message: 'The company workspace for this key has been deactivated. Contact your Admin.',
+        message: `Key "${cleanKey}" has not been linked to a company workspace yet. Please complete company registration first.`,
+      };
+    }
+
+    const org = await this.companyKeyService.getOrganizationById(companyKey.usedByOrganizationId);
+
+    if (!org) {
+      return {
+        valid: false,
+        message: 'Company workspace not found. Please contact your Admin.',
+      };
+    }
+
+    if (!org.isActive) {
+      return {
+        valid: false,
+        message: `Company workspace "${org.name}" is not yet active. Please wait for Super Admin approval before registering.`,
       };
     }
 
     return {
       valid: true,
-      assignedRole: record.assignedRole,
-      organizationId: record.organizationId,
-      organizationName: org?.name || null,
-      expiresAt: record.expiresAt,
+      keyType: 'COMPANY_KEY',
+      organizationId: companyKey.usedByOrganizationId,
+      organizationName: org.name,
+      expiresAt: companyKey.expiresAt,
     };
   }
-
 
   // ── Generate Keys (Admin Only) ─────────────────────────────
 

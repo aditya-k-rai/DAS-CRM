@@ -619,55 +619,81 @@ export class AuthService {
   // STAFF USER LOGIN (User Invite Key)
   // ═══════════════════════════════════════════════════════════
 
+  /**
+   * Employee self-registration using the Company's permanent key.
+   * Each company has exactly ONE key (rule-based, generated at registration).
+   * The key is reusable — all employees of that company use it to join.
+   * Role is selected by the employee during registration.
+   */
   async staffLoginWithKey(dto: {
     userKey: string;
     name: string;
     email: string;
     password: string;
     phone?: string;
+    role?: string;
   }) {
-    const keyRecord = await this.companyKeyService.validateUserKey(dto.userKey);
-    if (!keyRecord) {
+    const cleanKey = (dto.userKey || '').trim().toUpperCase();
+    if (!cleanKey) {
+      throw new BadRequestException('Please provide your Company Key.');
+    }
+
+    // Look up the Company Registration Key — the single permanent key per company
+    const companyKey = await this.companyKeyService.validateCompanyKey(cleanKey);
+
+    if (!companyKey) {
       throw new BadRequestException(
-        'Invalid, expired, or already used user invite key',
+        `Key "${cleanKey}" is not a valid Company Key. Please check the key your Admin provided.`,
       );
     }
 
-    const currentUsersCount = await this.prisma.user.count({
-      where: { organizationId: keyRecord.organizationId, isActive: true },
-    });
-
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { organizationId: keyRecord.organizationId },
-    });
-
-    if (subscription && currentUsersCount >= subscription.memberLimit) {
+    if (!companyKey.usedByOrganizationId) {
       throw new BadRequestException(
-        `Member seat limit reached for your company plan (${subscription.memberLimit} seats max). Please contact your Tenant Admin to upgrade your plan.`,
+        `Key "${cleanKey}" has not been linked to a company workspace yet. Please contact your Admin.`,
       );
     }
 
+    const orgId = companyKey.usedByOrganizationId;
+
+    // Verify company workspace is active
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+
+    if (!org) {
+      throw new BadRequestException('Company workspace not found. Please contact your Admin.');
+    }
+
+    if (!org.isActive) {
+      throw new ForbiddenException(
+        `Company workspace "${org.name}" is not yet active. Please wait for Super Admin approval.`,
+      );
+    }
+
+    // Check seat limit
+    await this.checkSeatLimit(orgId);
+
+    // Prevent duplicate email within the same company
     const existing = await this.prisma.user.findFirst({
-      where: { organizationId: keyRecord.organizationId, email: dto.email },
+      where: { organizationId: orgId, email: dto.email.toLowerCase().trim() },
     });
-    if (existing)
-      throw new ConflictException('Email already registered in this workspace');
+    if (existing) {
+      throw new ConflictException(
+        `Email "${dto.email}" is already registered in ${org.name}. Please log in instead.`,
+      );
+    }
+
+    // Role: employee picks during registration, default to SALES_EXEC
+    const assignedRoleName = (dto.role || 'SALES_EXEC').toUpperCase();
+    const roleRecord = await this.prisma.role.findFirst({
+      where: { organizationId: orgId, name: assignedRoleName },
+    });
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-
-    const roleRecord = await this.prisma.role.findFirst({
-      where: {
-        organizationId: keyRecord.organizationId,
-        name: keyRecord.assignedRole,
-      },
-    });
-
-    const [firstName, ...rest] = dto.name.split(' ');
+    const [firstName, ...rest] = dto.name.trim().split(' ');
 
     const user = await this.prisma.user.create({
       data: {
-        organizationId: keyRecord.organizationId,
-        email: dto.email,
+        organizationId: orgId,
+        email: dto.email.toLowerCase().trim(),
         passwordHash,
         firstName,
         lastName: rest.join(' ') || '',
@@ -675,17 +701,27 @@ export class AuthService {
       },
     });
 
-    await this.companyKeyService.markUserKeyUsed(keyRecord.id, user.id);
-
-    const tokens = await this.generateTokens(
-      user.id,
-      keyRecord.organizationId,
-      keyRecord.assignedRole,
-    );
+    // Company key stays active — multiple employees can join using the same key
+    const tokens = await this.generateTokens(user.id, orgId, assignedRoleName);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
-
     return { user: this.sanitizeUser(user), ...tokens };
   }
+
+  /** Shared seat-limit guard used by employee registration */
+  private async checkSeatLimit(orgId: string) {
+    const currentCount = await this.prisma.user.count({
+      where: { organizationId: orgId, isActive: true },
+    });
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { organizationId: orgId },
+    });
+    if (subscription && currentCount >= subscription.memberLimit) {
+      throw new BadRequestException(
+        `Member seat limit reached (${subscription.memberLimit} seats). Please contact your Admin to upgrade your plan.`,
+      );
+    }
+  }
+
 
   /**
    * Google OAuth Authentication with Gmail Verification & Key Enforcement
