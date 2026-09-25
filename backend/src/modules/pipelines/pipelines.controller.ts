@@ -21,16 +21,20 @@ import { PipelinesService } from './pipelines.service';
 export class PipelinesController {
   constructor(private readonly pipelinesService: PipelinesService) {}
 
+  private getOrgId(req: any): string {
+    return req.user?.organizationId || req.user?.org_id || '';
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all sales pipelines for tenant' })
   getPipelines(@Req() req: any) {
-    return this.pipelinesService.getPipelines(req.user.org_id);
+    return this.pipelinesService.getPipelines(this.getOrgId(req));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get pipeline by ID' })
   getPipeline(@Param('id') id: string, @Req() req: any) {
-    return this.pipelinesService.getPipeline(req.user.org_id, id);
+    return this.pipelinesService.getPipeline(this.getOrgId(req), id);
   }
 
   @Post()
@@ -44,7 +48,7 @@ export class PipelinesController {
     },
     @Req() req: any,
   ) {
-    return this.pipelinesService.createPipeline(req.user.org_id, dto);
+    return this.pipelinesService.createPipeline(this.getOrgId(req), dto);
   }
 
   @Put(':id')
@@ -54,19 +58,19 @@ export class PipelinesController {
     @Body() dto: { name?: string; isDefault?: boolean },
     @Req() req: any,
   ) {
-    return this.pipelinesService.updatePipeline(req.user.org_id, id, dto);
+    return this.pipelinesService.updatePipeline(this.getOrgId(req), id, dto);
   }
 
   @Patch(':id/set-default')
   @ApiOperation({ summary: 'Set pipeline as default' })
   setDefaultPipeline(@Param('id') id: string, @Req() req: any) {
-    return this.pipelinesService.setDefaultPipeline(req.user.org_id, id);
+    return this.pipelinesService.setDefaultPipeline(this.getOrgId(req), id);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete pipeline' })
   deletePipeline(@Param('id') id: string, @Req() req: any) {
-    return this.pipelinesService.deletePipeline(req.user.org_id, id);
+    return this.pipelinesService.deletePipeline(this.getOrgId(req), id);
   }
 
   @Post(':id/stages')
@@ -76,7 +80,7 @@ export class PipelinesController {
     @Body() dto: { name: string; probability?: number; color?: string },
     @Req() req: any,
   ) {
-    return this.pipelinesService.addStage(req.user.org_id, pipelineId, dto);
+    return this.pipelinesService.addStage(this.getOrgId(req), pipelineId, dto);
   }
 
   @Patch('stages/:stageId')
@@ -86,13 +90,13 @@ export class PipelinesController {
     @Body() dto: { name?: string; probability?: number; color?: string; order?: number },
     @Req() req: any,
   ) {
-    return this.pipelinesService.updateStage(req.user.org_id, stageId, dto);
+    return this.pipelinesService.updateStage(this.getOrgId(req), stageId, dto);
   }
 
   @Delete('stages/:stageId')
   @ApiOperation({ summary: 'Delete a stage' })
   deleteStage(@Param('stageId') stageId: string, @Req() req: any) {
-    return this.pipelinesService.deleteStage(req.user.org_id, stageId);
+    return this.pipelinesService.deleteStage(this.getOrgId(req), stageId);
   }
 
   @Patch(':id/reorder-stages')
@@ -103,7 +107,7 @@ export class PipelinesController {
     @Req() req: any,
   ) {
     return this.pipelinesService.reorderStages(
-      req.user.org_id,
+      this.getOrgId(req),
       pipelineId,
       dto.stageOrders,
     );

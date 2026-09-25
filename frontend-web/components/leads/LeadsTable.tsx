@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
+import { useWorkflowLeadStatuses } from '@/lib/workflowService';
 
 interface LeadDataWeb {
   id: string;
@@ -46,9 +47,8 @@ export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string
   return false;
 };
 
-const STATUSES = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
-
 export function LeadsTable() {
+  const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
   const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([]);
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,37 +91,31 @@ export function LeadsTable() {
         if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
           const leadsData = await leadsRes.value.json();
           const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
-          const statusColors: Record<string, string> = {
-            New: '#6366f1',
-            Contacted: '#f59e0b',
-            Qualified: '#3b82f6',
-            Proposal: '#8b5cf6',
-            Negotiation: '#ec4899',
-            Won: '#22c55e',
-            Lost: '#ef4444',
-          };
-          const mapped: LeadDataWeb[] = items.map((l: any) => ({
-            id: String(l.id),
-            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-            email: l.email || '',
-            phone: l.phone || '',
-            status: l.status?.name || l.status || 'New',
-            statusColor: statusColors[l.status?.name || l.status] || '#6366f1',
-            source: l.source?.name || l.source || 'Website',
-            score: l.score || 0,
-            aiScore: l.aiScore || undefined,
-            owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
-            value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
-            created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
-            tags: l.tags || [],
-            city: l.city || '—',
-            budget: l.budget || '—',
-            requirement: l.requirement || '—',
-            allocationTrail: l.allocationTrail || [],
-            currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
-            totalCalls: l.totalCalls || 0,
-            lastCalledAt: l.lastCalledAt || 'Never',
-          }));
+          const mapped: LeadDataWeb[] = items.map((l: any) => {
+            const rawStatus = l.status?.name || l.status || 'New';
+            return {
+              id: String(l.id),
+              name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+              email: l.email || '',
+              phone: l.phone || '',
+              status: rawStatus,
+              statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
+              source: l.source?.name || l.source || 'Website',
+              score: l.score || 0,
+              aiScore: l.aiScore || undefined,
+              owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+              value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
+              created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
+              tags: l.tags || [],
+              city: l.city || '—',
+              budget: l.budget || '—',
+              requirement: l.requirement || '—',
+              allocationTrail: l.allocationTrail || [],
+              currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+              totalCalls: l.totalCalls || 0,
+              lastCalledAt: l.lastCalledAt || 'Never',
+            };
+          });
           setLeadsList(mapped);
         }
 
@@ -173,20 +167,10 @@ export function LeadsTable() {
         console.warn('Backend status update warning:', e);
       }
 
-      const statusColors: Record<string, string> = {
-        New: '#6366f1',
-        Contacted: '#f59e0b',
-        Qualified: '#3b82f6',
-        Proposal: '#8b5cf6',
-        Negotiation: '#ec4899',
-        Won: '#22c55e',
-        Lost: '#ef4444',
-      };
-
       setLeadsList(prev => prev.map(item => item.id === leadId ? {
         ...item,
         status: newStatus,
-        statusColor: statusColors[newStatus] || '#6366f1',
+        statusColor: statusColorMap[newStatus] || statusColorMap[newStatus.toLowerCase()] || '#6366f1',
       } : item));
 
       showTableToast(`✓ Verified with Server: Lead status updated to "${newStatus}"!`);
@@ -437,7 +421,7 @@ export function LeadsTable() {
           {/* View Toggle, Multi-Filter Launcher & Status Pills */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex gap-1 flex-wrap items-center">
-              {STATUSES.map((s) => (
+              {statusTabs.map((s) => (
                 <button key={s} onClick={() => setActiveStatus(s)} className={`pill-tab text-xs py-1 px-3 ${activeStatus === s ? 'active' : ''}`}>
                   {s}
                 </button>
@@ -738,10 +722,10 @@ export function LeadsTable() {
                         value={lead.status}
                         onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
                         className="status-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border border-slate-700 bg-slate-900 cursor-pointer focus:outline-none transition-all hover:border-indigo-500"
-                        style={{ color: lead.statusColor }}
+                        style={{ color: statusColorMap[lead.status] || lead.statusColor || '#6366f1' }}
                         title="Change Lead Stage (Online Verified with Server)"
                       >
-                        {['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'].map(st => (
+                        {statusNames.map(st => (
                           <option key={st} value={st} className="bg-slate-900 text-white">{st}</option>
                         ))}
                       </select>
@@ -1060,7 +1044,7 @@ export function LeadsTable() {
                   Stage / Status
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {STATUSES.map((st) => (
+                  {statusTabs.map((st) => (
                     <button
                       key={st}
                       onClick={() => {

@@ -43,6 +43,7 @@ import {
   DEFAULT_IMPORT_SESSION,
 } from '../components/FileImportEngineModal';
 import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
+import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
 
@@ -113,6 +114,17 @@ export default function LeadsScreen() {
   const [filterRole, setFilterRole] = useState('ALL');
   const [filterDate, setFilterDate] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [configuredStatuses, setConfiguredStatuses] = useState<LeadStatusItem[]>(DEFAULT_ANDROID_STATUSES);
+  const [statusFilterOptions, setStatusFilterOptions] = useState<string[]>(['ALL', 'NEW LEAD', 'QUALIFIED', 'IN NEGOTIATION', 'WON']);
+
+  useEffect(() => {
+    getStoredStatuses().then((list) => {
+      if (list && list.length > 0) {
+        setConfiguredStatuses(list);
+        setStatusFilterOptions(['ALL', ...list.map(s => s.name)]);
+      }
+    });
+  }, []);
 
   // ── DYNAMIC COLUMN REORDER, RENAME & EXCEL RESIZING STATE ────────────────
   const [colOrderModalOpen, setColOrderModalOpen] = useState(false);
@@ -1095,7 +1107,7 @@ export default function LeadsScreen() {
             {/* Status Filter Scroll */}
             <FlatList
               horizontal
-              data={FILTERS}
+              data={statusFilterOptions}
               keyExtractor={(item) => item}
               showsHorizontalScrollIndicator={false}
               style={styles.filterScroll}
@@ -1820,7 +1832,7 @@ export default function LeadsScreen() {
                 📊 4. Lead Status / Stage
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {['ALL', 'NEW LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON'].map(s => (
+                {statusFilterOptions.map(s => (
                   <TouchableOpacity
                     key={s}
                     style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, (filterStatus === s || activeFilter === s) && { backgroundColor: '#0284c7', borderColor: '#38bdf8' }]}

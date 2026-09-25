@@ -8,7 +8,7 @@
  * 4. Stage Transition Shifter Buttons & New Deal Registration Form.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,13 +21,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
+import { getStoredPipelineStages, PipelineStageItem, DEFAULT_ANDROID_PIPELINE_STAGES } from '../services/workflowStorage';
 
 export interface DealItem {
   id: string;
   name: string;
   val: string;
   rawVal: number;
-  stage: 'NEW_LEAD' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON';
+  stage: string;
   company: string;
   owner: string;
   expectedClose: string;
@@ -58,17 +59,24 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   const [newDealCompany, setNewDealCompany] = useState('');
   const [newDealValue, setNewDealValue] = useState('');
   const [newDealOwner, setNewDealOwner] = useState(currentUser?.name || 'Sales Rep');
-  const [newDealStage, setNewDealStage] = useState<'NEW_LEAD' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON'>('NEW_LEAD');
+  // Dynamic Pipeline Stages
+  const [pipelineStages, setPipelineStages] = useState<PipelineStageItem[]>(DEFAULT_ANDROID_PIPELINE_STAGES);
+  const [newDealStage, setNewDealStage] = useState<string>('Discovery Call');
 
-  const STAGE_PROBABILITIES: Record<string, number> = {
-    NEW_LEAD: 15,
-    QUALIFIED: 40,
-    PROPOSAL: 70,
-    NEGOTIATION: 85,
-    CLOSED_WON: 100,
+  useEffect(() => {
+    getStoredPipelineStages().then((stgs) => {
+      setPipelineStages(stgs);
+      if (stgs.length > 0) setNewDealStage(stgs[0].name);
+    });
+  }, []);
+
+  const getStageProbability = (stgName: string) => {
+    const s = (stgName || '').trim().toUpperCase();
+    const found = pipelineStages.find(p => p.name.toUpperCase() === s || p.id === stgName);
+    return found ? found.probability : (s.includes('WON') ? 100 : s.includes('NEGOTIAT') ? 80 : s.includes('PROPOSAL') ? 60 : 30);
   };
 
-  const handleShiftDealStage = (dealId: string, nextStage: 'NEW_LEAD' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON') => {
+  const handleShiftDealStage = (dealId: string, nextStage: string) => {
     setDealsList((prev) =>
       prev.map((d) => (d.id === dealId ? { ...d, stage: nextStage } : d))
     );
@@ -108,8 +116,8 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   };
 
   const totalPipelineValue = dealsList.reduce((acc, d) => acc + d.rawVal, 0);
-  const weightedValue = dealsList.reduce((acc, d) => acc + (d.rawVal * (STAGE_PROBABILITIES[d.stage] / 100)), 0);
-  const totalWonValue = dealsList.filter(d => d.stage === 'CLOSED_WON').reduce((acc, d) => acc + d.rawVal, 0);
+  const weightedValue = dealsList.reduce((acc, d) => acc + (d.rawVal * (getStageProbability(d.stage) / 100)), 0);
+  const totalWonValue = dealsList.filter(d => d.stage.toUpperCase().includes('WON')).reduce((acc, d) => acc + d.rawVal, 0);
 
   const goalProgressPercent = monthlyGoal > 0 ? Math.min(100, Math.round((totalWonValue / monthlyGoal) * 100)) : 0;
 
@@ -206,14 +214,14 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
                 </View>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 4 }}>
-                {(['NEW_LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'] as const).map((stg) => (
+              <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+                {pipelineStages.map((stg) => (
                   <TouchableOpacity
-                    key={stg}
-                    style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, newDealStage === stg && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
-                    onPress={() => setNewDealStage(stg)}
+                    key={stg.id}
+                    style={[{ paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, newDealStage.toUpperCase() === stg.name.toUpperCase() && { backgroundColor: stg.color, borderColor: stg.color }]}
+                    onPress={() => setNewDealStage(stg.name)}
                   >
-                    <Text style={{ fontSize: 7, fontWeight: '900', color: newDealStage === stg ? '#ffffff' : '#94a3b8' }}>{stg.replace('_', ' ')}</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: newDealStage.toUpperCase() === stg.name.toUpperCase() ? '#ffffff' : '#94a3b8' }}>{stg.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -246,18 +254,18 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
                 <Text style={{ fontSize: 10, color: '#94a3b8' }}>
                   Stage: <Text style={{ color: '#38bdf8', fontWeight: '800' }}>{deal.stage.replace('_', ' ')}</Text>
                 </Text>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>Win Prob: {STAGE_PROBABILITIES[deal.stage]}%</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>Win Prob: {getStageProbability(deal.stage)}%</Text>
               </View>
 
               {/* Stage Shifter Chips */}
               <View style={{ flexDirection: 'row', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                {(['NEW_LEAD', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'] as const).map((stg) => (
+                {pipelineStages.map((stg) => (
                   <TouchableOpacity
-                    key={stg}
-                    style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, deal.stage === stg && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
-                    onPress={() => handleShiftDealStage(deal.id, stg)}
+                    key={stg.id}
+                    style={[{ paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, deal.stage.toUpperCase() === stg.name.toUpperCase() && { backgroundColor: stg.color, borderColor: stg.color }]}
+                    onPress={() => handleShiftDealStage(deal.id, stg.name)}
                   >
-                    <Text style={{ fontSize: 8, fontWeight: '900', color: deal.stage === stg ? '#ffffff' : '#94a3b8' }}>{stg.replace('_', ' ')}</Text>
+                    <Text style={{ fontSize: 8, fontWeight: '900', color: deal.stage.toUpperCase() === stg.name.toUpperCase() ? '#ffffff' : '#94a3b8' }}>{stg.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

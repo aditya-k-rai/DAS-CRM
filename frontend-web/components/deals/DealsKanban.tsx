@@ -1,28 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Plus, DollarSign, Calendar, User, Lock, Shield } from 'lucide-react';
+import { MoreHorizontal, Plus, Calendar, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-
-const STAGES = [
-  { id: 'prospecting', name: 'Prospecting', color: '#6366f1', probability: 10 },
-  { id: 'qualification', name: 'Qualification', color: '#f59e0b', probability: 25 },
-  { id: 'proposal', name: 'Proposal', color: '#3b82f6', probability: 50 },
-  { id: 'negotiation', name: 'Negotiation', color: '#8b5cf6', probability: 75 },
-  { id: 'closed_won', name: 'Closed Won', color: '#22c55e', probability: 100 },
-];
-
-const INITIAL_DEALS: Record<string, any[]> = {
-  prospecting: [],
-  qualification: [],
-  proposal: [],
-  negotiation: [],
-  closed_won: [],
-};
+import { useWorkflowPipelineStages } from '@/lib/workflowService';
 
 export function DealsKanban() {
   const { currentUser } = useAuth();
-  const [allDeals, setAllDeals] = useState(INITIAL_DEALS);
+  const { stages } = useWorkflowPipelineStages();
+  const [allDeals, setAllDeals] = useState<Record<string, any[]>>({});
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isRep = rawRole === 'SALES_EXEC' || rawRole === 'EMPLOYEE' || rawRole === 'STAFF' || rawRole === 'REP';
@@ -42,8 +28,12 @@ export function DealsKanban() {
 
   const scopedDeals = getScopedDeals();
 
-  const stageTotal = (stageId: string) =>
-    (scopedDeals[stageId] ?? []).reduce((s, d) => s + parseInt(d.value.replace(/[₹,]/g, '')), 0);
+  const getStageDeals = (stage: { id: string; name: string }) => {
+    return scopedDeals[stage.id] || scopedDeals[stage.name.toLowerCase().replace(/\s+/g, '_')] || [];
+  };
+
+  const stageTotal = (stage: { id: string; name: string }) =>
+    getStageDeals(stage).reduce((s, d) => s + parseInt(String(d.value || 0).replace(/[₹,]/g, '') || '0'), 0);
 
   return (
     <div className="space-y-4">
@@ -64,16 +54,21 @@ export function DealsKanban() {
 
       {/* Pipeline summary bar */}
       <div className="crm-card p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          {STAGES.map((stage) => {
-            const total = stageTotal(stage.id);
-            const count = (scopedDeals[stage.id] ?? []).length;
+        <div
+          className="grid gap-3 sm:gap-4"
+          style={{
+            gridTemplateColumns: `repeat(auto-fit, minmax(130px, 1fr))`,
+          }}
+        >
+          {stages.map((stage) => {
+            const total = stageTotal(stage);
+            const count = getStageDeals(stage).length;
             return (
-              <div key={stage.id} className="text-center">
+              <div key={stage.id} className="text-center p-2 rounded-xl bg-slate-900/40 border border-slate-800/60">
                 <div className="h-1.5 rounded-full mb-2" style={{ background: stage.color }} />
-                <p className="text-xs font-medium truncate" style={{ color: stage.color }}>{stage.name}</p>
-                <p className="text-sm font-bold mt-0.5">₹{(total / 100000).toFixed(1)}L</p>
-                <p className="text-xs text-muted">{count} deal{count !== 1 ? 's' : ''}</p>
+                <p className="text-xs font-semibold truncate" style={{ color: stage.color }}>{stage.name}</p>
+                <p className="text-sm font-bold mt-0.5 text-white">₹{(total / 100000).toFixed(1)}L</p>
+                <p className="text-[11px] text-muted">{count} deal{count !== 1 ? 's' : ''}</p>
               </div>
             );
           })}
@@ -82,27 +77,28 @@ export function DealsKanban() {
 
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4 kanban-scroll-container" style={{ minHeight: '500px' }}>
-        {STAGES.map((stage) => {
-          const stageDeals = scopedDeals[stage.id] ?? [];
+        {stages.map((stage) => {
+          const stageDeals = getStageDeals(stage);
+          const total = stageTotal(stage);
           return (
-            <div key={stage.id} className="kanban-column flex-shrink-0">
+            <div key={stage.id} className="kanban-column flex-shrink-0 w-72">
               {/* Column header */}
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: stage.color }} />
-                  <h3 className="text-sm font-semibold">{stage.name}</h3>
-                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${stage.color}20`, color: stage.color }}>
+                  <h3 className="text-xs font-bold text-white">{stage.name}</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${stage.color}25`, color: stage.color }}>
                     {stageDeals.length}
                   </span>
                 </div>
-                <button className="btn-ghost w-6 h-6 p-0 rounded flex items-center justify-center">
+                <button className="btn-ghost w-6 h-6 p-0 rounded flex items-center justify-center text-slate-400 hover:text-white">
                   <Plus size={13} />
                 </button>
               </div>
 
               {/* Total */}
-              <p className="text-xs text-muted mb-3">
-                ₹{(stageTotal(stage.id) / 100000).toFixed(1)}L · {stage.probability}% probability
+              <p className="text-[11px] text-muted mb-3 px-1">
+                ₹{(total / 100000).toFixed(1)}L · {stage.probability}% probability
               </p>
 
               {/* Deal cards */}

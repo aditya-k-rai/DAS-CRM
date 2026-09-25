@@ -38,6 +38,7 @@ import {
   CATALOG_PRODUCTS,
   ProductItem,
 } from '../services/whatsappTemplateEngine';
+import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOutcomeModal';
 import { PaymentStatusModal, PaymentOutcomeResult } from '../components/PaymentStatusModal';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
@@ -395,9 +396,16 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
   // Dynamic Status Picker Modal State
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [availableStatuses, setAvailableStatuses] = useState<LeadStatusItem[]>(DEFAULT_ANDROID_STATUSES);
+
+  useEffect(() => {
+    getStoredStatuses().then(setAvailableStatuses);
+  }, []);
 
   const getStatusColor = (st: string) => {
-    const s = (st || '').toUpperCase();
+    const s = (st || '').trim().toUpperCase();
+    const matched = availableStatuses.find(item => item.name.toUpperCase() === s || item.name.toUpperCase().includes(s));
+    if (matched) return matched.color;
     if (s.includes('WON')) return '#34d399';
     if (s.includes('NEGOTIAT') || s.includes('PROPOSAL') || s.includes('MEETING')) return '#818cf8';
     if (s.includes('QUALIFIED')) return '#38bdf8';
@@ -1038,26 +1046,19 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </View>
 
             <View style={{ gap: 8, marginVertical: 8 }}>
-              {[
-                { status: 'CONTACTED', color: '#fbbf24', icon: '📞', desc: 'Direct call or chat discussion completed' },
-                { status: 'IN NEGOTIATION', color: '#a855f7', icon: '🤝', desc: 'Product presented & discussing pricing/terms' },
-                { status: 'PROPOSAL', color: '#818cf8', icon: '📄', desc: 'Formal quotation proposal deck dispatched' },
-                { status: 'MEETING SCHEDULED', color: '#ec4899', icon: '📅', desc: 'Product demo / physical visit scheduled' },
-                { status: 'WON', color: '#34d399', icon: '🎉', desc: 'Deal finalized & payment cleared' },
-                { status: 'LOST', color: '#ef4444', icon: '❌', desc: 'Lead dropped / not interested' },
-              ].map((item) => (
+              {availableStatuses.map((item) => (
                 <TouchableOpacity
-                  key={item.status}
+                  key={item.name}
                   style={{
-                    backgroundColor: leadStatusState === item.status ? item.color + '25' : colors.cardBgElevated,
+                    backgroundColor: (leadStatusState || '').toUpperCase() === item.name.toUpperCase() ? item.color + '25' : colors.cardBgElevated,
                     borderWidth: 1,
-                    borderColor: leadStatusState === item.status ? item.color : colors.border,
+                    borderColor: (leadStatusState || '').toUpperCase() === item.name.toUpperCase() ? item.color : colors.border,
                     borderRadius: 12,
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                   }}
                   onPress={() => {
-                    const nextSt = item.status;
+                    const nextSt = item.name;
                     const timeString = `Today, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
                     setLeadStatusState(nextSt);
                     setLastStatusUpdate({
@@ -1086,11 +1087,11 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={{ fontSize: 15 }}>{item.icon}</Text>
-                      <Text style={{ fontSize: 12, fontWeight: '900', color: leadStatusState === item.status ? item.color : colors.text }}>
-                        {item.status}
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: (leadStatusState || '').toUpperCase() === item.name.toUpperCase() ? item.color : colors.text }}>
+                        {item.name}
                       </Text>
                     </View>
-                    {leadStatusState === item.status && (
+                    {(leadStatusState || '').toUpperCase() === item.name.toUpperCase() && (
                       <Text style={{ color: item.color, fontSize: 10, fontWeight: '900' }}>✓ Active Stage</Text>
                     )}
                   </View>

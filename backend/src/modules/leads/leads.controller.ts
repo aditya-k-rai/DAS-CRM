@@ -35,6 +35,18 @@ export class LeadsController {
     return this.leadsService.findAll(user.organizationId, query);
   }
 
+  @Get('statuses')
+  @ApiOperation({ summary: 'Get all configured lead statuses for organization' })
+  getStatuses(@CurrentUser() user: any) {
+    return this.leadsService.getStatuses(user.organizationId);
+  }
+
+  @Put('statuses')
+  @ApiOperation({ summary: 'Update / configure lead statuses for organization' })
+  updateStatuses(@CurrentUser() user: any, @Body() body: { statuses: any[] }) {
+    return this.leadsService.updateStatuses(user.organizationId, body.statuses);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get lead detail with full timeline' })
   findOne(@CurrentUser() user: any, @Param('id') id: string) {

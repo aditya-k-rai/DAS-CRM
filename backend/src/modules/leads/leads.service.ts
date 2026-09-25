@@ -279,6 +279,108 @@ export class LeadsService {
     };
   }
 
+  async getStatuses(organizationId: string) {
+    let statuses = await this.prisma.leadStatus.findMany({
+      where: { organizationId },
+      orderBy: { order: 'asc' },
+    });
+
+    if (statuses.length === 0) {
+      const defaultDefs = [
+        { name: 'New', color: '#6366f1', isDefault: true, isWon: false, isLost: false },
+        { name: 'Contacted', color: '#f59e0b', isDefault: false, isWon: false, isLost: false },
+        { name: 'Qualified', color: '#3b82f6', isDefault: false, isWon: false, isLost: false },
+        { name: 'Proposal', color: '#8b5cf6', isDefault: false, isWon: false, isLost: false },
+        { name: 'Negotiation', color: '#ec4899', isDefault: false, isWon: false, isLost: false },
+        { name: 'Won', color: '#22c55e', isDefault: false, isWon: true, isLost: false },
+        { name: 'Lost', color: '#ef4444', isDefault: false, isWon: false, isLost: true },
+      ];
+
+      for (let i = 0; i < defaultDefs.length; i++) {
+        const def = defaultDefs[i];
+        await this.prisma.leadStatus.upsert({
+          where: {
+            organizationId_name: {
+              organizationId,
+              name: def.name,
+            },
+          },
+          update: {
+            order: i,
+            color: def.color,
+          },
+          create: {
+            organizationId,
+            name: def.name,
+            color: def.color,
+            order: i,
+            isDefault: def.isDefault,
+            isWon: def.isWon,
+            isLost: def.isLost,
+          },
+        });
+      }
+
+      statuses = await this.prisma.leadStatus.findMany({
+        where: { organizationId },
+        orderBy: { order: 'asc' },
+      });
+    }
+
+    return statuses;
+  }
+
+  async updateStatuses(organizationId: string, incomingStatuses: any[]) {
+    if (!Array.isArray(incomingStatuses) || incomingStatuses.length === 0) {
+      return this.getStatuses(organizationId);
+    }
+
+    for (let i = 0; i < incomingStatuses.length; i++) {
+      const item = incomingStatuses[i];
+      if (!item.name || !item.name.trim()) continue;
+
+      const trimmedName = item.name.trim();
+
+      const existing = await this.prisma.leadStatus.findFirst({
+        where: {
+          organizationId,
+          OR: [
+            ...(item.id ? [{ id: item.id }] : []),
+            { name: { equals: trimmedName, mode: 'insensitive' as const } },
+          ],
+        },
+      });
+
+      if (existing) {
+        await this.prisma.leadStatus.update({
+          where: { id: existing.id },
+          data: {
+            name: trimmedName,
+            color: item.color || existing.color,
+            order: item.order !== undefined ? item.order : i,
+            isDefault: item.isDefault !== undefined ? !!item.isDefault : existing.isDefault,
+            isWon: item.isWon !== undefined ? !!item.isWon : existing.isWon,
+            isLost: item.isLost !== undefined ? !!item.isLost : existing.isLost,
+          },
+        });
+      } else {
+        await this.prisma.leadStatus.create({
+          data: {
+            organizationId,
+            name: trimmedName,
+            color: item.color || '#6366f1',
+            order: item.order !== undefined ? item.order : i,
+            isDefault: !!item.isDefault,
+            isWon: !!item.isWon,
+            isLost: !!item.isLost,
+          },
+        });
+      }
+    }
+
+    return this.getStatuses(organizationId);
+  }
+
   async remove(organizationId: string, id: string) {
     const existing = await this.prisma.lead.findFirst({
       where: { id, organizationId },
