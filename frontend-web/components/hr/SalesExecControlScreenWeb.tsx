@@ -373,6 +373,66 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           onClose={() => setDriveVaultOpen(false)}
         />
       )}
+
+      {/* ── MODAL: UPGRADE ROLE ───────────────────────────────────────────── */}
+      {upgradeRoleModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-sm font-black text-white mb-3">⚡ Upgrade Role for {employee.name}</h3>
+            <div className="space-y-2 mb-4">
+              {(['SALES_EXEC', 'TEAM_LEADER', 'HR', 'MANAGER', 'ADMIN'] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => handleRoleUpgrade(r)}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-left transition border ${
+                    employee.role === r
+                      ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
+                      : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-indigo-500/50'
+                  }`}
+                >
+                  {r === 'ADMIN' ? '👑 Company Admin (Executive)' : r.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setUpgradeRoleModalOpen(false)}
+              className="w-full py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CHANGE SUPERVISOR ──────────────────────────────────────── */}
+      {changeSupervisorModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-sm font-black text-white mb-3">✏️ Assign Under for {employee.name}</h3>
+            <div className="space-y-2 mb-4">
+              {SUPERVISORS.map(sup => (
+                <button
+                  key={sup}
+                  onClick={() => handleSupervisorChange(sup)}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-left transition border ${
+                    employee.assignedManager === sup
+                      ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
+                      : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-indigo-500/50'
+                  }`}
+                >
+                  👤 {sup}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setChangeSupervisorModalOpen(false)}
+              className="w-full py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

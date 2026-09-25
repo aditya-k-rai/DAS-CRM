@@ -29,13 +29,14 @@ import SalesExecControlScreen from './SalesExecControlScreen';
 import TeamLeaderControlScreen from './TeamLeaderControlScreen';
 import ManagerControlScreen from './ManagerControlScreen';
 import HrControlScreen from './HrControlScreen';
+import { getApiBase } from '../config/api';
 
 export interface EmployeeProfile {
   id: string;
   name: string;
   email: string;
   phone: string;
-  role: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC';
+  role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC';
   assignedManager: string;
   status: 'ONLINE' | 'IN_CALL' | 'OFFLINE';
   avatarUrl: string;
@@ -105,7 +106,8 @@ interface UnassignedUser {
   deviceInfo: string;
 }
 
-const AVAILABLE_ROLES: { key: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; label: string; color: string }[] = [
+const AVAILABLE_ROLES: { key: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; label: string; color: string }[] = [
+  { key: 'ADMIN', label: 'Company Admin', color: '#f43f5e' },
   { key: 'MANAGER', label: 'Manager', color: '#c084fc' },
   { key: 'TEAM_LEADER', label: 'Team Leader', color: '#fbbf24' },
   { key: 'HR', label: 'HR', color: '#38bdf8' },
@@ -124,7 +126,7 @@ export default function EmployeesScreen() {
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | null>(null);
 
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
 
@@ -215,11 +217,93 @@ export default function EmployeesScreen() {
     return () => sub.remove();
   }, [inspectingEmp]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadUsers = async () => {
+      const token = useAuthStore.getState().token;
+      try {
+        const res = await fetch(`${getApiBase()}/users`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0 && isMounted) {
+            const mapped: EmployeeProfile[] = data.map((u: any) => {
+              const rawRole = (u.role || 'SALES_EXEC').toUpperCase();
+              let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = 'SALES_EXEC';
+              if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) role = 'ADMIN';
+              else if (rawRole.includes('MANAGER')) role = 'MANAGER';
+              else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
+              else if (rawRole.includes('HR')) role = 'HR';
+
+              return {
+                id: String(u.id),
+                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+                email: u.email,
+                phone: u.phone || '—',
+                role,
+                assignedManager: role === 'ADMIN' ? 'Self (Tenant Owner)' : 'Tenant Admin',
+                status: 'ONLINE',
+                avatarUrl: u.avatarUrl || '',
+                documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+                bankDetails: { bankName: 'Direct Deposit', accountHolder: u.name || u.email, accountNo: '••••••••', ifscCode: '—', upiId: u.email, lastUpdatedDate: 'Recently', historyLogs: [] },
+                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+                attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+                subordinates: [],
+              };
+            });
+            setEmployeesList(mapped);
+            return;
+          }
+        }
+      } catch (_) {}
+
+      if (currentUser && isMounted) {
+        const uRole = (currentUser.role || '').toUpperCase();
+        const isOwnerOrAdmin = uRole.includes('ADMIN') || uRole.includes('OWNER') || uRole.includes('SUPER_ADMIN');
+        const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
+          ? 'ADMIN'
+          : uRole.includes('HR')
+          ? 'HR'
+          : uRole.includes('MANAGER')
+          ? 'MANAGER'
+          : uRole.includes('LEADER') || uRole.includes('TL')
+          ? 'TEAM_LEADER'
+          : 'SALES_EXEC';
+
+        setEmployeesList([
+          {
+            id: currentUser.id || 'admin_1',
+            name: currentUser.name || 'Tenant Admin',
+            email: currentUser.email || 'admin@company.com',
+            phone: '+91 9717355779',
+            role,
+            assignedManager: isOwnerOrAdmin ? 'Self (Tenant Owner)' : 'Tenant Admin',
+            status: 'ONLINE',
+            avatarUrl: '',
+            documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+            bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
+            leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+            attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+            subordinates: [],
+          },
+        ]);
+      }
+    };
+
+    loadUsers();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   const getRoleBadgeStyle = (role: EmployeeProfile['role']) => {
     switch (role) {
+      case 'ADMIN': return { bg: 'rgba(244,63,94,0.2)', text: '#f43f5e', border: '#f43f5e', label: 'ADMIN' };
       case 'MANAGER': return { bg: 'rgba(168,85,247,0.2)', text: '#c084fc', border: '#a855f7', label: 'MANAGER' };
       case 'HR': return { bg: 'rgba(56,189,248,0.2)', text: '#38bdf8', border: '#38bdf8', label: 'HR' };
       case 'TEAM_LEADER': return { bg: 'rgba(251,191,36,0.2)', text: '#fbbf24', border: '#fbbf24', label: 'TEAM LEADER' };
@@ -236,14 +320,14 @@ export default function EmployeesScreen() {
   // 🔀 DEDICATED ROLE CONTROL SCREEN ROUTING
   // ─────────────────────────────────────────────────────────────────────────────
   if (inspectingEmp !== null) {
+    if (inspectingEmp.role === 'ADMIN' || inspectingEmp.role === 'MANAGER') {
+      return <ManagerControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+    }
     if (inspectingEmp.role === 'SALES_EXEC') {
       return <SalesExecControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'TEAM_LEADER') {
       return <TeamLeaderControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
-    }
-    if (inspectingEmp.role === 'MANAGER') {
-      return <ManagerControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'HR') {
       return <HrControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;

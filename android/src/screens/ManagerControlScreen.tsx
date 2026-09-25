@@ -74,6 +74,8 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
+  const isAdmin = employee.role === 'ADMIN';
+
   const SUPERVISORS = [
     'Tenant Administrator',
     'Executive Admin',
@@ -223,8 +225,10 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
     setRolesReportModalOpen(false);
     setToastConfig({
       id: `toast_${Date.now()}`,
-      title: '📋 Manager Report Shared',
-      message: `Generated & exported Department Manager Governance Report for ${employee.name}.`,
+      title: isAdmin ? '📋 Executive Report Shared' : '📋 Manager Report Shared',
+      message: isAdmin
+        ? `Generated & exported Executive / Admin Governance Report for ${employee.name}.`
+        : `Generated & exported Department Manager Governance Report for ${employee.name}.`,
       type: 'SUCCESS',
     });
   };
@@ -239,9 +243,9 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Text style={styles.backBtnText}>← Back to Directory</Text>
         </TouchableOpacity>
-        <View style={styles.roleTag}>
-          <Text style={styles.roleTagText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-            DEPARTMENT MANAGER CONTROL
+        <View style={[styles.roleTag, isAdmin && { backgroundColor: 'rgba(244,63,94,0.15)', borderColor: '#f43f5e' }]}>
+          <Text style={[styles.roleTagText, isAdmin && { color: '#f43f5e' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {isAdmin ? 'TENANT ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
           </Text>
         </View>
       </View>
@@ -283,23 +287,25 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         <View style={styles.cardBox}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
-              👥 Department Staff Assigned Under {employee.name}
+              👥 {isAdmin ? `Organization Staff & Leads Overseen by ${employee.name}` : `Department Staff Assigned Under ${employee.name}`}
             </Text>
             <TouchableOpacity style={styles.actionChipBtn} onPress={() => setStaffModalOpen(true)}>
-              <Text style={styles.actionChipBtnText}>Add / Change Staff ✏️</Text>
+              <Text style={styles.actionChipBtnText}>{isAdmin ? 'Manage Staff ✏️' : 'Add / Change Staff ✏️'}</Text>
             </TouchableOpacity>
           </View>
 
           {staffList.length === 0 ? (
             <View style={{ paddingVertical: 14, alignItems: 'center' }}>
-              <Text style={{ fontSize: 11, color: '#94a3b8' }}>No department staff assigned yet.</Text>
+              <Text style={{ fontSize: 11, color: '#94a3b8' }}>
+                {isAdmin ? 'No additional direct subordinates configured.' : 'No department staff assigned yet.'}
+              </Text>
             </View>
           ) : (
             staffList.map((st) => (
               <View key={st.id} style={styles.subRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{st.name} ({st.role})</Text>
-                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.leads} Dept Leads Managed</Text>
+                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.leads} Leads Managed</Text>
                 </View>
                 <Text style={{ fontSize: 11, fontWeight: '900', color: '#38bdf8' }}>{st.pipeline} Pipeline</Text>
               </View>
@@ -308,11 +314,13 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         </View>
 
         {/* Department Pipeline Lead Audit Section */}
-        <Text style={styles.sectionTitle}>📊 Department Pipeline Lead Audit</Text>
+        <Text style={styles.sectionTitle}>
+          📊 {isAdmin ? 'Organization Pipeline Lead Audit' : 'Department Pipeline Lead Audit'}
+        </Text>
         <View style={styles.statsGrid}>
           <TouchableOpacity style={[styles.statCard, { borderColor: '#38bdf8' }]} onPress={() => { setLeadCategory('TOTAL'); setLeadAuditModalOpen(true); }}>
             <Text style={[styles.statVal, { color: '#38bdf8' }]}>0</Text>
-            <Text style={styles.statLbl}>Total Dept Leads →</Text>
+            <Text style={styles.statLbl}>{isAdmin ? 'Total Org Leads →' : 'Total Dept Leads →'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.statCard, { borderColor: '#22c55e' }]} onPress={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }}>
@@ -335,15 +343,17 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
 
         <TouchableOpacity style={[styles.statCardFull, { borderColor: '#34d399' }]} onPress={() => { setLeadCategory('WON'); setLeadAuditModalOpen(true); }}>
           <Text style={[styles.statVal, { color: '#34d399' }]}>0 Won Deals</Text>
-          <Text style={styles.statLbl}>Department Closed Revenue Deals →</Text>
+          <Text style={styles.statLbl}>{isAdmin ? 'Organization Closed Revenue Deals →' : 'Department Closed Revenue Deals →'}</Text>
         </TouchableOpacity>
 
         {/* Operational Actions */}
-        <Text style={styles.sectionTitle}>⚙️ Manager Operations &amp; Governance</Text>
+        <Text style={styles.sectionTitle}>
+          ⚙️ {isAdmin ? 'Executive Operations & Governance' : 'Manager Operations & Governance'}
+        </Text>
         <View style={{ gap: 8 }}>
           <TouchableOpacity style={styles.actionCard} onPress={handleRedirectToAttendance}>
             <Text style={styles.actionCardTitle}>⏱️ Attendance Portal (View {employee.name} Selected) →</Text>
-            <Text style={styles.actionCardSub}>Redirects to attendance portal with Manager pre-selected in filter</Text>
+            <Text style={styles.actionCardSub}>Redirects to attendance portal with user pre-selected in filter</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.actionCard, { borderColor: '#fbbf24' }]} onPress={() => setLeaveModalOpen(true)}>
@@ -361,14 +371,22 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={[styles.actionCard, { borderColor: '#c084fc' }]} onPress={() => setRolesReportModalOpen(true)}>
-            <Text style={[styles.actionCardTitle, { color: '#c084fc' }]}>📋 Share Manager Roles &amp; Responsibilities Report →</Text>
-            <Text style={styles.actionCardSub}>Generate and share Manager SLA, department targets &amp; P&amp;L telemetry</Text>
+          <TouchableOpacity style={[styles.actionCard, { borderColor: isAdmin ? '#f43f5e' : '#c084fc' }]} onPress={() => setRolesReportModalOpen(true)}>
+            <Text style={[styles.actionCardTitle, { color: isAdmin ? '#f43f5e' : '#c084fc' }]}>
+              📋 {isAdmin ? 'Share Executive & Admin Governance Report →' : 'Share Manager Roles & Responsibilities Report →'}
+            </Text>
+            <Text style={styles.actionCardSub}>
+              {isAdmin
+                ? 'Generate and share Executive SLA, organization targets & governance telemetry'
+                : 'Generate and share Manager SLA, department targets & P&L telemetry'}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* ⚡ Manager Lead Flow Controls (Matching Admin/Manager Diagram) */}
-        <Text style={styles.sectionTitle}>⚡ Manager Lead Flow &amp; Allocation Controls</Text>
+        {/* ⚡ Lead Flow Controls */}
+        <Text style={styles.sectionTitle}>
+          ⚡ {isAdmin ? 'Executive Lead Flow & Allocation Controls' : 'Manager Lead Flow & Allocation Controls'}
+        </Text>
         <View style={{ gap: 8 }}>
           <TouchableOpacity style={[styles.actionCard, { borderColor: '#818cf8' }]} onPress={() => { setAllocationSourceType('EXCEL_CSV'); setAllocationModalOpen(true); }}>
             <Text style={[styles.actionCardTitle, { color: '#818cf8' }]}>📦 Allocated Leads (Excel / Imported Lead Flow) →</Text>
@@ -513,8 +531,8 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
               • Department Win Rate: 0.0% SLA Verified{'\n'}
               • Operational Risk Audit: 0 SLA Breaches Recorded
             </Text>
-            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]} onPress={handleShareRolesReport}>
-              <Text style={styles.modalBtnText}>Share Manager Report →</Text>
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: isAdmin ? '#e11d48' : '#4f46e5', marginTop: 8 }]} onPress={handleShareRolesReport}>
+              <Text style={styles.modalBtnText}>{isAdmin ? 'Share Executive Report →' : 'Share Manager Report →'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -525,9 +543,9 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>⚡ Upgrade Role for {employee.name}</Text>
-            {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'] as const).map((r) => (
+            {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR', 'ADMIN'] as const).map((r) => (
               <TouchableOpacity key={r} style={styles.modalItemBtn} onPress={() => handleRoleUpgrade(r)}>
-                <Text style={styles.modalItemBtnText}>{r.replace('_', ' ')}</Text>
+                <Text style={styles.modalItemBtnText}>{r === 'ADMIN' ? 'Company Admin (Executive)' : r.replace('_', ' ')}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity onPress={() => setUpgradeRoleModalOpen(false)}>

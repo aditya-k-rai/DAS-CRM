@@ -16,7 +16,7 @@ export interface EmployeeProfileWeb {
   dept: string;
   email: string;
   phone: string;
-  role: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC';
+  role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC';
   assignedManager: string;
   baseSalary: string;
   joined: string;
@@ -174,11 +174,11 @@ export function EmployeeListWidget() {
           if (Array.isArray(data) && data.length > 0) {
             const mapped: EmployeeProfileWeb[] = data.map((u: any, idx: number) => {
               const rawRole = (u.role || 'SALES_EXEC').toUpperCase();
-              let role: 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = 'SALES_EXEC';
-              if (rawRole.includes('MANAGER')) role = 'MANAGER';
+              let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = 'SALES_EXEC';
+              if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) role = 'ADMIN';
+              else if (rawRole.includes('MANAGER')) role = 'MANAGER';
               else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
               else if (rawRole.includes('HR')) role = 'HR';
-              else if (rawRole.includes('ADMIN') || rawRole.includes('OWNER')) role = 'MANAGER';
 
               let rawPhone = u.phone || u.phoneNumber || u.mobile;
               if (!rawPhone && (u.email === currentUser?.email || u.id === currentUser?.id)) {
@@ -193,12 +193,12 @@ export function EmployeeListWidget() {
                 id: String(u.id),
                 name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
                 code: `EMP${String(idx + 1).padStart(3, '0')}`,
-                dept: role === 'HR' ? 'Human Resources' : role === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth',
+                dept: role === 'ADMIN' ? 'Executive & Administration' : role === 'HR' ? 'Human Resources' : role === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth',
                 email: u.email,
                 phone: displayPhone,
                 role,
-                assignedManager: 'Tenant Admin',
-                baseSalary: '₹45,000',
+                assignedManager: role === 'ADMIN' ? 'Self (Tenant Owner)' : 'Tenant Admin',
+                baseSalary: role === 'ADMIN' ? '₹95,000' : '₹45,000',
                 joined: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently',
                 canSelfCheckIn: true,
                 status: u.isActive !== false ? 'active' : 'inactive',
@@ -236,17 +236,28 @@ export function EmployeeListWidget() {
       if (currentUser) {
         const rawPhone = getCurrentUserPhone() || (currentUser.email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
         const displayPhone = formatPhone(rawPhone);
+        const userRole = (currentUser.role || '').toUpperCase();
+        const isOwnerOrAdmin = userRole.includes('ADMIN') || userRole.includes('OWNER') || userRole.includes('SUPER_ADMIN');
+        const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
+          ? 'ADMIN'
+          : userRole.includes('HR')
+          ? 'HR'
+          : userRole.includes('MANAGER')
+          ? 'MANAGER'
+          : userRole.includes('LEADER') || userRole.includes('TL')
+          ? 'TEAM_LEADER'
+          : 'SALES_EXEC';
 
         setEmployees([
           {
             id: currentUser.id || 'admin_1',
             name: currentUser.name || 'Tenant Admin',
             code: 'EMP001',
-            dept: 'Executive & Management',
+            dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
             email: currentUser.email || 'admin@company.com',
             phone: displayPhone,
-            role: 'MANAGER',
-            assignedManager: 'Self (Tenant Owner)',
+            role,
+            assignedManager: isOwnerOrAdmin ? 'Self (Tenant Owner)' : 'Tenant Admin',
             baseSalary: '₹95,000',
             joined: 'Recently',
             canSelfCheckIn: true,
@@ -293,14 +304,14 @@ export function EmployeeListWidget() {
   // 🔀 DEDICATED ROLE CONTROL SCREEN ROUTING (WEB)
   // ─────────────────────────────────────────────────────────────────────────────
   if (inspectingEmp !== null) {
+    if (inspectingEmp.role === 'ADMIN' || inspectingEmp.role === 'MANAGER') {
+      return <ManagerControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+    }
     if (inspectingEmp.role === 'SALES_EXEC') {
       return <SalesExecControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'TEAM_LEADER') {
       return <TeamLeaderControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
-    }
-    if (inspectingEmp.role === 'MANAGER') {
-      return <ManagerControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'HR') {
       return <HrControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
@@ -331,7 +342,9 @@ export function EmployeeListWidget() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {employees.map(emp => {
           const roleBadgeColor =
-            emp.role === 'MANAGER'
+            emp.role === 'ADMIN'
+              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+              : emp.role === 'MANAGER'
               ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
               : emp.role === 'TEAM_LEADER'
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EmployeeProfileWeb as EmployeeProfile } from './EmployeeListWidget';
+import EmployeeDriveVaultModal from './EmployeeDriveVaultModal';
 
 interface Props {
   employee: EmployeeProfile;
@@ -21,6 +22,7 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
   const [revertNote, setRevertNote] = useState('');
 
   const [rolesReportModalOpen, setRolesReportModalOpen] = useState(false);
+  const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
   const handleToggleLock = () => {
     const isLocked = !employee.isLocked;
@@ -79,8 +81,12 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
         <button onClick={onBack} className="px-4 py-2 bg-slate-800 text-sky-400 text-xs font-bold rounded-xl border border-slate-700">
           ← Back to Directory
         </button>
-        <span className="px-3 py-1 bg-purple-500/15 border border-purple-500/40 text-purple-400 text-xs font-black rounded-lg uppercase">
-          DEPARTMENT MANAGER CONTROL
+        <span className={`px-3 py-1 text-xs font-black rounded-lg uppercase border ${
+          employee.role === 'ADMIN'
+            ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+            : 'bg-purple-500/15 border-purple-500/40 text-purple-400'
+        }`}>
+          {employee.role === 'ADMIN' ? 'TENANT ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
         </span>
       </div>
 
@@ -118,14 +124,16 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
       {/* Department Staff Assigned Under Manager */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xs font-black text-white">👥 Department Staff Assigned Under {employee.name}</h3>
-          <button onClick={() => setStaffModalOpen(true)} className="px-3 py-1 bg-slate-800 text-purple-400 text-xs font-bold rounded-lg border border-slate-700">
-            Add / Change Staff ✏️
+          <h3 className="text-xs font-black text-white">
+            👥 {employee.role === 'ADMIN' ? `Organization Staff & Department Leads Overseen by ${employee.name}` : `Department Staff Assigned Under ${employee.name}`}
+          </h3>
+          <button onClick={() => setStaffModalOpen(true)} className={`px-3 py-1 bg-slate-800 ${employee.role === 'ADMIN' ? 'text-rose-400' : 'text-purple-400'} text-xs font-bold rounded-lg border border-slate-700`}>
+            {employee.role === 'ADMIN' ? 'Manage Staff ✏️' : 'Add / Change Staff ✏️'}
           </button>
         </div>
         {staffList.length === 0 ? (
           <div className="py-6 text-center text-xs text-slate-500 bg-slate-950/50 rounded-xl border border-dashed border-slate-800">
-            No department staff assigned under {employee.name} yet.
+            {employee.role === 'ADMIN' ? 'No additional direct subordinates configured.' : `No department staff assigned under ${employee.name} yet.`}
           </div>
         ) : (
           <div className="space-y-2">
@@ -143,11 +151,13 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
       </div>
 
       {/* Department Pipeline Audit */}
-      <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">📊 Department Pipeline Lead Audit</h3>
+      <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">
+        📊 {employee.role === 'ADMIN' ? 'Organization Pipeline Lead Audit' : 'Department Pipeline Lead Audit'}
+      </h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <button onClick={() => { setLeadCategory('TOTAL'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-sky-500/40 p-4 rounded-xl text-left">
           <div className="text-2xl font-black text-sky-400">0</div>
-          <div className="text-xs font-bold text-slate-400 mt-1">Total Dept Leads →</div>
+          <div className="text-xs font-bold text-slate-400 mt-1">{employee.role === 'ADMIN' ? 'Total Org Leads →' : 'Total Dept Leads →'}</div>
         </button>
 
         <button onClick={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-emerald-500/40 p-4 rounded-xl text-left">
@@ -186,18 +196,45 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
         </button>
       </div>
 
-      <button onClick={() => setRolesReportModalOpen(true)} className="w-full py-3 bg-purple-600 text-white text-xs font-bold rounded-xl">
-        📋 Share Manager Roles & Responsibilities Report →
-      </button>
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setRolesReportModalOpen(true)}
+          className={`flex-1 py-3 ${employee.role === 'ADMIN' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-purple-600 hover:bg-purple-500'} text-white text-xs font-bold rounded-xl transition`}
+        >
+          📋 {employee.role === 'ADMIN' ? 'Share Executive & Admin Governance Report →' : 'Share Manager Roles & Responsibilities Report →'}
+        </button>
+        <button
+          onClick={() => setDriveVaultOpen(true)}
+          className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+        >
+          ☁️ {employee.name}&apos;s Google Drive Vault (DP, KYC, Docs) →
+        </button>
+      </div>
 
       {/* Modals */}
       {rolesReportModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-sm font-black text-white mb-4">📋 Manager Governance & Responsibility Report</h3>
-            <button onClick={() => { setRolesReportModalOpen(false); alert('Manager Report Shared!'); }} className="w-full py-2 bg-purple-600 text-white text-xs font-bold rounded-xl">Share Manager Report →</button>
+            <h3 className="text-sm font-black text-white mb-4">
+              📋 {employee.role === 'ADMIN' ? 'Executive & Tenant Admin Governance Report' : 'Manager Governance & Responsibility Report'}
+            </h3>
+            <button
+              onClick={() => { setRolesReportModalOpen(false); alert(employee.role === 'ADMIN' ? 'Executive Report Shared!' : 'Manager Report Shared!'); }}
+              className={`w-full py-2 ${employee.role === 'ADMIN' ? 'bg-rose-600' : 'bg-purple-600'} text-white text-xs font-bold rounded-xl`}
+            >
+              {employee.role === 'ADMIN' ? 'Share Executive Report →' : 'Share Manager Report →'}
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Google Drive Vault Modal */}
+      {driveVaultOpen && (
+        <EmployeeDriveVaultModal
+          employee={employee}
+          isOpen={driveVaultOpen}
+          onClose={() => setDriveVaultOpen(false)}
+        />
       )}
     </div>
   );

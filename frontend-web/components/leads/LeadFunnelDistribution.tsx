@@ -159,13 +159,19 @@ export function LeadFunnelDistribution() {
         const usersData = await usersRes.json();
         const items = Array.isArray(usersData) ? usersData : (usersData.items || usersData.users || []);
         if (items.length > 0) {
-          const mapped = items.map((u: any) => ({
-            id: u.id,
-            name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-            email: u.email,
-            role: u.role || 'MANAGER',
-            isWhitelisted: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'OWNER', 'TEAM_LEADER'].includes((u.role || '').toUpperCase()),
-          }));
+          const mapped = items.map((u: any) => {
+            const rawRole = (typeof u.role === 'string' ? u.role : u.role?.name || '').toUpperCase();
+            const role = rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')
+              ? 'ADMIN'
+              : rawRole || 'MANAGER';
+            return {
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+              email: u.email,
+              role,
+              isWhitelisted: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'OWNER', 'TEAM_LEADER'].includes(role.toUpperCase()),
+            };
+          });
           setWhitelistManagers(mapped);
           setDirectManager(`${mapped[0].name} (${mapped[0].role})`);
         }
