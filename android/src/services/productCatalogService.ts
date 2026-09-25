@@ -6,6 +6,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiBase } from '../config/api';
 
 export interface CategoryTree {
   id: string;
@@ -305,10 +306,35 @@ class ProductCatalogService {
   async getCardDisplayConfig(): Promise<ProductCardDisplayConfig> {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_CARD_CONFIG_KEY);
+      const localConfig = stored ? JSON.parse(stored) : null;
+
+      // Try fetching from backend if token exists
+      const token = await AsyncStorage.getItem('das_crm_auth_token');
+      if (token) {
+        try {
+          const res = await fetch(`${getApiBase()}/products/card-display-config`, {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const remoteConfig = await res.json();
+            if (remoteConfig && typeof remoteConfig === 'object') {
+              const merged = { ...DEFAULT_CARD_DISPLAY_CONFIG, ...remoteConfig };
+              await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(merged));
+              return merged;
+            }
+          }
+        } catch {
+          // Ignore network errors, fall back to storage
+        }
+      }
+
       if (stored) {
         return {
           ...DEFAULT_CARD_DISPLAY_CONFIG,
-          ...JSON.parse(stored),
+          ...localConfig,
         };
       }
     } catch (err) {
@@ -318,11 +344,26 @@ class ProductCatalogService {
   }
 
   /**
-   * Admin-Only: Save product card display configuration to persistent storage.
+   * Admin-Only: Save product card display configuration to persistent storage and backend.
    */
   async saveCardDisplayConfig(config: ProductCardDisplayConfig): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(config));
+      const token = await AsyncStorage.getItem('das_crm_auth_token');
+      if (token) {
+        try {
+          await fetch(`${getApiBase()}/products/card-display-config`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(config),
+          });
+        } catch {
+          // Ignore network errors
+        }
+      }
     } catch (err) {
       console.log('Failed to save product card display config:', err);
     }

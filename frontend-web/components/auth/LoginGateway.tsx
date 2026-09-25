@@ -20,10 +20,6 @@ interface PublicCompany {
 }
 
 function formatCompanyKey(input: string): string {
-  const raw = input.trim().toUpperCase();
-  if (raw.includes('-') && !raw.startsWith('DAS')) {
-    return raw;
-  }
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   let part1 = '';
   let part2 = '';

@@ -268,6 +268,8 @@ export class AuthController {
     @Body()
     body: {
       companyName: string;
+      gstNumber?: string;
+      panNumber?: string;
       planTier: PlanTier;
       memberLimit: number;
       validityDays: number;

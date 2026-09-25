@@ -1,10 +1,102 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2, FolderPlus, Layers, ShieldCheck, Check, Sparkles, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import {
+  Search,
+  Tag,
+  Package,
+  MoreHorizontal,
+  Star,
+  Plus,
+  Edit2,
+  Trash2,
+  FolderPlus,
+  Layers,
+  ShieldCheck,
+  Check,
+  Sparkles,
+  X,
+  CheckCircle2,
+  AlertTriangle,
+  LayoutGrid,
+  Table as TableIcon,
+  Eye,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 interface ProductsCatalogProps {
   isAdmin?: boolean;
+}
+
+export interface ProductCardDisplayConfig {
+  showImage: boolean;
+  showName: boolean;
+  showCategory: boolean;
+  showSubCategory: boolean;
+  showPrice: boolean;
+  showGst: boolean;
+  showInStock: boolean;
+  showMoq: boolean;
+  showSku: boolean;
+  showDescription: boolean;
+  showFeatures: boolean;
+  showTapHint: boolean;
+}
+
+export const DEFAULT_CARD_DISPLAY_CONFIG: ProductCardDisplayConfig = {
+  showImage: true,
+  showName: true,
+  showCategory: true,
+  showSubCategory: true,
+  showPrice: true,
+  showGst: true,
+  showInStock: true,
+  showMoq: true,
+  showSku: true,
+  showDescription: false, // Clean display by default as requested
+  showFeatures: false,    // Clean display by default as requested
+  showTapHint: true,
+};
+
+const STORAGE_CARD_CONFIG_KEY = 'das_crm_product_card_display_config_v1';
+const STORAGE_VIEW_MODE_KEY = 'das_crm_product_catalog_view_mode_v1';
+
+// Toggle Switch Component for Card Display Configuration Modal
+function ToggleSwitch({
+  label,
+  description,
+  enabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  enabled: boolean;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700/80 transition-all">
+      <div className="space-y-0.5 pr-3">
+        <p className="text-sm font-bold text-slate-100">{label}</p>
+        <p className="text-xs text-slate-400">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+          enabled ? 'bg-indigo-600' : 'bg-slate-700'
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            enabled ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
+  );
 }
 
 interface ProductItemWeb {
@@ -85,17 +177,44 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<ProductItemWeb | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ─── Card Display Configuration State ─────────────────────────────────────
+  const [cardConfig, setCardConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
+  const [tempConfig, setTempConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   useEffect(() => {
-    const fetchProducts = async () => {
+    // 1. Load View Mode from localStorage
+    try {
+      const savedView = localStorage.getItem(STORAGE_VIEW_MODE_KEY);
+      if (savedView === 'grid' || savedView === 'table') {
+        setViewMode(savedView);
+      }
+    } catch {}
+
+    // 2. Load Card Config from localStorage
+    try {
+      const saved = localStorage.getItem(STORAGE_CARD_CONFIG_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const merged = { ...DEFAULT_CARD_DISPLAY_CONFIG, ...parsed };
+        setCardConfig(merged);
+        setTempConfig(merged);
+      }
+    } catch {}
+
+    // 3. Fetch products and remote card config from Backend
+    const fetchCatalogData = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
       try {
-        const res = await fetch(`${apiBase}/products`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
+        const res = await fetch(`${apiBase}/products`, { headers });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -127,9 +246,27 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
       } catch (e) {
         console.warn('Could not fetch products:', e);
       }
+
+      // Sync Card Display Config from Backend
+      try {
+        const configRes = await fetch(`${apiBase}/products/card-display-config`, { headers });
+        if (configRes.ok) {
+          const remoteConfig = await configRes.json();
+          if (remoteConfig && typeof remoteConfig === 'object') {
+            const merged = { ...DEFAULT_CARD_DISPLAY_CONFIG, ...remoteConfig };
+            setCardConfig(merged);
+            setTempConfig(merged);
+            try {
+              localStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(merged));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        // Ignore network error, local config preserved
+      }
     };
 
-    fetchProducts();
+    fetchCatalogData();
   }, []);
 
   // New Product Modal State
@@ -377,8 +514,74 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Brand "${trimmed}" added!`);
   };
 
+  // ─── Admin Card Display Handlers ──────────────────────────────────────────
+  const handleOpenConfigModal = () => {
+    if (!isAdmin) {
+      alert('🔒 Admin Access Required: Only Organization Admins are permitted to configure product card display fields on this screen.');
+      return;
+    }
+    setTempConfig({ ...cardConfig });
+    setConfigModalOpen(true);
+  };
+
+  const handleSaveCardConfig = async () => {
+    if (!isAdmin) {
+      alert('🔒 Admin Access Required: Only Organization Admins can save card display preferences.');
+      return;
+    }
+    setCardConfig(tempConfig);
+    try {
+      localStorage.setItem(STORAGE_CARD_CONFIG_KEY, JSON.stringify(tempConfig));
+    } catch {}
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    try {
+      await fetch(`${apiBase}/products/card-display-config`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(tempConfig),
+      });
+    } catch (err) {
+      console.warn('Could not sync card display config with backend:', err);
+    }
+
+    setConfigModalOpen(false);
+    setToastMessage('✅ Display Settings Saved: Product catalog card display configuration updated successfully!');
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleResetCardConfig = () => {
+    setTempConfig(DEFAULT_CARD_DISPLAY_CONFIG);
+  };
+
+  const handleViewModeChange = (mode: 'grid' | 'table') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(STORAGE_VIEW_MODE_KEY, mode);
+    } catch {}
+  };
+
   return (
     <div className="space-y-4">
+      {/* Toast Notification for Display Settings Saved */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 p-4 rounded-2xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 shadow-2xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <CheckCircle2 size={18} className="text-emerald-400 flex-shrink-0" />
+          <span className="text-xs font-bold">{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-400 hover:text-white p-1 rounded-lg"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Quick Action & Summary Bar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
@@ -423,6 +626,41 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         </div>
       </div>
 
+      {/* Admin Card Display Customization Action Banner */}
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={handleOpenConfigModal}
+          className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-indigo-500/30 bg-slate-900/70 hover:bg-slate-900/90 transition-all text-left shadow-lg group backdrop-blur-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg flex-shrink-0">
+              ⚙️
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-extrabold text-white group-hover:text-indigo-300 transition-colors">
+                  Configure Product Card Display
+                </span>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-wider">
+                  {isAdmin ? 'ADMIN ONLY' : '🔒 ADMIN ONLY'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isAdmin
+                  ? 'Admin Governance: Control which attributes appear on catalog cards across the organization.'
+                  : 'Only Organization Admins can configure visible screen fields & card attributes'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-300">
+              {isAdmin ? 'Customize →' : 'Locked'}
+            </span>
+          </div>
+        </button>
+      </div>
+
       {/* Main Catalog Card */}
       <div className="crm-card p-0 overflow-hidden">
         {/* Category & Sub-Category Tree Filter Bar */}
@@ -465,165 +703,389 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             </div>
           )}
 
-          <div className="relative max-w-sm pt-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              className="crm-input pl-9 h-9 text-sm"
-              placeholder="Search product name, SKU, or category..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+            <div className="relative max-w-sm flex-1 min-w-[240px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                className="crm-input pl-9 h-9 text-sm w-full"
+                placeholder="Search product name, SKU, or category..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* View Mode Switcher: Cards View vs Table View */}
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('grid')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+                title="Switch to Card Grid View (Configurable fields)"
+              >
+                <LayoutGrid size={13} />
+                <span>Cards View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === 'table'
+                    ? 'bg-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+                title="Switch to Tabular List View"
+              >
+                <TableIcon size={13} />
+                <span>Table View</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Products Table */}
-        <div className="overflow-x-auto">
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th>Product / SKU</th>
-                <th>Category &amp; Brand</th>
-                <th>Price / Unit</th>
-                <th>Colour &amp; Features</th>
-                <th>Tax</th>
-                <th>Stock</th>
-                <th>Rating</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">📦</div>
-                      <p className="text-sm font-bold text-white">
-                        {search ? 'No products match your search' : 'No products in your catalog yet'}
-                      </p>
-                      <p className="text-xs text-slate-400 max-w-sm">
-                        {search
-                          ? `No products matching "${search}".`
-                          : 'Your company product catalog is ready. Create products and services to attach to proposals, send via WhatsApp, and quote to clients.'}
-                      </p>
-                      {!search && isAdmin && (
-                        <button
-                          onClick={() => setCreateProductOpen(true)}
-                          className="mt-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5"
-                        >
-                          <Plus size={14} /> Create First Product
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map(p => (
-                <tr key={p.id} className="hover:bg-slate-900/40 transition-colors">
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex-shrink-0">
-                        <img src={p.coverImage} alt={p.name} className="w-11 h-11 rounded-xl object-cover border border-slate-800" />
-                        {p.images && p.images.length > 1 && (
-                          <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1 rounded-full shadow" title={`${p.images.length} images`}>
-                            +{p.images.length - 1}
+        {/* Products Content: Configurable Cards Grid View vs Table View */}
+        {viewMode === 'grid' ? (
+          <div className="p-4 sm:p-5">
+            {filtered.length === 0 ? (
+              <div className="py-16 text-center flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">📦</div>
+                <p className="text-sm font-bold text-white">
+                  {search ? 'No products match your search' : 'No products in your catalog yet'}
+                </p>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  {search
+                    ? `No products matching "${search}".`
+                    : 'Your company product catalog is ready. Create products and services to attach to proposals, send via WhatsApp, and quote to clients.'}
+                </p>
+                {!search && isAdmin && (
+                  <button
+                    onClick={() => setCreateProductOpen(true)}
+                    className="mt-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5"
+                  >
+                    <Plus size={14} /> Create First Product
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                {filtered.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => setInspectorProduct(p)}
+                    className="p-4 rounded-2xl flex flex-col justify-between hover:border-indigo-500/60 hover:shadow-xl hover:shadow-indigo-500/10 transition-all cursor-pointer group relative overflow-hidden bg-slate-900/60 border border-slate-800/80"
+                  >
+                    <div className="space-y-3">
+                      {/* 1. Cover Image */}
+                      {cardConfig.showImage && (
+                        <div className="relative h-44 w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
+                          <img
+                            src={p.coverImage}
+                            alt={p.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          {p.images && p.images.length > 1 && (
+                            <span className="absolute top-2 right-2 bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shadow border border-indigo-400/30">
+                              +{p.images.length - 1} Photos
+                            </span>
+                          )}
+                          <span className="absolute bottom-2 left-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-sm text-emerald-400 border border-emerald-500/30">
+                            {p.stock && p.stock > 0 ? 'Active' : 'Out of Stock'}
                           </span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-white hover:text-indigo-400 cursor-pointer" onClick={() => setInspectorProduct(p)}>
-                          {p.name}
-                        </p>
-                        <span className="text-[11px] font-mono text-slate-400">SKU: {p.sku}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="space-y-1">
-                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        {p.category}
-                      </span>
-                      <p className="text-[11px] text-slate-400 font-semibold">{p.subCategory}</p>
-                      {p.brand && (
-                        <span className="inline-block text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
-                          🏷️ {p.brand}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div>
-                      <span className="font-bold text-sm text-emerald-400">
-                        ₹{p.price.toLocaleString('en-IN')}
-                      </span>
-                      <p className="text-[11px] text-slate-400 font-medium">per {p.unit}</p>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="space-y-1 max-w-[180px]">
-                      {p.color ? (
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                          <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
-                          <span className="font-medium">{p.color}</span>
                         </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-500 italic">No color specified</span>
                       )}
-                      {p.features && p.features.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {p.features.slice(0, 2).map((feat, idx) => (
-                            <span key={idx} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-medium">
-                              ✨ {feat}
+
+                      {/* 2. Taxonomy: Category, Sub-Category, SKU */}
+                      {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku) && (
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {cardConfig.showCategory && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                📁 {p.category}
+                              </span>
+                            )}
+                            {cardConfig.showSubCategory && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                📂 {p.subCategory}
+                              </span>
+                            )}
+                          </div>
+                          {cardConfig.showSku && (
+                            <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                              {p.sku}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 3. Product Name */}
+                      {cardConfig.showName && (
+                        <div>
+                          <h3 className="text-base font-extrabold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
+                            {p.name}
+                          </h3>
+                          {p.brand && (
+                            <span className="inline-block text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium mt-1">
+                              🏷️ {p.brand}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 4. Price & GST */}
+                      {cardConfig.showPrice && (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-lg font-extrabold text-emerald-400">
+                            ₹{p.price.toLocaleString('en-IN')}
+                          </span>
+                          {cardConfig.showGst && (
+                            <span className="text-xs text-slate-400 font-medium">
+                              (+{p.taxRate}% GST)
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-500">/ {p.unit}</span>
+                        </div>
+                      )}
+
+                      {/* 5. Inventory Stock & MOQ */}
+                      {(cardConfig.showInStock || cardConfig.showMoq) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {cardConfig.showInStock && (
+                            <span
+                              className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                                p.stock && p.stock >= 10
+                                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                  : p.stock && p.stock > 0
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  : 'bg-red-500/15 text-red-300 border-red-500/30'
+                              }`}
+                            >
+                              {p.stock && p.stock >= 10
+                                ? `🟢 In Stock (${p.stock} Units)`
+                                : p.stock && p.stock > 0
+                                ? `⚠️ Low Stock (${p.stock} Units)`
+                                : '🔴 Out of Stock'}
+                            </span>
+                          )}
+
+                          {cardConfig.showMoq && (
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-950 text-slate-300 border border-slate-800">
+                              📦 MOQ: {p.minOrderQty} {p.unit}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 6. Product Description */}
+                      {cardConfig.showDescription && (
+                        <p className="text-xs text-slate-400 line-clamp-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+                          {p.overview || 'No description provided.'}
+                        </p>
+                      )}
+
+                      {/* 7. Feature Specs */}
+                      {cardConfig.showFeatures && p.features && p.features.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {p.features.slice(0, 3).map((feat, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] bg-slate-950 text-slate-300 px-2 py-0.5 rounded border border-slate-800 font-medium"
+                            >
+                              ✓ {feat}
                             </span>
                           ))}
-                          {p.features.length > 2 && (
-                            <span className="text-[9px] text-slate-400">+{p.features.length - 2}</span>
+                          {p.features.length > 3 && (
+                            <span className="text-[10px] text-slate-500 font-semibold self-center">
+                              +{p.features.length - 3} more
+                            </span>
                           )}
                         </div>
                       )}
                     </div>
-                  </td>
-                  <td>
-                    <span className="text-xs font-bold text-slate-300">{p.taxRate}% GST</span>
-                  </td>
-                  <td>
-                    <span className="text-xs font-bold text-slate-200">{p.stock ? `${p.stock} units` : 'Unlimited'}</span>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      <Star size={12} className="text-amber-400 fill-amber-400" />
-                      <span className="text-xs font-bold text-white">{p.rating}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      Active
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setInspectorProduct(p)}
-                        className="btn-secondary text-xs py-1 px-2.5 gap-1"
-                      >
-                        🔍 Inspect
-                      </button>
+
+                    {/* Footer / Hint & Action Buttons */}
+                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                      {cardConfig.showTapHint ? (
+                        <span className="text-[11px] font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
+                          🔍 Click Card to View Full Specs &amp; Tier Pricing →
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          SKU: {p.sku}
+                        </span>
+                      )}
+
                       {isAdmin && (
                         <button
-                          onClick={() => handleDeleteProduct(p)}
-                          className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 hover:border-red-500 hover:text-red-300 flex items-center gap-1"
-                          title="Admin: Permanently delete this product from database"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProduct(p);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          title="Admin: Delete product"
                         >
-                          <Trash2 size={12} /> Delete
+                          <Trash2 size={13} />
                         </button>
                       )}
                     </div>
-                  </td>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Products Table */
+          <div className="overflow-x-auto">
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th>Product / SKU</th>
+                  <th>Category &amp; Brand</th>
+                  <th>Price / Unit</th>
+                  <th>Colour &amp; Features</th>
+                  <th>Tax</th>
+                  <th>Stock</th>
+                  <th>Rating</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              )))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">📦</div>
+                        <p className="text-sm font-bold text-white">
+                          {search ? 'No products match your search' : 'No products in your catalog yet'}
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-sm">
+                          {search
+                            ? `No products matching "${search}".`
+                            : 'Your company product catalog is ready. Create products and services to attach to proposals, send via WhatsApp, and quote to clients.'}
+                        </p>
+                        {!search && isAdmin && (
+                          <button
+                            onClick={() => setCreateProductOpen(true)}
+                            className="mt-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5"
+                          >
+                            <Plus size={14} /> Create First Product
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-900/40 transition-colors">
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-shrink-0">
+                          <img src={p.coverImage} alt={p.name} className="w-11 h-11 rounded-xl object-cover border border-slate-800" />
+                          {p.images && p.images.length > 1 && (
+                            <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1 rounded-full shadow" title={`${p.images.length} images`}>
+                              +{p.images.length - 1}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-white hover:text-indigo-400 cursor-pointer" onClick={() => setInspectorProduct(p)}>
+                            {p.name}
+                          </p>
+                          <span className="text-[11px] font-mono text-slate-400">SKU: {p.sku}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="space-y-1">
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          {p.category}
+                        </span>
+                        <p className="text-[11px] text-slate-400 font-semibold">{p.subCategory}</p>
+                        {p.brand && (
+                          <span className="inline-block text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
+                            🏷️ {p.brand}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div>
+                        <span className="font-bold text-sm text-emerald-400">
+                          ₹{p.price.toLocaleString('en-IN')}
+                        </span>
+                        <p className="text-[11px] text-slate-400 font-medium">per {p.unit}</p>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="space-y-1 max-w-[180px]">
+                        {p.color ? (
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
+                            <span className="font-medium">{p.color}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic">No color specified</span>
+                        )}
+                        {p.features && p.features.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {p.features.slice(0, 2).map((feat, idx) => (
+                              <span key={idx} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-medium">
+                                ✨ {feat}
+                              </span>
+                            ))}
+                            {p.features.length > 2 && (
+                              <span className="text-[9px] text-slate-400">+{p.features.length - 2}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <span className="text-xs font-bold text-slate-300">{p.taxRate}% GST</span>
+                    </td>
+                    <td>
+                      <span className="text-xs font-bold text-slate-200">{p.stock ? `${p.stock} units` : 'Unlimited'}</span>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <Star size={12} className="text-amber-400 fill-amber-400" />
+                        <span className="text-xs font-bold text-white">{p.rating}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setInspectorProduct(p)}
+                          className="btn-secondary text-xs py-1 px-2.5 gap-1"
+                        >
+                          🔍 Inspect
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteProduct(p)}
+                            className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 hover:border-red-500 hover:text-red-300 flex items-center gap-1"
+                            title="Admin: Permanently delete this product from database"
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* 🔍 FULL PRODUCT SPECIFICATION INSPECTOR MODAL */}
@@ -1222,6 +1684,269 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               >
                 <Trash2 size={13} />
                 {isDeleting ? 'Deleting...' : 'Yes, Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚙️ ADMIN PRODUCT CARD DISPLAY CONFIGURATION MODAL */}
+      {configModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[65] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-4">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <span>⚙️ Configure Product Card Display</span>
+                  </h3>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 tracking-wider">
+                    ADMIN ONLY
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Admin Governance: Control which attributes appear on catalog cards across the organization.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfigModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Clean Default View Info Callout */}
+            <div className="p-3.5 rounded-2xl bg-indigo-950/30 border border-indigo-800/50 flex items-start gap-2.5">
+              <span className="text-base flex-shrink-0">💡</span>
+              <p className="text-xs text-indigo-200 leading-relaxed">
+                <span className="font-extrabold text-white">Clean Default View:</span> Cards show Image, Name, Category, Subcategory, Price, GST, In-Stock, and MOQ. Description and specs tags are hidden by default to keep cards sleek and readable.
+              </p>
+            </div>
+
+            {/* 👁️ LIVE CARD PREVIEW */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase flex items-center gap-1.5">
+                  <Eye size={13} /> Live Card Preview
+                </span>
+                <span className="text-[10px] text-slate-400 italic">Reactive preview</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#020617] border border-indigo-500/60 shadow-xl shadow-indigo-950/30 space-y-3 transition-all">
+                <div className="flex items-start gap-3.5">
+                  {tempConfig.showImage && (
+                    <img
+                      src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=400&q=80"
+                      alt="Preview"
+                      className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    {(tempConfig.showCategory || tempConfig.showSubCategory || tempConfig.showSku) && (
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {tempConfig.showCategory && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              📁 CRM &amp; Sales Software
+                            </span>
+                          )}
+                          {tempConfig.showSubCategory && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                              📂 Lead Management
+                            </span>
+                          )}
+                        </div>
+                        {tempConfig.showSku && (
+                          <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">
+                            DAS-CRM-001
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {tempConfig.showName && (
+                      <h4 className="text-sm font-extrabold text-white">DAS CRM Enterprise Suite</h4>
+                    )}
+
+                    {tempConfig.showPrice && (
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-extrabold text-emerald-400">₹2,999 - ₹4,999</span>
+                        {tempConfig.showGst && (
+                          <span className="text-[10px] text-slate-400 font-medium">(+18% GST)</span>
+                        )}
+                      </div>
+                    )}
+
+                    {(tempConfig.showInStock || tempConfig.showMoq) && (
+                      <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                        {tempConfig.showInStock && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                            🟢 In Stock (250 Units)
+                          </span>
+                        )}
+                        {tempConfig.showMoq && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            📦 MOQ: 1 Unit(s)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {tempConfig.showDescription && (
+                  <p className="text-xs text-slate-400 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 leading-relaxed">
+                    Full sales automation, WhatsApp Cloud API, Email Marketing &amp; AI Lead Scoring.
+                  </p>
+                )}
+
+                {tempConfig.showFeatures && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-medium bg-slate-900 text-slate-300 px-2 py-0.5 rounded border border-slate-800">
+                      ✓ Unlimited Lead Ingestion
+                    </span>
+                    <span className="text-[10px] font-medium bg-slate-900 text-slate-300 px-2 py-0.5 rounded border border-slate-800">
+                      ✓ WhatsApp Cloud API (100K Quota)
+                    </span>
+                  </div>
+                )}
+
+                {tempConfig.showTapHint && (
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-center">
+                    <span className="text-[11px] font-semibold text-indigo-400">
+                      🔍 Click Card to View Full Product Specs &amp; Tier Pricing →
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 1: CORE INFORMATION & IDENTIFICATION */}
+            <div className="space-y-2.5 pt-2">
+              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+                1. Core Information &amp; Identification
+              </h4>
+              <div className="space-y-2">
+                <ToggleSwitch
+                  label="🖼️ Product Cover Image"
+                  description="Display product image thumbnail on the card"
+                  enabled={tempConfig.showImage}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showImage: val }))}
+                />
+                <ToggleSwitch
+                  label="🏷️ Product Name"
+                  description="Display product title header"
+                  enabled={tempConfig.showName}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showName: val }))}
+                />
+                <ToggleSwitch
+                  label="🔖 SKU Identifier"
+                  description="Display SKU tag (e.g. DAS-CRM-001)"
+                  enabled={tempConfig.showSku}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showSku: val }))}
+                />
+              </div>
+            </div>
+
+            {/* SECTION 2: TAXONOMY & HIERARCHY */}
+            <div className="space-y-2.5 pt-2">
+              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+                2. Taxonomy &amp; Hierarchy
+              </h4>
+              <div className="space-y-2">
+                <ToggleSwitch
+                  label="📁 Parent Category Badge"
+                  description="Show primary parent category pill"
+                  enabled={tempConfig.showCategory}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showCategory: val }))}
+                />
+                <ToggleSwitch
+                  label="📂 Sub-Category Badge"
+                  description="Show nested sub-category classification"
+                  enabled={tempConfig.showSubCategory}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showSubCategory: val }))}
+                />
+              </div>
+            </div>
+
+            {/* SECTION 3: PRICING, TAXES & INVENTORY */}
+            <div className="space-y-2.5 pt-2">
+              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+                3. Pricing, Taxes &amp; Inventory
+              </h4>
+              <div className="space-y-2">
+                <ToggleSwitch
+                  label="💰 Price Range"
+                  description="Show minimum and maximum price range"
+                  enabled={tempConfig.showPrice}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showPrice: val }))}
+                />
+                <ToggleSwitch
+                  label="🧾 GST Tax Rate"
+                  description="Display tax percentage suffix (+18% GST)"
+                  enabled={tempConfig.showGst}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showGst: val }))}
+                />
+                <ToggleSwitch
+                  label="🟢 In-Stock Quantity Badge"
+                  description="Show current inventory status and units count"
+                  enabled={tempConfig.showInStock}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showInStock: val }))}
+                />
+                <ToggleSwitch
+                  label="📦 Minimum Order Quantity (MOQ)"
+                  description="Show minimum required units badge"
+                  enabled={tempConfig.showMoq}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showMoq: val }))}
+                />
+              </div>
+            </div>
+
+            {/* SECTION 4: EXTENDED DETAILS (OPTIONAL CLUTTER) */}
+            <div className="space-y-2.5 pt-2">
+              <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+                4. Extended Details (Optional Clutter)
+              </h4>
+              <div className="space-y-2">
+                <ToggleSwitch
+                  label="📝 Product Description Text"
+                  description="Display multi-line overview on card (turn OFF for clean card)"
+                  enabled={tempConfig.showDescription}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showDescription: val }))}
+                />
+                <ToggleSwitch
+                  label="⚡ Feature Specs Badges"
+                  description="Display bullet tags on card (turn OFF for clean card)"
+                  enabled={tempConfig.showFeatures}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showFeatures: val }))}
+                />
+                <ToggleSwitch
+                  label="🔍 Click Card Hint"
+                  description="Show footer hint for inspector modal"
+                  enabled={tempConfig.showTapHint}
+                  onChange={(val) => setTempConfig(prev => ({ ...prev, showTapHint: val }))}
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleResetCardConfig}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-all border border-slate-700"
+              >
+                ↺ Reset Clean View
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCardConfig}
+                className="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition-all"
+              >
+                💾 Save Preferences
               </button>
             </div>
           </div>

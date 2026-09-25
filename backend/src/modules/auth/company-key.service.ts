@@ -5,6 +5,8 @@ import { KeyStatus, PlanTier } from '@prisma/client';
 
 export interface GenerateCompanyKeyOptions {
   companyName: string;
+  gstNumber?: string;
+  panNumber?: string;
   superAdminId?: string;
   planTier: PlanTier;
   memberLimit: number;
@@ -25,9 +27,9 @@ export interface GenerateUserKeyOptions {
 export class CompanyKeyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Generate a company registration key in format: DAS-KX-7421 */
+  /** Generate a company registration key using rule-based format: e.g. ADO-EC-7187 */
   async generateCompanyKey(opts: GenerateCompanyKeyOptions) {
-    const key = this.buildCompanyKeyString(opts.companyName);
+    const key = this.buildCompanyKeyString(opts.companyName, opts.gstNumber, opts.panNumber);
     const qrCodeDataUrl = await QRCode.toDataURL(key, {
       errorCorrectionLevel: 'H',
       margin: 2,
@@ -175,18 +177,68 @@ export class CompanyKeyService {
 
   // ── Private Helpers ───────────────────────────────────────────────────
 
-  /** Builds company registration key strictly in format: DAS-KX-7421 (DAS-XX-XXXX) */
-  private buildCompanyKeyString(companyName?: string): string {
-    const alpha = this.randomAlpha(2);
-    const digits = this.randomDigits(4);
-    return `DAS-${alpha}-${digits}`;
+  /**
+   * Rule-based company registration key generation:
+   * 1. First 3 letters of Company Name (e.g., "Adorable" -> "ADO")
+   * 2. Next 2 letters from GST (e.g. from "09ECBPS7187H1ZY" -> "EC")
+   * 3. Next 4 digits from GST (e.g. from "09ECBPS7187H1ZY" -> "7187")
+   * Format: ADO-EC-7187 (11 characters)
+   */
+  buildCompanyKeyString(companyName?: string, gstNumber?: string, panNumber?: string): string {
+    // 1. First 3 letters from Company Name
+    const cleanName = (companyName || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
+    const compPrefix = (cleanName.length >= 3 ? cleanName.slice(0, 3) : (cleanName + 'DAS').slice(0, 3));
+
+    // 2. Two letters from GST (or PAN, or random fallback)
+    const gstClean = (gstNumber || '').toUpperCase().trim();
+    const panClean = (panNumber || '').toUpperCase().trim();
+
+    const gstLetters = gstClean.replace(/[^A-Z]/g, '');
+    const panLetters = panClean.replace(/[^A-Z]/g, '');
+
+    let letterPart = '';
+    if (gstLetters.length >= 2) {
+      letterPart = gstLetters.slice(0, 2);
+    } else if (panLetters.length >= 2) {
+      letterPart = panLetters.slice(0, 2);
+    } else {
+      letterPart = this.randomAlpha(2);
+    }
+
+    // 3. Next 4 digits from GST (or PAN, or random fallback)
+    let digitPart = '';
+    const gstMatch4 = gstClean.match(/\d{4}/);
+    const panMatch4 = panClean.match(/\d{4}/);
+
+    if (gstMatch4) {
+      digitPart = gstMatch4[0];
+    } else if (panMatch4) {
+      digitPart = panMatch4[0];
+    } else {
+      const allGstDigits = gstClean.replace(/\D/g, '');
+      const allPanDigits = panClean.replace(/\D/g, '');
+      if (allGstDigits.length >= 4) {
+        digitPart = allGstDigits.slice(-4);
+      } else if (allPanDigits.length >= 4) {
+        digitPart = allPanDigits.slice(-4);
+      } else {
+        digitPart = this.randomDigits(4);
+      }
+    }
+
+    return `${compPrefix}-${letterPart}-${digitPart}`;
   }
 
-  /** Builds staff user invite key strictly in format: DAS-RX-4312 (DAS-XX-XXXX) */
-  private buildUserKeyString(orgName?: string): string {
+  /**
+   * Rule-based staff user invite key generation:
+   * Format: e.g. ADO-RX-4312 (11 characters)
+   */
+  buildUserKeyString(orgName?: string): string {
+    const cleanName = (orgName || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
+    const compPrefix = (cleanName.length >= 3 ? cleanName.slice(0, 3) : (cleanName + 'DAS').slice(0, 3));
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
-    return `DAS-${alpha}-${digits}`;
+    return `${compPrefix}-${alpha}-${digits}`;
   }
 
   private randomAlpha(length: number): string {

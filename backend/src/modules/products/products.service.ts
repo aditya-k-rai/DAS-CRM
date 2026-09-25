@@ -57,12 +57,113 @@ export interface UpdateProductDto extends Partial<CreateProductDto> {
   status?: 'ACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED';
 }
 
+export interface ProductCardDisplayConfig {
+  showImage: boolean;
+  showName: boolean;
+  showCategory: boolean;
+  showSubCategory: boolean;
+  showPrice: boolean;
+  showGst: boolean;
+  showInStock: boolean;
+  showMoq: boolean;
+  showSku: boolean;
+  showDescription: boolean;
+  showFeatures: boolean;
+  showTapHint: boolean;
+}
+
+export const DEFAULT_CARD_DISPLAY_CONFIG: ProductCardDisplayConfig = {
+  showImage: true,
+  showName: true,
+  showCategory: true,
+  showSubCategory: true,
+  showPrice: true,
+  showGst: true,
+  showInStock: true,
+  showMoq: true,
+  showSku: true,
+  showDescription: false, // Clean display by default as requested
+  showFeatures: false,    // Clean display by default as requested
+  showTapHint: true,
+};
+
 @Injectable()
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   // ─── In-Memory Fallback Store (Starts clean & empty for fresh companies) ───
   private fallbackProducts: ProductItemDto[] = [];
+  private fallbackCardConfig: ProductCardDisplayConfig = { ...DEFAULT_CARD_DISPLAY_CONFIG };
+
+  // ─── GET CARD DISPLAY CONFIGURATION ─────────────────────────────────────────
+  async getCardDisplayConfig(requestingUser?: any): Promise<ProductCardDisplayConfig> {
+    const orgId = requestingUser?.organizationId || requestingUser?.organization?.id;
+    if (orgId) {
+      try {
+        const org = await this.prisma.organization.findUnique({
+          where: { id: orgId },
+          select: { settings: true },
+        });
+        const settings = (org?.settings as any) || {};
+        if (settings.productCardDisplayConfig) {
+          return {
+            ...DEFAULT_CARD_DISPLAY_CONFIG,
+            ...settings.productCardDisplayConfig,
+          };
+        }
+      } catch (e) {
+        console.warn('[ProductsService] Failed to load card config from org settings:', e.message);
+      }
+    }
+    return this.fallbackCardConfig;
+  }
+
+  // ─── SAVE CARD DISPLAY CONFIGURATION (Admin only) ───────────────────────────
+  async saveCardDisplayConfig(
+    config: Partial<ProductCardDisplayConfig>,
+    requestingUser: any,
+  ): Promise<ProductCardDisplayConfig> {
+    const roleName = typeof requestingUser?.role === 'string'
+      ? requestingUser.role
+      : requestingUser?.role?.name;
+
+    const allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER'];
+    if (roleName && !allowedRoles.includes(roleName)) {
+      throw new ForbiddenException(
+        `⛔ Access Denied: Only Admins can configure product card display. Your role "${roleName}" is not authorized.`,
+      );
+    }
+
+    const mergedConfig: ProductCardDisplayConfig = {
+      ...DEFAULT_CARD_DISPLAY_CONFIG,
+      ...this.fallbackCardConfig,
+      ...config,
+    };
+
+    const orgId = requestingUser?.organizationId || requestingUser?.organization?.id;
+    if (orgId) {
+      try {
+        const org = await this.prisma.organization.findUnique({
+          where: { id: orgId },
+          select: { settings: true },
+        });
+        const currentSettings = (org?.settings as any) || {};
+        const updatedSettings = {
+          ...currentSettings,
+          productCardDisplayConfig: mergedConfig,
+        };
+        await this.prisma.organization.update({
+          where: { id: orgId },
+          data: { settings: updatedSettings },
+        });
+      } catch (e) {
+        console.warn('[ProductsService] Failed to save card config to org settings:', e.message);
+      }
+    }
+
+    this.fallbackCardConfig = mergedConfig;
+    return mergedConfig;
+  }
 
   // ─── GET ALL ACTIVE PRODUCTS ─────────────────────────────────────────────────
   async getProducts(): Promise<ProductItemDto[]> {

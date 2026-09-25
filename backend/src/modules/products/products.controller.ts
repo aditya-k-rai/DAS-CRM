@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import type { ProductItemDto, CreateProductDto, UpdateProductDto } from './products.service';
+import type { ProductItemDto, CreateProductDto, UpdateProductDto, ProductCardDisplayConfig } from './products.service';
 import { ProductsService } from './products.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -29,6 +29,26 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Returns all active products visible to all authenticated users.' })
   async getProducts(): Promise<ProductItemDto[]> {
     return this.productsService.getProducts();
+  }
+
+  // ─── GET CARD DISPLAY CONFIGURATION ──────────────────────────────────────────
+  @Get('card-display-config')
+  @ApiOperation({ summary: 'Get product card display configuration for current organization' })
+  @ApiResponse({ status: 200, description: 'Returns current card display configuration.' })
+  async getCardDisplayConfig(@CurrentUser() user: any): Promise<ProductCardDisplayConfig> {
+    return this.productsService.getCardDisplayConfig(user);
+  }
+
+  // ─── UPDATE CARD DISPLAY CONFIGURATION (Admin only) ─────────────────────────
+  @Put('card-display-config')
+  @ApiOperation({ summary: 'Update product card display configuration — Admin only' })
+  @ApiResponse({ status: 200, description: 'Card display configuration updated successfully.' })
+  @ApiResponse({ status: 403, description: 'Only Admins can update card display configuration.' })
+  async saveCardDisplayConfig(
+    @Body() body: Partial<ProductCardDisplayConfig>,
+    @CurrentUser() user: any,
+  ): Promise<ProductCardDisplayConfig> {
+    return this.productsService.saveCardDisplayConfig(body, user);
   }
 
   // ─── GET SINGLE PRODUCT ───────────────────────────────────────────────────────
