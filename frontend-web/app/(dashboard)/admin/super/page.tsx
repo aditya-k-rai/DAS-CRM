@@ -45,7 +45,7 @@ export default function SuperAdminPage() {
             href="/dashboard"
             className="px-5 py-2.5 rounded-xl bg-muted text-muted-foreground hover:text-foreground font-bold text-xs flex items-center gap-1.5 transition-colors"
           >
-            <ArrowLeft size={14} /> Back to Tenant Dashboard
+            <ArrowLeft size={14} /> Back to Admin Dashboard
           </Link>
           <a
             href={superAdminUrl}

@@ -77,7 +77,7 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
   const isAdmin = employee.role === 'ADMIN';
 
   const SUPERVISORS = [
-    'Tenant Administrator',
+    'Administrator',
     'Executive Admin',
   ];
 
@@ -245,7 +245,7 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         </TouchableOpacity>
         <View style={[styles.roleTag, isAdmin && { backgroundColor: 'rgba(244,63,94,0.15)', borderColor: '#f43f5e' }]}>
           <Text style={[styles.roleTagText, isAdmin && { color: '#f43f5e' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-            {isAdmin ? 'TENANT ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
+            {isAdmin ? 'ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
           </Text>
         </View>
       </View>

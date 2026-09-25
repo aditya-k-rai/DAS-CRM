@@ -30,7 +30,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
   const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Admin',
+    'Admin',
     'Department Manager',
     'Team Leader',
   ];

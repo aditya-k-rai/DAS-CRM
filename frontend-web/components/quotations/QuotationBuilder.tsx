@@ -335,7 +335,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       status: 'DRAFT',
       itemsCount: items.length,
       createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
-      createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Tenant Admin') : 'Tenant Admin',
+      createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Admin') : 'Admin',
       payload: {
         items: JSON.parse(JSON.stringify(items)),
         customColumns: JSON.parse(JSON.stringify(customColumns)),

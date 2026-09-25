@@ -16,7 +16,7 @@ export default function AdminWorkflowPage() {
               style={{ background: 'rgba(99,102,241,0.15)', color: 'rgb(129,140,248)' }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-              Tenant Admin Zone
+              Admin Zone
             </span>
           </div>
         }

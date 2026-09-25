@@ -75,7 +75,7 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    `Tenant Admin (${currentUser?.name || 'Administrator'})`,
+    `Admin (${currentUser?.name || 'Administrator'})`,
     'Executive Administration',
   ];
 

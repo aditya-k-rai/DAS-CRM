@@ -877,7 +877,7 @@ export default function RegisterCompanyPage() {
         {/* Header Branding */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand/15 border border-brand/30 text-brand-400 text-xs font-semibold">
-            <Shield size={14} /> TENANT WORKSPACE ONBOARDING GATEWAY
+            <Shield size={14} /> WORKSPACE ONBOARDING GATEWAY
           </div>
           <h1 className="text-3xl font-extrabold text-foreground dark:text-white tracking-tight">Register Your Company Workspace</h1>
           <p className="text-sm text-slate-600 dark:text-slate-300 font-medium max-w-md mx-auto">
@@ -1506,7 +1506,7 @@ export default function RegisterCompanyPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Tenant Admin Full Name *</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-200 block mb-1">Admin Full Name *</label>
                   <input
                     type="text"
                     required

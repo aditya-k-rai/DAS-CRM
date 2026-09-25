@@ -952,7 +952,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     const newRecord: SavedQuoteRecord = {
       id:`sq-${Date.now()}`, docNo, docType, partyName:activeParty.name, companyName:activeCompany.name,
       savedAt:formattedDate, totalAmount:grandTotal, status:'DRAFT', itemsCount:items.length,
-      createdByName:'Aditya Kumar Rai', createdByRole:'Tenant Admin',
+      createdByName:'Aditya Kumar Rai', createdByRole:'Admin',
       payload: {
         items: JSON.parse(JSON.stringify(items)),
         customColumns: JSON.parse(JSON.stringify(customColumns)),

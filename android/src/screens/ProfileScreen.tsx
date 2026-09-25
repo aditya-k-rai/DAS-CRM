@@ -259,11 +259,11 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
         <View style={styles.cardBox}>
           <Text style={styles.cardBoxTitle}>Workspace &amp; Organization</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Company / Tenant:</Text>
+            <Text style={styles.infoLabel}>Company:</Text>
             <Text style={styles.infoValue}>{currentUser.companyName || 'DAS Organization'}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Tenant ID:</Text>
+            <Text style={styles.infoLabel}>Company ID:</Text>
             <Text style={styles.infoValue}>{currentUser.companyId || 'comp_default'}</Text>
           </View>
           <View style={styles.infoRow}>
@@ -508,7 +508,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
               style={{ backgroundColor: '#4f46e5', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginTop: 12 }}
               onPress={() => {
                 setPlansModalOpen(false);
-                Alert.alert('⚡ Plan Selected', `Upgrade request for ${selectedPlanTier} Plan dispatched to Tenant Admin.`);
+                Alert.alert('⚡ Plan Selected', `Upgrade request for ${selectedPlanTier} Plan dispatched to Admin.`);
               }}
             >
               <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>Confirm Upgrade →</Text>

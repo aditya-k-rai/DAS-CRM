@@ -40,7 +40,7 @@ export interface LeadAllocationModalProps {
 }
 
 const DEFAULT_MOCK_TEAM = [
-  { id: 'usr-admin', name: 'Tenant Admin', role: 'ADMIN', leadsCount: 0, color: '#818cf8' },
+  { id: 'usr-admin', name: 'Admin', role: 'ADMIN', leadsCount: 0, color: '#818cf8' },
 ];
 
 export interface ValidationConflict {

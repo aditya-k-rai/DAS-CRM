@@ -225,7 +225,7 @@ export default function BillingPage() {
           </div>
           <h2 className="text-xl font-bold text-foreground dark:text-white">{subscription.companyName}</h2>
           <p className="text-xs text-muted">
-            User Seat Quota: <strong>{subscription.userSeatsUsed}</strong> / <strong>{subscription.userSeatsAllocated}</strong> seats used (Tenant Admin is excluded from seat quota count).
+            User Seat Quota: <strong>{subscription.userSeatsUsed}</strong> / <strong>{subscription.userSeatsAllocated}</strong> seats used (Admin is excluded from seat quota count).
           </p>
         </div>
 

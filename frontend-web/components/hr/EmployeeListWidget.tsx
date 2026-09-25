@@ -197,7 +197,7 @@ export function EmployeeListWidget() {
                 email: u.email,
                 phone: displayPhone,
                 role,
-                assignedManager: role === 'ADMIN' ? 'Self (Tenant Owner)' : 'Tenant Admin',
+                assignedManager: 'Admin',
                 baseSalary: role === 'ADMIN' ? '₹95,000' : '₹45,000',
                 joined: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently',
                 canSelfCheckIn: true,
@@ -232,7 +232,7 @@ export function EmployeeListWidget() {
         console.warn('Could not fetch real users:', e);
       }
 
-      // Fallback to currently logged-in tenant user only
+      // Fallback to currently logged-in admin user only
       if (currentUser) {
         const rawPhone = getCurrentUserPhone() || (currentUser.email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
         const displayPhone = formatPhone(rawPhone);
@@ -251,13 +251,13 @@ export function EmployeeListWidget() {
         setEmployees([
           {
             id: currentUser.id || 'admin_1',
-            name: currentUser.name || 'Tenant Admin',
+            name: currentUser.name || 'Admin',
             code: 'EMP001',
             dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
             email: currentUser.email || 'admin@company.com',
             phone: displayPhone,
             role,
-            assignedManager: isOwnerOrAdmin ? 'Self (Tenant Owner)' : 'Tenant Admin',
+            assignedManager: 'Admin',
             baseSalary: '₹95,000',
             joined: 'Recently',
             canSelfCheckIn: true,

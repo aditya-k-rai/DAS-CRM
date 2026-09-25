@@ -235,7 +235,7 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
     modSupport: 'Support & Help Desk',
 
     // Dashboard Metrics
-    dashTitle: 'Tenant Admin Command Center',
+    dashTitle: 'Admin Command Center',
     dashSub: 'Live operations, lead funnel routing & workforce telemetry',
     wonRevenue: 'Won Revenue',
     activePipeline: 'Active Pipeline',
@@ -505,7 +505,7 @@ export const TRANSLATIONS: Record<AppLanguage, LanguageTranslations> = {
     modSupport: 'Support & Help Desk',
 
     // Dashboard Metrics
-    dashTitle: 'Tenant Admin Command Center',
+    dashTitle: 'Admin Command Center',
     dashSub: 'Live operations, lead funnel routing & workforce telemetry',
     wonRevenue: 'Won Revenue',
     activePipeline: 'Active Pipeline',

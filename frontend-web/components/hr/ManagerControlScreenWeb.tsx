@@ -86,7 +86,7 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
             ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
             : 'bg-purple-500/15 border-purple-500/40 text-purple-400'
         }`}>
-          {employee.role === 'ADMIN' ? 'TENANT ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
+          {employee.role === 'ADMIN' ? 'ADMIN & EXECUTIVE CONTROL' : 'DEPARTMENT MANAGER CONTROL'}
         </span>
       </div>
 
@@ -216,7 +216,7 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
         <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-4">
-              📋 {employee.role === 'ADMIN' ? 'Executive & Tenant Admin Governance Report' : 'Manager Governance & Responsibility Report'}
+              📋 {employee.role === 'ADMIN' ? 'Executive & Admin Governance Report' : 'Manager Governance & Responsibility Report'}
             </h3>
             <button
               onClick={() => { setRolesReportModalOpen(false); alert(employee.role === 'ADMIN' ? 'Executive Report Shared!' : 'Manager Report Shared!'); }}

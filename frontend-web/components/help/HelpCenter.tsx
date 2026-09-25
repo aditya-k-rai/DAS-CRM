@@ -258,7 +258,7 @@ export function HelpCenter() {
               </div>
             </div>
             <div className="crm-card p-4 space-y-1">
-              <span className="text-[10px] font-bold text-muted uppercase">Multi-Tenant Routing</span>
+              <span className="text-[10px] font-bold text-muted uppercase">Company Workspace Routing</span>
               <div className="text-sm font-black text-purple-400 flex items-center gap-1.5">
                 <Layers size={14} />
                 Isolated Google Drive Storage

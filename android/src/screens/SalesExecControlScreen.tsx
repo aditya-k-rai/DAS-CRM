@@ -59,7 +59,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Administrator',
+    'Admin',
     'Department Manager',
     'Team Leader',
   ];

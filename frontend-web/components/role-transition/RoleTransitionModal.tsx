@@ -64,7 +64,7 @@ export function RoleTransitionModal() {
             <FileText size={15} className="text-indigo-400" /> Automated Activity Export:
           </p>
           <p className="pl-6">
-            Accepting this role will generate a PDF report of your activities under <strong>{roleTransitionLock.oldRole}</strong>. A download link valid for 7 days will be emailed to you (<strong>{currentUser.email}</strong>) and your Tenant Admin.
+            Accepting this role will generate a PDF report of your activities under <strong>{roleTransitionLock.oldRole}</strong>. A download link valid for 7 days will be emailed to you (<strong>{currentUser.email}</strong>) and your Admin.
           </p>
         </div>
 

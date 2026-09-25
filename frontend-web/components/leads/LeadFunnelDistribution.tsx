@@ -549,7 +549,7 @@ export function LeadFunnelDistribution() {
                     <Lock size={32} className="mx-auto text-red-400" />
                     <h4 className="font-bold text-sm text-red-300">Admin Access Guard — Not Whitelisted</h4>
                     <p className="text-xs text-muted max-w-md mx-auto">
-                      Your account is currently not on the Admin Eligibility Whitelist for the Acquire Pool. Contact your Tenant Admin to grant you claim access.
+                      Your account is currently not on the Admin Eligibility Whitelist for the Acquire Pool. Contact your Admin to grant you claim access.
                     </p>
                   </div>
                 ) : (

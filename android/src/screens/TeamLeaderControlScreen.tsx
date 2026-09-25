@@ -73,7 +73,7 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Administrator',
+    'Admin',
     'Department Manager',
   ];
 

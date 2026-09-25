@@ -168,7 +168,7 @@ export default function EmployeesScreen() {
       email: assignRoleTarget.email,
       phone: assignRoleTarget.phone,
       role: selectedRole,
-      assignedManager: `Tenant Admin (${currentUser?.name || 'Administrator'})`,
+      assignedManager: 'Admin',
       status: 'ONLINE',
       avatarUrl: '',
       documents: {
@@ -245,7 +245,7 @@ export default function EmployeesScreen() {
                 email: u.email,
                 phone: u.phone || '—',
                 role,
-                assignedManager: role === 'ADMIN' ? 'Self (Tenant Owner)' : 'Tenant Admin',
+                assignedManager: 'Admin',
                 status: 'ONLINE',
                 avatarUrl: u.avatarUrl || '',
                 documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
@@ -277,11 +277,11 @@ export default function EmployeesScreen() {
         setEmployeesList([
           {
             id: currentUser.id || 'admin_1',
-            name: currentUser.name || 'Tenant Admin',
+            name: currentUser.name || 'Admin',
             email: currentUser.email || 'admin@company.com',
             phone: '+91 9717355779',
             role,
-            assignedManager: isOwnerOrAdmin ? 'Self (Tenant Owner)' : 'Tenant Admin',
+            assignedManager: 'Admin',
             status: 'ONLINE',
             avatarUrl: '',
             documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },

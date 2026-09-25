@@ -93,11 +93,11 @@ export function TeamLeadersSetup() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-white">Company Organizational Hierarchy &amp; Authority Editor</h1>
                 <span className="text-xs px-2.5 py-0.5 rounded font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  TENANT ADMIN EXCLUSIVE CONTROL
+                  ADMIN EXCLUSIVE CONTROL
                 </span>
               </div>
               <p className="text-xs text-muted mt-0.5">
-                🔒 Only Tenant Admin can re-assign Team Leaders and Employees across Managers or Team Leaders.
+                🔒 Only Admin can re-assign Team Leaders and Employees across Managers or Team Leaders.
               </p>
             </div>
           </div>
@@ -189,7 +189,7 @@ export function TeamLeadersSetup() {
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <div className="crm-card w-full max-w-md relative z-10 space-y-4 animate-scale-in">
             <h3 className="font-bold text-base text-white">Create New Team Leader (TL)</h3>
-            <p className="text-xs text-muted">Authorized by Tenant Admin only. Assigns a new TL under Manager A.</p>
+            <p className="text-xs text-muted">Authorized by Admin only. Assigns a new TL under Manager A.</p>
             <div>
               <label className="text-xs text-muted block mb-1">Team Leader Name *</label>
               <input

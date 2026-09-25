@@ -202,7 +202,7 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   },
   ADMIN: {
     id: 'usr_admin',
-    name: 'Tenant Admin',
+    name: 'Admin',
     email: 'admin@das.com',
     role: 'ADMIN',
     avatar: 'AD',

@@ -595,7 +595,7 @@ function RootAppContent() {
                   if (normRole.includes('ADMIN')) {
                     groups = [
                       {
-                        title: t.drawerQuickLaunch || '👑 TENANT ADMIN COMMAND',
+                        title: t.drawerQuickLaunch || '👑 ADMIN COMMAND',
                         items: [
                           { icon: '🎯', label: t.tabLeads || 'All Ingested Leads', badge: 'LIVE', action: () => closeDrawer(() => (navigationRef as any).navigate('Leads')) },
                           { icon: '👥', label: t.tabEmployees || 'Staff Directory & Hierarchy', badge: 'ADMIN', action: () => closeDrawer(() => (navigationRef as any).navigate('Employees')) },

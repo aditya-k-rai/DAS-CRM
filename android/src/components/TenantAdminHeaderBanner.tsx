@@ -36,9 +36,9 @@ export function TenantAdminHeaderBanner({
   const trialDays = subscription?.trialDaysLeft ?? 14;
 
   // Role Configuration Setup
-  let title = 'TENANT ADMIN COMMAND CENTER';
+  let title = 'ADMIN COMMAND CENTER';
   let badgeText = `⏱️ ${trialDays} Days Remaining in Free Trial`;
-  let subtitle = `${companyName} · Executive Operating System & Multi-Tenant Control Hub`;
+  let subtitle = `${companyName} · Executive Operating System & Admin Control Hub`;
   let themeColor = '#6366f1';
   let avatarBg = isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.12)';
   let avatarBorder = isDark ? 'rgba(99, 102, 241, 0.5)' : 'rgba(99, 102, 241, 0.35)';
