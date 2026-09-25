@@ -36,12 +36,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
     'Team Leader (Priya Sharma)',
   ];
 
-  const MOCK_LEADS = [
-    { id: 'lead-1', name: 'Rajesh Varma', company: 'TechCorp', phone: '+91 98765 43210', value: '$14,200', status: 'GOT', date: 'Today, 10:15 AM' },
-    { id: 'lead-2', name: 'Priya Sharma', company: 'LogiTech', phone: '+91 98123 45678', value: '$9,500', status: 'CONNECTED', date: 'Yesterday, 4:45 PM' },
-    { id: 'lead-3', name: 'Sunita Kapoor', company: 'Sunita Logistics', phone: '+91 97222 33344', value: '$22,000', status: 'NEGOTIATED', date: 'Aug 20, 2026' },
-    { id: 'lead-4', name: 'Vikram Sethi', company: 'Sethi Ent', phone: '+91 98777 66655', value: '$11,800', status: 'WON', date: 'Aug 18, 2026' },
-  ];
+  const MOCK_LEADS: any[] = [];
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
@@ -150,7 +145,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           onClick={() => { setLeadCategory('GOT'); setLeadCollectionModalOpen(true); }}
           className="bg-slate-900 border border-sky-500/40 p-4 rounded-xl text-left hover:border-sky-400 transition"
         >
-          <div className="text-2xl font-black text-sky-400">{employee.leads?.totalReceived || 35}</div>
+          <div className="text-2xl font-black text-sky-400">{employee.leads?.totalReceived || 0}</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Total Lead Got →</div>
         </button>
 
@@ -158,7 +153,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           onClick={() => { setLeadCategory('CONNECTED'); setLeadCollectionModalOpen(true); }}
           className="bg-slate-900 border border-emerald-500/40 p-4 rounded-xl text-left hover:border-emerald-400 transition"
         >
-          <div className="text-2xl font-black text-emerald-400">{employee.leads?.connected || 22}</div>
+          <div className="text-2xl font-black text-emerald-400">{employee.leads?.connected || 0}</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Connected →</div>
         </button>
 
@@ -166,7 +161,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           onClick={() => { setLeadCategory('NEGOTIATED'); setLeadCollectionModalOpen(true); }}
           className="bg-slate-900 border border-indigo-500/40 p-4 rounded-xl text-left hover:border-indigo-400 transition"
         >
-          <div className="text-2xl font-black text-indigo-400">{employee.leads?.inNegotiation || 8}</div>
+          <div className="text-2xl font-black text-indigo-400">{employee.leads?.inNegotiation || 0}</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Negotiated →</div>
         </button>
 
@@ -174,7 +169,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           onClick={() => { setLeadCategory('WON'); setLeadCollectionModalOpen(true); }}
           className="bg-slate-900 border border-emerald-400/40 p-4 rounded-xl text-left hover:border-emerald-300 transition"
         >
-          <div className="text-2xl font-black text-emerald-300">{employee.leads?.won || 2}</div>
+          <div className="text-2xl font-black text-emerald-300">{employee.leads?.won || 0}</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Won Deals →</div>
         </button>
       </div>
@@ -246,18 +241,24 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
               <button onClick={() => setLeadCollectionModalOpen(false)} className="text-slate-400 text-sm font-bold">✕</button>
             </div>
             <div className="space-y-3 max-h-64 overflow-y-auto">
-              {MOCK_LEADS.map(lead => (
-                <div key={lead.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
-                  <div>
-                    <div className="text-xs font-bold text-white">{lead.name} ({lead.company})</div>
-                    <div className="text-xs text-slate-400">{lead.phone} • {lead.date}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-black text-emerald-400">{lead.value}</div>
-                    <div className="text-xs text-sky-400 font-bold">{leadCategory}</div>
-                  </div>
+              {MOCK_LEADS.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  No {leadCategory.toLowerCase()} leads recorded for this executive.
                 </div>
-              ))}
+              ) : (
+                MOCK_LEADS.map(lead => (
+                  <div key={lead.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="text-xs font-bold text-white">{lead.name} ({lead.company})</div>
+                      <div className="text-xs text-slate-400">{lead.phone} • {lead.date}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-black text-emerald-400">{lead.value}</div>
+                      <div className="text-xs text-sky-400 font-bold">{leadCategory}</div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

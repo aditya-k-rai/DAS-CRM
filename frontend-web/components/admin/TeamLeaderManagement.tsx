@@ -3,33 +3,7 @@
 import { Users, Target, TrendingUp, CheckSquare, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
-const TEAM_LEADERS = [
-  {
-    id: '1',
-    name: 'Amit Shah',
-    email: 'amit.shah@company.com',
-    since: 'Jan 2024',
-    members: [
-      { id: 'm1', name: 'Rajesh Kumar', role: 'SALES', leads: 24, tasks: 8, conversion: 34 },
-      { id: 'm2', name: 'Priya Sharma', role: 'SALES', leads: 18, tasks: 5, conversion: 28 },
-      { id: 'm3', name: 'Amit Patel', role: 'SALES', leads: 31, tasks: 12, conversion: 41 },
-    ],
-    stats: { totalLeads: 73, totalDeals: 28, revenue: '₹8.4L', conversion: 38 },
-  },
-  {
-    id: '2',
-    name: 'Neha Joshi',
-    email: 'neha.joshi@company.com',
-    since: 'Mar 2024',
-    members: [
-      { id: 'm4', name: 'Sunita Verma', role: 'SUPPORT', leads: 12, tasks: 15, conversion: 22 },
-      { id: 'm5', name: 'Meera Kapoor', role: 'MARKETING', leads: 9, tasks: 7, conversion: 18 },
-      { id: 'm6', name: 'Ravi Singh', role: 'FINANCE', leads: 5, tasks: 20, conversion: 15 },
-      { id: 'm7', name: 'Deepak Joshi', role: 'SUPPORT', leads: 14, tasks: 11, conversion: 25 },
-    ],
-    stats: { totalLeads: 40, totalDeals: 14, revenue: '₹3.2L', conversion: 20 },
-  },
-];
+const TEAM_LEADERS: any[] = [];
 
 const ROLE_COLORS: Record<string, string> = {
   SALES: 'rgb(99,102,241)', SUPPORT: 'rgb(59,130,246)', MARKETING: 'rgb(245,158,11)',
@@ -37,7 +11,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export function TeamLeaderManagement() {
-  const [expanded, setExpanded] = useState<string[]>(['1']);
+  const [expanded, setExpanded] = useState<string[]>([]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -60,7 +34,14 @@ export function TeamLeaderManagement() {
       </div>
 
       {/* Team Leader cards */}
-      {TEAM_LEADERS.map((tl) => {
+      {TEAM_LEADERS.length === 0 ? (
+        <div className="crm-card p-12 text-center text-muted">
+          <Users size={32} className="mx-auto mb-2 text-muted/60" />
+          <p className="font-bold text-sm text-foreground">No Team Leaders configured yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Add team leaders and allocate team members to structure your sales hierarchy.</p>
+        </div>
+      ) : (
+        TEAM_LEADERS.map((tl) => {
         const isOpen = expanded.includes(tl.id);
         return (
           <div key={tl.id} className="crm-card overflow-hidden p-0">
@@ -72,7 +53,7 @@ export function TeamLeaderManagement() {
             >
               <div className="flex items-center gap-4">
                 <div className="avatar w-10 h-10 text-sm" style={{ background: 'rgba(99,102,241,0.2)', color: 'rgb(129,140,248)' }}>
-                  {tl.name.split(' ').map((n) => n[0]).join('')}
+                  {tl.name.split(' ').map((n: string) => n[0]).join('')}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -129,12 +110,12 @@ export function TeamLeaderManagement() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tl.members.map((m) => (
+                    {tl.members.map((m: any) => (
                       <tr key={m.id}>
                         <td>
                           <div className="flex items-center gap-3">
                             <div className="avatar w-7 h-7 text-xs" style={{ background: `${ROLE_COLORS[m.role]}20`, color: ROLE_COLORS[m.role] }}>
-                              {m.name.split(' ').map((n) => n[0]).join('')}
+                              {m.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
                             <span className="text-sm font-medium">{m.name}</span>
                           </div>
@@ -173,7 +154,7 @@ export function TeamLeaderManagement() {
             )}
           </div>
         );
-      })}
+      }))}
     </div>
   );
 }

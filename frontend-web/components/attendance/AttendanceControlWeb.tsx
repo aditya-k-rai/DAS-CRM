@@ -26,7 +26,7 @@ interface DailyRecord {
 const OFFICE_GEO = {
   lat: 28.440743,
   lng: 77.531117,
-  name: 'Acme HQ Office Hub',
+  name: 'HQ Office Hub',
   maxRadiusMeters: 500,
 };
 
@@ -43,17 +43,6 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   return Math.round(R * c);
 }
 
-// Employee Directory for Admin Audit Across Roles
-const EMPLOYEES = [
-  { id: 'emp_1', name: 'Rajesh Mehta', role: 'MANAGER', dept: 'Enterprise Sales', avatar: 'RM' },
-  { id: 'emp_2', name: 'Sunita Verma', role: 'HR', dept: 'Human Resources', avatar: 'SV' },
-  { id: 'emp_3', name: 'Amit Shah', role: 'TEAM_LEADER', dept: 'Inside Sales', avatar: 'AS' },
-  { id: 'emp_4', name: 'Rajesh Kumar', role: 'SALES_EXEC', dept: 'Direct Sales', avatar: 'RK' },
-  { id: 'emp_5', name: 'Priya Sharma', role: 'SALES_EXEC', dept: 'Outbound Sales', avatar: 'PS' },
-  { id: 'emp_6', name: 'Neha Joshi', role: 'TEAM_LEADER', dept: 'Key Accounts', avatar: 'NJ' },
-  { id: 'emp_7', name: 'Amit Patel', role: 'SALES_EXEC', dept: 'SMB Sales', avatar: 'AP' },
-];
-
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -66,13 +55,69 @@ export function AttendanceControlWeb() {
 
   const [activeTab, setActiveTab] = useState<'AUDIT' | 'MARK'>('AUDIT');
 
+  // Dynamic Employee Directory from tenant users
+  const [employees, setEmployees] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        if (u && (u.name || u.email)) {
+          return [{
+            id: u.id || 'curr-1',
+            name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Admin User',
+            role: u.role || 'ADMIN',
+            dept: u.department || 'Operations',
+            avatar: (u.name || 'AD').slice(0, 2).toUpperCase(),
+          }];
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
   // Employee Selection State
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('emp_4');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(() => employees[0]?.id || '');
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('das_crm_token');
+        if (!token) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.items || data.users || []);
+          if (items.length > 0) {
+            const mapped = items.map((u: any) => ({
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+              role: u.role || 'STAFF',
+              dept: u.department || 'General',
+              avatar: ((u.firstName || u.name || 'E')[0] + (u.lastName || '')[0] || 'EM').toUpperCase(),
+            }));
+            setEmployees(mapped);
+            if (!selectedEmployeeId || !mapped.some((m: any) => m.id === selectedEmployeeId)) {
+              setSelectedEmployeeId(mapped[0].id);
+            }
+          }
+        }
+      } catch (e) {}
+    };
+    fetchUsers();
+  }, []);
+
   const selectedEmployee = useMemo(
-    () => EMPLOYEES.find((e) => e.id === selectedEmployeeId) || EMPLOYEES[3],
-    [selectedEmployeeId]
+    () => employees.find((e) => e.id === selectedEmployeeId) || employees[0] || {
+      id: 'usr-default',
+      name: currentUser?.name || 'Current User',
+      role: currentUser?.role || 'ADMIN',
+      dept: 'Operations',
+      avatar: 'CU',
+    },
+    [employees, selectedEmployeeId, currentUser]
   );
 
   // Live Server Time State
@@ -91,9 +136,10 @@ export function AttendanceControlWeb() {
   }, []);
 
   // Month & Year State
-  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(7); // 7 = August
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
+  const now = new Date();
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(now.getMonth());
+  const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState<number>(now.getDate());
 
   const handlePrevMonth = () => {
     if (currentMonthIndex === 0) {
@@ -113,7 +159,7 @@ export function AttendanceControlWeb() {
     }
   };
 
-  // Generate attendance records map for selected employee & month
+  // Generate clean attendance records map for selected employee & month
   const [recordsMap, setRecordsMap] = useState<Record<number, DailyRecord>>(() => {
     return generateRecordsForEmployee(selectedEmployeeId, currentMonthIndex, currentYear);
   });
@@ -124,52 +170,30 @@ export function AttendanceControlWeb() {
 
   function generateRecordsForEmployee(empId: string, monthIdx: number, yr: number) {
     const map: Record<number, DailyRecord> = {};
-    const seed = (empId.charCodeAt(empId.length - 1) || 4) + monthIdx + yr;
+    const today = new Date();
+    const currentDay = today.getDate();
+    const daysInMonth = new Date(yr, monthIdx + 1, 0).getDate();
 
-    for (let d = 1; d <= 28; d++) {
-      const isSunday = d % 7 === 1;
-      const isAbsent = d === ((seed % 5) + 3) || d === ((seed % 7) + 15);
-      const isHalfDay = d === ((seed % 4) + 8);
-      const isLeave = d === 12;
-      const isWeekOff = isSunday || d === 21;
-      const isFuture = yr > 2026 || (yr === 2026 && monthIdx > 7) || (yr === 2026 && monthIdx === 7 && d > 21);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(yr, monthIdx, d);
+      const isSunday = dateObj.getDay() === 0;
+      const isFuture =
+        yr > today.getFullYear() ||
+        (yr === today.getFullYear() && monthIdx > today.getMonth()) ||
+        (yr === today.getFullYear() && monthIdx === today.getMonth() && d > currentDay);
 
-      let status: DailyRecord['status'] = 'PRESENT';
-      let statusLabel = 'Full Day (8h 30m)';
-      let inTime = '09:15 AM';
-      let outTime: string | null = '05:45 PM';
-      let workingHours = '8h 30m';
+      let status: DailyRecord['status'] = 'ABSENT';
+      let statusLabel = 'Not Marked';
+      let inTime = '—';
+      let outTime: string | null = null;
+      let workingHours = '0h';
 
       if (isFuture) {
         status = 'FUTURE';
         statusLabel = 'Upcoming Date';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isWeekOff) {
+      } else if (isSunday) {
         status = 'WEEK_OFF';
         statusLabel = 'Week Off';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isLeave) {
-        status = 'LEAVE';
-        statusLabel = 'Approved Leave';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isAbsent) {
-        status = 'ABSENT';
-        statusLabel = 'Absent Record';
-        inTime = '—';
-        outTime = null;
-        workingHours = '0h';
-      } else if (isHalfDay) {
-        status = 'HALF_DAY';
-        statusLabel = 'Half Day (<5 hrs)';
-        inTime = '09:15 AM';
-        outTime = '01:30 PM';
-        workingHours = '4h 15m';
       }
 
       map[d] = {
@@ -177,11 +201,11 @@ export function AttendanceControlWeb() {
         status,
         statusLabel,
         inTime,
-        inGeo: status === 'PRESENT' || status === 'HALF_DAY' ? '28.440743, 77.531117' : 'Location not available',
+        inGeo: 'Location not recorded',
         outTime,
-        outGeo: outTime ? '28.440743, 77.531117' : null,
+        outGeo: null,
         workingHours,
-        selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        selfieUrl: '',
       };
     }
     return map;
@@ -234,11 +258,11 @@ export function AttendanceControlWeb() {
           status: newStatus,
           statusLabel,
           inTime,
-          inGeo: '28.440743, 77.531117 (Admin Override)',
+          inGeo: 'Recorded by Admin Override',
           outTime,
-          outGeo: outTime ? '28.440743, 77.531117' : null,
+          outGeo: outTime ? 'Recorded by Admin Override' : null,
           workingHours,
-          selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+          selfieUrl: '',
         }),
         status: newStatus,
         statusLabel,
@@ -274,7 +298,7 @@ export function AttendanceControlWeb() {
     outTime: null,
     outGeo: null,
     workingHours: '0h',
-    selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    selfieUrl: '',
   };
 
   // ── LIVE WEBCAM & GPS PUNCH STATE ───────────────────────────────────────
@@ -362,7 +386,7 @@ export function AttendanceControlWeb() {
             outTime: nowTimeStr,
             outGeo: geoStr,
             workingHours: '8h 30m',
-            selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+            selfieUrl: '',
           }),
           outTime: nowTimeStr,
           outGeo: geoStr,
@@ -384,7 +408,7 @@ export function AttendanceControlWeb() {
             outTime: null,
             outGeo: null,
             workingHours: 'Active',
-            selfieUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+            selfieUrl: '',
           }),
           inTime: nowTimeStr,
           inGeo: geoStr,
@@ -487,7 +511,7 @@ export function AttendanceControlWeb() {
                   <Shield size={13} className="text-amber-400" /> Admin Workforce Selection:
                 </span>
                 <span className="text-[10px] font-mono text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                  {EMPLOYEES.length} EMPLOYEES AUDITED
+                  {employees.length} EMPLOYEES AUDITED
                 </span>
               </div>
 
@@ -511,7 +535,7 @@ export function AttendanceControlWeb() {
 
                   {empDropdownOpen && (
                     <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl bg-card border border-slate-700 shadow-2xl overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-800">
-                      {EMPLOYEES.map((emp) => (
+                      {employees.map((emp) => (
                         <button
                           key={emp.id}
                           onClick={() => {

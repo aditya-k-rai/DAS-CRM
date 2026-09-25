@@ -45,23 +45,23 @@ export function ManagerRoleDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Department Revenue</p>
-          <p className="text-2xl font-extrabold text-indigo-600 dark:text-brand-400">₹24.8L</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">82% of Monthly Goal</p>
+          <p className="text-2xl font-extrabold text-indigo-600 dark:text-brand-400">₹0</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">Starting monthly cycle</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Total Supervised Employees</p>
-          <p className="text-2xl font-extrabold text-foreground">14 Reps</p>
-          <p className="text-xs text-muted-foreground mt-1">{subscription.hasTeamLeaders ? 'Via 3 Team Leaders' : 'Direct Supervision'}</p>
+          <p className="text-2xl font-extrabold text-foreground">0 Reps</p>
+          <p className="text-xs text-muted-foreground mt-1">Ready to assign team</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Deals Conversion Rate</p>
-          <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">34.8%</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">↑ +4.2% vs target</p>
+          <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">0.0%</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">Baseline metric</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Open Leads Queue</p>
-          <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">142</p>
-          <p className="text-xs text-blue-600 dark:text-blue-300 font-semibold mt-1">Ready for distribution</p>
+          <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">0</p>
+          <p className="text-xs text-blue-600 dark:text-blue-300 font-semibold mt-1">No pending unassigned leads</p>
         </div>
       </div>
 
@@ -69,40 +69,17 @@ export function ManagerRoleDashboard() {
       <div className="crm-card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-base text-foreground">
-            {subscription.hasTeamLeaders ? 'Team Leader Unit Overview (Scenario A)' : 'Employee Performance Overview (Scenario B)'}
+            {subscription?.hasTeamLeaders ? 'Team Leader Unit Overview (Scenario A)' : 'Employee Performance Overview (Scenario B)'}
           </h3>
           <Link href="/reports" className="text-xs text-indigo-600 dark:text-brand-400 font-semibold hover:underline">
             Generate In-Depth Employee Report →
           </Link>
         </div>
 
-        <div className="space-y-2">
-          {[
-            { name: 'Amit Shah', role: 'Team Leader', leads: 42, won: 18, rev: '₹9.4L', pct: 85 },
-            { name: 'Neha Joshi', role: 'Team Leader', leads: 38, won: 14, rev: '₹7.8L', pct: 78 },
-            { name: 'Rajesh Kumar', role: 'Sales Executive', leads: 31, won: 12, rev: '₹5.2L', pct: 74 },
-          ].map(row => (
-            <div key={row.name} className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background">
-              <div className="flex items-center gap-3">
-                <div className="avatar w-8 h-8 text-xs font-bold bg-purple-500/20 text-purple-700 dark:text-purple-300">
-                  {row.name.split(' ').map(n=>n[0]).join('')}
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-foreground">{row.name}</p>
-                  <p className="text-xs text-muted-foreground">{row.role} · {row.leads} Leads Handled</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <p className="font-bold text-sm text-indigo-600 dark:text-brand-400">{row.rev}</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{row.won} Deals Won</p>
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                  {row.pct}% Goal
-                </span>
-              </div>
-            </div>
-          ))}
+        <div className="p-8 text-center text-muted border border-dashed border-border rounded-xl">
+          <Users size={28} className="mx-auto mb-2 text-muted/60" />
+          <p className="font-bold text-sm text-foreground">No subordinate staff assigned yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Assign team leaders or employees under your department to view performance tracking.</p>
         </div>
       </div>
     </div>

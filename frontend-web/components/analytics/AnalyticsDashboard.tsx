@@ -74,12 +74,14 @@ const PIPELINE_STAGES = [
   { label: 'Closed Won',  count: 21, value: 1260000, color: '#22c55e' },
 ];
 
-const TEAM_PERFORMANCE = [
-  { name: 'Rajesh Kumar', leads: 31, deals: 12, revenue: '₹5.2L', conversion: 41, trend: 'up' },
-  { name: 'Priya Sharma', leads: 24, deals: 8,  revenue: '₹3.1L', conversion: 33, trend: 'up' },
-  { name: 'Amit Patel',   leads: 18, deals: 5,  revenue: '₹2.4L', conversion: 28, trend: 'down' },
-  { name: 'Sunita Verma', leads: 12, deals: 4,  revenue: '₹1.8L', conversion: 22, trend: 'up' },
-];
+const TEAM_PERFORMANCE: Array<{
+  name: string;
+  leads: number;
+  deals: number;
+  revenue: string;
+  conversion: number;
+  trend: string;
+}> = [];
 
 const LEAD_SOURCES = [
   { source: 'Website Inquiry', pct: 34, color: '#6366f1' },
@@ -226,7 +228,16 @@ export function AnalyticsDashboard() {
             </tr>
           </thead>
           <tbody>
-            {TEAM_PERFORMANCE.map((rep, i) => (
+            {TEAM_PERFORMANCE.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-muted">
+                  <BarChart3 size={28} className="mx-auto mb-2 text-muted/60" />
+                  <p className="font-bold text-sm text-foreground">No team performance metrics yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Closed deals and rep conversions will be tracked and displayed here.</p>
+                </td>
+              </tr>
+            ) : (
+              TEAM_PERFORMANCE.map((rep, i) => (
               <tr key={rep.name}>
                 <td>
                   <span className="text-sm font-bold" style={{ color: i === 0 ? 'rgb(245,158,11)' : i === 1 ? 'rgb(156,163,175)' : i === 2 ? 'rgb(180,120,80)' : 'rgb(var(--muted-foreground))' }}>
@@ -261,7 +272,7 @@ export function AnalyticsDashboard() {
                     : <TrendingDown size={16} style={{ color: '#ef4444' }} />}
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>

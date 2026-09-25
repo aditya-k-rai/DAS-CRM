@@ -39,11 +39,8 @@ export interface LeadAllocationModalProps {
   }) => void;
 }
 
-const MOCK_TEAM = [
-  { id: 'usr-1', name: 'Priya Sharma', role: 'Team Leader', leadsCount: 42, color: '#818cf8' },
-  { id: 'usr-2', name: 'Rohan Kumar', role: 'Sales Exec', leadsCount: 28, color: '#34d399' },
-  { id: 'usr-3', name: 'Amit Shah', role: 'Sales Exec', leadsCount: 19, color: '#f59e0b' },
-  { id: 'usr-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
+const DEFAULT_MOCK_TEAM = [
+  { id: 'usr-admin', name: 'Tenant Admin', role: 'ADMIN', leadsCount: 0, color: '#818cf8' },
 ];
 
 export interface ValidationConflict {
@@ -149,15 +146,58 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 }) => {
   const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
+  const [teamMembers, setTeamMembers] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        if (u && (u.name || u.email)) {
+          return [{ id: u.id || 'usr-1', name: u.name || 'Admin', role: u.role || 'Admin', leadsCount: 0, color: '#818cf8' }];
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_MOCK_TEAM;
+  });
+
+  const [selectedUser, setSelectedUser] = useState(teamMembers[0]);
 
   // Batchwise Allocation State
   const [batchRules, setBatchRules] = useState<WebBatchRule[]>([]);
 
   // Custom Batch Distribution State
   const [customBatchSize, setCustomBatchSize] = useState<number | ''>(100);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(MOCK_TEAM.map(m => m.id));
-  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(MOCK_TEAM[0].id);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(teamMembers.map(m => m.id));
+  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(teamMembers[0]?.id || '');
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const token = localStorage.getItem('das_crm_token');
+        if (!token) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.items || data.users || []);
+          if (items.length > 0) {
+            const mapped = items.map((u: any, idx: number) => ({
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+              role: u.role || 'Sales Exec',
+              leadsCount: 0,
+              color: ['#818cf8', '#34d399', '#f59e0b', '#f472b6', '#38bdf8'][idx % 5],
+            }));
+            setTeamMembers(mapped);
+            setSelectedUser(mapped[0]);
+            setSelectedMemberIds(mapped.map((m: any) => m.id));
+            setRemainingAssigneeId(mapped[0]?.id || '');
+          }
+        }
+      } catch (e) {}
+    };
+    fetchTeam();
+  }, []);
 
   // Compute allocated rows & remaining rows
   const allocatedRowsCount = useMemo(() => {
@@ -185,7 +225,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       ranges: string[];
     }> = {};
 
-    MOCK_TEAM.forEach(m => {
+    teamMembers.forEach(m => {
       stats[m.id] = {
         id: m.id,
         name: m.name,
@@ -238,10 +278,10 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   const handleSelectAllMembers = () => {
-    if (selectedMemberIds.length === MOCK_TEAM.length) {
+    if (selectedMemberIds.length === teamMembers.length) {
       setSelectedMemberIds([]);
     } else {
-      setSelectedMemberIds(MOCK_TEAM.map(m => m.id));
+      setSelectedMemberIds(teamMembers.map(m => m.id));
     }
   };
 
@@ -256,7 +296,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       return;
     }
 
-    const selectedMembers = MOCK_TEAM.filter(m => selectedMemberIds.includes(m.id));
+    const selectedMembers = teamMembers.filter(m => selectedMemberIds.includes(m.id));
     let currentStart = 1;
     const newRules: WebBatchRule[] = [];
 
@@ -283,7 +323,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       alert('All leads in the dataset have already been allocated.');
       return;
     }
-    const member = MOCK_TEAM.find(m => m.id === assigneeId) || MOCK_TEAM[0];
+    const member = teamMembers.find(m => m.id === assigneeId) || teamMembers[0];
+    if (!member) return;
 
     let maxTo = 0;
     batchRules.forEach(r => {
@@ -315,8 +356,9 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       return;
     }
     const membersToUse = selectedMemberIds.length > 0
-      ? MOCK_TEAM.filter(m => selectedMemberIds.includes(m.id))
-      : MOCK_TEAM;
+      ? teamMembers.filter(m => selectedMemberIds.includes(m.id))
+      : teamMembers;
+    if (membersToUse.length === 0) return;
 
     let maxTo = 0;
     batchRules.forEach(r => {
@@ -352,12 +394,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   // 👁️ Preview & Edit Sheet State
   const [isSheetPreviewMode, setIsSheetPreviewMode] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [sheetRows, setSheetRows] = useState([
-    { id: '1', name: 'Rajesh Kumar', email: 'rajesh@acme.com', phone: '+91 98765 43210', company: 'Acme Solutions', city: 'Delhi NCR' },
-    { id: '2', name: 'Priya Sharma', email: 'priya@techcorp.in', phone: '+91 87654 32109', company: 'TechCorp India', city: 'Mumbai' },
-    { id: '3', name: 'Amit Shah', email: 'amit@westreach.com', phone: '+91 76543 21098', company: 'West Reach Pvt', city: 'Ahmedabad' },
-    { id: '4', name: 'Neha Gupta', email: 'neha@lotwaala.org', phone: '+91 65432 10987', company: 'Lotwaala Work Plan', city: 'Bengaluru' },
-  ]);
+  const [sheetRows, setSheetRows] = useState<any[]>([]);
 
   const handleAddPreviewRow = () => {
     setSheetRows(prev => [
@@ -374,20 +411,22 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   useEffect(() => {
-    if (batchRules.length === 0) {
+    if (batchRules.length === 0 && teamMembers.length > 0) {
+      const u1 = teamMembers[0];
+      const u2 = teamMembers[1] || teamMembers[0];
       setBatchRules([
-        { id: 'b-1', fromRow: '', toRow: '', assigneeId: MOCK_TEAM[0].id, assigneeName: `${MOCK_TEAM[0].name} (${MOCK_TEAM[0].role})`, role: MOCK_TEAM[0].role },
-        { id: 'b-2', fromRow: '', toRow: '', assigneeId: MOCK_TEAM[1].id, assigneeName: `${MOCK_TEAM[1].name} (${MOCK_TEAM[1].role})`, role: MOCK_TEAM[1].role },
+        { id: 'b-1', fromRow: '', toRow: '', assigneeId: u1.id, assigneeName: `${u1.name} (${u1.role})`, role: u1.role },
+        ...(teamMembers.length > 1 ? [{ id: 'b-2', fromRow: '', toRow: '', assigneeId: u2.id, assigneeName: `${u2.name} (${u2.role})`, role: u2.role }] : []),
       ]);
     }
-  }, [totalLeadsCount]);
+  }, [totalLeadsCount, teamMembers]);
 
   if (!isOpen) return null;
 
   const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
-    const nextUser = MOCK_TEAM[batchRules.length % MOCK_TEAM.length];
+    const nextUser = teamMembers[batchRules.length % (teamMembers.length || 1)] || { id: 'usr-1', name: 'Staff', role: 'Sales Exec' };
 
     setBatchRules(prev => [
       ...prev,
@@ -695,7 +734,14 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {sheetRows.map((r, idx) => (
+                    {sheetRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-6 text-slate-400 text-xs">
+                          No leads in sheet preview. Click <span className="text-cyan-400 font-bold">+ Add Row</span> above to add records.
+                        </td>
+                      </tr>
+                    ) : (
+                      sheetRows.map((r, idx) => (
                       <tr key={r.id} className="hover:bg-slate-900/40 transition-colors">
                         <td className="p-2 font-mono text-slate-500 text-[10px]">{idx + 1}</td>
                         <td className="p-1">
@@ -757,7 +803,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
@@ -888,12 +934,12 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                         onClick={handleSelectAllMembers}
                         className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300"
                       >
-                        {selectedMemberIds.length === MOCK_TEAM.length ? 'Deselect All' : 'Select All'}
+                        {selectedMemberIds.length === teamMembers.length ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
 
                     <div className="flex gap-1.5 flex-wrap">
-                      {MOCK_TEAM.map(member => {
+                      {teamMembers.map((member: any) => {
                         const isSelected = selectedMemberIds.includes(member.id);
                         return (
                           <button
@@ -987,7 +1033,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                             borderColor: '#475569',
                           }}
                         >
-                          {MOCK_TEAM.map(m => (
+                          {teamMembers.map((m: any) => (
                             <option
                               key={m.id}
                               value={m.id}
@@ -1142,7 +1188,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                     <div>
                       <label className="text-[10px] font-bold text-slate-300 block mb-1">Assignee (TL / Sales Rep)</label>
                       <div className="flex gap-2 overflow-x-auto pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        {MOCK_TEAM.map(usr => {
+                        {teamMembers.map((usr: any) => {
                           const isSel = rule.assigneeId === usr.id;
                           return (
                             <button
@@ -1294,8 +1340,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
             <div className="space-y-3">
               <p className="text-xs text-slate-400 font-medium">Select Team Leader or Sales Rep to assign all {totalLeadsCount} ingested leads:</p>
 
-              {MOCK_TEAM.map(usr => {
-                const isSel = selectedUser.id === usr.id;
+              {teamMembers.map((usr: any) => {
+                const isSel = selectedUser?.id === usr.id;
                 return (
                   <div
                     key={usr.id}

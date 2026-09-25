@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -34,40 +34,7 @@ interface LeadDataWeb {
   lastCalledAt?: string;
 }
 
-const LEADS: LeadDataWeb[] = [
-  {
-    id: '1', name: 'Rajesh Kumar', email: 'rajesh@example.com', phone: '+91 98765 43210',
-    status: 'Qualified', statusColor: '#3b82f6', source: 'Website', score: 85,
-    aiScore: generateMockAIScore(8.7),
-    owner: 'Rajesh K.', value: '₹2,40,000', created: 'Aug 9, 2026',
-    tags: ['hot', 'real-estate'], city: 'Delhi NCR', budget: '₹2.5L - ₹5L', requirement: '50-Seat Enterprise CRM',
-    currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 6, lastCalledAt: 'Today 2:45 PM',
-    allocationTrail: [
-      { id: 'a1', fromRole: 'ADMIN', fromName: 'Admin (Vikram Singh)', toRole: 'MANAGER', toName: 'Vikram Singh (Manager A)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:00:00+05:30', note: 'High-value enterprise lead from Website campaign.' },
-      { id: 'a2', fromRole: 'MANAGER', fromName: 'Vikram Singh (Manager A)', toRole: 'TEAM_LEADER', toName: 'Priya Sharma (TL A)', action: 'ALLOCATED', assignedAt: '2026-08-09T09:30:00+05:30', note: 'Delhi NCR territory. CRM vertical.' },
-      { id: 'a3', fromRole: 'TEAM_LEADER', fromName: 'Priya Sharma (TL A)', toRole: 'SALES_EXEC', toName: 'Rajesh K. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T10:45:00+05:30', note: 'Assigned for outreach. Follow up by EOD.' },
-    ],
-  },
-  {
-    id: '2', name: 'Priya Sharma', email: 'priya@example.com', phone: '+91 87654 32109',
-    status: 'New', statusColor: '#6366f1', source: 'LinkedIn', score: 72,
-    aiScore: generateMockAIScore(7.5),
-    owner: 'Priya S.', value: '₹1,80,000', created: 'Aug 9, 2026',
-    tags: ['warm'], city: 'Mumbai', budget: '₹1.5L - ₹3L', requirement: 'WhatsApp Bot Integration',
-    currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 3, lastCalledAt: 'Yesterday 4:20 PM',
-    allocationTrail: [
-      { id: 'b1', fromRole: 'ADMIN', fromName: 'Admin (Vikram Singh)', toRole: 'MANAGER', toName: 'Anil Kumar (Manager B)', action: 'ALLOCATED', assignedAt: '2026-08-09T08:15:00+05:30', note: 'LinkedIn inbound lead.' },
-      { id: 'b2', fromRole: 'MANAGER', fromName: 'Anil Kumar (Manager B)', toRole: 'SALES_EXEC', toName: 'Priya S. (Sales Rep)', action: 'ALLOCATED', assignedAt: '2026-08-09T11:00:00+05:30', note: 'Direct assignment — small ticket, no TL needed.' },
-    ],
-  },
-  { id: '3', name: 'TechCorp Ltd', email: 'contact@techcorp.com', phone: '+91 22 1234 5678', status: 'Proposal', statusColor: '#8b5cf6', source: 'Referral', score: 91, aiScore: generateMockAIScore(9.2), owner: 'Rajesh K.', value: '₹5,20,000', created: 'Aug 8, 2026', tags: ['hot', 'enterprise'], city: 'Bengaluru', budget: '₹5L+', requirement: 'AI Scoring Engine Pro', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '4', name: 'Amit Patel', email: 'amit@example.com', phone: '+91 76543 21098', status: 'Contacted', statusColor: '#f59e0b', source: 'Cold Call', score: 58, aiScore: generateMockAIScore(5.2), owner: 'Amit P.', value: '₹90,000', created: 'Aug 8, 2026', tags: [], city: 'Ahmedabad', budget: '₹50k - ₹1L', requirement: 'Cloud Telemetry License', currentAssignee: 'Amit P. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '5', name: 'Sunita Real Estate', email: 'info@sunita.com', phone: '+91 44 9876 5432', status: 'Negotiation', statusColor: '#ec4899', source: 'Events', score: 77, aiScore: generateMockAIScore(8.4), owner: 'Rajesh K.', value: '₹8,50,000', created: 'Aug 7, 2026', tags: ['warm'], city: 'Chennai', budget: '₹7L - ₹10L', requirement: 'Full CRM Suite + Mobile App', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '6', name: 'Construkt Inc.', email: 'bd@construkt.in', phone: '+91 80 1111 2222', status: 'New', statusColor: '#6366f1', source: 'Website', score: 63, aiScore: generateMockAIScore(6.1), owner: 'Priya S.', value: '₹3,60,000', created: 'Aug 7, 2026', tags: ['construction'], city: 'Pune', budget: '₹3L - ₹5L', requirement: 'Lead Scoring Engine', currentAssignee: 'Priya S. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-  { id: '7', name: 'Lakshmi Automobiles', email: 'sales@lakshmi.com', phone: '+91 99887 76655', status: 'Won', statusColor: '#22c55e', source: 'Events', score: 98, aiScore: generateMockAIScore(9.8), owner: 'Rajesh K.', value: '₹12,00,000', created: 'Aug 6, 2026', tags: ['auto', 'won'], city: 'Hyderabad', budget: '₹10L+', requirement: 'Custom Workflow + Auto Dialer', currentAssignee: 'Rajesh K. (Sales Rep)', currentAssigneeRole: 'SALES_EXEC' },
-];
+const LEADS: LeadDataWeb[] = [];
 
 export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string; totalCalls?: number; lastCalledAt?: string }) => {
   if ((lead.totalCalls || 0) > 0) return true;
@@ -82,7 +49,9 @@ export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string
 const STATUSES = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'];
 
 export function LeadsTable() {
-  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>(LEADS);
+  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([]);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [activeStatus, setActiveStatus] = useState('All');
   const [selected, setSelected] = useState<string[]>([]);
@@ -102,6 +71,79 @@ export function LeadsTable() {
     setTableToast(msg);
     setTimeout(() => setTableToast(null), 3800);
   };
+
+  useEffect(() => {
+    const fetchLeadsAndTeam = async () => {
+      setIsLoading(true);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      try {
+        const [leadsRes, usersRes] = await Promise.allSettled([
+          fetch(`${apiBase}/leads`, { headers }),
+          fetch(`${apiBase}/users`, { headers }),
+        ]);
+
+        if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+          const leadsData = await leadsRes.value.json();
+          const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
+          const statusColors: Record<string, string> = {
+            New: '#6366f1',
+            Contacted: '#f59e0b',
+            Qualified: '#3b82f6',
+            Proposal: '#8b5cf6',
+            Negotiation: '#ec4899',
+            Won: '#22c55e',
+            Lost: '#ef4444',
+          };
+          const mapped: LeadDataWeb[] = items.map((l: any) => ({
+            id: String(l.id),
+            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+            email: l.email || '',
+            phone: l.phone || '',
+            status: l.status?.name || l.status || 'New',
+            statusColor: statusColors[l.status?.name || l.status] || '#6366f1',
+            source: l.source?.name || l.source || 'Website',
+            score: l.score || 0,
+            aiScore: l.aiScore || (l.score ? generateMockAIScore(Number((l.score / 10).toFixed(1))) : undefined),
+            owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+            value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
+            created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
+            tags: l.tags || [],
+            city: l.city || '—',
+            budget: l.budget || '—',
+            requirement: l.requirement || '—',
+            allocationTrail: l.allocationTrail || [],
+            currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+            totalCalls: l.totalCalls || 0,
+            lastCalledAt: l.lastCalledAt || 'Never',
+          }));
+          setLeadsList(mapped);
+        }
+
+        if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
+          const usersData = await usersRes.value.json();
+          if (Array.isArray(usersData)) {
+            setTeamUsers(usersData.map((u: any) => ({
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+              role: u.role || 'Member',
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching leads or team:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeadsAndTeam();
+  }, []);
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
     if (!isBrowserOnline()) {
@@ -440,25 +482,34 @@ export function LeadsTable() {
             <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 pr-1">
               <User size={12} className="text-slate-500" /> Person:
             </span>
-            {[
-              { id: 'ALL', label: 'All Persons' },
-              { id: 'Rajesh', label: 'Rajesh K. (Sales)' },
-              { id: 'Priya', label: 'Priya S. (Sales)' },
-              { id: 'Amit', label: 'Amit P. (Sales)' },
-              { id: 'UNASSIGNED', label: 'Unassigned Leads' },
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setFilterPerson(item.id)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
-                  filterPerson === item.id
-                    ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
-                    : 'filter-pill-unselected'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {(() => {
+              const ownersInLeads = Array.from(
+                new Set(
+                  leadsList
+                    .map(l => l.owner)
+                    .filter(o => o && o !== 'Unassigned' && o !== '—')
+                )
+              );
+              const filterOptions = [
+                { id: 'ALL', label: 'All Persons' },
+                ...ownersInLeads.map(o => ({ id: o, label: o })),
+                { id: 'UNASSIGNED', label: 'Unassigned Leads' },
+              ];
+
+              return filterOptions.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setFilterPerson(item.id)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
+                    filterPerson === item.id
+                      ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                      : 'filter-pill-unselected'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ));
+            })()}
 
             {activeFilterCount > 0 && (
               <button
@@ -588,18 +639,40 @@ export function LeadsTable() {
               <tr>
                 <td colSpan={columnOrder.length + 2} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">🔍</div>
-                    <p className="text-sm font-bold text-white">No leads match your search</p>
-                    <p className="text-xs text-slate-400 max-w-xs">
-                      No results for <strong className="text-indigo-300">"{search}"</strong> across all fields.
-                      Try searching by name, phone, email, city, status, or any other field.
+                    <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">
+                      {search ? '🔍' : '📁'}
+                    </div>
+                    <p className="text-sm font-bold text-white">
+                      {search ? 'No leads match your search' : 'No leads in your CRM yet'}
                     </p>
-                    <button
-                      onClick={() => setSearch('')}
-                      className="mt-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 px-4 py-1.5 rounded-xl hover:bg-indigo-500/10 transition-all"
-                    >
-                      ✕ Clear Search & Show All Leads
-                    </button>
+                    <p className="text-xs text-slate-400 max-w-sm">
+                      {search
+                        ? `No results for "${search}" across all fields.`
+                        : 'Your organization pipeline is clean and ready. Start adding leads manually or import your existing spreadsheet datasets.'}
+                    </p>
+                    {search ? (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="mt-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 px-4 py-1.5 rounded-xl hover:bg-indigo-500/10 transition-all"
+                      >
+                        ✕ Clear Search & Show All Leads
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Link
+                          href="/pipeline"
+                          className="text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg"
+                        >
+                          + Insert First Lead
+                        </Link>
+                        <Link
+                          href="/imports"
+                          className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl transition-all"
+                        >
+                          Import CSV / Excel
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -718,11 +791,19 @@ export function LeadsTable() {
                             title="Reallocate Lead (Online Verified with Server)"
                           >
                             <option value="Unassigned">⚠️ Unassigned</option>
-                            <option value="Rajesh K.">Rajesh K. (Sales Rep)</option>
-                            <option value="Priya S.">Priya S. (TL A)</option>
-                            <option value="Rohan Kumar">Rohan Kumar (Sales Exec)</option>
-                            <option value="Amit P.">Amit P. (Sales Exec)</option>
-                            <option value="Neha Gupta">Neha Gupta (Sales Exec)</option>
+                            {teamUsers.length > 0 ? (
+                              teamUsers.map(u => (
+                                <option key={u.id} value={u.name}>
+                                  {u.name} ({u.role})
+                                </option>
+                              ))
+                            ) : (
+                              currentUser?.name && (
+                                <option value={currentUser.name}>
+                                  {currentUser.name} ({currentUser.role || 'Admin'})
+                                </option>
+                              )
+                            )}
                           </select>
                         </div>
                       );

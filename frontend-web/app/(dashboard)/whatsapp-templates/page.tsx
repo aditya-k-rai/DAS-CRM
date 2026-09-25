@@ -31,22 +31,16 @@ const CAT_STYLES: Record<TemplateCategory, { bg: string; text: string; border: s
 
 // ── Default templates (mirrors whatsappTemplateEngine.ts DEFAULT_TEMPLATES) ──
 const DEFAULT_TEMPLATES: WhatsAppTemplate[] = [
-  { id: 'tpl_1', title: '🌱 Initial Lead Outreach',       category: 'OUTREACH',  isDefault: true, usageCount: 248, text: "Hi {name}! I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-minute call today!" },
-  { id: 'tpl_2', title: '📄 GST Commercial Proposal',     category: 'PROPOSAL',  isDefault: true, usageCount: 175, text: "Hello {name}, please find our official commercial quote for {product} attached with 18% GST tax breakdown totaling {value}. Looking forward to your confirmation!" },
-  { id: 'tpl_3', title: '⏰ SLA 15-Min Follow-Up',        category: 'FOLLOWUP',  isDefault: true, usageCount: 319, text: "Hi {name}, just following up from DAS CRM regarding our recent discussion for {company}. Do you have 5 minutes for a quick call today?" },
-  { id: 'tpl_4', title: '🎉 Q3 Festival Discount Offer',  category: 'PROMOTION', isDefault: true, usageCount: 132, text: "Exciting news {name}! Get 20% off on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!" },
+  { id: 'tpl_1', title: '🌱 Initial Lead Outreach',       category: 'OUTREACH',  isDefault: true, usageCount: 0, text: "Hi {name}! I got to know that you inquired about our solution for {company}. Let's connect for a quick 5-minute call today!" },
+  { id: 'tpl_2', title: '📄 GST Commercial Proposal',     category: 'PROPOSAL',  isDefault: true, usageCount: 0, text: "Hello {name}, please find our official commercial quote for {product} attached with 18% GST tax breakdown totaling {value}. Looking forward to your confirmation!" },
+  { id: 'tpl_3', title: '⏰ SLA 15-Min Follow-Up',        category: 'FOLLOWUP',  isDefault: true, usageCount: 0, text: "Hi {name}, just following up regarding our recent discussion for {company}. Do you have 5 minutes for a quick call today?" },
+  { id: 'tpl_4', title: '🎉 Seasonal Discount Offer',     category: 'PROMOTION', isDefault: true, usageCount: 0, text: "Exciting news {name}! Get a special discount on {product} for {company} when you upgrade this week. Reply to claim your priority demo slot!" },
 ];
 
 // ── Placeholder variables & Catalog Products ──
 const PLACEHOLDERS = ['{name}', '{company}', '{value}', '{product}', '{price}', '{catalog_link}'];
 
-const CATALOG_PRODUCTS = [
-  { name: 'Executive Work Station', price: '₹22,500' },
-  { name: 'DAS CRM Enterprise License (50 Seats)', price: '₹5,90,000 (Incl. 18% GST)' },
-  { name: 'AI Lead Scoring Engine Pro', price: '₹1,41,600 (Incl. 18% GST)' },
-  { name: 'Modular Conference Table (12 Seater)', price: '₹1,00,300 (Incl. 18% GST)' },
-  { name: 'Custom Commercial Proposal Quote', price: '₹2,38,950' },
-];
+const CATALOG_PRODUCTS: { name: string; price: string }[] = [];
 
 // ── Live variable interpolation ───────────────────────────
 function interpolate(text: string, vars: Record<string, string>): string {
@@ -293,10 +287,10 @@ export default function WhatsAppTemplatesPage() {
   const [sendModal, setSendModal] = useState<WhatsAppTemplate | null>(null);
 
   // Live sandbox vars (mirrors Android WhatsAppTemplatesScreen variable sandbox)
-  const [sandboxName, setSandboxName] = useState('Rajesh Kumar');
-  const [sandboxCompany, setSandboxCompany] = useState('TechCorp Solutions');
-  const [sandboxValue, setSandboxValue] = useState('₹5,90,000');
-  const [sandboxProduct, setSandboxProduct] = useState('Enterprise Suite');
+  const [sandboxName, setSandboxName] = useState('Client Name');
+  const [sandboxCompany, setSandboxCompany] = useState('Company Name');
+  const [sandboxValue, setSandboxValue] = useState('₹0');
+  const [sandboxProduct, setSandboxProduct] = useState('Product / Service');
 
   const sandboxVars = { name: sandboxName, company: sandboxCompany, value: sandboxValue, product: sandboxProduct };
 

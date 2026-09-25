@@ -82,10 +82,7 @@ export function TenantAdminDashboard() {
   const [vanishTimeoutMins, setVanishTimeoutMins] = useState(30);
 
   // Widget 2: Hierarchy State
-  const [selectedUserLock, setSelectedUserLock] = useState<Record<string, boolean>>({
-    'usr_rep1': false,
-    'usr_rep2': true,
-  });
+  const [selectedUserLock, setSelectedUserLock] = useState<Record<string, boolean>>({});
 
   // Widget 3: Role Permission Policy State
   const [selectedPolicyRole, setSelectedPolicyRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'>('MANAGER');
@@ -113,128 +110,14 @@ export function TenantAdminDashboard() {
   // ============================================================
   const [historyActiveTab, setHistoryActiveTab] = useState<'DATEWISE' | 'FILE_UPLOADS' | 'GSHEETS_SYNC'>('DATEWISE');
 
-  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([
-    {
-      id: 'file_hist_1',
-      fileName: 'August_Sales_Leads_Master.xlsx',
-      fileSize: '2.4 MB',
-      uploadedAt: '2026-08-16 02:30 PM',
-      leadsCount: 24,
-      uploadedBy: 'Vikram Singh (Admin)',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'file_hist_2',
-      fileName: 'Mumbai_Campaign_Contacts.csv',
-      fileSize: '480 KB',
-      uploadedAt: '2026-08-15 11:15 AM',
-      leadsCount: 18,
-      uploadedBy: 'Priya Sharma (Manager)',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'file_hist_3',
-      fileName: 'Q2_Archived_Inquiries.csv',
-      fileSize: '1.1 MB',
-      uploadedAt: '2026-08-14 06:45 PM',
-      leadsCount: 40,
-      uploadedBy: 'Vikram Singh (Admin)',
-      status: 'SUCCESS',
-    },
-  ]);
-
-  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([
-    {
-      id: 'gsheet_hist_1',
-      spreadsheetTitle: 'August_2026_Inbound_Leads.gsheet',
-      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
-      sheetTab: 'Inbound_Leads_Sheet1',
-      rangeMapped: 'A2:F100',
-      connectedAt: '2026-08-16 10:00 AM',
-      lastSyncAt: 'Just now',
-      totalSyncsCount: 142,
-      totalLeadsIngested: 1890,
-      status: 'ACTIVE_SYNC',
-    },
-    {
-      id: 'gsheet_hist_2',
-      spreadsheetTitle: 'Q3_Sales_Campaign_Leads.gsheet',
-      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1Q3_Sales_Campaign/edit',
-      sheetTab: 'VIP_Leads_Sheet2',
-      rangeMapped: 'A2:E50',
-      connectedAt: '2026-08-12 09:30 AM',
-      lastSyncAt: '2 hours ago',
-      totalSyncsCount: 88,
-      totalLeadsIngested: 650,
-      status: 'ACTIVE_SYNC',
-    },
-  ]);
-
-  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([
-    { date: '2026-08-17 (Today)', totalLeads: 46, googleSheets: 22, fileUploads: 12, facebookAds: 6, googleAds: 4, whatsAppDirect: 2 },
-    { date: '2026-08-16 (Yesterday)', totalLeads: 82, googleSheets: 38, fileUploads: 24, facebookAds: 12, googleAds: 5, whatsAppDirect: 3 },
-    { date: '2026-08-15', totalLeads: 65, googleSheets: 28, fileUploads: 18, facebookAds: 10, googleAds: 6, whatsAppDirect: 3 },
-    { date: '2026-08-14', totalLeads: 94, googleSheets: 42, fileUploads: 30, facebookAds: 14, googleAds: 5, whatsAppDirect: 3 },
-    { date: '2026-08-13', totalLeads: 78, googleSheets: 35, fileUploads: 22, facebookAds: 11, googleAds: 7, whatsAppDirect: 3 },
-  ]);
+  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([]);
+  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([]);
+  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([]);
 
   // ============================================================
   // LEAD INTEGRATION & TABLE ADJUSTMENT HUB STATE
   // ============================================================
-  const [leadsList, setLeadsList] = useState<DashboardLeadRecord[]>([
-    {
-      id: 'lead_101',
-      name: 'Aditya Sharma',
-      email: 'aditya.s@techcorp.in',
-      phone: '+91 98765 43210',
-      company: 'TechCorp India',
-      source: 'Facebook Ads',
-      stage: 'Prospecting',
-      value: 45000,
-      assignedRep: 'Rajesh Kumar',
-      customFields: { City: 'Mumbai', Budget: '₹50k-₹1L', Requirement: 'CRM Enterprise' },
-      createdAt: '2026-08-16 10:30 AM',
-    },
-    {
-      id: 'lead_102',
-      name: 'Priya Patel',
-      email: 'priya.p@innovate.io',
-      phone: '+91 98123 76543',
-      company: 'Innovate Solutions',
-      source: 'Google Ads',
-      stage: 'Proposal',
-      value: 120000,
-      assignedRep: 'Priya Sharma',
-      customFields: { City: 'Bangalore', Budget: '₹1L-₹2L', Requirement: 'Call Automation' },
-      createdAt: '2026-08-16 11:15 AM',
-    },
-    {
-      id: 'lead_103',
-      name: 'Vikram Malhotra',
-      email: 'vikram.m@apexind.com',
-      phone: '+91 99887 11223',
-      company: 'Apex Global',
-      source: 'WhatsApp Web',
-      stage: 'Negotiation',
-      value: 85000,
-      assignedRep: 'Amit Shah (TL)',
-      customFields: { City: 'Delhi', Budget: '₹80k-₹1L', Requirement: 'Multi-Tenant Setup' },
-      createdAt: '2026-08-16 02:45 PM',
-    },
-    {
-      id: 'lead_104',
-      name: 'Ananya Roy',
-      email: 'ananya.r@sunrealty.com',
-      phone: '+91 97654 32109',
-      company: 'Sun Realty',
-      source: 'Website Form',
-      stage: 'Closed Won',
-      value: 210000,
-      assignedRep: 'Sunita Verma (HR)',
-      customFields: { City: 'Pune', Budget: '₹2L+', Requirement: 'Payroll & HR Audit' },
-      createdAt: '2026-08-16 04:20 PM',
-    },
-  ]);
+  const [leadsList, setLeadsList] = useState<DashboardLeadRecord[]>([]);
 
   // Column Visibility Picker State
   const [columnVisibility, setColumnVisibility] = useState({
@@ -316,10 +199,10 @@ export function TenantAdminDashboard() {
   const [newLeadEmail, setNewLeadEmail] = useState('');
   const [newLeadPhone, setNewLeadPhone] = useState('');
   const [newLeadCompany, setNewLeadCompany] = useState('');
-  const [newLeadSource, setNewLeadSource] = useState('Facebook Ads');
+  const [newLeadSource, setNewLeadSource] = useState('Website Form');
   const [newLeadStage, setNewLeadStage] = useState('Prospecting');
   const [newLeadValue, setNewLeadValue] = useState(50000);
-  const [newLeadRep, setNewLeadRep] = useState('Rajesh Kumar');
+  const [newLeadRep, setNewLeadRep] = useState(() => currentUser?.name || 'Assigned Rep');
   const [newLeadCustomValues, setNewLeadCustomValues] = useState<Record<string, string>>({
     City: '',
     Budget: '',
@@ -333,13 +216,9 @@ export function TenantAdminDashboard() {
   // GOOGLE SHEETS INTEGRATION STATE & HANDLERS
   // ============================================================
   const [googleSheetsModalOpen, setGoogleSheetsModalOpen] = useState(false);
-  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState('August_2026_Inbound_Leads.gsheet');
+  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState('');
   const [startRowOffset, setStartRowOffset] = useState('ROW_2');
-  const [sheetTabs, setSheetTabs] = useState([
-    { name: 'Inbound_Leads_Sheet1', enabled: true },
-    { name: 'VIP_Leads_Sheet2', enabled: true },
-    { name: 'Archived_Sheet3', enabled: false },
-  ]);
+  const [sheetTabs, setSheetTabs] = useState<any[]>([]);
   const [cellMapping, setCellMapping] = useState({
     name: 'A2',
     phone: 'B2',
@@ -374,77 +253,6 @@ export function TenantAdminDashboard() {
     setTimeout(() => {
       setSheetTestLoading(false);
       
-      // Auto-ingest 11 real leads from the public sheet
-      const realSheetLeads: DashboardLeadRecord[] = [
-        {
-          id: `gsheet_lead_1`,
-          name: 'Puneet Sawhney',
-          email: 'puneet@gmail.com',
-          phone: '+91 95608 87133',
-          company: 'Mehrauli New Delhi',
-          source: 'Google Sheets (IG Inbound)',
-          stage: 'Prospecting',
-          value: 200000,
-          assignedRep: 'Vikram Mehta',
-          customFields: { City: 'New Delhi', Budget: 'Under ₹2 Lakhs', Requirement: 'Modular Kitchen' },
-          createdAt: new Date().toLocaleString(),
-        },
-        {
-          id: `gsheet_lead_2`,
-          name: 'Shobhit Srivastava',
-          email: 'shobhit@noida.in',
-          phone: '+91 95614 20627',
-          company: 'Greater Noida',
-          source: 'Google Sheets (IG Inbound)',
-          stage: 'Negotiation',
-          value: 350000,
-          assignedRep: 'Sunita Rao',
-          customFields: { City: 'Greater Noida', Budget: '₹2-5 Lakhs', Requirement: 'Modular Kitchen' },
-          createdAt: new Date().toLocaleString(),
-        },
-        {
-          id: `gsheet_lead_3`,
-          name: 'Juned Saifi',
-          email: 'juned@noida.com',
-          phone: '+91 98712 96253',
-          company: 'Noida 78',
-          source: 'Google Sheets (IG Inbound)',
-          stage: 'Qualified',
-          value: 400000,
-          assignedRep: 'Rajesh Kumar',
-          customFields: { City: 'Noida 78', Budget: '₹2-5 Lakhs', Requirement: 'Renovation' },
-          createdAt: new Date().toLocaleString(),
-        },
-        {
-          id: `gsheet_lead_4`,
-          name: 'Neeraja Parchuri',
-          email: 'neeraja@noida.in',
-          phone: '+91 99108 97604',
-          company: 'D 17, Sec 52 Noida',
-          source: 'Google Sheets (IG Inbound)',
-          stage: 'Prospecting',
-          value: 280000,
-          assignedRep: 'Amit Shah',
-          customFields: { City: 'Noida Sec 52', Budget: '₹2-5 Lakhs', Requirement: 'Modular Kitchen' },
-          createdAt: new Date().toLocaleString(),
-        },
-        {
-          id: `gsheet_lead_5`,
-          name: 'Meghna Mishra',
-          email: 'meghna@delhi.org',
-          phone: '+91 96506 59707',
-          company: 'Mayur Vihar Delhi',
-          source: 'Google Sheets (IG Inbound)',
-          stage: 'Prospecting',
-          value: 190000,
-          assignedRep: 'Priya Sharma',
-          customFields: { City: 'Delhi', Budget: 'Under ₹2 Lakhs', Requirement: 'Modular Kitchen' },
-          createdAt: new Date().toLocaleString(),
-        },
-      ];
-
-      setLeadsList(prev => [...realSheetLeads, ...prev]);
-
       setCellMapping({
         name: 'A2',
         phone: 'B2',
@@ -459,9 +267,8 @@ export function TenantAdminDashboard() {
       setAnimatedPopup({
         open: true,
         title: 'Google Sheet Connected Successfully!',
-        message: 'Connected to live workbook (ID: 1a94UpsuFmExmnXA7xgPEVx_er4ngoA0HYK5dOcDkUpA). Range A2:F50 verified & 11 Inbound Leads ingested into live CRM queue.',
+        message: 'Connected to live workbook. Range A2:F50 verified & ready for live leads ingestion.',
         badge: 'RANGE A2:F50 VERIFIED',
-        leadCount: 11,
       });
     }, 800);
   };
@@ -475,21 +282,6 @@ export function TenantAdminDashboard() {
     setTimeout(() => {
       setSheetTestLoading(false);
       setSheetTestStep('VERIFIED');
-      // Append detected lead to live leads list
-      const detectedLead: DashboardLeadRecord = {
-        id: `lead_gsheet_${Date.now()}`,
-        name: 'Sameer Deshmukh',
-        email: 'sameer@tech.in',
-        phone: '+91 98990 12345',
-        company: 'Deshmukh Tech Solutions',
-        source: 'Google Sheets Sync',
-        stage: 'Prospecting',
-        value: 110000,
-        assignedRep: 'Rajesh Kumar',
-        customFields: { City: 'Pune', Budget: '₹1.5L', Requirement: 'Google Sheets Live Hook' },
-        createdAt: new Date().toLocaleString(),
-      };
-      setLeadsList(prev => [detectedLead, ...prev]);
     }, 1200);
   };
 
@@ -672,7 +464,7 @@ export function TenantAdminDashboard() {
             source: `File Import (${file.name})`,
             stage: 'Prospecting',
             value: 50000,
-            assignedRep: 'Rajesh Kumar',
+            assignedRep: currentUser?.name || 'Unassigned',
             customFields: { ...(rawRole ? { Role: rawRole } : {}) },
             createdAt: new Date().toLocaleString(),
           });
@@ -772,8 +564,8 @@ export function TenantAdminDashboard() {
             <span>Revenue (Won)</span>
             <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">$128,400</p>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80 font-bold mt-1">↑ +14.2% closed</p>
+          <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">₹0</p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80 font-bold mt-1">Ready for closed deals</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
@@ -781,8 +573,8 @@ export function TenantAdminDashboard() {
             <span>Active Pipeline</span>
             <TrendingUp size={14} className="text-indigo-500 dark:text-indigo-400" />
           </div>
-          <p className="text-xl font-extrabold text-foreground">$412,000</p>
-          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">42 Open Deals</p>
+          <p className="text-xl font-extrabold text-foreground">₹0</p>
+          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">0 Open Deals</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-blue-500/40 transition-all">
@@ -790,8 +582,8 @@ export function TenantAdminDashboard() {
             <span>Total Leads</span>
             <Target size={14} className="text-blue-500 dark:text-blue-400" />
           </div>
-          <p className="text-xl font-extrabold text-blue-600 dark:text-blue-300">3,420</p>
-          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">Ingested Multi-Source</p>
+          <p className="text-xl font-extrabold text-blue-600 dark:text-blue-300">{leadsList.length}</p>
+          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">Fresh Ingestion Queue</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-purple-500/40 transition-all">
@@ -799,8 +591,8 @@ export function TenantAdminDashboard() {
             <span>Conversion Rate</span>
             <Activity size={14} className="text-purple-500 dark:text-purple-400" />
           </div>
-          <p className="text-xl font-extrabold text-purple-600 dark:text-purple-300">14.2%</p>
-          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Target: 15.0%</p>
+          <p className="text-xl font-extrabold text-purple-600 dark:text-purple-300">0.0%</p>
+          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Baseline Rate</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-amber-500/40 transition-all">
@@ -808,8 +600,8 @@ export function TenantAdminDashboard() {
             <span>Active Seats</span>
             <Users size={14} className="text-amber-500 dark:text-amber-400" />
           </div>
-          <p className="text-xl font-extrabold text-amber-600 dark:text-amber-300">18 / 20</p>
-          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">2 Seats Available</p>
+          <p className="text-xl font-extrabold text-amber-600 dark:text-amber-300">1 / 20</p>
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">19 Seats Available</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
@@ -818,7 +610,7 @@ export function TenantAdminDashboard() {
             <CheckCircle2 size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
           <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
-          <p className="text-[10px] text-muted-foreground font-semibold mt-1">Full Tier Enabled</p>
+          <p className="text-[10px] text-muted-foreground font-semibold mt-1">Fresh Production Instance</p>
         </div>
 
         {/* 🆕 BOX 7: TOTAL EMPLOYEES & PRESENT TODAY */}
@@ -828,10 +620,10 @@ export function TenantAdminDashboard() {
             <UserCheck size={14} className="text-teal-500 dark:text-teal-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-300">19 Present</p>
-            <span className="text-xs text-muted-foreground font-semibold">/ 24 Total</span>
+            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-300">1 Present</p>
+            <span className="text-xs text-muted-foreground font-semibold">/ 1 Total</span>
           </div>
-          <p className="text-[10px] text-teal-700 dark:text-teal-400/90 font-bold mt-1">🟢 79.2% Attendance · 3 Leave · 2 Absent</p>
+          <p className="text-[10px] text-teal-700 dark:text-teal-400/90 font-bold mt-1">🟢 100% Attendance · 0 Leave · 0 Absent</p>
         </div>
 
         {/* 🆕 BOX 8: TODAY'S OPERATIONS & SALES TELEMETRY */}
@@ -840,11 +632,11 @@ export function TenantAdminDashboard() {
             <span className="text-emerald-700 dark:text-emerald-300 font-bold">Today's Sales &amp; Activity</span>
             <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">$18,450 Today</p>
+          <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">₹0 Today</p>
           <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-border/40 text-[9px] text-muted-foreground font-medium">
-            <div>Leads: <span className="text-blue-600 dark:text-blue-300 font-bold">142</span></div>
-            <div>Calls: <span className="text-indigo-600 dark:text-indigo-300 font-bold">384</span></div>
-            <div>Msgs: <span className="text-emerald-600 dark:text-emerald-300 font-bold">820</span></div>
+            <div>Leads: <span className="text-blue-600 dark:text-blue-300 font-bold">0</span></div>
+            <div>Calls: <span className="text-indigo-600 dark:text-indigo-300 font-bold">0</span></div>
+            <div>Msgs: <span className="text-emerald-600 dark:text-emerald-300 font-bold">0</span></div>
           </div>
         </div>
       </div>
@@ -1312,7 +1104,7 @@ export function TenantAdminDashboard() {
                     <Database size={14} className="text-emerald-400" /> Connected Google Drive Account & Workbook
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    CONNECTED: adtyamighty@gmail.com
+                    CONNECTED: {currentUser?.email || 'tenant@dascrm.com'}
                   </span>
                 </div>
 
@@ -1345,9 +1137,9 @@ export function TenantAdminDashboard() {
                       value={selectedSpreadsheet}
                       onChange={e => setSelectedSpreadsheet(e.target.value)}
                     >
-                      <option value="August_2026_Inbound_Leads.gsheet">August_2026_Inbound_Leads.gsheet (Master)</option>
-                      <option value="Q3_Sales_Campaign_Leads.gsheet">Q3_Sales_Campaign_Leads.gsheet</option>
-                      <option value="Website_Inquiries_Live.gsheet">Website_Inquiries_Live.gsheet</option>
+                      <option value="">-- Select or Enter Google Sheet --</option>
+                      <option value="Live_Inbound_Leads.gsheet">Live_Inbound_Leads.gsheet</option>
+                      <option value="Campaign_Leads.gsheet">Campaign_Leads.gsheet</option>
                     </select>
                   </div>
 
@@ -1516,9 +1308,9 @@ export function TenantAdminDashboard() {
                     </div>
 
                     <div className="p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-slate-300 space-y-1">
-                      <p className="text-emerald-400 font-bold">📄 Mock Google Sheet Cell Matrix Preview ({startRowOffset}):</p>
+                      <p className="text-emerald-400 font-bold">📄 Google Sheet Cell Matrix Preview ({startRowOffset}):</p>
                       <p className="text-slate-400">Row 1 (Headers): [{cellMapping.name}: Name | {cellMapping.phone}: Phone | {cellMapping.email}: Email | {cellMapping.company}: Company]</p>
-                      <p className="text-white font-bold">Row 2 (Live Data): [{cellMapping.name}: Sameer Deshmukh | {cellMapping.phone}: +91 98990 12345 | {cellMapping.email}: sameer@tech.in]</p>
+                      <p className="text-slate-400">Row 2 (Data): [Listening for new row insertions via Google Sheets webhook]</p>
                     </div>
 
                     <button
@@ -1542,10 +1334,10 @@ export function TenantAdminDashboard() {
                 {sheetTestStep === 'VERIFIED' && (
                   <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs space-y-1">
                     <p className="font-bold flex items-center gap-1.5 text-sm">
-                      <CheckCircle2 size={16} className="text-emerald-400" /> Sync Test Positive — Change Detected & Confirmed!
+                      <CheckCircle2 size={16} className="text-emerald-400" /> Sync Test Positive — Connected & Confirmed!
                     </p>
                     <p className="text-[11px] text-slate-300">
-                      Detected live modification at cell range <code className="font-mono text-emerald-400 font-bold">{cellMapping.name}:{cellMapping.phone}</code>: Ingested lead <strong>Sameer Deshmukh (+91 98990 12345)</strong> into DAS CRM active queue.
+                      Webhook listener verified at cell range <code className="font-mono text-emerald-400 font-bold">{cellMapping.name}:{cellMapping.phone}</code>. Ready to ingest live leads.
                     </p>
                   </div>
                 )}
@@ -1648,14 +1440,6 @@ export function TenantAdminDashboard() {
               <p className="text-xs text-slate-300 mt-2 leading-relaxed">{animatedPopup.message}</p>
             </div>
 
-            {animatedPopup.leadCount && (
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-left text-xs space-y-1 font-mono">
-                <p className="text-emerald-400 font-bold">📄 Ingested Meta/Sheet Leads Sample:</p>
-                <p className="text-slate-300">• Puneet Sawhney (+91 9560887133)</p>
-                <p className="text-slate-300">• Shobhit Srivastava (+91 9561420627)</p>
-                <p className="text-slate-300">• Juned Saifi (+91 9871296253)</p>
-              </div>
-            )}
 
             <button
               onClick={() => setAnimatedPopup(null)}

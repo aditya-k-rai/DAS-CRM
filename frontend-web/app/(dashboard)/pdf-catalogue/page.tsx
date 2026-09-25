@@ -47,88 +47,8 @@ const makeLog = (
   extra: Partial<ShareEvent> = {}
 ): ShareEvent => ({ id, sharedBy, sharedTo, channel, timestamp, ...extra });
 
-// ── Seed Data ────────────────────────────────────────────
-const INITIAL_PDFS: PdfItem[] = [
-  {
-    id: '1',
-    title: 'DAS CRM Enterprise Suite 2026 Deck.pdf',
-    size: '4.2 MB', updated: 'Updated 2 days ago',
-    category: 'PRODUCT', downloadsCount: 142, pages: 28, author: 'Aditya Kumar Rai',
-    waShares: 47, emailShares: 31, linkShares: 18,
-    shareLog: [
-      makeLog('sl1', 'Rajesh Kumar', 'TechCorp Ltd',   'WHATSAPP', 'Today 10:22 AM', { leadPhone: '+91 98765 43210', note: 'Sent product deck before demo call' }),
-      makeLog('sl2', 'Priya Sharma', 'Amit Patel',     'EMAIL',    'Today 09:15 AM', { leadEmail: 'amit@example.com', note: 'Follow-up after initial meeting' }),
-      makeLog('sl3', 'Rajesh Kumar', 'Sunita Verma',   'WHATSAPP', 'Yesterday 3:40 PM', { leadPhone: '+91 87654 32109' }),
-      makeLog('sl4', 'Ravi Singh',   'GlobalTech Inc', 'EMAIL',    'Yesterday 11:05 AM', { leadEmail: 'info@globaltech.com' }),
-      makeLog('sl5', 'Priya Sharma', 'Anjali Mehta',   'LINK',     '2 days ago',     { note: 'Shared public brochure link via chat' }),
-    ],
-  },
-  {
-    id: '2',
-    title: 'AI Lead Scoring Engine Pro Specs.pdf',
-    size: '2.8 MB', updated: 'Updated last week',
-    category: 'SPECIFICATION', downloadsCount: 89, pages: 14, author: 'Product Team',
-    waShares: 22, emailShares: 14, linkShares: 8,
-    shareLog: [
-      makeLog('sl6', 'Ravi Singh',  'Rahul Industries', 'EMAIL',    'Today 08:55 AM', { leadEmail: 'rahul@industries.com' }),
-      makeLog('sl7', 'Aisha Khan',  'CloudBase Corp',   'WHATSAPP', 'Yesterday 2:10 PM', { leadPhone: '+91 99887 76655' }),
-      makeLog('sl8', 'Ravi Singh',  'StartupXYZ',       'LINK',     '3 days ago', {}),
-    ],
-  },
-  {
-    id: '3',
-    title: 'WhatsApp Cloud API Pricing Rate Card.pdf',
-    size: '1.5 MB', updated: 'Updated 3 days ago',
-    category: 'PRICING', downloadsCount: 215, pages: 6, author: 'Sales Team',
-    waShares: 89, emailShares: 54, linkShares: 31,
-    shareLog: [
-      makeLog('sl9',  'Priya Sharma', 'Amit Patel',      'WHATSAPP', 'Today 11:30 AM', { leadPhone: '+91 87654 32109', note: 'Pricing clarification request' }),
-      makeLog('sl10', 'Rajesh Kumar', 'TechCorp Ltd',    'EMAIL',    'Today 10:00 AM', { leadEmail: 'contact@techcorp.com' }),
-      makeLog('sl11', 'Aisha Khan',   'Mehta Enterprises','WHATSAPP', 'Yesterday 4:50 PM', { leadPhone: '+91 78563 21098' }),
-      makeLog('sl12', 'Ravi Singh',   'Infosys Partner', 'EMAIL',    'Yesterday 9:30 AM', { leadEmail: 'partner@infosys.com' }),
-      makeLog('sl13', 'Priya Sharma', 'ZoomSales Ltd',   'LINK',     '2 days ago', {}),
-    ],
-  },
-  {
-    id: '4',
-    title: 'GST 18% Commercial Proposal Template.pdf',
-    size: '1.9 MB', updated: 'Updated yesterday',
-    category: 'PROPOSAL', downloadsCount: 64, pages: 10, author: 'Finance Team',
-    waShares: 19, emailShares: 28, linkShares: 6,
-    shareLog: [
-      makeLog('sl14', 'Rajesh Kumar', 'Reliance Ventures', 'EMAIL',    'Today 09:45 AM', { leadEmail: 'biz@reliance.com', note: 'Quarterly proposal submission' }),
-      makeLog('sl15', 'Aisha Khan',   'QuickBuy Inc',      'WHATSAPP', 'Yesterday 1:20 PM', { leadPhone: '+91 99100 22334' }),
-      makeLog('sl16', 'Priya Sharma', 'Arun Constructions','EMAIL',    '2 days ago', { leadEmail: 'arun@construction.com' }),
-    ],
-  },
-  {
-    id: '5',
-    title: 'DAS CRM Mobile App Feature Guide.pdf',
-    size: '3.1 MB', updated: 'Updated 5 days ago',
-    category: 'PRODUCT', downloadsCount: 178, pages: 22, author: 'Aditya Kumar Rai',
-    waShares: 61, emailShares: 38, linkShares: 24,
-    shareLog: [
-      makeLog('sl17', 'Ravi Singh',   'Softech Pvt Ltd', 'WHATSAPP', 'Today 08:10 AM', { leadPhone: '+91 88991 00223', note: 'Sent before product demo' }),
-      makeLog('sl18', 'Rajesh Kumar', 'NovaBiz Corp',    'EMAIL',    'Yesterday 5:00 PM', { leadEmail: 'hello@novabiz.com' }),
-      makeLog('sl19', 'Aisha Khan',   'DataDriven Co',   'LINK',     '3 days ago', {}),
-    ],
-  },
-  {
-    id: '6',
-    title: 'Annual Subscription Pricing Tiers 2026.pdf',
-    size: '0.9 MB', updated: 'Updated 1 week ago',
-    category: 'PRICING', downloadsCount: 312, pages: 4, author: 'Sales Team',
-    waShares: 104, emailShares: 79, linkShares: 45,
-    shareLog: [
-      makeLog('sl20', 'Priya Sharma', 'Apex Retail',      'WHATSAPP', 'Today 10:55 AM', { leadPhone: '+91 77889 99001', note: 'Annual contract discussion' }),
-      makeLog('sl21', 'Ravi Singh',   'StartupNest',      'EMAIL',    'Today 09:30 AM', { leadEmail: 'team@startupnest.in' }),
-      makeLog('sl22', 'Rajesh Kumar', 'FintechEdge',      'WHATSAPP', 'Yesterday 3:00 PM', { leadPhone: '+91 66778 88990' }),
-      makeLog('sl23', 'Aisha Khan',   'Greenfield Corp',  'EMAIL',    'Yesterday 11:45 AM', { leadEmail: 'gf@greenfield.com' }),
-      makeLog('sl24', 'Ravi Singh',   'SwiftLogistics',   'LINK',     '2 days ago', {}),
-      makeLog('sl25', 'Priya Sharma', 'MegaStore Ltd',    'EMAIL',    '3 days ago', { leadEmail: 'contact@megastore.in' }),
-    ],
-  },
-];
+// ── Seed Data (Starts empty for fresh companies) ──────────
+const INITIAL_PDFS: PdfItem[] = [];
 
 // ── Category badge styles ────────────────────────────────
 const CATEGORY_STYLES: Record<PdfCategory, { bg: string; text: string; border: string; label: string }> = {
@@ -753,10 +673,26 @@ export default function PdfCataloguePage() {
 
         {/* PDF List */}
         {filtered.length === 0 ? (
-          <div className="crm-card p-12 text-center">
-            <FileText size={40} className="text-muted mx-auto mb-3" />
-            <p className="text-white font-semibold">No PDFs found</p>
-            <p className="text-muted text-sm mt-1">Try adjusting your search or upload a new brochure.</p>
+          <div className="crm-card p-14 text-center border-dashed border-2 border-slate-800">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+              <FileText size={32} className="text-indigo-400" />
+            </div>
+            <h3 className="text-white font-bold text-base">
+              {search ? 'No matching documents' : 'No PDF catalogues uploaded yet'}
+            </h3>
+            <p className="text-muted text-xs mt-1 max-w-sm mx-auto leading-relaxed">
+              {search
+                ? `No documents matched "${search}". Try searching by another keyword.`
+                : 'Upload product decks, pricing proposals, and brochure PDFs to share directly with your leads via WhatsApp and Email.'}
+            </p>
+            {!search && (
+              <button
+                onClick={() => setShowUpload(true)}
+                className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg transition-all"
+              >
+                <Plus size={14} /> Upload First PDF Brochure
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">

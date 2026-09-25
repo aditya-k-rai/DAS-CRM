@@ -26,14 +26,7 @@ interface CallLogEntry {
 }
 
 // ── Seed data (mirrors Android CommunicationScreen) ──────
-const INITIAL_LOGS: CallLogEntry[] = [
-  { id: 'log-1', phoneNumber: '+91 98765 43210', matchedLeadName: 'Vikram Singh (Acme Corp)', leadId: 'lead-101', callType: 'OUTGOING',  durationSeconds: 245, timestampStr: 'Today, 10:15 AM',    status: 'LOGGED_TO_CRM' },
-  { id: 'log-2', phoneNumber: '+91 98123 76543', matchedLeadName: 'Neha Joshi (LogiTech Systems)', leadId: 'lead-102', callType: 'INCOMING', durationSeconds: 180, timestampStr: 'Today, 11:30 AM',    status: 'LOGGED_TO_CRM' },
-  { id: 'log-3', phoneNumber: '+91 97654 32109', matchedLeadName: null, leadId: null, callType: 'MISSED',   durationSeconds: 0,   timestampStr: 'Yesterday, 4:20 PM',  status: 'UNMATCHED' },
-  { id: 'log-4', phoneNumber: '+91 91234 56789', matchedLeadName: 'Priya Sharma (RetailEdge)', leadId: 'lead-104', callType: 'OUTGOING',  durationSeconds: 422, timestampStr: 'Yesterday, 2:05 PM',  status: 'LOGGED_TO_CRM' },
-  { id: 'log-5', phoneNumber: '+91 99001 23456', matchedLeadName: null, leadId: null, callType: 'INCOMING', durationSeconds: 65,  timestampStr: '2 days ago, 9:50 AM', status: 'UNMATCHED' },
-  { id: 'log-6', phoneNumber: '+91 87654 32109', matchedLeadName: 'Rajesh Kumar (TechCorp)', leadId: 'lead-106', callType: 'MISSED',   durationSeconds: 0,   timestampStr: '2 days ago, 3:30 PM', status: 'LOGGED_TO_CRM' },
-];
+const INITIAL_LOGS: CallLogEntry[] = [];
 
 // ── Call type config ──────────────────────────────────────
 const CALL_STYLES: Record<CallType, { icon: any; label: string; bg: string; text: string; border: string }> = {

@@ -69,16 +69,7 @@ export interface IncompleteContactRecord {
   isSkipped: boolean;
 }
 
-const DEFAULT_PREVIOUS_LEADS = [
-  { id: 'prev-1', name: 'Sonu Sharma', phone: '91999689978', email: 'kant0959@gmail.com', createdAt: '2026-09-09' },
-  { id: 'prev-2', name: 'Deepak Bhabar', phone: '916267012760', email: 'djbbr77@gmail.com', createdAt: '2026-09-09' },
-  { id: 'prev-3', name: 'Rajesh Kumar', phone: '9876543210', email: 'rajesh@acme.com', createdAt: '2026-08-15' },
-  { id: 'prev-4', name: 'Priya Sharma', phone: '8765432109', email: 'priya@techcorp.in', createdAt: '2026-08-16' },
-  { id: 'prev-5', name: 'Amit Shah', phone: '7654321098', email: 'amit@westreach.com', createdAt: '2026-08-20' },
-  { id: 'prev-6', name: 'Neha Gupta', phone: '6543210987', email: 'neha@lotwaala.org', createdAt: '2026-08-22' },
-  { id: 'prev-7', name: 'Vikram Mehta', phone: '9811122233', email: 'vikram@mehtas.com', createdAt: '2026-08-25' },
-  { id: 'prev-8', name: 'Ananya Roy', phone: '9822233344', email: 'ananya@royenterprises.in', createdAt: '2026-08-28' },
-];
+const DEFAULT_PREVIOUS_LEADS: any[] = [];
 
 export const isPhoneMatch = (p1: string, p2: string): boolean => {
   const c1 = (p1 || '').replace(/[^0-9]/g, '');

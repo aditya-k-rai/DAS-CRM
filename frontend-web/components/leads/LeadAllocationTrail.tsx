@@ -51,38 +51,7 @@ const ROLE_META: Record<AllocationRole, { label: string; color: string; bg: stri
 };
 
 // ─── Sample Allocation Trail for Fallback ──────────────────────────────────────
-const SAMPLE_TRAIL: AllocationEvent[] = [
-  {
-    id: 'alloc-1',
-    fromRole: 'ADMIN',
-    fromName: 'Admin (Vikram Singh)',
-    toRole: 'MANAGER',
-    toName: 'Rajesh Kumar (Manager A)',
-    action: 'ALLOCATED',
-    assignedAt: '2026-08-21T08:30:00+05:30',
-    note: 'High-value enterprise lead. Routed to Manager A for qualification.',
-  },
-  {
-    id: 'alloc-2',
-    fromRole: 'MANAGER',
-    fromName: 'Rajesh Kumar (Manager A)',
-    toRole: 'TEAM_LEADER',
-    toName: 'Priya Sharma (TL A)',
-    action: 'ALLOCATED',
-    assignedAt: '2026-08-21T10:15:00+05:30',
-    note: 'Assigned to TL A — Mumbai territory, CRM vertical.',
-  },
-  {
-    id: 'alloc-3',
-    fromRole: 'TEAM_LEADER',
-    fromName: 'Priya Sharma (TL A)',
-    toRole: 'SALES_EXEC',
-    toName: 'Amit Patel (Sales Rep)',
-    action: 'ALLOCATED',
-    assignedAt: '2026-08-21T11:45:00+05:30',
-    note: 'Final assignment to sales rep for outreach and follow-up calls.',
-  },
-];
+const SAMPLE_TRAIL: AllocationEvent[] = [];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(iso: string): { date: string; time: string; relative: string } {
@@ -134,7 +103,7 @@ interface LeadAllocationTrailProps {
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function LeadAllocationTrail({
   trail = SAMPLE_TRAIL,
-  currentAssignee = 'Amit Patel (Sales Rep)',
+  currentAssignee = 'Unassigned',
   currentRole = 'SALES_EXEC',
   isAdmin = true,
   isManager = false,

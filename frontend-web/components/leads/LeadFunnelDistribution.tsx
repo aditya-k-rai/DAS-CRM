@@ -20,16 +20,16 @@ interface LeadSourceChannel {
 }
 
 const SOURCES: LeadSourceChannel[] = [
-  { id: 'fb',  name: 'Facebook Ads',  icon: '📘', color: '#1877f2', todayCount: 42, status: 'active' },
-  { id: 'ig',  name: 'Instagram Ads', icon: '📸', color: '#e1306c', todayCount: 38, status: 'active' },
-  { id: 'ga',  name: 'Google Ads',    icon: '🔍', color: '#4285f4', todayCount: 29, status: 'active' },
-  { id: 'seo', name: 'Google Organic',icon: '🌐', color: '#34a853', todayCount: 15, status: 'active' },
-  { id: 'web', name: 'Website Form',  icon: '💻', color: '#6366f1', todayCount: 22, status: 'active' },
-  { id: 'wa',  name: 'WhatsApp Webhook', icon: '💬', color: '#25d366', todayCount: 54, status: 'active' },
-  { id: 'li',  name: 'LinkedIn Leads', icon: '💼', color: '#0a66c2', todayCount: 19, status: 'active' },
-  { id: 'man', name: 'Manual Entry',   icon: '✍️', color: '#f59e0b', todayCount: 11, status: 'active' },
-  { id: 'csv', name: 'Bulk Import',    icon: '📊', color: '#8b5cf6', todayCount: 65, status: 'active' },
-  { id: 'oth', name: 'API / Other',    icon: '🔌', color: '#ec4899', todayCount: 8,  status: 'active' },
+  { id: 'fb',  name: 'Facebook Ads',  icon: '📘', color: '#1877f2', todayCount: 0, status: 'active' },
+  { id: 'ig',  name: 'Instagram Ads', icon: '📸', color: '#e1306c', todayCount: 0, status: 'active' },
+  { id: 'ga',  name: 'Google Ads',    icon: '🔍', color: '#4285f4', todayCount: 0, status: 'active' },
+  { id: 'seo', name: 'Google Organic',icon: '🌐', color: '#34a853', todayCount: 0, status: 'active' },
+  { id: 'web', name: 'Website Form',  icon: '💻', color: '#6366f1', todayCount: 0, status: 'active' },
+  { id: 'wa',  name: 'WhatsApp Webhook', icon: '💬', color: '#25d366', todayCount: 0, status: 'active' },
+  { id: 'li',  name: 'LinkedIn Leads', icon: '💼', color: '#0a66c2', todayCount: 0, status: 'active' },
+  { id: 'man', name: 'Manual Entry',   icon: '✍️', color: '#f59e0b', todayCount: 0, status: 'active' },
+  { id: 'csv', name: 'Bulk Import',    icon: '📊', color: '#8b5cf6', todayCount: 0, status: 'active' },
+  { id: 'oth', name: 'API / Other',    icon: '🔌', color: '#ec4899', todayCount: 0,  status: 'active' },
 ];
 
 interface UnclaimedLeadPoolItem {
@@ -42,13 +42,7 @@ interface UnclaimedLeadPoolItem {
   acquiredAt?: string;
 }
 
-const INITIAL_POOL: UnclaimedLeadPoolItem[] = [
-  { id: '1', serialNo: 'POOL-2026-0891', source: 'Facebook Ads',    receivedAt: '2 mins ago',  status: 'UNCLAIMED' },
-  { id: '2', serialNo: 'POOL-2026-0892', source: 'Google Ads',      receivedAt: '5 mins ago',  status: 'UNCLAIMED' },
-  { id: '3', serialNo: 'POOL-2026-0893', source: 'WhatsApp Webhook',receivedAt: '8 mins ago',  status: 'UNCLAIMED' },
-  { id: '4', serialNo: 'POOL-2026-0894', source: 'Instagram Ads',   receivedAt: '12 mins ago', status: 'ACQUIRED', acquiredBy: 'Rajesh Mehta (Manager A)', acquiredAt: '10 mins ago' },
-  { id: '5', serialNo: 'POOL-2026-0895', source: 'LinkedIn Leads',  receivedAt: '15 mins ago', status: 'UNCLAIMED' },
-];
+const INITIAL_POOL: UnclaimedLeadPoolItem[] = [];
 
 interface AdminMasterPoolItem {
   id: string;
@@ -65,78 +59,7 @@ interface AdminMasterPoolItem {
   latestUpdateDetails: string;
 }
 
-const INITIAL_ADMIN_MASTER_LEADS: AdminMasterPoolItem[] = [
-  {
-    id: '1',
-    serialNo: 'POOL-2026-0891',
-    leadName: 'Ananya Sharma',
-    email: 'ananya.s@gmail.com',
-    phone: '+91 98765 43210',
-    source: 'Facebook Ads',
-    statusName: 'New Lead',
-    statusColor: '#6366f1',
-    isAllocated: false,
-    allocatedUser: null,
-    lastUpdatedAt: '2 mins ago',
-    latestUpdateDetails: 'Lead Ingested via Facebook Ads Webhook',
-  },
-  {
-    id: '2',
-    serialNo: 'POOL-2026-0892',
-    leadName: 'Rohan Deshmukh',
-    email: 'rohan.d@corp.in',
-    phone: '+91 91234 56789',
-    source: 'Google Ads',
-    statusName: 'Contacted',
-    statusColor: '#3b82f6',
-    isAllocated: true,
-    allocatedUser: { name: 'Rajesh Mehta', email: 'rajesh.mgr@company.com', role: 'MANAGER' },
-    lastUpdatedAt: '5 mins ago',
-    latestUpdateDetails: 'Status changed to Contacted by Rajesh Mehta (Intro call completed)',
-  },
-  {
-    id: '3',
-    serialNo: 'POOL-2026-0893',
-    leadName: 'Kavita Verma',
-    email: 'kavita@techsol.com',
-    phone: '+91 99887 76655',
-    source: 'WhatsApp Webhook',
-    statusName: 'Qualified',
-    statusColor: '#f59e0b',
-    isAllocated: true,
-    allocatedUser: { name: 'Neha Joshi', email: 'neha.mgr@company.com', role: 'MANAGER' },
-    lastUpdatedAt: '12 mins ago',
-    latestUpdateDetails: 'Requirement budget verified > ₹50,000/mo by Neha Joshi',
-  },
-  {
-    id: '4',
-    serialNo: 'POOL-2026-0894',
-    leadName: 'Siddharth Rao',
-    email: 'siddharth@innovate.in',
-    phone: '+91 97654 32109',
-    source: 'Instagram Ads',
-    statusName: 'Proposal Sent',
-    statusColor: '#8b5cf6',
-    isAllocated: true,
-    allocatedUser: { name: 'Amit Shah', email: 'amit.tl@company.com', role: 'TEAM_LEADER' },
-    lastUpdatedAt: '25 mins ago',
-    latestUpdateDetails: 'Quotation #Q-9041 sent via Email by Amit Shah',
-  },
-  {
-    id: '5',
-    serialNo: 'POOL-2026-0895',
-    leadName: 'Pooja Nair',
-    email: 'pooja.nair@enterprise.com',
-    phone: '+91 94321 87654',
-    source: 'LinkedIn Leads',
-    statusName: 'Closed Won',
-    statusColor: '#22c55e',
-    isAllocated: true,
-    allocatedUser: { name: 'Priya Sharma', email: 'priya.rep@company.com', role: 'SALES_EXEC' },
-    lastUpdatedAt: '1 hour ago',
-    latestUpdateDetails: 'Deal #D-8821 closed won ₹2,40,000 by Priya Sharma',
-  },
-];
+const INITIAL_ADMIN_MASTER_LEADS: AdminMasterPoolItem[] = [];
 
 interface EligibleManager {
   id: string;
@@ -151,23 +74,16 @@ export function LeadFunnelDistribution() {
   const [poolSubTab, setPoolSubTab]         = useState<'CLAIM_QUEUE' | 'ADMIN_MASTER_AUDIT'>('ADMIN_MASTER_AUDIT');
   const [managerARange, setManagerA]       = useState('1 - 100');
   const [managerBRange, setManagerB]       = useState('101 - 200');
-  const [directManager, setDirectManager]   = useState('Rajesh Mehta (Manager A)');
+  const [directManager, setDirectManager]   = useState('');
   const [pool, setPool]                     = useState<UnclaimedLeadPoolItem[]>(INITIAL_POOL);
   const [adminMasterLeads, setAdminMasterLeads] = useState<AdminMasterPoolItem[]>(INITIAL_ADMIN_MASTER_LEADS);
   const [acquiredNotice, setAcquiredNotice] = useState<string | null>(null);
-  const [pushNotificationAlert, setPushNotificationAlert] = useState<string | null>(
-    '⚡ INSTANT PUSH NOTIFICATION (Web & Mobile FCM): New Lead Available in Acquire Pool (#POOL-2026-0891)'
-  );
+  const [pushNotificationAlert, setPushNotificationAlert] = useState<string | null>(null);
   const [allocatedSuccess, setAllocatedSuccess] = useState<string | null>(null);
   const [isWhitelistedUser, setIsWhitelistedUser] = useState(true);
 
   // Admin Access Guard Whitelist State
-  const [whitelistManagers, setWhitelistManagers] = useState<EligibleManager[]>([
-    { id: 'mgr_1', name: 'Rajesh Mehta', email: 'rajesh.mgr@company.com', role: 'MANAGER', isWhitelisted: true },
-    { id: 'mgr_2', name: 'Neha Joshi', email: 'neha.mgr@company.com', role: 'MANAGER', isWhitelisted: true },
-    { id: 'mgr_3', name: 'Vikram Singh', email: 'vikram.admin@acme.com', role: 'ADMIN', isWhitelisted: true },
-    { id: 'mgr_4', name: 'Amit Shah', email: 'amit.tl@company.com', role: 'TEAM_LEADER', isWhitelisted: false },
-  ]);
+  const [whitelistManagers, setWhitelistManagers] = useState<EligibleManager[]>([]);
   const [showWhitelistModal, setShowWhitelistModal] = useState(false);
 
   const { currentUser, subscription }       = useAuth();
@@ -222,12 +138,37 @@ export function LeadFunnelDistribution() {
 
   const fetchWhitelist = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/leads/distribution/whitelist`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('das_crm_token')}` },
+      const token = localStorage.getItem('das_crm_token');
+      if (!token) return;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const res = await fetch(`${apiBase}/leads/distribution/whitelist`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.eligibleManagers)) setWhitelistManagers(data.eligibleManagers);
+        if (Array.isArray(data.eligibleManagers) && data.eligibleManagers.length > 0) {
+          setWhitelistManagers(data.eligibleManagers);
+          setDirectManager(`${data.eligibleManagers[0].name} (${data.eligibleManagers[0].role})`);
+          return;
+        }
+      }
+      const usersRes = await fetch(`${apiBase}/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        const items = Array.isArray(usersData) ? usersData : (usersData.items || usersData.users || []);
+        if (items.length > 0) {
+          const mapped = items.map((u: any) => ({
+            id: u.id,
+            name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+            email: u.email,
+            role: u.role || 'MANAGER',
+            isWhitelisted: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'OWNER', 'TEAM_LEADER'].includes((u.role || '').toUpperCase()),
+          }));
+          setWhitelistManagers(mapped);
+          setDirectManager(`${mapped[0].name} (${mapped[0].role})`);
+        }
       }
     } catch (e) {}
   };
@@ -367,7 +308,7 @@ export function LeadFunnelDistribution() {
             <p className="text-xs text-muted-foreground mt-0.5">Real-time incoming lead channels captured across web, ads, social, and webhooks</p>
           </div>
           <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-            303 Leads Ingested Today
+            {SOURCES.reduce((acc, s) => acc + s.todayCount, 0)} Leads Ingested Today
           </span>
         </div>
 
@@ -529,7 +470,14 @@ export function LeadFunnelDistribution() {
                       </tr>
                     </thead>
                     <tbody>
-                      {adminMasterLeads.map(item => (
+                      {adminMasterLeads.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-muted text-xs">
+                            No leads currently in the master pool. Ingested leads will appear here automatically.
+                          </td>
+                        </tr>
+                      ) : (
+                        adminMasterLeads.map(item => (
                         <tr key={item.id} className="hover:bg-muted/10">
                           <td>
                             <div className="space-y-0.5">
@@ -580,7 +528,7 @@ export function LeadFunnelDistribution() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      )))}
                     </tbody>
                   </table>
                 </div>
@@ -611,7 +559,14 @@ export function LeadFunnelDistribution() {
                         </tr>
                       </thead>
                       <tbody>
-                        {pool.map(item => (
+                        {pool.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-8 text-muted text-xs">
+                              No unclaimed leads available in the open pool queue.
+                            </td>
+                          </tr>
+                        ) : (
+                          pool.map(item => (
                           <tr key={item.id} className={item.status === 'ACQUIRED' ? 'opacity-40 bg-muted/10' : ''}>
                             <td>
                               <span className="font-mono text-xs font-bold text-indigo-300 bg-indigo-500/15 px-2.5 py-1 rounded border border-indigo-500/20">
@@ -635,7 +590,7 @@ export function LeadFunnelDistribution() {
                               )}
                             </td>
                           </tr>
-                        ))}
+                        )))}
                       </tbody>
                     </table>
                   </div>
@@ -653,8 +608,15 @@ export function LeadFunnelDistribution() {
               <div className="flex-1">
                 <label className="text-xs text-muted block mb-1">Target Manager Selection</label>
                 <select className="crm-input text-sm font-bold" value={directManager} onChange={e => setDirectManager(e.target.value)}>
-                  <option value="Rajesh Mehta (Manager A)">Rajesh Mehta (Manager A)</option>
-                  <option value="Neha Joshi (Manager B)">Neha Joshi (Manager B)</option>
+                  {whitelistManagers.length === 0 ? (
+                    <option value="">No registered managers found</option>
+                  ) : (
+                    whitelistManagers.map(m => (
+                      <option key={m.id} value={`${m.name} (${m.role})`}>
+                        {m.name} ({m.role})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <button className="btn-primary text-xs font-bold mt-5 px-5 py-2.5">
@@ -684,50 +646,23 @@ export function LeadFunnelDistribution() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Scenario A TL Allocation */}
-          {subscription.hasTeamLeaders ? (
-            <>
-              <div className="p-4 rounded-xl border border-border bg-background flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-white">Amit Shah (Team Leader - Unit 1)</p>
-                  <p className="text-xs text-muted">5 Reps Supervised · 42 Leads Handled</p>
-                </div>
-                <button onClick={() => handleManagerAllocate('Amit Shah (TL)')} className="btn-secondary text-xs font-bold py-1 px-3">
-                  Allocate to TL →
-                </button>
-              </div>
-              <div className="p-4 rounded-xl border border-border bg-background flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-white">Neha Joshi (Team Leader - Unit 2)</p>
-                  <p className="text-xs text-muted">4 Reps Supervised · 38 Leads Handled</p>
-                </div>
-                <button onClick={() => handleManagerAllocate('Neha Joshi (TL)')} className="btn-secondary text-xs font-bold py-1 px-3">
-                  Allocate to TL →
-                </button>
-              </div>
-            </>
+          {whitelistManagers.length === 0 ? (
+            <div className="col-span-2 p-6 rounded-2xl bg-card border border-border text-center space-y-2">
+              <Users size={28} className="mx-auto text-purple-400/60" />
+              <p className="text-xs text-muted">No team members registered for downstream allocation yet.</p>
+            </div>
           ) : (
-            /* Scenario B Direct Staff Allocation */
-            <>
-              <div className="p-4 rounded-xl border border-border bg-background flex items-center justify-between">
+            whitelistManagers.map(m => (
+              <div key={m.id} className="p-4 rounded-xl border border-border bg-background flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-sm text-white">Rajesh Kumar (Sales Executive)</p>
-                  <p className="text-xs text-muted">Direct Supervision · 31 Leads Assigned</p>
+                  <p className="font-bold text-sm text-white">{m.name} ({m.role})</p>
+                  <p className="text-xs text-muted">{m.email} · 0 Leads Assigned</p>
                 </div>
-                <button onClick={() => handleManagerAllocate('Rajesh Kumar (Staff)')} className="btn-secondary text-xs font-bold py-1 px-3">
-                  Allocate to Staff →
+                <button onClick={() => handleManagerAllocate(`${m.name} (${m.role})`)} className="btn-secondary text-xs font-bold py-1 px-3">
+                  Allocate →
                 </button>
               </div>
-              <div className="p-4 rounded-xl border border-border bg-background flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-white">Priya Sharma (Sales Executive)</p>
-                  <p className="text-xs text-muted">Direct Supervision · 24 Leads Assigned</p>
-                </div>
-                <button onClick={() => handleManagerAllocate('Priya Sharma (Staff)')} className="btn-secondary text-xs font-bold py-1 px-3">
-                  Allocate to Staff →
-                </button>
-              </div>
-            </>
+            ))
           )}
         </div>
       </div>

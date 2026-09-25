@@ -21,12 +21,14 @@ const QUICK_ACTIONS = [
   { label: 'View HR Attendance', icon: UserCog, href: '/attendance', color: '#22c55e' },
 ];
 
-const RECENT_ITEMS = [
-  { type: 'lead', title: 'Rajesh Kumar', sub: 'TechCorp Ltd · ₹2.4L', href: '/leads/1', icon: Target, color: '#6366f1' },
-  { type: 'deal', title: 'Grand Palace Hotel', sub: 'Negotiation · ₹8.5L', href: '/deals', icon: Briefcase, color: '#8b5cf6' },
-  { type: 'company', title: 'Sunita Real Estate', sub: 'Mumbai · 45 employees', href: '/companies', icon: Building2, color: '#3b82f6' },
-  { type: 'contact', title: 'Priya Sharma', sub: 'CTO · priya@sunita.com', href: '/contacts', icon: Users, color: '#22c55e' },
-];
+const RECENT_ITEMS: Array<{
+  type: string;
+  title: string;
+  sub: string;
+  href: string;
+  icon: any;
+  color: string;
+}> = [];
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');

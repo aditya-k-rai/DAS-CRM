@@ -18,20 +18,13 @@ interface Goal {
 
 const PERIOD_TABS = ['Monthly', 'Quarterly', 'Annual'];
 
-const GOALS: Goal[] = [
-  { id: '1', rep: 'John Doe',      initials: 'JD', role: 'Owner',       metric: 'Revenue',       target: 1000000, achieved: 840000, unit: '₹', period: 'Aug 2026', color: '#6366f1' },
-  { id: '2', rep: 'Amit Shah',     initials: 'AS', role: 'Team Leader', metric: 'Leads Closed',  target: 30,      achieved: 21,     unit: '',  period: 'Aug 2026', color: '#22c55e' },
-  { id: '3', rep: 'Rajesh Kumar',  initials: 'RK', role: 'Sales Exec',  metric: 'Revenue',       target: 500000,  achieved: 390000, unit: '₹', period: 'Aug 2026', color: '#f59e0b' },
-  { id: '4', rep: 'Priya Sharma',  initials: 'PS', role: 'Sales Exec',  metric: 'Calls Made',    target: 100,     achieved: 73,     unit: '',  period: 'Aug 2026', color: '#8b5cf6' },
-  { id: '5', rep: 'Amit Patel',    initials: 'AP', role: 'Sales Exec',  metric: 'Deals Closed',  target: 15,      achieved: 8,      unit: '',  period: 'Aug 2026', color: '#ec4899' },
-  { id: '6', rep: 'Sunita Verma',  initials: 'SV', role: 'Sales Exec',  metric: 'Revenue',       target: 300000,  achieved: 310000, unit: '₹', period: 'Aug 2026', color: '#22c55e' },
-];
+const GOALS: Goal[] = [];
 
 const TEAM_METRICS = [
-  { label: 'Revenue Target (Aug)', target: '₹25L', achieved: '₹18.4L', pct: 74 },
-  { label: 'Total Deals Target',   target: '60',    achieved: '41',      pct: 68 },
-  { label: 'Lead Conversion Goal', target: '40%',   achieved: '34%',     pct: 85 },
-  { label: 'Calls Made Target',    target: '400',   achieved: '312',     pct: 78 },
+  { label: 'Revenue Target', target: '₹0', achieved: '₹0', pct: 0 },
+  { label: 'Total Deals Target', target: '0', achieved: '0', pct: 0 },
+  { label: 'Lead Conversion Goal', target: '0%', achieved: '0%', pct: 0 },
+  { label: 'Calls Made Target', target: '0', achieved: '0', pct: 0 },
 ];
 
 export function SalesGoals() {
@@ -87,14 +80,21 @@ export function SalesGoals() {
       {/* Individual Goals */}
       <div className="crm-card p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'rgb(var(--border))' }}>
-          <h3 className="font-semibold">Individual Rep Goals — {period} ({GOALS[0].period})</h3>
+          <h3 className="font-semibold">Individual Rep Goals — {period} {GOALS[0]?.period ? `(${GOALS[0].period})` : ''}</h3>
           <div className="flex items-center gap-1.5 text-xs text-muted">
-            <Calendar size={12} /> Aug 1 – Aug 31
+            <Calendar size={12} /> Active Goal Period
           </div>
         </div>
 
         <div className="divide-y" style={{ borderColor: 'rgb(var(--border))' }}>
-          {GOALS.map((g, rank) => {
+          {GOALS.length === 0 ? (
+            <div className="p-8 text-center text-muted">
+              <Target size={28} className="mx-auto mb-2 text-muted/60" />
+              <p className="font-bold text-sm text-foreground">No individual sales goals configured yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Click "Set Goal" to create performance targets for your reps.</p>
+            </div>
+          ) : (
+            GOALS.map((g, rank) => {
             const pct     = Math.min(100, Math.round((g.achieved / g.target) * 100));
             const overAch = g.achieved > g.target;
             const gap     = g.target - g.achieved;
@@ -157,7 +157,7 @@ export function SalesGoals() {
                 </button>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
     </div>

@@ -51,45 +51,18 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   // Lead State
   const [lead, setLead] = useState({
     id: leadData?.id || leadId,
-    name: leadData?.name || 'Rajesh Kumar',
-    email: leadData?.email || 'rajesh.kumar@techcorp.in',
-    phone: leadData?.phone || '+91 98765 43210',
-    company: leadData?.company || 'TechCorp Solutions',
-    status: leadData?.status || 'Contacted',
-    owner: leadData?.owner || 'Mighty Rai (Sales Rep)',
-    city: 'Mumbai',
-    source: 'Facebook Ads',
+    name: leadData?.name || 'Prospect Lead',
+    email: leadData?.email || '',
+    phone: leadData?.phone || '',
+    company: leadData?.company || 'Organization',
+    status: leadData?.status || 'New Lead',
+    owner: leadData?.owner || 'Assigned Rep',
+    city: 'Location',
+    source: 'Direct Ingestion',
   });
 
   // Synced Activity Stream (Real-Time Auto-Synced to Lead Center)
-  const [syncedActivities, setSyncedActivities] = useState<SyncedActivityLog[]>([
-    {
-      id: '1',
-      section: 'DIALLER',
-      title: 'Outbound Call Completed (Duration: 2m 14s)',
-      disposition: 'Talked & Enter Response',
-      notes: 'Customer interested in Enterprise 50-seat plan. Requested pricing deck on WhatsApp.',
-      timestamp: '10 mins ago',
-      user: 'Mighty Rai',
-    },
-    {
-      id: '2',
-      section: 'WA_DIRECT',
-      title: 'Direct WhatsApp Template Sent (Intro Proposal)',
-      disposition: 'Will Talk Later',
-      notes: 'Sent PDF proposal. Follow-up call scheduled for tomorrow 3 PM.',
-      timestamp: '25 mins ago',
-      user: 'Mighty Rai',
-    },
-    {
-      id: '3',
-      section: 'EMAIL',
-      title: 'Email Sent: Product Demo Invitation',
-      notes: 'Email delivered to rajesh.kumar@techcorp.in',
-      timestamp: '1 hour ago',
-      user: 'Mighty Rai',
-    },
-  ]);
+  const [syncedActivities, setSyncedActivities] = useState<SyncedActivityLog[]>([]);
 
   // Toast Notification
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -191,10 +164,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   };
 
   // ── SECTION 4: WHATSAPP CLOUD CHAT + AI HUMANIZE STATE ───────────────────
-  const [waCloudMessages, setWaCloudMessages] = useState([
-    { id: '1', from: 'lead', text: 'Hi, can you tell me more about your CRM pricing?', time: '10:15 AM' },
-    { id: '2', from: 'rep', text: 'Hi Rajesh! Our plans start from ₹1,499/mo per seat with full AI automation.', time: '10:18 AM' },
-  ]);
+  const [waCloudMessages, setWaCloudMessages] = useState<any[]>([]);
   const [waCloudInput, setWaCloudInput] = useState('');
   const [isAiHumanizing, setIsAiHumanizing] = useState(false);
 

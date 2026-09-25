@@ -2,13 +2,7 @@
 
 import { CheckCircle2, Clock, AlertCircle, DollarSign } from 'lucide-react';
 
-const payrollData = [
-  { name: 'Rajesh Kumar', dept: 'Sales', gross: '₹52,400', net: '₹47,800', status: 'GENERATED' },
-  { name: 'Priya Sharma', dept: 'Sales', gross: '₹38,200', net: '₹34,600', status: 'APPROVED' },
-  { name: 'Sunita Verma', dept: 'Support', gross: '₹32,000', net: '₹29,200', status: 'GENERATED' },
-  { name: 'Amit Patel', dept: 'Sales', gross: '₹45,000', net: '₹40,900', status: 'PAID' },
-  { name: 'Meera Kapoor', dept: 'Marketing', gross: '₹41,600', net: '₹37,800', status: 'DRAFT' },
-];
+const payrollData: any[] = [];
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   DRAFT:     { label: 'Draft',     color: 'rgb(100,116,139)', bg: 'rgba(100,116,139,0.12)' },
@@ -22,8 +16,8 @@ export function PayrollStatusWidget() {
     <div className="crm-card flex flex-col gap-3 h-full">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold">Payroll — Aug 2026</h3>
-          <p className="text-xs mt-0.5 text-muted">₹8.4L total · 0 paid</p>
+          <h3 className="font-semibold">Payroll Status</h3>
+          <p className="text-xs mt-0.5 text-muted">₹0 total · 0 paid</p>
         </div>
         <button className="btn-primary text-xs px-3 py-1.5">Generate All</button>
       </div>
@@ -32,10 +26,10 @@ export function PayrollStatusWidget() {
       <div>
         <div className="flex justify-between text-xs text-muted mb-1.5">
           <span>Payroll Progress</span>
-          <span>1 / 24 paid</span>
+          <span>0 / 0 paid</span>
         </div>
         <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgb(var(--border))' }}>
-          <div className="h-full rounded-full" style={{ width: '4%', background: 'linear-gradient(90deg, rgb(79,70,229), rgb(139,92,246))' }} />
+          <div className="h-full rounded-full" style={{ width: '0%', background: 'linear-gradient(90deg, rgb(79,70,229), rgb(139,92,246))' }} />
         </div>
         <div className="flex gap-3 mt-2">
           {Object.entries(STATUS_CFG).map(([key, cfg]) => (
@@ -48,21 +42,29 @@ export function PayrollStatusWidget() {
       </div>
 
       <div className="flex flex-col gap-2 flex-1 overflow-auto">
-        {payrollData.map((emp) => {
-          const cfg = STATUS_CFG[emp.status];
-          return (
-            <div key={emp.name} className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: 'rgb(var(--background))' }}>
-              <div>
-                <p className="text-sm font-medium">{emp.name}</p>
-                <p className="text-xs text-muted">{emp.dept}</p>
+        {payrollData.length === 0 ? (
+          <div className="text-center py-8 px-4 flex flex-col items-center justify-center">
+            <DollarSign size={28} className="text-muted opacity-40 mb-2" />
+            <p className="text-xs font-semibold text-foreground">No payroll records yet</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Click 'Generate All' to prepare monthly payroll for staff.</p>
+          </div>
+        ) : (
+          payrollData.map((emp) => {
+            const cfg = STATUS_CFG[emp.status];
+            return (
+              <div key={emp.name} className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: 'rgb(var(--background))' }}>
+                <div>
+                  <p className="text-sm font-medium">{emp.name}</p>
+                  <p className="text-xs text-muted">{emp.dept}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold" style={{ color: 'rgb(var(--brand-400))' }}>{emp.net}</p>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm font-bold" style={{ color: 'rgb(var(--brand-400))' }}>{emp.net}</p>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       <button className="btn-ghost w-full text-sm mt-1">View all payroll records →</button>

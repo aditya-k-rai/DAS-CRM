@@ -111,7 +111,7 @@ export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
   {
     id: 't-1',
     name: 'Standard Commercial',
-    text: '1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.\n3. Goods once sold will not be taken back or exchanged.',
+    text: '1. All disputes are subject to local jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.\n3. Goods once sold will not be taken back or exchanged.',
   },
   {
     id: 't-2',
@@ -131,93 +131,40 @@ export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
 ];
 
 // ─── Default Mock Data (Spectro Analytical Labs & Aarna Construction) ───
+// ─── Default Data Templates ───
 const INITIAL_COMPANIES: CompanyDetails[] = [
   {
     id: 'comp-1',
-    name: 'Aarna Construction & Interiors',
-    logoUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
-    address: 'Plot1, Ats-kasnaroad, Bindalenclave, Greater Noida, Uttar Pradesh, 201310',
-    email: 'info@aarnaconstructions.com',
-    phone: '+91 98102 34567',
-    gstNo: '09APMPL1329Q1Z8',
-    panNo: 'APML1329Q',
-    bankName: 'Punjab National Bank',
-    accountNo: '6198002100003189',
-    ifscCode: 'PUNB0619800',
-    branch: 'DAV TIRAHA, Greater Noida',
-    upiId: 'aarna@pnb',
-  },
-  {
-    id: 'comp-2',
-    name: 'Spectro Tech India Pvt Ltd',
-    logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=60',
-    address: 'Plot No. 42, Sector 18, Cyber City, Gurugram, HR - 122002',
-    email: 'billing@spectrotech.in',
-    phone: '+91 124 4567890',
-    gstNo: '06AAAAC1234F1Z9',
-    panNo: 'AAAAC1234F',
-    bankName: 'HDFC Bank Ltd',
-    accountNo: '50200044556677',
-    ifscCode: 'HDFC0000123',
-    branch: 'Cyber City Branch',
-    upiId: 'spectro@hdfcbank',
+    name: 'Your Company',
+    logoUrl: '',
+    address: 'Registered Business Address',
+    email: 'contact@company.com',
+    phone: '+91 00000 00000',
+    gstNo: '',
+    panNo: '',
+    bankName: '',
+    accountNo: '',
+    ifscCode: '',
+    branch: '',
+    upiId: '',
   },
 ];
 
 const INITIAL_PARTIES: PartyDetails[] = [
   {
     id: 'party-1',
-    name: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
-    contactPerson: 'Site Procurement Manager',
-    email: 'info@spectro.in',
-    phone: '+91 93194 95000',
-    address: 'S 1, SITE GNEPIP KASNA ROAD, SURAJPUR INDUSTRIAL AREA V Gautam Buddha Nagar 201310, GREATER NOIDA, Uttar Pradesh, 201310',
-    shippingAddress: 'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310',
-    gstNo: '09APMPL1329Q1Z8',
-    panNo: 'APML1329Q',
-  },
-  {
-    id: 'party-2',
-    name: 'TechCorp Solutions Pvt Ltd',
-    contactPerson: 'Rajesh Varma',
-    email: 'rajesh@techcorp.com',
-    phone: '+91 98765 43210',
-    address: 'Building 7, Mindspace IT Park, Madhapur, Hyderabad, TS - 500081',
-    shippingAddress: 'Warehouse 12, Mindspace Park, Hyderabad, TS - 500081',
-    gstNo: '36AAACT9988K1ZP',
-    panNo: 'AAACT9988K',
+    name: 'Client / Party Name',
+    contactPerson: '',
+    email: '',
+    phone: '',
+    address: 'Billed To Address',
+    shippingAddress: '',
+    gstNo: '',
+    panNo: '',
   },
 ];
 
-const CATALOG_PRODUCTS = [
-  {
-    name: 'Executive Work Station',
-    price: 22500,
-    tax: 18,
-    unit: 'Nos',
-    hsn: '998313',
-    desc: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
-    image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60'
-  },
-  {
-    name: 'DAS CRM Enterprise License (50 Seats)',
-    price: 500000,
-    tax: 18,
-    unit: 'Set',
-    hsn: '998314',
-    desc: 'Annual Enterprise SaaS License with WhatsApp Cloud & AI Lead Scoring Engine',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&auto=format&fit=crop&q=60'
-  },
-  {
-    name: 'AI Lead Scoring Engine Pro',
-    price: 120000,
-    tax: 18,
-    unit: 'License',
-    hsn: '998315',
-    desc: 'Custom Machine Learning Lead Qualification & Predictive Analytics Module',
-    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&auto=format&fit=crop&q=60'
-  },
-];
+const CATALOG_PRODUCTS: any[] = [];
 
 // ─── Helper: Number to Words (Indian Rupee Spectro Format) ────
 function numberToWordsINR(amount: number): string {
@@ -238,124 +185,7 @@ function numberToWordsINR(amount: number): string {
   return `Rupees ${inWords(rounded)} Only`;
 }
 
-const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
-  {
-    id: 'sq-1',
-    docNo: 'EST-2026-0891',
-    docType: 'QUOTATION',
-    partyName: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '29/08/2026, 07:45 PM',
-    totalAmount: 238950,
-    status: 'GENERATED_SENT',
-    sentVia: 'EMAIL',
-    sentToLead: 'billing@spectroanalytical.com',
-    itemsCount: 1,
-    createdByName: 'Aditya Kumar Rai',
-    createdByRole: 'Tenant Admin',
-    payload: {
-      items: [
-        {
-          id: 'item-1',
-          productName: 'Executive Work Station',
-          description: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
-          showDescription: true,
-          hsnCode: '998313',
-          customValues: { 'col-1': 'Aarna Modular', 'col-2': '1 Year Full Warranty' },
-          showImage: false,
-          unit: 'Nos',
-          qty: 9,
-          unitPrice: 22500,
-          taxRate: 18,
-          discountType: 'flat',
-          discountVal: 0,
-          total: 202500,
-        }
-      ],
-      customColumns: [
-        { id: 'col-1', name: 'Make / Brand' },
-        { id: 'col-2', name: 'Warranty Period' },
-      ],
-      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
-      sectionGap: 10,
-      pdfTopPadding: 32,
-      pdfBottomPadding: 28,
-      globalGstRate: 18,
-      docDate: '13/01/2026',
-      validUntilDate: '31/01/2026',
-    }
-  },
-  {
-    id: 'sq-2',
-    docNo: 'PI-2026-0412',
-    docType: 'PROFORMA_INVOICE',
-    partyName: 'INFOSYS ENTERPRISE SOLUTIONS',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '29/08/2026, 06:15 PM',
-    totalAmount: 540000,
-    status: 'GENERATED_SENT',
-    sentVia: 'WHATSAPP_DIRECT',
-    sentToLead: '+91 9810234567 (Infosys Lead)',
-    itemsCount: 2,
-    createdByName: 'Priya Sharma',
-    createdByRole: 'Sales Manager',
-    payload: {
-      items: [
-        {
-          id: 'item-101',
-          productName: 'Enterprise SaaS Suite Pro',
-          description: 'Annual License with Cloud Automation & Multi-user Seats',
-          showDescription: true,
-          hsnCode: '998314',
-          customValues: { 'col-1': 'Cloud Pro', 'col-2': '2 Years 24/7 SLA' },
-          showImage: false,
-          unit: 'Set',
-          qty: 2,
-          unitPrice: 225000,
-          taxRate: 18,
-          discountType: 'flat',
-          discountVal: 0,
-          total: 450000,
-        }
-      ],
-      customColumns: [
-        { id: 'col-1', name: 'Make / Brand' },
-        { id: 'col-2', name: 'Warranty Period' },
-      ],
-      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
-      sectionGap: 12,
-      pdfTopPadding: 32,
-      pdfBottomPadding: 28,
-      globalGstRate: 18,
-      docDate: '28/08/2026',
-      validUntilDate: '15/09/2026',
-    }
-  },
-  {
-    id: 'sq-3',
-    docNo: 'EST-2026-0892',
-    docType: 'QUOTATION',
-    partyName: 'TATA CONSULTANCY SERVICES',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '28/08/2026, 03:20 PM',
-    totalAmount: 185000,
-    status: 'DRAFT',
-    itemsCount: 1,
-    createdByName: 'Rajesh Kumar',
-    createdByRole: 'Sales Executive',
-    payload: {
-      items: [],
-      customColumns: [{ id: 'col-1', name: 'Make / Brand' }],
-      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
-      sectionGap: 10,
-      pdfTopPadding: 32,
-      pdfBottomPadding: 28,
-      globalGstRate: 18,
-      docDate: '28/08/2026',
-      validUntilDate: '10/09/2026',
-    }
-  }
-];
+const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [];
 
 export interface QuotationBuilderProps {
   externalOpenHistory?: boolean;
@@ -504,8 +334,8 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       totalAmount: grandTotal,
       status: 'DRAFT',
       itemsCount: items.length,
-      createdByName: 'Aditya Kumar Rai',
-      createdByRole: 'Tenant Admin',
+      createdByName: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.name || 'Authorized Signatory') : 'Authorized Signatory',
+      createdByRole: typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('das_crm_user') || '{}')?.role || 'Tenant Admin') : 'Tenant Admin',
       payload: {
         items: JSON.parse(JSON.stringify(items)),
         customColumns: JSON.parse(JSON.stringify(customColumns)),
@@ -589,23 +419,23 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   const handleNewQuoteReset = () => {
-    setDocNo(`EST-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+    const yr = new Date().getFullYear();
+    setDocNo(`EST-${yr}-${Math.floor(1000 + Math.random() * 9000)}`);
     setItems([
       {
         id: `item-${Date.now()}`,
-        productName: 'Executive Work Station',
-        description: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
-        showDescription: true,
-        hsnCode: '998313',
-        customValues: { 'col-1': 'Aarna Modular', 'col-2': '1 Year Full Warranty' },
+        productName: '',
+        description: '',
+        showDescription: false,
+        hsnCode: '',
         showImage: false,
         unit: 'Nos',
         qty: 1,
-        unitPrice: 22500,
+        unitPrice: 0,
         taxRate: 18,
         discountType: 'flat',
         discountVal: 0,
-        total: 22500
+        total: 0
       }
     ]);
   };
@@ -632,9 +462,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
 
   // Shipping Address State
   const [useSeparateShipping, setUseSeparateShipping] = useState<boolean>(false);
-  const [customShippingAddress, setCustomShippingAddress] = useState<string>(
-    'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310'
-  );
+  const [customShippingAddress, setCustomShippingAddress] = useState<string>('');
 
   // Company State
   const [companies, setCompanies] = useState<CompanyDetails[]>(INITIAL_COMPANIES);
@@ -652,33 +480,47 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [items, setItems] = useState<LineItem[]>([
     {
       id: 'item-1',
-      productName: 'Executive Work Station',
-      description: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
-      showDescription: true,
-      hsnCode: '998313',
-      imageUrl: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60',
+      productName: '',
+      description: '',
+      showDescription: false,
+      hsnCode: '',
       showImage: false,
       unit: 'Nos',
-      qty: 9,
-      unitPrice: 22500,
+      qty: 1,
+      unitPrice: 0,
       taxRate: 18,
       discountType: 'flat',
       discountVal: 0,
-      total: 202500,
+      total: 0,
     },
   ]);
 
   // Document Metadata & Optional "Valid Until" Date State
-  const [docNo, setDocNo] = useState('EST-2026-0891');
-  const [docDate, setDocDate] = useState('13/01/2026');
-  const [validUntilDate, setValidUntilDate] = useState('31/01/2026');
+  const [docNo, setDocNo] = useState(`EST-${new Date().getFullYear()}-0001`);
+  const [docDate, setDocDate] = useState(new Date().toLocaleDateString('en-GB'));
+  const [validUntilDate, setValidUntilDate] = useState(
+    new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB')
+  );
   const [showValidUntil, setShowValidUntil] = useState<boolean>(true);
+
+  // Sync tenant organization name from logged in user if available
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        const orgName = u?.organization?.name || u?.companyName;
+        if (orgName) {
+          setCompanies(prev => prev.map((c, i) => i === 0 ? { ...c, name: orgName } : c));
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // Overall Discount & Terms
   const [overallDiscountType, setOverallDiscountType] = useState<'flat' | 'percent'>('flat');
   const [overallDiscountVal, setOverallDiscountVal] = useState(0);
   const [termsText, setTermsText] = useState(
-    '1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.'
+    '1. All disputes are subject to local jurisdiction only.\n2. Payment must be cleared within agreed terms.'
   );
 
   // ── Terms Templates State (Select from Previous or Add New) ──

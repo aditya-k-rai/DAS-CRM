@@ -45,56 +45,33 @@ export function TeamLeaderRoleDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Team Unit Revenue</p>
-          <p className="text-2xl font-extrabold text-indigo-600 dark:text-brand-400">₹14.2L</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">🥇 #1 Team in Region</p>
+          <p className="text-2xl font-extrabold text-indigo-600 dark:text-brand-400">₹0</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">Starting monthly cycle</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Supervised Reps</p>
-          <p className="text-2xl font-extrabold text-foreground">5 Execs</p>
-          <p className="text-xs text-muted-foreground mt-1">Rajesh, Priya, Amit, Sunita, Anil</p>
+          <p className="text-2xl font-extrabold text-foreground">0 Execs</p>
+          <p className="text-xs text-muted-foreground mt-1">Ready to assign team</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Unassigned Leads Queue</p>
-          <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">18</p>
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-1">Pending allocation</p>
+          <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">0</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-1">Queue clear</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Overdue Tasks Across Team</p>
-          <p className="text-2xl font-extrabold text-rose-600 dark:text-red-400">3</p>
-          <p className="text-xs text-rose-600 dark:text-red-400 font-semibold mt-1">Requires follow-up</p>
+          <p className="text-2xl font-extrabold text-rose-600 dark:text-red-400">0</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">All up to date</p>
         </div>
       </div>
 
       {/* Rep Team Leaderboard */}
       <div className="crm-card">
         <h3 className="font-bold text-base text-foreground mb-4">Supervised Reps Performance & Lead Distribution</h3>
-        <div className="space-y-3">
-          {[
-            { name: 'Rajesh Kumar', leads: 31, won: 12, rev: '₹5.2L', calls: 84 },
-            { name: 'Priya Sharma', leads: 24, won: 8, rev: '₹3.1L', calls: 65 },
-            { name: 'Amit Patel', leads: 18, won: 5, rev: '₹2.4L', calls: 52 },
-          ].map(rep => (
-            <div key={rep.name} className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background">
-              <div className="flex items-center gap-3">
-                <div className="avatar w-8 h-8 text-xs font-bold bg-blue-500/20 text-blue-700 dark:text-blue-300">
-                  {rep.name.split(' ').map(n=>n[0]).join('')}
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-foreground">{rep.name}</p>
-                  <p className="text-xs text-muted-foreground">{rep.leads} Leads Assigned · {rep.calls} Calls Made</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <p className="font-bold text-sm text-indigo-600 dark:text-brand-400">{rep.rev}</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{rep.won} Won</p>
-                </div>
-                <Link href="/leads" className="btn-secondary text-xs py-1 px-2.5">
-                  Assign Lead →
-                </Link>
-              </div>
-            </div>
-          ))}
+        <div className="p-8 text-center text-muted border border-dashed border-border rounded-xl">
+          <Users size={28} className="mx-auto mb-2 text-muted/60" />
+          <p className="font-bold text-sm text-foreground">No sales executives assigned yet</p>
+          <p className="text-xs text-muted-foreground mt-1">When sales representatives are assigned to your team leader unit, their live deals and calls will appear here.</p>
         </div>
       </div>
     </div>

@@ -30,95 +30,8 @@ interface UserPersonalActivityLog {
   }[];
 }
 
-const EMPLOYEES = [
-  { id: '1', name: 'Rajesh Kumar', role: 'Sales', tl: 'Amit Shah', checkIn: '09:05', checkOut: null, status: 'PRESENT' },
-  { id: '2', name: 'Priya Sharma', role: 'Sales', tl: 'Amit Shah', checkIn: '09:32', checkOut: null, status: 'LATE' },
-  { id: '3', name: 'Sunita Verma', role: 'Support', tl: 'Neha Joshi', checkIn: null, checkOut: null, status: 'ON_LEAVE' },
-  { id: '4', name: 'Amit Patel', role: 'Sales', tl: 'Amit Shah', checkIn: '09:01', checkOut: null, status: 'PRESENT' },
-  { id: '5', name: 'Meera Kapoor', role: 'Marketing', tl: 'Neha Joshi', checkIn: '09:15', checkOut: null, status: 'WORK_FROM_HOME' },
-  { id: '6', name: 'Ravi Singh', role: 'Finance', tl: 'Neha Joshi', checkIn: null, checkOut: null, status: 'ABSENT' },
-  { id: '7', name: 'Kavita Nair', role: 'Sales', tl: 'Amit Shah', checkIn: '09:00', checkOut: '13:30', status: 'HALF_DAY' },
-  { id: '8', name: 'Deepak Joshi', role: 'Support', tl: 'Neha Joshi', checkIn: '08:55', checkOut: null, status: 'PRESENT' },
-];
-
-// 20-Day Window Generator: Generates 60 Days of realistic Personal Attendance & Lead Activity Logs (3 Pages x 20 Days)
-const generate60DaysAttendanceLogs = (): UserPersonalActivityLog[] => {
-  const logs: UserPersonalActivityLog[] = [];
-  const startDate = new Date(2026, 7, 13); // Aug 13, 2026
-
-  for (let i = 0; i < 60; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() - i);
-
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    const dateFormatted = i === 0
-      ? 'Today (Aug 13)'
-      : d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-
-    const hasQualified = !isWeekend && (i % 2 === 0 || i % 5 === 0);
-    const hasVisit = !isWeekend && (i % 3 === 0 || i % 7 === 0);
-
-    const totalLeads = isWeekend ? 0 : 20 + ((i * 7) % 15);
-    const calls = isWeekend ? 0 : Math.floor(totalLeads * 0.65);
-    const msgs = isWeekend ? 0 : totalLeads - calls;
-
-    const status = isWeekend
-      ? 'WORK_FROM_HOME'
-      : i % 8 === 0
-      ? 'LATE'
-      : i % 14 === 0
-      ? 'ON_LEAVE'
-      : 'PRESENT';
-
-    const checkIn = isWeekend ? '—' : status === 'LATE' ? '09:35 AM' : '09:02 AM';
-    const checkOut = isWeekend ? '—' : i === 0 ? 'Working...' : '06:15 PM';
-    const hours = isWeekend ? '0.0 hrs' : '9.0 hrs';
-
-    const leadActivities = [];
-    if (hasQualified) {
-      leadActivities.push({
-        type: 'QUALIFIED' as const,
-        leadName: `Lead ${i + 1} - ${['Ananya Sharma', 'Rohan Mehta', 'Vikramaditya Rao', 'Sunita Real Estate', 'TechCorp Ltd'][i % 5]}`,
-        email: `lead${i + 1}@company.com`,
-        phone: `+91 98${10000000 + i * 3541}`,
-        company: ['TechCorp Pvt Ltd', 'Apex Infrastructure', 'Solar Solutions', 'Construkt Builders', 'Lakshmi Auto'][i % 5],
-        volume: `₹${(2 + (i % 9) * 1.2).toFixed(1)}L`,
-        time: '11:20 AM',
-        summary: 'Lead BANT requirement verified & qualified by logged-in rep.',
-      });
-    }
-    if (hasVisit) {
-      leadActivities.push({
-        type: 'VISIT_NEGOTIATION' as const,
-        leadName: `Lead ${i + 10} - ${['Pooja Nair', 'Kavita Verma', 'Siddharth Rao', 'AdAgency Pro', 'Grand Palace'][i % 5]}`,
-        email: `visit${i + 1}@enterprise.com`,
-        phone: `+91 91${20000000 + i * 4123}`,
-        company: ['Grand Palace Hotel', 'AdAgency Pro', 'FMCG Global Network', 'SpeedCars Ltd', 'Innovate Tech'][i % 5],
-        volume: `₹${(5 + (i % 7) * 2.1).toFixed(1)}L`,
-        time: '03:45 PM',
-        summary: 'In-person site visit conducted & discount terms negotiated.',
-      });
-    }
-
-    logs.push({
-      date: dateFormatted,
-      checkIn,
-      checkOut,
-      hours,
-      status,
-      hasQualifiedLead: hasQualified,
-      hasVisitNegotiation: hasVisit,
-      totalLeadsHandled: totalLeads,
-      callsCount: calls,
-      msgsCount: msgs,
-      leadActivities,
-    });
-  }
-
-  return logs;
-};
-
-const FULL_60_DAYS_LOGS = generate60DaysAttendanceLogs();
+const EMPLOYEES: any[] = [];
+const FULL_60_DAYS_LOGS: UserPersonalActivityLog[] = [];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   PRESENT:       { label: 'Present',       color: 'rgb(34,197,94)',  bg: 'rgba(34,197,94,0.12)',   icon: CheckCircle2 },
@@ -535,7 +448,16 @@ export function AttendanceSummaryWidget() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((emp) => {
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-muted">
+                  <Clock size={28} className="mx-auto mb-2 text-muted/60" />
+                  <p className="font-bold text-sm text-foreground">No attendance records today</p>
+                  <p className="text-xs text-muted-foreground mt-1">Live camera or biometric check-ins will appear here.</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((emp) => {
               const cfg = STATUS_CONFIG[emp.status];
               const Icon = cfg.icon;
               return (
@@ -543,7 +465,7 @@ export function AttendanceSummaryWidget() {
                   <td>
                     <div className="flex items-center gap-3">
                       <div className="avatar w-8 h-8 text-xs" style={{ background: cfg.bg, color: cfg.color }}>
-                        {emp.name.split(' ').map((n) => n[0]).join('')}
+                        {emp.name.split(' ').map((n: string) => n[0]).join('')}
                       </div>
                       <div>
                         <p className="font-medium text-sm">{emp.name}</p>
@@ -579,7 +501,7 @@ export function AttendanceSummaryWidget() {
                   </td>
                 </tr>
               );
-            })}
+            }))}
           </tbody>
         </table>
       </div>

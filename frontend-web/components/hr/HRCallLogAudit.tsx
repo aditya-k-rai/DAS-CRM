@@ -21,12 +21,7 @@ interface EmployeeCallLogAudit {
   attendanceStatus: 'Present' | 'Late' | 'WFH';
 }
 
-const CALL_AUDIT_DATA: EmployeeCallLogAudit[] = [
-  { id: '1', employeeName: 'Rajesh Kumar', role: 'Sales Executive', manager: 'Rajesh Mehta (Manager)', totalCallsToday: 42, totalDurationMins: 148, interestedCount: 12, followupCount: 18, noAnswerCount: 12, lastCallTime: '10 mins ago', attendanceStatus: 'Present' },
-  { id: '2', employeeName: 'Priya Sharma', role: 'Sales Executive', manager: 'Rajesh Mehta (Manager)', totalCallsToday: 35, totalDurationMins: 112, interestedCount: 8, followupCount: 15, noAnswerCount: 12, lastCallTime: '25 mins ago', attendanceStatus: 'Late' },
-  { id: '3', employeeName: 'Amit Patel', role: 'Sales Executive', manager: 'Rajesh Mehta (Manager)', totalCallsToday: 28, totalDurationMins: 95, interestedCount: 5, followupCount: 12, noAnswerCount: 11, lastCallTime: '40 mins ago', attendanceStatus: 'Present' },
-  { id: '4', employeeName: 'Sunita Verma', role: 'Senior Executive', manager: 'Rajesh Mehta (Manager)', totalCallsToday: 22, totalDurationMins: 80, interestedCount: 4, followupCount: 10, noAnswerCount: 8, lastCallTime: '1 hour ago', attendanceStatus: 'Present' },
-];
+const CALL_AUDIT_DATA: EmployeeCallLogAudit[] = [];
 
 export function HRCallLogAudit() {
   const [search, setSearch] = useState('');
@@ -34,6 +29,11 @@ export function HRCallLogAudit() {
   const filtered = CALL_AUDIT_DATA.filter(e =>
     !search || e.employeeName.toLowerCase().includes(search.toLowerCase()) || e.manager.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalCalls = filtered.reduce((acc, e) => acc + e.totalCallsToday, 0);
+  const totalMins = filtered.reduce((acc, e) => acc + e.totalDurationMins, 0);
+  const totalInterested = filtered.reduce((acc, e) => acc + e.interestedCount, 0);
+  const totalFollowups = filtered.reduce((acc, e) => acc + e.followupCount, 0);
 
   const handleExportCSV = () => {
     const headers = ['Employee Name', 'Role', 'Manager', 'Calls Today', 'Total Duration (Mins)', 'Interested', 'Follow-up Required', 'No Answer', 'Last Call Time', 'Attendance'];
@@ -69,22 +69,22 @@ export function HRCallLogAudit() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="crm-card">
           <p className="text-xs text-muted font-medium mb-1">Total Employee Calls Today</p>
-          <p className="text-2xl font-extrabold text-white">127 Calls</p>
-          <p className="text-xs text-emerald-400 font-semibold mt-1">Across 4 Active Reps</p>
+          <p className="text-2xl font-extrabold text-white">{totalCalls} Calls</p>
+          <p className="text-xs text-emerald-400 font-semibold mt-1">Across {filtered.length} Reps</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted font-medium mb-1">Total Call Duration</p>
-          <p className="text-2xl font-extrabold text-brand-400">435 Mins</p>
-          <p className="text-xs text-brand-400 font-semibold mt-1">7.25 Hours Total</p>
+          <p className="text-2xl font-extrabold text-brand-400">{totalMins} Mins</p>
+          <p className="text-xs text-brand-400 font-semibold mt-1">{(totalMins / 60).toFixed(1)} Hours Total</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted font-medium mb-1">Interested Outcomes</p>
-          <p className="text-2xl font-extrabold text-emerald-400">29 Leads</p>
-          <p className="text-xs text-emerald-400 font-semibold mt-1">22.8% Positive Response</p>
+          <p className="text-2xl font-extrabold text-emerald-400">{totalInterested} Leads</p>
+          <p className="text-xs text-emerald-400 font-semibold mt-1">Positive Response</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted font-medium mb-1">Follow-up Required</p>
-          <p className="text-2xl font-extrabold text-amber-400">55 Leads</p>
+          <p className="text-2xl font-extrabold text-amber-400">{totalFollowups} Leads</p>
           <p className="text-xs text-amber-400 font-semibold mt-1">Scheduled in Calendar</p>
         </div>
       </div>
@@ -116,7 +116,16 @@ export function HRCallLogAudit() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(emp => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-muted">
+                  <PhoneCall size={28} className="mx-auto mb-2 text-muted/60" />
+                  <p className="font-bold text-sm text-white">No call logs recorded today</p>
+                  <p className="text-xs text-muted mt-1">Live calls logged through the dialer will appear here in real-time.</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map(emp => (
               <tr key={emp.id}>
                 <td>
                   <div>
@@ -150,7 +159,7 @@ export function HRCallLogAudit() {
                   </span>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>

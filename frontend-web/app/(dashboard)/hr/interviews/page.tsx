@@ -49,15 +49,7 @@ const MODE_LABEL: Record<InterviewMode, string> = {
 };
 
 // ── Seed candidates ───────────────────────────────────────
-const INITIAL_CANDIDATES: Candidate[] = [
-  { id: 'c1', name: 'Arjun Mehta',    initials: 'AM', role: 'Senior Sales Executive', department: 'Sales',     stage: 'INTERVIEW_1',  mode: 'VIDEO',     scheduledDate: 'Aug 27, 2026 · 11:00 AM', interviewer: 'Rajesh Kumar',  score: 7,  email: 'arjun@email.com',  phone: '+91 98765 11223', note: 'Strong communication skills, 5 yrs B2B experience' },
-  { id: 'c2', name: 'Pooja Nair',     initials: 'PN', role: 'HR Business Partner',    department: 'HR',        stage: 'OFFER',        mode: 'IN_PERSON', scheduledDate: 'Aug 26, 2026 · 3:00 PM',  interviewer: 'Aisha Khan',    score: 9,  email: 'pooja@email.com',  phone: '+91 87654 33221', note: 'Excellent candidate, offer in progress' },
-  { id: 'c3', name: 'Vikram Sood',    initials: 'VS', role: 'Software Engineer',      department: 'Tech',      stage: 'SCREENING',    mode: 'PHONE',     scheduledDate: 'Aug 28, 2026 · 10:30 AM', interviewer: 'Priya Sharma',  score: undefined, email: 'vikram@email.com', phone: '+91 77889 44332' },
-  { id: 'c4', name: 'Sunita Rao',     initials: 'SR', role: 'Team Leader',            department: 'Sales',     stage: 'INTERVIEW_2',  mode: 'IN_PERSON', scheduledDate: 'Aug 27, 2026 · 2:00 PM',  interviewer: 'Amit Shah',     score: 8,  email: 'sunita@email.com', phone: '+91 66778 55443', note: 'Internal referral — strong leadership background' },
-  { id: 'c5', name: 'Dev Sharma',     initials: 'DS', role: 'Marketing Manager',      department: 'Marketing', stage: 'HIRED',        mode: 'VIDEO',     scheduledDate: 'Aug 20, 2026 · 11:00 AM', interviewer: 'Rajesh Kumar',  score: 9,  email: 'dev@email.com',    phone: '+91 55667 66554', note: 'Offer accepted — joining Sep 1' },
-  { id: 'c6', name: 'Ritu Kapoor',    initials: 'RK', role: 'Senior Sales Executive', department: 'Sales',     stage: 'REJECTED',     mode: 'VIDEO',     scheduledDate: 'Aug 22, 2026 · 4:00 PM',  interviewer: 'Amit Shah',     score: 4,  email: 'ritu@email.com',   phone: '+91 44556 77665', note: 'Did not meet communication benchmark' },
-  { id: 'c7', name: 'Karan Bhatia',   initials: 'KB', role: 'HR Executive',           department: 'HR',        stage: 'APPLIED',      mode: 'PHONE',     scheduledDate: 'Aug 29, 2026 · 9:00 AM',  interviewer: 'Aisha Khan',    score: undefined, email: 'karan@email.com',  phone: '+91 33445 88776' },
-];
+const INITIAL_CANDIDATES: Candidate[] = [];
 
 const STAGE_ORDER: InterviewStage[] = ['APPLIED', 'SCREENING', 'INTERVIEW_1', 'INTERVIEW_2', 'OFFER', 'HIRED', 'REJECTED'];
 

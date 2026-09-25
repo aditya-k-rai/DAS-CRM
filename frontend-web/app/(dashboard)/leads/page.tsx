@@ -108,7 +108,7 @@ export default function LeadsPage() {
                   required
                   value={newLeadName}
                   onChange={(e) => setNewLeadName(e.target.value)}
-                  placeholder="e.g. Rajesh Kumar"
+                  placeholder="e.g. Lead Full Name"
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
                 />
               </div>
@@ -121,7 +121,7 @@ export default function LeadsPage() {
                     required
                     value={newLeadPhone}
                     onChange={(e) => setNewLeadPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 00000 00000"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
                   />
                 </div>
@@ -131,7 +131,7 @@ export default function LeadsPage() {
                     type="text"
                     value={newLeadCompany}
                     onChange={(e) => setNewLeadCompany(e.target.value)}
-                    placeholder="TechCorp India"
+                    placeholder="Company / Organization"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
                   />
                 </div>
@@ -144,7 +144,7 @@ export default function LeadsPage() {
                     type="email"
                     value={newLeadEmail}
                     onChange={(e) => setNewLeadEmail(e.target.value)}
-                    placeholder="rajesh@techcorp.com"
+                    placeholder="contact@example.com"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
                   />
                 </div>

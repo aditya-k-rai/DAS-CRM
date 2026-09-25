@@ -24,21 +24,13 @@ export default function TasksPage() {
               <Calendar size={16} className="text-brand" style={{ color: 'rgb(129,140,248)' }} /> Today's Schedule
             </h3>
             <div className="space-y-2.5">
-              {[
-                { time: '10:00 AM', title: 'Demo Call with TechCorp CTO', type: 'Call' },
-                { time: '02:00 PM', title: 'Follow up with Rajesh Kumar', type: 'Task' },
-                { time: '04:30 PM', title: 'Pipeline review with Team Leader', type: 'Meeting' },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 rounded-lg flex items-start gap-3" style={{ background: 'rgb(var(--background))' }}>
-                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded" style={{ background: 'rgba(99,102,241,0.15)', color: 'rgb(129,140,248)' }}>
-                    {item.time}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium leading-tight">{item.title}</p>
-                    <span className="text-xs text-muted mt-0.5 block">{item.type}</span>
-                  </div>
+              {[].length === 0 ? (
+                <div className="p-6 text-center text-muted border border-dashed border-border rounded-xl">
+                  <Clock size={24} className="mx-auto mb-2 text-muted/60" />
+                  <p className="font-semibold text-xs text-foreground">No events scheduled today</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Calls, demos and team reviews will appear here.</p>
                 </div>
-              ))}
+              ) : null}
             </div>
           </div>
         </div>

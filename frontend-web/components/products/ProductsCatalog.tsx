@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Tag, Package, MoreHorizontal, Star, Plus, Edit2, Trash2, FolderPlus, Layers, ShieldCheck, Check, Sparkles, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface ProductsCatalogProps {
@@ -27,96 +27,7 @@ interface ProductItemWeb {
   volumeDiscounts: { tier: string; minQty: number; discountPct: number; finalPrice: number }[];
 }
 
-const INITIAL_PRODUCTS: ProductItemWeb[] = [
-  {
-    id: '1',
-    name: 'DAS CRM Enterprise Suite',
-    sku: 'DAS-ENT-001',
-    category: 'Software & Cloud',
-    subCategory: 'Enterprise Licenses',
-    price: 49999,
-    unit: 'per license/yr',
-    stock: 250,
-    minOrderQty: 1,
-    rating: 4.9,
-    sold: 142,
-    taxRate: 18,
-    isActive: true,
-    coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-    overview: 'Full-stack enterprise CRM solution featuring automated lead scoring, multi-level workforce hierarchy controls, real-time telemetry, and anti-tamper attendance verification.',
-    specs: ['Unlimited User Seats', 'AI Telemetry Engine Enabled', 'Server-Authoritative Time Sync', '24/7 Dedicated Account Manager'],
-    volumeDiscounts: [
-      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 49999 },
-      { tier: '10 - 49 Units', minQty: 10, discountPct: 15, finalPrice: 42499 },
-      { tier: '50+ Units', minQty: 50, discountPct: 30, finalPrice: 34999 },
-    ],
-  },
-  {
-    id: '2',
-    name: 'AI Lead Scoring Engine Pro',
-    sku: 'AI-LSE-002',
-    category: 'Software & Cloud',
-    subCategory: 'AI Add-ons',
-    price: 14999,
-    unit: 'per month',
-    stock: 500,
-    minOrderQty: 1,
-    rating: 4.8,
-    sold: 89,
-    taxRate: 18,
-    isActive: true,
-    coverImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-    overview: 'Predictive machine learning engine that calculates real-time lead score (0-100) based on telemetry interactions, call frequency, and WhatsApp engagements.',
-    specs: ['Predictive Lead Conversion Model', 'Automated Hot Lead Alerts', 'Custom Scoring Rules Configurator'],
-    volumeDiscounts: [
-      { tier: '1 - 5 Units', minQty: 1, discountPct: 0, finalPrice: 14999 },
-      { tier: '6 - 20 Units', minQty: 6, discountPct: 10, finalPrice: 13499 },
-    ],
-  },
-  {
-    id: '3',
-    name: 'WhatsApp Automation Bot Engine',
-    sku: 'WA-BOT-003',
-    category: 'Automation & APIs',
-    subCategory: 'Messaging Gateways',
-    price: 8999,
-    unit: 'per month',
-    stock: 1000,
-    minOrderQty: 1,
-    rating: 4.7,
-    sold: 215,
-    taxRate: 18,
-    isActive: true,
-    coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80',
-    overview: 'Direct WhatsApp Cloud API integration with AI Humanize message generator, catalog sharing, and automated 15-day call date follow-up scheduling.',
-    specs: ['Official Meta Business API Connector', 'Interactive Template Builder', 'Automated Follow-up Scheduler'],
-    volumeDiscounts: [
-      { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: 8999 },
-      { tier: '10+ Units', minQty: 10, discountPct: 20, finalPrice: 7199 },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Cloud Telemetry License',
-    sku: 'CLOUD-TEL-004',
-    category: 'Infrastructure',
-    subCategory: 'Cloud Storage',
-    price: 4999,
-    unit: 'per month',
-    stock: 750,
-    minOrderQty: 1,
-    rating: 4.6,
-    sold: 67,
-    taxRate: 18,
-    isActive: true,
-    coverImage: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80',
-    overview: 'High-availability secure storage for call audio recordings, selfie attendance verification images, and automated audit logs.',
-    specs: ['256-bit AES Encryption', 'Automatic 30-Day Backup Retention', 'SOC2 Compliant Cloud Vault'],
-    volumeDiscounts: [
-      { tier: '1 - 10 Units', minQty: 1, discountPct: 0, finalPrice: 4999 },
-    ],
-  },
-];
+const INITIAL_PRODUCTS: ProductItemWeb[] = [];
 
 export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
@@ -138,6 +49,49 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   // Delete confirmation modal state
   const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<ProductItemWeb | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      try {
+        const res = await fetch(`${apiBase}/products`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setProducts(data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              sku: p.sku || 'SKU-001',
+              category: p.category || 'General',
+              subCategory: p.subCategory || 'Standard',
+              price: Number(p.price) || 0,
+              unit: p.unit || 'unit',
+              stock: p.stock !== undefined ? p.stock : 100,
+              minOrderQty: p.minOrderQty || 1,
+              rating: p.rating || 5.0,
+              sold: p.sold || 0,
+              taxRate: p.taxRate || 18,
+              isActive: p.isActive !== false,
+              coverImage: p.imageUrl || p.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+              overview: p.description || p.overview || '',
+              specs: p.features || p.specs || [],
+              volumeDiscounts: p.volumeDiscounts || [],
+            })));
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch products:', e);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   // New Product Modal State
   const [createProductOpen, setCreateProductOpen] = useState(false);
@@ -379,7 +333,32 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">📦</div>
+                      <p className="text-sm font-bold text-white">
+                        {search ? 'No products match your search' : 'No products in your catalog yet'}
+                      </p>
+                      <p className="text-xs text-slate-400 max-w-sm">
+                        {search
+                          ? `No products matching "${search}".`
+                          : 'Your company product catalog is ready. Create products and services to attach to proposals, send via WhatsApp, and quote to clients.'}
+                      </p>
+                      {!search && isAdmin && (
+                        <button
+                          onClick={() => setCreateProductOpen(true)}
+                          className="mt-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5"
+                        >
+                          <Plus size={14} /> Create First Product
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(p => (
                 <tr key={p.id} className="hover:bg-slate-900/40 transition-colors">
                   <td>
                     <div className="flex items-center gap-3">
@@ -445,7 +424,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

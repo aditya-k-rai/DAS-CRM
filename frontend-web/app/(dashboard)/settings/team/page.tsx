@@ -1,19 +1,53 @@
-import type { Metadata } from 'next';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Users, Plus, Shield, Mail, MoreHorizontal, UserPlus, Building2, CreditCard, User, Info } from 'lucide-react';
 import Link from 'next/link';
-
-export const metadata: Metadata = { title: 'Team & Members | Settings' };
-
-const MEMBERS = [
-  { id: '1', name: 'John Doe', email: 'john@company.com', role: 'OWNER', teamLeader: 'Self', status: 'ACTIVE' },
-  { id: '2', name: 'Amit Shah', email: 'amit.shah@company.com', role: 'TEAM_LEADER', teamLeader: 'Admin', status: 'ACTIVE' },
-  { id: '3', name: 'Neha Joshi', email: 'neha.joshi@company.com', role: 'TEAM_LEADER', teamLeader: 'Admin', status: 'ACTIVE' },
-  { id: '4', name: 'Rajesh Kumar', email: 'rajesh@company.com', role: 'SALES', teamLeader: 'Amit Shah', status: 'ACTIVE' },
-  { id: '5', name: 'Priya Sharma', email: 'priya@company.com', role: 'HR', teamLeader: 'Admin', status: 'ACTIVE' },
-];
+import { useAuth } from '@/context/AuthContext';
 
 export default function TeamSettingsPage() {
+  const { currentUser, subscription } = useAuth();
+  const [members, setMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/v1/users', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setMembers(data.map((u: any) => ({
+            id: u.id,
+            name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || 'Member',
+            email: u.email,
+            role: u.role || 'MEMBER',
+            teamLeader: u.reportsTo || 'Admin',
+            status: u.status || 'ACTIVE'
+          })));
+        } else if (currentUser?.email) {
+          setMembers([{
+            id: currentUser.id || 'usr_1',
+            name: currentUser.name || 'Organization Admin',
+            email: currentUser.email,
+            role: currentUser.role || 'OWNER',
+            teamLeader: 'Self',
+            status: 'ACTIVE'
+          }]);
+        }
+      })
+      .catch(() => {
+        if (currentUser?.email) {
+          setMembers([{
+            id: currentUser.id || 'usr_1',
+            name: currentUser.name || 'Organization Admin',
+            email: currentUser.email,
+            role: currentUser.role || 'OWNER',
+            teamLeader: 'Self',
+            status: 'ACTIVE'
+          }]);
+        }
+      });
+  }, [currentUser]);
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar title="Team & Member Management" actions={
@@ -45,8 +79,8 @@ export default function TeamSettingsPage() {
         <div className="col-span-12 lg:col-span-9 space-y-4">
           <div className="crm-card p-0 overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'rgb(var(--border))' }}>
-              <h3 className="font-semibold text-sm">Active Members ({MEMBERS.length} / 15 seats used)</h3>
-              <span className="text-xs text-brand font-medium">Pro Plan · 10 seats remaining</span>
+              <h3 className="font-semibold text-sm">Active Members ({members.length} / {(subscription as any)?.maxUsers || 20} seats used)</h3>
+              <span className="text-xs text-brand font-medium">Pro Plan · {Math.max(0, ((subscription as any)?.maxUsers || 20) - members.length)} seats remaining</span>
             </div>
             <table className="crm-table">
               <thead>
@@ -59,11 +93,11 @@ export default function TeamSettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {MEMBERS.map((m) => (
+                {members.map((m) => (
                   <tr key={m.id}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="avatar w-8 h-8 text-xs">{m.name.split(' ').map(n=>n[0]).join('')}</div>
+                        <div className="avatar w-8 h-8 text-xs">{m.name.split(' ').map((n: string) => n[0]).join('')}</div>
                         <div>
                           <p className="font-medium text-sm">{m.name}</p>
                           <p className="text-xs text-muted">{m.email}</p>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Phone, Video, MoreHorizontal, Paperclip, Smile, Check, CheckCheck, Search, Filter } from 'lucide-react';
+import { Send, Phone, Video, MoreHorizontal, Paperclip, Smile, Check, CheckCheck, Search, Filter, MessageSquare } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────
 interface Message {
@@ -25,23 +25,9 @@ interface Thread {
 }
 
 // ─── Data ─────────────────────────────────────────────────
-const THREADS: Thread[] = [
-  { leadId: '1', leadName: 'Rajesh Kumar', company: 'TechCorp', phone: '9876543210', lastMsg: 'Can you send the pricing doc?', lastTime: '2:14 PM', unread: 2, online: true },
-  { leadId: '2', leadName: 'Priya Sharma',  company: 'Sunita RE', phone: '8765432109', lastMsg: 'Yes, we are interested!', lastTime: '11:00 AM', unread: 0, online: false },
-  { leadId: '3', leadName: 'Amit Patel',    company: 'Lakshmi Auto', phone: '7654321098', lastMsg: "Let me check with my team.", lastTime: 'Yesterday', unread: 0, online: false },
-  { leadId: '4', leadName: 'Sunita Verma',  company: 'Construkt Inc', phone: '9988776655', lastMsg: 'Thanks, talk soon!', lastTime: 'Yesterday', unread: 1, online: true },
-];
+const THREADS: Thread[] = [];
 
-const MESSAGES: Record<string, Message[]> = {
-  '1': [
-    { id: '1', from: 'rep', text: 'Hi Rajesh! Following up on our CRM demo call yesterday. Did you have a chance to share the recording with your tech team?', time: '10:00 AM', status: 'read' },
-    { id: '2', from: 'lead', text: 'Yes! They loved the automation features. One question — does it support custom field creation for our industry?', time: '10:15 AM', status: 'read' },
-    { id: '3', from: 'rep', text: 'Absolutely! Admin users can create unlimited custom fields for Leads, Contacts, and Deals. I can show you this in a quick 10-min call.', time: '10:20 AM', status: 'read' },
-    { id: '4', from: 'lead', text: 'Perfect. Also, can you send the enterprise pricing doc? We are considering 50+ seats.', time: '2:10 PM', status: 'read' },
-    { id: '5', from: 'lead', text: 'Can you send the pricing doc?', time: '2:14 PM', status: 'read' },
-    { id: '6', from: 'rep', text: 'Sure! Sending the proposal right now. You can also find it attached in your email from this morning.', time: '2:15 PM', status: 'delivered' },
-  ],
-};
+const MESSAGES: Record<string, Message[]> = {};
 
 const DEFAULT_TEMPLATES = [
   { id: '1', title: '🌱 Initial Outreach', text: "Hi {name}, I got to know that you inquired about our DAS CRM solution for {company}. Let's connect for a quick 5-min call!" },
@@ -58,8 +44,8 @@ export function WhatsAppThread() {
   const userRole = currentUser?.role || 'SALES_EXEC';
   const isHR = userRole === 'HR';
 
-  const [activeThread, setActiveThread]   = useState<Thread>(THREADS[0]);
-  const [messages, setMessages]           = useState<Message[]>(MESSAGES['1'] || []);
+  const [activeThread, setActiveThread]   = useState<Thread | null>(null);
+  const [messages, setMessages]           = useState<Message[]>([]);
   const [input, setInput]                 = useState('');
   const [showQuickReplies, setShowQR]     = useState(false);
   const [customTemplates, setCustomTemplates] = useState(DEFAULT_TEMPLATES);
@@ -132,64 +118,81 @@ export function WhatsAppThread() {
 
         {/* Threads */}
         <div className="flex-1 overflow-y-auto">
-          {THREADS.map(t => (
-            <button key={t.leadId} onClick={() => selectThread(t)}
-              className="w-full flex items-start gap-3 px-4 py-3 border-b text-left transition-all hover:bg-muted/20"
-              style={{
-                borderColor: 'rgb(var(--border))',
-                background: activeThread.leadId === t.leadId ? 'rgba(99,102,241,0.08)' : 'transparent',
-              }}>
-              {/* Avatar */}
-              <div className="relative flex-shrink-0">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style={{ background: 'rgba(99,102,241,0.2)', color: 'rgb(129,140,248)' }}>
-                  {t.leadName.split(' ').map(n => n[0]).join('')}
+          {THREADS.length === 0 ? (
+            <div className="py-12 px-4 text-center">
+              <MessageSquare size={32} className="text-muted mx-auto mb-2 opacity-40" />
+              <p className="text-xs font-semibold text-foreground">No conversations</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Leads messaging your WhatsApp number will appear here.</p>
+            </div>
+          ) : (
+            THREADS.map(t => (
+              <button key={t.leadId} onClick={() => selectThread(t)}
+                className="w-full flex items-start gap-3 px-4 py-3 border-b text-left transition-all hover:bg-muted/20"
+                style={{
+                  borderColor: 'rgb(var(--border))',
+                  background: activeThread?.leadId === t.leadId ? 'rgba(99,102,241,0.08)' : 'transparent',
+                }}>
+                {/* Avatar */}
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style={{ background: 'rgba(99,102,241,0.2)', color: 'rgb(129,140,248)' }}>
+                    {t.leadName.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  {t.online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card" style={{ background: 'rgb(34,197,94)' }} />}
                 </div>
-                {t.online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card" style={{ background: 'rgb(34,197,94)' }} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">{t.leadName}</p>
-                  <p className="text-xs text-muted">{t.lastTime}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{t.leadName}</p>
+                    <p className="text-xs text-muted">{t.lastTime}</p>
+                  </div>
+                  <p className="text-xs text-muted">{t.company}</p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-xs text-muted truncate">{t.lastMsg}</p>
+                    {t.unread > 0 && (
+                      <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 ml-1" style={{ background: 'rgb(34,197,94)', color: '#000' }}>
+                        {t.unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted">{t.company}</p>
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-muted truncate">{t.lastMsg}</p>
-                  {t.unread > 0 && (
-                    <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 ml-1" style={{ background: 'rgb(34,197,94)', color: '#000' }}>
-                      {t.unread}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            ))
+          )}
         </div>
       </div>
 
       {/* RIGHT: Chat window */}
-      <div className="flex-1 flex flex-col min-w-0" style={{ background: '#060810' }}>
-        {/* Chat header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b" style={{ background: 'rgb(var(--card))', borderColor: 'rgb(var(--border))' }}>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{ background: 'rgba(99,102,241,0.2)', color: 'rgb(129,140,248)' }}>
-                {activeThread.leadName.split(' ').map(n => n[0]).join('')}
-              </div>
-              {activeThread.online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card" style={{ background: 'rgb(34,197,94)' }} />}
-            </div>
-            <div>
-              <p className="font-semibold text-sm">{activeThread.leadName}</p>
-              <p className="text-xs text-muted">{activeThread.company} · +91 {activeThread.phone}</p>
-            </div>
+      {!activeThread ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center" style={{ background: '#060810' }}>
+          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4">
+            <MessageSquare size={32} />
           </div>
-          <div className="flex gap-1">
-            {[Phone, Video, MoreHorizontal].map((Icon, i) => (
-              <button key={i} className="btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center">
-                <Icon size={16} />
-              </button>
-            ))}
-          </div>
+          <h3 className="text-base font-bold text-white mb-1">Select a Conversation</h3>
+          <p className="text-xs text-muted max-w-sm">Choose a lead thread from the sidebar or initiate a direct chat from your Leads table to start chatting.</p>
         </div>
+      ) : (
+        <div className="flex-1 flex flex-col min-w-0" style={{ background: '#060810' }}>
+          {/* Chat header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b" style={{ background: 'rgb(var(--card))', borderColor: 'rgb(var(--border))' }}>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold" style={{ background: 'rgba(99,102,241,0.2)', color: 'rgb(129,140,248)' }}>
+                  {activeThread.leadName.split(' ').map(n => n[0]).join('')}
+                </div>
+                {activeThread.online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card" style={{ background: 'rgb(34,197,94)' }} />}
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{activeThread.leadName}</p>
+                <p className="text-xs text-muted">{activeThread.company} · +91 {activeThread.phone}</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              {[Phone, Video, MoreHorizontal].map((Icon, i) => (
+                <button key={i} className="btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center">
+                  <Icon size={16} />
+                </button>
+              ))}
+            </div>
+          </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
@@ -312,6 +315,7 @@ export function WhatsAppThread() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

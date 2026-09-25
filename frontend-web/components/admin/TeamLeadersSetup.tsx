@@ -21,25 +21,7 @@ interface ManagerNode {
   children: EmployeeNode[];
 }
 
-const INITIAL_HIERARCHY: ManagerNode[] = [
-  {
-    id: 'mgr_1',
-    name: 'Amit Shah (Department Manager A)',
-    children: [
-      { id: 'tl_1',  name: 'Priya Sharma (Team Leader)', role: 'TEAM_LEADER', reportingTo: 'Amit Shah (Manager)', type: 'TL', callsMade: 184, leadsHandled: 42, revenue: '$38,500' },
-      { id: 'emp_1', name: 'Rajesh Kumar (Sales Executive)', role: 'SALES_EXEC', reportingTo: 'Priya Sharma (TL)', type: 'TL_EMP', callsMade: 84, leadsHandled: 31, revenue: '$22,000' },
-      { id: 'emp_2', name: 'Ananya Rep (Sales Executive)', role: 'SALES_EXEC', reportingTo: 'Amit Shah (Direct Report)', type: 'DIRECT_EMP', callsMade: 65, leadsHandled: 24, revenue: '$18,500' },
-    ],
-  },
-  {
-    id: 'mgr_2',
-    name: 'Neha Joshi (Department Manager B)',
-    children: [
-      { id: 'tl_2',  name: 'Karan Verma (Team Leader)', role: 'TEAM_LEADER', reportingTo: 'Neha Joshi (Manager)', type: 'TL', callsMade: 156, leadsHandled: 38, revenue: '$32,000' },
-      { id: 'emp_3', name: 'Sunita Verma (Sales Executive)', role: 'SALES_EXEC', reportingTo: 'Neha Joshi (Direct Report)', type: 'DIRECT_EMP', callsMade: 92, leadsHandled: 28, revenue: '$14,500' },
-    ],
-  },
-];
+const INITIAL_HIERARCHY: ManagerNode[] = [];
 
 export function TeamLeadersSetup() {
   const { currentUser } = useAuth();
@@ -140,7 +122,14 @@ export function TeamLeadersSetup() {
 
       {/* Hierarchy Tree Visualizer */}
       <div className="space-y-4">
-        {hierarchy.map(m => (
+        {hierarchy.length === 0 ? (
+          <div className="crm-card p-12 text-center text-muted border border-dashed border-border/80 rounded-2xl">
+            <Users size={32} className="mx-auto mb-2 text-muted/60" />
+            <p className="font-bold text-sm text-white">No Organizational Hierarchy Defined</p>
+            <p className="text-xs text-muted mt-1">Create Team Leaders and assign employees to build your department reporting structure.</p>
+          </div>
+        ) : (
+          hierarchy.map(m => (
           <div key={m.id} className="crm-card space-y-3 border-indigo-500/30">
             <div className="flex items-center justify-between pb-2 border-b border-border">
               <div className="flex items-center gap-2">
@@ -191,7 +180,7 @@ export function TeamLeadersSetup() {
               ))}
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* Add TL Modal */}

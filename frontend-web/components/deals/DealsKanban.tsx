@@ -13,23 +13,11 @@ const STAGES = [
 ];
 
 const INITIAL_DEALS: Record<string, any[]> = {
-  prospecting: [
-    { id: '1', title: 'Enterprise CRM Setup', company: 'TechCorp Ltd', value: '₹5,20,000', owner: 'RK', ownerName: 'Rajesh Kumar', close: 'Aug 30', score: 72 },
-    { id: '2', title: 'Digital Marketing Suite', company: 'AdAgency Pro', value: '₹1,80,000', owner: 'AS', ownerName: 'Amit Shah', close: 'Sep 15', score: 45 },
-  ],
-  qualification: [
-    { id: '3', title: 'Real Estate Portal', company: 'Sunita RE', value: '₹8,50,000', owner: 'AS', ownerName: 'Amit Shah', close: 'Sep 5', score: 68 },
-    { id: '4', title: 'Showroom Management', company: 'Lakshmi Auto', value: '₹2,40,000', owner: 'MK', ownerName: 'Meera Kapoor', close: 'Aug 25', score: 80 },
-  ],
-  proposal: [
-    { id: '5', title: 'Interior Design Platform', company: 'Construkt Inc', value: '₹3,60,000', owner: 'RK', ownerName: 'Rajesh Kumar', close: 'Aug 20', score: 85 },
-  ],
-  negotiation: [
-    { id: '6', title: 'Hotel Management System', company: 'Grand Palace', value: '₹12,00,000', owner: 'RK', ownerName: 'Rajesh Kumar', close: 'Aug 18', score: 91 },
-  ],
-  closed_won: [
-    { id: '7', title: 'Auto Finance Tracker', company: 'SpeedCars', value: '₹4,50,000', owner: 'RK', ownerName: 'Rajesh Kumar', close: 'Aug 10', score: 100 },
-  ],
+  prospecting: [],
+  qualification: [],
+  proposal: [],
+  negotiation: [],
+  closed_won: [],
 };
 
 export function DealsKanban() {

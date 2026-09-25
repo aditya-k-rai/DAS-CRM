@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import {
   Building2, Users, Target, Shield, Check, ArrowRight,
   Zap, Globe, DollarSign, Sparkles, CheckCircle2, ChevronRight
@@ -16,12 +17,13 @@ const INDUSTRY_TEMPLATES = [
 ];
 
 export function OnboardingWizard() {
+  const { currentUser } = useAuth();
   const [step, setStep]           = useState<1 | 2 | 3 | 4>(1);
-  const [orgName, setOrgName]     = useState('Acme Sales Solutions');
+  const [orgName, setOrgName]     = useState(() => (currentUser as any)?.organization?.name || currentUser?.companyName || '');
   const [template, setTemplate]   = useState('saas');
   const [currency, setCurrency]   = useState('INR');
-  const [teamSize, setTeamSize]   = useState('10-50');
-  const [invitedEmails, setInvited] = useState(['amit.shah@acme.com', 'priya.sharma@acme.com']);
+  const [teamSize, setTeamSize]   = useState('1-10');
+  const [invitedEmails, setInvited] = useState<string[]>([]);
   const [newEmail, setNewEmail]   = useState('');
   const [completing, setCompleting] = useState(false);
   const router = useRouter();

@@ -17,11 +17,7 @@ export interface QuotationItemDto {
 export class QuotationsService {
   constructor(private prisma: PrismaService) {}
 
-  private fallbackQuotes: QuotationItemDto[] = [
-    { id: 'q1', quoteNumber: 'QUO-2026-001', clientName: 'TechCorp India', clientCompany: 'TechCorp Solutions', totalAmount: 45000, currency: 'INR', status: 'APPROVED', validUntil: 'Aug 30, 2026', itemsCount: 3 },
-    { id: 'q2', quoteNumber: 'QUO-2026-002', clientName: 'Innovate Systems', clientCompany: 'Innovate Ltd', totalAmount: 120000, currency: 'INR', status: 'SENT', validUntil: 'Sep 15, 2026', itemsCount: 5 },
-    { id: 'q3', quoteNumber: 'QUO-2026-003', clientName: 'Apex Global', clientCompany: 'Apex Tech', totalAmount: 85000, currency: 'INR', status: 'DRAFT', validUntil: 'Sep 01, 2026', itemsCount: 2 },
-  ];
+  private fallbackQuotes: QuotationItemDto[] = [];
 
   async getQuotations(): Promise<QuotationItemDto[]> {
     try {

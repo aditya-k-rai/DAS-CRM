@@ -3,13 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, Target, CheckSquare, DollarSign, Users, X, Check, Zap } from 'lucide-react';
 
-const NOTIFICATIONS = [
-  { id: '1', type: 'lead',    icon: Target,      color: 'rgb(99,102,241)',  title: 'New lead assigned to you',       body: 'Rajesh Kumar from TechCorp has been assigned.',    time: '2m ago',  read: false },
-  { id: '2', type: 'deal',    icon: DollarSign,  color: 'rgb(245,158,11)',  title: 'Deal moved to Negotiation',       body: 'Grand Palace Hotel deal is now in Negotiation.',    time: '1h ago',  read: false },
-  { id: '3', type: 'task',    icon: CheckSquare, color: 'rgb(59,130,246)',  title: 'Task overdue: Follow up with Amit', body: 'This task was due 2 hours ago.',                  time: '2h ago',  read: false },
-  { id: '4', type: 'team',    icon: Users,       color: 'rgb(236,72,153)',  title: 'New team member joined',          body: 'Kavita Nair has joined as Sales Executive under your team.', time: '5h ago', read: true },
-  { id: '5', type: 'lead',    icon: Target,      color: 'rgb(34,197,94)',   title: 'Lead score updated to 91',        body: 'Sunita RE lead crossed the 80-point threshold.',   time: '1d ago',  read: true },
-];
+const NOTIFICATIONS: any[] = [];
 
 export function NotificationCenter() {
   const [open, setOpen]            = useState(false);
@@ -27,7 +21,7 @@ export function NotificationCenter() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
+        if (data && Array.isArray(data.items)) {
           const mapped = data.items.map((item: any) => ({
             id: item.id,
             type: item.type === 'LEAD_ASSIGNED' ? 'lead' : 'system',
@@ -38,13 +32,7 @@ export function NotificationCenter() {
             time: item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
             read: !!item.isRead,
           }));
-
-          // Merge with fallback mocks ensuring no duplicate IDs
-          setNotes(prev => {
-            const existingIds = new Set(mapped.map((m: any) => m.id));
-            const remaining = prev.filter(p => !existingIds.has(p.id));
-            return [...mapped, ...remaining];
-          });
+          setNotes(mapped);
         }
       }
     } catch (e) {}
@@ -115,37 +103,47 @@ export function NotificationCenter() {
 
             {/* Notification list */}
             <div className="max-h-96 overflow-y-auto">
-              {notifications.map(n => (
-                <div
-                  key={n.id}
-                  className="flex items-start gap-3 px-4 py-3 border-b cursor-pointer transition-all hover:bg-muted/20"
-                  style={{
-                    borderColor: 'rgb(var(--border))',
-                    background: !n.read ? 'rgba(99,102,241,0.04)' : 'transparent',
-                  }}
-                  onClick={() => markRead(n.id)}
-                >
-                  {/* Icon */}
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: `${n.color}15`, color: n.color }}>
-                    <n.icon size={16} />
+              {notifications.length === 0 ? (
+                <div className="py-10 px-4 text-center">
+                  <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center bg-muted/40 text-muted-foreground">
+                    <Bell size={18} className="opacity-40" />
                   </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-tight ${!n.read ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
-                      {n.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
-                    <p className="text-xs mt-1" style={{ color: 'rgb(var(--muted-foreground))' }}>{n.time}</p>
-                  </div>
-
-                  {/* Unread dot */}
-                  {!n.read && (
-                    <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: n.color }} />
-                  )}
+                  <p className="text-xs font-semibold text-foreground">No notifications</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">You are all caught up with your updates.</p>
                 </div>
-              ))}
+              ) : (
+                notifications.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className="flex items-start gap-3 px-4 py-3 border-b cursor-pointer transition-all hover:bg-muted/20"
+                    style={{
+                      borderColor: 'rgb(var(--border))',
+                      background: !n.read ? 'rgba(99,102,241,0.04)' : 'transparent',
+                    }}
+                    onClick={() => markRead(n.id)}
+                  >
+                    {/* Icon */}
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: `${n.color}15`, color: n.color }}>
+                      <n.icon size={16} />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm leading-tight ${!n.read ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                        {n.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{n.body}</p>
+                      <p className="text-xs mt-1" style={{ color: 'rgb(var(--muted-foreground))' }}>{n.time}</p>
+                    </div>
+
+                    {/* Unread dot */}
+                    {!n.read && (
+                      <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: n.color }} />
+                    )}
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Footer */}

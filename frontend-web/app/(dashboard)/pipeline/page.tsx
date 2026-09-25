@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
@@ -97,70 +97,10 @@ export default function LeadPipelinePage() {
   const [historyActiveTab, setHistoryActiveTab] = useState<'DATEWISE' | 'FILE_UPLOADS' | 'GSHEETS_SYNC'>('DATEWISE');
 
   // History Seed State
-  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([
-    {
-      id: 'file_hist_1',
-      fileName: 'August_Sales_Leads_Master.xlsx',
-      fileSize: '2.4 MB',
-      uploadedAt: '2026-08-16 02:30 PM',
-      leadsCount: 24,
-      uploadedBy: 'Vikram Singh (Admin)',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'file_hist_2',
-      fileName: 'Mumbai_Campaign_Contacts.csv',
-      fileSize: '480 KB',
-      uploadedAt: '2026-08-15 11:15 AM',
-      leadsCount: 18,
-      uploadedBy: 'Priya Sharma (Manager)',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'file_hist_3',
-      fileName: 'Q2_Archived_Inquiries.csv',
-      fileSize: '1.1 MB',
-      uploadedAt: '2026-08-14 06:45 PM',
-      leadsCount: 40,
-      uploadedBy: 'Vikram Singh (Admin)',
-      status: 'SUCCESS',
-    },
-  ]);
-
-  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([
-    {
-      id: 'gsheet_hist_1',
-      spreadsheetTitle: 'August_2026_Inbound_Leads.gsheet',
-      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
-      sheetTab: 'Inbound_Leads_Sheet1',
-      rangeMapped: 'Range A2:F',
-      connectedAt: '2026-08-01 09:00 AM',
-      lastSyncAt: 'Today, 02:45 PM (Just Now)',
-      totalSyncsCount: 420,
-      totalLeadsIngested: 1890,
-      status: 'ACTIVE_SYNC',
-    },
-    {
-      id: 'gsheet_hist_2',
-      spreadsheetTitle: 'Web_Contact_Form_Responses.gsheet',
-      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit',
-      sheetTab: 'Form_Submissions',
-      rangeMapped: 'Range A2:D',
-      connectedAt: '2026-08-10 03:20 PM',
-      lastSyncAt: 'Yesterday, 06:10 PM',
-      totalSyncsCount: 115,
-      totalLeadsIngested: 230,
-      status: 'ACTIVE_SYNC',
-    },
-  ]);
-
-  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([
-    { date: 'Today (Aug 27)', totalLeads: 48, googleSheets: 18, fileUploads: 12, facebookAds: 10, googleAds: 5, whatsAppDirect: 3 },
-    { date: 'Yesterday (Aug 26)', totalLeads: 62, googleSheets: 22, fileUploads: 15, facebookAds: 14, googleAds: 8, whatsAppDirect: 3 },
-    { date: 'Aug 25, 2026', totalLeads: 55, googleSheets: 19, fileUploads: 14, facebookAds: 12, googleAds: 6, whatsAppDirect: 4 },
-    { date: 'Aug 24, 2026', totalLeads: 41, googleSheets: 14, fileUploads: 10, facebookAds: 9, googleAds: 5, whatsAppDirect: 3 },
-    { date: 'Aug 23, 2026', totalLeads: 38, googleSheets: 12, fileUploads: 8, facebookAds: 10, googleAds: 6, whatsAppDirect: 2 },
-  ]);
+  // History Seed State (Clean for fresh companies)
+  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([]);
+  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([]);
+  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([]);
 
   // Single Insert Form
   const [newLeadName, setNewLeadName] = useState('');
@@ -169,7 +109,45 @@ export default function LeadPipelinePage() {
   const [newLeadCompany, setNewLeadCompany] = useState('');
   const [newLeadSource, setNewLeadSource] = useState('Website Form');
   const [newLeadValue, setNewLeadValue] = useState('45000');
-  const [newLeadAssignedRep, setNewLeadAssignedRep] = useState('Rajesh Kumar');
+  const [newLeadAssignedRep, setNewLeadAssignedRep] = useState('Unassigned');
+
+  // Tenant-scoped sales representatives & users
+  const [tenantReps, setTenantReps] = useState<Array<{ id: string; name: string; role: string }>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        if (u && (u.name || u.email)) {
+          return [{ id: u.id || 'usr-1', name: u.name || 'Admin User', role: u.role || 'Admin' }];
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('das_crm_token');
+        if (!token) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.items || data.users || []);
+          if (items.length > 0) {
+            setTenantReps(items.map((u: any) => ({
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+              role: u.role || 'Sales Rep',
+            })));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchUsers();
+  }, []);
 
   // Custom Column Form
   const [newColName, setNewColName] = useState('');
@@ -179,37 +157,16 @@ export default function LeadPipelinePage() {
   const [editingColId, setEditingColId] = useState<string | null>(null); // null = add mode
 
   // 📊 Spreadsheet Ingestion & Employee Allocation Audit History State
-  const [webAuditLogs, setWebAuditLogs] = useState([
-    {
-      id: 'aud-1',
-      fileName: 'Q3_Enterprise_Prospects_Import.csv',
-      injectedAt: '03 Sep 2026, 07:45 PM',
-      leadsCount: 124,
-      colsCount: 8,
-      platform: 'Google Ads',
-      status: 'PENDING_ALLOCATION' as const,
-    },
-    {
-      id: 'aud-2',
-      fileName: 'Lotwaala_August_2026_Work_Plan.xlsx',
-      injectedAt: '03 Sep 2026, 08:14 PM',
-      leadsCount: 32,
-      colsCount: 6,
-      platform: 'Google Ads',
-      status: 'ALLOCATED' as const,
-      allocationSummary: 'Assigned to Priya Sharma (TL A) [Rows 1-16], Rohan Kumar [Rows 17-32]',
-    },
-    {
-      id: 'aud-3',
-      fileName: 'West_Territory_Cold_Outreach.xlsx',
-      injectedAt: '02 Sep 2026, 04:30 PM',
-      leadsCount: 214,
-      colsCount: 10,
-      platform: 'Meta Ads',
-      status: 'ALLOCATED' as const,
-      allocationSummary: 'Assigned to Amit Shah (Sales Exec) [Direct]',
-    },
-  ]);
+  const [webAuditLogs, setWebAuditLogs] = useState<Array<{
+    id: string;
+    fileName: string;
+    injectedAt: string;
+    leadsCount: number;
+    colsCount: number;
+    platform: string;
+    status: 'PENDING_ALLOCATION' | 'ALLOCATED';
+    allocationSummary?: string;
+  }>>([]);
 
   const [webAuditFilter, setWebAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
   const [selectedWebAuditDetail, setSelectedWebAuditDetail] = useState<typeof webAuditLogs[0] | null>(null);
@@ -347,61 +304,8 @@ export default function LeadPipelinePage() {
     });
   };
 
-  // Master Lead Directory List
-  const [leadDirectory, setLeadDirectory] = useState<DashboardLeadRecord[]>([
-    {
-      id: 'lead_101',
-      name: 'Aditya Sharma',
-      email: 'aditya.s@techcorp.in',
-      phone: '+91 98765 43210',
-      company: 'TechCorp India',
-      source: 'Meta Ads (FB & Insta)',
-      stage: 'Prospecting',
-      value: 45000,
-      assignedRep: 'Rajesh Kumar',
-      customFields: { col_city: 'Mumbai', col_budget: '50k-1L', col_requirement: 'CRM Enterprise License' },
-      createdAt: 'Today, 02:45 PM',
-    },
-    {
-      id: 'lead_102',
-      name: 'Priya Patel',
-      email: 'priya.p@innovate.io',
-      phone: '+91 98123 76543',
-      company: 'Innovate Solutions',
-      source: 'Google Ads',
-      stage: 'Proposal',
-      value: 120000,
-      assignedRep: 'Priya Sharma',
-      customFields: { col_city: 'Bangalore', col_budget: '1L-2L', col_requirement: 'Call Automation Suite' },
-      createdAt: 'Today, 01:15 PM',
-    },
-    {
-      id: 'lead_103',
-      name: 'Vikram Malhotra',
-      email: 'vikram.m@apexind.com',
-      phone: '+91 99887 11223',
-      company: 'Apex Global',
-      source: 'IndiaMART',
-      stage: 'Negotiation',
-      value: 85000,
-      assignedRep: 'Amit Shah (TL)',
-      customFields: { col_city: 'Delhi', col_budget: '80k-1L', col_requirement: 'Multi-Tenant Setup' },
-      createdAt: 'Yesterday, 05:20 PM',
-    },
-    {
-      id: 'lead_104',
-      name: 'Neha Joshi',
-      email: 'neha.j@logitech.org',
-      phone: '+91 97654 32109',
-      company: 'LogiTech Systems',
-      source: 'TradeIndia',
-      stage: 'Qualification',
-      value: 65000,
-      assignedRep: 'Meera Kapoor',
-      customFields: { col_city: 'Pune', col_budget: '50k-80k', col_requirement: 'Attendance Tracker' },
-      createdAt: 'Yesterday, 11:00 AM',
-    },
-  ]);
+  // Master Lead Directory List (Clean for fresh companies)
+  const [leadDirectory, setLeadDirectory] = useState<DashboardLeadRecord[]>([]);
 
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
 
@@ -598,18 +502,18 @@ export default function LeadPipelinePage() {
           {/* Connected Ingestion Platform Channel Cards (12 Platforms) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { title: 'Google Ads', count: '1,450 Ingested', status: 'Auto-Sync Active', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
-              { title: 'Meta Ads (FB & Insta)', count: '2,890 Ingested', status: 'Webhook Live', bg: 'border-blue-500/30 bg-blue-500/5', color: 'text-blue-400' },
-              { title: 'LinkedIn Ads', count: '620 Ingested', status: 'OAuth 2.0 Connected', bg: 'border-cyan-500/30 bg-cyan-500/5', color: 'text-cyan-400' },
-              { title: 'Microsoft Ads (Bing)', count: '380 Ingested', status: 'API Connected', bg: 'border-teal-500/30 bg-teal-500/5', color: 'text-teal-400' },
-              { title: 'Pinterest Ads', count: '240 Ingested', status: 'Pixel Tag Active', bg: 'border-rose-500/30 bg-rose-500/5', color: 'text-rose-400' },
-              { title: 'X (Twitter) Ads', count: '190 Ingested', status: 'API v2 Live', bg: 'border-sky-500/30 bg-sky-500/5', color: 'text-sky-400' },
-              { title: 'IndiaMART', count: '1,120 Ingested', status: 'Lead Push Hook', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'TradeIndia', count: '890 Ingested', status: 'Instant Alert Sync', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
-              { title: 'Justdial', count: '740 Ingested', status: 'HTTP Webhook', bg: 'border-orange-500/30 bg-orange-500/5', color: 'text-orange-400' },
-              { title: 'Lotwaala', count: '510 Ingested', status: 'B2B Marketplace API', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
-              { title: 'Website Forms', count: '960 Ingested', status: 'Embed Form Live', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'Custom Channel', count: '430 Ingested', status: 'Custom Webhook / API', bg: 'border-slate-700 bg-slate-900/60', color: 'text-slate-300' },
+              { title: 'Google Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
+              { title: 'Meta Ads (FB & Insta)', count: '0 Ingested', status: 'Channel Active', bg: 'border-blue-500/30 bg-blue-500/5', color: 'text-blue-400' },
+              { title: 'LinkedIn Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-cyan-500/30 bg-cyan-500/5', color: 'text-cyan-400' },
+              { title: 'Microsoft Ads (Bing)', count: '0 Ingested', status: 'Channel Active', bg: 'border-teal-500/30 bg-teal-500/5', color: 'text-teal-400' },
+              { title: 'Pinterest Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-rose-500/30 bg-rose-500/5', color: 'text-rose-400' },
+              { title: 'X (Twitter) Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-sky-500/30 bg-sky-500/5', color: 'text-sky-400' },
+              { title: 'IndiaMART', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'TradeIndia', count: '0 Ingested', status: 'Channel Active', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
+              { title: 'Justdial', count: '0 Ingested', status: 'Channel Active', bg: 'border-orange-500/30 bg-orange-500/5', color: 'text-orange-400' },
+              { title: 'Lotwaala', count: '0 Ingested', status: 'Channel Active', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
+              { title: 'Website Forms', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'Custom Channel', count: '0 Ingested', status: 'Channel Active', bg: 'border-slate-700 bg-slate-900/60', color: 'text-slate-300' },
             ].map(ch => (
               <div key={ch.title} className={`p-3 rounded-xl border ${ch.bg} space-y-1 hover:border-slate-600 transition-all`}>
                 <div className="flex items-center justify-between">
@@ -667,13 +571,30 @@ export default function LeadPipelinePage() {
             </div>
 
             {/* Audit Log Cards List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {webAuditLogs
-                .filter(item => {
-                  if (webAuditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
-                  if (webAuditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
-                  return true;
-                })
+            {webAuditLogs.length === 0 ? (
+              <div className="p-8 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-3">
+                <FileSpreadsheet size={36} className="text-slate-600" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-300">No Spreadsheet Ingestion Records Yet</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    Upload an Excel or CSV sheet to begin ingesting leads and allocate them directly to your team members.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all mt-1"
+                >
+                  <Upload size={14} /> + Import New Sheet
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {webAuditLogs
+                  .filter(item => {
+                    if (webAuditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                    if (webAuditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                    return true;
+                  })
                 .map(item => {
                   const isPending = item.status === 'PENDING_ALLOCATION';
                   return (
@@ -831,7 +752,8 @@ export default function LeadPipelinePage() {
                     </div>
                   );
                 })}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Directory Table with Search, Column Manager & Excel Controls */}
@@ -843,7 +765,7 @@ export default function LeadPipelinePage() {
                   Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
                 </h3>
                 <p className="text-[10px] text-muted">
-                  Showing <span className="text-white font-bold">{startIdx + 1}–{endIdx}</span> of <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span> leads
+                  Showing <span className="text-white font-bold">{filteredLeadDirectory.length === 0 ? 0 : startIdx + 1}–{endIdx}</span> of <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span> leads
                   &nbsp;·&nbsp;Use ▲/▼ to shift rows, ◀/▶ to re-order columns. Columns with <span className="text-amber-400 font-bold">*</span> are restricted to Admin &amp; Managers.
                 </p>
               </div>
@@ -928,7 +850,32 @@ export default function LeadPipelinePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40 bg-slate-900/40">
-                  {pagedLeads.map((lead, rIdx) => (
+                  {pagedLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={tableColumns.filter(c => !c.hidden).length + 1} className="py-12 px-4 text-center text-slate-400">
+                        <Database size={36} className="mx-auto mb-3 text-slate-600 opacity-60" />
+                        <p className="text-sm font-bold text-slate-300">No leads found in directory</p>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          Import a CSV/Excel sheet or insert a lead to view and organize data in this interactive Excel grid.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <button
+                            onClick={() => setInsertLeadModalOpen(true)}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                          >
+                            + Insert Lead
+                          </button>
+                          <button
+                            onClick={() => setImportCsvModalOpen(true)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                          >
+                            <Upload size={13} /> Import CSV
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedLeads.map((lead, rIdx) => (
                     <tr key={lead.id} className="hover:bg-slate-800/60 transition-colors group">
                       {/* Row Shift Controls — disable at absolute boundaries of the full list */}
                       <td className="p-2 text-center border-r border-border/40">
@@ -1030,11 +977,11 @@ export default function LeadPipelinePage() {
                                 }`}
                               >
                                 <option value="Unassigned">⚠️ Unassigned</option>
-                                <option value="Rajesh Kumar">Rajesh Kumar (Sales Rep)</option>
-                                <option value="Priya Sharma">Priya Sharma (TL A)</option>
-                                <option value="Rohan Kumar">Rohan Kumar (Sales Exec)</option>
-                                <option value="Amit Shah">Amit Shah (Sales Exec)</option>
-                                <option value="Neha Gupta">Neha Gupta (Sales Exec)</option>
+                                {tenantReps.map(rep => (
+                                  <option key={rep.id} value={rep.name}>
+                                    {rep.name} ({rep.role})
+                                  </option>
+                                ))}
                               </select>
                             </td>
                           );
@@ -1048,7 +995,7 @@ export default function LeadPipelinePage() {
                         );
                       })}
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
@@ -1415,22 +1362,22 @@ export default function LeadPipelinePage() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="text-muted block mb-1">Full Name *</label>
-                <input value={newLeadName} onChange={e => setNewLeadName(e.target.value)} placeholder="e.g. Aditya Sharma" className="crm-input w-full" autoFocus />
+                <input value={newLeadName} onChange={e => setNewLeadName(e.target.value)} placeholder="e.g. Lead Full Name" className="crm-input w-full" autoFocus />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-muted block mb-1">Email</label>
-                  <input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} placeholder="lead@company.com" className="crm-input w-full" />
+                  <input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} placeholder="client@example.com" className="crm-input w-full" />
                 </div>
                 <div>
                   <label className="text-muted block mb-1">Phone *</label>
-                  <input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+91 98765 43210" className="crm-input w-full" />
+                  <input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+91 00000 00000" className="crm-input w-full" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-muted block mb-1 font-semibold">Company</label>
-                  <input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} placeholder="TechCorp Ltd" className="crm-input w-full" />
+                  <input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} placeholder="Company / Org" className="crm-input w-full" />
                 </div>
                 <div>
                   <label className="text-muted block mb-1 font-semibold">Value (₹)</label>
