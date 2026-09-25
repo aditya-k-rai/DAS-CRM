@@ -739,18 +739,23 @@ export default function RegisterCompanyPage() {
         const compName = resultData.companyName || companyName;
         const regKey = resultData.registrationKey || '';
         const admEmail = resultData.adminEmail || adminEmail;
+        const admPhone = resultData.phone || resultData.organization?.phone || phone || '';
+        const admName = resultData.adminName || resultData.organization?.adminName || adminName || '';
 
         localStorage.setItem('last_registered_company', JSON.stringify({
           id: compId,
           name: compName,
           key: regKey,
           email: admEmail,
+          phone: admPhone,
+          adminName: admName,
         }));
 
         if (compId) localStorage.setItem('pending_company_id', compId);
         if (regKey) localStorage.setItem('pending_company_key', regKey);
         if (compName) localStorage.setItem('pending_company_name', compName);
         if (admEmail) localStorage.setItem('pending_user_email', admEmail);
+        if (admPhone) localStorage.setItem('pending_company_phone', admPhone);
       }
 
       // Step 3: Synthesizing Official PDF Registration Certificate & Instant Download

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
@@ -15,5 +15,11 @@ export class UsersController {
   @ApiOperation({ summary: 'List all organization users/members' })
   async findAll(@CurrentUser() user: any) {
     return this.usersService.findAll(user.organizationId);
+  }
+
+  @Patch('phone')
+  @ApiOperation({ summary: 'Update organization/user contact phone' })
+  async updatePhone(@CurrentUser() user: any, @Body() body: { phone: string }) {
+    return this.usersService.updatePhone(user.organizationId, user.id, body.phone);
   }
 }

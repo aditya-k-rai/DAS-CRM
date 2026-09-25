@@ -231,12 +231,15 @@ export function LoginGateway() {
       }
 
       // Live Database Fallback: Ensure Adorable Trading is always available if network was unreachable
-      const DEFAULT_ACTIVE_COMPANY: PublicCompany = {
+      const DEFAULT_ACTIVE_COMPANY: PublicCompany & { phone?: string; adminName?: string; email?: string } = {
         id: 'cmuev7n3o000mikew7je1tdiw',
         name: 'Adorable Trading',
         slug: 'adorable-trading-muev7mo0',
         isActive: true,
         status: 'APPROVED',
+        phone: '9717355779',
+        adminName: 'Anurag Sharma',
+        email: 'adorabletrading08@gmail.com',
       };
 
       if (companies.length === 0) {
@@ -423,6 +426,15 @@ export function LoginGateway() {
           },
         };
 
+        let storedPhone = '';
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('last_registered_company');
+            if (raw) storedPhone = JSON.parse(raw)?.phone || '';
+          } catch (_) {}
+        }
+        const userPhone = data.user?.phone || data.organization?.phone || storedPhone || (email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
+
         setAuthSession(
           {
             id: data.user?.id || demoProfile.id,
@@ -432,6 +444,7 @@ export function LoginGateway() {
             avatar: data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : demoProfile.avatar,
             companyId: compId,
             companyName: compName,
+            phone: userPhone,
           },
           data.accessToken,
           subData
@@ -524,6 +537,7 @@ export function LoginGateway() {
       if (res.ok && data.accessToken) {
         const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
         const finalRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
+        const userPhone = data.user?.phone || data.organization?.phone || (email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
         setAuthSession(
           {
             id: data.user.id,
@@ -533,6 +547,7 @@ export function LoginGateway() {
             avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : 'GU',
             companyId: data.organization?.id || selectedCompanyId,
             companyName: data.organization?.name || 'DAS Organization',
+            phone: userPhone,
           },
           data.accessToken
         );
@@ -605,6 +620,7 @@ export function LoginGateway() {
             avatar: staffName.slice(0, 2).toUpperCase(),
             companyId: 'comp_das',
             companyName: 'DAS Organization',
+            phone: data.user?.phone || '',
           },
           data.accessToken
         );

@@ -62,6 +62,16 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
     alert(`⏱️ Attendance Section: Redirecting to Attendance Portal with ${employee.name} selected.`);
   };
 
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneVal, setPhoneVal] = useState(employee.phone || '');
+
+  const savePhone = () => {
+    const digits = phoneVal.replace(/\D/g, '');
+    const formatted = digits.length === 10 ? `+91 ${digits}` : phoneVal.trim().startsWith('+') ? phoneVal.trim() : `+91 ${phoneVal.trim()}`;
+    onUpdateEmployee({ ...employee, phone: formatted });
+    setEditingPhone(false);
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto p-6 bg-slate-950 text-white min-h-screen font-sans">
       {/* Top Bar */}
@@ -77,7 +87,31 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
       {/* Profile Card */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6">
         <h2 className="text-2xl font-black text-white">{employee.name}</h2>
-        <p className="text-slate-400 text-xs mt-1">✉️ Email: {employee.email} • 📞 Number: {employee.phone}</p>
+        <div className="flex items-center gap-3 text-slate-400 text-xs mt-1 flex-wrap">
+          <span>✉️ Email: <strong className="text-white font-medium">{employee.email}</strong></span>
+          <span>•</span>
+          <span className="flex items-center gap-1.5">
+            📞 Number:
+            {editingPhone ? (
+              <span className="inline-flex items-center gap-1">
+                <input
+                  value={phoneVal}
+                  onChange={(e) => setPhoneVal(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs text-white w-32 font-mono"
+                  placeholder="9717355779"
+                  autoFocus
+                />
+                <button onClick={savePhone} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded">Save</button>
+                <button onClick={() => setEditingPhone(false)} className="px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded">✕</button>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <strong className="text-white font-mono">{employee.phone}</strong>
+                <button onClick={() => { setPhoneVal(employee.phone.replace('+91', '').trim()); setEditingPhone(true); }} className="text-slate-400 hover:text-sky-300 text-[10px]" title="Edit phone number">✏️</button>
+              </span>
+            )}
+          </span>
+        </div>
         <p className="text-slate-400 text-xs mt-1">Assigned Under: <strong className="text-indigo-400">{employee.assignedManager}</strong></p>
       </div>
 
