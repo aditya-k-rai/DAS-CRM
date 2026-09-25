@@ -152,7 +152,14 @@ export function LoginGateway() {
   const [staffPassword, setStaffPassword] = useState('');
   const [showStaffPassword, setShowStaffPassword] = useState(false);
   const [keyValidating, setKeyValidating] = useState(false);
-  const [keyInfo, setKeyInfo] = useState<{ valid: boolean; assignedRole?: string } | null>(null);
+  const [keyInfo, setKeyInfo] = useState<{
+    valid: boolean;
+    assignedRole?: string;
+    organizationId?: string;
+    organizationName?: string;
+    expiresAt?: string;
+    message?: string;
+  } | null>(null);
 
   // Super Admin OTP State
   const [superAdminEmail, setSuperAdminEmail] = useState('adtyamighty@gmail.com');
@@ -574,20 +581,27 @@ export function LoginGateway() {
 
   // 2. Staff User Key Redeem Handler
   const handleValidateUserKey = async () => {
-    if (!userKey.trim()) return;
+    const trimmedKey = userKey.trim().toUpperCase();
+    if (!trimmedKey) {
+      setError('Please enter your Staff Invite Key.');
+      return;
+    }
     setKeyValidating(true);
     setError(null);
+    setKeyInfo(null);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/validate-user-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: userKey }),
+        body: JSON.stringify({ key: trimmedKey }),
       });
       const data = await res.json();
       setKeyInfo(data);
-      if (!data.valid) setError('Invalid, blocked, or expired Staff Invite Key.');
+      if (!data.valid) {
+        setError(data.message || 'Invalid, expired, or already used Staff Invite Key. Please contact your Admin.');
+      }
     } catch (err) {
-      setKeyInfo({ valid: true, assignedRole: 'SALES_EXEC' });
+      setError('Could not reach server. Please check your connection and try again.');
     } finally {
       setKeyValidating(false);
     }
@@ -595,20 +609,27 @@ export function LoginGateway() {
 
   const handleStaffKeyRegister = async () => {
     if (!userKey || !staffEmail || !staffPassword || !staffName) {
-      setError('Please fill all required fields including valid User Key.');
+      setError('Please fill all required fields including a valid Staff Invite Key.');
+      return;
+    }
+    if (!keyInfo?.valid) {
+      setError('Please validate your Staff Invite Key first using the "Validate Key" button.');
       return;
     }
     setLoading(true);
     setError(null);
 
-    const assignedRole = normalizeRoleStr(keyInfo?.assignedRole || inferRoleFromEmail(staffEmail) || 'SALES_EXEC');
+    const assignedRole = normalizeRoleStr(keyInfo?.assignedRole || 'SALES_EXEC');
+    // Use the company resolved from key validation — never hardcoded
+    const resolvedCompanyId = keyInfo?.organizationId || '';
+    const resolvedCompanyName = keyInfo?.organizationName || 'Your Company';
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/staff-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userKey,
+          userKey: userKey.trim().toUpperCase(),
           name: staffName,
           email: staffEmail,
           password: staffPassword,
@@ -616,6 +637,11 @@ export function LoginGateway() {
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || 'Registration failed. Please check your details and try again.');
+        setLoading(false);
+        return;
+      }
       if (res.ok && data.accessToken) {
         setAuthSession(
           {
@@ -624,8 +650,8 @@ export function LoginGateway() {
             email: staffEmail,
             role: assignedRole,
             avatar: staffName.slice(0, 2).toUpperCase(),
-            companyId: 'comp_das',
-            companyName: 'DAS Organization',
+            companyId: resolvedCompanyId,
+            companyName: resolvedCompanyName,
             phone: data.user?.phone || '',
           },
           data.accessToken
@@ -635,14 +661,12 @@ export function LoginGateway() {
         return;
       }
     } catch (err) {
-      console.warn('Backend unavailable, falling back:', err);
+      setError('Network error. Please try again.');
+      setLoading(false);
+      return;
     }
 
-    setTimeout(() => {
-      switchRole(assignedRole);
-      setLoading(false);
-      router.push(getPostLoginRedirectRoute(assignedRole));
-    }, 800);
+    setLoading(false);
   };
 
   // 3. Super Admin OTP Request & Verify
@@ -1137,91 +1161,130 @@ export function LoginGateway() {
           </div>
         )}
 
-        {/* Entry 2: Staff User Key Access */}
+        {/* Entry 2: Staff User Key Registration */}
         {entryPoint === 'staff_key' && (
           <div className="space-y-4">
             <div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                 STAFF USER INVITE KEY
               </span>
-              <h3 className="text-xl font-bold text-white mt-2">Redeem Staff Invite Key</h3>
-              <p className="text-xs text-muted mt-0.5">Enter the user key generated by your Admin (e.g. DAS-RX-4312).</p>
+              <h3 className="text-xl font-bold text-white mt-2">Join Your Company Workspace</h3>
+              <p className="text-xs text-muted mt-0.5">
+                Enter the Staff Invite Key your Admin sent you. The key will automatically link you to your company and assign your role.
+              </p>
             </div>
 
             <div className="space-y-3">
+              {/* Key Input + Validate */}
               <div>
-                <label className="text-xs text-muted block mb-1">User Invite Key (Format: DAS-RX-4312) *</label>
+                <label className="text-xs text-muted block mb-1">Staff Invite Key (e.g. ADO-RX-4312) *</label>
                 <div className="flex gap-2">
                   <input
                     className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider pl-4"
-                    placeholder="DAS-RX-4312"
+                    placeholder="ADO-RX-4312"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"
                     spellCheck={false}
-                    inputMode={userKey.length >= 8 ? 'numeric' : 'text'}
                     value={userKey}
-                    onChange={e => setUserKey(formatCompanyKey(e.target.value))}
+                    onChange={e => {
+                      setUserKey(formatCompanyKey(e.target.value));
+                      setKeyInfo(null); // reset validation if user edits key
+                      setError(null);
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && handleValidateUserKey()}
                   />
                   <button
                     type="button"
                     onClick={handleValidateUserKey}
-                    disabled={keyValidating}
-                    className="px-3 text-xs font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-xl hover:bg-emerald-500/30"
+                    disabled={keyValidating || !userKey.trim()}
+                    className="px-3 text-xs font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-xl hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     {keyValidating ? 'Verifying...' : 'Validate Key'}
                   </button>
                 </div>
-                {keyInfo?.valid && (
-                  <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
-                    <CheckCircle2 size={13} /> Valid Key! Grants Role: {keyInfo.assignedRole}
-                  </p>
-                )}
+                <p className="text-[10px] text-muted mt-1">Your Admin generates this key from the HR / Team Management panel.</p>
               </div>
 
-              <div>
-                <label className="text-xs text-muted block mb-1">Your Full Name *</label>
-                <input
-                  className="crm-input text-sm h-10 w-full"
-                  placeholder="Full Name"
-                  value={staffName}
-                  onChange={e => setStaffName(e.target.value)}
-                />
-              </div>
+              {/* Company Workspace Card — shown after successful key validation */}
+              {keyInfo?.valid && keyInfo.organizationName && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={15} className="text-emerald-400 flex-shrink-0" />
+                      <span className="text-xs font-bold text-emerald-300">Key Validated Successfully</span>
+                    </div>
+                    {keyInfo.expiresAt && (
+                      <span className="text-[10px] text-slate-400">
+                        Expires {new Date(keyInfo.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 pt-0.5">
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Company Workspace</p>
+                      <p className="text-sm font-bold text-white">{keyInfo.organizationName}</p>
+                    </div>
+                    <div className="ml-auto">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Assigned Role</p>
+                      <span className="inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {keyInfo.assignedRole}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* Registration Fields — enabled only after key is validated */}
+              <div className={`space-y-3 transition-opacity duration-200 ${keyInfo?.valid ? 'opacity-100' : 'opacity-40 pointer-events-none select-none'}`}>
                 <div>
-                  <label className="text-xs text-muted block mb-1">Email *</label>
+                  <label className="text-xs text-muted block mb-1">Your Full Name *</label>
                   <input
                     className="crm-input text-sm h-10 w-full"
-                    placeholder="rahul@company.com"
-                    value={staffEmail}
-                    onChange={e => setStaffEmail(e.target.value)}
+                    placeholder="Full Name"
+                    value={staffName}
+                    onChange={e => setStaffName(e.target.value)}
+                    disabled={!keyInfo?.valid}
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-muted block mb-1">Password *</label>
-                  <div className="relative flex items-center">
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Work Email *</label>
                     <input
-                      type={showStaffPassword ? 'text' : 'password'}
-                      className="crm-input text-sm h-10 w-full pr-9"
-                      placeholder="••••••••"
-                      value={staffPassword}
-                      onChange={e => setStaffPassword(e.target.value)}
+                      type="email"
+                      className="crm-input text-sm h-10 w-full"
+                      placeholder="you@company.com"
+                      value={staffEmail}
+                      onChange={e => setStaffEmail(e.target.value)}
+                      disabled={!keyInfo?.valid}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowStaffPassword(!showStaffPassword)}
-                      className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
-                        showStaffPassword
-                          ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                      title={showStaffPassword ? 'Hide password' : 'Show password'}
-                      aria-label="Toggle password visibility"
-                    >
-                      {showStaffPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Create Password *</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showStaffPassword ? 'text' : 'password'}
+                        className="crm-input text-sm h-10 w-full pr-9"
+                        placeholder="Min. 8 characters"
+                        value={staffPassword}
+                        onChange={e => setStaffPassword(e.target.value)}
+                        disabled={!keyInfo?.valid}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowStaffPassword(!showStaffPassword)}
+                        className={`absolute right-2.5 p-1 rounded-md transition-all focus:outline-none flex items-center justify-center cursor-pointer ${
+                          showStaffPassword
+                            ? 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={showStaffPassword ? 'Hide password' : 'Show password'}
+                        aria-label="Toggle password visibility"
+                      >
+                        {showStaffPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1235,10 +1298,15 @@ export function LoginGateway() {
 
             <button
               onClick={handleStaffKeyRegister}
-              disabled={loading}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2"
+              disabled={loading || !keyInfo?.valid}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2 transition-all"
             >
-              {loading ? 'Creating Account...' : 'Redeem Key & Register Account'} <ArrowRight size={15} />
+              {loading
+                ? 'Creating Account...'
+                : keyInfo?.valid
+                ? `Join ${keyInfo.organizationName || 'Company'} as ${keyInfo.assignedRole}`
+                : 'Validate Key First'}
+              {!loading && <ArrowRight size={15} />}
             </button>
           </div>
         )}

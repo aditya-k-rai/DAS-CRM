@@ -245,16 +245,37 @@ export class AuthController {
 
   @Post('validate-user-key')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Validate a User Invite Key (preview role)' })
+  @ApiOperation({ summary: 'Validate a Staff Invite Key — returns company & role info' })
   async validateUserKey(@Body('key') key: string) {
     const record = await this.companyKeyService.validateUserKey(key);
-    if (!record) return { valid: false };
+    if (!record) {
+      return {
+        valid: false,
+        message: 'Invalid, expired, or already used Staff Invite Key.',
+      };
+    }
+
+    // Fetch the organization this key belongs to so the employee knows which company they're joining
+    const org = record.organizationId
+      ? await this.companyKeyService.getOrganizationById(record.organizationId)
+      : null;
+
+    if (org && org.isActive === false) {
+      return {
+        valid: false,
+        message: 'The company workspace for this key has been deactivated. Contact your Admin.',
+      };
+    }
+
     return {
       valid: true,
       assignedRole: record.assignedRole,
+      organizationId: record.organizationId,
+      organizationName: org?.name || null,
       expiresAt: record.expiresAt,
     };
   }
+
 
   // ── Generate Keys (Admin Only) ─────────────────────────────
 

@@ -159,6 +159,14 @@ export class CompanyKeyService {
     });
   }
 
+  /** Get basic org info by ID (used for key validation display) */
+  async getOrganizationById(orgId: string) {
+    return this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, name: true, isActive: true },
+    });
+  }
+
   /** Revoke/Block a company registration key */
   async revokeCompanyKey(keyId: string) {
     return this.prisma.companyRegistrationKey.update({
