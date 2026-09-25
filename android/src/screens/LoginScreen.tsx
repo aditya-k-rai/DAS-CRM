@@ -18,6 +18,8 @@ import {
   Image,
   Modal,
   Alert,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,7 +32,7 @@ import {
   validateEmailRoleMatch,
   getPostLoginDefaultTab,
 } from '../store/authStore';
-import { apiService } from '../services/apiService';
+import { apiService, PublicCompany } from '../services/apiService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,12 +41,7 @@ interface LoginScreenProps {
   onLoginSuccess: (defaultTab: string) => void;
 }
 
-interface PublicCompany {
-  id: string;
-  name: string;
-}
-
-import { API_BASE } from '../config/api';
+import { API_BASE, getApiBase } from '../config/api';
 
 function formatCompanyKey(input: string): string {
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -97,6 +94,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // Workspace login state
   const [publicCompanies, setPublicCompanies] = useState<PublicCompany[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [syncingCompanies, setSyncingCompanies] = useState(false);
   const [companyKeyInput, setCompanyKeyInput] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('ADMIN');
   const [email, setEmail] = useState('');
@@ -123,8 +121,41 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Live Fetch & Sync Companies from Super Admin Approval Engine */
+  const fetchAndSyncCompanies = async (showIndicator = false) => {
+    if (showIndicator) setSyncingCompanies(true);
+    try {
+      const comps = await apiService.getPublicCompanies();
+      if (Array.isArray(comps) && comps.length > 0) {
+        setPublicCompanies(comps);
+
+        // Auto-select company prioritizing approved/active workspaces
+        setSelectedCompanyId((prev) => {
+          if (prev && comps.some((c) => c.id === prev)) {
+            return prev;
+          }
+          const firstApproved = comps.find((c) => c.status === 'APPROVED' || c.isActive) || comps[0];
+          return firstApproved ? firstApproved.id : comps[0].id;
+        });
+
+        // If the selected company has a known key and user has not typed one, autofill it
+        setSelectedCompanyId((currentId) => {
+          const matched = comps.find((c) => c.id === currentId) || comps[0];
+          if (matched && matched.companyKey) {
+            setCompanyKeyInput((prevKey) => (!prevKey || prevKey.length < 12 ? formatCompanyKey(matched.companyKey!) : prevKey));
+          }
+          return currentId;
+        });
+      }
+    } catch (err) {
+      console.warn('Company sync warning:', err);
+    } finally {
+      if (showIndicator) setSyncingCompanies(false);
+    }
+  };
+
   useEffect(() => {
-    // Autofill from previous login storage ONLY
+    // 1. Autofill from previous login storage
     AsyncStorage.getItem(STORAGE_KEY_PREV_LOGIN).then((raw) => {
       if (raw) {
         try {
@@ -139,16 +170,38 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       }
     });
 
-    apiService.getPublicCompanies().then((comps: PublicCompany[]) => {
-      if (Array.isArray(comps)) {
-        setPublicCompanies(comps);
-        if (comps.length > 0) {
-          setSelectedCompanyId((prev) => prev || comps[0].id);
-        } else {
-          setSelectedCompanyId('');
-        }
+    // 2. Immediately hydrate cached companies from AsyncStorage so screen never shows empty state
+    AsyncStorage.getItem('@das_crm_public_companies').then((raw) => {
+      if (raw) {
+        try {
+          const cached = JSON.parse(raw);
+          if (Array.isArray(cached) && cached.length > 0) {
+            setPublicCompanies(cached);
+            setSelectedCompanyId((prev) => prev || cached[0].id);
+          }
+        } catch (_) {}
       }
     });
+
+    // 3. Live network sync
+    fetchAndSyncCompanies(true);
+
+    // 4. Auto-sync polling every 8 seconds on login screen so Super Admin approvals appear automatically
+    const interval = setInterval(() => {
+      fetchAndSyncCompanies(false);
+    }, 8000);
+
+    // 5. Auto-sync whenever user resumes app from browser or other apps
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        fetchAndSyncCompanies(false);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
   }, []);
 
   const selectedCompanyName =
@@ -214,7 +267,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await fetch(`${getApiBase()}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -320,7 +373,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
+      const res = await fetch(`${getApiBase()}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -389,7 +442,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setForgotError(null);
     setForgotMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      const res = await fetch(`${getApiBase()}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail.trim() }),
@@ -423,7 +476,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setForgotError(null);
     setForgotMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      const res = await fetch(`${getApiBase()}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -539,7 +592,21 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
               {/* Company Selector */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Select Company / Workspace *</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Select Company / Workspace *</Text>
+                  <TouchableOpacity
+                    onPress={() => fetchAndSyncCompanies(true)}
+                    disabled={syncingCompanies || loading}
+                    style={styles.syncBtn}
+                    activeOpacity={0.7}
+                  >
+                    {syncingCompanies ? (
+                      <ActivityIndicator size="small" color="#818cf8" style={{ transform: [{ scale: 0.75 }] }} />
+                    ) : (
+                      <Text style={styles.syncBtnText}>🔄 Sync</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   disabled={loading}
                   style={[styles.selectBox, loading && { opacity: 0.5 }]}
@@ -547,7 +614,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.inputIcon}>🏢</Text>
-                  <Text style={styles.selectBoxText}>{selectedCompanyName}</Text>
+                  <Text style={styles.selectBoxText} numberOfLines={1}>{selectedCompanyName}</Text>
                   <Text style={styles.selectArrow}>▼</Text>
                 </TouchableOpacity>
               </View>
@@ -702,34 +769,97 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       <Modal visible={companyModalOpen} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Company Workspace</Text>
-            {publicCompanies.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[
-                  styles.modalOption,
-                  selectedCompanyId === c.id && styles.modalOptionActive,
-                ]}
-                onPress={() => {
-                  setSelectedCompanyId(c.id);
-                  setCompanyModalOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.modalOptionText,
-                    selectedCompanyId === c.id && styles.modalOptionTextActive,
-                  ]}
-                >
-                  🏢 {c.name}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.modalTitle}>Select Company Workspace</Text>
+                <Text style={styles.modalSubtitle}>
+                  Choose your approved company workspace to log in.
                 </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => fetchAndSyncCompanies(true)}
+                disabled={syncingCompanies}
+                style={styles.modalRefreshBtn}
+                activeOpacity={0.7}
+              >
+                {syncingCompanies ? (
+                  <ActivityIndicator size="small" color="#818cf8" />
+                ) : (
+                  <Text style={styles.modalRefreshText}>🔄 Sync</Text>
+                )}
               </TouchableOpacity>
-            ))}
+            </View>
+
+            <ScrollView style={{ width: '100%', maxHeight: 340, marginVertical: 8 }} showsVerticalScrollIndicator={false}>
+              {publicCompanies.map((c) => {
+                const isApproved = c.status === 'APPROVED' || c.isActive;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.modalOption,
+                      selectedCompanyId === c.id && styles.modalOptionActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedCompanyId(c.id);
+                      if (c.companyKey && (!companyKeyInput || companyKeyInput.length < 12)) {
+                        setCompanyKeyInput(formatCompanyKey(c.companyKey));
+                      }
+                      setCompanyModalOpen(false);
+                    }}
+                  >
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text
+                          style={[
+                            styles.modalOptionText,
+                            selectedCompanyId === c.id && styles.modalOptionTextActive,
+                          ]}
+                        >
+                          🏢 {c.name}
+                        </Text>
+                        {c.status === 'PENDING' ? (
+                          <Text style={styles.pendingBadgeText}>
+                            ⏳ Awaiting Super Admin Approval
+                          </Text>
+                        ) : (
+                          <Text style={styles.approvedBadgeText}>
+                            ✓ Active &amp; Verified Workspace
+                          </Text>
+                        )}
+                      </View>
+                      {selectedCompanyId === c.id && (
+                        <Text style={{ color: '#6366f1', fontSize: 16, fontWeight: '900' }}>✓</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {publicCompanies.length === 0 && (
+                <View style={styles.emptyCompanyBox}>
+                  <Text style={{ fontSize: 28, marginBottom: 6 }}>🏢</Text>
+                  <Text style={styles.emptyCompanyTitle}>
+                    No Active Companies Detected
+                  </Text>
+                  <Text style={styles.emptyCompanyDesc}>
+                    Once the Super Admin approves your company registration, tap "Sync Companies" below.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.retrySyncBtn}
+                    onPress={() => fetchAndSyncCompanies(true)}
+                  >
+                    <Text style={styles.retrySyncBtnText}>🔄 Sync Approved Companies Now</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+
             <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={() => setCompanyModalOpen(false)}
             >
-              <Text style={styles.modalCloseText}>Cancel</Text>
+              <Text style={styles.modalCloseText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1033,17 +1163,56 @@ const styles = StyleSheet.create({
   },
   modalCloseX: { position: 'absolute', top: 14, right: 16 },
   modalCloseXText: { color: '#64748b', fontSize: 16, fontWeight: '700' },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  syncBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.3)',
+  },
+  syncBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#818cf8',
+  },
+  modalHeaderRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  modalRefreshBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.35)',
+    marginLeft: 8,
+  },
+  modalRefreshText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#818cf8',
+  },
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: '#ffffff',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   modalSubtitle: {
     fontSize: 11,
     color: '#94a3b8',
-    textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
   },
   modalOption: {
     width: '100%',
@@ -1058,8 +1227,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(99,102,241,0.2)',
     borderColor: '#6366f1',
   },
-  modalOptionText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
+  modalOptionText: { color: '#f8fafc', fontSize: 13, fontWeight: '700' },
   modalOptionTextActive: { color: '#a5b4fc' },
-  modalCloseButton: { marginTop: 10, paddingVertical: 8 },
-  modalCloseText: { color: '#64748b', fontSize: 12, fontWeight: '600' },
+  pendingBadgeText: { fontSize: 10, color: '#f59e0b', marginTop: 3, fontWeight: '700' },
+  approvedBadgeText: { fontSize: 10, color: '#10b981', marginTop: 3, fontWeight: '700' },
+  emptyCompanyBox: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.25)',
+    marginVertical: 10,
+  },
+  emptyCompanyTitle: {
+    color: '#f59e0b',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyCompanyDesc: {
+    color: '#94a3b8',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  retrySyncBtn: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#4f46e5',
+    borderRadius: 10,
+  },
+  retrySyncBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalCloseButton: { marginTop: 10, paddingVertical: 8, width: '100%', alignItems: 'center' },
+  modalCloseText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },
 });

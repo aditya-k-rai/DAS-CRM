@@ -1839,6 +1839,7 @@ export class AuthService {
         name: true,
         slug: true,
         isActive: true,
+        registrationKeyId: true,
         settings: true,
         createdAt: true,
       },
@@ -1854,6 +1855,7 @@ export class AuthService {
         slug: org.slug,
         isActive: org.isActive,
         status,
+        companyKey: org.registrationKeyId || settings.registrationKey || null,
       };
     });
   }

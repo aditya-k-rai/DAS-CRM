@@ -4,7 +4,28 @@
  * End-to-End Sync for Authentication, Leads, Attendance, and Role Telemetry.
  */
 
-import { API_BASE } from '../config/api';
+import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export const STORAGE_KEY_PUBLIC_COMPANIES = '@das_crm_public_companies';
+
+export interface PublicCompany {
+  id: string;
+  name: string;
+  slug?: string;
+  status?: 'APPROVED' | 'PENDING' | string;
+  isActive?: boolean;
+  companyKey?: string;
+}
+
+export const DEFAULT_ACTIVE_COMPANY: PublicCompany = {
+  id: 'cmuev7n3o000mikew7je1tdiw',
+  name: 'Adorable Trading',
+  slug: 'adorable-trading-muev7mo0',
+  isActive: true,
+  status: 'APPROVED',
+  companyKey: 'ADORABLE-VW-8329',
+};
 
 export interface LeadItem {
   id: string;
@@ -118,23 +139,63 @@ class ApiService {
     };
   }
 
-  /** Fetch public active tenant companies for login dropdown */
-  async getPublicCompanies(): Promise<Array<{ id: string; name: string }>> {
+  /** Fetch public active tenant companies for login dropdown with multi-candidate network retry and offline cache */
+  async getPublicCompanies(): Promise<PublicCompany[]> {
+    const candidateBases = [getApiBase(), ...getCandidateApiUrls()];
+    const uniqueBases = Array.from(new Set(candidateBases));
+
+    // Try candidates in order
+    for (const baseUrl of uniqueBases) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const res = await fetch(`${baseUrl}/auth/public-companies`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            // Success! Update active working API base across the app
+            setApiBase(baseUrl);
+
+            const companies: PublicCompany[] = data.map((c: any) => ({
+              id: c.id,
+              name: c.name || c.companyName,
+              slug: c.slug,
+              status: c.status || (c.isActive ? 'APPROVED' : 'PENDING'),
+              isActive: c.isActive ?? (c.status === 'APPROVED'),
+              companyKey: c.companyKey || c.registrationKeyId || undefined,
+            }));
+
+            // Cache in AsyncStorage for instant offline/initial loads
+            AsyncStorage.setItem(STORAGE_KEY_PUBLIC_COMPANIES, JSON.stringify(companies)).catch(() => {});
+
+            return companies;
+          }
+        }
+      } catch (_) {
+        // Try next candidate
+      }
+    }
+
+    // If network attempts all failed, fall back to cached companies in AsyncStorage
     try {
-      const res = await fetch(`${API_BASE}/auth/public-companies`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return data.map((c: any) => ({ id: c.id, name: c.name || c.companyName }));
+      const cached = await AsyncStorage.getItem(STORAGE_KEY_PUBLIC_COMPANIES);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
-    } catch {
-      // Backend offline fallback
-    }
-    return [];
+    } catch (_) {}
+
+    // Parity fallback with Web LoginGateway: Ensure Adorable Trading is always available
+    return [DEFAULT_ACTIVE_COMPANY];
   }
 
   /** Fetch current authenticated user profile (/auth/me) */
