@@ -55,21 +55,24 @@ def infer_role_from_email(email: str):
 
 
 def format_company_key(raw: str) -> str:
-    """Format company key as ACME-KX-7421."""
+    """Format company key as DAS-KX-7421."""
+    raw_str = raw.strip().upper()
+    if '-' in raw_str and not raw_str.startswith('DAS'):
+        return raw_str
     clean = re.sub(r'[^a-zA-Z0-9]', '', raw).upper()
     part1 = ''
     part2 = ''
     part3 = ''
     for ch in clean:
-        if len(part1) < 4 and ch.isalpha():
+        if len(part1) < 3 and ch.isalpha():
             part1 += ch
-        elif len(part1) == 4 and len(part2) < 2 and ch.isalpha():
+        elif len(part1) == 3 and len(part2) < 2 and ch.isalpha():
             part2 += ch
         elif ch.isdigit():
             if len(part3) < 4:
                 part3 += ch
     result = part1
-    if len(part1) == 4:
+    if len(part1) == 3:
         result += '-'
         if part2:
             result += part2
@@ -473,7 +476,7 @@ class LoginWindow(QDialog):
         self._entry_point = "workspace"   # "workspace" | "staff_key"
         self._selected_role = "ADMIN"
         self._selected_company_idx = 0
-        self._company_key = "ACME-KX-7421"
+        self._company_key = "DAS-KX-7421"
         self._email = "vikram.admin@acme.com"
         self._password = "password123"
         self._loading = False
@@ -1077,8 +1080,8 @@ class LoginWindow(QDialog):
 
     def _do_workspace_login(self):
         # Validate
-        if not self._company_key.strip() or len(self._company_key) < 12:
-            self._error_msg = "Please enter a valid Company Key (format: ACME-KX-7421)."
+        if not self._company_key.strip() or len(self._company_key) < 11:
+            self._error_msg = "Please enter a valid Company Key (format: DAS-KX-7421)."
             self._render_workspace_errors()
             self._shake()
             return

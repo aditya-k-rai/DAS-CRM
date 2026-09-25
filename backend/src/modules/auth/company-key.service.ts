@@ -25,7 +25,7 @@ export interface GenerateUserKeyOptions {
 export class CompanyKeyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Generate a company registration key in format: ACME-KX-7421 */
+  /** Generate a company registration key in format: DAS-KX-7421 */
   async generateCompanyKey(opts: GenerateCompanyKeyOptions) {
     const key = this.buildCompanyKeyString(opts.companyName);
     const qrCodeDataUrl = await QRCode.toDataURL(key, {
@@ -72,7 +72,7 @@ export class CompanyKeyService {
     return record;
   }
 
-  /** Generate a staff user invite key in format: ACME-RX-4312 */
+  /** Generate a staff user invite key in format: DAS-RX-4312 */
   async generateUserKey(opts: GenerateUserKeyOptions) {
     const key = this.buildUserKeyString(opts.organizationName);
     const validityDays = opts.validityDays ?? 7;
@@ -175,31 +175,18 @@ export class CompanyKeyService {
 
   // ── Private Helpers ───────────────────────────────────────────────────
 
-  private buildCompanyKeyString(companyName: string): string {
-    // Extract full first word from company name (uppercase, alphanumeric)
-    const firstWord =
-      companyName
-        .trim()
-        .split(/\s+/)[0]
-        ?.replace(/[^a-zA-Z0-9]/g, '')
-        .toUpperCase() || 'COMPANY';
-
+  /** Builds company registration key strictly in format: DAS-KX-7421 (DAS-XX-XXXX) */
+  private buildCompanyKeyString(companyName?: string): string {
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
-    return `${firstWord}-${alpha}-${digits}`;
+    return `DAS-${alpha}-${digits}`;
   }
 
-  private buildUserKeyString(orgName: string): string {
-    const firstWord =
-      orgName
-        .trim()
-        .split(/\s+/)[0]
-        ?.replace(/[^a-zA-Z0-9]/g, '')
-        .toUpperCase() || 'ORG';
-
+  /** Builds staff user invite key strictly in format: DAS-RX-4312 (DAS-XX-XXXX) */
+  private buildUserKeyString(orgName?: string): string {
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
-    return `${firstWord}-${alpha}-${digits}`;
+    return `DAS-${alpha}-${digits}`;
   }
 
   private randomAlpha(length: number): string {

@@ -26,6 +26,7 @@ import {
   Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import {
   productCatalogService,
   CatalogProductItem,
@@ -33,6 +34,8 @@ import {
   PRESET_PRODUCT_IMAGES,
   ProductCardDisplayConfig,
   DEFAULT_CARD_DISPLAY_CONFIG,
+  UNIT_TYPES,
+  DEFAULT_BRANDS,
 } from '../services/productCatalogService';
 import { useAuthStore, normalizeRoleStr } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
@@ -52,6 +55,7 @@ export default function ProductsCatalogScreen({
   const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [products, setProducts] = useState<CatalogProductItem[]>([]);
   const [categories, setCategories] = useState<CategoryTree[]>([]);
+  const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
@@ -71,6 +75,7 @@ export default function ProductsCatalogScreen({
 
   // 🔍 Full Product Specification & Detail Inspector Modal State
   const [viewDetailProduct, setViewDetailProduct] = useState<CatalogProductItem | null>(null);
+  const [selectedDetailImg, setSelectedDetailImg] = useState<string | null>(null);
 
   // Category Creation Modal State
   const [catModalOpen, setCatModalOpen] = useState(false);
@@ -82,11 +87,18 @@ export default function ProductsCatalogScreen({
   const [newSubCatOnlyNameInput, setNewSubCatOnlyNameInput] = useState('');
   const [newSubCatParentInput, setNewSubCatParentInput] = useState('');
 
+  // Brand Creation Modal State
+  const [brandModalOpen, setBrandModalOpen] = useState(false);
+  const [newBrandNameInput, setNewBrandNameInput] = useState('');
+
   // Form Field Inputs & Conditions
   const [nameInput, setNameInput] = useState('');
   const [skuInput, setSkuInput] = useState('');
   const [categoryInput, setCategoryInput] = useState<string>('CRM & Sales Software');
   const [subCategoryInput, setSubCategoryInput] = useState<string>('Lead Management');
+  const [brandInput, setBrandInput] = useState<string>('Generic / Unbranded');
+  const [colorInput, setColorInput] = useState<string>('');
+  const [unitInput, setUnitInput] = useState<string>('Pieces (Pcs)');
   const [currencyInput, setCurrencyInput] = useState<'₹' | '$'>('₹');
   const [minPriceInput, setMinPriceInput] = useState('2999');
   const [maxPriceInput, setMaxPriceInput] = useState('4999');
@@ -94,8 +106,10 @@ export default function ProductsCatalogScreen({
   const [moqInput, setMoqInput] = useState('1');
   const [taxRateInput, setTaxRateInput] = useState(18); // 18% GST default
   const [imageUrlInput, setImageUrlInput] = useState(PRESET_PRODUCT_IMAGES[0]);
+  const [imagesInput, setImagesInput] = useState<string[]>([PRESET_PRODUCT_IMAGES[0], PRESET_PRODUCT_IMAGES[1]]);
   const [descriptionInput, setDescriptionInput] = useState('');
-  const [featuresInput, setFeaturesInput] = useState('');
+  const [featuresList, setFeaturesList] = useState<string[]>(['Gold Plated', 'Waterproof']);
+  const [featureTagInput, setFeatureTagInput] = useState('');
 
   useEffect(() => {
     loadCatalogData();
@@ -104,9 +118,11 @@ export default function ProductsCatalogScreen({
   const loadCatalogData = async () => {
     const prods = await productCatalogService.getProducts();
     const cats = await productCatalogService.getCategories();
+    const brnds = await productCatalogService.getBrands();
     const cfg = await productCatalogService.getCardDisplayConfig();
     setProducts(prods);
     setCategories(cats);
+    setBrands(brnds);
     setCardConfig(cfg);
     setTempConfig(cfg);
     if (cats.length > 0) {
@@ -184,6 +200,9 @@ export default function ProductsCatalogScreen({
       setCategoryInput(categories[0].name);
       setSubCategoryInput(categories[0].subCategories[0] || 'General');
     }
+    setBrandInput(brands[0] || 'Generic / Unbranded');
+    setColorInput('');
+    setUnitInput('Pieces (Pcs)');
     setCurrencyInput('₹');
     setMinPriceInput('2999');
     setMaxPriceInput('4999');
@@ -191,8 +210,10 @@ export default function ProductsCatalogScreen({
     setMoqInput('1');
     setTaxRateInput(18);
     setImageUrlInput(PRESET_PRODUCT_IMAGES[0]);
+    setImagesInput([PRESET_PRODUCT_IMAGES[0], PRESET_PRODUCT_IMAGES[1]]);
     setDescriptionInput('');
-    setFeaturesInput('');
+    setFeaturesList(['Gold Plated', 'Waterproof']);
+    setFeatureTagInput('');
   };
 
   const openCreateModal = () => {
@@ -207,6 +228,9 @@ export default function ProductsCatalogScreen({
     setSkuInput(p.sku);
     setCategoryInput(p.category);
     setSubCategoryInput(p.subCategory || 'General');
+    setBrandInput(p.brand || 'Generic / Unbranded');
+    setColorInput(p.color || '');
+    setUnitInput(p.unit || 'Pieces (Pcs)');
     setCurrencyInput(p.currency);
     setMinPriceInput(p.minPrice.toString());
     setMaxPriceInput(p.maxPrice.toString());
@@ -214,9 +238,91 @@ export default function ProductsCatalogScreen({
     setMoqInput(p.moq.toString());
     setTaxRateInput(p.taxRate);
     setImageUrlInput(p.imageUrl);
+    setImagesInput(p.images && p.images.length > 0 ? p.images : [p.imageUrl, PRESET_PRODUCT_IMAGES[1]]);
     setDescriptionInput(p.description);
-    setFeaturesInput(p.features.join(', '));
+    setFeaturesList(p.features && p.features.length > 0 ? p.features : ['Enterprise Quality Verified']);
+    setFeatureTagInput('');
     setModalOpen(true);
+  };
+
+  const handlePickImages = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newImages: string[] = [];
+        let hasOverSize = false;
+
+        for (const asset of result.assets) {
+          // File size validation: under 1MB (1048576 bytes)
+          if (asset.fileSize && asset.fileSize > 1024 * 1024) {
+            hasOverSize = true;
+            continue;
+          }
+          if (asset.base64 && asset.base64.length > 1.4 * 1024 * 1024) {
+            hasOverSize = true;
+            continue;
+          }
+
+          const imgUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+          newImages.push(imgUri);
+        }
+
+        if (hasOverSize) {
+          Alert.alert('⚠️ Size Limit Notice', 'One or more images were larger than 1MB and were skipped. Each image must be under 1MB.');
+        }
+
+        if (newImages.length > 0) {
+          setImagesInput(prev => [...prev, ...newImages]);
+          setImageUrlInput(newImages[0]);
+        }
+      }
+    } catch (err) {
+      console.warn('Image picker error:', err);
+      Alert.alert('Picker Notice', 'You can select from preset square images or enter image URLs.');
+    }
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    setImagesInput(prev => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      if (updated.length > 0) {
+        setImageUrlInput(updated[0]);
+      }
+      return updated;
+    });
+  };
+
+  const handleAddFeatureTag = (tagToAdd?: string) => {
+    const tag = (tagToAdd || featureTagInput).trim();
+    if (!tag) return;
+    if (!featuresList.includes(tag)) {
+      setFeaturesList(prev => [...prev, tag]);
+    }
+    setFeatureTagInput('');
+  };
+
+  const handleRemoveFeatureTag = (tagToRemove: string) => {
+    setFeaturesList(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  const handleSaveBrand = async () => {
+    const brandName = newBrandNameInput.trim();
+    if (!brandName) {
+      Alert.alert('Validation Error', 'Brand Name is required.');
+      return;
+    }
+    const updatedBrands = await productCatalogService.addBrand(brandName);
+    setBrands(updatedBrands);
+    setBrandInput(brandName);
+    setBrandModalOpen(false);
+    setNewBrandNameInput('');
+    Alert.alert('✅ Brand Added', `Added brand "${brandName}"!`);
   };
 
   const handleSaveCategory = async () => {
@@ -268,10 +374,10 @@ export default function ProductsCatalogScreen({
       return;
     }
 
-    if (!skuInput.trim()) {
-      Alert.alert('Validation Error', 'SKU Code is required.');
-      return;
-    }
+    // SKU Code is optional: if empty, auto-generate
+    const finalSku = skuInput.trim()
+      ? skuInput.trim().toUpperCase()
+      : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
 
     const minP = parseFloat(minPriceInput);
     const maxP = parseFloat(maxPriceInput);
@@ -296,25 +402,33 @@ export default function ProductsCatalogScreen({
       return;
     }
 
-    const featArray = featuresInput
-      .split(',')
-      .map((f) => f.trim())
-      .filter((f) => f.length > 0);
+    // 2 or more images validation (under 1MB, 1080x1080px)
+    if (imagesInput.length < 2) {
+      Alert.alert(
+        '⚠️ Image Requirement',
+        'Please upload or select at least 2 images for the product (under 1MB each, 1080×1080px recommended).'
+      );
+      return;
+    }
 
     const payload = {
       name: nameInput.trim(),
-      sku: skuInput.trim().toUpperCase(),
+      sku: finalSku,
       category: categoryInput,
       subCategory: subCategoryInput,
+      brand: brandInput.trim() || 'Generic / Unbranded',
+      color: colorInput.trim(),
+      unit: unitInput,
       currency: currencyInput,
       minPrice: minP,
       maxPrice: maxP,
       stockQuantity: stockQty,
       moq,
       taxRate: taxRateInput,
-      imageUrl: imageUrlInput.trim() || PRESET_PRODUCT_IMAGES[0],
+      imageUrl: imagesInput[0] || imageUrlInput.trim() || PRESET_PRODUCT_IMAGES[0],
+      images: imagesInput,
       description: descriptionInput.trim() || 'No description provided.',
-      features: featArray.length > 0 ? featArray : ['Enterprise Quality Verified'],
+      features: featuresList.length > 0 ? featuresList : ['Enterprise Quality Verified'],
     };
 
     let updated: CatalogProductItem[] = [];
@@ -323,7 +437,7 @@ export default function ProductsCatalogScreen({
       Alert.alert('✅ Product Updated', `Updated "${payload.name}" successfully!`);
     } else {
       updated = await productCatalogService.createProduct(payload);
-      Alert.alert('✅ Product Created', `Added "${payload.name}" to Product Catalog!`);
+      Alert.alert('✅ Product Created', `Added "${payload.name}" (${payload.sku}) to Product Catalog!`);
     }
 
     setProducts(updated);
@@ -409,10 +523,21 @@ export default function ProductsCatalogScreen({
           </View>
         </View>
 
-        {/* Quick Action Bar: + Create Product, 📁 + Category, 📂 + Sub-Category */}
-        <View style={{ width: '100%', maxWidth: 650, flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.createProductBtn, { flex: 1.5 }]} onPress={openCreateModal} activeOpacity={0.85}>
+        {/* Quick Action Bar: + Create Product, 🏷️ + Brand, 📁 + Category, 📂 + Sub-Category */}
+        <View style={{ width: '100%', maxWidth: 650, flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          <TouchableOpacity style={[styles.createProductBtn, { flex: 1.4 }]} onPress={openCreateModal} activeOpacity={0.85}>
             <Text style={styles.createProductBtnText}>+ Create Product →</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 0.9 }]}
+            onPress={() => {
+              setNewBrandNameInput('');
+              setBrandModalOpen(true);
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.createCatBtnText, { color: isDark ? '#fbbf24' : '#d97706' }]}>🏷️ + Brand</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -572,17 +697,30 @@ export default function ProductsCatalogScreen({
               <TouchableOpacity
                 key={p.id}
                 style={[styles.productCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
-                onPress={() => setViewDetailProduct(p)}
+                onPress={() => {
+                  setSelectedDetailImg(null);
+                  setViewDetailProduct(p);
+                }}
                 activeOpacity={0.85}
               >
                 <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
                   {cardConfig.showImage && (
-                    <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                    <View style={{ position: 'relative' }}>
+                      <Image source={{ uri: p.imageUrl }} style={styles.productImg} />
+                      {p.images && p.images.length > 1 && (
+                        <View style={styles.multiImgBadge}>
+                          <Text style={styles.multiImgBadgeText}>📷 {p.images.length}</Text>
+                        </View>
+                      )}
+                    </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku) && (
+                    {(cardConfig.showCategory || cardConfig.showSubCategory || cardConfig.showSku || p.brand) && (
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          {p.brand ? (
+                            <Text style={styles.brandBadgeText}>🏷️ {p.brand}</Text>
+                          ) : null}
                           {cardConfig.showCategory && (
                             <Text style={styles.categoryBadgeText}>📁 {p.category}</Text>
                           )}
@@ -603,6 +741,8 @@ export default function ProductsCatalogScreen({
                     {cardConfig.showPrice && (
                       <Text style={[styles.priceRangeText, { color: isDark ? '#34d399' : '#059669' }]}>
                         {p.currency}{p.minPrice.toLocaleString()} - {p.currency}{p.maxPrice.toLocaleString()}
+                        <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '600' }}> / {p.unit || 'unit'}</Text>
+                        {p.color ? <Text style={{ fontSize: 9, color: colors.textMuted }}> • 🎨 {p.color}</Text> : null}
                         {cardConfig.showGst && (
                           <Text style={{ fontSize: 9, color: colors.textMuted }}> (+{p.taxRate}% GST)</Text>
                         )}
@@ -977,19 +1117,73 @@ export default function ProductsCatalogScreen({
                   <Text style={styles.modalTitle}>{viewDetailProduct.name}</Text>
                   <Text style={styles.modalSub}>SKU: {viewDetailProduct.sku} • Added: {viewDetailProduct.createdAt}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setViewDetailProduct(null)} style={styles.modalCloseBtn}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedDetailImg(null);
+                    setViewDetailProduct(null);
+                  }}
+                  style={styles.modalCloseBtn}
+                >
                   <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
-                {/* Product Cover Image */}
-                <Image source={{ uri: viewDetailProduct.imageUrl }} style={styles.detailCoverImg} />
+                {/* Product Cover Image with Multi-Image Switcher */}
+                {(() => {
+                  const displayImages = (viewDetailProduct.images && viewDetailProduct.images.length > 0)
+                    ? viewDetailProduct.images
+                    : [viewDetailProduct.imageUrl];
+                  const currentImage = selectedDetailImg || displayImages[0];
 
-                {/* Category & Sub-Category Badges */}
-                <View style={{ flexDirection: 'row', gap: 6, marginVertical: 8, alignItems: 'center' }}>
+                  return (
+                    <View style={{ marginBottom: 8 }}>
+                      <Image source={{ uri: currentImage }} style={styles.detailCoverImg} />
+                      {displayImages.length > 1 && (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, marginBottom: 4 }}>
+                            Product Gallery ({displayImages.length} images - 1080×1080):
+                          </Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            {displayImages.map((imgUri, idx) => {
+                              const isSelected = currentImage === imgUri;
+                              return (
+                                <TouchableOpacity
+                                  key={idx}
+                                  onPress={() => setSelectedDetailImg(imgUri)}
+                                  style={[
+                                    styles.detailThumbBtn,
+                                    isSelected && styles.detailThumbBtnActive,
+                                  ]}
+                                  activeOpacity={0.8}
+                                >
+                                  <Image source={{ uri: imgUri }} style={styles.detailThumbImg} />
+                                  {isSelected && <View style={styles.detailThumbActiveDot} />}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })()}
+
+                {/* Category, Sub-Category, Brand, Unit & Color Badges */}
+                <View style={{ flexDirection: 'row', gap: 6, marginVertical: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {viewDetailProduct.brand ? (
+                    <Text style={styles.brandBadgeText}>🏷️ {viewDetailProduct.brand}</Text>
+                  ) : null}
                   <Text style={styles.categoryBadgeText}>📁 {viewDetailProduct.category}</Text>
-                  <Text style={styles.subCategoryBadgeText}>📂 {viewDetailProduct.subCategory}</Text>
+                  {viewDetailProduct.subCategory ? (
+                    <Text style={styles.subCategoryBadgeText}>📂 {viewDetailProduct.subCategory}</Text>
+                  ) : null}
+                  {viewDetailProduct.unit ? (
+                    <Text style={styles.unitBadgeText}>⚖️ {viewDetailProduct.unit}</Text>
+                  ) : null}
+                  {viewDetailProduct.color ? (
+                    <Text style={styles.colorBadgeText}>🎨 {viewDetailProduct.color}</Text>
+                  ) : null}
                   <View style={[styles.stockBadge, { backgroundColor: (viewDetailProduct.stockQuantity > 0 ? '#34d399' : '#ef4444') + '20', borderColor: viewDetailProduct.stockQuantity > 0 ? '#34d399' : '#ef4444', marginLeft: 'auto' }]}>
                     <Text style={[styles.stockBadgeText, { color: viewDetailProduct.stockQuantity > 0 ? '#34d399' : '#ef4444' }]}>
                       {viewDetailProduct.stockQuantity > 0 ? `🟢 ${viewDetailProduct.stockQuantity} Units In Stock` : '🔴 Out of Stock'}
@@ -1001,27 +1195,33 @@ export default function ProductsCatalogScreen({
                 <View style={styles.detailPriceCard}>
                   <Text style={styles.detailPriceTitle}>
                     Price Range: {viewDetailProduct.currency}{viewDetailProduct.minPrice.toLocaleString()} - {viewDetailProduct.currency}{viewDetailProduct.maxPrice.toLocaleString()}
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}> / {viewDetailProduct.unit || 'unit'}</Text>
                   </Text>
                   <Text style={styles.detailPriceSub}>
                     Applicable GST Tax: {viewDetailProduct.taxRate}% • Minimum Order Quantity (MOQ): {viewDetailProduct.moq} Unit(s)
+                    {viewDetailProduct.color ? ` • Colour: ${viewDetailProduct.color}` : ''}
                   </Text>
                 </View>
 
                 {/* Full Description */}
                 <Text style={styles.inputLabel}>📝 Detailed Product Overview:</Text>
                 <Text style={{ fontSize: 11, color: colors.text, lineHeight: 18, marginBottom: 10 }}>
-                  {viewDetailProduct.description}
+                  {viewDetailProduct.description || 'No description provided.'}
                 </Text>
 
                 {/* Full Features & Specifications */}
                 <Text style={styles.inputLabel}>⚡ Key Features &amp; Specifications:</Text>
-                <View style={{ gap: 6, marginBottom: 12 }}>
-                  {viewDetailProduct.features.map((feat, idx) => (
-                    <View key={idx} style={styles.detailFeatRow}>
-                      <Text style={{ color: '#38bdf8', fontWeight: '900' }}>✓</Text>
-                      <Text style={{ fontSize: 11, color: '#cbd5e1', flex: 1 }}>{feat}</Text>
-                    </View>
-                  ))}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {viewDetailProduct.features && viewDetailProduct.features.length > 0 ? (
+                    viewDetailProduct.features.map((feat, idx) => (
+                      <View key={idx} style={styles.detailFeatChip}>
+                        <Text style={{ color: '#38bdf8', fontWeight: '900', fontSize: 10 }}>✓</Text>
+                        <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>{feat}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>Standard enterprise specifications.</Text>
+                  )}
                 </View>
 
                 {/* Tier Pricing Breakdown */}
@@ -1160,23 +1360,53 @@ export default function ProductsCatalogScreen({
         </View>
       </Modal>
 
-      {/* ➕ CREATE / EDIT PRODUCT MODAL FORM WITH CATEGORY & SUB-CATEGORY PICKERS */}
+      {/* 🏷️ ADD BRAND MODAL */}
+      <Modal visible={brandModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardSmall, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>🏷️ Add New Brand</Text>
+                <Text style={styles.modalSub}>Create a brand name for the product catalog</Text>
+              </View>
+              <TouchableOpacity onPress={() => setBrandModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Brand Name (Required):</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="e.g. Apple, Sony, DAS Prime, Samsung"
+              placeholderTextColor="#64748b"
+              value={newBrandNameInput}
+              onChangeText={setNewBrandNameInput}
+            />
+
+            <TouchableOpacity style={styles.saveProductBtn} onPress={handleSaveBrand} activeOpacity={0.85}>
+              <Text style={styles.saveProductBtnText}>💾 Save Brand →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ➕ CREATE / EDIT PRODUCT MODAL FORM WITH ALL FIELDS */}
       <Modal visible={modalOpen} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCardLarge, { maxHeight: '92%', paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>
-                  {editingId ? '✏️ Edit Product Details & Stock' : '+ Create New Product / Service'}
+                  {editingId ? '✏️ Edit Product Details' : '+ Create New Product / Service'}
                 </Text>
-                <Text style={styles.modalSub}>Category, Sub-Category, Prices, Inventory &amp; Tax Conditions</Text>
+                <Text style={styles.modalSub}>Category, Sub-Category, Brand, Unit, Images, Specs & Pricing</Text>
               </View>
               <TouchableOpacity onPress={() => setModalOpen(false)} style={styles.modalCloseBtn}>
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
 
               {/* 1. Product Name */}
               <Text style={styles.inputLabel}>1. Product Name (Required):</Text>
@@ -1188,21 +1418,56 @@ export default function ProductsCatalogScreen({
                 onChangeText={setNameInput}
               />
 
-              {/* 2. SKU Code */}
-              <Text style={styles.inputLabel}>2. SKU Code (Required):</Text>
+              {/* 2. SKU Code (Optional) */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <Text style={styles.inputLabel}>2. SKU Code (Optional):</Text>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>Auto-generated if left blank</Text>
+              </View>
               <TextInput
                 style={styles.formInput}
-                placeholder="e.g. DAS-CRM-001"
+                placeholder="Leave blank for auto-generation (e.g. DAS-XXXXXX)"
                 placeholderTextColor="#64748b"
                 value={skuInput}
                 onChangeText={setSkuInput}
               />
 
-              {/* 3. Parent Category Picker */}
+              {/* 3. Brand Picker (Optional) */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                <Text style={styles.inputLabel}>3. Parent Category:</Text>
+                <Text style={styles.inputLabel}>3. Brand (Optional):</Text>
+                <TouchableOpacity onPress={() => { setNewBrandNameInput(''); setBrandModalOpen(true); }}>
+                  <Text style={{ fontSize: 9, color: isDark ? '#fbbf24' : '#d97706', fontWeight: '800' }}>+ Add Brand</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                <TouchableOpacity
+                  style={[styles.brandChip, (!brandInput || brandInput === 'Generic / Unbranded') && styles.brandChipActive]}
+                  onPress={() => setBrandInput('Generic / Unbranded')}
+                >
+                  <Text style={[styles.brandChipText, (!brandInput || brandInput === 'Generic / Unbranded') && { color: isDark ? '#fbbf24' : '#d97706', fontWeight: '900' }]}>
+                    Generic / None
+                  </Text>
+                </TouchableOpacity>
+                {brands.map((b) => {
+                  const isSel = brandInput.toLowerCase() === b.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={b}
+                      style={[styles.brandChip, isSel && styles.brandChipActive]}
+                      onPress={() => setBrandInput(b)}
+                    >
+                      <Text style={[styles.brandChipText, isSel && { color: isDark ? '#fbbf24' : '#d97706', fontWeight: '900' }]}>
+                        🏷️ {b}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* 4. Parent Category Picker */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <Text style={styles.inputLabel}>4. Parent Category (Selection Option):</Text>
                 <TouchableOpacity onPress={() => setCatModalOpen(true)}>
-                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800' }}>+ Add New Category</Text>
+                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800' }}>+ Add Category</Text>
                 </TouchableOpacity>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
@@ -1225,8 +1490,17 @@ export default function ProductsCatalogScreen({
                 })}
               </ScrollView>
 
-              {/* 4. Sub-Category Picker */}
-              <Text style={styles.inputLabel}>4. Sub-Category ({categoryInput}):</Text>
+              {/* 5. Sub-Category Picker */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                <Text style={styles.inputLabel}>5. Sub-Category (Selection Option - {categoryInput}):</Text>
+                <TouchableOpacity onPress={() => {
+                  setNewSubCatParentInput(categoryInput);
+                  setNewSubCatOnlyNameInput('');
+                  setSubCatModalOpen(true);
+                }}>
+                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800' }}>+ Add Sub-Category</Text>
+                </TouchableOpacity>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
                 {availableFormSubCats.map((subC) => {
                   const isSel = subCategoryInput === subC;
@@ -1244,8 +1518,8 @@ export default function ProductsCatalogScreen({
                 })}
               </ScrollView>
 
-              {/* 5. Pricing Bounds (Min & Max Price) */}
-              <Text style={styles.inputLabel}>5. Price Range Bounds (Required):</Text>
+              {/* 6. Pricing Bounds (Min & Max Price) */}
+              <Text style={styles.inputLabel}>6. Price Range Bounds (Required):</Text>
               <View style={styles.formRow}>
                 <View style={{ flex: 1 }}>
                   <TextInput
@@ -1269,11 +1543,40 @@ export default function ProductsCatalogScreen({
                 </View>
               </View>
 
-              {/* 6. Stock Quantities & MOQ Conditions */}
-              <Text style={styles.inputLabel}>6. Inventory Stock &amp; MOQ Conditions:</Text>
+              {/* 7. Unit Type Selection */}
+              <Text style={styles.inputLabel}>7. Unit Type (Selection Option):</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
+                {UNIT_TYPES.map((u) => {
+                  const isSel = unitInput === u;
+                  return (
+                    <TouchableOpacity
+                      key={u}
+                      style={[styles.unitChip, isSel && styles.unitChipActive]}
+                      onPress={() => setUnitInput(u)}
+                    >
+                      <Text style={[styles.unitChipText, isSel && { color: isDark ? '#34d399' : '#059669', fontWeight: '900' }]}>
+                        ⚖️ {u}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* 8. Colour (Optional) */}
+              <Text style={styles.inputLabel}>8. Colour (Optional):</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="e.g. Midnight Black, Rose Gold, Royal Blue"
+                placeholderTextColor="#64748b"
+                value={colorInput}
+                onChangeText={setColorInput}
+              />
+
+              {/* 9. Inventory Stock & MOQ Conditions */}
+              <Text style={styles.inputLabel}>9. Inventory Stock &amp; MOQ Conditions:</Text>
               <View style={styles.formRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2 }}>Available Stock (Units):</Text>
+                  <Text style={{ fontSize: 9, color: '#94a3b8', marginBottom: 2 }}>Available Stock ({unitInput}):</Text>
                   <TextInput
                     style={styles.formInput}
                     placeholder="e.g. 100"
@@ -1296,9 +1599,9 @@ export default function ProductsCatalogScreen({
                 </View>
               </View>
 
-              {/* 7. GST / Tax Rate Percentage */}
-              <Text style={styles.inputLabel}>7. GST / Tax Rate Percentage:</Text>
-              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+              {/* 10. GST / Tax Rate Percentage */}
+              <Text style={styles.inputLabel}>10. GST / Tax Rate Percentage:</Text>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
                 {[0, 5, 12, 18, 28].map((rate) => (
                   <TouchableOpacity
                     key={rate}
@@ -1312,44 +1615,124 @@ export default function ProductsCatalogScreen({
                 ))}
               </View>
 
-              {/* 8. Product Image Preset Selector */}
-              <Text style={styles.inputLabel}>8. Product Image (URL or Presets):</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="Image URL..."
-                placeholderTextColor="#64748b"
-                value={imageUrlInput}
-                onChangeText={setImageUrlInput}
-              />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+              {/* 11. Product Images (2 or more, under 1MB, 1080x1080px) */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                <Text style={styles.inputLabel}>11. Product Images (Min 2, &lt;1MB, 1080×1080px):</Text>
+                <View style={[styles.imgCountBadge, { backgroundColor: imagesInput.length >= 2 ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)' }]}>
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: imagesInput.length >= 2 ? '#34d399' : '#ef4444' }}>
+                    {imagesInput.length} / 2 min images
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 9, color: colors.textSecondary, marginBottom: 6 }}>
+                Square ratio (1080 × 1080 px recommended). File size must be under 1 MB each.
+              </Text>
+
+              {/* Pick Image Button */}
+              <TouchableOpacity
+                style={styles.pickImageBtn}
+                onPress={handlePickImages}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickImageBtnText}>📷 Pick from Device Library (Gallery)</Text>
+              </TouchableOpacity>
+
+              {/* Uploaded / Selected Images List */}
+              {imagesInput.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+                  {imagesInput.map((imgUri, idx) => (
+                    <View key={idx} style={styles.uploadedImgWrap}>
+                      <Image source={{ uri: imgUri }} style={styles.uploadedImg} />
+                      <TouchableOpacity
+                        style={styles.removeImgBtn}
+                        onPress={() => handleRemoveImage(idx)}
+                      >
+                        <Text style={styles.removeImgBtnText}>✕</Text>
+                      </TouchableOpacity>
+                      <View style={styles.imgIndexBadge}>
+                        <Text style={styles.imgIndexBadgeText}>#{idx + 1}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* Quick Add Presets */}
+              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 4, marginBottom: 4 }}>Or add square 1080×1080 presets:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                 {PRESET_PRODUCT_IMAGES.map((img, idx) => (
                   <TouchableOpacity
                     key={idx}
-                    onPress={() => setImageUrlInput(img)}
-                    style={[styles.imgPresetBtn, imageUrlInput === img && styles.imgPresetActive]}
+                    onPress={() => {
+                      if (!imagesInput.includes(img)) {
+                        setImagesInput(prev => [...prev, img]);
+                      }
+                    }}
+                    style={styles.imgPresetBtn}
                   >
                     <Image source={{ uri: img }} style={styles.imgPresetThumb} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
-              {/* 9. Description & Key Features */}
-              <Text style={styles.inputLabel}>9. Description &amp; Key Features (Comma Separated):</Text>
+              {/* 12. Product Description */}
+              <Text style={styles.inputLabel}>12. Product Description:</Text>
               <TextInput
-                style={[styles.formInput, { height: 60 }]}
+                style={[styles.formInput, { height: 70, textAlignVertical: 'top' }]}
                 multiline
-                placeholder="Enter detailed product description..."
+                numberOfLines={3}
+                placeholder="Comprehensive overview of product, specifications, and details..."
                 placeholderTextColor="#64748b"
                 value={descriptionInput}
                 onChangeText={setDescriptionInput}
               />
-              <TextInput
-                style={[styles.formInput, { marginTop: 6 }]}
-                placeholder="Features (e.g. WhatsApp API, 24/7 SLA, AI Scoring)..."
-                placeholderTextColor="#64748b"
-                value={featuresInput}
-                onChangeText={setFeaturesInput}
-              />
+
+              {/* 13. Features (1-2 words e.g. Gold Plated) */}
+              <Text style={styles.inputLabel}>13. Features (1-2 words e.g. Gold Plated, Waterproof):</Text>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                <TextInput
+                  style={[styles.formInput, { flex: 1 }]}
+                  placeholder="e.g. Gold Plated, Wireless"
+                  placeholderTextColor="#64748b"
+                  value={featureTagInput}
+                  onChangeText={setFeatureTagInput}
+                  onSubmitEditing={() => handleAddFeatureTag()}
+                />
+                <TouchableOpacity
+                  style={styles.addTagBtn}
+                  onPress={() => handleAddFeatureTag()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addTagBtnText}>+ Add</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick suggestions pills */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+                {['Gold Plated', 'Waterproof', 'Wireless', '24/7 Support', 'AI Powered', 'Premium Alloy', 'Eco Friendly'].map((sugg) => (
+                  <TouchableOpacity
+                    key={sugg}
+                    style={styles.suggChip}
+                    onPress={() => handleAddFeatureTag(sugg)}
+                  >
+                    <Text style={styles.suggChipText}>+ {sugg}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Active features tags */}
+              {featuresList.length > 0 && (
+                <View style={styles.activeTagsRow}>
+                  {featuresList.map((tag, idx) => (
+                    <View key={idx} style={styles.activeTagBadge}>
+                      <Text style={styles.activeTagBadgeText}>✨ {tag}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveFeatureTag(tag)}>
+                        <Text style={styles.activeTagRemoveText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               {/* SAVE BUTTON */}
               <TouchableOpacity style={styles.saveProductBtn} onPress={handleSaveProduct} activeOpacity={0.85}>
@@ -1405,9 +1788,58 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   productsContainer: { width: '100%', maxWidth: 650, gap: 12 },
   productCard: { backgroundColor: colors.cardBg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14 },
   productImg: { width: 64, height: 64, borderRadius: 12, resizeMode: 'cover' },
+  multiImgBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderWidth: 1,
+    borderColor: isDark ? '#818cf8' : '#6366f1',
+    borderRadius: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  multiImgBadgeText: {
+    color: '#ffffff',
+    fontSize: 8,
+    fontWeight: '900',
+  },
 
   categoryBadgeText: { fontSize: 8, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5', backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   subCategoryBadgeText: { fontSize: 8, fontWeight: '800', color: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  brandBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: isDark ? '#fbbf24' : '#d97706',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : 'rgba(245, 158, 11, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  unitBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: isDark ? '#34d399' : '#059669',
+    backgroundColor: isDark ? 'rgba(52, 211, 153, 0.15)' : 'rgba(52, 211, 153, 0.1)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(52, 211, 153, 0.3)' : 'rgba(52, 211, 153, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  colorBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: isDark ? '#c084fc' : '#9333ea',
+    backgroundColor: isDark ? 'rgba(192, 132, 252, 0.15)' : 'rgba(147, 51, 234, 0.1)',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(192, 132, 252, 0.3)' : 'rgba(147, 51, 234, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
   skuTagText: { fontSize: 9, fontWeight: '800', color: colors.textMuted },
 
   productTitle: { fontSize: 14, fontWeight: '900', color: colors.text, marginTop: 3 },
@@ -1438,6 +1870,45 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   // Detail Modal Styles
   detailCoverImg: { width: '100%', height: 160, borderRadius: 14, resizeMode: 'cover', marginBottom: 4 },
+  detailThumbBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginRight: 6,
+    position: 'relative',
+  },
+  detailThumbBtnActive: {
+    borderColor: isDark ? '#38bdf8' : '#0284c7',
+    borderWidth: 2,
+  },
+  detailThumbImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  detailThumbActiveDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#38bdf8',
+  },
+  detailFeatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.cardBgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
   detailPriceCard: { backgroundColor: colors.cardBgElevated, borderRadius: 12, borderWidth: 1, borderColor: isDark ? '#38bdf8' : '#0284c7', padding: 10, marginVertical: 8 },
   detailPriceTitle: { fontSize: 14, fontWeight: '900', color: isDark ? '#34d399' : '#059669' },
   detailPriceSub: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
@@ -1499,6 +1970,167 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   subCatChip: { backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginRight: 4 },
   subCatChipActive: { borderColor: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)' },
   subCatChipText: { fontSize: 9, color: colors.textSecondary, fontWeight: '700' },
+
+  brandChip: {
+    backgroundColor: colors.cardBgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
+  },
+  brandChipActive: {
+    borderColor: isDark ? '#fbbf24' : '#d97706',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+  },
+  brandChipText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+
+  unitChip: {
+    backgroundColor: colors.cardBgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
+  },
+  unitChipActive: {
+    borderColor: isDark ? '#34d399' : '#059669',
+    backgroundColor: isDark ? 'rgba(52, 211, 153, 0.15)' : 'rgba(52, 211, 153, 0.1)',
+  },
+  unitChipText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+
+  imgCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(52, 211, 153, 0.3)' : 'rgba(52, 211, 153, 0.2)',
+  },
+  pickImageBtn: {
+    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.12)',
+    borderWidth: 1,
+    borderColor: isDark ? '#818cf8' : '#6366f1',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  pickImageBtnText: {
+    color: isDark ? '#818cf8' : '#4f46e5',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  uploadedImgWrap: {
+    position: 'relative',
+    width: 68,
+    height: 68,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginRight: 8,
+  },
+  uploadedImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removeImgBtn: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeImgBtnText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  imgIndexBadge: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  imgIndexBadgeText: {
+    color: '#cbd5e1',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+
+  addTagBtn: {
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addTagBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  suggChip: {
+    backgroundColor: colors.cardBgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 5,
+  },
+  suggChipText: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  activeTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginVertical: 6,
+  },
+  activeTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(14, 165, 233, 0.12)',
+    borderWidth: 1,
+    borderColor: isDark ? '#38bdf8' : '#0284c7',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  activeTagBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: isDark ? '#38bdf8' : '#0284c7',
+  },
+  activeTagRemoveText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#f87171',
+    marginLeft: 2,
+  },
 
   taxChip: { flex: 1, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
   taxChipActive: { backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.1)', borderColor: isDark ? '#38bdf8' : '#0284c7' },

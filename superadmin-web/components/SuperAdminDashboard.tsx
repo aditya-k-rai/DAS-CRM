@@ -502,7 +502,7 @@ export function SuperAdminDashboard() {
             adminName: 'Anurag Sharma',
             adminEmail: 'adorabletrading08@gmail.com',
             phone: '9717355779',
-            registrationKey: 'ADORABLE-VW-8329',
+            registrationKey: 'DAS-VW-8329',
             plan: 'BUSINESS',
             seatsAllocated: 18,
             seatsUsed: 1,

@@ -49,6 +49,9 @@ export interface CatalogProductItem {
   sku: string;
   category: string; // e.g. "CRM & Sales Software"
   subCategory: string; // e.g. "Lead Management"
+  brand?: string;
+  color?: string;
+  unit?: string;
   minPrice: number;
   maxPrice: number;
   currency: '₹' | '$';
@@ -58,13 +61,42 @@ export interface CatalogProductItem {
   description: string;
   features: string[];
   imageUrl: string;
+  images?: string[];
   status: 'ACTIVE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'DRAFT';
   createdAt: string;
 }
 
+export const UNIT_TYPES: string[] = [
+  'Pieces (Pcs)',
+  'Kilogram (Kg)',
+  'Litre (Ltr)',
+  'Grams (g)',
+  'Metre (m)',
+  'Box',
+  'Pack',
+  'Set',
+  'Units',
+  'Hours (Hrs)',
+  'License',
+];
+
+export const DEFAULT_BRANDS: string[] = [
+  'Generic / Unbranded',
+  'DAS Technologies',
+  'Apple',
+  'Samsung',
+  'Sony',
+  'HP',
+  'Dell',
+  'Logitech',
+  'Bosch',
+  'Tata',
+];
+
 const STORAGE_PRODUCTS_KEY = 'das_crm_products_catalog_v3';
 const STORAGE_CATS_KEY = 'das_crm_categories_tree_v1';
 const STORAGE_CARD_CONFIG_KEY = 'das_crm_product_card_display_config_v1';
+const STORAGE_BRANDS_KEY = 'das_crm_brands_list_v1';
 
 export const DEFAULT_CATEGORY_TREE: CategoryTree[] = [
   {
@@ -107,6 +139,7 @@ export const PRESET_PRODUCT_IMAGES = [
 class ProductCatalogService {
   private products: CatalogProductItem[] = INITIAL_PRODUCTS;
   private categories: CategoryTree[] = DEFAULT_CATEGORY_TREE;
+  private brands: string[] = DEFAULT_BRANDS;
   private initialized = false;
 
   async getCategories(): Promise<CategoryTree[]> {
@@ -114,6 +147,28 @@ class ProductCatalogService {
       await this.loadAll();
     }
     return this.categories;
+  }
+
+  async getBrands(): Promise<string[]> {
+    if (!this.initialized) {
+      await this.loadAll();
+    }
+    return this.brands;
+  }
+
+  async addBrand(brandName: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmed = brandName.trim();
+    if (trimmed && !list.includes(trimmed)) {
+      list.push(trimmed);
+      this.brands = [...list];
+      try {
+        await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(this.brands));
+      } catch (err) {
+        console.log('Failed to save brands:', err);
+      }
+    }
+    return this.brands;
   }
 
   async getProducts(): Promise<CatalogProductItem[]> {
@@ -133,8 +188,12 @@ class ProductCatalogService {
       if (storedCats) {
         this.categories = JSON.parse(storedCats);
       }
+      const storedBrands = await AsyncStorage.getItem(STORAGE_BRANDS_KEY);
+      if (storedBrands) {
+        this.brands = JSON.parse(storedBrands);
+      }
     } catch (err) {
-      console.log('Failed to load products/categories from storage:', err);
+      console.log('Failed to load products/categories/brands from storage:', err);
     }
     this.initialized = true;
   }

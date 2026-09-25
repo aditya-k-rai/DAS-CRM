@@ -16,9 +16,14 @@ interface PublicCompany {
   slug: string;
   isActive?: boolean;
   status?: string;
+  companyKey?: string;
 }
 
 function formatCompanyKey(input: string): string {
+  const raw = input.trim().toUpperCase();
+  if (raw.includes('-') && !raw.startsWith('DAS')) {
+    return raw;
+  }
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   let part1 = '';
   let part2 = '';
@@ -26,7 +31,7 @@ function formatCompanyKey(input: string): string {
 
   for (let i = 0; i < clean.length; i++) {
     const char = clean[i];
-    if (part1.length < 4) {
+    if (part1.length < 3) {
       if (/[A-Z]/.test(char)) part1 += char;
     } else if (part2.length < 2) {
       if (/[A-Z]/.test(char)) part2 += char;
@@ -36,7 +41,7 @@ function formatCompanyKey(input: string): string {
   }
 
   let formatted = part1;
-  if (part1.length === 4) {
+  if (part1.length === 3) {
     formatted += '-';
     if (part2.length > 0) {
       formatted += part2;
@@ -248,7 +253,7 @@ export function LoginGateway() {
 
       const targetCompanyId = urlCompanyId || storedCompany?.id || DEFAULT_ACTIVE_COMPANY.id;
       const targetCompanyName = urlCompanyName || storedCompany?.name || DEFAULT_ACTIVE_COMPANY.name;
-      const targetKey = urlKey || storedCompany?.key || 'ADORABLE-VW-8329';
+      const targetKey = urlKey || storedCompany?.key || 'DAS-VW-8329';
       const targetEmail = urlEmail || storedCompany?.email || 'adorabletrading08@gmail.com';
 
       // If target company is not in the list, prepend it
@@ -289,7 +294,7 @@ export function LoginGateway() {
         },
       ]);
       setSelectedCompanyId('cmuev7n3o000mikew7je1tdiw');
-      setCompanyKeyInput('ADORABLE-VW-8329');
+      setCompanyKeyInput('DAS-VW-8329');
     } finally {
       setFetchingCompanies(false);
     }
@@ -926,6 +931,10 @@ export function LoginGateway() {
                         onChange={e => {
                           const val = e.target.value;
                           setSelectedCompanyId(val);
+                          const comp = publicCompanies.find(c => c.id === val);
+                          if (comp?.companyKey) {
+                            setCompanyKeyInput(comp.companyKey);
+                          }
                         }}
                       >
                         {publicCompanies.map(c => (

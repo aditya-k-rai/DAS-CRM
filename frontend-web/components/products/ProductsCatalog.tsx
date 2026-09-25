@@ -13,8 +13,10 @@ interface ProductItemWeb {
   sku: string;
   category: string;
   subCategory: string;
-  price: number;
+  brand?: string;
+  color?: string;
   unit: string;
+  price: number;
   stock: number | null;
   minOrderQty: number;
   rating: number;
@@ -22,10 +24,39 @@ interface ProductItemWeb {
   taxRate: number;
   isActive: boolean;
   coverImage: string;
+  images?: string[];
   overview: string;
   specs: string[];
+  features?: string[];
   volumeDiscounts: { tier: string; minQty: number; discountPct: number; finalPrice: number }[];
 }
+
+export const UNIT_OPTIONS = [
+  'Pieces (Pcs)',
+  'Kilogram (Kg)',
+  'Litre (Ltr)',
+  'Grams (g)',
+  'Metre (m)',
+  'Box',
+  'Pack',
+  'Set',
+  'Units',
+  'Hours (Hrs)',
+  'License',
+];
+
+export const DEFAULT_BRANDS = [
+  'Generic / Unbranded',
+  'DAS Technologies',
+  'Apple',
+  'Samsung',
+  'Sony',
+  'HP',
+  'Dell',
+  'Logitech',
+  'Bosch',
+  'Tata',
+];
 
 const INITIAL_PRODUCTS: ProductItemWeb[] = [];
 
@@ -38,6 +69,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     'Infrastructure': ['Cloud Storage', 'Telemetry Nodes'],
     'Services': ['Onboarding', 'Training'],
   });
+
+  const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
+  const [createBrandOpen, setCreateBrandOpen] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSubCategory, setSelectedSubCategory] = useState('All');
@@ -70,17 +105,21 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               sku: p.sku || 'SKU-001',
               category: p.category || 'General',
               subCategory: p.subCategory || 'Standard',
+              brand: p.brand || 'Generic / Unbranded',
+              color: p.color || '',
+              unit: p.unit || 'Pieces (Pcs)',
               price: Number(p.price) || 0,
-              unit: p.unit || 'unit',
               stock: p.stock !== undefined ? p.stock : 100,
               minOrderQty: p.minOrderQty || 1,
               rating: p.rating || 5.0,
               sold: p.sold || 0,
               taxRate: p.taxRate || 18,
               isActive: p.isActive !== false,
-              coverImage: p.imageUrl || p.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+              coverImage: p.imageUrl || (p.images && p.images[0]) || p.coverImage || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+              images: p.images || (p.imageUrl ? [p.imageUrl] : []),
               overview: p.description || p.overview || '',
               specs: p.features || p.specs || [],
+              features: p.features || [],
               volumeDiscounts: p.volumeDiscounts || [],
             })));
           }
@@ -99,9 +138,20 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [newProdSku, setNewProdSku] = useState('');
   const [newProdCategory, setNewProdCategory] = useState('Software & Cloud');
   const [newProdSubCategory, setNewProdSubCategory] = useState('Enterprise Licenses');
+  const [newProdBrand, setNewProdBrand] = useState('Generic / Unbranded');
+  const [newProdColor, setNewProdColor] = useState('');
+  const [newProdUnit, setNewProdUnit] = useState('Pieces (Pcs)');
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdStock, setNewProdStock] = useState('100');
   const [newProdGst, setNewProdGst] = useState('18');
+  const [newProdDescription, setNewProdDescription] = useState('');
+  const [newProdFeatures, setNewProdFeatures] = useState<string[]>(['Gold Plated', 'Waterproof']);
+  const [featureTagInput, setFeatureTagInput] = useState('');
+  const [newProdImages, setNewProdImages] = useState<string[]>([
+    'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
+  ]);
+  const [imageUploadError, setImageUploadError] = useState('');
 
   // New Category / Sub-Category Modal State
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
@@ -113,46 +163,136 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const filtered = products.filter(p => {
     const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
     const matchSubCat = selectedSubCategory === 'All' || p.subCategory === selectedSubCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase()) ||
+      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase())) ||
+      (p.overview && p.overview.toLowerCase().includes(search.toLowerCase()));
     return matchCat && matchSubCat && matchSearch;
   });
 
-  const handleCreateProduct = () => {
-    if (!newProdName.trim() || !newProdSku.trim() || !newProdPrice) {
-      alert('Please fill out Product Name, SKU, and Price.');
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setImageUploadError('');
+
+    Array.from(files).forEach((file) => {
+      // 1MB limit check (1,048,576 bytes)
+      if (file.size > 1024 * 1024) {
+        setImageUploadError(`⚠️ "${file.name}" exceeds 1MB limit. Please upload images under 1MB.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setNewProdImages(prev => [...prev, event.target!.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    setNewProdImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleAddFeatureTag = (tagToAdd?: string) => {
+    const tag = (tagToAdd || featureTagInput).trim();
+    if (!tag) return;
+    if (!newProdFeatures.includes(tag)) {
+      setNewProdFeatures(prev => [...prev, tag]);
+    }
+    setFeatureTagInput('');
+  };
+
+  const handleRemoveFeatureTag = (tagToRemove: string) => {
+    setNewProdFeatures(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  const handleCreateProduct = async () => {
+    if (!newProdName.trim() || !newProdPrice) {
+      alert('Please fill out Product Name and Unit Price.');
+      return;
+    }
+
+    if (newProdImages.length < 2) {
+      alert('⚠️ Image Requirement: Please upload at least 2 images for the product (under 1MB each, 1080×1080px recommended).');
       return;
     }
 
     const priceNum = parseFloat(newProdPrice) || 0;
+    const finalSku = newProdSku.trim()
+      ? newProdSku.trim().toUpperCase()
+      : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
+
     const newProd: ProductItemWeb = {
       id: Date.now().toString(),
       name: newProdName.trim(),
-      sku: newProdSku.trim().toUpperCase(),
+      sku: finalSku,
       category: newProdCategory,
       subCategory: newProdSubCategory,
+      brand: newProdBrand.trim() || 'Generic / Unbranded',
+      color: newProdColor.trim(),
+      unit: newProdUnit,
       price: priceNum,
-      unit: 'per license',
       stock: parseInt(newProdStock) || 100,
       minOrderQty: 1,
       rating: 5.0,
       sold: 0,
       taxRate: parseInt(newProdGst) || 18,
       isActive: true,
-      coverImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-      overview: 'Newly created product item in DAS CRM Catalog.',
-      specs: ['Standard License', 'DAS CRM Certified'],
+      coverImage: newProdImages[0] || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+      images: newProdImages,
+      overview: newProdDescription.trim() || 'Newly created product item in DAS CRM Catalog.',
+      specs: newProdFeatures.length > 0 ? newProdFeatures : ['Standard Specification'],
+      features: newProdFeatures,
       volumeDiscounts: [
         { tier: '1 - 9 Units', minQty: 1, discountPct: 0, finalPrice: priceNum },
         { tier: '10+ Units', minQty: 10, discountPct: 15, finalPrice: Math.round(priceNum * 0.85) },
       ],
     };
 
+    // Try posting to API
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      await fetch(`${apiBase}/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: newProd.name,
+          sku: newProd.sku,
+          category: newProd.category,
+          subCategory: newProd.subCategory,
+          brand: newProd.brand,
+          color: newProd.color,
+          unit: newProd.unit,
+          price: newProd.price,
+          stock: newProd.stock,
+          taxRate: newProd.taxRate,
+          description: newProd.overview,
+          features: newProd.features,
+          imageUrl: newProd.coverImage,
+          images: newProd.images,
+        }),
+      });
+    } catch (err) {
+      console.warn('API create product fallback to local state:', err);
+    }
+
     setProducts(prev => [newProd, ...prev]);
     setCreateProductOpen(false);
     setNewProdName('');
     setNewProdSku('');
     setNewProdPrice('');
-    alert(`✅ Product "${newProd.name}" added successfully to catalog!`);
+    setNewProdColor('');
+    setNewProdDescription('');
+    setNewProdFeatures(['Gold Plated', 'Waterproof']);
+    alert(`✅ Product "${newProd.name}" (${newProd.sku}) added successfully to catalog!`);
   };
 
   // ─── Admin Delete Product (permanently removes from database) ───────────────
@@ -225,6 +365,18 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Sub-Category "${trimmed}" added under "${parentCatForSub}"!`);
   };
 
+  const handleAddBrand = () => {
+    if (!newBrandName.trim()) return;
+    const trimmed = newBrandName.trim();
+    if (!brands.includes(trimmed)) {
+      setBrands(prev => [...prev, trimmed]);
+    }
+    setNewProdBrand(trimmed);
+    setCreateBrandOpen(false);
+    setNewBrandName('');
+    alert(`✅ Brand "${trimmed}" added!`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Quick Action & Summary Bar */}
@@ -241,6 +393,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setCreateBrandOpen(true)}
+            className="btn-secondary text-xs gap-1.5 flex items-center"
+          >
+            <Tag size={14} /> + Brand
+          </button>
+
           <button
             onClick={() => setCreateCategoryOpen(true)}
             className="btn-secondary text-xs gap-1.5 flex items-center"
@@ -322,11 +481,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           <table className="crm-table">
             <thead>
               <tr>
-                <th>Product Name &amp; SKU</th>
-                <th>Category / Sub-Category</th>
-                <th>Unit Price</th>
-                <th>Tax Rate</th>
-                <th>Stock Qty</th>
+                <th>Product / SKU</th>
+                <th>Category &amp; Brand</th>
+                <th>Price / Unit</th>
+                <th>Colour &amp; Features</th>
+                <th>Tax</th>
+                <th>Stock</th>
                 <th>Rating</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -335,7 +495,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={9} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center text-2xl">📦</div>
                       <p className="text-sm font-bold text-white">
@@ -362,21 +522,33 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <tr key={p.id} className="hover:bg-slate-900/40 transition-colors">
                   <td>
                     <div className="flex items-center gap-3">
-                      <img src={p.coverImage} alt={p.name} className="w-10 h-10 rounded-xl object-cover border border-slate-800" />
+                      <div className="relative flex-shrink-0">
+                        <img src={p.coverImage} alt={p.name} className="w-11 h-11 rounded-xl object-cover border border-slate-800" />
+                        {p.images && p.images.length > 1 && (
+                          <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-extrabold px-1 rounded-full shadow" title={`${p.images.length} images`}>
+                            +{p.images.length - 1}
+                          </span>
+                        )}
+                      </div>
                       <div>
                         <p className="font-bold text-sm text-white hover:text-indigo-400 cursor-pointer" onClick={() => setInspectorProduct(p)}>
                           {p.name}
                         </p>
-                        <span className="text-xs font-mono text-slate-400">SKU: {p.sku}</span>
+                        <span className="text-[11px] font-mono text-slate-400">SKU: {p.sku}</span>
                       </div>
                     </div>
                   </td>
                   <td>
-                    <div>
+                    <div className="space-y-1">
                       <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                         {p.category}
                       </span>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{p.subCategory}</p>
+                      <p className="text-[11px] text-slate-400 font-semibold">{p.subCategory}</p>
+                      {p.brand && (
+                        <span className="inline-block text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
+                          🏷️ {p.brand}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -384,7 +556,31 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <span className="font-bold text-sm text-emerald-400">
                         ₹{p.price.toLocaleString('en-IN')}
                       </span>
-                      <p className="text-[11px] text-slate-400">{p.unit}</p>
+                      <p className="text-[11px] text-slate-400 font-medium">per {p.unit}</p>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="space-y-1 max-w-[180px]">
+                      {p.color ? (
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                          <span className="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
+                          <span className="font-medium">{p.color}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 italic">No color specified</span>
+                      )}
+                      {p.features && p.features.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {p.features.slice(0, 2).map((feat, idx) => (
+                            <span key={idx} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 font-medium">
+                              ✨ {feat}
+                            </span>
+                          ))}
+                          {p.features.length > 2 && (
+                            <span className="text-[9px] text-slate-400">+{p.features.length - 2}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -439,12 +635,51 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <img src={inspectorProduct.coverImage} alt={inspectorProduct.name} className="w-12 h-12 rounded-xl object-cover border border-slate-700" />
                 <div>
                   <h3 className="text-lg font-extrabold text-white">{inspectorProduct.name}</h3>
-                  <p className="text-xs text-slate-400 font-mono">SKU: {inspectorProduct.sku} • {inspectorProduct.category}</p>
+                  <p className="text-xs text-slate-400 font-mono">
+                    SKU: {inspectorProduct.sku} • {inspectorProduct.category} &gt; {inspectorProduct.subCategory}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setInspectorProduct(null)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <button onClick={() => setInspectorProduct(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Multi-Image Gallery */}
+            {inspectorProduct.images && inspectorProduct.images.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Product Gallery ({inspectorProduct.images.length} Images)</span>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {inspectorProduct.images.map((imgUri, idx) => (
+                    <img
+                      key={idx}
+                      src={imgUri}
+                      alt={`Product view ${idx + 1}`}
+                      className="w-20 h-20 rounded-xl object-cover border border-slate-700 flex-shrink-0 hover:scale-105 transition-transform"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Key Specs Matrix */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Brand</span>
+                <p className="text-xs font-bold text-amber-300 mt-0.5">{inspectorProduct.brand || 'Generic / Unbranded'}</p>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Colour</span>
+                <p className="text-xs font-bold text-slate-200 mt-0.5">{inspectorProduct.color || 'Standard / None'}</p>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Unit Type</span>
+                <p className="text-xs font-bold text-indigo-400 mt-0.5">{inspectorProduct.unit}</p>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">SKU Code</span>
+                <p className="text-xs font-bold font-mono text-slate-300 mt-0.5">{inspectorProduct.sku}</p>
+              </div>
             </div>
 
             {/* Overview & Pricing */}
@@ -452,13 +687,13 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                 <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Unit Base Price</span>
                 <p className="text-2xl font-extrabold text-emerald-400">₹{inspectorProduct.price.toLocaleString('en-IN')}</p>
-                <p className="text-xs text-slate-400">{inspectorProduct.unit} • {inspectorProduct.taxRate}% GST Tax Included</p>
+                <p className="text-xs text-slate-400">per {inspectorProduct.unit} • {inspectorProduct.taxRate}% GST Tax Included</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inventory &amp; MOQ</span>
-                <p className="text-lg font-bold text-white">Stock: {inspectorProduct.stock ? `${inspectorProduct.stock} Available` : 'Digital Cloud License'}</p>
-                <p className="text-xs text-slate-400">Minimum Order Qty: {inspectorProduct.minOrderQty} unit</p>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inventory &amp; Stock</span>
+                <p className="text-lg font-bold text-white">Stock: {inspectorProduct.stock ? `${inspectorProduct.stock} ${inspectorProduct.unit} Available` : 'Available on Demand'}</p>
+                <p className="text-xs text-slate-400">Minimum Order Qty: {inspectorProduct.minOrderQty} {inspectorProduct.unit}</p>
               </div>
             </div>
 
@@ -466,22 +701,24 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Product Description &amp; Overview</h4>
               <p className="text-xs text-slate-400 leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
-                {inspectorProduct.overview}
+                {inspectorProduct.overview || 'No additional description provided.'}
               </p>
             </div>
 
-            {/* Technical Specifications List */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Key Features &amp; Specifications</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {inspectorProduct.specs.map((spec, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-slate-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
-                    <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
-                    <span>{spec}</span>
-                  </div>
-                ))}
+            {/* Features & Specifications List */}
+            {inspectorProduct.features && inspectorProduct.features.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Key Features &amp; Highlights</h4>
+                <div className="flex flex-wrap gap-2">
+                  {inspectorProduct.features.map((feat, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-xs text-slate-200 bg-slate-950 p-2 rounded-lg border border-slate-800 font-semibold">
+                      <Sparkles size={13} className="text-amber-400 flex-shrink-0" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Volume Discount Tier Pricing Table */}
             <div className="space-y-2">
@@ -500,7 +737,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       <tr key={idx} className="hover:bg-slate-950/40">
                         <td className="p-2.5 font-bold text-white">{tier.tier}</td>
                         <td className="p-2.5 text-amber-400 font-semibold">{tier.discountPct}% OFF</td>
-                        <td className="p-2.5 font-extrabold text-emerald-400">₹{tier.finalPrice.toLocaleString('en-IN')} / unit</td>
+                        <td className="p-2.5 font-extrabold text-emerald-400">₹{tier.finalPrice.toLocaleString('en-IN')} / {inspectorProduct.unit}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -526,39 +763,49 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         </div>
       )}
 
-      {/* CREATE PRODUCT MODAL */}
+      {/* 📦 CREATE NEW PRODUCT MODAL */}
       {createProductOpen && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
-              <span>📦 Create New Product Item</span>
-            </h3>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <span>📦 Create New Product Item</span>
+              </h3>
+              <button onClick={() => setCreateProductOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+                <X size={18} />
+              </button>
+            </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-4 text-xs">
+              {/* Product Name */}
               <div>
-                <label className="block text-slate-400 mb-1 font-bold">Product Name</label>
+                <label className="block text-slate-300 mb-1 font-bold">Product Name <span className="text-red-400">*</span></label>
                 <input
                   type="text"
                   className="crm-input w-full"
-                  placeholder="e.g. DAS CRM Enterprise License"
+                  placeholder="e.g. DAS CRM Enterprise License / Gold Plated HDMI Cable"
                   value={newProdName}
                   onChange={e => setNewProdName(e.target.value)}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* SKU & Price */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-bold">SKU Code</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-400 font-bold">SKU Code (Optional)</label>
+                    <span className="text-[10px] text-slate-500 italic">Auto-generated if blank</span>
+                  </div>
                   <input
                     type="text"
                     className="crm-input w-full uppercase font-mono"
-                    placeholder="e.g. DAS-ENT-005"
+                    placeholder="e.g. DAS-ENT-005 (Optional)"
                     value={newProdSku}
                     onChange={e => setNewProdSku(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-bold">Unit Price (₹)</label>
+                  <label className="block text-slate-300 mb-1 font-bold">Unit Price (₹) <span className="text-red-400">*</span></label>
                   <input
                     type="number"
                     className="crm-input w-full font-bold text-emerald-400"
@@ -569,13 +816,28 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Category & Sub-Category Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-bold">Category</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-bold">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateCategoryOpen(true)}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      + Add Category
+                    </button>
+                  </div>
                   <select
                     className="crm-input w-full"
                     value={newProdCategory}
-                    onChange={e => setNewProdCategory(e.target.value)}
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      setNewProdCategory(newCat);
+                      const availableSubs = subCategories[newCat] || ['General'];
+                      setNewProdSubCategory(availableSubs[0] || 'General');
+                    }}
                   >
                     {categories.filter(c => c !== 'All').map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -583,18 +845,83 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-bold">Sub-Category</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-bold">Sub-Category (Selection)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentCatForSub(newProdCategory);
+                        setCreateSubCategoryOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      + Add Sub-Category
+                    </button>
+                  </div>
+                  <select
+                    className="crm-input w-full font-semibold"
+                    value={newProdSubCategory}
+                    onChange={e => setNewProdSubCategory(e.target.value)}
+                  >
+                    {(subCategories[newProdCategory] && subCategories[newProdCategory].length > 0
+                      ? subCategories[newProdCategory]
+                      : ['General', 'Standard']
+                    ).map(sc => (
+                      <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Brand & Colour */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-400 font-bold">Brand (Optional)</label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateBrandOpen(true)}
+                      className="text-[10px] text-amber-400 hover:underline font-bold"
+                    >
+                      + Add Brand
+                    </button>
+                  </div>
+                  <select
+                    className="crm-input w-full"
+                    value={newProdBrand}
+                    onChange={e => setNewProdBrand(e.target.value)}
+                  >
+                    {brands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">Colour (Optional)</label>
                   <input
                     type="text"
                     className="crm-input w-full"
-                    placeholder="e.g. Enterprise Licenses"
-                    value={newProdSubCategory}
-                    onChange={e => setNewProdSubCategory(e.target.value)}
+                    placeholder="e.g. Midnight Black, Gold, Silver"
+                    value={newProdColor}
+                    onChange={e => setNewProdColor(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Unit Type, Stock Qty, GST Tax % */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">Unit Type</label>
+                  <select
+                    className="crm-input w-full"
+                    value={newProdUnit}
+                    onChange={e => setNewProdUnit(e.target.value)}
+                  >
+                    {UNIT_OPTIONS.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-slate-400 mb-1 font-bold">Stock Qty</label>
                   <input
@@ -619,11 +946,172 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   </select>
                 </div>
               </div>
+
+              {/* Product Description */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold">Product Description</label>
+                <textarea
+                  rows={2}
+                  className="crm-input w-full resize-none leading-relaxed"
+                  placeholder="Enter detailed product description, specifications, and warranty details..."
+                  value={newProdDescription}
+                  onChange={e => setNewProdDescription(e.target.value)}
+                />
+              </div>
+
+              {/* Key Features Chips (1-2 words like Gold Plated) */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold">Features (1-2 words, e.g. Gold Plated, Waterproof)</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="crm-input flex-1 text-xs"
+                    placeholder="Type feature (e.g. Gold Plated) and hit Enter or click Add"
+                    value={featureTagInput}
+                    onChange={e => setFeatureTagInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddFeatureTag();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddFeatureTag()}
+                    className="btn-secondary text-xs px-3 font-bold"
+                  >
+                    + Add Feature
+                  </button>
+                </div>
+
+                {/* Suggestions Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                  <span className="text-[10px] text-slate-500 font-semibold">Quick Add:</span>
+                  {['Gold Plated', 'Waterproof', 'Wireless', 'Stainless Steel', 'Premium Cotton', '1-Year Warranty'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => handleAddFeatureTag(tag)}
+                      className="text-[10px] bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700 transition-colors"
+                    >
+                      + {tag}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Active Features Badges */}
+                <div className="flex flex-wrap gap-1.5 min-h-[28px] p-2 bg-slate-950 rounded-xl border border-slate-800">
+                  {newProdFeatures.length === 0 ? (
+                    <span className="text-[11px] text-slate-500 italic">No features added yet.</span>
+                  ) : (
+                    newProdFeatures.map((feat, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full"
+                      >
+                        ✨ {feat}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFeatureTag(feat)}
+                          className="hover:text-red-400 ml-0.5"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Product Images (2 or more upload, under 1MB, 1080x1080px) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
+                    <p className="text-[10px] text-slate-400">Under 1MB each • 1080 × 1080 px (Square recommended)</p>
+                  </div>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    newProdImages.length >= 2
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>
+                    {newProdImages.length >= 2 ? `✅ ${newProdImages.length} images uploaded` : `⚠️ ${newProdImages.length}/2 min required`}
+                  </span>
+                </div>
+
+                {imageUploadError && (
+                  <p className="text-[11px] text-red-400 font-bold bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                    {imageUploadError}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer flex-1 flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950 hover:bg-slate-900 transition-colors">
+                    <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Product Images</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Select multiple images (Max 1MB each)</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Thumbnail Previews */}
+                <div className="flex items-center gap-2 overflow-x-auto p-2 bg-slate-950 rounded-xl border border-slate-800">
+                  {newProdImages.map((uri, idx) => (
+                    <div key={idx} className="relative group flex-shrink-0">
+                      <img
+                        src={uri}
+                        alt={`Upload preview ${idx + 1}`}
+                        className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-500"
+                        title="Remove image"
+                      >
+                        <X size={12} />
+                      </button>
+                      <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-center text-slate-200">
+                        #{idx + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
               <button onClick={() => setCreateProductOpen(false)} className="btn-secondary text-xs">Cancel</button>
               <button onClick={handleCreateProduct} className="btn-primary text-xs">Save &amp; Add Product</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE BRAND MODAL */}
+      {createBrandOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <span>🏷️ Add New Brand</span>
+            </h3>
+            <p className="text-xs text-slate-400">Add a brand name to select across all products in your catalog.</p>
+            <input
+              type="text"
+              className="crm-input w-full text-xs font-semibold"
+              placeholder="e.g. Apple, Samsung, Sony, DAS"
+              value={newBrandName}
+              onChange={e => setNewBrandName(e.target.value)}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setCreateBrandOpen(false)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleAddBrand} className="btn-primary text-xs">Save Brand</button>
             </div>
           </div>
         </div>
@@ -682,7 +1170,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 />
               </div>
             </div>
-              <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setCreateSubCategoryOpen(false)} className="btn-secondary text-xs">Cancel</button>
               <button onClick={handleAddSubCategory} className="btn-primary text-xs">Save Sub-Category</button>
             </div>

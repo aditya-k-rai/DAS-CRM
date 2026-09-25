@@ -44,6 +44,10 @@ interface LoginScreenProps {
 import { API_BASE, getApiBase } from '../config/api';
 
 function formatCompanyKey(input: string): string {
+  const raw = input.trim().toUpperCase();
+  if (raw.includes('-') && !raw.startsWith('DAS')) {
+    return raw;
+  }
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   let part1 = '';
   let part2 = '';
@@ -51,7 +55,7 @@ function formatCompanyKey(input: string): string {
 
   for (let i = 0; i < clean.length; i++) {
     const char = clean[i];
-    if (part1.length < 4) {
+    if (part1.length < 3) {
       if (/[A-Z]/.test(char)) part1 += char;
     } else if (part2.length < 2) {
       if (/[A-Z]/.test(char)) part2 += char;
@@ -61,7 +65,7 @@ function formatCompanyKey(input: string): string {
   }
 
   let formatted = part1;
-  if (part1.length === 4) {
+  if (part1.length === 3) {
     formatted += '-';
     if (part2.length > 0) {
       formatted += part2;
@@ -142,7 +146,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         setSelectedCompanyId((currentId) => {
           const matched = comps.find((c) => c.id === currentId) || comps[0];
           if (matched && matched.companyKey) {
-            setCompanyKeyInput((prevKey) => (!prevKey || prevKey.length < 12 ? formatCompanyKey(matched.companyKey!) : prevKey));
+            setCompanyKeyInput((prevKey) => (!prevKey || prevKey.length < 11 ? formatCompanyKey(matched.companyKey!) : prevKey));
           }
           return currentId;
         });
@@ -243,9 +247,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   /** Mirrors LoginGateway.tsx handleWorkspaceLogin */
   const handleWorkspaceLogin = async () => {
-    if (!companyKeyInput.trim() || companyKeyInput.length < 12) {
+    if (!companyKeyInput.trim() || companyKeyInput.trim().length < 11) {
       setError(
-        'Please enter a valid Company Key (format: DASC-KX-7421).',
+        'Please enter a valid Company Key (format: DAS-KX-7421).',
       );
       return;
     }
@@ -622,7 +626,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               {/* Company Key */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Company / User Key (Format: DASC-KX-7421) *
+                  Company / User Key (Format: DAS-KX-7421) *
                 </Text>
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔑</Text>
@@ -634,7 +638,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       styles.monoInput,
                       loading && { opacity: 0.5 },
                     ]}
-                    placeholder="DASC-KX-7421"
+                    placeholder="DAS-KX-7421"
                     placeholderTextColor="#64748b"
                     value={companyKeyInput}
                     maxLength={12}

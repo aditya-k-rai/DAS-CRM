@@ -756,9 +756,15 @@ export class AuthService {
 
     // Step 4: Key Verification (Active Status, Subscription Plan & Allocated Features)
     if (dto.key) {
-      const companyKey = await this.prisma.companyRegistrationKey.findUnique({
-        where: { key: dto.key.trim() },
+      const cleanKey = dto.key.trim().toUpperCase();
+      let companyKey = await this.prisma.companyRegistrationKey.findUnique({
+        where: { key: cleanKey },
       });
+      if (!companyKey && cleanKey.startsWith('ADORABLE-')) {
+        companyKey = await this.prisma.companyRegistrationKey.findUnique({
+          where: { key: cleanKey.replace(/^ADORABLE-/, 'DAS-') },
+        });
+      }
 
       if (companyKey) {
         if (companyKey.status === 'REVOKED' || (companyKey.expiresAt && companyKey.expiresAt < new Date())) {
@@ -1001,11 +1007,16 @@ export class AuthService {
     }
 
     // 6. Registration / Invite Key Verification
-    const keyToValidate = dto.key || user.inviteKeyUsed;
+    const keyToValidate = (dto.key || user.inviteKeyUsed || '').trim().toUpperCase();
     if (keyToValidate) {
-      const companyKey = await this.prisma.companyRegistrationKey.findUnique({
+      let companyKey = await this.prisma.companyRegistrationKey.findUnique({
         where: { key: keyToValidate },
       });
+      if (!companyKey && keyToValidate.startsWith('ADORABLE-')) {
+        companyKey = await this.prisma.companyRegistrationKey.findUnique({
+          where: { key: keyToValidate.replace(/^ADORABLE-/, 'DAS-') },
+        });
+      }
 
       if (companyKey) {
         if (companyKey.status === 'REVOKED' || companyKey.expiresAt < new Date()) {
@@ -1631,7 +1642,7 @@ export class AuthService {
       const fallbackName = companyId.replace(/^comp_/, '').replace(/[_-]/g, ' ').toUpperCase() || 'DEMO ENTERPRISE';
       return {
         org: null,
-        key: companyId.startsWith('ACME') ? companyId : 'DAS-REG-DEMO',
+        key: 'DAS-KX-7421',
         adminEmail: 'dynamicadvancesolution@gmail.com',
         adminName: 'Platform Administrator',
         companyName: fallbackName,
@@ -1846,16 +1857,29 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const regKeys = await this.prisma.companyRegistrationKey.findMany();
+    const keyMap = new Map<string, string>();
+    for (const k of regKeys) {
+      if (k.usedByOrganizationId) keyMap.set(k.usedByOrganizationId, k.key);
+      keyMap.set(k.id, k.key);
+    }
+
     return orgs.map((org) => {
       const settings = (org.settings as any) || {};
       const status = settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING');
+      const resolvedKey =
+        keyMap.get(org.id) ||
+        keyMap.get(org.registrationKeyId || '') ||
+        settings.registrationKey ||
+        null;
+
       return {
         id: org.id,
         name: org.name,
         slug: org.slug,
         isActive: org.isActive,
         status,
-        companyKey: org.registrationKeyId || settings.registrationKey || null,
+        companyKey: resolvedKey,
       };
     });
   }

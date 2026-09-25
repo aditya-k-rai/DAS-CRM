@@ -19,7 +19,7 @@ export function OrganizationSettingsView() {
   const companyId = currentUser?.companyId || subscription?.id || '';
 
   // Retrieve registration key from stored metadata
-  const [companyKey, setCompanyKey] = useState<string>('ADORABLE-VW-8329');
+  const [companyKey, setCompanyKey] = useState<string>('DAS-VW-8329');
   const [copiedKey, setCopiedKey] = useState(false);
 
   // Form Fields

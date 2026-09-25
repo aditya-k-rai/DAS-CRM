@@ -11,6 +11,9 @@ export interface ProductItemDto {
   sku: string;
   category: string;
   subCategory: string;
+  brand?: string;
+  color?: string;
+  unit: string;
   description: string;
   price: number;
   minPrice: number;
@@ -20,6 +23,7 @@ export interface ProductItemDto {
   minOrderQty: number;
   taxRate: number;
   imageUrl: string;
+  images?: string[];
   features: string[];
   isActive: boolean;
   status: 'ACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'DELETED';
@@ -32,6 +36,9 @@ export interface CreateProductDto {
   sku?: string;
   category?: string;
   subCategory?: string;
+  brand?: string;
+  color?: string;
+  unit?: string;
   description?: string;
   price?: number;
   minPrice?: number;
@@ -41,6 +48,7 @@ export interface CreateProductDto {
   minOrderQty?: number;
   taxRate?: number;
   imageUrl?: string;
+  images?: string[];
   features?: string[];
 }
 
@@ -71,6 +79,9 @@ export class ProductsService {
           sku: (p as any).sku || 'SKU-' + p.id.substring(0, 6).toUpperCase(),
           category: (p as any).category || 'Software',
           subCategory: (p as any).subCategory || 'General',
+          brand: (p as any).brand || '',
+          color: (p as any).color || '',
+          unit: p.unit || 'Pieces',
           description: p.description || 'No description provided.',
           price: p.price ? Number(p.price) : 0,
           minPrice: (p as any).minPrice ? Number((p as any).minPrice) : Number(p.price) || 0,
@@ -80,7 +91,8 @@ export class ProductsService {
           minOrderQty: (p as any).minOrderQty || 1,
           taxRate: p.taxRate ? Number(p.taxRate) : 18,
           imageUrl: (p as any).imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-          features: [],
+          images: (p as any).images || ((p as any).imageUrl ? [(p as any).imageUrl] : []),
+          features: (p as any).features || [],
           isActive: p.isActive,
           status: 'ACTIVE' as const,
           createdAt: p.createdAt?.toISOString(),
@@ -107,6 +119,9 @@ export class ProductsService {
           sku: (dbProduct as any).sku || '',
           category: (dbProduct as any).category || 'Software',
           subCategory: (dbProduct as any).subCategory || 'General',
+          brand: (dbProduct as any).brand || '',
+          color: (dbProduct as any).color || '',
+          unit: dbProduct.unit || 'Pieces',
           description: dbProduct.description || '',
           price: Number(dbProduct.price),
           minPrice: Number((dbProduct as any).minPrice || dbProduct.price),
@@ -116,7 +131,8 @@ export class ProductsService {
           minOrderQty: (dbProduct as any).minOrderQty || 1,
           taxRate: Number(dbProduct.taxRate),
           imageUrl: (dbProduct as any).imageUrl || '',
-          features: [],
+          images: (dbProduct as any).images || ((dbProduct as any).imageUrl ? [(dbProduct as any).imageUrl] : []),
+          features: (dbProduct as any).features || [],
           isActive: dbProduct.isActive,
           status: dbProduct.isActive ? 'ACTIVE' : 'DISCONTINUED',
         };
@@ -135,6 +151,11 @@ export class ProductsService {
   // ─── CREATE PRODUCT (Admin only) ─────────────────────────────────────────────
   async createProduct(dto: CreateProductDto): Promise<ProductItemDto> {
     const price = dto.price ?? dto.minPrice ?? 0;
+    const generatedSku = dto.sku?.trim() ? dto.sku.trim() : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
+    const finalUnit = dto.unit?.trim() || 'Pieces';
+    const primaryImg = (dto.images && dto.images.length > 0)
+      ? dto.images[0]
+      : (dto.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80');
 
     try {
       const dbProduct = await this.prisma.product.create({
@@ -142,7 +163,7 @@ export class ProductsService {
           name: dto.name || 'New Product',
           description: dto.description || 'No description provided.',
           price: price,
-          unit: 'unit',
+          unit: finalUnit,
           taxRate: dto.taxRate ?? 18,
           isActive: true,
           organizationId: 'default-org', // Will be replaced by JWT org context
@@ -153,9 +174,12 @@ export class ProductsService {
         return {
           id: dbProduct.id,
           name: dbProduct.name,
-          sku: dto.sku || ('SKU-' + dbProduct.id.substring(0, 6).toUpperCase()),
+          sku: generatedSku,
           category: dto.category || 'Software',
           subCategory: dto.subCategory || 'General',
+          brand: dto.brand || '',
+          color: dto.color || '',
+          unit: finalUnit,
           description: dbProduct.description || '',
           price: Number(dbProduct.price),
           minPrice: dto.minPrice ?? Number(dbProduct.price),
@@ -164,7 +188,8 @@ export class ProductsService {
           stock: dto.stock ?? 100,
           minOrderQty: dto.minOrderQty ?? 1,
           taxRate: Number(dbProduct.taxRate),
-          imageUrl: dto.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+          imageUrl: primaryImg,
+          images: dto.images && dto.images.length > 0 ? dto.images : [primaryImg],
           features: dto.features || [],
           isActive: true,
           status: 'ACTIVE',
@@ -179,9 +204,12 @@ export class ProductsService {
     const newProduct: ProductItemDto = {
       id: 'p-' + Date.now(),
       name: dto.name || 'New Product',
-      sku: dto.sku || ('SKU-' + Math.floor(1000 + Math.random() * 9000)),
+      sku: generatedSku,
       category: dto.category || 'Software',
       subCategory: dto.subCategory || 'General',
+      brand: dto.brand || '',
+      color: dto.color || '',
+      unit: finalUnit,
       description: dto.description || 'No description provided.',
       price: price,
       minPrice: dto.minPrice ?? price,
@@ -190,7 +218,8 @@ export class ProductsService {
       stock: dto.stock ?? 100,
       minOrderQty: dto.minOrderQty ?? 1,
       taxRate: dto.taxRate ?? 18,
-      imageUrl: dto.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
+      imageUrl: primaryImg,
+      images: dto.images && dto.images.length > 0 ? dto.images : [primaryImg],
       features: dto.features || [],
       isActive: true,
       status: 'ACTIVE',
@@ -209,6 +238,7 @@ export class ProductsService {
           ...(dto.name && { name: dto.name }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.price !== undefined && { price: dto.price }),
+          ...(dto.unit !== undefined && { unit: dto.unit }),
           ...(dto.taxRate !== undefined && { taxRate: dto.taxRate }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         },
