@@ -60,7 +60,7 @@ DAS-CRM/
 ```bash
 cd frontend-web
 npm install
-cp .env.example .env.local     # Configure your API URL
+# Edit .env as needed for your environment (defaults to http://localhost:3001/api/v1)
 npm run dev                    # Runs on http://localhost:3000
 ```
 
@@ -68,7 +68,7 @@ npm run dev                    # Runs on http://localhost:3000
 ```bash
 cd backend
 npm install
-cp .env.example .env           # Configure DATABASE_URL, JWT_SECRET, etc.
+# Edit .env as needed for your database, JWT secrets, etc.
 npx prisma migrate dev         # Run database migrations
 npm run start:dev              # Runs on http://localhost:3001
 ```
@@ -77,7 +77,7 @@ npm run start:dev              # Runs on http://localhost:3001
 ```bash
 cd android
 npm install
-cp .env.example .env
+# Edit .env for EXPO_PUBLIC_API_URL if needed
 npx expo start                 # Start Expo dev server
 ```
 
