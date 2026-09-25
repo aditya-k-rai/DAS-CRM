@@ -63,7 +63,8 @@ interface SavedLoginCredentials {
   savedAt: string;
 }
 
-const LOGIN_COOKIE_KEY = 'das_crm_prev_login';
+// Version-bumped cookie key — v2 invalidates all old stale DAS-* key cookies
+const LOGIN_COOKIE_KEY = 'das_crm_login_v2';
 
 function setCookie(name: string, value: string, days = 30) {
   if (typeof document === 'undefined') return;
@@ -183,13 +184,17 @@ export function LoginGateway() {
   const [fetchingCompanies, setFetchingCompanies] = useState(false);
   const { switchRole, setAuthSession } = useAuth();
 
-  // Load previous login credentials ONLY from cookie on initial mount
+  // Load previous login credentials ONLY from cookie on initial mount.
+  // Guard: never restore a legacy DAS- prefixed key — user must enter their current key.
   useEffect(() => {
     const saved = loadLoginCredentials();
     if (saved) {
       if (saved.email) setEmail(saved.email);
       if (saved.password) setPassword(saved.password);
-      if (saved.companyKey && !urlKey) setCompanyKeyInput(saved.companyKey);
+      // Reject any key that looks like a legacy DAS-* key
+      const savedKey = saved.companyKey || '';
+      const isLegacyKey = savedKey.toUpperCase().startsWith('DAS-');
+      if (savedKey && !isLegacyKey && !urlKey) setCompanyKeyInput(savedKey);
       if (saved.companyId && !urlCompanyId) setSelectedCompanyId(saved.companyId);
       if (saved.role) setSelectedRole(saved.role);
       setHasAutofilled(true);

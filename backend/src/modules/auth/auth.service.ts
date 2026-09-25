@@ -756,28 +756,17 @@ export class AuthService {
         })
       : null;
 
-    // Step 4: Key Verification (Active Status, Subscription Plan & Allocated Features)
+    // Step 4: Key Verification — STRICT exact match, no aliases
     if (dto.key) {
       const cleanKey = dto.key.trim().toUpperCase();
-      let companyKey = await this.prisma.companyRegistrationKey.findUnique({
+      const companyKey = await this.prisma.companyRegistrationKey.findUnique({
         where: { key: cleanKey },
       });
-      if (!companyKey && (cleanKey === 'DAS-VW-8329' || cleanKey.startsWith('ADORABLE-'))) {
-        companyKey = await this.prisma.companyRegistrationKey.findFirst({
-          where: {
-            OR: [
-              { key: 'ADO-EC-7187' },
-              { key: 'DAS-VW-8329' },
-              { key: cleanKey.replace(/^ADORABLE-/, 'DAS-') },
-            ],
-          },
-        });
-      }
 
       if (companyKey) {
         if (companyKey.status === 'REVOKED' || (companyKey.expiresAt && companyKey.expiresAt < new Date())) {
           throw new ForbiddenException(
-            `Company Registration Key "${dto.key}" is revoked or expired. Contact Super Admin.`,
+            `Company Key "${cleanKey}" is revoked or expired. Contact Super Admin.`,
           );
         }
         if (!organization && companyKey.usedByOrganizationId) {
@@ -786,15 +775,21 @@ export class AuthService {
             include: { subscription: true },
           });
         }
+        // Verify the key belongs to the selected organization
+        if (organization && companyKey.usedByOrganizationId && companyKey.usedByOrganizationId !== organization.id) {
+          throw new ForbiddenException(
+            `Wrong Company Key: Key "${cleanKey}" does not belong to the selected company workspace. Please use your own Company Key.`,
+          );
+        }
       } else {
         const userKey = await this.prisma.userInviteKey.findUnique({
-          where: { key: dto.key.trim() },
+          where: { key: cleanKey },
         });
 
         if (userKey) {
           if (userKey.status === 'REVOKED' || (userKey.expiresAt && userKey.expiresAt < new Date())) {
             throw new ForbiddenException(
-              `User Invite Key "${dto.key}" is revoked or expired. Contact your Tenant Admin.`,
+              `User Invite Key "${cleanKey}" is revoked or expired. Contact your Tenant Admin.`,
             );
           }
           if (!organization && userKey.organizationId) {
@@ -803,8 +798,16 @@ export class AuthService {
               include: { subscription: true },
             });
           }
+        } else {
+          throw new UnauthorizedException(
+            `Invalid Key: "${cleanKey}" does not match any registered company key. Please use your own Company Key.`,
+          );
         }
       }
+    } else {
+      throw new BadRequestException(
+        'Company Key is required for Google OAuth login. Please select your company and enter your key.',
+      );
     }
 
     if (organization && organization.isActive === false) {
@@ -884,69 +887,77 @@ export class AuthService {
     const emailLower = (dto.email || '').toLowerCase().trim();
 
     // ══════════════════════════════════════════════════════════
-    // STEP 1: Company Key is the PRIMARY identifier.
-    // The key resolves which company/organization the user
-    // is trying to access. This prevents cross-company login.
+    // STEP 1: Company Key is MANDATORY and PRIMARY identifier.
+    // The key resolves which company the user belongs to.
+    // NO key = NO access. Period.
     // ══════════════════════════════════════════════════════════
     const keyInput = (dto.key || '').trim().toUpperCase();
+
+    if (!keyInput) {
+      throw new UnauthorizedException(
+        'Company Key is required. Please enter the Company Key provided to your organisation during registration.',
+      );
+    }
 
     let resolvedOrgId: string | null = null;
     let resolvedCompanyKey: any = null;
 
-    if (keyInput) {
-      // Look up company registration key directly
-      resolvedCompanyKey = await this.prisma.companyRegistrationKey.findUnique({
+    // Look up EXACT key match — no aliases, no fallbacks
+    resolvedCompanyKey = await this.prisma.companyRegistrationKey.findUnique({
+      where: { key: keyInput },
+    });
+
+    if (resolvedCompanyKey) {
+      // Validate key status
+      if (resolvedCompanyKey.status === 'REVOKED') {
+        throw new ForbiddenException(
+          `Company Key Revoked: The key "${keyInput}" has been revoked by Super Admin. Please contact support to get a new key.`,
+        );
+      }
+      if (resolvedCompanyKey.expiresAt && resolvedCompanyKey.expiresAt < new Date()) {
+        const keyExpiryStr = resolvedCompanyKey.expiresAt.toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        });
+        throw new ForbiddenException(
+          `Company Key Expired: The key "${keyInput}" expired on ${keyExpiryStr}. Please contact Super Admin to renew your plan.`,
+        );
+      }
+      // Key is valid — resolve the organisation it belongs to
+      if (!resolvedCompanyKey.usedByOrganizationId) {
+        throw new ForbiddenException(
+          `Company Key "${keyInput}" is not yet assigned to any company workspace. Please register your company first.`,
+        );
+      }
+      resolvedOrgId = resolvedCompanyKey.usedByOrganizationId;
+    } else {
+      // Not a company key — check if it is a staff invite key
+      const userKey = await this.prisma.userInviteKey.findUnique({
         where: { key: keyInput },
       });
-
-      // Backward compatibility: old DAS-VW-8329 or ADORABLE- prefix keys map to ADO-EC-7187
-      if (!resolvedCompanyKey && (keyInput === 'DAS-VW-8329' || keyInput.startsWith('ADORABLE-'))) {
-        resolvedCompanyKey = await this.prisma.companyRegistrationKey.findFirst({
-          where: {
-            OR: [
-              { key: 'ADO-EC-7187' },
-              { key: 'DAS-VW-8329' },
-              { key: keyInput.replace(/^ADORABLE-/, 'DAS-') },
-            ],
-          },
-        });
-      }
-
-      if (resolvedCompanyKey) {
-        // Key found — validate status
-        if (resolvedCompanyKey.status === 'REVOKED') {
+      if (userKey) {
+        if (userKey.status === 'REVOKED') {
           throw new ForbiddenException(
-            `Company Key Revoked: The key "${keyInput}" has been revoked by Super Admin. Please contact support.`,
+            `Staff Invite Key Revoked: The key "${keyInput}" has been revoked. Contact your Tenant Admin.`,
           );
         }
-        if (resolvedCompanyKey.expiresAt && resolvedCompanyKey.expiresAt < new Date()) {
-          const keyExpiryStr = resolvedCompanyKey.expiresAt.toLocaleDateString('en-IN', {
-            day: 'numeric', month: 'long', year: 'numeric',
-          });
+        if (userKey.expiresAt && userKey.expiresAt < new Date()) {
           throw new ForbiddenException(
-            `Company Key Expired: The key "${keyInput}" expired on ${keyExpiryStr}. Please contact Super Admin to renew your plan.`,
+            `Staff Invite Key Expired: The key "${keyInput}" has expired. Contact your Tenant Admin for a new key.`,
           );
         }
-        // Key is valid — resolve the organization it belongs to
-        resolvedOrgId = resolvedCompanyKey.usedByOrganizationId || null;
+        resolvedOrgId = userKey.organizationId || null;
       } else {
-        // Key not found as a company key — check if it's a user invite key
-        const userKey = await this.prisma.userInviteKey.findUnique({
-          where: { key: keyInput },
-        });
-        if (userKey) {
-          if (userKey.status === 'REVOKED' || (userKey.expiresAt && userKey.expiresAt < new Date())) {
-            throw new ForbiddenException(
-              `User Invite Key Expired/Revoked: The invite key "${keyInput}" is invalid or expired. Contact your Tenant Admin.`,
-            );
-          }
-          resolvedOrgId = userKey.organizationId || null;
-        } else {
-          throw new UnauthorizedException(
-            `Invalid Company Key: No company workspace found for key "${keyInput}". Please check your Company Key and try again.`,
-          );
-        }
+        // Key exists in neither table — hard reject
+        throw new UnauthorizedException(
+          `Invalid Company Key: "${keyInput}" does not match any registered company. Please check your Company Key and try again.`,
+        );
       }
+    }
+
+    if (!resolvedOrgId) {
+      throw new UnauthorizedException(
+        `Company Key "${keyInput}" could not be linked to any active company workspace. Please contact support.`,
+      );
     }
 
     // ══════════════════════════════════════════════════════════
