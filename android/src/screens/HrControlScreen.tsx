@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { EmployeeProfile } from './EmployeesScreen';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
+import { useAuthStore } from '../store/authStore';
 
 interface Props {
   employee: EmployeeProfile;
@@ -41,6 +42,7 @@ interface Props {
 export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: Props) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const { currentUser } = useAuthStore();
 
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
 
@@ -73,26 +75,15 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Admin (Vikram Singh)',
-    'Executive Admin (Aditya Rai)',
+    `Tenant Admin (${currentUser?.name || 'Administrator'})`,
+    'Executive Administration',
   ];
 
-  const [hiredEmployeesList, setHiredEmployeesList] = useState([
-    { id: 'hire-1', name: 'Rohan Kumar', role: 'Sales Exec', date: 'Aug 01, 2026', interviewNotes: 'Passed HR & Sales Round' },
-    { id: 'hire-2', name: 'Meera Kapoor', role: 'Sales Exec', date: 'Jul 15, 2026', interviewNotes: 'Excellent Communication & CRM Skills' },
-    { id: 'hire-3', name: 'Priya Sharma', role: 'Team Leader', date: 'May 10, 2026', interviewNotes: 'Promoted from Senior Rep' },
-  ]);
+  const [hiredEmployeesList, setHiredEmployeesList] = useState<{ id: string; name: string; role: string; date: string; interviewNotes: string }[]>([]);
 
-  const [firedEmployeesList] = useState([
-    { id: 'fire-1', name: 'Suresh Patel', role: 'Sales Exec', date: 'Aug 20, 2026', reason: '10-Day Grace Deletion Initiated' },
-    { id: 'fire-2', name: 'Kavita Singh', role: 'Intern', date: 'Jul 28, 2026', reason: 'Contract Completed / Purged' },
-  ]);
+  const [firedEmployeesList] = useState<{ id: string; name: string; role: string; date: string; reason: string }[]>([]);
 
-  const [queriesList, setQueriesList] = useState([
-    { id: 'q-1', empName: 'Rohan Kumar', category: 'Salary Slip Request', status: 'RESOLVED', date: 'Aug 22, 2026' },
-    { id: 'q-2', empName: 'Priya Sharma', category: 'Leave Adjustment', status: 'RESOLVED', date: 'Aug 19, 2026' },
-    { id: 'q-3', empName: 'Amit Shah', category: 'PF & Insurance Query', status: 'RESOLVED', date: 'Aug 14, 2026' },
-  ]);
+  const [queriesList, setQueriesList] = useState<{ id: string; empName: string; category: string; status: string; date: string }[]>([]);
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
@@ -386,15 +377,21 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
             </TouchableOpacity>
 
             <ScrollView style={{ maxHeight: 220 }}>
-              {hiredEmployeesList.map((h) => (
-                <View key={h.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{h.name} ({h.role})</Text>
-                    <Text style={{ fontSize: 10, color: '#34d399', marginTop: 2 }}>Joined: {h.date}</Text>
-                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Notes: {h.interviewNotes}</Text>
-                  </View>
+              {hiredEmployeesList.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>No hired employee records found.</Text>
                 </View>
-              ))}
+              ) : (
+                hiredEmployeesList.map((h) => (
+                  <View key={h.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{h.name} ({h.role})</Text>
+                      <Text style={{ fontSize: 10, color: '#34d399', marginTop: 2 }}>Joined: {h.date}</Text>
+                      <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Notes: {h.interviewNotes}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -451,15 +448,21 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
             </View>
 
             <ScrollView style={{ maxHeight: 240 }}>
-              {firedEmployeesList.map((f) => (
-                <View key={f.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{f.name} ({f.role})</Text>
-                    <Text style={{ fontSize: 10, color: '#fca5a5', marginTop: 2 }}>Purged / Locked: {f.date}</Text>
-                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Reason: {f.reason}</Text>
-                  </View>
+              {firedEmployeesList.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>No terminated or purged employee records.</Text>
                 </View>
-              ))}
+              ) : (
+                firedEmployeesList.map((f) => (
+                  <View key={f.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{f.name} ({f.role})</Text>
+                      <Text style={{ fontSize: 10, color: '#fca5a5', marginTop: 2 }}>Purged / Locked: {f.date}</Text>
+                      <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Reason: {f.reason}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -477,14 +480,20 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
             </View>
 
             <ScrollView style={{ maxHeight: 240 }}>
-              {queriesList.map((q) => (
-                <View key={q.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{q.empName} — {q.category}</Text>
-                    <Text style={{ fontSize: 10, color: '#38bdf8', marginTop: 2 }}>Status: {q.status} ({q.date})</Text>
-                  </View>
+              {queriesList.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>No employee query resolution records found.</Text>
                 </View>
-              ))}
+              ) : (
+                queriesList.map((q) => (
+                  <View key={q.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{q.empName} — {q.category}</Text>
+                      <Text style={{ fontSize: 10, color: '#38bdf8', marginTop: 2 }}>Status: {q.status} ({q.date})</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>

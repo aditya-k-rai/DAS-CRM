@@ -226,23 +226,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
               </View>
 
               <View style={{ gap: 12, marginTop: 16 }}>
-                {[
-                  { rep: 'Rajesh Kumar (Sales Exec)', target: '₹10,00,000', achieved: '₹8,40,000', pct: 84, color: '#22c55e' },
-                  { rep: 'Amit Verma (Sales Exec)', target: '₹8,50,000', achieved: '₹6,10,000', pct: 71, color: '#38bdf8' },
-                  { rep: 'Priya Sharma (Sales Exec)', target: '₹9,00,000', achieved: '₹4,50,000', pct: 50, color: '#eab308' },
-                  { rep: 'Neha Joshi (Team Leader)', target: '₹25,00,000', achieved: '₹21,80,000', pct: 87, color: '#a855f7' },
-                ].map((g, idx) => (
-                  <View key={idx} style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={[styles.goalRepName, { color: colors.text }]}>{g.rep}</Text>
-                      <Text style={[styles.goalPct, { color: g.color }]}>{g.pct}%</Text>
-                    </View>
-                    <View style={styles.progressBarTrack}>
-                      <View style={[styles.progressBarFill, { width: `${g.pct}%`, backgroundColor: g.color }]} />
-                    </View>
-                    <Text style={[styles.goalMetricText, { color: colors.textMuted }]}>{g.achieved} / {g.target}</Text>
-                  </View>
-                ))}
+                <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 28 }]}>
+                  <Text style={{ fontSize: 28, marginBottom: 8 }}>🎯</Text>
+                  <Text style={[styles.kpiTitle, { color: colors.text, textAlign: 'center' }]}>No Active Sales Goals</Text>
+                  <Text style={[styles.kpiSub, { color: colors.textMuted, textAlign: 'center', marginTop: 4 }]}>Set up monthly targets for reps & departments to track live attainment.</Text>
+                </View>
               </View>
 
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Target Config', 'Opening KPI allocation editor...')}>
@@ -262,23 +250,11 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
               </View>
 
               <View style={{ gap: 12, marginTop: 16 }}>
-                {[
-                  { name: 'Karan Malhotra', role: 'Sales Executive', status: 'Round 2 Tech Demo', score: '8.5 / 10', interviewer: 'Vikram Mehta' },
-                  { name: 'Ananya Roy', role: 'Team Leader (Inside Sales)', status: 'Final HR Discussion', score: '9.1 / 10', interviewer: 'Suresh Patil' },
-                  { name: 'Rohan Gupta', role: 'Account Manager', status: 'Offer Letter Pending', score: '8.8 / 10', interviewer: 'Rajesh Sharma' },
-                ].map((cand, idx) => (
-                  <View key={idx} style={[styles.goalRowCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={[styles.goalRepName, { color: colors.text }]}>{cand.name}</Text>
-                      <View style={[styles.statusPill, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}>
-                        <Text style={{ color: '#818cf8', fontSize: 9, fontWeight: '800' }}>{cand.status}</Text>
-                      </View>
-                    </View>
-
-                    <Text style={[styles.goalMetricText, { color: colors.textMuted }]}>Role: {cand.role} · Interviewer: {cand.interviewer}</Text>
-                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: '800', marginTop: 4 }}>Score: {cand.score}</Text>
-                  </View>
-                ))}
+                <View style={[styles.kpiCard, { backgroundColor: colors.cardBg, borderColor: colors.border, alignItems: 'center', paddingVertical: 28 }]}>
+                  <Text style={{ fontSize: 28, marginBottom: 8 }}>👥</Text>
+                  <Text style={[styles.kpiTitle, { color: colors.text, textAlign: 'center' }]}>No Scheduled Interviews</Text>
+                  <Text style={[styles.kpiSub, { color: colors.textMuted, textAlign: 'center', marginTop: 4 }]}>Your active candidate pipeline is currently clear.</Text>
+                </View>
               </View>
 
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={() => Alert.alert('Schedule Interview', 'Opening candidate scheduler...')}>

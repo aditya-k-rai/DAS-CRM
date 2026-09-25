@@ -5,30 +5,23 @@ import { Brain, TrendingUp, AlertTriangle, CheckCircle2, Target, Clock, DollarSi
 
 interface AILeadInsightProps {
   leadId?: string;
+  leadScore?: number;
 }
 
 const SCORE_BREAKDOWN = [
-  { label: 'Contact Completeness',  score: 22, max: 25, color: '#22c55e' },
-  { label: 'Engagement Activity',   score: 18, max: 25, color: '#3b82f6' },
-  { label: 'Deal Value Potential',  score: 20, max: 25, color: '#8b5cf6' },
-  { label: 'Behavioural Signals',   score: 14, max: 25, color: '#f59e0b' },
+  { label: 'Contact Completeness',  score: 0, max: 25, color: '#22c55e' },
+  { label: 'Engagement Activity',   score: 0, max: 25, color: '#3b82f6' },
+  { label: 'Deal Value Potential',  score: 0, max: 25, color: '#8b5cf6' },
+  { label: 'Behavioural Signals',   score: 0, max: 25, color: '#f59e0b' },
 ];
 
-const AI_RECOMMENDATIONS = [
-  { type: 'action', icon: Phone, color: '#22c55e',  bg: 'rgba(34,197,94,0.1)',   text: 'Schedule a demo call within 24h — lead engagement is peaking based on recent email opens.' },
-  { type: 'risk',   icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', text: 'No activity logged in 3 days. Risk of going cold. Send a follow-up now.' },
-  { type: 'value',  icon: DollarSign,    color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  text: 'Based on company size (250+ employees), upsell to Enterprise License (₹49,999/yr).' },
-];
+const AI_RECOMMENDATIONS: { type: string; icon: any; color: string; bg: string; text: string }[] = [];
 
-const SIMILAR_LEADS = [
-  { name: 'Akash Mehta', company: 'CloudBase Ltd', outcome: 'WON', value: '₹3.2L', days: 18 },
-  { name: 'Divya Nair',  company: 'FinServe Co.',  outcome: 'WON', value: '₹2.8L', days: 22 },
-  { name: 'Rajan Pillai',company: 'TechPark In.',  outcome: 'LOST', value: '—',    days: 31 },
-];
+const SIMILAR_LEADS: { name: string; company: string; outcome: string; value: string; days: number }[] = [];
 
-export function AILeadInsight({ leadId }: AILeadInsightProps) {
+export function AILeadInsight({ leadId, leadScore = 0 }: AILeadInsightProps) {
   const [open, setOpen] = useState(true);
-  const totalScore = SCORE_BREAKDOWN.reduce((s, b) => s + b.score, 0);
+  const totalScore = leadScore || SCORE_BREAKDOWN.reduce((s, b) => s + b.score, 0);
 
   return (
     <div className="crm-card">
@@ -79,12 +72,20 @@ export function AILeadInsight({ leadId }: AILeadInsightProps) {
               </div>
             </div>
             <div>
-              <p className="font-semibold text-sm text-white mb-0.5">Lead Score: High Intent</p>
-              <p className="text-xs text-muted mb-2">Top 15% of your pipeline this month</p>
-              <div className="flex items-center gap-1.5">
-                <TrendingUp size={12} style={{ color: 'rgb(34,197,94)' }} />
-                <span className="text-xs font-semibold" style={{ color: 'rgb(34,197,94)' }}>+7 pts in 24h (email opened 3×)</span>
-              </div>
+              <p className="font-semibold text-sm text-white mb-0.5">
+                {totalScore > 0 ? `Lead Score: ${totalScore >= 70 ? 'High Intent' : totalScore >= 40 ? 'Moderate Intent' : 'Low Intent'}` : 'Lead Score: Pending'}
+              </p>
+              <p className="text-xs text-muted mb-2">
+                {totalScore > 0 ? 'Telemetry calculated from lead activity' : 'Log calls, messages, or emails to generate score'}
+              </p>
+              {totalScore > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp size={12} style={{ color: 'rgb(34,197,94)' }} />
+                  <span className="text-xs font-semibold" style={{ color: 'rgb(34,197,94)' }}>Score active</span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted">No score trend yet</span>
+              )}
             </div>
           </div>
 
@@ -112,40 +113,52 @@ export function AILeadInsight({ leadId }: AILeadInsightProps) {
           {/* AI Recommendations */}
           <div className="mb-4">
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">AI Recommendations</p>
-            <div className="space-y-2">
-              {AI_RECOMMENDATIONS.map((rec, i) => (
-                <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl" style={{ background: rec.bg }}>
-                  <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: `${rec.color}20` }}>
-                    <rec.icon size={12} style={{ color: rec.color }} />
+            {AI_RECOMMENDATIONS.length === 0 ? (
+              <div className="py-4 text-center text-xs text-muted border border-dashed rounded-xl" style={{ borderColor: 'rgb(var(--border))' }}>
+                AI recommendations will generate once activity is logged for this lead.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {AI_RECOMMENDATIONS.map((rec, i) => (
+                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl" style={{ background: rec.bg }}>
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: `${rec.color}20` }}>
+                      <rec.icon size={12} style={{ color: rec.color }} />
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: 'rgb(var(--muted-foreground))' }}>{rec.text}</p>
                   </div>
-                  <p className="text-xs leading-relaxed" style={{ color: 'rgb(var(--muted-foreground))' }}>{rec.text}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Similar Leads (Won/Lost patterns) */}
           <div>
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Similar Leads (Pattern Match)</p>
-            <div className="space-y-1.5">
-              {SIMILAR_LEADS.map((sl) => (
-                <div key={sl.name} className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'rgb(var(--background))' }}>
-                  <div>
-                    <p className="text-xs font-medium">{sl.name}</p>
-                    <p className="text-xs text-muted">{sl.company} · {sl.days}d to close</p>
+            {SIMILAR_LEADS.length === 0 ? (
+              <div className="py-4 text-center text-xs text-muted border border-dashed rounded-xl" style={{ borderColor: 'rgb(var(--border))' }}>
+                No historical pattern matches available yet.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {SIMILAR_LEADS.map((sl) => (
+                  <div key={sl.name} className="flex items-center justify-between p-2 rounded-lg" style={{ background: 'rgb(var(--background))' }}>
+                    <div>
+                      <p className="text-xs font-medium">{sl.name}</p>
+                      <p className="text-xs text-muted">{sl.company} · {sl.days}d to close</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{
+                        background: sl.outcome === 'WON' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        color:      sl.outcome === 'WON' ? 'rgb(34,197,94)'      : 'rgb(239,68,68)',
+                      }}>
+                        {sl.outcome}
+                      </span>
+                      {sl.value !== '—' && <p className="text-xs font-semibold mt-0.5" style={{ color: 'rgb(var(--brand-400))' }}>{sl.value}</p>}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{
-                      background: sl.outcome === 'WON' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                      color:      sl.outcome === 'WON' ? 'rgb(34,197,94)'      : 'rgb(239,68,68)',
-                    }}>
-                      {sl.outcome}
-                    </span>
-                    {sl.value !== '—' && <p className="text-xs font-semibold mt-0.5" style={{ color: 'rgb(var(--brand-400))' }}>{sl.value}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Predicted close date */}
@@ -154,8 +167,8 @@ export function AILeadInsight({ leadId }: AILeadInsightProps) {
               <Clock size={13} style={{ color: 'rgb(129,140,248)' }} />
               <p className="text-xs font-semibold" style={{ color: 'rgb(129,140,248)' }}>Predicted Close Date</p>
             </div>
-            <p className="text-sm font-bold text-white">Aug 24 – Aug 28, 2026</p>
-            <p className="text-xs text-muted mt-0.5">Based on similar deals in your pipeline. Win probability: <span className="font-bold text-emerald-400">74%</span></p>
+            <p className="text-sm font-bold text-white">—</p>
+            <p className="text-xs text-muted mt-0.5">Requires deal activity and pipeline stages to calculate win probability</p>
           </div>
         </>
       )}

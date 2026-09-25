@@ -45,13 +45,13 @@ export function HRRoleDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Total Employees Audited</p>
-          <p className="text-2xl font-extrabold text-foreground">1</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">Staff Registered</p>
+          <p className="text-2xl font-extrabold text-foreground">0</p>
+          <p className="text-xs text-muted-foreground font-semibold mt-1">Staff Registered</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Present Today</p>
-          <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">1 / 1</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">100% Attendance Rate</p>
+          <p className="text-2xl font-extrabold text-foreground">0 / 0</p>
+          <p className="text-xs text-muted-foreground font-semibold mt-1">No attendance logged yet</p>
         </div>
         <div className="crm-card">
           <p className="text-xs text-muted-foreground font-medium mb-1">Pending Leave Requests</p>

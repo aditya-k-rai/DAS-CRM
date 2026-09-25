@@ -40,57 +40,14 @@ export default function CommunicationScreen({ onClose }: CommunicationScreenProp
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
-  const [callLogs, setCallLogs] = useState<CallLogEntry[]>([
-    {
-      id: 'log-1',
-      phoneNumber: '+91 98765 43210',
-      matchedLeadName: 'Vikram Singh (Acme Corp)',
-      leadId: 'lead-101',
-      callType: 'OUTGOING',
-      durationSeconds: 245,
-      timestampStr: 'Today, 10:15 AM',
-      status: 'LOGGED_TO_CRM',
-    },
-    {
-      id: 'log-2',
-      phoneNumber: '+91 98123 76543',
-      matchedLeadName: 'Neha Joshi (LogiTech Systems)',
-      leadId: 'lead-102',
-      callType: 'INCOMING',
-      durationSeconds: 180,
-      timestampStr: 'Today, 11:30 AM',
-      status: 'LOGGED_TO_CRM',
-    },
-    {
-      id: 'log-3',
-      phoneNumber: '+91 97654 32109',
-      matchedLeadName: null,
-      leadId: null,
-      callType: 'MISSED',
-      durationSeconds: 0,
-      timestampStr: 'Yesterday, 4:20 PM',
-      status: 'UNMATCHED',
-    },
-  ]);
+  const [callLogs, setCallLogs] = useState<CallLogEntry[]>([]);
 
   const [filterType, setFilterType] = useState<'ALL' | 'INCOMING' | 'OUTGOING' | 'MISSED'>('ALL');
 
   const filteredLogs = callLogs.filter(log => filterType === 'ALL' || log.callType === filterType);
 
   const handleSyncCallHistory = () => {
-    // Simulates reading phone call history and matching numbers against CRM leads
-    const newLog: CallLogEntry = {
-      id: `log-${Date.now()}`,
-      phoneNumber: '+91 99887 11223',
-      matchedLeadName: 'Sunita Verma (Sunita Logistics)',
-      leadId: 'lead-103',
-      callType: 'INCOMING',
-      durationSeconds: 310,
-      timestampStr: 'Just now',
-      status: 'LOGGED_TO_CRM',
-    };
-    setCallLogs(prev => [newLog, ...prev]);
-    Alert.alert('✅ Call Log History Synced', 'Matched incoming call from +91 99887 11223 with Lead "Sunita Verma". Auto-logged 5m 10s duration to CRM!');
+    Alert.alert('📞 Call Log Sync', 'Device call log telemetry synchronized. No new unlogged incoming or outgoing calls found.');
   };
 
   const handleDialNumber = (phone: string) => {
@@ -147,38 +104,46 @@ export default function CommunicationScreen({ onClose }: CommunicationScreenProp
 
           {/* Call Logs List */}
           <View style={{ gap: 8 }}>
-            {filteredLogs.map(log => (
-              <View key={log.id} style={styles.callLogRow}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>
-                      {log.matchedLeadName ? log.matchedLeadName : log.phoneNumber}
-                    </Text>
-                    <View style={[styles.callTypeTag, log.callType === 'MISSED' ? styles.callTypeMissed : styles.callTypeOk]}>
-                      <Text style={styles.callTypeTagText}>{log.callType}</Text>
+            {filteredLogs.length === 0 ? (
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <Text style={{ fontSize: 24, marginBottom: 6 }}>📞</Text>
+                <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '800' }}>No Call Logs Available</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 2, textAlign: 'center' }}>Synchronize phone logs or initiate calls to log telephony events.</Text>
+              </View>
+            ) : (
+              filteredLogs.map(log => (
+                <View key={log.id} style={styles.callLogRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>
+                        {log.matchedLeadName ? log.matchedLeadName : log.phoneNumber}
+                      </Text>
+                      <View style={[styles.callTypeTag, log.callType === 'MISSED' ? styles.callTypeMissed : styles.callTypeOk]}>
+                        <Text style={styles.callTypeTagText}>{log.callType}</Text>
+                      </View>
                     </View>
+
+                    <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                      📞 {log.phoneNumber} • Duration: {Math.floor(log.durationSeconds / 60)}m {log.durationSeconds % 60}s • {log.timestampStr}
+                    </Text>
+
+                    {log.matchedLeadName ? (
+                      <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '700', marginTop: 2 }}>
+                        ✓ Matched Lead: Logged to CRM Timeline
+                      </Text>
+                    ) : (
+                      <Text style={{ fontSize: 9, color: '#fcd34d', fontWeight: '700', marginTop: 2 }}>
+                        ⚠️ Unmatched Number (Tap to create Lead)
+                      </Text>
+                    )}
                   </View>
 
-                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                    📞 {log.phoneNumber} • Duration: {Math.floor(log.durationSeconds / 60)}m {log.durationSeconds % 60}s • {log.timestampStr}
-                  </Text>
-
-                  {log.matchedLeadName ? (
-                    <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '700', marginTop: 2 }}>
-                      ✓ Matched Lead: Logged to CRM Timeline
-                    </Text>
-                  ) : (
-                    <Text style={{ fontSize: 9, color: '#fcd34d', fontWeight: '700', marginTop: 2 }}>
-                      ⚠️ Unmatched Number (Tap to create Lead)
-                    </Text>
-                  )}
+                  <TouchableOpacity style={styles.dialBtn} onPress={() => handleDialNumber(log.phoneNumber)}>
+                    <Text style={styles.dialBtnText}>📞 Call</Text>
+                  </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity style={styles.dialBtn} onPress={() => handleDialNumber(log.phoneNumber)}>
-                  <Text style={styles.dialBtnText}>📞 Call</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+              ))
+            )}
           </View>
         </View>
 

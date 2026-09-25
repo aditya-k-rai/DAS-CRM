@@ -27,19 +27,17 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
   const insets = useSafeAreaInsets();
   const [selectedRep, setSelectedRep] = React.useState<string | null>(null);
   const [assignModalOpen, setAssignModalOpen] = React.useState(false);
-  const [selectedLeadToAssign, setSelectedLeadToAssign] = React.useState('LogiTech Freight Systems (₹3,50,000)');
+  const [selectedLeadToAssign, setSelectedLeadToAssign] = React.useState<string | null>(null);
+  const [unassignedLeads, setUnassignedLeads] = React.useState<string[]>([]);
 
-  const [repsList, setRepsList] = React.useState([
-    { name: 'Rajesh Kumar', leads: 31, won: 12, rev: '₹5.2L', calls: 84 },
-    { name: 'Priya Sharma', leads: 24, won: 8, rev: '₹3.1L', calls: 65 },
-    { name: 'Amit Patel', leads: 18, won: 5, rev: '₹2.4L', calls: 52 },
-  ]);
+  const [repsList, setRepsList] = React.useState<Array<{ name: string; leads: number; won: number; rev: string; calls: number }>>([]);
 
   const handleConfirmAssignLead = () => {
-    if (!selectedRep) return;
+    if (!selectedRep || !selectedLeadToAssign) return;
     setRepsList((prev) =>
       prev.map((r) => (r.name === selectedRep ? { ...r, leads: r.leads + 1 } : r))
     );
+    setUnassignedLeads((prev) => prev.filter((l) => l !== selectedLeadToAssign));
     setAssignModalOpen(false);
     Alert.alert(
       '✅ Lead Re-assigned',
@@ -53,20 +51,20 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
 
         <View style={styles.headerBox}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>🛡️ Team Leader Unit Workspace</Text>
-          <Text style={[styles.headerSub, { color: colors.textMuted }]}>{currentUser.name} • {currentUser.companyName}</Text>
+          <Text style={[styles.headerSub, { color: colors.textMuted }]}>{currentUser?.name || 'Team Leader'} • {currentUser?.companyName || 'DAS Organization'}</Text>
         </View>
 
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.4)' }]}>
-            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹14.2L</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Team Unit Revenue (🥇 #1)</Text>
+            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Team Unit Revenue</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.4)' }]}>
             <Text style={[styles.statVal, { color: isDark ? '#38bdf8' : '#0284c7' }]}>{repsList.length} Execs</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Supervised Execs</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.4)' }]}>
-            <Text style={[styles.statVal, { color: isDark ? '#fbbf24' : '#d97706' }]}>18 Leads</Text>
+            <Text style={[styles.statVal, { color: isDark ? '#fbbf24' : '#d97706' }]}>{unassignedLeads.length} Leads</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Unassigned Queue</Text>
           </View>
         </View>
@@ -76,7 +74,7 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance Logger</Text>
-              <Text style={[styles.cardSub, { color: colors.textMuted }]}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (09:05 AM)</Text></Text>
+              <Text style={[styles.cardSub, { color: colors.textMuted }]}>Status: <Text style={{ color: '#94a3b8', fontWeight: '800' }}>NOT PUNCHED TODAY</Text></Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance}>
               <Text style={styles.actionBtnText}>Mark Attendance →</Text>
@@ -87,26 +85,34 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
         {/* Rep Leaderboard */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Supervised Rep Leaderboard</Text>
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {repsList.map((rep, idx) => (
-            <View key={rep.name} style={[styles.itemRow, idx < repsList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.itemName, { color: colors.text }]}>{rep.name}</Text>
-                <Text style={[styles.itemSub, { color: colors.textMuted }]}>{rep.leads} Leads Assigned • {rep.calls} Calls</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Text style={[styles.itemVal, { color: colors.primary }]}>{rep.rev}</Text>
-                <TouchableOpacity
-                  style={styles.assignBtn}
-                  onPress={() => {
-                    setSelectedRep(rep.name);
-                    setAssignModalOpen(true);
-                  }}
-                >
-                  <Text style={styles.assignBtnText}>Assign →</Text>
-                </TouchableOpacity>
-              </View>
+          {repsList.length === 0 ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <Text style={{ fontSize: 28, marginBottom: 6 }}>👥</Text>
+              <Text style={[styles.cardTitle, { color: colors.text, textAlign: 'center' }]}>No Supervised Representatives</Text>
+              <Text style={[styles.cardSub, { color: colors.textMuted, textAlign: 'center', marginTop: 2 }]}>Representatives assigned to your team will appear here.</Text>
             </View>
-          ))}
+          ) : (
+            repsList.map((rep, idx) => (
+              <View key={rep.name} style={[styles.itemRow, idx < repsList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.itemName, { color: colors.text }]}>{rep.name}</Text>
+                  <Text style={[styles.itemSub, { color: colors.textMuted }]}>{rep.leads} Leads Assigned • {rep.calls} Calls</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <Text style={[styles.itemVal, { color: colors.primary }]}>{rep.rev}</Text>
+                  <TouchableOpacity
+                    style={styles.assignBtn}
+                    onPress={() => {
+                      setSelectedRep(rep.name);
+                      setAssignModalOpen(true);
+                    }}
+                  >
+                    <Text style={styles.assignBtnText}>Assign →</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
       </ScrollView>
@@ -119,26 +125,32 @@ export default function TeamLeaderDashboardScreen({ navigation, onNavigateToAtte
               <Text style={{ fontSize: 15, fontWeight: '900', color: colors.text }}>🎯 Assign Queue Lead to {selectedRep}</Text>
               <Text style={{ fontSize: 11, color: colors.textMuted }}>Select an unassigned inbound lead from the unit queue:</Text>
 
-              {[
-                'LogiTech Freight Systems (₹3,50,000)',
-                'Sunita Logistics Pvt Ltd (₹8,90,000)',
-                'Apex Digital Enterprise (₹1,80,000)',
-              ].map((leadTitle) => (
-                <TouchableOpacity
-                  key={leadTitle}
-                  style={[{ padding: 10, borderRadius: 10, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border }, selectedLeadToAssign === leadTitle && { borderColor: colors.primary, backgroundColor: colors.primaryLight }]}
-                  onPress={() => setSelectedLeadToAssign(leadTitle)}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: selectedLeadToAssign === leadTitle ? colors.primary : colors.text }}>{leadTitle}</Text>
-                </TouchableOpacity>
-              ))}
+              {unassignedLeads.length === 0 ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted }}>No unassigned leads in queue.</Text>
+                </View>
+              ) : (
+                unassignedLeads.map((leadTitle) => (
+                  <TouchableOpacity
+                    key={leadTitle}
+                    style={[{ padding: 10, borderRadius: 10, backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border }, selectedLeadToAssign === leadTitle && { borderColor: colors.primary, backgroundColor: colors.primaryLight }]}
+                    onPress={() => setSelectedLeadToAssign(leadTitle)}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: selectedLeadToAssign === leadTitle ? colors.primary : colors.text }}>{leadTitle}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                 <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: colors.cardBgElevated, borderColor: colors.border, borderWidth: 1, borderRadius: 10, alignItems: 'center' }} onPress={() => setAssignModalOpen(false)}>
                   <Text style={{ color: colors.text, fontWeight: '800', fontSize: 11 }}>Cancel</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#4f46e5', borderRadius: 10, alignItems: 'center' }} onPress={handleConfirmAssignLead}>
+                <TouchableOpacity
+                  style={[{ flex: 1, paddingVertical: 10, backgroundColor: '#4f46e5', borderRadius: 10, alignItems: 'center' }, (!selectedLeadToAssign || unassignedLeads.length === 0) && { opacity: 0.5 }]}
+                  onPress={handleConfirmAssignLead}
+                  disabled={!selectedLeadToAssign || unassignedLeads.length === 0}
+                >
                   <Text style={{ color: '#ffffff', fontWeight: '900', fontSize: 11 }}>Confirm Assign →</Text>
                 </TouchableOpacity>
               </View>

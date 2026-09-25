@@ -221,7 +221,7 @@ export function TeamLeadersSetup() {
             <div>
               <label className="text-xs text-muted block mb-2 font-semibold">Select New Supervisor *</label>
               <div className="space-y-2">
-                {['Amit Shah (Department Manager A)', 'Neha Joshi (Department Manager B)', 'Priya Sharma (Team Leader)', 'Karan Verma (Team Leader)'].map(sup => (
+                {['Department Manager A', 'Department Manager B', 'Team Leader A', 'Team Leader B'].map(sup => (
                   <button
                     key={sup}
                     onClick={() => setNewSupervisor(sup)}

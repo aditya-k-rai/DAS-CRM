@@ -430,7 +430,7 @@ export function VerificationPendingScreen() {
                     <label className="text-[11px] font-bold text-slate-300">Your Full Name</label>
                     <input
                       type="text"
-                      placeholder="e.g. Rajesh Sharma"
+                      placeholder="e.g. Your Full Name"
                       value={inquirySenderName}
                       onChange={e => setInquirySenderName(e.target.value)}
                       className="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-white focus:border-amber-500 focus:outline-none"

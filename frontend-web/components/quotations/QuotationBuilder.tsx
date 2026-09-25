@@ -130,8 +130,8 @@ export const DEFAULT_TERMS_TEMPLATES: TermsTemplate[] = [
   },
 ];
 
-// ─── Default Mock Data (Spectro Analytical Labs & Aarna Construction) ───
 // ─── Default Data Templates ───
+
 const INITIAL_COMPANIES: CompanyDetails[] = [
   {
     id: 'comp-1',
@@ -387,7 +387,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
           ...q,
           status: 'GENERATED_SENT',
           sentVia: channel,
-          sentToLead: leadContact || (channel === 'EMAIL' ? 'lead@client.com' : '+91 9876543210')
+          sentToLead: leadContact || (channel === 'EMAIL' ? 'lead@client.com' : '+91 98000 00000')
         };
       }
       return q;

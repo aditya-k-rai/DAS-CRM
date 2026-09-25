@@ -85,13 +85,16 @@ const SECTION_META: { id: SectionId; label: string; desc: string }[] = [
   { id: 'FOOTER_TERMS',     label: 'Terms & Signatory Footer',    desc: 'Terms & Conditions, E.&O.E., Authorized Signature' },
 ];
 
-const CATALOG_PRODUCTS = [
-  { name: 'Executive Work Station', price: 22500, tax: 18, unit: 'Nos', hsn: '998313', desc: 'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60' },
-  { name: 'DAS CRM Enterprise License (50 Seats)', price: 500000, tax: 18, unit: 'Set', hsn: '998314', desc: 'Annual Enterprise SaaS License with WhatsApp Cloud & AI Lead Scoring Engine', image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=200&auto=format&fit=crop&q=60' },
-  { name: 'AI Lead Scoring Engine Pro', price: 120000, tax: 18, unit: 'License', hsn: '998315', desc: 'Custom ML Lead Qualification & Predictive Analytics Module', image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=200&auto=format&fit=crop&q=60' },
-  { name: 'Industrial HVAC Air Filter Unit', price: 85000, tax: 18, unit: 'Unit', hsn: '842139', desc: 'HEPA High Efficiency Air Ingestion & Dust Separation System', image: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=200&auto=format&fit=crop&q=60' },
-  { name: 'Commercial Solar PV Inverter 50kW', price: 340000, tax: 12, unit: 'Nos', hsn: '850440', desc: 'Three Phase On-Grid Solar Inverter with Realtime Telemetry Monitoring', image: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=200&auto=format&fit=crop&q=60' },
-];
+const CATALOG_PRODUCTS: {
+  name: string;
+  price: number;
+  tax: number;
+  unit: string;
+  hsn: string;
+  desc: string;
+  image: string;
+}[] = [];
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -128,144 +131,40 @@ const fmtTime = () => {
 // Default Mock Data
 // ─────────────────────────────────────────────────────────────────────────────
 
-const INITIAL_COMPANIES: CompanyDetails[] = [
-  {
-    id: 'comp-1',
-    name: 'DAS Business Solutions Pvt Ltd',
-    logoUrl: 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=120&auto=format&fit=crop&q=60',
-    address: 'A-43, Sector 62, Electronic City, Noida, Uttar Pradesh - 201301',
-    email: 'billing@dascrm.com',
-    phone: '+91 98100 12345',
-    gstNo: '09AABCD1234E1Z5',
-    panNo: 'AABCD1234E',
-    bankName: 'HDFC Bank Ltd',
-    accountNo: '50200012345678',
-    ifscCode: 'HDFC0001234',
-    branch: 'Sector 62 Noida',
-    upiId: 'dascrm@hdfcbank',
-  },
-  {
-    id: 'comp-2',
-    name: 'Apex Industrial Systems LLP',
-    logoUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=120&auto=format&fit=crop&q=60',
-    address: 'B-12, Okhla Industrial Area Phase 1, New Delhi - 110020',
-    email: 'accounts@apexindustrial.in',
-    phone: '+91 11 4567 8900',
-    gstNo: '07AAFFA9876K1ZP',
-    panNo: 'AAFFA9876K',
-    bankName: 'ICICI Bank Ltd',
-    accountNo: '000705001234',
-    ifscCode: 'ICIC0000007',
-    branch: 'Connaught Place New Delhi',
-    upiId: 'apexsystems@icici',
-  },
-];
+const EMPTY_COMPANY: CompanyDetails = {
+  id: '',
+  name: '',
+  logoUrl: '',
+  address: '',
+  email: '',
+  phone: '',
+  gstNo: '',
+  panNo: '',
+  bankName: '',
+  accountNo: '',
+  ifscCode: '',
+  branch: '',
+  upiId: '',
+};
 
-const INITIAL_PARTIES: PartyDetails[] = [
-  {
-    id: 'party-1',
-    name: 'TechCorp Innovations India Pvt Ltd',
-    contactPerson: 'Vikram Malhotra (VP Procurement)',
-    email: 'procurement@techcorp.in',
-    phone: '+91 98200 54321',
-    address: 'Tower B, 7th Floor, DLF Cyber City, Phase 2, Gurugram, Haryana - 122002',
-    shippingAddress: 'Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310',
-    gstNo: '06AABCT9988D1Z2',
-    panNo: 'AABCT9988D',
-  },
-  {
-    id: 'party-2',
-    name: 'GreenField Energy Solutions Ltd',
-    contactPerson: 'Anjali Deshmukh (Head Projects)',
-    email: 'accounts@greenfieldenergy.com',
-    phone: '+91 22 6789 0123',
-    address: 'Unit 402, Godrej One, Pirojshanagar, Vikhroli East, Mumbai, Maharashtra - 400079',
-    shippingAddress: 'Godown 12, Kalamboli Warehousing Zone, Navi Mumbai - 410218',
-    gstNo: '27AABCG5544B1ZV',
-    panNo: 'AABCG5544B',
-  },
-];
+const EMPTY_PARTY: PartyDetails = {
+  id: '',
+  name: '',
+  contactPerson: '',
+  email: '',
+  phone: '',
+  address: '',
+  shippingAddress: '',
+  gstNo: '',
+  panNo: '',
+};
 
-const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [
-  {
-    id: 'sq-1',
-    docNo: 'EST-2026-0891',
-    docType: 'QUOTATION',
-    partyName: 'SPECTRO ANALYTICAL LABS PRIVATE LIMITED',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '29/08/2026, 07:45 PM',
-    totalAmount: 238950,
-    status: 'GENERATED_SENT',
-    sentVia: 'EMAIL',
-    sentToLead: 'billing@spectroanalytical.com',
-    itemsCount: 1,
-    createdByName: 'Aditya Kumar Rai',
-    createdByRole: 'Tenant Admin',
-    payload: {
-      items: [
-        {
-          id: 'item-1',
-          productName: 'Executive Work Station',
-          description: 'Ergonomic Modular Desk System',
-          showDescription: true,
-          hsnCode: '998313',
-          customValues: {
-            'col-1': 'Aarna Modular',
-            'col-2': '1 Year Full Warranty',
-          },
-          showImage: false,
-          unit: 'Nos',
-          qty: 9,
-          unitPrice: 22500,
-          taxRate: 18,
-          discountType: 'flat',
-          discountVal: 0,
-          total: 202500,
-        },
-      ],
-      customColumns: [
-        { id: 'col-1', name: 'Make / Brand' },
-        { id: 'col-2', name: 'Warranty Period' },
-      ],
-      sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
-      sectionGap: 10,
-      pdfTopPadding: 32,
-      pdfBottomPadding: 28,
-      globalGstRate: 18,
-      gstType: 'CGST_SGST',
-      docDate: '13/01/2026',
-      validUntilDate: '31/01/2026',
-    },
-  },
-  {
-    id: 'sq-2',
-    docNo: 'PI-2026-0412',
-    docType: 'PROFORMA_INVOICE',
-    partyName: 'INFOSYS ENTERPRISE SOLUTIONS',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '29/08/2026, 06:15 PM',
-    totalAmount: 540000,
-    status: 'GENERATED_SENT',
-    sentVia: 'WHATSAPP_DIRECT',
-    sentToLead: '+91 9810234567',
-    itemsCount: 2,
-    createdByName: 'Priya Sharma',
-    createdByRole: 'Sales Manager',
-  },
-  {
-    id: 'sq-3',
-    docNo: 'EST-2026-0892',
-    docType: 'QUOTATION',
-    partyName: 'TATA CONSULTANCY SERVICES',
-    companyName: 'Aarna Construction & Interiors',
-    savedAt: '28/08/2026, 03:20 PM',
-    totalAmount: 185000,
-    status: 'DRAFT',
-    itemsCount: 1,
-    createdByName: 'Rajesh Kumar',
-    createdByRole: 'Sales Executive',
-  },
-];
+const INITIAL_COMPANIES: CompanyDetails[] = [];
+
+const INITIAL_PARTIES: PartyDetails[] = [];
+
+const INITIAL_SAVED_QUOTES: SavedQuoteRecord[] = [];
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Accordion Section Header Component
@@ -374,7 +273,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [viewMode, setViewMode] = useState<'BUILDER' | 'LIVE_PREVIEW'>('BUILDER');
   const [docType, setDocType]   = useState<DocumentType>('QUOTATION');
-  const [docNo, setDocNo]       = useState('EST-2026-0891');
+  const [docNo, setDocNo]       = useState(() => `EST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
   const [docDate, setDocDate]   = useState(fmtDate());
   const [validUntilDate, setValidUntilDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 18);
@@ -387,23 +286,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   // Company & Party
   const [companies, setCompanies]                   = useState<CompanyDetails[]>(INITIAL_COMPANIES);
-  const [selectedCompanyId, setSelectedCompanyId]   = useState(INITIAL_COMPANIES[0].id);
+  const [selectedCompanyId, setSelectedCompanyId]   = useState(INITIAL_COMPANIES[0]?.id || '');
   const [parties, setParties]                       = useState<PartyDetails[]>(INITIAL_PARTIES);
-  const [selectedPartyId, setSelectedPartyId]       = useState(INITIAL_PARTIES[0].id);
+  const [selectedPartyId, setSelectedPartyId]       = useState('');
   const [useSeparateShipping, setUseSeparateShipping] = useState(false);
-  const [customShippingAddress, setCustomShippingAddress] = useState('Plot 4, Site V Industrial Park, Greater Noida, Uttar Pradesh - 201310');
+  const [customShippingAddress, setCustomShippingAddress] = useState('');
 
   // Line Items
-  const [items, setItems] = useState<LineItem[]>([{
-    id:'item-1', productName:'Executive Work Station', description:'Ergonomic Modular Desk System with Cable Management & Powder Coated Steel Frame',
-    showDescription:true, hsnCode:'998313', customValues:{ 'col-1':'Aarna Modular', 'col-2':'1 Year Full Warranty' },
-    imageUrl:'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&auto=format&fit=crop&q=60',
-    showImage:false, unit:'Nos', qty:9, unitPrice:22500, taxRate:18, discountType:'flat', discountVal:0, total:202500,
-  }]);
+  const [items, setItems] = useState<LineItem[]>([]);
 
-  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([
-    { id:'col-1', name:'Make / Brand' }, { id:'col-2', name:'Warranty Period' },
-  ]);
+  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
 
   // GST & Tax
   const [globalGstRate, setGlobalGstRate]             = useState(18);
@@ -412,7 +304,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [showHsnColumn, setShowHsnColumn]             = useState(true);
   const [overallDiscountType, setOverallDiscountType] = useState<'flat'|'percent'>('flat');
   const [overallDiscountVal, setOverallDiscountVal]   = useState(0);
-  const [termsText, setTermsText]                     = useState('1. All disputes are subject to Greater Noida jurisdiction only.\n2. Payment must be cleared within 2-3 days of bill submission.');
+  const [termsText, setTermsText]                     = useState('1. Standard terms and conditions apply.\n2. Payment terms as agreed upon.');
 
   // Layout Controls
   const [sectionGap, setSectionGap]             = useState(10);
@@ -450,8 +342,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
   const [newParty, setNewParty]                 = useState<Partial<PartyDetails>>({});
 
   // ─── Derived Calculations (Memoized for High Performance) ───────────────────
-  const activeCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId) || companies[0], [companies, selectedCompanyId]);
-  const activeParty   = useMemo(() => parties.find(p => p.id === selectedPartyId) || parties[0], [parties, selectedPartyId]);
+  const activeCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId) || companies[0] || EMPTY_COMPANY, [companies, selectedCompanyId]);
+  const activeParty   = useMemo(() => parties.find(p => p.id === selectedPartyId) || parties[0] || EMPTY_PARTY, [parties, selectedPartyId]);
+
 
   const { subtotal, totalItemDiscounts, taxableBase, overallDiscAmount, finalTaxable, gstTaxTotal, effectiveGstTaxTotal, grandTotal, cgst, sgst, igst, utgst } = useMemo(() => {
     const sub = items.reduce((s, i) => s + (i.qty || 0) * (i.unitPrice || 0), 0);
@@ -556,17 +449,26 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
   const addLineItem = useCallback(() => {
     const newItem: LineItem = {
-      id: `item-${Date.now()}`, productName:'New Line Item', description:'High quality industrial grade specification item',
-      showDescription:true, hsnCode:'998313', showImage:false, unit:'Nos', qty:1, unitPrice:10000,
-      taxRate:globalGstRate, discountType:'flat', discountVal:0, total:10000,
+      id: `item-${Date.now()}`,
+      productName: '',
+      description: '',
+      showDescription: false,
+      hsnCode: '',
+      showImage: false,
+      unit: 'Nos',
+      qty: 1,
+      unitPrice: 0,
+      taxRate: globalGstRate,
+      discountType: 'flat',
+      discountVal: 0,
+      total: 0,
     };
     setItems(prev => [...prev, newItem]);
   }, [globalGstRate]);
 
   const removeLineItem = useCallback((id: string) => {
-    if (items.length <= 1) { Alert.alert('Notice', 'At least 1 line item is required.'); return; }
     setItems(prev => prev.filter(it => it.id !== id));
-  }, [items.length]);
+  }, []);
 
   const handleSelectCatalogProduct = (product: typeof CATALOG_PRODUCTS[number], targetItemId: string | null) => {
     if (targetItemId === 'NEW' || !targetItemId) {
@@ -619,7 +521,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     const documentNo  = overrideDocNo    || docNo;
     const totalAmt    = overrideAmount   !== undefined ? overrideAmount : grandTotal;
 
-    const itemRows = items.map((it, idx) => {
+    const itemRows = items.length === 0
+      ? `<tr><td colspan="${4 + (showHsnColumn ? 1 : 0) + customColumns.length + (showGstColumn ? 1 : 0)}" style="text-align:center; padding: 20px; color: #64748b; font-style: italic;">No items added</td></tr>`
+      : items.map((it, idx) => {
       const baseRowTotal = it.qty * it.unitPrice;
       const rowTax = baseRowTotal * it.taxRate / 100;
       const displayedRowTotal = showGstColumn ? Math.round(baseRowTotal + rowTax) : baseRowTotal;
@@ -629,7 +533,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           <strong style="color:#0f172a; font-size:10.5px;">${it.productName}</strong>
           ${it.showDescription && it.description ? `<br/><small style="color:#64748b; font-size:9px; line-height:1.3;">${it.description}</small>` : ''}
         </td>
-        ${showHsnColumn ? `<td style="text-align:center; font-family:monospace; font-size:10px; white-space:nowrap;">${it.hsnCode || '998313'}</td>` : ''}
+        ${showHsnColumn ? `<td style="text-align:center; font-family:monospace; font-size:10px; white-space:nowrap;">${it.hsnCode || '—'}</td>` : ''}
         ${customColumns.map(col => `<td style="text-align:center; font-size:10px; word-break:break-word;">${it.customValues?.[col.id] || '—'}</td>`).join('')}
         <td style="text-align:center; white-space:nowrap; font-weight:600;">${it.qty} ${it.unit}</td>
         <td style="text-align:right; white-space:nowrap; font-weight:600;">₹${it.unitPrice.toLocaleString('en-IN')}</td>
@@ -852,7 +756,7 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
           <div class="party-detail">GSTIN: <strong style="color:#002060">${activeParty.gstNo}</strong></div>
           <div class="party-detail">PAN: <strong style="color:#002060">${activeParty.panNo}</strong></div>
           <div class="party-detail">Phone: ${activeParty.phone}</div>
-          <div class="party-detail">Place of Supply: <strong>Uttar Pradesh</strong></div>
+          <div class="party-detail">Place of Supply: <strong>${activeParty.address ? (activeParty.address.split(',').pop()?.trim() || '—') : '—'}</strong></div>
         </div>
       </td>
     </tr>
@@ -1567,12 +1471,16 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                     ))}
                   </View>
                 </ScrollView>
-                {activeCompany && (
+                {activeCompany && activeCompany.name ? (
                   <View style={styles.detailCard}>
                     <Text style={styles.detailName}>{activeCompany.name}</Text>
                     <Text style={styles.detailSub}>{activeCompany.address}</Text>
                     <Text style={styles.detailContact}>GSTIN: {activeCompany.gstNo} • PAN: {activeCompany.panNo}</Text>
                     <Text style={styles.detailContact}>Bank: {activeCompany.bankName} | A/C: {activeCompany.accountNo}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.detailCard, { borderStyle: 'dashed' }]}>
+                    <Text style={[styles.detailSub, { textAlign: 'center', fontStyle: 'italic' }]}>No company added. Tap "+ Add Company" above to configure seller details.</Text>
                   </View>
                 )}
               </View>
@@ -1607,11 +1515,15 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                     ))}
                   </View>
                 </ScrollView>
-                {activeParty && (
+                {activeParty && activeParty.name ? (
                   <View style={[styles.detailCard, { borderColor:'rgba(52,211,153,0.3)', backgroundColor:'rgba(52,211,153,0.05)' }]}>
                     <Text style={styles.detailName}>{activeParty.name}</Text>
                     <Text style={styles.detailSub}>🏢 Billing: {activeParty.address}</Text>
                     <Text style={styles.detailContact}>GSTIN: {activeParty.gstNo} • PAN: {activeParty.panNo}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.detailCard, { borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.05)', borderStyle: 'dashed' }]}>
+                    <Text style={[styles.detailSub, { textAlign: 'center', fontStyle: 'italic' }]}>No client party selected. Tap "+ Add Party" above to add client details.</Text>
                   </View>
                 )}
                 <View style={styles.toggleRow}>
@@ -1672,6 +1584,12 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
                 )}
 
                 {/* Line Items List */}
+                {items.length === 0 && (
+                  <View style={{ padding: 18, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 10, borderWidth: 1, borderColor: '#334155', borderStyle: 'dashed', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, color: '#94a3b8', fontWeight: '600' }}>No line items added yet</Text>
+                    <Text style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>Tap "+ Add Line Item" or "Pick from Catalog" to begin building your quote.</Text>
+                  </View>
+                )}
                 {items.map((it, idx) => (
                   <View key={it.id} style={styles.itemBox}>
                     <View style={styles.itemHeader}>
@@ -2258,24 +2176,32 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 8 }}>
-                  {CATALOG_PRODUCTS.map((prod) => (
-                    <TouchableOpacity
-                      key={prod.name}
-                      style={styles.catalogCard}
-                      onPress={() => handleSelectCatalogProduct(prod, catalogModalOpen)}
-                    >
-                      <Image source={{ uri: prod.image }} style={styles.catalogImg} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.catalogName}>{prod.name}</Text>
-                        <Text style={styles.catalogDesc} numberOfLines={2}>{prod.desc}</Text>
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                          <Text style={styles.catalogPrice}>₹{prod.price.toLocaleString('en-IN')}</Text>
-                          <Text style={styles.catalogMeta}>HSN: {prod.hsn} • GST: {prod.tax}%</Text>
+                  {CATALOG_PRODUCTS.length === 0 ? (
+                    <View style={{ padding: 24, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 24, marginBottom: 8 }}>📦</Text>
+                      <Text style={{ fontSize: 13, color: '#94a3b8', fontWeight: '600' }}>No products in catalog</Text>
+                      <Text style={{ fontSize: 11, color: '#64748b', marginTop: 4, textAlign: 'center' }}>You can enter custom item details directly in the line item builder.</Text>
+                    </View>
+                  ) : (
+                    CATALOG_PRODUCTS.map((prod) => (
+                      <TouchableOpacity
+                        key={prod.name}
+                        style={styles.catalogCard}
+                        onPress={() => handleSelectCatalogProduct(prod, catalogModalOpen)}
+                      >
+                        <Image source={{ uri: prod.image }} style={styles.catalogImg} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.catalogName}>{prod.name}</Text>
+                          <Text style={styles.catalogDesc} numberOfLines={2}>{prod.desc}</Text>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                            <Text style={styles.catalogPrice}>₹{prod.price.toLocaleString('en-IN')}</Text>
+                            <Text style={styles.catalogMeta}>HSN: {prod.hsn} • GST: {prod.tax}%</Text>
+                          </View>
                         </View>
-                      </View>
-                      <Text style={styles.catalogAddBtn}>+ Select</Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text style={styles.catalogAddBtn}>+ Select</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
                 </View>
               </ScrollView>
             </View>
@@ -2456,9 +2382,9 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
 
             {/* New Quote Button */}
             <TouchableOpacity style={styles.newQuoteBtn} onPress={() => {
-              setDocNo(`EST-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+              setDocNo(`EST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
               setDocType('QUOTATION');
-              setItems([{ id:`item-${Date.now()}`, productName:'Executive Work Station', description:'Ergonomic Modular Desk System', showDescription:true, hsnCode:'998313', customValues:{ 'col-1':'Aarna Modular', 'col-2':'1 Year Full Warranty' }, showImage:false, unit:'Nos', qty:1, unitPrice:22500, taxRate:18, discountType:'flat', discountVal:0, total:22500 }]);
+              setItems([]);
               setHistoryModalOpen(false);
               setViewMode('BUILDER');
             }}>

@@ -23,8 +23,10 @@ import {
   GoogleDriveConnectionStatus,
   GoogleDriveStoredFile,
 } from '../../lib/googleDriveService';
+import { useAuth } from '@/context/AuthContext';
 
 export const GoogleDriveStatusWidget: React.FC = () => {
+  const { currentUser } = useAuth();
   const [status, setStatus] = useState<GoogleDriveConnectionStatus | null>(null);
   const [files, setFiles] = useState<GoogleDriveStoredFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,10 +34,9 @@ export const GoogleDriveStatusWidget: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
   // Employee Vault Explorer State
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('Amit Shah');
+  const EMPLOYEES = currentUser?.name ? [currentUser.name] : [];
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(currentUser?.name || '');
   const [selectedSubCat, setSelectedSubCat] = useState<'DP' | 'Documents' | 'Details'>('Documents');
-
-  const EMPLOYEES = ['Amit Shah', 'Priya Sharma', 'Sunita Verma', 'Amit Patel'];
 
   const loadData = async () => {
     setIsLoading(true);
@@ -168,7 +169,7 @@ export const GoogleDriveStatusWidget: React.FC = () => {
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
               <div className="flex items-center gap-2">
                 <Folder className="h-4 w-4 text-amber-400" />
-                <span className="text-xs font-bold text-foreground">Acme Sales Solutions (Company Root)</span>
+                <span className="text-xs font-bold text-foreground">{currentUser?.companyName || 'DAS Organization'} (Company Root)</span>
               </div>
               <span className="text-[11px] font-mono text-muted-foreground bg-accent/60 px-2 py-0.5 rounded">
                 Google Drive &amp; Local Vault Sync
@@ -190,19 +191,23 @@ export const GoogleDriveStatusWidget: React.FC = () => {
 
                   {/* Employee Select Pills */}
                   <div className="flex items-center gap-1">
-                    {EMPLOYEES.map((emp) => (
-                      <button
-                        key={emp}
-                        onClick={() => setSelectedEmployee(emp)}
-                        className={`text-[11px] px-2 py-1 rounded-md font-bold transition-all ${
-                          selectedEmployee === emp
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-accent/60 text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {emp.split(' ')[0]}
-                      </button>
-                    ))}
+                    {EMPLOYEES.length === 0 ? (
+                      <span className="text-[11px] text-muted-foreground italic">No employees</span>
+                    ) : (
+                      EMPLOYEES.map((emp) => (
+                        <button
+                          key={emp}
+                          onClick={() => setSelectedEmployee(emp)}
+                          className={`text-[11px] px-2 py-1 rounded-md font-bold transition-all ${
+                            selectedEmployee === emp
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-accent/60 text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {emp.split(' ')[0]}
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -211,10 +216,10 @@ export const GoogleDriveStatusWidget: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
                       <Folder className="h-3.5 w-3.5 text-indigo-400" />
-                      📁 {selectedEmployee}/
+                      📁 {selectedEmployee || 'Employees'}/
                     </span>
                     <span className="text-[11px] text-muted-foreground font-mono">
-                      Path: Google Drive &gt; Acme &gt; Employees &gt; {selectedEmployee}
+                      Path: Google Drive &gt; Employees &gt; {selectedEmployee || 'Current'}
                     </span>
                   </div>
 

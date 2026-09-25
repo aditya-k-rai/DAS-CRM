@@ -65,7 +65,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     if (route?.params) {
       const { leadId, leadName } = route.params;
       if (leadId && !lead) {
-        lead = { id: leadId, name: leadName || 'Lead Detail', phone: '+91 98765 43210' };
+        lead = { id: leadId, name: leadName || 'Lead Detail', phone: '' };
       }
     }
   } catch {}
@@ -78,9 +78,9 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     (l) => (leadId && l.id === leadId) || (leadName && l.name.toLowerCase() === leadName.toLowerCase())
   );
 
-  const leadPhone = lead?.phone || matchedLead?.phone || '+91 98765 43210';
-  const leadCompany = lead?.company || matchedLead?.company || 'Acme Partner';
-  const leadValue = lead?.value || matchedLead?.value || '$14,200';
+  const leadPhone = lead?.phone || matchedLead?.phone || '';
+  const leadCompany = lead?.company || matchedLead?.company || '—';
+  const leadValue = lead?.value || matchedLead?.value || '₹0';
 
   // Dynamic Lead Status State
   const [leadStatusState, setLeadStatusState] = useState<string>(lead?.status || 'NEW LEAD');
@@ -91,82 +91,27 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
     medium: string;
     time: string;
   }>({
-    status: lead?.status || matchedLead?.status || 'CONTACTED',
-    medium: '📞 Phone Call',
-    time: 'Today, 2:45 PM',
+    status: lead?.status || matchedLead?.status || 'NEW LEAD',
+    medium: '—',
+    time: 'Never',
   });
 
   // Live Call Telemetry State
   const [telemetry, setTelemetry] = useState<LeadCallSummary>({
-    lastCalledAt: 'Today, 2:45 PM',
-    connectionStatus: 'CONNECTED',
-    lastDurationStr: '4m 18s',
-    totalTalkTimeSeconds: 258,
-    incomingCount: 2,
-    outgoingCount: 4,
-    lastFollowupAt: 'Today, 2:45 PM',
+    lastCalledAt: 'Never',
+    connectionStatus: 'NONE',
+    lastDurationStr: '0s',
+    totalTalkTimeSeconds: 0,
+    incomingCount: 0,
+    outgoingCount: 0,
+    lastFollowupAt: 'Never',
   });
 
   const [hoursToMidnight, setHoursToMidnight] = useState(7);
 
   // 📞 Post-Call Outcome & Status Modal State & History
   const [postCallModalOpen, setPostCallModalOpen] = useState(false);
-  const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([
-    {
-      leadId: leadId,
-      leadName: leadName,
-      phone: leadPhone,
-      outcome: 'PICKED_UP',
-      subOption: 'TALKED',
-      notes: 'Outreach call completed. Client interested in Enterprise CRM 50-seat package. Requested proposal on WhatsApp.',
-      timestamp: '02:45 PM',
-      dateLabel: 'Today',
-      callerName: 'Mighty Rai',
-      callerRole: 'SALES_EXEC',
-      durationStr: '4m 18s',
-      selectedProduct: CATALOG_PRODUCTS[0],
-      scheduledDate: '2026-08-22',
-      scheduledTime: '11:00 AM',
-    },
-    {
-      leadId: leadId,
-      leadName: leadName,
-      phone: leadPhone,
-      outcome: 'WHATSAPP_CHAT',
-      subOption: 'WA_SENT',
-      notes: 'Sent DAS CRM Enterprise Proposal PDF deck via WhatsApp.',
-      timestamp: '03:10 PM',
-      dateLabel: 'Today',
-      callerName: 'Mighty Rai',
-      callerRole: 'SALES_EXEC',
-    },
-    {
-      leadId: leadId,
-      leadName: leadName,
-      phone: leadPhone,
-      outcome: 'PICKED_UP',
-      subOption: 'INTERESTED',
-      notes: 'Follow-up call by Team Leader. Answered GST and SLA queries. Client confirmed CFO review.',
-      timestamp: '11:30 AM',
-      dateLabel: 'Yesterday',
-      callerName: 'Priya Sharma',
-      callerRole: 'TEAM_LEADER',
-      durationStr: '2m 22s',
-      scheduledDate: '2026-08-21',
-      scheduledTime: '02:00 PM',
-    },
-    {
-      leadId: leadId,
-      leadName: leadName,
-      phone: leadPhone,
-      outcome: 'BUSY',
-      notes: 'Called — line busy. Will try again.',
-      timestamp: '09:15 AM',
-      dateLabel: 'Yesterday',
-      callerName: 'Mighty Rai',
-      callerRole: 'SALES_EXEC',
-    },
-  ]);
+  const [recentOutcomes, setRecentOutcomes] = useState<CallOutcomeData[]>([]);
 
   // 💬 WhatsApp Template 2-Step Wizard & Quantity State
   const [waModalOpen, setWaModalOpen] = useState(false);
@@ -515,7 +460,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.title, { color: colors.text }]}>{leadName}</Text>
-              <Text style={[styles.company, { color: colors.textSecondary }]}>{lead?.company || 'Acme Partner'} • {leadValue}</Text>
+              <Text style={[styles.company, { color: colors.textSecondary }]}>{lead?.company || 'Independent Business'} • {leadValue}</Text>
             </View>
             {/* 🔥 AI SCORE BADGE (Tap to View Detailed Score Breakdown Modal) */}
             <TouchableOpacity
@@ -631,7 +576,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
           {/* Currently Assigned To Banner */}
           <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.12)' : 'rgba(5,150,105,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.35)' : 'rgba(5,150,105,0.25)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
             <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Currently Assigned To</Text>
-            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginTop: 2 }}>{lead?.assignedRep || 'Rajesh Kumar (Sales Rep)'}</Text>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginTop: 2 }}>{lead?.assignedRep || 'Unassigned'}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.2)' : 'rgba(5,150,105,0.15)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.4)' : 'rgba(5,150,105,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>SALES EXECUTIVE</Text>
@@ -701,7 +646,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   </View>
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '900', color: colors.text, marginBottom: 2 }}>
-                  🎯 Assigned to{'\n'}{lead?.assignedRep || 'Rajesh Kumar (Sales Rep)'}
+                  🎯 Assigned to{'\n'}{lead?.assignedRep || 'Unassigned'}
                 </Text>
                 <Text style={{ fontSize: 9, color: colors.textSecondary, marginBottom: 3 }}>By TL A</Text>
                 <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>Aug 21 • 11:45 AM</Text>
@@ -776,78 +721,88 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
         </View>
 
         <View style={[styles.activityHistoryCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {recentOutcomes.map((item, idx) => {
-            const roleColor = item.callerRole === 'TEAM_LEADER' ? (isDark ? '#38bdf8' : '#0284c7') : item.callerRole === 'MANAGER' ? (isDark ? '#818cf8' : '#4f46e5') : (isDark ? '#34d399' : '#059669');
-            const roleLabel = item.callerRole === 'TEAM_LEADER' ? 'TL' : item.callerRole === 'MANAGER' ? 'Manager' : 'Sales Rep';
+          {recentOutcomes.length === 0 ? (
+            <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 26, marginBottom: 8 }}>📭</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>No Activity Logged</Text>
+              <Text style={{ fontSize: 11, color: colors.textSecondary, textAlign: 'center', marginTop: 4 }}>
+                Calls, WhatsApp chats, and follow-ups will appear here automatically.
+              </Text>
+            </View>
+          ) : (
+            recentOutcomes.map((item, idx) => {
+              const roleColor = item.callerRole === 'TEAM_LEADER' ? (isDark ? '#38bdf8' : '#0284c7') : item.callerRole === 'MANAGER' ? (isDark ? '#818cf8' : '#4f46e5') : (isDark ? '#34d399' : '#059669');
+              const roleLabel = item.callerRole === 'TEAM_LEADER' ? 'TL' : item.callerRole === 'MANAGER' ? 'Manager' : 'Sales Rep';
 
-            return (
-              <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && [styles.activityItemBorder, { borderBottomColor: colors.border }]]}>
-                {/* Header Row: Outcome Badge + Date / Time */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Text style={[styles.activityTitleText, { color: colors.text }]}>
-                      {item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : item.outcome === 'WHATSAPP_CHAT' ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
-                    </Text>
-                    {item.subOption && (
-                      <View style={styles.subOptionPill}>
-                        <Text style={[styles.subOptionPillText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>{item.subOption.replace('_', ' ')}</Text>
-                      </View>
-                    )}
-                    {item.durationStr && (
-                      <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(5,150,105,0.12)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>🎙 {item.durationStr}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '700' }}>
-                    {item.dateLabel ? `${item.dateLabel} · ` : ''}{item.timestamp}
-                  </Text>
-                </View>
-
-                {/* Who Called / Initiator Badge */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>By:</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: colors.text }}>{item.callerName || 'Sales Executive'}</Text>
-                  <View style={{ backgroundColor: roleColor + '20', borderWidth: 1, borderColor: roleColor + '50', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                    <Text style={{ fontSize: 8, fontWeight: '900', color: roleColor }}>{roleLabel}</Text>
-                  </View>
-                </View>
-
-                {/* Notes & Reasoning */}
-                {item.notes ? (
-                  <View style={{ backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginTop: 6 }}>
-                    <Text style={{ fontSize: 10, color: colors.textSecondary, fontStyle: 'italic' }}>"{item.notes}"</Text>
-                  </View>
-                ) : null}
-
-                {/* Interested Product */}
-                {item.selectedProduct && (
-                  <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800', marginTop: 4 }}>
-                    🛍️ Product Discussed: {item.selectedProduct.name}
-                  </Text>
-                )}
-
-                {/* Scheduled Callback */}
-                {item.scheduledDate && (
-                  <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(2,132,199,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.25)', borderRadius: 8, padding: 6, marginTop: 4 }}>
-                    <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '800' }}>
-                      📅 Callback Scheduled: {item.scheduledDate} {item.scheduledTime ? `at ${item.scheduledTime}` : ''}
+              return (
+                <View key={idx} style={[styles.activityItemRow, idx < recentOutcomes.length - 1 && [styles.activityItemBorder, { borderBottomColor: colors.border }]]}>
+                  {/* Header Row: Outcome Badge + Date / Time */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={[styles.activityTitleText, { color: colors.text }]}>
+                        {item.outcome === 'PICKED_UP' ? '🟢 Call Connected' : item.outcome === 'WHATSAPP_CHAT' ? '💬 WhatsApp Sent' : item.outcome === 'BUSY' ? '🟡 Line Busy' : '🔴 Not Responding'}
+                      </Text>
+                      {item.subOption && (
+                        <View style={styles.subOptionPill}>
+                          <Text style={[styles.subOptionPillText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>{item.subOption.replace('_', ' ')}</Text>
+                        </View>
+                      )}
+                      {item.durationStr && (
+                        <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.15)' : 'rgba(5,150,105,0.12)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>🎙 {item.durationStr}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 9, color: colors.textSecondary, fontWeight: '700' }}>
+                      {item.dateLabel ? `${item.dateLabel} · ` : ''}{item.timestamp}
                     </Text>
                   </View>
-                )}
-              </View>
-            );
-          })}
+
+                  {/* Who Called / Initiator Badge */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Text style={{ fontSize: 10, color: colors.textSecondary }}>By:</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: colors.text }}>{item.callerName || 'Sales Executive'}</Text>
+                    <View style={{ backgroundColor: roleColor + '20', borderWidth: 1, borderColor: roleColor + '50', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 8, fontWeight: '900', color: roleColor }}>{roleLabel}</Text>
+                    </View>
+                  </View>
+
+                  {/* Notes & Reasoning */}
+                  {item.notes ? (
+                    <View style={{ backgroundColor: colors.cardBgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginTop: 6 }}>
+                      <Text style={{ fontSize: 10, color: colors.textSecondary, fontStyle: 'italic' }}>"{item.notes}"</Text>
+                    </View>
+                  ) : null}
+
+                  {/* Interested Product */}
+                  {item.selectedProduct && (
+                    <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '800', marginTop: 4 }}>
+                      🛍️ Product Discussed: {item.selectedProduct.name}
+                    </Text>
+                  )}
+
+                  {/* Scheduled Callback */}
+                  {item.scheduledDate && (
+                    <View style={{ backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : 'rgba(2,132,199,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(56,189,248,0.3)' : 'rgba(2,132,199,0.25)', borderRadius: 8, padding: 6, marginTop: 4 }}>
+                      <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '800' }}>
+                        📅 Callback Scheduled: {item.scheduledDate} {item.scheduledTime ? `at ${item.scheduledTime}` : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
         </View>
 
         {/* Contact Details (With Copy-on-Tap Support for Phone & Email) */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Contact Information (Tap Phone or Email to Copy 📋)</Text>
         <View style={[styles.detailCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {[
-            { label: '📞 Phone', value: leadPhone, isCopyable: true, type: 'Phone Number' },
-            { label: '✉️ Email', value: lead?.email || 'vikram@acme.com', isCopyable: true, type: 'Email Address' },
-            { label: '🏢 Company', value: lead?.company || 'Acme Corp', isCopyable: false, type: '' },
-            { label: '🌐 Source', value: lead?.source || 'Google Sheets Sync', isCopyable: false, type: '' },
+            { label: '📞 Phone', value: leadPhone || '—', isCopyable: Boolean(leadPhone), type: 'Phone Number' },
+            { label: '✉️ Email', value: lead?.email || '—', isCopyable: Boolean(lead?.email), type: 'Email Address' },
+            { label: '🏢 Company', value: lead?.company || leadCompany, isCopyable: false, type: '' },
+            { label: '🌐 Source', value: lead?.source || 'Direct', isCopyable: false, type: '' },
           ].map((item, i) => {
             const handleTap = () => {
               if (item.isCopyable) {

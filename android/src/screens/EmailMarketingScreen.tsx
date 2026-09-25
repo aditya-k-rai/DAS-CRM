@@ -32,20 +32,18 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
   const bottomPadding = Math.max(insets.bottom + 10, 20);
 
   // SMTP Credentials State
-  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com');
+  const [smtpHost, setSmtpHost] = useState('');
   const [smtpPort, setSmtpPort] = useState('587');
-  const [smtpUser, setSmtpUser] = useState('marketing@acme.com');
-  const [smtpPass, setSmtpPass] = useState('abcd-efgh-ijkl-mnop');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
   const [smtpSecure, setSmtpSecure] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
-  const [smtpConnected, setSmtpConnected] = useState(true);
+  const [smtpConnected, setSmtpConnected] = useState(false);
 
   // Campaign State
-  const [campaignSubject, setCampaignSubject] = useState('🚀 Exclusive Product Launch — DAS CRM');
-  const [campaignRecipients, setCampaignRecipients] = useState('lead1@client.com, lead2@client.com');
-  const [campaignHtml, setCampaignHtml] = useState(
-    '<h1>Hello, Valued Partner!</h1><p>We are thrilled to present our updated 2026 enterprise CRM software solutions.</p>'
-  );
+  const [campaignSubject, setCampaignSubject] = useState('');
+  const [campaignRecipients, setCampaignRecipients] = useState('');
+  const [campaignHtml, setCampaignHtml] = useState('');
   const [isSendingCampaign, setIsSendingCampaign] = useState(false);
 
   // Google Drive Upload Telemetry Simulation State

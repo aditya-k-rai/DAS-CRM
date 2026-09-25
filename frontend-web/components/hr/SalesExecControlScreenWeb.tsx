@@ -30,10 +30,9 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
   const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Admin (Vikram Singh)',
-    'Manager A (Amit Shah)',
-    'Manager B (Neha Joshi)',
-    'Team Leader (Priya Sharma)',
+    'Tenant Admin',
+    'Department Manager',
+    'Team Leader',
   ];
 
   const MOCK_LEADS: any[] = [];
@@ -190,7 +189,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
           className="bg-slate-900 border border-amber-500/40 p-4 rounded-xl text-left hover:border-amber-400 transition"
         >
           <div className="text-xs font-black text-amber-400">📅 Pending Leave Request (Inspect & Approve Note) →</div>
-          <div className="text-xs text-slate-400 mt-1">Inspect 3-day leave application; approve/decline with mandatory note</div>
+          <div className="text-xs text-slate-400 mt-1">Inspect leave application; approve/decline with mandatory note</div>
         </button>
       </div>
 
@@ -269,7 +268,7 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-2">📅 Pending Leave Application Inspection</h3>
-            <p className="text-xs text-slate-300 mb-4">Applicant: <strong>{employee.name}</strong> • 3 Days (Medical Leave)</p>
+            <p className="text-xs text-slate-300 mb-4">Applicant: <strong>{employee.name}</strong></p>
             <textarea
               placeholder="Enter decision note..."
               value={leaveNote}
@@ -313,8 +312,8 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-3">📄 Official Documents Telemetry</h3>
-            <p className="text-xs text-slate-300 mb-2">PAN Card: {employee.documents?.pan || 'ABCDE1234F'}</p>
-            <p className="text-xs text-slate-300 mb-4">Aadhaar ID: {employee.documents?.aadhaar || 'AADHAAR_VERIFIED.pdf'}</p>
+            <p className="text-xs text-slate-300 mb-2">PAN Card: {employee.documents?.pan || 'Not provided'}</p>
+            <p className="text-xs text-slate-300 mb-4">Aadhaar ID: {employee.documents?.aadhaar || 'Not provided'}</p>
             <button onClick={() => setDocumentsModalOpen(false)} className="w-full py-2 bg-slate-800 text-sky-400 text-xs font-bold rounded-xl">Close Documents →</button>
           </div>
         </div>
@@ -325,8 +324,8 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-3">💳 Bank Account Details Telemetry</h3>
-            <p className="text-xs text-slate-300 mb-2">Bank: {employee.bankDetails?.bankName || 'HDFC Bank'}</p>
-            <p className="text-xs text-slate-300 mb-4">Account No: {employee.bankDetails?.accountNo || '50100987654321'}</p>
+            <p className="text-xs text-slate-300 mb-2">Bank: {employee.bankDetails?.bankName || 'Not provided'}</p>
+            <p className="text-xs text-slate-300 mb-4">Account No: {employee.bankDetails?.accountNo || 'Not provided'}</p>
             <button onClick={() => setBankDetailsModalOpen(false)} className="w-full py-2 bg-slate-800 text-sky-400 text-xs font-bold rounded-xl">Close Bank Details →</button>
           </div>
         </div>

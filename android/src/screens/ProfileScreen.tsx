@@ -81,13 +81,10 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
   const [docModalOpen, setDocModalOpen] = useState(false);
   const [docHistoryModalOpen, setDocHistoryModalOpen] = useState(false);
-  const [aadhaarInput, setAadhaarInput] = useState('AADHAAR_9876_VERIFIED.pdf');
-  const [panInput, setPanInput] = useState('ABCDE1234F');
-  const [eduCertInput, setEduCertInput] = useState('DEGREE_BTECH_2024.pdf');
-  const [docHistoryLogs, setDocHistoryLogs] = useState<{ date: string; docType: string; oldValue: string; newValue: string }[]>([
-    { date: 'Aug 01, 2026', docType: 'PAN Card', oldValue: 'XYZDE9876K', newValue: 'ABCDE1234F' },
-    { date: 'Jul 15, 2026', docType: 'Aadhaar ID', oldValue: 'AADHAAR_OLD.pdf', newValue: 'AADHAAR_9876_VERIFIED.pdf' },
-  ]);
+  const [aadhaarInput, setAadhaarInput] = useState('');
+  const [panInput, setPanInput] = useState('');
+  const [eduCertInput, setEduCertInput] = useState('');
+  const [docHistoryLogs, setDocHistoryLogs] = useState<{ date: string; docType: string; oldValue: string; newValue: string }[]>([]);
 
   // 💳 15-DAY BANK DETAILS UPDATE LOCK & HISTORY
   const [lastBankChangedAt, setLastBankChangedAt] = useState<number | null>(
@@ -99,14 +96,11 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [bankHistoryModalOpen, setBankHistoryModalOpen] = useState(false);
-  const [bankNameInput, setBankNameInput] = useState('HDFC Bank');
-  const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || 'Vikram Singh');
-  const [accountNoInput, setAccountNoInput] = useState('50100987654321');
-  const [ifscCodeInput, setIfscCodeInput] = useState('HDFC0001234');
-  const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([
-    { date: 'Jul 28, 2026', bankName: 'ICICI Bank', accountNo: '9876XXXX4321' },
-    { date: 'May 10, 2026', bankName: 'SBI Bank', accountNo: '1122XXXX9900' },
-  ]);
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || '');
+  const [accountNoInput, setAccountNoInput] = useState('');
+  const [ifscCodeInput, setIfscCodeInput] = useState('');
+  const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([]);
 
   const handleSaveDp = () => {
     if (isDpLocked) {
@@ -174,7 +168,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
   const handleLogoutPress = () => {
     ModernAlert.show({
       title: 'Sign Out of DAS CRM?',
-      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${subscription?.companyName || 'Acme Sales Solutions'}\n• Role: ${role}\n• Synced leads and customer records remain completely safe.`,
+      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${subscription?.companyName || currentUser?.companyName || 'DAS Organization'}\n• Role: ${role}\n• Synced leads and customer records remain completely safe.`,
       type: 'warning',
       icon: '🚪',
       badgeText: 'SECURITY & SESSION',
@@ -225,14 +219,14 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
                 {currentDpUrl ? (
                   <Image source={{ uri: currentDpUrl }} style={{ width: '100%', height: '100%', borderRadius: 18 }} />
                 ) : (
-                  <Text style={styles.avatarText}>{currentUser.avatar || 'VS'}</Text>
+                  <Text style={styles.avatarText}>{currentUser.avatar || (currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U')}</Text>
                 )}
               </View>
             </TouchableOpacity>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.userName}>{currentUser.name || 'Vikram Singh (Tenant Admin)'}</Text>
-              <Text style={styles.userEmail}>{currentUser.email || 'vikram.admin@acme.com'}</Text>
+              <Text style={styles.userName}>{currentUser.name || 'User Account'}</Text>
+              <Text style={styles.userEmail}>{currentUser.email || ''}</Text>
 
               {/* Badges Row */}
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -266,11 +260,11 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           <Text style={styles.cardBoxTitle}>Workspace &amp; Organization</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Company / Tenant:</Text>
-            <Text style={styles.infoValue}>{currentUser.companyName || 'Acme Sales Solutions'}</Text>
+            <Text style={styles.infoValue}>{currentUser.companyName || 'DAS Organization'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Tenant ID:</Text>
-            <Text style={styles.infoValue}>org_98234a1b</Text>
+            <Text style={styles.infoValue}>{currentUser.companyId || 'comp_default'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Plan Tier Active:</Text>
@@ -326,15 +320,15 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           <Text style={styles.cardBoxTitle}>Attendance &amp; Leave Metrics</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Present Days (This Month):</Text>
-            <Text style={[styles.infoValue, { color: '#34d399' }]}>18 Days Present</Text>
+            <Text style={[styles.infoValue, { color: '#34d399' }]}>0 Days Present</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Approved Leaves Taken:</Text>
-            <Text style={styles.infoValue}>2 Days Taken</Text>
+            <Text style={styles.infoValue}>0 Days Taken</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Remaining Leave Balance:</Text>
-            <Text style={[styles.infoValue, { color: '#fbbf24' }]}>12 Days Remaining</Text>
+            <Text style={[styles.infoValue, { color: '#fbbf24' }]}>0 Days Remaining</Text>
           </View>
         </View>
 
@@ -343,15 +337,15 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           <Text style={styles.cardBoxTitle}>Salary, Incentives &amp; Overtime Earnings</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Base Monthly Salary:</Text>
-            <Text style={styles.infoValue}>₹45,000 / mo</Text>
+            <Text style={styles.infoValue}>₹0 / mo</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Incentives &amp; Commissions:</Text>
-            <Text style={[styles.infoValue, { color: '#34d399' }]}>+₹12,500</Text>
+            <Text style={[styles.infoValue, { color: '#34d399' }]}>+₹0</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Extra Working / Overtime:</Text>
-            <Text style={[styles.infoValue, { color: '#34d399' }]}>+₹4,200</Text>
+            <Text style={[styles.infoValue, { color: '#34d399' }]}>+₹0</Text>
           </View>
         </View>
 
@@ -366,15 +360,15 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>PAN Card Number:</Text>
-            <Text style={styles.infoValue}>{panInput}</Text>
+            <Text style={styles.infoValue}>{panInput || 'Not Provided'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Aadhaar / Govt ID:</Text>
-            <Text style={styles.infoValue}>{aadhaarInput}</Text>
+            <Text style={styles.infoValue}>{aadhaarInput || 'Not Provided'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Educational Cert:</Text>
-            <Text style={styles.infoValue}>{eduCertInput}</Text>
+            <Text style={styles.infoValue}>{eduCertInput || 'Not Provided'}</Text>
           </View>
 
           <TouchableOpacity
@@ -398,19 +392,19 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Bank Name:</Text>
-            <Text style={styles.infoValue}>{bankNameInput}</Text>
+            <Text style={styles.infoValue}>{bankNameInput || 'Not Provided'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Account Holder:</Text>
-            <Text style={styles.infoValue}>{accountHolderInput}</Text>
+            <Text style={styles.infoValue}>{accountHolderInput || 'Not Provided'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Account Number:</Text>
-            <Text style={styles.infoValue}>{accountNoInput}</Text>
+            <Text style={styles.infoValue}>{accountNoInput || 'Not Provided'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>IFSC Code:</Text>
-            <Text style={styles.infoValue}>{ifscCodeInput}</Text>
+            <Text style={styles.infoValue}>{ifscCodeInput || 'Not Provided'}</Text>
           </View>
 
           <TouchableOpacity
@@ -563,13 +557,19 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             </View>
 
             <ScrollView style={{ maxHeight: 240 }}>
-              {docHistoryLogs.map((log, i) => (
-                <View key={i} style={styles.historyRow}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.docType} ({log.date})</Text>
-                  <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', marginTop: 2 }}>Updated to: {log.newValue}</Text>
-                  <Text style={{ fontSize: 9, color: colors.textSecondary }}>Old Record: {log.oldValue}</Text>
+              {docHistoryLogs.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted }}>No previous document update history.</Text>
                 </View>
-              ))}
+              ) : (
+                docHistoryLogs.map((log, i) => (
+                  <View key={i} style={styles.historyRow}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.docType} ({log.date})</Text>
+                    <Text style={{ fontSize: 10, color: isDark ? '#38bdf8' : '#0284c7', marginTop: 2 }}>Updated to: {log.newValue}</Text>
+                    <Text style={{ fontSize: 9, color: colors.textSecondary }}>Old Record: {log.oldValue}</Text>
+                  </View>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -618,12 +618,18 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             </View>
 
             <ScrollView style={{ maxHeight: 240 }}>
-              {bankHistoryLogs.map((log, i) => (
-                <View key={i} style={styles.historyRow}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.bankName} ({log.date})</Text>
-                  <Text style={{ fontSize: 10, color: isDark ? '#34d399' : '#059669', marginTop: 2 }}>Account: {log.accountNo}</Text>
+              {bankHistoryLogs.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted }}>No previous bank change history.</Text>
                 </View>
-              ))}
+              ) : (
+                bankHistoryLogs.map((log, i) => (
+                  <View key={i} style={styles.historyRow}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.text }}>{log.bankName} ({log.date})</Text>
+                    <Text style={{ fontSize: 10, color: isDark ? '#34d399' : '#059669', marginTop: 2 }}>Account: {log.accountNo}</Text>
+                  </View>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>

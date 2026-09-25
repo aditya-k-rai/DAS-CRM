@@ -65,28 +65,7 @@ const SOURCE_PLATFORMS = [
   'IndiaMART', 'TradeIndia', 'Justdial', 'Website Forms', 'Custom Channel',
 ];
 
-const INITIAL_CONNECTED_SHEETS: ConnectedSheetItem[] = [
-  {
-    id: 'gs-101',
-    name: 'Sales Leads Master 2026',
-    accountEmail: 'admin@enterprise-dascrm.com',
-    tabName: 'Leads',
-    url: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-    status: 'CONNECTED',
-    lastSync: '2 minutes ago',
-    totalSyncedLeads: 1890,
-  },
-  {
-    id: 'gs-102',
-    name: 'Google Ads Inbound Stream',
-    accountEmail: 'marketing@enterprise-dascrm.com',
-    tabName: 'Sheet1 - Web Leads',
-    url: 'https://docs.google.com/spreadsheets/d/1qpyC0XBI1893XmZ01v8',
-    status: 'CONNECTED',
-    lastSync: '15 minutes ago',
-    totalSyncedLeads: 420,
-  },
-];
+const INITIAL_CONNECTED_SHEETS: ConnectedSheetItem[] = [];
 
 const INITIAL_COLUMNS: SheetColumnConfig[] = [
   { key: 'col_0', header: 'Full Name', role: 'name', blocked: false, width: 170 },
@@ -98,13 +77,7 @@ const INITIAL_COLUMNS: SheetColumnConfig[] = [
   { key: 'col_6', header: 'Raw Payload', role: 'custom', customTitle: 'Raw JSON', blocked: true, width: 150 },
 ];
 
-const MOCK_PREVIEW_ROWS = [
-  ['Asfak Hunnani', 'asfakhunnani@gmail.com', '+91 98765 11111', 'Hunnani Tech', '₹1,50,000', 'Mumbai', '{"id": 101}'],
-  ['Shruti Kamble', 'skamblephoto403@gmail.com', '+91 98765 22222', 'Kamble Studios', '₹90,000', 'Pune', '{"id": 102}'],
-  ['Lalith Mukesh', 'lalithm300@gmail.com', '+91 98765 33333', 'Lalith Infra', '₹2,40,000', 'Bengaluru', '{"id": 103}'],
-  ['Anshika Kharola', 'harolaanshika@gmail.com', '+91 98765 44444', 'Kharola Retail', '₹65,000', 'Delhi', '{"id": 104}'],
-  ['Abhishek Chouhan', 'k.chouhan42@gmail.com', '+91 98765 55555', 'Chouhan Logistics', '₹3,10,000', 'Indore', '{"id": 105}'],
-];
+const MOCK_PREVIEW_ROWS: string[][] = [];
 
 export const GoogleSheetsLiveSyncModal: React.FC<GoogleSheetsLiveSyncModalProps> = ({
   visible, onClose, onSyncComplete,
@@ -299,45 +272,53 @@ export const GoogleSheetsLiveSyncModal: React.FC<GoogleSheetsLiveSyncModalProps>
             {/* Connected Sheets List */}
             <Text style={styles.sectionTitle}>Connected Sheets ({connectedSheets.length})</Text>
 
-            {connectedSheets.map(sheet => (
-              <View key={sheet.id} style={styles.sheetCard}>
-                <View style={styles.sheetCardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sheetName}>{sheet.name}</Text>
-                    <Text style={styles.sheetMeta}>Account: {sheet.accountEmail}</Text>
-                    <Text style={styles.sheetMeta}>Tab: {sheet.tabName} • {sheet.totalSyncedLeads} Synced Leads</Text>
-                  </View>
-                  <View style={styles.statusPill}>
-                    <Text style={styles.statusPillText}>● Connected</Text>
-                  </View>
-                </View>
-                <Text style={styles.lastSyncText}>⏱️ Last Sync: {sheet.lastSync}</Text>
-
-                <View style={styles.sheetCardActions}>
-                  <TouchableOpacity
-                    style={[styles.sheetActionBtn, { backgroundColor: '#059669' }]}
-                    onPress={() => handleTriggerManualSync(sheet.id)}
-                    disabled={isSyncing}
-                  >
-                    <Text style={styles.sheetActionBtnText}>{isSyncing ? '⏳ Syncing...' : 'Sync Now'}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.sheetActionBtn, { backgroundColor: '#4f46e5' }]}
-                    onPress={() => handleOpenGridSettings(sheet)}
-                  >
-                    <Text style={styles.sheetActionBtnText}>Settings &amp; Map</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.sheetActionBtn, { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.4)', borderWidth: 1 }]}
-                    onPress={() => handleDisconnectSheet(sheet.id, sheet.name)}
-                  >
-                    <Text style={[styles.sheetActionBtnText, { color: '#f87171' }]}>Disconnect</Text>
-                  </TouchableOpacity>
-                </View>
+            {connectedSheets.length === 0 ? (
+              <View style={{ paddingVertical: 28, alignItems: 'center' }}>
+                <Text style={{ fontSize: 28, marginBottom: 8 }}>📊</Text>
+                <Text style={[styles.sheetName, { textAlign: 'center' }]}>No Connected Google Sheets</Text>
+                <Text style={[styles.sheetMeta, { textAlign: 'center', marginTop: 4 }]}>Tap the button above to connect your first Google Sheet for live sync.</Text>
               </View>
-            ))}
+            ) : (
+              connectedSheets.map(sheet => (
+                <View key={sheet.id} style={styles.sheetCard}>
+                  <View style={styles.sheetCardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetName}>{sheet.name}</Text>
+                      <Text style={styles.sheetMeta}>Account: {sheet.accountEmail}</Text>
+                      <Text style={styles.sheetMeta}>Tab: {sheet.tabName} • {sheet.totalSyncedLeads} Synced Leads</Text>
+                    </View>
+                    <View style={styles.statusPill}>
+                      <Text style={styles.statusPillText}>● Connected</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.lastSyncText}>⏱️ Last Sync: {sheet.lastSync}</Text>
+
+                  <View style={styles.sheetCardActions}>
+                    <TouchableOpacity
+                      style={[styles.sheetActionBtn, { backgroundColor: '#059669' }]}
+                      onPress={() => handleTriggerManualSync(sheet.id)}
+                      disabled={isSyncing}
+                    >
+                      <Text style={styles.sheetActionBtnText}>{isSyncing ? '⏳ Syncing...' : 'Sync Now'}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.sheetActionBtn, { backgroundColor: '#4f46e5' }]}
+                      onPress={() => handleOpenGridSettings(sheet)}
+                    >
+                      <Text style={styles.sheetActionBtnText}>Settings &amp; Map</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.sheetActionBtn, { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: 'rgba(239,68,68,0.4)', borderWidth: 1 }]}
+                      onPress={() => handleDisconnectSheet(sheet.id, sheet.name)}
+                    >
+                      <Text style={[styles.sheetActionBtnText, { color: '#f87171' }]}>Disconnect</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
 
           </ScrollView>
         )}
@@ -507,21 +488,27 @@ export const GoogleSheetsLiveSyncModal: React.FC<GoogleSheetsLiveSyncModalProps>
                   </View>
 
                   {/* Data Rows */}
-                  {MOCK_PREVIEW_ROWS.map((row, rowIdx) => (
-                    <View key={rowIdx} style={[styles.gridDataRow, rowIdx % 2 === 1 && { backgroundColor: 'rgba(255,255,255,0.015)' }]}>
-                      <View style={[styles.gridDataCell, { width: 44, alignItems: 'center' }]}>
-                        <Text style={{ fontSize: 10, color: '#475569', fontWeight: '800' }}>#{rowIdx + 1}</Text>
-                      </View>
-
-                      {columns.map((col, cIdx) => (
-                        <View key={col.key} style={[styles.gridDataCell, { width: col.width, opacity: col.blocked ? 0.3 : 1 }]}>
-                          <Text style={[styles.cellText, col.role === 'value' && { color: '#f472b6', fontWeight: '900' }, col.role === 'email' && { color: '#fbbf24' }]} numberOfLines={1}>
-                            {row[cIdx] || '—'}
-                          </Text>
-                        </View>
-                      ))}
+                  {MOCK_PREVIEW_ROWS.length === 0 ? (
+                    <View style={{ paddingVertical: 20, paddingHorizontal: 16 }}>
+                      <Text style={{ fontSize: 11, color: '#64748b' }}>No live preview rows available from sheet yet.</Text>
                     </View>
-                  ))}
+                  ) : (
+                    MOCK_PREVIEW_ROWS.map((row, rowIdx) => (
+                      <View key={rowIdx} style={[styles.gridDataRow, rowIdx % 2 === 1 && { backgroundColor: 'rgba(255,255,255,0.015)' }]}>
+                        <View style={[styles.gridDataCell, { width: 44, alignItems: 'center' }]}>
+                          <Text style={{ fontSize: 10, color: '#475569', fontWeight: '800' }}>#{rowIdx + 1}</Text>
+                        </View>
+
+                        {columns.map((col, cIdx) => (
+                          <View key={col.key} style={[styles.gridDataCell, { width: col.width, opacity: col.blocked ? 0.3 : 1 }]}>
+                            <Text style={[styles.cellText, col.role === 'value' && { color: '#f472b6', fontWeight: '900' }, col.role === 'email' && { color: '#fbbf24' }]} numberOfLines={1}>
+                              {row[cIdx] || '—'}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))
+                  )}
 
                 </View>
               </ScrollView>

@@ -192,7 +192,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim() || companyKeyInput.length < 12) {
       setError(
-        'Please enter a valid Company Key (format: ACME-KX-7421).',
+        'Please enter a valid Company Key (format: DASC-KX-7421).',
       );
       return;
     }
@@ -555,7 +555,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               {/* Company Key */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Company / User Key (Format: ACME-KX-7421) *
+                  Company / User Key (Format: DASC-KX-7421) *
                 </Text>
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔑</Text>
@@ -567,7 +567,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       styles.monoInput,
                       loading && { opacity: 0.5 },
                     ]}
-                    placeholder="ACME-KX-7421"
+                    placeholder="DASC-KX-7421"
                     placeholderTextColor="#64748b"
                     value={companyKeyInput}
                     maxLength={12}

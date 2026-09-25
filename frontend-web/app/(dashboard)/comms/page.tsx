@@ -45,7 +45,7 @@ function formatDuration(secs: number): string {
 // ── WA Cloud Feature Cards ────────────────────────────────
 const WA_FEATURES = [
   { icon: Wifi,    title: 'WhatsApp Cloud API',     desc: 'Meta-verified Business API connected. 100K monthly message quota active.', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  { icon: Shield,  title: 'Verified Business Badge', desc: 'Green verified badge active on +91 98765 00001. Delivery receipts enabled.', color: 'text-indigo-400',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20'  },
+  { icon: Shield,  title: 'Verified Business Badge', desc: 'Green verified badge active on +91 98000 00000. Delivery receipts enabled.', color: 'text-indigo-400',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20'  },
   { icon: Zap,     title: 'Auto-Responder Bot',      desc: 'Bot rules active: greet → qualify → assign to sales exec automatically.', color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'   },
   { icon: Activity,'title': 'Call Log Telemetry',   desc: 'Device call history synced & matched against CRM leads in real-time.', color: 'text-cyan-400',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20'    },
 ];
@@ -75,9 +75,9 @@ export default function WhatsAppCloudPage() {
     setTimeout(() => {
       const newLog: CallLogEntry = {
         id: `log-${Date.now()}`,
-        phoneNumber: '+91 99887 11223',
-        matchedLeadName: 'Sunita Verma (Sunita Logistics)',
-        leadId: 'lead-103',
+        phoneNumber: '+91 98000 00000',
+        matchedLeadName: 'Lead Contact',
+        leadId: `lead-${Date.now()}`,
         callType: 'INCOMING',
         durationSeconds: 310,
         timestampStr: 'Just now',

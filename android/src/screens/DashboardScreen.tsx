@@ -45,25 +45,25 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>📊</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>1,420</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>0</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Total Ingested Leads</Text>
           </View>
 
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>💰</Text>
-            <Text style={[styles.statValue, { color: '#34d399' }]}>$148,500</Text>
+            <Text style={[styles.statValue, { color: '#34d399' }]}>₹0</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Pipeline Value</Text>
           </View>
 
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>⚡</Text>
-            <Text style={[styles.statValue, { color: '#fbbf24' }]}>42</Text>
+            <Text style={[styles.statValue, { color: '#fbbf24' }]}>0</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Fresh Unassigned</Text>
           </View>
 
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={styles.statIcon}>🎯</Text>
-            <Text style={[styles.statValue, { color: '#c084fc' }]}>28.5%</Text>
+            <Text style={[styles.statValue, { color: '#c084fc' }]}>0.0%</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Conversion Target</Text>
           </View>
         </View>
@@ -71,50 +71,23 @@ export default function DashboardScreen({ userRole, onNavigateToLeads }: Dashboa
         {/* 📅 UPCOMING LEADS & FOLLOW-UPS */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Lead Follow-ups</Text>
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {[
-            { title: 'Call Rajesh Kumar — Quote Discussion', time: 'Today 2:00 PM', priority: 'HIGH' },
-            { title: 'Demo Presentation for TechCorp', time: 'Today 4:30 PM', priority: 'HIGH' },
-            { title: 'Follow-up with Sunita Real Estate', time: 'Tomorrow 11:00 AM', priority: 'MEDIUM' },
-          ].map((u, i) => (
-            <View key={i} style={[styles.infoRow, i < 2 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.teamName, { color: colors.text }]}>{u.title}</Text>
-                <Text style={[styles.teamSub, { color: colors.textMuted }]}>📅 {u.time}</Text>
-              </View>
-              <View style={styles.priorityTag}>
-                <Text style={styles.priorityText}>{u.priority}</Text>
-              </View>
-            </View>
-          ))}
+          <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>No upcoming lead follow-ups scheduled.</Text>
+          </View>
         </View>
 
         {/* 📋 RECENT 5 LEADS PREVIEW WIDGET */}
         <View style={{ width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Recent 5 Ingested Leads</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Recent Ingested Leads</Text>
           <TouchableOpacity onPress={onNavigateToLeads}>
             <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View More Leads →</Text>
           </TouchableOpacity>
         </View>
 
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {[
-            { name: 'Rajesh Kumar', company: 'TechCorp Ltd', val: '₹5,20,000', status: 'Proposal', score: 91 },
-            { name: 'Priya Sharma', company: 'LogiTech Solutions', val: '₹3,50,000', status: 'Won', score: 98 },
-            { name: 'Vikram Mehta', company: 'Acme Sales Solutions', val: '₹1,42,000', status: 'Qualified', score: 85 },
-            { name: 'Sunita Rao', company: 'Real Estate Group', val: '₹8,50,000', status: 'Negotiation', score: 77 },
-            { name: 'Amit Patel', company: 'Global Freight Ltd', val: '₹90,000', status: 'New Lead', score: 63 },
-          ].map((l, idx) => (
-            <View key={l.name} style={[styles.infoRow, idx < 4 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.teamName, { color: colors.text }]}>{l.name}</Text>
-                <Text style={[styles.teamSub, { color: colors.textMuted }]}>{l.company} • {l.status}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                <Text style={[styles.teamProgress, { fontSize: 13 }]}>{l.val}</Text>
-                <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '800' }}>🔥 Score {l.score}</Text>
-              </View>
-            </View>
-          ))}
+          <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>No leads ingested yet.</Text>
+          </View>
 
           {/* View More Button */}
           <TouchableOpacity

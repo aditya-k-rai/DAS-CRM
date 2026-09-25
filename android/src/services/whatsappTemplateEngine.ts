@@ -70,68 +70,8 @@ export interface ProductItem {
   priceTiers: PriceTier[];
 }
 
-export const CATALOG_PRODUCTS: ProductItem[] = [
-  {
-    id: 'prod_1',
-    name: 'DAS CRM Enterprise Suite',
-    minPrice: '₹2,999',
-    maxPrice: '₹4,999',
-    category: 'CRM Software',
-    description: 'Full sales automation, WhatsApp Cloud API, Email Marketing & AI Lead Scoring.',
-    features: ['Unlimited Lead Ingestion', 'WhatsApp Cloud API (100K Quota)', 'Advanced AI Scoring', '24/7 SLA Support'],
-    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80',
-    priceTiers: [
-      { minQty: 1, maxQty: 9, unitPrice: 4999, label: 'Single License (Standard)' },
-      { minQty: 10, maxQty: 49, unitPrice: 3999, label: 'Team Pack (20% Volume Discount)' },
-      { minQty: 50, maxQty: 1000, unitPrice: 2999, label: 'Enterprise Bulk (40% Max Discount)' },
-    ],
-  },
-  {
-    id: 'prod_2',
-    name: 'AI Lead Scoring Engine Pro',
-    minPrice: '₹1,499',
-    maxPrice: '₹2,499',
-    category: 'AI Module',
-    description: 'Predictive deal closure scoring, automatic follow-up reminders & intent analysis.',
-    features: ['Real-time Lead Heatmaps', 'Smart Re-engagement Signals', 'Automated Multi-Channel Nudges'],
-    imageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80',
-    priceTiers: [
-      { minQty: 1, maxQty: 9, unitPrice: 2499, label: 'Standard Module' },
-      { minQty: 10, maxQty: 49, unitPrice: 1999, label: 'Mid-Market Band' },
-      { minQty: 50, maxQty: 1000, unitPrice: 1499, label: 'Bulk License Discount' },
-    ],
-  },
-  {
-    id: 'prod_3',
-    name: 'WhatsApp Cloud API Automation',
-    minPrice: '₹1,199',
-    maxPrice: '₹1,999',
-    category: 'Communications',
-    description: 'Direct Meta WhatsApp Cloud API integration with verified green badge & bulk templates.',
-    features: ['100,000 Messages / month', 'Interactive Buttons', 'Auto-responder Bot', 'Analytics Dashboard'],
-    imageUrl: 'https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80',
-    priceTiers: [
-      { minQty: 1, maxQty: 9, unitPrice: 1999, label: 'Starter API Quota' },
-      { minQty: 10, maxQty: 49, unitPrice: 1599, label: 'High Volume Sender' },
-      { minQty: 50, maxQty: 1000, unitPrice: 1199, label: 'Unlimited Broadcast Tier' },
-    ],
-  },
-  {
-    id: 'prod_4',
-    name: 'HR & Geo-Fence Attendance Hub',
-    minPrice: '₹899',
-    maxPrice: '₹1,499',
-    category: 'HR Management',
-    description: 'GPS Geo-Fence verification, selfie punch anti-tamper & automated salary builder.',
-    features: ['Server-Authoritative Time', 'Geo-Fence Radius Control', 'Selfie Anti-Spoofing', 'Payroll Generation'],
-    imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
-    priceTiers: [
-      { minQty: 1, maxQty: 9, unitPrice: 1499, label: 'Base Employee Count' },
-      { minQty: 10, maxQty: 49, unitPrice: 1199, label: 'Growing Workforce Tier' },
-      { minQty: 50, maxQty: 1000, unitPrice: 899, label: 'Large Workforce Scale' },
-    ],
-  },
-];
+export const CATALOG_PRODUCTS: ProductItem[] = [];
+
 
 class WhatsAppTemplateEngine {
   /** Clean phone string (keep country code) */

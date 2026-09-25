@@ -30,73 +30,73 @@ export default function UserProfilePage() {
   const roleMetrics = {
     SUPER_ADMIN: {
       salesLabel: 'Total Platform Revenue Managed',
-      salesVal: '$2.4M',
+      salesVal: '₹0',
       callsLabel: 'System Telemetry Calls Logged',
-      callsVal: '18.4k Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'Total Active Tenants',
-      scopeVal: '42 Companies',
+      scopeVal: '0 Tenants',
       goalLabel: 'Platform Uptime Target',
-      goalVal: '99.99%',
+      goalVal: '100%',
     },
     ADMIN: {
       salesLabel: 'Total Organization Sales Volume',
-      salesVal: '$148,500',
+      salesVal: '₹0',
       callsLabel: 'Total System Calls Audited',
-      callsVal: '1,420 Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'Total Ingested Leads',
-      scopeVal: '1,420 Leads',
+      scopeVal: '0 Leads',
       goalLabel: 'System Conversion Target',
-      goalVal: '28.5%',
+      goalVal: '0.0%',
     },
     HR: {
       salesLabel: 'Total Processed Payroll Volume',
-      salesVal: '$64,200',
+      salesVal: '₹0',
       callsLabel: 'HR Audit Calls Recorded',
-      callsVal: '184 Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'Employees Audited',
-      scopeVal: '24 Staff Members',
+      scopeVal: '0 Staff Members',
       goalLabel: 'Attendance Rate Today',
-      goalVal: '95.5%',
+      goalVal: '0.0%',
     },
     MANAGER: {
       salesLabel: 'Department Revenue Managed',
-      salesVal: '₹24.8L',
+      salesVal: '₹0',
       callsLabel: 'Total Team Calls Supervised',
-      callsVal: '580 Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'Open Leads Queue',
-      scopeVal: '142 Leads',
+      scopeVal: '0 Leads',
       goalLabel: 'Department Goal Progress',
-      goalVal: '82% Achieved',
+      goalVal: '0.0%',
     },
     TEAM_LEADER: {
       salesLabel: 'Team Unit Revenue',
-      salesVal: '₹14.2L (🥇 #1 Team)',
+      salesVal: '₹0',
       callsLabel: 'Total Unit Calls Logged',
-      callsVal: '340 Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'Unassigned Unit Leads',
-      scopeVal: '18 Leads',
+      scopeVal: '0 Leads',
       goalLabel: 'Team Conversion Rate',
-      goalVal: '28.5%',
+      goalVal: '0.0%',
     },
     SALES_EXEC: {
       salesLabel: 'Personal Closed Sales',
-      salesVal: '₹5.2L (12 Deals Won)',
+      salesVal: '₹0',
       callsLabel: 'Personal Calls Made Today',
-      callsVal: '38 Calls',
+      callsVal: '0 Calls',
       scopeLabel: 'My Assigned Leads',
-      scopeVal: '31 Leads',
+      scopeVal: '0 Leads',
       goalLabel: 'Personal Best Rate',
-      goalVal: '38.7%',
+      goalVal: '0.0%',
     },
   }[role] || {
     salesLabel: 'Personal Closed Sales',
-    salesVal: '₹5.2L',
+    salesVal: '₹0',
     callsLabel: 'Personal Calls Made',
-    callsVal: '38 Calls',
+    callsVal: '0 Calls',
     scopeLabel: 'My Assigned Leads',
-    scopeVal: '31 Leads',
+    scopeVal: '0 Leads',
     goalLabel: 'Personal Conversion Rate',
-    goalVal: '38.7%',
+    goalVal: '0.0%',
   };
 
   // 📄 15-DAY DOCUMENTS UPDATE LOCK & HISTORY
@@ -110,32 +110,24 @@ export default function UserProfilePage() {
 
   const [showDocModal, setShowDocModal] = useState(false);
   const [showDocHistoryModal, setShowDocHistoryModal] = useState(false);
-  const [panInput, setPanInput] = useState('ABCDE1234F');
-  const [aadhaarInput, setAadhaarInput] = useState('AADHAAR_9876_VERIFIED.pdf');
-  const [eduCertInput, setEduCertInput] = useState('DEGREE_BTECH_2024.pdf');
-  const [docHistoryLogs, setDocHistoryLogs] = useState<{ date: string; docType: string; oldValue: string; newValue: string }[]>([
-    { date: 'Aug 01, 2026', docType: 'PAN Card', oldValue: 'XYZDE9876K', newValue: 'ABCDE1234F' },
-    { date: 'Jul 15, 2026', docType: 'Aadhaar ID', oldValue: 'AADHAAR_OLD.pdf', newValue: 'AADHAAR_9876_VERIFIED.pdf' },
-  ]);
+  const [panInput, setPanInput] = useState('');
+  const [aadhaarInput, setAadhaarInput] = useState('');
+  const [eduCertInput, setEduCertInput] = useState('');
+  const [docHistoryLogs, setDocHistoryLogs] = useState<{ date: string; docType: string; oldValue: string; newValue: string }[]>([]);
 
   // 💳 15-DAY BANK DETAILS UPDATE LOCK & HISTORY
-  const [lastBankChangedAt, setLastBankChangedAt] = useState<number | null>(
-    Date.now() - 20 * 24 * 60 * 60 * 1000
-  );
+  const [lastBankChangedAt, setLastBankChangedAt] = useState<number | null>(null);
   const timeSinceLastBankChange = lastBankChangedAt ? Date.now() - lastBankChangedAt : FIFTEEN_DAYS_MS + 1000;
   const isBankLocked = timeSinceLastBankChange < FIFTEEN_DAYS_MS;
   const bankDaysRemaining = Math.ceil((FIFTEEN_DAYS_MS - timeSinceLastBankChange) / (1000 * 60 * 60 * 24));
 
   const [showBankModal, setShowBankModal] = useState(false);
   const [showBankHistoryModal, setShowBankHistoryModal] = useState(false);
-  const [bankNameInput, setBankNameInput] = useState('HDFC Bank');
-  const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || 'Vikram Singh');
-  const [accountNoInput, setAccountNoInput] = useState('50100987654321');
-  const [ifscCodeInput, setIfscCodeInput] = useState('HDFC0001234');
-  const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([
-    { date: 'Jul 28, 2026', bankName: 'ICICI Bank', accountNo: '9876XXXX4321' },
-    { date: 'May 10, 2026', bankName: 'SBI Bank', accountNo: '1122XXXX9900' },
-  ]);
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || '');
+  const [accountNoInput, setAccountNoInput] = useState('');
+  const [ifscCodeInput, setIfscCodeInput] = useState('');
+  const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([]);
 
   const handleSaveDocuments = () => {
     if (isDocLocked) {
@@ -271,9 +263,9 @@ export default function UserProfilePage() {
             </div>
 
             <div className="space-y-1 text-xs text-slate-300">
-              <p>• PAN Card: <strong className="text-sky-300">{panInput}</strong></p>
-              <p>• Aadhaar / Govt ID: <strong className="text-white">{aadhaarInput}</strong></p>
-              <p>• Educational Cert: <strong className="text-white">{eduCertInput}</strong></p>
+              <p>• PAN Card: <strong className="text-sky-300">{panInput || 'Not Provided'}</strong></p>
+              <p>• Aadhaar / Govt ID: <strong className="text-white">{aadhaarInput || 'Not Uploaded'}</strong></p>
+              <p>• Educational Cert: <strong className="text-white">{eduCertInput || 'Not Uploaded'}</strong></p>
             </div>
 
             <button
@@ -298,10 +290,10 @@ export default function UserProfilePage() {
             </div>
 
             <div className="space-y-1 text-xs text-slate-300">
-              <p>• Bank Name: <strong className="text-emerald-300">{bankNameInput}</strong></p>
-              <p>• Account Holder: <strong className="text-white">{accountHolderInput}</strong></p>
-              <p>• Account Number: <strong className="text-white">{accountNoInput}</strong></p>
-              <p>• IFSC Code: <strong className="text-white">{ifscCodeInput}</strong></p>
+              <p>• Bank Name: <strong className="text-emerald-300">{bankNameInput || 'Not Configured'}</strong></p>
+              <p>• Account Holder: <strong className="text-white">{accountHolderInput || currentUser.name || 'Not Configured'}</strong></p>
+              <p>• Account Number: <strong className="text-white">{accountNoInput || 'Not Configured'}</strong></p>
+              <p>• IFSC Code: <strong className="text-white">{ifscCodeInput || 'Not Configured'}</strong></p>
             </div>
 
             <button
@@ -331,7 +323,7 @@ export default function UserProfilePage() {
               <Key size={16} />
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Company Key</span>
             </div>
-            <p className="text-lg font-mono font-bold text-purple-300">ACME-KX-7421</p>
+            <p className="text-lg font-mono font-bold text-purple-300">{currentUser?.companyId ? `DAS-${currentUser.companyId.replace(/\D/g, '').slice(-4) || 'KX-7421'}` : 'DAS-KX-7421'}</p>
           </div>
 
           <div className="crm-card space-y-2">
@@ -409,13 +401,17 @@ export default function UserProfilePage() {
               <button onClick={() => setShowDocHistoryModal(false)} className="text-slate-400">✕</button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {docHistoryLogs.map((log, i) => (
-                <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
-                  <p className="font-bold text-white">{log.docType} ({log.date})</p>
-                  <p className="text-sky-400">Updated to: {log.newValue}</p>
-                  <p className="text-slate-500">Old Record: {log.oldValue}</p>
-                </div>
-              ))}
+              {docHistoryLogs.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">No document update history logged.</p>
+              ) : (
+                docHistoryLogs.map((log, i) => (
+                  <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                    <p className="font-bold text-white">{log.docType} ({log.date})</p>
+                    <p className="text-sky-400">Updated to: {log.newValue}</p>
+                    <p className="text-slate-500">Old Record: {log.oldValue}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -464,12 +460,16 @@ export default function UserProfilePage() {
               <button onClick={() => setShowBankHistoryModal(false)} className="text-slate-400">✕</button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {bankHistoryLogs.map((log, i) => (
-                <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
-                  <p className="font-bold text-white">{log.bankName} ({log.date})</p>
-                  <p className="text-emerald-400">Account: {log.accountNo}</p>
-                </div>
-              ))}
+              {bankHistoryLogs.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">No bank account change history logged.</p>
+              ) : (
+                bankHistoryLogs.map((log, i) => (
+                  <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                    <p className="font-bold text-white">{log.bankName} ({log.date})</p>
+                    <p className="text-emerald-400">Account: {log.accountNo}</p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

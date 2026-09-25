@@ -110,12 +110,12 @@ export function getCategoryFolderName(category: StorageCategory): string {
  * Resolve display folder path for a file or employee asset
  */
 export function resolveFolderPath(
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   category: StorageCategory = 'LEADS',
   employeeName?: string,
   subCategory?: string
 ): { hierarchy: string[]; folderPath: string } {
-  const cleanCompany = companyName?.trim() || 'Acme Sales Solutions';
+  const cleanCompany = companyName?.trim() || 'DAS Organization';
 
   if (category === 'EMPLOYEES' || employeeName || category === 'PROFILES') {
     const empFolder = employeeName?.trim() || 'General Staff';
@@ -218,7 +218,7 @@ export async function uploadFileToGoogleDriveAndroid(
   rawFileName: string,
   options: GoogleDriveUploadOptions = {}
 ): Promise<GoogleDriveUploadProgress> {
-  const companyName = options.companyName?.trim() || 'Acme Sales Solutions';
+  const companyName = options.companyName?.trim() || 'DAS Organization';
   const category = options.category || (options.employeeName ? 'EMPLOYEES' : 'LEADS');
   const targetFileName = formatTimestampedFileName(options.customFileName || rawFileName);
   const { hierarchy, folderPath } = resolveFolderPath(
@@ -341,7 +341,7 @@ export async function uploadFileToGoogleDriveAndroid(
  */
 export async function uploadEmployeeDpToDriveAndroid(
   employeeName: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const cleanEmp = employeeName.trim();
@@ -361,7 +361,7 @@ export async function uploadEmployeeDpToDriveAndroid(
 export async function uploadEmployeeDocumentToDriveAndroid(
   employeeName: string,
   docType: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const cleanEmp = employeeName.trim();
@@ -380,7 +380,7 @@ export async function uploadEmployeeDocumentToDriveAndroid(
  */
 export async function uploadQuotationPdfToDriveAndroid(
   docNo: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadFileToGoogleDriveAndroid(`${docNo}.pdf`, {
@@ -396,7 +396,7 @@ export async function uploadQuotationPdfToDriveAndroid(
  */
 export async function uploadAvatarToDriveAndroid(
   userNameOrId: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadEmployeeDpToDriveAndroid(userNameOrId, companyName, onProgress);
@@ -408,7 +408,7 @@ export async function uploadAvatarToDriveAndroid(
  */
 export async function uploadLeadSpreadsheetToDriveAndroid(
   rawFileName: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const extMatch = rawFileName.match(/\.([a-zA-Z0-9]+)$/);
@@ -468,7 +468,7 @@ export async function requestFolderDataOnEmailAndroid(
  * Fetch history of folder data requests dispatched to email (Android)
  */
 export async function getFolderMailRequestsAndroid(
-  companyName: string = 'Acme Sales Solutions'
+  companyName: string = 'DAS Organization'
 ): Promise<FolderMailRequestResultAndroid[]> {
   try {
     const res = await fetch(`${API_BASE}/drive/mail-requests?companyName=${encodeURIComponent(companyName)}`);

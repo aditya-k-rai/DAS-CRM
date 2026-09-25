@@ -110,12 +110,12 @@ export function getCategoryFolderName(category: StorageCategory): string {
  * Resolve display folder path for a file or employee asset
  */
 export function resolveFolderPath(
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   category: StorageCategory = 'LEADS',
   employeeName?: string,
   subCategory?: string
 ): { hierarchy: string[]; folderPath: string } {
-  const cleanCompany = companyName?.trim() || 'Acme Sales Solutions';
+  const cleanCompany = companyName?.trim() || 'DAS Organization';
 
   if (category === 'EMPLOYEES' || employeeName || category === 'PROFILES') {
     const empFolder = employeeName?.trim() || 'General Staff';
@@ -222,7 +222,7 @@ export async function uploadFileToGoogleDrive(
   rawFileName: string,
   options: GoogleDriveUploadOptions = {}
 ): Promise<GoogleDriveUploadProgress> {
-  const companyName = options.companyName?.trim() || 'Acme Sales Solutions';
+  const companyName = options.companyName?.trim() || 'DAS Organization';
   const category = options.category || (options.employeeName ? 'EMPLOYEES' : 'LEADS');
   const targetFileName = formatTimestampedFileName(options.customFileName || rawFileName);
   const { hierarchy, folderPath } = resolveFolderPath(
@@ -355,7 +355,7 @@ export async function uploadFileToGoogleDrive(
 export async function uploadEmployeeDpToDrive(
   imageFile: File | Blob,
   employeeName: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const cleanEmp = employeeName.trim();
@@ -377,7 +377,7 @@ export async function uploadEmployeeDocumentToDrive(
   docFile: File | Blob,
   employeeName: string,
   docType: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const cleanEmp = employeeName.trim();
@@ -400,7 +400,7 @@ export async function uploadEmployeeDetailToDrive(
   detailFile: File | Blob,
   employeeName: string,
   detailType: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const cleanEmp = employeeName.trim();
@@ -422,7 +422,7 @@ export async function uploadEmployeeDetailToDrive(
 export async function uploadQuotationPdfToDrive(
   pdfBlob: Blob,
   docNo: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadFileToGoogleDrive(pdfBlob, `${docNo}.pdf`, {
@@ -440,7 +440,7 @@ export async function uploadQuotationPdfToDrive(
 export async function uploadAvatarToDrive(
   imageFile: File | Blob,
   userNameOrId: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadEmployeeDpToDrive(imageFile, userNameOrId, companyName, onProgress);
@@ -453,7 +453,7 @@ export async function uploadAvatarToDrive(
 export async function uploadProductImageToDrive(
   imageFile: File | Blob,
   productName: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadFileToGoogleDrive(imageFile, `${productName}.jpg`, {
@@ -471,7 +471,7 @@ export async function uploadProductImageToDrive(
 export async function uploadKycDocumentToDrive(
   docFile: File | Blob,
   docType: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   return uploadFileToGoogleDrive(docFile, `${docType}.pdf`, {
@@ -489,7 +489,7 @@ export async function uploadKycDocumentToDrive(
 export async function uploadLeadSpreadsheetToDrive(
   fileOrBlob: File | Blob,
   originalFileName: string,
-  companyName: string = 'Acme Sales Solutions',
+  companyName: string = 'DAS Organization',
   onProgress?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const extMatch = originalFileName.match(/\.([a-zA-Z0-9]+)$/);
@@ -550,7 +550,7 @@ export async function requestFolderDataOnEmail(
  * Fetch history of folder data requests dispatched to email.
  */
 export async function getFolderMailRequests(
-  companyName: string = 'Acme Sales Solutions'
+  companyName: string = 'DAS Organization'
 ): Promise<FolderMailRequestResult[]> {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   try {

@@ -194,7 +194,7 @@ function TemplateModal({
                 <CheckCircle2 size={12} /> Live Preview (with default values)
               </p>
               <p className="text-white text-xs leading-relaxed whitespace-pre-wrap">
-                {interpolate(text, { name: 'Rajesh Kumar', company: 'TechCorp Solutions', value: '₹5,90,000', product: 'Executive Work Station' })}
+                {interpolate(text, { name: 'Lead Name', company: 'Client Organization', value: '₹0', product: 'Product / Service' })}
               </p>
             </div>
           )}
@@ -502,10 +502,10 @@ export default function WhatsAppTemplatesPage() {
                 </div>
 
                 {[
-                  { label: 'Client Name', key: 'name', value: sandboxName, set: setSandboxName, placeholder: 'e.g. Rajesh Kumar' },
-                  { label: 'Company',     key: 'company', value: sandboxCompany, set: setSandboxCompany, placeholder: 'e.g. TechCorp Solutions' },
-                  { label: 'Deal Value',  key: 'value', value: sandboxValue, set: setSandboxValue, placeholder: 'e.g. ₹5,90,000' },
-                  { label: 'Product',     key: 'product', value: sandboxProduct, set: setSandboxProduct, placeholder: 'e.g. Enterprise Suite' },
+                  { label: 'Client Name', key: 'name', value: sandboxName, set: setSandboxName, placeholder: 'e.g. Lead Name' },
+                  { label: 'Company',     key: 'company', value: sandboxCompany, set: setSandboxCompany, placeholder: 'e.g. Client Organization' },
+                  { label: 'Deal Value',  key: 'value', value: sandboxValue, set: setSandboxValue, placeholder: 'e.g. ₹0' },
+                  { label: 'Product',     key: 'product', value: sandboxProduct, set: setSandboxProduct, placeholder: 'e.g. Product / Service' },
                 ].map((field) => (
                   <div key={field.key}>
                     <label className="text-muted text-[10px] font-semibold block mb-1">

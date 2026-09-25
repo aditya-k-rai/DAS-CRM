@@ -368,7 +368,7 @@ export function LeadAllocationTrail({
               <input
                 type="text"
                 className="crm-input w-full text-sm font-semibold"
-                placeholder={`e.g. ${assignToRole === 'MANAGER' ? 'Rajesh Kumar (Manager A)' : assignToRole === 'TEAM_LEADER' ? 'Priya Sharma (TL A)' : 'Amit Patel (Sales Rep)'}`}
+                placeholder={`e.g. ${assignToRole === 'MANAGER' ? 'Department Manager A' : assignToRole === 'TEAM_LEADER' ? 'Team Leader A' : 'Sales Representative'}`}
                 value={assignToName}
                 onChange={e => setAssignToName(e.target.value)}
               />

@@ -20,6 +20,7 @@ import {
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '../store/authStore';
 
 export interface DealItem {
   id: string;
@@ -40,31 +41,23 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top + 6, 18);
   const bottomPadding = Math.max(insets.bottom + 10, 20);
+  const { currentUser } = useAuthStore();
 
   // 🎯 Revenue Goal State
-  const [monthlyGoal, setMonthlyGoal] = useState<number>(1500000); // $1,500,000 Goal
-  const [quarterlyGoal, setQuarterlyGoal] = useState<number>(4500000); // $4,500,000 Goal
+  const [monthlyGoal, setMonthlyGoal] = useState<number>(0);
+  const [quarterlyGoal, setQuarterlyGoal] = useState<number>(0);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
-  const [inputMonthlyGoal, setInputMonthlyGoal] = useState('1500000');
-  const [inputQuarterlyGoal, setInputQuarterlyGoal] = useState('4500000');
+  const [inputMonthlyGoal, setInputMonthlyGoal] = useState('0');
+  const [inputQuarterlyGoal, setInputQuarterlyGoal] = useState('0');
 
   // 💼 Deals List
-  const [dealsList, setDealsList] = useState<DealItem[]>([
-    { id: '1', name: 'TechCorp Solutions (50 Seats)', val: '$128,400', rawVal: 128400, stage: 'QUALIFIED', company: 'TechCorp', owner: 'Rajesh Kumar', expectedClose: 'Aug 30, 2026' },
-    { id: '2', name: 'LogiTech Freight Integration', val: '$412,000', rawVal: 412000, stage: 'PROPOSAL', company: 'LogiTech', owner: 'Priya Sharma', expectedClose: 'Sep 15, 2026' },
-    { id: '3', name: 'Sunita Logistics Custom Webhooks', val: '$89,000', rawVal: 89000, stage: 'NEW_LEAD', company: 'Sunita', owner: 'Amit Patel', expectedClose: 'Aug 28, 2026' },
-    { id: '4', name: 'Apex Retail Multi-Branch License', val: '$250,000', rawVal: 250000, stage: 'CLOSED_WON', company: 'Apex Retail', owner: 'Rajesh Kumar', expectedClose: 'Aug 20, 2026' },
-    { id: '5', name: 'Global Infra Cloud Migration Suite', val: '$320,000', rawVal: 320000, stage: 'NEGOTIATION', company: 'Global Infra', owner: 'Priya Sharma', expectedClose: 'Sep 05, 2026' },
-    { id: '6', name: 'SmartCity IoT Sensor Analytics Platform', val: '$195,000', rawVal: 195000, stage: 'QUALIFIED', company: 'SmartCity', owner: 'Amit Patel', expectedClose: 'Sep 10, 2026' },
-    { id: '7', name: 'Metro Financial AI Bot Suite', val: '$175,000', rawVal: 175000, stage: 'PROPOSAL', company: 'Metro Financial', owner: 'Rajesh Kumar', expectedClose: 'Aug 31, 2026' },
-    { id: '8', name: 'NextGen Pharma Compliance Automation', val: '$510,000', rawVal: 510000, stage: 'CLOSED_WON', company: 'NextGen Pharma', owner: 'Priya Sharma', expectedClose: 'Aug 15, 2026' },
-  ]);
+  const [dealsList, setDealsList] = useState<DealItem[]>([]);
 
   const [showNewDealForm, setShowNewDealForm] = useState(false);
   const [newDealTitle, setNewDealTitle] = useState('');
   const [newDealCompany, setNewDealCompany] = useState('');
   const [newDealValue, setNewDealValue] = useState('');
-  const [newDealOwner, setNewDealOwner] = useState('Rajesh Kumar');
+  const [newDealOwner, setNewDealOwner] = useState(currentUser?.name || 'Sales Rep');
   const [newDealStage, setNewDealStage] = useState<'NEW_LEAD' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON'>('NEW_LEAD');
 
   const STAGE_PROBABILITIES: Record<string, number> = {
@@ -91,7 +84,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
       id: `deal_${Date.now()}`,
       name: newDealTitle.trim(),
       company: newDealCompany.trim(),
-      val: `$${valNum.toLocaleString()}`,
+      val: `₹${valNum.toLocaleString('en-IN')}`,
       rawVal: valNum,
       stage: newDealStage,
       owner: newDealOwner,
@@ -106,19 +99,19 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
   };
 
   const handleSaveGoalTargets = () => {
-    const mVal = parseFloat(inputMonthlyGoal) || 1500000;
-    const qVal = parseFloat(inputQuarterlyGoal) || 4500000;
+    const mVal = parseFloat(inputMonthlyGoal) || 0;
+    const qVal = parseFloat(inputQuarterlyGoal) || 0;
     setMonthlyGoal(mVal);
     setQuarterlyGoal(qVal);
     setGoalModalOpen(false);
-    Alert.alert('🎯 Targets Updated', `Monthly Target set to $${mVal.toLocaleString()} and Quarterly Target set to $${qVal.toLocaleString()}.`);
+    Alert.alert('🎯 Targets Updated', `Monthly Target set to ₹${mVal.toLocaleString('en-IN')} and Quarterly Target set to ₹${qVal.toLocaleString('en-IN')}.`);
   };
 
   const totalPipelineValue = dealsList.reduce((acc, d) => acc + d.rawVal, 0);
   const weightedValue = dealsList.reduce((acc, d) => acc + (d.rawVal * (STAGE_PROBABILITIES[d.stage] / 100)), 0);
   const totalWonValue = dealsList.filter(d => d.stage === 'CLOSED_WON').reduce((acc, d) => acc + d.rawVal, 0);
 
-  const goalProgressPercent = Math.min(100, Math.round((totalWonValue / monthlyGoal) * 100));
+  const goalProgressPercent = monthlyGoal > 0 ? Math.min(100, Math.round((totalWonValue / monthlyGoal) * 100)) : 0;
 
   return (
     <View style={[styles.container, { paddingTop: onClose ? 0 : topPadding }]}>
@@ -148,8 +141,8 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
           {/* Goal Progress Bar */}
           <View style={{ marginVertical: 6 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ fontSize: 11, color: '#cbd5e1', fontWeight: '800' }}>Monthly Target (${monthlyGoal.toLocaleString()})</Text>
-              <Text style={{ fontSize: 11, color: '#34d399', fontWeight: '900' }}>${totalWonValue.toLocaleString()} ({goalProgressPercent}%)</Text>
+              <Text style={{ fontSize: 11, color: '#cbd5e1', fontWeight: '800' }}>Monthly Target (₹{monthlyGoal.toLocaleString('en-IN')})</Text>
+              <Text style={{ fontSize: 11, color: '#34d399', fontWeight: '900' }}>₹{totalWonValue.toLocaleString('en-IN')} ({goalProgressPercent}%)</Text>
             </View>
             <View style={styles.progressBarTrack}>
               <View style={[styles.progressBarFill, { width: `${goalProgressPercent}%` }]} />
@@ -158,30 +151,19 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
 
           {/* Rep Target Telemetry Grid */}
           <Text style={{ fontSize: 11, fontWeight: '800', color: '#818cf8', marginTop: 8, marginBottom: 4 }}>Rep Target Performance Telemetry:</Text>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <View style={styles.repTargetChip}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>Rajesh K.</Text>
-              <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '900' }}>$760k (95% Target)</Text>
-            </View>
-            <View style={styles.repTargetChip}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>Priya S.</Text>
-              <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '900' }}>$922k (88% Target)</Text>
-            </View>
-            <View style={styles.repTargetChip}>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>Amit P.</Text>
-              <Text style={{ fontSize: 9, color: '#fbbf24', fontWeight: '900' }}>$284k (72% Target)</Text>
-            </View>
+          <View style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: '#020617', borderRadius: 8, borderWidth: 1, borderColor: '#1e293b' }}>
+            <Text style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>No active rep target telemetry logged</Text>
           </View>
         </View>
 
         {/* ── PIPELINE SUMMARY CARDS ───────────────────────────────────────── */}
         <View style={styles.summaryCard}>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.summaryValue}>${totalPipelineValue.toLocaleString()}</Text>
+            <Text style={styles.summaryValue}>₹{totalPipelineValue.toLocaleString('en-IN')}</Text>
             <Text style={styles.summaryLabel}>Total Pipeline Value ({dealsList.length} Deals)</Text>
           </View>
           <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: 1, borderLeftColor: '#1e293b' }}>
-            <Text style={[styles.summaryValue, { color: '#34d399' }]}>${Math.round(weightedValue).toLocaleString()}</Text>
+            <Text style={[styles.summaryValue, { color: '#34d399' }]}>₹{Math.round(weightedValue).toLocaleString('en-IN')}</Text>
             <Text style={styles.summaryLabel}>Weighted Forecast</Text>
           </View>
         </View>
@@ -205,14 +187,14 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
           {showNewDealForm && (
             <View style={styles.formCard}>
               <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>💼 Register New Enterprise Deal</Text>
-              <TextInput style={styles.inputField} placeholder="Deal Title (e.g. Acme Corp CRM)" placeholderTextColor="#64748b" value={newDealTitle} onChangeText={setNewDealTitle} />
+              <TextInput style={styles.inputField} placeholder="Deal Title (e.g. Enterprise CRM Package)" placeholderTextColor="#64748b" value={newDealTitle} onChangeText={setNewDealTitle} />
               <TextInput style={styles.inputField} placeholder="Company Name" placeholderTextColor="#64748b" value={newDealCompany} onChangeText={setNewDealCompany} />
-              <TextInput style={styles.inputField} placeholder="Deal Value (e.g. $150,000)" placeholderTextColor="#64748b" value={newDealValue} onChangeText={setNewDealValue} keyboardType="numeric" />
+              <TextInput style={styles.inputField} placeholder="Deal Value (e.g. 150000)" placeholderTextColor="#64748b" value={newDealValue} onChangeText={setNewDealValue} keyboardType="numeric" />
 
               <View>
                 <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '700', marginBottom: 4 }}>Assign Deal Owner:</Text>
                 <View style={{ flexDirection: 'row', gap: 4 }}>
-                  {['Rajesh Kumar', 'Priya Sharma', 'Amit Patel'].map((own) => (
+                  {[currentUser?.name || 'Sales Rep'].map((own) => (
                     <TouchableOpacity
                       key={own}
                       style={[{ flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 6, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, newDealOwner === own && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}
@@ -243,7 +225,14 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
           )}
 
           {/* Deals Items List */}
-          {dealsList.map((deal) => (
+          {dealsList.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+              <Text style={{ fontSize: 28, marginBottom: 6 }}>💼</Text>
+              <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '700' }}>No deals in pipeline</Text>
+              <Text style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>Tap "+ Register Deal" to add a new deal to your pipeline.</Text>
+            </View>
+          ) : (
+            dealsList.map((deal) => (
             <View key={deal.id} style={[styles.itemRow, styles.borderBottom]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                 <View style={{ flex: 1, paddingRight: 6 }}>
@@ -273,7 +262,8 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
                 ))}
               </View>
             </View>
-          ))}
+          ))
+        )}
         </View>
 
       </ScrollView>
@@ -285,7 +275,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
             <Text style={styles.modalTitle}>🎯 Set Revenue Goals &amp; Targets</Text>
             <Text style={styles.modalSub}>Define organizational revenue targets for current period.</Text>
 
-            <Text style={styles.inputLabel}>Monthly Target Goal ($) *</Text>
+            <Text style={styles.inputLabel}>Monthly Target Goal (₹) *</Text>
             <TextInput
               style={styles.textInput}
               value={inputMonthlyGoal}
@@ -293,7 +283,7 @@ export const DealsPipelineScreen: React.FC<DealsPipelineScreenProps> = ({ onClos
               keyboardType="numeric"
             />
 
-            <Text style={styles.inputLabel}>Quarterly Target Goal ($) *</Text>
+            <Text style={styles.inputLabel}>Quarterly Target Goal (₹) *</Text>
             <TextInput
               style={styles.textInput}
               value={inputQuarterlyGoal}

@@ -208,17 +208,13 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
 
   // ─── Legacy Bot Rules & Execution Logs ───
   const [automationsRules, setAutomationsRules] = useState<AutomationRule[]>([
-    { id: '1', name: 'Auto-Send Welcome WhatsApp Message', trigger: 'On New Lead Ingestion', action: 'SEND_WHATSAPP', delay: 'IMMEDIATELY', status: true, triggersCount: 342 },
-    { id: '2', name: 'Schedule Follow-up Call Alert Task', trigger: 'Lead Inactive 24h', action: 'CREATE_TASK', delay: '24_HOURS', status: true, triggersCount: 128 },
-    { id: '3', name: 'Nudge Unassigned Leads to Team Leader', trigger: 'Unassigned > 15 Mins', action: 'REASSIGN_LEAD', delay: '15_MINS', status: false, triggersCount: 45 },
-    { id: '4', name: 'Dispatch Proposal PDF Deck Email', trigger: 'Stage shifted to PROPOSAL', action: 'SEND_EMAIL', delay: 'IMMEDIATELY', status: true, triggersCount: 89 },
+    { id: '1', name: 'Auto-Send Welcome WhatsApp Message', trigger: 'On New Lead Ingestion', action: 'SEND_WHATSAPP', delay: 'IMMEDIATELY', status: false, triggersCount: 0 },
+    { id: '2', name: 'Schedule Follow-up Call Alert Task', trigger: 'Lead Inactive 24h', action: 'CREATE_TASK', delay: '24_HOURS', status: false, triggersCount: 0 },
+    { id: '3', name: 'Nudge Unassigned Leads to Team Leader', trigger: 'Unassigned > 15 Mins', action: 'REASSIGN_LEAD', delay: '15_MINS', status: false, triggersCount: 0 },
+    { id: '4', name: 'Dispatch Proposal PDF Deck Email', trigger: 'Stage shifted to PROPOSAL', action: 'SEND_EMAIL', delay: 'IMMEDIATELY', status: false, triggersCount: 0 },
   ]);
 
-  const [botLogs] = useState<BotExecutionLog[]>([
-    { id: 'b_1', ruleName: 'Auto-Send Welcome WhatsApp Message', leadName: 'Rajesh Kumar', time: '10:30 AM', status: 'EXECUTED' },
-    { id: 'b_2', ruleName: 'Dispatch Proposal PDF Deck Email', leadName: 'Priya Sharma', time: '09:15 AM', status: 'EXECUTED' },
-    { id: 'b_3', ruleName: 'Nudge Unassigned Leads', leadName: 'Vikram Singh', time: 'Yesterday', status: 'SKIPPED' },
-  ]);
+  const [botLogs] = useState<BotExecutionLog[]>([]);
 
   const [showNewRuleForm, setShowNewRuleForm] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
@@ -623,36 +619,42 @@ export const WorkflowAutomationsScreen: React.FC<WorkflowAutomationsScreenProps>
             Real-time log of automated bot triggers dispatched by DAS CRM background workers.
           </Text>
 
-          {botLogs.map((log) => (
-            <View
-              key={log.id}
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                paddingVertical: 8,
-                borderBottomWidth: 1,
-                borderBottomColor: '#020617',
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11.5, color: '#ffffff', fontWeight: '700' }}>
-                  {log.ruleName}
-                </Text>
-                <Text style={{ fontSize: 9.5, color: '#94a3b8', marginTop: 2 }}>
-                  Target: {log.leadName} • {log.time}
-                </Text>
-              </View>
-              <Text
+          {botLogs.length === 0 ? (
+            <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: '#64748b' }}>No recent bot execution logs.</Text>
+            </View>
+          ) : (
+            botLogs.map((log) => (
+              <View
+                key={log.id}
                 style={{
-                  fontSize: 10,
-                  fontWeight: '900',
-                  color: log.status === 'EXECUTED' ? '#34d399' : '#94a3b8',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  paddingVertical: 8,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#020617',
                 }}
               >
-                {log.status}
-              </Text>
-            </View>
-          ))}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11.5, color: '#ffffff', fontWeight: '700' }}>
+                    {log.ruleName}
+                  </Text>
+                  <Text style={{ fontSize: 9.5, color: '#94a3b8', marginTop: 2 }}>
+                    Target: {log.leadName} • {log.time}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: '900',
+                    color: log.status === 'EXECUTED' ? '#34d399' : '#94a3b8',
+                  }}
+                >
+                  {log.status}
+                </Text>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
 

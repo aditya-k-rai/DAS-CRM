@@ -9,10 +9,7 @@ interface Props {
 
 export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmployee }: Props) {
   const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [staffList, setStaffList] = useState([
-    { id: 'dept-1', name: 'Priya Sharma', role: 'Team Leader', pipeline: '$38,500', leads: 45 },
-    { id: 'dept-2', name: 'Rohan Kumar', role: 'Sales Exec', pipeline: '$22,000', leads: 25 },
-  ]);
+  const [staffList, setStaffList] = useState<{ id: string; name: string; role: string; pipeline: string; leads: number }[]>([]);
 
   const [leadAuditModalOpen, setLeadAuditModalOpen] = useState(false);
   const [leadCategory, setLeadCategory] = useState<'TOTAL' | 'CONNECTED' | 'NEGOTIATED' | 'MEETING' | 'WON'>('TOTAL');
@@ -92,39 +89,45 @@ export default function ManagerControlScreenWeb({ employee, onBack, onUpdateEmpl
             Add / Change Staff ✏️
           </button>
         </div>
-        <div className="space-y-2">
-          {staffList.map(st => (
-            <div key={st.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
-              <div>
-                <div className="text-xs font-bold text-white">{st.name} ({st.role})</div>
-                <div className="text-xs text-slate-400">{st.leads} Dept Leads Managed</div>
+        {staffList.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500 bg-slate-950/50 rounded-xl border border-dashed border-slate-800">
+            No department staff assigned under {employee.name} yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {staffList.map(st => (
+              <div key={st.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                <div>
+                  <div className="text-xs font-bold text-white">{st.name} ({st.role})</div>
+                  <div className="text-xs text-slate-400">{st.leads} Dept Leads Managed</div>
+                </div>
+                <div className="text-xs font-black text-sky-400">{st.pipeline} Pipeline</div>
               </div>
-              <div className="text-xs font-black text-sky-400">{st.pipeline} Pipeline</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Department Pipeline Audit */}
       <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">📊 Department Pipeline Lead Audit</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <button onClick={() => { setLeadCategory('TOTAL'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-sky-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-sky-400">140</div>
+          <div className="text-2xl font-black text-sky-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Total Dept Leads →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-emerald-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-emerald-400">85</div>
+          <div className="text-2xl font-black text-emerald-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Connected →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('NEGOTIATED'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-indigo-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-indigo-400">32</div>
+          <div className="text-2xl font-black text-indigo-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Negotiated →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('WON'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-emerald-400/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-emerald-300">14</div>
+          <div className="text-2xl font-black text-emerald-300">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Won Deals →</div>
         </button>
       </div>

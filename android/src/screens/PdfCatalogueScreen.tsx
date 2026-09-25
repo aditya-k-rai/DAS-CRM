@@ -51,55 +51,8 @@ const mkEvent = (
 ): ShareEvent => ({ id, sharedBy, sharedTo, channel, timestamp, leadContact, note });
 
 // ── Seed Data ─────────────────────────────────────────────
-const INITIAL_PDFS: PdfItem[] = [
-  {
-    id: '1',
-    title: 'DAS CRM Enterprise Suite 2026 Deck.pdf',
-    size: '4.2 MB', updated: 'Updated 2 days ago',
-    category: 'PRODUCT', downloadsCount: 142,
-    waShares: 47, emailShares: 31, linkShares: 18,
-    shareLog: [
-      mkEvent('e1','Rajesh Kumar','TechCorp Ltd','WHATSAPP','Today 10:22 AM','+91 98765 43210','Sent before demo call'),
-      mkEvent('e2','Priya Sharma','Amit Patel','EMAIL','Today 09:15 AM','amit@example.com','Follow-up after meeting'),
-      mkEvent('e3','Ravi Singh','Sunita Verma','WHATSAPP','Yesterday 3:40 PM','+91 87654 32109'),
-      mkEvent('e4','Priya Sharma','Anjali Mehta','LINK','2 days ago',undefined,'Public brochure link via chat'),
-    ],
-  },
-  {
-    id: '2',
-    title: 'AI Lead Scoring Engine Pro Specs.pdf',
-    size: '2.8 MB', updated: 'Updated last week',
-    category: 'SPECIFICATION', downloadsCount: 89,
-    waShares: 22, emailShares: 14, linkShares: 8,
-    shareLog: [
-      mkEvent('e5','Ravi Singh','Rahul Industries','EMAIL','Today 08:55 AM','rahul@industries.com'),
-      mkEvent('e6','Aisha Khan','CloudBase Corp','WHATSAPP','Yesterday 2:10 PM','+91 99887 76655'),
-    ],
-  },
-  {
-    id: '3',
-    title: 'WhatsApp Cloud API Pricing Rate Card.pdf',
-    size: '1.5 MB', updated: 'Updated 3 days ago',
-    category: 'PRICING', downloadsCount: 215,
-    waShares: 89, emailShares: 54, linkShares: 31,
-    shareLog: [
-      mkEvent('e7','Priya Sharma','Amit Patel','WHATSAPP','Today 11:30 AM','+91 87654 32109','Pricing clarification'),
-      mkEvent('e8','Rajesh Kumar','TechCorp Ltd','EMAIL','Today 10:00 AM','contact@techcorp.com'),
-      mkEvent('e9','Aisha Khan','Mehta Enterprises','WHATSAPP','Yesterday 4:50 PM','+91 78563 21098'),
-    ],
-  },
-  {
-    id: '4',
-    title: 'GST 18% Commercial Proposal Template.pdf',
-    size: '1.9 MB', updated: 'Updated yesterday',
-    category: 'PROPOSAL', downloadsCount: 64,
-    waShares: 19, emailShares: 28, linkShares: 6,
-    shareLog: [
-      mkEvent('e10','Rajesh Kumar','Reliance Ventures','EMAIL','Today 09:45 AM','biz@reliance.com','Quarterly proposal'),
-      mkEvent('e11','Aisha Khan','QuickBuy Inc','WHATSAPP','Yesterday 1:20 PM','+91 99100 22334'),
-    ],
-  },
-];
+const INITIAL_PDFS: PdfItem[] = [];
+
 
 // ── Channel colour map ────────────────────────────────────
 const CHANNEL_COLOR: Record<ShareChannel, string> = {
@@ -334,57 +287,67 @@ export const PdfCatalogueScreen: React.FC<PdfCatalogueScreenProps> = ({ onClose 
         />
 
         {/* ── PDF Cards ── */}
-        {filteredPdfs.map(pdf => {
-          const totalShares = pdf.waShares + pdf.emailShares + pdf.linkShares;
-          return (
-            <View key={pdf.id} style={styles.pdfCard}>
-              {/* Title row */}
-              <View style={styles.pdfTitleRow}>
-                <Text style={styles.pdfIcon}>📄</Text>
-                <View style={{ flex: 1, paddingRight: 6 }}>
-                  <Text style={styles.itemName} numberOfLines={2}>{pdf.title}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-                    <View style={[styles.catBadge, { backgroundColor: `${CAT_COLOR[pdf.category]}22`, borderColor: `${CAT_COLOR[pdf.category]}55` }]}>
-                      <Text style={[styles.catBadgeText, { color: CAT_COLOR[pdf.category] }]}>{pdf.category}</Text>
+        {filteredPdfs.length === 0 ? (
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 20 }}>
+            <Text style={{ fontSize: 36, marginBottom: 10 }}>📭</Text>
+            <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '700' }}>No PDF documents found</Text>
+            <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+              Upload your company brochures, rate cards, and product catalogs using the "+ Upload" button above.
+            </Text>
+          </View>
+        ) : (
+          filteredPdfs.map(pdf => {
+            const totalShares = pdf.waShares + pdf.emailShares + pdf.linkShares;
+            return (
+              <View key={pdf.id} style={styles.pdfCard}>
+                {/* Title row */}
+                <View style={styles.pdfTitleRow}>
+                  <Text style={styles.pdfIcon}>📄</Text>
+                  <View style={{ flex: 1, paddingRight: 6 }}>
+                    <Text style={styles.itemName} numberOfLines={2}>{pdf.title}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                      <View style={[styles.catBadge, { backgroundColor: `${CAT_COLOR[pdf.category]}22`, borderColor: `${CAT_COLOR[pdf.category]}55` }]}>
+                        <Text style={[styles.catBadgeText, { color: CAT_COLOR[pdf.category] }]}>{pdf.category}</Text>
+                      </View>
+                      <Text style={styles.itemSub}>{pdf.size} • {pdf.updated}</Text>
                     </View>
-                    <Text style={styles.itemSub}>{pdf.size} • {pdf.updated}</Text>
+                    <Text style={styles.itemSub}>⬇ {pdf.downloadsCount} downloads</Text>
                   </View>
-                  <Text style={styles.itemSub}>⬇ {pdf.downloadsCount} downloads</Text>
+                </View>
+
+                {/* ── Per-PDF Share Stat Strip ── */}
+                <View style={styles.shareStatRow}>
+                  <Text style={styles.shareStatLabel}>📤 Shared:</Text>
+                  <Text style={styles.shareStatTotal}>{totalShares} total</Text>
+                  <View style={styles.statDivider} />
+                  <Text style={[styles.shareStatChip, { color: '#10b981' }]}>💬 {pdf.waShares} WA</Text>
+                  <Text style={[styles.shareStatChip, { color: '#6366f1' }]}>📧 {pdf.emailShares} Email</Text>
+                  <Text style={[styles.shareStatChip, { color: '#38bdf8' }]}>🔗 {pdf.linkShares} Link</Text>
+                </View>
+
+                <Text style={[styles.itemSub, { marginBottom: 6 }]}>
+                  🗒 {pdf.shareLog.length} logged event{pdf.shareLog.length !== 1 ? 's' : ''}
+                </Text>
+
+                {/* ── Action Buttons ── */}
+                <View style={styles.btnRow}>
+                  <TouchableOpacity style={styles.previewBtn} onPress={() => { setPreviewPdf(pdf); setShowPreviewModal(true); }}>
+                    <Text style={styles.btnTextDark}>👁 Preview</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.shareWaBtn} onPress={() => handleDispatchViaWhatsApp(pdf)}>
+                    <Text style={styles.btnTextWhite}>💬 WA</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.shareEmailBtn} onPress={() => handleDispatchViaEmail(pdf)}>
+                    <Text style={styles.btnTextWhite}>📧 Email</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.activityBtn} onPress={() => openActivity(pdf)}>
+                    <Text style={styles.btnTextWhite}>📊 Log</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              {/* ── Per-PDF Share Stat Strip ── */}
-              <View style={styles.shareStatRow}>
-                <Text style={styles.shareStatLabel}>📤 Shared:</Text>
-                <Text style={styles.shareStatTotal}>{totalShares} total</Text>
-                <View style={styles.statDivider} />
-                <Text style={[styles.shareStatChip, { color: '#10b981' }]}>💬 {pdf.waShares} WA</Text>
-                <Text style={[styles.shareStatChip, { color: '#6366f1' }]}>📧 {pdf.emailShares} Email</Text>
-                <Text style={[styles.shareStatChip, { color: '#38bdf8' }]}>🔗 {pdf.linkShares} Link</Text>
-              </View>
-
-              <Text style={[styles.itemSub, { marginBottom: 6 }]}>
-                🗒 {pdf.shareLog.length} logged event{pdf.shareLog.length !== 1 ? 's' : ''}
-              </Text>
-
-              {/* ── Action Buttons ── */}
-              <View style={styles.btnRow}>
-                <TouchableOpacity style={styles.previewBtn} onPress={() => { setPreviewPdf(pdf); setShowPreviewModal(true); }}>
-                  <Text style={styles.btnTextDark}>👁 Preview</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.shareWaBtn} onPress={() => handleDispatchViaWhatsApp(pdf)}>
-                  <Text style={styles.btnTextWhite}>💬 WA</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.shareEmailBtn} onPress={() => handleDispatchViaEmail(pdf)}>
-                  <Text style={styles.btnTextWhite}>📧 Email</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.activityBtn} onPress={() => openActivity(pdf)}>
-                  <Text style={styles.btnTextWhite}>📊 Log</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
 
       </ScrollView>
 

@@ -7,7 +7,7 @@ const TEMPLATES = [
   {
     id: '1', name: 'Initial Outreach',
     subject: 'Exploring CRM solutions for {{company_name}}',
-    category: 'Outreach', usedCount: 42,
+    category: 'Outreach', usedCount: 0,
     body: `Hi {{contact_first_name}},
 
 I noticed {{company_name}} is growing rapidly in the {{industry}} space — congratulations on your progress!
@@ -23,7 +23,7 @@ Best regards,
   {
     id: '2', name: 'Follow-Up After Demo',
     subject: 'Next Steps: {{company_name}} × DAS CRM Partnership',
-    category: 'Follow-Up', usedCount: 28,
+    category: 'Follow-Up', usedCount: 0,
     body: `Hi {{contact_first_name}},
 
 Thank you for taking the time to join our demo yesterday! I hope it gave you a clear picture of how DAS CRM can transform your sales operations.
@@ -43,7 +43,7 @@ Warm regards,
   {
     id: '3', name: 'Deal Won — Welcome Onboard',
     subject: '🎉 Welcome to DAS CRM, {{company_name}}!',
-    category: 'Post-Sale', usedCount: 17,
+    category: 'Post-Sale', usedCount: 0,
     body: `Hi {{contact_first_name}},
 
 We're thrilled to welcome {{company_name}} to the DAS CRM family! 🎉

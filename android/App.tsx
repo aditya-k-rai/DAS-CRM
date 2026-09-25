@@ -73,46 +73,7 @@ export interface AppNotificationItem {
   leadPhone?: string;
 }
 
-const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [
-  {
-    id: 'notif-1',
-    title: '⏰ Task Alert (Starts in 5 Mins)',
-    message: 'Meeting with Rajesh Mehta (TechCorp Solutions) starts in 5 minutes (02:30 PM). Get ready for demo!',
-    timeStr: 'In 5 Mins',
-    type: 'TASK_5MIN_ALERT',
-    isRead: false,
-    leadName: 'Rajesh Mehta',
-    leadPhone: '+91 98765 43210',
-  },
-  {
-    id: 'notif-2',
-    title: '📞 Priority Call Reminder (Starts in 5 Mins)',
-    message: 'Scheduled direct call with Priya Sharma (LogiTech Systems) starts in 5 minutes (04:45 PM).',
-    timeStr: 'In 5 Mins',
-    type: 'TASK_5MIN_ALERT',
-    isRead: false,
-    leadName: 'Priya Sharma',
-    leadPhone: '+91 98123 45678',
-  },
-  {
-    id: 'notif-3',
-    title: '🎯 Hot Lead Assigned',
-    message: 'New high-value lead assigned to your sales queue: Sunita Logistics Pvt Ltd (₹8,90,000).',
-    timeStr: '15 Mins ago',
-    type: 'LEAD_ASSIGNED',
-    isRead: false,
-    leadName: 'Sunita Kapoor',
-    leadPhone: '+91 97222 33344',
-  },
-  {
-    id: 'notif-4',
-    title: '⏱️ Attendance Sync Verified',
-    message: 'Workforce attendance punch logged successfully today at 09:21 AM (Geofence verified).',
-    timeStr: '1 Hour ago',
-    type: 'SYSTEM',
-    isRead: true,
-  },
-];
+const INITIAL_NOTIFICATIONS: AppNotificationItem[] = [];
 
 // Navigation Param Lists
 export type LeadsStackParamList = {
@@ -396,7 +357,7 @@ function RootAppContent() {
 
   // 🔔 NOTIFICATIONS & 5-MIN PRIOR TASK ALERTS STATE
   const [notifModalOpen, setNotifModalOpen] = useState(false);
-  const [overrideUnreadCount, setOverrideUnreadCount] = useState<number | null>(3);
+  const [overrideUnreadCount, setOverrideUnreadCount] = useState<number | null>(null);
   const [notifications, setNotifications] = useState<AppNotificationItem[]>(INITIAL_NOTIFICATIONS);
 
   const unreadNotifCount = overrideUnreadCount !== null ? overrideUnreadCount : notifications.filter((n) => !n.isRead).length;
@@ -522,7 +483,7 @@ function RootAppContent() {
   const confirmAndHandleLogout = () => {
     ModernAlert.show({
       title: 'Sign Out of DAS CRM?',
-      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: Acme Sales Solutions\n• Role: ${currentUser?.role || 'ADMIN'}\n• Offline changes and leads remain safe.`,
+      message: `Are you sure you want to end your current session for ${currentUser?.name || 'this account'} (${currentUser?.email || ''})?\n• Workspace: ${currentUser?.companyName || 'DAS Organization'}\n• Role: ${currentUser?.role || 'ADMIN'}\n• Offline changes and leads remain safe.`,
       type: 'warning',
       icon: '🚪',
       badgeText: 'SECURITY & SESSION',

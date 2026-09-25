@@ -60,76 +60,7 @@ export interface AIScoreConfig {
   autoRecalculate: boolean;
 }
 
-export const FALLBACK_LEADS: LeadItem[] = [
-  {
-    id: '1',
-    name: 'Aditya Sharma',
-    company: 'TechCorp India',
-    email: 'aditya.s@techcorp.in',
-    phone: '+91 98765 43210',
-    status: 'Prospecting',
-    value: '₹45,000',
-    source: 'Facebook Ads',
-    priority: 'High',
-    assignedRep: 'Rajesh Kumar',
-    city: 'Mumbai',
-    budget: '50k-1L',
-    requirement: 'CRM Enterprise',
-    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
-    aiScore: { totalScore: 8.7, tier: 'HOT', budgetScore: 92, intentScore: 85, engagementScore: 88, productFitScore: 90, responseScore: 86, analysisSummary: 'High-priority lead with strong engagement signals.', topFactors: ['Website visit', 'Demo attended', 'Quotation viewed'], riskFactors: [], recommendations: ['Schedule follow-up call today', 'Share enterprise case studies'] },
-  },
-  {
-    id: '2',
-    name: 'Priya Patel',
-    company: 'Innovate Solutions',
-    email: 'priya.p@innovate.io',
-    phone: '+91 98123 76543',
-    status: 'Proposal',
-    value: '₹1,20,000',
-    source: 'Google Ads',
-    priority: 'High',
-    assignedRep: 'Priya Sharma',
-    city: 'Bangalore',
-    budget: '1L-2L',
-    requirement: 'Call Automation Bot',
-    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
-    aiScore: { totalScore: 7.5, tier: 'WARM', budgetScore: 78, intentScore: 72, engagementScore: 80, productFitScore: 74, responseScore: 70, analysisSummary: 'Moderate engagement with good product interest.', topFactors: ['Multiple email opens', 'Website visit'], riskFactors: ['No response in 2 days'], recommendations: ['Send follow-up email', 'Offer free trial'] },
-  },
-  {
-    id: '3',
-    name: 'Vikram Malhotra',
-    company: 'Apex Global',
-    email: 'vikram.m@apexind.com',
-    phone: '+91 99887 11223',
-    status: 'Negotiation',
-    value: '₹85,000',
-    source: 'WhatsApp Web',
-    priority: 'Medium',
-    assignedRep: 'Amit Shah (TL)',
-    city: 'Delhi',
-    budget: '80k-1L',
-    requirement: 'Multi-Tenant SLA',
-    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
-    aiScore: { totalScore: 9.2, tier: 'HOT', budgetScore: 95, intentScore: 92, engagementScore: 90, productFitScore: 94, responseScore: 88, analysisSummary: 'Excellent lead with high conversion probability.', topFactors: ['Multiple touchpoints', 'High budget fit', 'Decision maker'], riskFactors: [], recommendations: ['Prioritize this lead', 'Prepare custom proposal'] },
-  },
-  {
-    id: '4',
-    name: 'Ananya Roy',
-    company: 'Sun Realty',
-    email: 'ananya.r@sunrealty.com',
-    phone: '+91 97654 32109',
-    status: 'Closed Won',
-    value: '₹2,10,000',
-    source: 'Website Form',
-    priority: 'High',
-    assignedRep: 'Sunita Verma (HR)',
-    city: 'Pune',
-    budget: '2L+',
-    requirement: 'Payroll Engine',
-    callSyncStatus: 'Synced: Today 2:45 PM • 4m 18s • Connected',
-    aiScore: { totalScore: 5.2, tier: 'COLD', budgetScore: 55, intentScore: 48, engagementScore: 52, productFitScore: 58, responseScore: 42, analysisSummary: 'Lead needs more nurturing and engagement.', topFactors: ['Website form fill'], riskFactors: ['No engagement', 'No calls answered'], recommendations: ['Extend nurture sequence', 'Consider different outreach channel'] },
-  },
-];
+export const FALLBACK_LEADS: LeadItem[] = [];
 
 class ApiService {
   /** Live NestJS Backend Health & Network Reachability Check */
@@ -494,13 +425,11 @@ class ApiService {
       if (res.ok) return await res.json();
     } catch {}
     return {
-      success: true,
-      importedCount: 2,
-      headers: ['Name', 'Phone', 'Company', 'Email', 'Status', 'Value'],
-      leads: [
-        { id: `csv_${Date.now()}_1`, name: 'Rajesh Varma (CSV)', phone: '+91 98765 11111', company: 'Varma Exports', email: 'rajesh@varma.com', status: 'NEW LEAD', value: '₹60,000', source: 'CSV File', callSyncStatus: `Imported via CSV (Header Row #${headerRowIndex + 1})` },
-        { id: `csv_${Date.now()}_2`, name: 'Sunil Malhotra (CSV)', phone: '+91 98765 22222', company: 'Malhotra Retail', email: 'sunil@malhotra.com', status: 'QUALIFIED', value: '₹90,000', source: 'CSV File', callSyncStatus: `Imported via CSV (Header Row #${headerRowIndex + 1})` },
-      ],
+      success: false,
+      importedCount: 0,
+      headers: [],
+      leads: [],
+      error: 'Backend offline or network error while processing CSV.',
     };
   }
 
@@ -518,11 +447,9 @@ class ApiService {
       if (res.ok) return await res.json();
     } catch {}
     return {
-      success: true,
-      importedCount: rows.length || 1,
-      leads: rows.length > 0 ? rows : [
-        { id: `xl_${Date.now()}`, name: 'Deepak Sharma (Excel)', phone: '+91 98111 99999', company: 'Sharma Enterprise', email: 'deepak@sharma.com', status: 'NEW LEAD', value: '₹1,50,000', source: 'Excel File' },
-      ],
+      success: rows.length > 0,
+      importedCount: rows.length,
+      leads: rows,
     };
   }
 
@@ -540,19 +467,12 @@ class ApiService {
       if (res.ok) return await res.json();
     } catch {}
     return {
-      success: true,
-      importedCount: (selectedSheets?.length || 2) * 2,
-      sheetTitle: 'DAS CRM Multi-Tab Google Sheet Collection',
-      availableSheets: [
-        { sheetName: 'Sheet1 - Web Leads', rowCount: 142, selected: true },
-        { sheetName: 'Sheet2 - Cold Outreach', rowCount: 88, selected: true },
-        { sheetName: 'Sheet3 - West Territory', rowCount: 64, selected: false },
-        { sheetName: 'Sheet4 - Archived / Excluded', rowCount: 210, selected: false },
-      ],
-      leads: [
-        { id: `gsheet_${Date.now()}_1`, name: 'Siddharth Varma (GSheets)', phone: '+91 98989 12345', company: 'Apex Digital', email: 'siddharth@apex.in', status: 'QUALIFIED', value: '₹1,80,000', source: 'Google Sheets Live', callSyncStatus: 'Synced live from Google Sheet Tab "Sheet1 - Web Leads"' },
-        { id: `gsheet_${Date.now()}_2`, name: 'Kavita Sundaram', phone: '+91 97111 22334', company: 'Sundaram Logistics', email: 'kavita@sundaram.com', status: 'NEW LEAD', value: '₹95,000', source: 'Google Sheets Live', callSyncStatus: 'Synced live from Google Sheet Tab "Sheet2 - Cold Outreach"' },
-      ],
+      success: false,
+      importedCount: 0,
+      sheetTitle: '',
+      availableSheets: [],
+      leads: [],
+      error: 'Backend offline or unable to connect to Google Sheets.',
     };
   }
 

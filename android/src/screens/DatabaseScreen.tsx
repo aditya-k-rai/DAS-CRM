@@ -65,18 +65,18 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
 
   // Hierarchy Selection State
   const [activeMainFolder, setActiveMainFolder] = useState<'EMPLOYEES' | 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' | 'DOCUMENTS'>('EMPLOYEES');
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('Amit Shah');
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(currentUser?.name || 'My Documents');
   const [selectedSubCat, setSelectedSubCat] = useState<'DP' | 'Documents' | 'Details'>('Documents');
 
   // Email Request Modal State
   const [showMailModal, setShowMailModal] = useState(false);
-  const [mailTargetFolder, setMailTargetFolder] = useState('Employees/Amit Shah/Documents');
-  const [mailRecipient, setMailRecipient] = useState(currentUser?.email || 'admin@company.com');
+  const [mailTargetFolder, setMailTargetFolder] = useState(`Employees/${currentUser?.name || 'Staff'}/Documents`);
+  const [mailRecipient, setMailRecipient] = useState(currentUser?.email || '');
   const [mailFormat, setMailFormat] = useState<'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK'>('ZIP');
   const [mailNotes, setMailNotes] = useState('');
   const [isSendingMail, setIsSendingMail] = useState(false);
 
-  const EMPLOYEES = ['Amit Shah', 'Priya Sharma', 'Sunita Verma', 'Amit Patel'];
+  const EMPLOYEES = currentUser?.name ? [currentUser.name] : [];
 
   const loadStorageData = async () => {
     setIsLoadingStorage(true);
@@ -401,7 +401,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
               <View style={styles.rootHeaderRow}>
                 <View>
                   <Text style={[styles.rootTitle, { color: colors.text }]}>
-                    📁 Acme Sales Solutions (Company Root)
+                    📁 {currentUser?.companyName || 'DAS Organization'} (Company Root)
                   </Text>
                   <Text style={[styles.rootSub, { color: colors.textMuted }]}>
                     Google Drive &amp; Local Vault Sync
@@ -752,7 +752,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
             <TextInput
               value={mailTargetFolder}
               onChangeText={setMailTargetFolder}
-              placeholder="e.g. Employees/Amit Shah/Documents"
+              placeholder="e.g. Employees/Documents"
               placeholderTextColor={colors.textMuted}
               style={[styles.input, { backgroundColor: colors.cardBgElevated, color: colors.text, borderColor: colors.border }]}
             />

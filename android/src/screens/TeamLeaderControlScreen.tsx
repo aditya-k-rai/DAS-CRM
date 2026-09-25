@@ -47,10 +47,7 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
 
   // 👥 Subordinates Allocation Modal State
   const [subordinatesModalOpen, setSubordinatesModalOpen] = useState(false);
-  const [subordinatesList, setSubordinatesList] = useState([
-    { id: 'sub-1', name: 'Amit Patel', role: 'Sales Exec', calls: 84, revenue: '₹2,20,000', leads: 25 },
-    { id: 'sub-2', name: 'Meera Kapoor', role: 'Sales Exec', calls: 65, revenue: '₹1,85,000', leads: 15 },
-  ]);
+  const [subordinatesList, setSubordinatesList] = useState<Array<{ id: string; name: string; role: string; calls: number; revenue: string; leads: number }>>([]);
   const [newSubNameInput, setNewSubNameInput] = useState('');
 
   // 🎯 Lead Distribution Audit Modal State
@@ -76,17 +73,11 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Admin (Vikram Singh)',
-    'Manager A (Amit Shah)',
-    'Manager B (Neha Joshi)',
+    'Tenant Administrator',
+    'Department Manager',
   ];
 
-  const MOCK_LEAD_DISTRIBUTION = [
-    { id: 'dist-1', leadName: 'Acme Corp SLA Proposal', distributedTo: 'Amit Patel (Sales Exec)', timestamp: 'Today, 10:15 AM', status: 'GOT' },
-    { id: 'dist-2', leadName: 'LogiTech Enterprise Bot', distributedTo: 'Meera Kapoor (Sales Exec)', timestamp: 'Yesterday, 04:30 PM', status: 'CONNECTED' },
-    { id: 'dist-3', leadName: 'Sunita Logistics CRM Contract', distributedTo: 'Amit Patel (Sales Exec)', timestamp: 'Aug 20, 2026', status: 'MEETING' },
-    { id: 'dist-4', leadName: 'Sethi Ent License Rollout', distributedTo: 'Meera Kapoor (Sales Exec)', timestamp: 'Aug 18, 2026', status: 'WON' },
-  ];
+  const MOCK_LEAD_DISTRIBUTION: Array<{ id: string; leadName: string; distributedTo: string; timestamp: string; status: string }> = [];
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
@@ -298,45 +289,51 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
             </TouchableOpacity>
           </View>
 
-          {subordinatesList.map((sub) => (
-            <View key={sub.id} style={styles.subRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{sub.name} ({sub.role})</Text>
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>{sub.calls} Calls • {sub.leads} Leads</Text>
-              </View>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>{sub.revenue}</Text>
+          {subordinatesList.length === 0 ? (
+            <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ fontSize: 11, color: '#94a3b8' }}>No team sales reps assigned yet.</Text>
             </View>
-          ))}
+          ) : (
+            subordinatesList.map((sub) => (
+              <View key={sub.id} style={styles.subRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{sub.name} ({sub.role})</Text>
+                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>{sub.calls} Calls • {sub.leads} Leads</Text>
+                </View>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>{sub.revenue}</Text>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Lead Distribution Audit Section */}
         <Text style={styles.sectionTitle}>📊 Lead Distribution &amp; Status Audit</Text>
         <View style={styles.statsGrid}>
           <TouchableOpacity style={[styles.statCard, { borderColor: '#38bdf8' }]} onPress={() => { setLeadCategory('GOT'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>45</Text>
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>0</Text>
             <Text style={styles.statLbl}>Got &amp; Distributed →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.statCard, { borderColor: '#22c55e' }]} onPress={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#22c55e' }]}>28</Text>
+            <Text style={[styles.statVal, { color: '#22c55e' }]}>0</Text>
             <Text style={styles.statLbl}>Connected →</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
           <TouchableOpacity style={[styles.statCard, { borderColor: '#818cf8' }]} onPress={() => { setLeadCategory('NEGOTIATED'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#818cf8' }]}>10</Text>
+            <Text style={[styles.statVal, { color: '#818cf8' }]}>0</Text>
             <Text style={styles.statLbl}>Negotiated →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.statCard, { borderColor: '#c084fc' }]} onPress={() => { setLeadCategory('MEETING'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>5</Text>
+            <Text style={[styles.statVal, { color: '#c084fc' }]}>0</Text>
             <Text style={styles.statLbl}>Meeting Done →</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={[styles.statCardFull, { borderColor: '#34d399' }]} onPress={() => { setLeadCategory('WON'); setLeadAuditModalOpen(true); }}>
-          <Text style={[styles.statVal, { color: '#34d399' }]}>2 Deals Won</Text>
+          <Text style={[styles.statVal, { color: '#34d399' }]}>0 Deals Won</Text>
           <Text style={styles.statLbl}>Total Revenue Deals Closed →</Text>
         </TouchableOpacity>
 
@@ -400,7 +397,7 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
       <LeadAllocationEngineModal
         visible={allocationModalOpen}
         onClose={() => setAllocationModalOpen(false)}
-        totalLeadsCount={120}
+        totalLeadsCount={0}
         isTeamLeaderMode={true}
       />
 
@@ -416,17 +413,23 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
             </View>
 
             <ScrollView style={{ maxHeight: 200 }}>
-              {subordinatesList.map((sub) => (
-                <View key={sub.id} style={styles.subCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{sub.name}</Text>
-                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{sub.calls} Calls • {sub.leads} Leads</Text>
-                  </View>
-                  <TouchableOpacity style={{ backgroundColor: 'rgba(239,68,68,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => handleRemoveSubordinate(sub.id, sub.name)}>
-                    <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800' }}>Remove</Text>
-                  </TouchableOpacity>
+              {subordinatesList.length === 0 ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>No sales reps assigned.</Text>
                 </View>
-              ))}
+              ) : (
+                subordinatesList.map((sub) => (
+                  <View key={sub.id} style={styles.subCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{sub.name}</Text>
+                      <Text style={{ fontSize: 10, color: '#94a3b8' }}>{sub.calls} Calls • {sub.leads} Leads</Text>
+                    </View>
+                    <TouchableOpacity style={{ backgroundColor: 'rgba(239,68,68,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => handleRemoveSubordinate(sub.id, sub.name)}>
+                      <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800' }}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
             </ScrollView>
 
             <Text style={{ fontSize: 10, fontWeight: '800', color: '#818cf8', marginTop: 10 }}>Add New Sales Exec under {employee.name}:</Text>
@@ -456,15 +459,21 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
             </View>
 
             <ScrollView style={{ maxHeight: 260 }}>
-              {MOCK_LEAD_DISTRIBUTION.map((log) => (
-                <View key={log.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{log.leadName}</Text>
-                    <Text style={{ fontSize: 10, color: '#38bdf8', marginTop: 2 }}>Distributed To: {log.distributedTo}</Text>
-                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Time: {log.timestamp}</Text>
-                  </View>
+              {MOCK_LEAD_DISTRIBUTION.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>No distribution audit records found.</Text>
                 </View>
-              ))}
+              ) : (
+                MOCK_LEAD_DISTRIBUTION.map((log) => (
+                  <View key={log.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{log.leadName}</Text>
+                      <Text style={{ fontSize: 10, color: '#38bdf8', marginTop: 2 }}>Distributed To: {log.distributedTo}</Text>
+                      <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Time: {log.timestamp}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
 
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => setLeadAuditModalOpen(false)}>
@@ -485,10 +494,10 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
               </TouchableOpacity>
             </View>
             <Text style={{ fontSize: 10, color: '#94a3b8', marginVertical: 8 }}>
-              • Rep Target Audit: 2 Active Reps Assigned{'\n'}
-              • Lead SLA Response Time: &lt;15 mins avg{'\n'}
-              • Weekly Pipeline Audit: ₹4,05,000 Total Open Pipeline{'\n'}
-              • Conversion Target Compliance: 14.8% SLA Verified
+              • Rep Target Audit: 0 Active Reps Assigned{'\n'}
+              • Lead SLA Response Time: 0 mins avg{'\n'}
+              • Weekly Pipeline Audit: ₹0 Total Open Pipeline{'\n'}
+              • Conversion Target Compliance: 0.0% SLA Verified
             </Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]} onPress={handleShareRolesReport}>
               <Text style={styles.modalBtnText}>Share TL SLA Report →</Text>
@@ -538,8 +547,8 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
             <Text style={styles.modalTitle}>📅 Pending Leave Application Inspection</Text>
             <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 6 }}>
               Applicant: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{employee.name}</Text>{'\n'}
-              Duration: 2 Days (Casual Leave){'\n'}
-              Dates: Aug 28 - Aug 29, 2026
+              Duration: 0 Days{'\n'}
+              Dates: None pending
             </Text>
             <TextInput
               style={styles.textInput}
@@ -598,8 +607,8 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>📄 Official Documents Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'PQRST3456U'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'AADHAAR_VERIFIED.pdf'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setDocumentsModalOpen(false)}>
               <Text style={styles.modalBtnText}>Close Documents →</Text>
             </TouchableOpacity>
@@ -612,8 +621,8 @@ export default function TeamLeaderControlScreen({ employee, onBack, onUpdateEmpl
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>💳 Bank Account Details Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'Kotak Bank'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || '66778899001122'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.docBankBtn, { marginTop: 12 }]} onPress={() => setBankDetailsModalOpen(false)}>
               <Text style={styles.docBankBtnText}>Close Bank Details →</Text>
             </TouchableOpacity>

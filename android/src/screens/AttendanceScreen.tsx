@@ -51,7 +51,7 @@ interface DailyRecord {
 const OFFICE_GEO = {
   lat: 28.440743,
   lng: 77.531117,
-  name: 'Acme HQ Office Hub',
+  name: 'Corporate Office Hub',
   maxRadiusMeters: 500,
 };
 
@@ -68,16 +68,9 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   return Math.round(R * c);
 }
 
-// Employee Directory for Admin Audit Across Roles
-const EMPLOYEES = [
-  { id: 'emp_1', name: 'Rajesh Mehta', role: 'MANAGER', dept: 'Enterprise Sales', avatar: 'RM' },
-  { id: 'emp_2', name: 'Sunita Verma', role: 'HR', dept: 'Human Resources', avatar: 'SV' },
-  { id: 'emp_3', name: 'Amit Shah', role: 'TEAM_LEADER', dept: 'Inside Sales', avatar: 'AS' },
-  { id: 'emp_4', name: 'Rajesh Kumar', role: 'SALES_EXEC', dept: 'Direct Sales', avatar: 'RK' },
-  { id: 'emp_5', name: 'Priya Sharma', role: 'SALES_EXEC', dept: 'Outbound Sales', avatar: 'PS' },
-  { id: 'emp_6', name: 'Neha Joshi', role: 'TEAM_LEADER', dept: 'Key Accounts', avatar: 'NJ' },
-  { id: 'emp_7', name: 'Amit Patel', role: 'SALES_EXEC', dept: 'SMB Sales', avatar: 'AP' },
-];
+// Employee Directory Default Fallback
+const DEFAULT_EMPLOYEE = { id: 'curr_user', name: 'User', role: 'ADMIN', dept: 'Operations', avatar: 'CU' };
+
 
 export interface AttendanceScreenProps {
   onClose?: () => void;
@@ -106,13 +99,25 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
     isAdmin ? 'MY_ATTENDANCE' : 'MARK'
   );
 
+  const employeesList = useMemo(() => {
+    return [
+      {
+        id: currentUser.id || 'curr_user',
+        name: currentUser.name || 'User',
+        role: currentUser.role || 'ADMIN',
+        dept: (currentUser as any).department || 'Operations',
+        avatar: currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'ME',
+      }
+    ];
+  }, [currentUser]);
+
   // Admin Employee Selection State
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('emp_4');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(currentUser.id || 'curr_user');
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
 
   const selectedEmployee = useMemo(
-    () => EMPLOYEES.find((e) => e.id === selectedEmployeeId) || EMPLOYEES[3],
-    [selectedEmployeeId]
+    () => employeesList.find((e) => e.id === selectedEmployeeId) || employeesList[0] || DEFAULT_EMPLOYEE,
+    [employeesList, selectedEmployeeId]
   );
 
   // ── SERVER-AUTHORITATIVE TIME & DATE STATE ─────────────────────────────
@@ -686,7 +691,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
 
                 {empDropdownOpen && (
                   <View style={[styles.dropdownMenu, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]}>
-                    {EMPLOYEES.map((emp) => (
+                    {employeesList.map((emp) => (
                       <TouchableOpacity
                         key={emp.id}
                         style={[styles.dropdownItem, selectedEmployeeId === emp.id && styles.dropdownItemActive]}

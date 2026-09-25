@@ -29,10 +29,10 @@ export const WhatsAppTemplatesScreen: React.FC<WhatsAppTemplatesScreenProps> = (
   const [searchQuery, setSearchQuery] = useState('');
 
   // Variable Sandbox State
-  const [sandboxName, setSandboxName] = useState('Rajesh Kumar');
-  const [sandboxCompany, setSandboxCompany] = useState('TechCorp Solutions');
-  const [sandboxValue, setSandboxValue] = useState('₹5,90,000');
-  const [sandboxProduct, setSandboxProduct] = useState('Enterprise Suite');
+  const [sandboxName, setSandboxName] = useState('Client Name');
+  const [sandboxCompany, setSandboxCompany] = useState('Client Company');
+  const [sandboxValue, setSandboxValue] = useState('₹0');
+  const [sandboxProduct, setSandboxProduct] = useState('Product / Service');
 
   const [waTemplatesList, setWaTemplatesList] = useState<WhatsAppTemplate[]>([
     {

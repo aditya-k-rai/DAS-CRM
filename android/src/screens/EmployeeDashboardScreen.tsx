@@ -56,15 +56,15 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         {/* Personal Stat Cards */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(99,102,241,0.3)' }]}>
-            <Text style={[styles.statVal, { color: colors.text }]}>31 Leads</Text>
+            <Text style={[styles.statVal, { color: colors.text }]}>0 Leads</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>My Assigned Leads</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(16,185,129,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>₹5.2L</Text>
+            <Text style={[styles.statVal, { color: '#34d399' }]}>₹0</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Closed Deals Value</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(168,85,247,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>38.7%</Text>
+            <Text style={[styles.statVal, { color: '#c084fc' }]}>0.0%</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Personal Best Rate</Text>
           </View>
         </View>
@@ -74,7 +74,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance Status</Text>
-              <Text style={[styles.cardSub, { color: colors.textMuted }]}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (09:21 AM)</Text></Text>
+              <Text style={[styles.cardSub, { color: colors.textMuted }]}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN</Text></Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance}>
               <Text style={styles.actionBtnText}>Mark Attendance →</Text>
@@ -84,25 +84,10 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
         {/* Priority Dialing Queue */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>My Priority Dialing Queue</Text>
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          {[
-            { name: 'Rajesh Kumar', phone: '+91 98765 43210', company: 'TechCorp Ltd', score: 91, val: '₹5,20,000' },
-            { name: 'Priya Sharma', phone: '+91 98123 45678', company: 'LogiTech Solutions', score: 85, val: '₹3,50,000' },
-            { name: 'Amit Patel', phone: '+91 97111 22233', company: 'Global Freight', score: 72, val: '₹90,000' },
-          ].map((lead, idx) => (
-            <View key={lead.phone} style={[styles.itemRow, idx < 2 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.itemName, { color: colors.text }]}>{lead.name}</Text>
-                <Text style={[styles.itemSub, { color: colors.textMuted }]}>{lead.company} • {lead.phone}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Text style={[styles.itemVal, { color: colors.text }]}>{lead.val}</Text>
-                <TouchableOpacity style={styles.dialBtn} onPress={() => handleDialQueueLead(lead.name, lead.phone)}>
-                  <Text style={styles.dialBtnText}>📞 Dial Direct</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, paddingVertical: 20 }]}>
+          <Text style={{ textAlign: 'center', fontSize: 13, color: colors.textMuted, fontStyle: 'italic' }}>
+            📭 No priority leads in dialing queue
+          </Text>
         </View>
 
       </ScrollView>

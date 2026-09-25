@@ -59,18 +59,12 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
   const SUPERVISORS = [
-    'Tenant Admin (Vikram Singh)',
-    'Manager A (Amit Shah)',
-    'Manager B (Neha Joshi)',
-    'Team Leader (Priya Sharma)',
+    'Tenant Administrator',
+    'Department Manager',
+    'Team Leader',
   ];
 
-  const MOCK_LEADS = [
-    { id: 'lead-1', name: 'Rajesh Varma', company: 'TechCorp', phone: '+91 98765 43210', value: '₹5,20,000', status: 'GOT', date: 'Today, 10:15 AM' },
-    { id: 'lead-2', name: 'Priya Sharma', company: 'LogiTech', phone: '+91 98123 45678', value: '₹3,50,000', status: 'CONNECTED', date: 'Yesterday, 4:45 PM' },
-    { id: 'lead-3', name: 'Sunita Kapoor', company: 'Sunita Logistics', phone: '+91 97222 33344', value: '₹8,90,000', status: 'NEGOTIATED', date: 'Aug 20, 2026' },
-    { id: 'lead-4', name: 'Vikram Sethi', company: 'Sethi Ent', phone: '+91 98777 66655', value: '₹4,20,000', status: 'WON', date: 'Aug 18, 2026' },
-  ];
+  const MOCK_LEADS: Array<{ id: string; name: string; company: string; phone: string; value: string; status: string; date: string }> = [];
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
@@ -230,7 +224,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             style={[styles.statCard, { borderColor: '#38bdf8' }]}
             onPress={() => { setLeadCategory('GOT'); setLeadCollectionModalOpen(true); }}
           >
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{employee.leads?.totalReceived || 35}</Text>
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>{employee.leads?.totalReceived || 0}</Text>
             <Text style={styles.statLbl}>Total Lead Got →</Text>
           </TouchableOpacity>
 
@@ -238,7 +232,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             style={[styles.statCard, { borderColor: '#22c55e' }]}
             onPress={() => { setLeadCategory('CONNECTED'); setLeadCollectionModalOpen(true); }}
           >
-            <Text style={[styles.statVal, { color: '#22c55e' }]}>{employee.leads?.connected || 22}</Text>
+            <Text style={[styles.statVal, { color: '#22c55e' }]}>{employee.leads?.connected || 0}</Text>
             <Text style={styles.statLbl}>Connected →</Text>
           </TouchableOpacity>
         </View>
@@ -248,7 +242,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             style={[styles.statCard, { borderColor: '#818cf8' }]}
             onPress={() => { setLeadCategory('NEGOTIATED'); setLeadCollectionModalOpen(true); }}
           >
-            <Text style={[styles.statVal, { color: '#818cf8' }]}>{employee.leads?.inNegotiation || 8}</Text>
+            <Text style={[styles.statVal, { color: '#818cf8' }]}>{employee.leads?.inNegotiation || 0}</Text>
             <Text style={styles.statLbl}>Negotiated →</Text>
           </TouchableOpacity>
 
@@ -256,7 +250,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             style={[styles.statCard, { borderColor: '#34d399' }]}
             onPress={() => { setLeadCategory('WON'); setLeadCollectionModalOpen(true); }}
           >
-            <Text style={[styles.statVal, { color: '#34d399' }]}>{employee.leads?.won || 2}</Text>
+            <Text style={[styles.statVal, { color: '#34d399' }]}>{employee.leads?.won || 0}</Text>
             <Text style={styles.statLbl}>Won Deals →</Text>
           </TouchableOpacity>
         </View>
@@ -271,7 +265,7 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
 
           <TouchableOpacity style={[styles.actionCard, { borderColor: '#fbbf24' }]} onPress={() => setLeaveModalOpen(true)}>
             <Text style={[styles.actionCardTitle, { color: '#fbbf24' }]}>📅 Pending Leave Request (Inspect &amp; Approve Note) →</Text>
-            <Text style={styles.actionCardSub}>Inspect 3-day leave application; approve/decline with mandatory note</Text>
+            <Text style={styles.actionCardSub}>Inspect leave application; approve/decline with mandatory note</Text>
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -310,19 +304,25 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             </View>
 
             <ScrollView style={{ maxHeight: 300 }}>
-              {MOCK_LEADS.map((lead) => (
-                <View key={lead.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>{lead.name}</Text>
-                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{lead.company} • {lead.phone}</Text>
-                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>Logged: {lead.date}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>{lead.value}</Text>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8', marginTop: 2 }}>{leadCategory}</Text>
-                  </View>
+              {MOCK_LEADS.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>No leads recorded in this category.</Text>
                 </View>
-              ))}
+              ) : (
+                MOCK_LEADS.map((lead) => (
+                  <View key={lead.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '900', color: '#ffffff' }}>{lead.name}</Text>
+                      <Text style={{ fontSize: 10, color: '#94a3b8' }}>{lead.company} • {lead.phone}</Text>
+                      <Text style={{ fontSize: 9, color: '#64748b', marginTop: 2 }}>Logged: {lead.date}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399' }}>{lead.value}</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: '#38bdf8', marginTop: 2 }}>{leadCategory}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
 
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => setLeadCollectionModalOpen(false)}>
@@ -373,8 +373,8 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
             <Text style={styles.modalTitle}>📅 Pending Leave Application Inspection</Text>
             <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 6 }}>
               Applicant: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{employee.name}</Text>{'\n'}
-              Duration: 3 Days (Medical Leave){'\n'}
-              Dates: Aug 25 - Aug 27, 2026
+              Duration: 0 Days{'\n'}
+              Dates: None pending
             </Text>
             <TextInput
               style={styles.textInput}
@@ -433,8 +433,8 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>📄 Official Documents Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'ABCDE1234F'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'AADHAAR_VERIFIED.pdf'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setDocumentsModalOpen(false)}>
               <Text style={styles.modalBtnText}>Close Documents →</Text>
             </TouchableOpacity>
@@ -447,8 +447,8 @@ export default function SalesExecControlScreen({ employee, onBack, onUpdateEmplo
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>💳 Bank Account Details Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'HDFC Bank'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || '50100987654321'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setBankDetailsModalOpen(false)}>
               <Text style={styles.modalBtnText}>Close Bank Details →</Text>
             </TouchableOpacity>

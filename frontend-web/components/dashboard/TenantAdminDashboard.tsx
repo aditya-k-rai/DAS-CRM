@@ -888,24 +888,24 @@ export function TenantAdminDashboard() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="text-muted block mb-1 font-bold">Lead Full Name *</label>
-                <input className="crm-input h-10 w-full" placeholder="e.g. Vikram Sharma" value={newLeadName} onChange={e => setNewLeadName(e.target.value)} />
+                <input className="crm-input h-10 w-full" placeholder="e.g. Full Name" value={newLeadName} onChange={e => setNewLeadName(e.target.value)} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-muted block mb-1 font-bold">Email Address *</label>
-                  <input className="crm-input h-10 w-full" placeholder="vikram@company.com" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} />
+                  <input className="crm-input h-10 w-full" placeholder="client@company.com" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-muted block mb-1 font-bold">Phone Number *</label>
-                  <input className="crm-input h-10 w-full" placeholder="+91 98765 43210" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} />
+                  <input className="crm-input h-10 w-full" placeholder="+91 98000 00000" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-muted block mb-1 font-bold">Company Name</label>
-                  <input className="crm-input h-10 w-full" placeholder="Acme Enterprises" value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} />
+                  <input className="crm-input h-10 w-full" placeholder="e.g. Enterprise Organization" value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-muted block mb-1 font-bold">Lead Source</label>

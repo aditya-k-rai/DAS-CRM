@@ -20,14 +20,8 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
   const [rolesReportModalOpen, setRolesReportModalOpen] = useState(false);
   const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
-  const MOCK_HIRED_EMPLOYEES = [
-    { id: 'hire-1', name: 'Rohan Kumar', role: 'Sales Exec', date: 'Aug 01, 2026', interviewNotes: 'Passed HR & Sales Round' },
-    { id: 'hire-2', name: 'Meera Kapoor', role: 'Sales Exec', date: 'Jul 15, 2026', interviewNotes: 'Excellent Communication & CRM Skills' },
-  ];
-
-  const MOCK_FIRED_EMPLOYEES = [
-    { id: 'fire-1', name: 'Suresh Patel', role: 'Sales Exec', date: 'Aug 20, 2026', reason: '10-Day Grace Deletion Initiated' },
-  ];
+  const hiredEmployees: Array<{ id: string; name: string; role: string; date: string; interviewNotes?: string }> = [];
+  const firedEmployees: Array<{ id: string; name: string; role: string; date: string; reason: string }> = [];
 
   const handleToggleLock = () => {
     const isLocked = !employee.isLocked;
@@ -92,12 +86,12 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
       <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">👥 Recruitment & Offboarding Telemetry</h3>
       <div className="grid grid-cols-2 gap-4 mb-6">
         <button onClick={() => setHiredLogsModalOpen(true)} className="bg-slate-900 border border-emerald-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-emerald-400">18 Hired</div>
+          <div className="text-2xl font-black text-emerald-400">{employee.hrMetrics?.totalHiredCount ?? hiredEmployees.length} Hired</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Total Employees Hired →</div>
         </button>
 
         <button onClick={() => setFiredLogsModalOpen(true)} className="bg-slate-900 border border-red-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-red-300">2 Fired</div>
+          <div className="text-2xl font-black text-red-300">{employee.hrMetrics?.totalFiredCount ?? firedEmployees.length} Fired</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Total Fired (10-Day Purged) →</div>
         </button>
       </div>
@@ -137,12 +131,16 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-4">🟢 Total Employees Hired Log</h3>
             <div className="space-y-2 mb-4">
-              {MOCK_HIRED_EMPLOYEES.map(h => (
-                <div key={h.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                  <div className="text-xs font-bold text-white">{h.name} ({h.role})</div>
-                  <div className="text-xs text-emerald-400">Joined: {h.date}</div>
-                </div>
-              ))}
+              {hiredEmployees.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">No hired employee records found.</p>
+              ) : (
+                hiredEmployees.map(h => (
+                  <div key={h.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <div className="text-xs font-bold text-white">{h.name} ({h.role})</div>
+                    <div className="text-xs text-emerald-400">Joined: {h.date}</div>
+                  </div>
+                ))
+              )}
             </div>
             <button onClick={() => setHiredLogsModalOpen(false)} className="w-full py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl">Close</button>
           </div>
@@ -154,12 +152,16 @@ export default function HrControlScreenWeb({ employee, onBack, onUpdateEmployee 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
             <h3 className="text-sm font-black text-white mb-4">🔴 Total Fired Employees (10-Day Purge)</h3>
             <div className="space-y-2 mb-4">
-              {MOCK_FIRED_EMPLOYEES.map(f => (
-                <div key={f.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                  <div className="text-xs font-bold text-white">{f.name} ({f.role})</div>
-                  <div className="text-xs text-red-300">Reason: {f.reason}</div>
-                </div>
-              ))}
+              {firedEmployees.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">No terminated or purged employee records.</p>
+              ) : (
+                firedEmployees.map(f => (
+                  <div key={f.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <div className="text-xs font-bold text-white">{f.name} ({f.role})</div>
+                    <div className="text-xs text-red-300">Reason: {f.reason}</div>
+                  </div>
+                ))
+              )}
             </div>
             <button onClick={() => setFiredLogsModalOpen(false)} className="w-full py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl">Close</button>
           </div>

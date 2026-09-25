@@ -96,21 +96,21 @@ export function AttendanceSummaryWidget() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
             <div className="p-3 rounded-2xl bg-background border border-border">
               <p className="text-[10px] text-muted uppercase font-bold">Today's Status</p>
-              <p className="text-sm font-extrabold text-emerald-400 flex items-center gap-1 mt-0.5">
-                <CheckCircle2 size={14} /> Present (On Time)
+              <p className="text-sm font-extrabold text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Clock size={14} /> Not Marked
               </p>
             </div>
             <div className="p-3 rounded-2xl bg-background border border-border">
               <p className="text-[10px] text-muted uppercase font-bold">Check-In Time</p>
-              <p className="text-sm font-mono font-extrabold text-white mt-0.5">09:05 AM</p>
+              <p className="text-sm font-mono font-extrabold text-muted-foreground mt-0.5">—</p>
             </div>
             <div className="p-3 rounded-2xl bg-background border border-border">
               <p className="text-[10px] text-muted uppercase font-bold">Monthly Hours</p>
-              <p className="text-sm font-extrabold text-brand-400 mt-0.5">176.5 Hours</p>
+              <p className="text-sm font-extrabold text-brand-400 mt-0.5">0.0 Hours</p>
             </div>
             <div className="p-3 rounded-2xl bg-background border border-border">
               <p className="text-[10px] text-muted uppercase font-bold">Attendance Score</p>
-              <p className="text-sm font-extrabold text-purple-300 mt-0.5">98.2% (Excellent)</p>
+              <p className="text-sm font-extrabold text-muted-foreground mt-0.5">0.0%</p>
             </div>
           </div>
         </div>
@@ -177,8 +177,15 @@ export function AttendanceSummaryWidget() {
                 </tr>
               </thead>
               <tbody>
-                {currentLogsSlice.map((row) => {
-                  const cfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.PRESENT;
+                {currentLogsSlice.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-muted text-xs">
+                      No personal attendance activity recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  currentLogsSlice.map((row) => {
+                    const cfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.PRESENT;
                   const Icon = cfg.icon;
                   const hasActivities = row.leadActivities && row.leadActivities.length > 0;
 
@@ -234,7 +241,7 @@ export function AttendanceSummaryWidget() {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
@@ -409,7 +416,7 @@ export function AttendanceSummaryWidget() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-semibold">Today's Attendance</h3>
-            <p className="text-xs mt-0.5 text-muted">Aug 11, 2026 · 24 employees</p>
+            <p className="text-xs mt-0.5 text-muted">Today's live logs · {EMPLOYEES.length} employees</p>
           </div>
           <button className="btn-primary text-xs px-3 py-1.5">+ Mark Attendance</button>
         </div>

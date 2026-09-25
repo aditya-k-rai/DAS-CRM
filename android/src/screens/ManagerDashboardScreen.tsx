@@ -40,83 +40,7 @@ export interface ManagerMeetingItem {
   status: 'CONFIRMED' | 'SCHEDULED';
 }
 
-const MOCK_MANAGER_MEETINGS: ManagerMeetingItem[] = [
-  {
-    id: 'mgr-mtg-1',
-    leadId: 'lead-1',
-    leadName: 'Rajesh Mehta',
-    company: 'TechCorp Solutions Ltd',
-    phone: '+91 98765 43210',
-    email: 'rajesh@techcorp.com',
-    value: '₹5,20,000',
-    assignedAgent: 'Rajesh Kumar',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Enterprise CRM Suite Demo & Technical Review',
-    scheduledTimeStr: 'Today, 02:30 PM',
-    isToday: true,
-    status: 'CONFIRMED',
-  },
-  {
-    id: 'mgr-mtg-2',
-    leadId: 'lead-2',
-    leadName: 'Priya Sharma',
-    company: 'LogiTech Freight Systems',
-    phone: '+91 98123 45678',
-    email: 'priya@logitech.com',
-    value: '₹3,50,000',
-    assignedAgent: 'Amit Patel',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'WhatsApp Automation Bot Setup Review',
-    scheduledTimeStr: 'Today, 04:45 PM',
-    isToday: true,
-    status: 'SCHEDULED',
-  },
-  {
-    id: 'mgr-mtg-3',
-    leadId: 'lead-3',
-    leadName: 'Sunita Kapoor',
-    company: 'Sunita Logistics Pvt Ltd',
-    phone: '+91 97222 33344',
-    email: 'sunita@sunitalogistics.com',
-    value: '₹8,90,000',
-    assignedAgent: 'Amit Shah',
-    agentRole: 'Team Leader',
-    meetingPurpose: 'Executive Contract Signing & License Rollout',
-    scheduledTimeStr: 'Today, 06:15 PM',
-    isToday: true,
-    status: 'CONFIRMED',
-  },
-  {
-    id: 'mgr-mtg-4',
-    leadId: 'lead-5',
-    leadName: 'Rakesh Verma',
-    company: 'Verma Solutions',
-    phone: '+91 98111 22233',
-    email: 'rakesh@verma.com',
-    value: '₹2,45,000',
-    assignedAgent: 'Priya Sharma',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'AI Lead Scoring Engine Pro Walkthrough',
-    scheduledTimeStr: '22 Aug 2026, 03:00 PM',
-    isToday: false,
-    status: 'SCHEDULED',
-  },
-  {
-    id: 'mgr-mtg-5',
-    leadId: 'lead-6',
-    leadName: 'Deepa Nair',
-    company: 'Nair Exports Ltd',
-    phone: '+91 99888 77766',
-    email: 'deepa@nair.com',
-    value: '₹6,80,000',
-    assignedAgent: 'Rajesh Kumar',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Multi-Tenant Migration & SLA Review',
-    scheduledTimeStr: '23 Aug 2026, 05:30 PM',
-    isToday: false,
-    status: 'SCHEDULED',
-  },
-];
+const MOCK_MANAGER_MEETINGS: ManagerMeetingItem[] = [];
 
 interface ScreenProps {
   onNavigateToAttendance?: () => void;
@@ -183,15 +107,15 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
         {/* DEPARTMENT STAT CARDS */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.4)' }]}>
-            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹24.8L</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Dept Revenue (82% Goal)</Text>
+            <Text style={[styles.statVal, { color: isDark ? '#818cf8' : '#4f46e5' }]}>₹0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Dept Revenue (0% Goal)</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(168,85,247,0.3)' : 'rgba(168,85,247,0.4)' }]}>
-            <Text style={[styles.statVal, { color: isDark ? '#c084fc' : '#9333ea' }]}>14 Reps</Text>
+            <Text style={[styles.statVal, { color: isDark ? '#c084fc' : '#9333ea' }]}>0 Reps</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Supervised Staff</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: isDark ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.4)' }]}>
-            <Text style={[styles.statVal, { color: isDark ? '#34d399' : '#059669' }]}>34.8%</Text>
+            <Text style={[styles.statVal, { color: isDark ? '#34d399' : '#059669' }]}>0.0%</Text>
             <Text style={[styles.statLbl, { color: colors.textMuted }]}>Conversion Rate</Text>
           </View>
         </View>
@@ -237,43 +161,49 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
 
           {/* Meetings List */}
           <View style={{ marginTop: 8 }}>
-            {filteredMeetings.map((item, idx) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && styles.borderBottom]}
-                onPress={() => setSelectedMeeting(item)}
-                activeOpacity={0.8}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.itemName}>{item.leadName}</Text>
-                    <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
-                      <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
-                        {item.status}
-                      </Text>
+            {filteredMeetings.length === 0 ? (
+              <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>No scheduled meetings found for this filter.</Text>
+              </View>
+            ) : (
+              filteredMeetings.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && styles.borderBottom]}
+                  onPress={() => setSelectedMeeting(item)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.itemName}>{item.leadName}</Text>
+                      <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
+                        <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                          {item.status}
+                        </Text>
+                      </View>
                     </View>
+
+                    <Text style={styles.itemSub}>{item.company} • {item.phone}</Text>
+                    <Text style={{ fontSize: 10, color: '#cbd5e1', marginTop: 2, fontWeight: '700' }}>
+                      💼 {item.meetingPurpose}
+                    </Text>
+                    <Text style={{ fontSize: 9, color: '#818cf8', marginTop: 2, fontWeight: '800' }}>
+                      👤 Supervised Rep: {item.assignedAgent} ({item.agentRole})
+                    </Text>
                   </View>
 
-                  <Text style={styles.itemSub}>{item.company} • {item.phone}</Text>
-                  <Text style={{ fontSize: 10, color: '#cbd5e1', marginTop: 2, fontWeight: '700' }}>
-                    💼 {item.meetingPurpose}
-                  </Text>
-                  <Text style={{ fontSize: 9, color: '#818cf8', marginTop: 2, fontWeight: '800' }}>
-                    👤 Supervised Rep: {item.assignedAgent} ({item.agentRole})
-                  </Text>
-                </View>
-
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={[styles.meetingTimeBadge, item.isToday ? { color: '#34d399' } : { color: '#38bdf8' }]}>
-                    ⏰ {item.scheduledTimeStr}
-                  </Text>
-                  <Text style={styles.leadValBadge}>{item.value}</Text>
-                  <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800', textDecorationLine: 'underline' }}>
-                    Inspect Lead →
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Text style={[styles.meetingTimeBadge, item.isToday ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                      ⏰ {item.scheduledTimeStr}
+                    </Text>
+                    <Text style={styles.leadValBadge}>{item.value}</Text>
+                    <Text style={{ fontSize: 9, color: '#38bdf8', fontWeight: '800', textDecorationLine: 'underline' }}>
+                      Inspect Lead →
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
 
@@ -282,7 +212,7 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={styles.cardTitle}>⏱️ Manager Attendance Status</Text>
-              <Text style={styles.cardSub}>Status: <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN (08:58 AM)</Text></Text>
+              <Text style={styles.cardSub}>Status: <Text style={{ color: colors.textMuted, fontWeight: '800' }}>NOT PUNCHED IN</Text></Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance}>
               <Text style={styles.actionBtnText}>Mark Attendance →</Text>
@@ -293,22 +223,9 @@ export default function ManagerDashboardScreen({ onNavigateToAttendance, navigat
         {/* SUBORDINATE PERFORMANCE OVERVIEW */}
         <Text style={styles.sectionTitle}>Subordinate Unit Performance</Text>
         <View style={styles.cardBox}>
-          {[
-            { name: 'Amit Shah', role: 'Team Leader', leads: 42, won: 18, rev: '₹9.4L', pct: '85%' },
-            { name: 'Neha Joshi', role: 'Team Leader', leads: 38, won: 14, rev: '₹7.8L', pct: '78%' },
-            { name: 'Rajesh Kumar', role: 'Sales Executive', leads: 31, won: 12, rev: '₹5.2L', pct: '74%' },
-          ].map((row, idx) => (
-            <View key={idx} style={[styles.itemRow, idx < 2 && styles.borderBottom]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{row.name}</Text>
-                <Text style={styles.itemSub}>{row.role} • {row.leads} Leads ({row.won} Won)</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                <Text style={styles.itemVal}>{row.rev}</Text>
-                <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '800' }}>{row.pct} Goal</Text>
-              </View>
-            </View>
-          ))}
+          <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>No subordinate performance logs recorded yet.</Text>
+          </View>
         </View>
 
       </ScrollView>

@@ -71,44 +71,14 @@ interface IngestionAuditRecord {
   allocationSummary?: string;
 }
 
-const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [
-  {
-    id: 'aud-1',
-    fileName: 'Q3_Enterprise_Prospects_Import.csv',
-    injectedAt: '03 Sep 2026, 07:45 PM',
-    leadsCount: 124,
-    colsCount: 8,
-    platform: 'Google Ads',
-    status: 'PENDING_ALLOCATION',
-  },
-  {
-    id: 'aud-2',
-    fileName: 'Lotwaala_August_2026_Work_Plan.xlsx',
-    injectedAt: '03 Sep 2026, 08:14 PM',
-    leadsCount: 32,
-    colsCount: 6,
-    platform: 'Google Ads',
-    status: 'ALLOCATED',
-    allocationSummary: 'Assigned to Priya Sharma (TL A) [Rows 1-16], Rohan Kumar [Rows 17-32]',
-  },
-  {
-    id: 'aud-3',
-    fileName: 'West_Territory_Cold_Outreach.xlsx',
-    injectedAt: '02 Sep 2026, 04:30 PM',
-    leadsCount: 214,
-    colsCount: 10,
-    platform: 'Meta Ads',
-    status: 'ALLOCATED',
-    allocationSummary: 'Assigned to Amit Shah (Sales Exec) [Direct]',
-  },
-];
+const INITIAL_INGESTION_AUDITS: IngestionAuditRecord[] = [];
 
 export default function LeadsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<LeadsNavProp>();
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
-  const { token } = useAuthStore();
+  const { token, currentUser } = useAuthStore();
 
   const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
   const [auditFilter, setAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
@@ -123,6 +93,19 @@ export default function LeadsScreen() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
+
+  const availablePersons = useMemo(() => {
+    const persons = new Set<string>();
+    if (currentUser?.name) {
+      persons.add(currentUser.name);
+    }
+    leadsList.forEach((l) => {
+      if (l.assignedRep && !l.assignedRep.toLowerCase().includes('unassigned') && l.assignedRep !== '—') {
+        persons.add(l.assignedRep.trim());
+      }
+    });
+    return Array.from(persons);
+  }, [leadsList, currentUser]);
 
   // ── MULTI-DIMENSIONAL ADVANCED FILTER STATE ──────────────────────────────────
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -254,10 +237,7 @@ export default function LeadsScreen() {
   const [sheetUrl, setSheetUrl] = useState('');
   const [sheetRange, setSheetRange] = useState('Sheet1!A2:F');
   const [headerRowIdx, setHeaderRowIdx] = useState<number>(0);
-  const [selectedSheets, setSelectedSheets] = useState<string[]>([
-    'Sheet1 - Web Leads',
-    'Sheet2 - Cold Outreach',
-  ]);
+  const [selectedSheets, setSelectedSheets] = useState<string[]>([]);
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -301,7 +281,7 @@ export default function LeadsScreen() {
 
   // Lead Allocation & Strategy Engine Modal State
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
-  const [allocatedLeadsCount, setAllocatedLeadsCount] = useState(214);
+  const [allocatedLeadsCount, setAllocatedLeadsCount] = useState(0);
   const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
   useEffect(() => {
@@ -328,14 +308,14 @@ export default function LeadsScreen() {
       email: newEmail.trim() || 'No Email Provided',
       phone: newPhone.trim(),
       status: 'NEW LEAD',
-      value: newValue.trim() ? (newValue.startsWith('₹') || newValue.startsWith('$') ? newValue : '₹' + newValue) : '₹25,000',
+      value: newValue.trim() ? (newValue.startsWith('₹') || newValue.startsWith('$') ? newValue : '₹' + newValue) : '₹0',
       source: newSource,
-      priority: 'High',
-      assignedRep: 'Rajesh Kumar',
-      city: 'Mumbai',
-      budget: '50k-1L',
-      requirement: 'CRM Enterprise',
-      callSyncStatus: 'Synced: Today 2:45 PM • Connected',
+      priority: 'Medium',
+      assignedRep: 'Unassigned',
+      city: '—',
+      budget: '—',
+      requirement: '—',
+      callSyncStatus: 'Never',
     };
 
     setLeadsList((prev) => [newLead, ...prev]);
@@ -379,16 +359,7 @@ export default function LeadsScreen() {
   const handleProcessCsvTextImport = async (inputStr?: string) => {
     const textToImport = inputStr || rawCsvInput;
     if (!textToImport.trim()) {
-      const demoCsv = `Lead Name, Mobile Number, Business Firm, Mail Address, Lead Stage, Value
-Rajesh Varma (CSV), +91 98765 11111, Varma Exports, rajesh@varma.com, NEW LEAD, ₹60,000
-Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUALIFIED, ₹90,000`;
-      const res = await apiService.importLeadsCsv(token || '', demoCsv, headerRowIdx);
-      if (res && res.leads) {
-        setLeadsList((prev) => [...res.leads, ...prev]);
-        setImportModalOpen(false);
-        setRawCsvInput('');
-        Alert.alert('📥 CSV Import Complete', `Imported ${res.importedCount} lead records (Header Row #${headerRowIdx + 1}) into spreadsheet table!`);
-      }
+      Alert.alert('Empty Input', 'Please enter or paste CSV text to import.');
       return;
     }
 
@@ -423,9 +394,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     Alert.alert('👤 Assignee Updated', `Lead successfully assigned to ${newAssignee}.`);
   };
 
-  const { currentUser } = useAuthStore();
   const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
-  const userName = currentUser?.name || 'Mighty Rai';
+  const userName = currentUser?.name || '';
 
   const activeFiltersCount = (filterPerson !== 'ALL' ? 1 : 0) +
     (filterRole !== 'ALL' ? 1 : 0) +
@@ -449,7 +419,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       } else if (userRole.includes('TL') || userRole.includes('LEADER')) {
         if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase()) && !item.assignedRep.includes('TL A')) return false;
       } else {
-        // Sales Rep (e.g. Amit Patel): can ONLY see leads assigned to him
+        // Sales Rep: can ONLY see leads assigned to them
         if (item.assignedRep && !item.assignedRep.toLowerCase().includes(userName.toLowerCase())) return false;
       }
     }
@@ -467,7 +437,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
     // 2. Person Role Filter
     if (filterRole !== 'ALL') {
       if (filterRole === 'TL') {
-        const isTL = item.assignedRep && (item.assignedRep.includes('TL') || item.assignedRep.includes('Leader') || item.assignedRep.includes('Priya'));
+        const isTL = item.assignedRep && (item.assignedRep.includes('TL') || item.assignedRep.includes('Leader'));
         if (!isTL) return false;
       } else if (filterRole === 'SALES_EXEC') {
         const isExec = item.assignedRep && !item.assignedRep.includes('TL') && !item.assignedRep.includes('Leader') && !item.assignedRep.includes('Unassigned');
@@ -568,7 +538,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
           <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border, flexDirection: 'column', justifyContent: 'center' }]}>
             <Text style={[styles.excelCellPhone, { color: isDark ? '#34d399' : '#059669' }]} numberOfLines={1} ellipsizeMode="tail">{item.phone}</Text>
             <Text style={[styles.excelCellTelemetry, { color: colors.textMuted }]} numberOfLines={1} ellipsizeMode="tail">
-              {item.callSyncStatus || 'Synced: Today 2:45 PM • Connected'}
+              {item.callSyncStatus || 'Never'}
             </Text>
           </View>
         );
@@ -659,16 +629,18 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
               ]}
               onPress={() => {
+                const assignOptions = [
+                  ...(availablePersons.length > 0 ? availablePersons : (currentUser?.name ? [currentUser.name] : ['Sales Team'])).map((p) => ({
+                    text: p,
+                    onPress: () => handleReassignLeadItem(item.id, p),
+                  })),
+                  { text: 'Unassigned', onPress: () => handleReassignLeadItem(item.id, 'Unassigned') },
+                  { text: 'Cancel', style: 'cancel' as const },
+                ];
                 Alert.alert(
                   '👤 Reassign Lead',
                   `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
-                  [
-                    { text: 'Priya Sharma (TL A)', onPress: () => handleReassignLeadItem(item.id, 'Priya Sharma (TL A)') },
-                    { text: 'Rajesh Kumar (Sales Rep)', onPress: () => handleReassignLeadItem(item.id, 'Rajesh Kumar (Sales Rep)') },
-                    { text: 'Rohan Kumar (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Rohan Kumar (Sales Exec)') },
-                    { text: 'Amit Shah (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Amit Shah (Sales Exec)') },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]
+                  assignOptions
                 );
               }}
             >
@@ -687,19 +659,19 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
       case 'city':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
-            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.city || 'Mumbai'}</Text>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.city || '—'}</Text>
           </View>
         );
       case 'budget':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
-            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.budget || '50k-1L'}</Text>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.budget || '—'}</Text>
           </View>
         );
       case 'requirement':
         return (
           <View key={colKey} style={[styles.excelDataCell, { width, borderRightColor: colors.border }]}>
-            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.requirement || 'CRM Suite'}</Text>
+            <Text style={[styles.excelCellCustom, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">{item.requirement || '—'}</Text>
           </View>
         );
       default:
@@ -831,16 +803,29 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
 
             {/* Audit Log Cards List */}
             <View style={{ gap: 10, marginTop: 12 }}>
-              {auditLogs
-                .filter(item => {
-                  if (auditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
-                  if (auditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
-                  return true;
-                })
-                .map(item => {
-                  const isPending = item.status === 'PENDING_ALLOCATION';
-                  const isCsv = item.fileName.toLowerCase().endsWith('.csv');
-                  return (
+              {auditLogs.filter(item => {
+                if (auditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                if (auditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                return true;
+              }).length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardBg, borderRadius: 14, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 28, marginBottom: 8 }}>📭</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>No Lead Ingestions Logged</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 }}>
+                    Uploaded spreadsheets and synced Google Sheets will appear here for audit and routing.
+                  </Text>
+                </View>
+              ) : (
+                auditLogs
+                  .filter(item => {
+                    if (auditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                    if (auditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                    return true;
+                  })
+                  .map(item => {
+                    const isPending = item.status === 'PENDING_ALLOCATION';
+                    const isCsv = item.fileName.toLowerCase().endsWith('.csv');
+                    return (
                     <View
                       key={item.id}
                       style={[
@@ -1004,7 +989,8 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                       </View>
                     </View>
                   );
-                })}
+                })
+              )}
             </View>
           </View>
         </ScrollView>
@@ -1089,12 +1075,9 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                 <Text style={{ fontSize: 9, fontWeight: '900', color: colors.textMuted, marginRight: 2 }}>PERSON:</Text>
                 {[
                   { id: 'ALL', label: 'All Persons' },
-                  { id: 'Priya', label: '👤 Priya (TL)' },
-                  { id: 'Rajesh', label: '👤 Rajesh' },
-                  { id: 'Rohan', label: '👤 Rohan' },
-                  { id: 'Amit', label: '👤 Amit' },
+                  ...availablePersons.map((p) => ({ id: p, label: `👤 ${p}` })),
                   { id: 'UNASSIGNED', label: '⚠️ Unassigned' },
-                ].map(p => (
+                ].map((p) => (
                   <TouchableOpacity
                     key={p.id}
                     style={[
@@ -1330,16 +1313,18 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
                             isUnassigned && { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)', borderColor: '#f59e0b' },
                           ]}
                           onPress={() => {
+                            const assignOptions = [
+                              ...(availablePersons.length > 0 ? availablePersons : (currentUser?.name ? [currentUser.name] : ['Sales Team'])).map((p) => ({
+                                text: p,
+                                onPress: () => handleReassignLeadItem(item.id, p),
+                              })),
+                              { text: 'Unassigned', onPress: () => handleReassignLeadItem(item.id, 'Unassigned') },
+                              { text: 'Cancel', style: 'cancel' as const },
+                            ];
                             Alert.alert(
                               '👤 Reassign Lead',
                               `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
-                              [
-                                { text: 'Priya Sharma (TL A)', onPress: () => handleReassignLeadItem(item.id, 'Priya Sharma (TL A)') },
-                                { text: 'Rajesh Kumar (Sales Rep)', onPress: () => handleReassignLeadItem(item.id, 'Rajesh Kumar (Sales Rep)') },
-                                { text: 'Rohan Kumar (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Rohan Kumar (Sales Exec)') },
-                                { text: 'Amit Shah (Sales Exec)', onPress: () => handleReassignLeadItem(item.id, 'Amit Shah (Sales Exec)') },
-                                { text: 'Cancel', style: 'cancel' },
-                              ]
+                              assignOptions
                             );
                           }}
                         >
@@ -1654,7 +1639,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             <Text style={styles.label}>Lead Name *</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. Rahul Sharma"
+              placeholder="Lead Name"
               placeholderTextColor="#64748b"
               value={newName}
               onChangeText={setNewName}
@@ -1672,7 +1657,7 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
             <Text style={styles.label}>Phone Number *</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. +91 98765 43210"
+              placeholder="e.g. +91 98000 00000"
               placeholderTextColor="#64748b"
               keyboardType="phone-pad"
               value={newPhone}
@@ -1768,13 +1753,9 @@ Sunil Malhotra (CSV), +91 98765 22222, Malhotra Retail, sunil@malhotra.com, QUAL
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                 {[
                   { id: 'ALL', label: 'All Persons' },
-                  { id: 'Priya', label: 'Priya Sharma (TL A)' },
-                  { id: 'Rajesh', label: 'Rajesh Kumar (Sales)' },
-                  { id: 'Rohan', label: 'Rohan Kumar (Exec)' },
-                  { id: 'Amit', label: 'Amit Shah (Sales Exec)' },
-                  { id: 'Neha', label: 'Neha Gupta (Exec)' },
+                  ...availablePersons.map((p) => ({ id: p, label: p })),
                   { id: 'UNASSIGNED', label: '⚠️ Unassigned Leads' },
-                ].map(item => (
+                ].map((item) => (
                   <TouchableOpacity
                     key={item.id}
                     style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#020617', borderWidth: 1, borderColor: '#1e293b' }, filterPerson === item.id && { backgroundColor: '#4f46e5', borderColor: '#818cf8' }]}

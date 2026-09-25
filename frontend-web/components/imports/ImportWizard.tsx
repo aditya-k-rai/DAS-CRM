@@ -49,7 +49,7 @@ export function ImportWizard() {
           const headers = lines[0].split(',').map((h) => h.trim().replace(/['"]/g, ''));
           const rows = lines.slice(1, 10).map((l) => l.split(',').map((v) => v.trim().replace(/['"]/g, '')));
           setParsedHeaders(headers);
-          setParsedRows(rows.length > 0 ? rows : [['Sample Lead', 'sample@company.com', '9876543210', 'Acme', '50000', 'CSV']]);
+          setParsedRows(rows.length > 0 ? rows : [['Lead Contact', 'lead@example.com', '+91 98000 00000', 'Enterprise', '0', 'CSV']]);
         }
       }
       setStep('map');
@@ -289,7 +289,7 @@ export function ImportWizard() {
                       <tr key={header} className="border-b" style={{ borderColor: 'rgb(var(--border))' }}>
                         <td className="py-2.5 pr-4">
                           <span className="font-medium text-sm">{header}</span>
-                          <p className="text-xs text-muted mt-0.5">{parsedRows[0]?.[i] || 'Sample Data'}</p>
+                          <p className="text-xs text-muted mt-0.5">{parsedRows[0]?.[i] || 'Data Preview'}</p>
                         </td>
                         <td className="py-2.5">
                           <select

@@ -251,7 +251,7 @@ function ShareActivityDrawer({ pdf, onClose, onAddShare }: {
                 <input
                   value={newSharedBy}
                   onChange={(e) => setNewSharedBy(e.target.value)}
-                  placeholder="e.g. Priya Sharma"
+                  placeholder="e.g. Sales Executive"
                   className="crm-input w-full"
                 />
               </div>
@@ -261,7 +261,7 @@ function ShareActivityDrawer({ pdf, onClose, onAddShare }: {
                 <input
                   value={newSharedTo}
                   onChange={(e) => setNewSharedTo(e.target.value)}
-                  placeholder="e.g. TechCorp Ltd"
+                  placeholder="e.g. Client Organization"
                   className="crm-input w-full"
                 />
               </div>

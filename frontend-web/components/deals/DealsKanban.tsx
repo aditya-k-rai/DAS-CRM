@@ -34,7 +34,7 @@ export function DealsKanban() {
     const scoped: Record<string, any[]> = {};
     Object.keys(allDeals).forEach((stageId) => {
       scoped[stageId] = (allDeals[stageId] || []).filter(
-        (deal) => deal.ownerName === currentUser.name || deal.owner === currentUser.avatar || deal.owner === 'RK' || deal.ownerName === 'Rajesh Kumar'
+        (deal) => deal.ownerName === currentUser.name || deal.owner === currentUser.avatar || deal.ownerId === currentUser.id
       );
     });
     return scoped;

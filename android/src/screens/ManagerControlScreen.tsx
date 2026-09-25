@@ -47,10 +47,7 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
 
   // 👥 Department Staff Allocation Modal State
   const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [staffList, setStaffList] = useState([
-    { id: 'dept-1', name: 'Priya Sharma', role: 'Team Leader', pipeline: '₹3,85,000', leads: 45 },
-    { id: 'dept-2', name: 'Rohan Kumar', role: 'Sales Exec', pipeline: '₹2,20,000', leads: 25 },
-  ]);
+  const [staffList, setStaffList] = useState<Array<{ id: string; name: string; role: string; pipeline: string; leads: number }>>([]);
   const [newStaffNameInput, setNewStaffNameInput] = useState('');
   const [newStaffRoleInput, setNewStaffRoleInput] = useState<'Team Leader' | 'Sales Exec'>('Team Leader');
 
@@ -78,16 +75,11 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
   const [allocationSourceType, setAllocationSourceType] = useState<'EXCEL_CSV' | 'GOOGLE_SHEETS'>('EXCEL_CSV');
 
   const SUPERVISORS = [
-    'Tenant Admin (Vikram Singh)',
-    'Executive Admin (Aditya Rai)',
+    'Tenant Administrator',
+    'Executive Admin',
   ];
 
-  const MOCK_DEPT_DISTRIBUTION = [
-    { id: 'dept-dist-1', leadName: 'Global Infra CRM Deployment', distributedTo: 'Priya Sharma (Team Leader)', timestamp: 'Today, 09:30 AM', status: 'TOTAL' },
-    { id: 'dept-dist-2', leadName: 'SmartRetail POS Suite', distributedTo: 'Rohan Kumar (Sales Exec)', timestamp: 'Yesterday, 02:15 PM', status: 'CONNECTED' },
-    { id: 'dept-dist-3', leadName: 'Apex Financial AI Automation', distributedTo: 'Priya Sharma (Team Leader)', timestamp: 'Aug 21, 2026', status: 'MEETING' },
-    { id: 'dept-dist-4', leadName: 'Metro Logistics Cloud Hub', distributedTo: 'Rohan Kumar (Sales Exec)', timestamp: 'Aug 19, 2026', status: 'WON' },
-  ];
+  const MOCK_DEPT_DISTRIBUTION: Array<{ id: string; leadName: string; distributedTo: string; timestamp: string; status: string }> = [];
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
@@ -298,45 +290,51 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
             </TouchableOpacity>
           </View>
 
-          {staffList.map((st) => (
-            <View key={st.id} style={styles.subRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{st.name} ({st.role})</Text>
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.leads} Dept Leads Managed</Text>
-              </View>
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#38bdf8' }}>{st.pipeline} Pipeline</Text>
+          {staffList.length === 0 ? (
+            <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ fontSize: 11, color: '#94a3b8' }}>No department staff assigned yet.</Text>
             </View>
-          ))}
+          ) : (
+            staffList.map((st) => (
+              <View key={st.id} style={styles.subRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{st.name} ({st.role})</Text>
+                  <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.leads} Dept Leads Managed</Text>
+                </View>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#38bdf8' }}>{st.pipeline} Pipeline</Text>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Department Pipeline Lead Audit Section */}
         <Text style={styles.sectionTitle}>📊 Department Pipeline Lead Audit</Text>
         <View style={styles.statsGrid}>
           <TouchableOpacity style={[styles.statCard, { borderColor: '#38bdf8' }]} onPress={() => { setLeadCategory('TOTAL'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#38bdf8' }]}>140</Text>
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>0</Text>
             <Text style={styles.statLbl}>Total Dept Leads →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.statCard, { borderColor: '#22c55e' }]} onPress={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#22c55e' }]}>85</Text>
+            <Text style={[styles.statVal, { color: '#22c55e' }]}>0</Text>
             <Text style={styles.statLbl}>Connected →</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
           <TouchableOpacity style={[styles.statCard, { borderColor: '#818cf8' }]} onPress={() => { setLeadCategory('NEGOTIATED'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#818cf8' }]}>32</Text>
+            <Text style={[styles.statVal, { color: '#818cf8' }]}>0</Text>
             <Text style={styles.statLbl}>Negotiated →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.statCard, { borderColor: '#c084fc' }]} onPress={() => { setLeadCategory('MEETING'); setLeadAuditModalOpen(true); }}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>18</Text>
+            <Text style={[styles.statVal, { color: '#c084fc' }]}>0</Text>
             <Text style={styles.statLbl}>Meeting Done →</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={[styles.statCardFull, { borderColor: '#34d399' }]} onPress={() => { setLeadCategory('WON'); setLeadAuditModalOpen(true); }}>
-          <Text style={[styles.statVal, { color: '#34d399' }]}>14 Won Deals</Text>
+          <Text style={[styles.statVal, { color: '#34d399' }]}>0 Won Deals</Text>
           <Text style={styles.statLbl}>Department Closed Revenue Deals →</Text>
         </TouchableOpacity>
 
@@ -400,7 +398,7 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
       <LeadAllocationEngineModal
         visible={allocationModalOpen}
         onClose={() => setAllocationModalOpen(false)}
-        totalLeadsCount={214}
+        totalLeadsCount={0}
         sourceType={allocationSourceType}
       />
 
@@ -416,17 +414,23 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
             </View>
 
             <ScrollView style={{ maxHeight: 200 }}>
-              {staffList.map((st) => (
-                <View key={st.id} style={styles.subCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{st.name} ({st.role})</Text>
-                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.pipeline} Pipeline • {st.leads} Leads</Text>
-                  </View>
-                  <TouchableOpacity style={{ backgroundColor: 'rgba(239,68,68,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => handleRemoveStaff(st.id, st.name)}>
-                    <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800' }}>Remove</Text>
-                  </TouchableOpacity>
+              {staffList.length === 0 ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>No department staff assigned.</Text>
                 </View>
-              ))}
+              ) : (
+                staffList.map((st) => (
+                  <View key={st.id} style={styles.subCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{st.name} ({st.role})</Text>
+                      <Text style={{ fontSize: 10, color: '#94a3b8' }}>{st.pipeline} Pipeline • {st.leads} Leads</Text>
+                    </View>
+                    <TouchableOpacity style={{ backgroundColor: 'rgba(239,68,68,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} onPress={() => handleRemoveStaff(st.id, st.name)}>
+                      <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800' }}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
             </ScrollView>
 
             <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc', marginTop: 10 }}>Add New Staff under {employee.name}:</Text>
@@ -469,15 +473,21 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
             </View>
 
             <ScrollView style={{ maxHeight: 260 }}>
-              {MOCK_DEPT_DISTRIBUTION.map((log) => (
-                <View key={log.id} style={styles.leadCardRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{log.leadName}</Text>
-                    <Text style={{ fontSize: 10, color: '#c084fc', marginTop: 2 }}>Distributed To: {log.distributedTo}</Text>
-                    <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Time: {log.timestamp}</Text>
-                  </View>
+              {MOCK_DEPT_DISTRIBUTION.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>No distribution audit records found.</Text>
                 </View>
-              ))}
+              ) : (
+                MOCK_DEPT_DISTRIBUTION.map((log) => (
+                  <View key={log.id} style={styles.leadCardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#ffffff' }}>{log.leadName}</Text>
+                      <Text style={{ fontSize: 10, color: '#c084fc', marginTop: 2 }}>Distributed To: {log.distributedTo}</Text>
+                      <Text style={{ fontSize: 9, color: '#64748b', marginTop: 1 }}>Time: {log.timestamp}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
             </ScrollView>
 
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 10 }]} onPress={() => setLeadAuditModalOpen(false)}>
@@ -498,9 +508,9 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
               </TouchableOpacity>
             </View>
             <Text style={{ fontSize: 10, color: '#94a3b8', marginVertical: 8 }}>
-              • Department Size: 2 Active Teams (TLs &amp; Reps){'\n'}
-              • Quarterly Revenue Target: ₹25,00,000 Target{'\n'}
-              • Department Win Rate: 22.4% SLA Verified{'\n'}
+              • Department Size: 0 Active Teams{'\n'}
+              • Quarterly Revenue Target: ₹0 Target{'\n'}
+              • Department Win Rate: 0.0% SLA Verified{'\n'}
               • Operational Risk Audit: 0 SLA Breaches Recorded
             </Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#4f46e5', marginTop: 8 }]} onPress={handleShareRolesReport}>
@@ -551,8 +561,8 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
             <Text style={styles.modalTitle}>📅 Pending Leave Application Inspection</Text>
             <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 6 }}>
               Applicant: <Text style={{ color: '#ffffff', fontWeight: '800' }}>{employee.name}</Text>{'\n'}
-              Duration: 4 Days (Annual Leave){'\n'}
-              Dates: Sep 01 - Sep 04, 2026
+              Duration: 0 Days{'\n'}
+              Dates: None pending
             </Text>
             <TextInput
               style={styles.textInput}
@@ -611,8 +621,8 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>📄 Official Documents Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'LMNOP6789V'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'AADHAAR_VERIFIED.pdf'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>PAN Card: {employee.documents?.pan || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Aadhaar ID: {employee.documents?.aadhaar || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setDocumentsModalOpen(false)}>
               <Text style={styles.modalBtnText}>Close Documents →</Text>
             </TouchableOpacity>
@@ -625,8 +635,8 @@ export default function ManagerControlScreen({ employee, onBack, onUpdateEmploye
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>💳 Bank Account Details Telemetry</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'ICICI Bank'}</Text>
-            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || '99887766554433'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Bank: {employee.bankDetails?.bankName || 'Not provided'}</Text>
+            <Text style={{ fontSize: 11, color: '#cbd5e1', marginVertical: 4 }}>Account No: {employee.bankDetails?.accountNo || 'Not provided'}</Text>
             <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 12 }]} onPress={() => setBankDetailsModalOpen(false)}>
               <Text style={styles.modalBtnText}>Close Bank Details →</Text>
             </TouchableOpacity>

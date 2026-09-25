@@ -127,13 +127,13 @@ export interface RoleTransitionLock {
 }
 
 export const MOCK_COMPANY_SUB: CompanySubscription = {
-  id: 'comp_acme',
-  companyName: 'Acme Sales Solutions',
+  id: 'comp_default',
+  companyName: 'DAS Organization',
   planType: 'FREE_TRIAL',
   trialDaysLeft: 30,
   isExpired: false,
   userSeatsAllocated: 10, // Free Trial provides 10 Users quota
-  userSeatsUsed: 6, // 6 Assigned roles
+  userSeatsUsed: 1, // 1 Admin role active
   hasTeamLeaders: true,
   features: {
     whatsApp: false, // Hard-blocked on FREE_TRIAL and GROWTH
@@ -156,49 +156,49 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   },
   ADMIN: {
     id: 'usr_admin',
-    name: 'Vikram Singh (Tenant Admin)',
-    email: 'vikram.admin@acme.com',
+    name: 'Tenant Admin',
+    email: 'admin@das.com',
     role: 'ADMIN',
-    avatar: 'VS',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'AD',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
   },
   HR: {
     id: 'usr_hr',
-    name: 'Sunita Verma (HR Manager)',
-    email: 'sunita.hr@acme.com',
+    name: 'HR Manager',
+    email: 'hr@das.com',
     role: 'HR',
-    avatar: 'SV',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'HR',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
   },
   MANAGER: {
     id: 'usr_mgr',
-    name: 'Rajesh Mehta (Department Manager)',
-    email: 'rajesh.mgr@acme.com',
+    name: 'Department Manager',
+    email: 'manager@das.com',
     role: 'MANAGER',
-    avatar: 'RM',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'MG',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
   },
   TEAM_LEADER: {
     id: 'usr_tl',
-    name: 'Amit Shah (Team Leader)',
-    email: 'amit.tl@acme.com',
+    name: 'Team Leader',
+    email: 'teamleader@das.com',
     role: 'TEAM_LEADER',
-    avatar: 'AS',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'TL',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
     managerId: 'usr_mgr',
   },
   SALES_EXEC: {
     id: 'usr_rep',
-    name: 'Rajesh Kumar (Employee)',
-    email: 'rajesh.rep@acme.com',
+    name: 'Sales Executive',
+    email: 'rep@das.com',
     role: 'SALES_EXEC',
-    avatar: 'RK',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'SE',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
     managerId: 'usr_mgr',
     teamLeaderId: 'usr_tl',
   },
@@ -250,11 +250,11 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   if (!email) return null;
   const em = email.toLowerCase().trim();
   if (em === 'adtyamighty@gmail.com') return 'SUPER_ADMIN';
-  if (em.includes('sunita.hr') || em.includes('hr.manager') || em.includes('hr@') || em.includes('.hr@') || em.startsWith('hr.')) return 'HR';
-  if (em.includes('rajesh.mgr') || em.includes('manager@') || em.includes('.mgr@') || em.startsWith('mgr.') || em.includes('.manager@')) return 'MANAGER';
-  if (em.includes('amit.tl') || em.includes('lead@') || em.includes('.tl@') || em.startsWith('tl.') || em.includes('teamleader@')) return 'TEAM_LEADER';
-  if (em.includes('rajesh.rep') || em.includes('sales@') || em.includes('.rep@') || em.includes('exec@') || em.includes('employee@') || em.startsWith('rep.')) return 'SALES_EXEC';
-  if (em.includes('vikram.admin') || em.includes('admin@') || em.includes('owner@')) return 'ADMIN';
+  if (em.includes('hr.manager') || em.includes('hr@') || em.includes('.hr@') || em.startsWith('hr.')) return 'HR';
+  if (em.includes('manager@') || em.includes('.mgr@') || em.startsWith('mgr.') || em.includes('.manager@')) return 'MANAGER';
+  if (em.includes('lead@') || em.includes('.tl@') || em.startsWith('tl.') || em.includes('teamleader@')) return 'TEAM_LEADER';
+  if (em.includes('sales@') || em.includes('.rep@') || em.includes('exec@') || em.includes('employee@') || em.startsWith('rep.')) return 'SALES_EXEC';
+  if (em.includes('admin@') || em.includes('owner@')) return 'ADMIN';
   return null;
 }
 
@@ -280,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
               parsed.role = 'ADMIN';
             }
-            if (!parsed.companyName || parsed.companyName === 'Acme Sales Solutions') {
+            if (!parsed.companyName || parsed.companyName === 'DAS Organization') {
               const lastReg = localStorage.getItem('last_registered_company');
               if (lastReg) {
                 try {
@@ -317,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedSub) {
         try {
           const parsed = JSON.parse(storedSub);
-          if (parsed && parsed.companyName && parsed.companyName !== 'Acme Sales Solutions') {
+          if (parsed && parsed.companyName && parsed.companyName !== 'DAS Organization') {
             return parsed;
           }
         } catch (_) {}
@@ -326,7 +326,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
-          if (parsedUser && parsedUser.companyName && parsedUser.companyName !== 'Acme Sales Solutions') {
+          if (parsedUser && parsedUser.companyName && parsedUser.companyName !== 'DAS Organization') {
             return {
               ...MOCK_COMPANY_SUB,
               id: parsedUser.companyId || 'comp_current',
@@ -362,7 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sync subscription companyName with currentUser companyName whenever currentUser changes
   useEffect(() => {
-    if (currentUser?.companyName && currentUser.companyName !== 'Acme Sales Solutions' && subscription.companyName !== currentUser.companyName) {
+    if (currentUser?.companyName && currentUser.companyName !== 'DAS Organization' && subscription.companyName !== currentUser.companyName) {
       setSubscription(prev => ({
         ...prev,
         id: currentUser.companyId || prev.id,

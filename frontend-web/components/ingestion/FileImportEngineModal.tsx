@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
+import { useAuth } from '@/context/AuthContext';
 import {
   uploadFileToGoogleDrive,
   uploadLeadSpreadsheetToDrive,
@@ -432,6 +433,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   onClose,
   onImportLeads,
 }) => {
+  const { currentUser } = useAuth();
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState('');
   const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
@@ -1137,7 +1139,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         const driveResult = await uploadLeadSpreadsheetToDrive(
           uploadBlob,
           `${fileName.trim() || 'Leads_Import'}.${ext}`,
-          'Acme Sales Solutions',
+          currentUser?.companyName || 'DAS Organization',
           (p) => {
             setDriveProgress(p);
             if (p.status === 'COMPLETED') setIsDriveUploaded(true);
@@ -1185,7 +1187,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       const result = await uploadLeadSpreadsheetToDrive(
         uploadBlob,
         `${fileName.trim() || 'Leads_Import'}.${ext}`,
-        'Acme Sales Solutions',
+        currentUser?.companyName || 'DAS Organization',
         (p) => {
           setDriveProgress(p);
         }
@@ -1583,7 +1585,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             <Cloud size={13} className="text-indigo-400 shrink-0" />
             <span className="font-bold text-slate-400">Cold Vault:</span>
             <span className="font-mono text-slate-400 truncate max-w-xs sm:max-w-md">
-              Google Drive › Acme Sales Solutions › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
+              Google Drive › {currentUser?.companyName || 'DAS Organization'} › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
             </span>
             {fileSize && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px] font-bold border border-slate-700">

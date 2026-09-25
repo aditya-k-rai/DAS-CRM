@@ -53,19 +53,18 @@ export const DataStorageFolderVault: React.FC = () => {
 
   // Selected hierarchy node state
   const [activeMainFolder, setActiveMainFolder] = useState<'EMPLOYEES' | 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' | 'DOCUMENTS'>('EMPLOYEES');
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('Amit Shah');
+  const EMPLOYEES = currentUser?.name ? [currentUser.name] : [];
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(currentUser?.name || '');
   const [selectedSubCat, setSelectedSubCat] = useState<'DP' | 'Documents' | 'Details'>('Documents');
 
   // Email request modal state
   const [showMailModal, setShowMailModal] = useState(false);
-  const [mailTargetFolder, setMailTargetFolder] = useState<string>('Employees/Amit Shah/Documents');
+  const [mailTargetFolder, setMailTargetFolder] = useState<string>(currentUser?.name ? `Employees/${currentUser.name}/Documents` : 'Employees');
   const [mailRecipient, setMailRecipient] = useState<string>('');
   const [mailFormat, setMailFormat] = useState<'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK'>('ZIP');
   const [mailNotes, setMailNotes] = useState<string>('');
   const [isSendingMail, setIsSendingMail] = useState(false);
   const [mailSuccessToast, setMailSuccessToast] = useState<string | null>(null);
-
-  const EMPLOYEES = ['Amit Shah', 'Priya Sharma', 'Sunita Verma', 'Amit Patel'];
 
   const loadData = async () => {
     setIsLoading(true);
@@ -343,7 +342,7 @@ export const DataStorageFolderVault: React.FC = () => {
                 <span className="text-xl">📁</span>
                 <div>
                   <h3 className="font-extrabold text-sm text-foreground">
-                    Acme Sales Solutions (Company Root)
+                    {currentUser?.companyName || 'DAS Organization'} (Company Root)
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     Google Drive &amp; Local Vault Multi-Tenant Sync
@@ -454,19 +453,23 @@ export const DataStorageFolderVault: React.FC = () => {
 
                   {/* Employee chips */}
                   <div className="flex flex-wrap gap-1.5">
-                    {EMPLOYEES.map(emp => (
-                      <button
-                        key={emp}
-                        onClick={() => setSelectedEmployee(emp)}
-                        className={`text-xs px-3 py-1 rounded-lg font-bold transition-all ${
-                          selectedEmployee === emp
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'bg-accent/40 text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {emp}
-                      </button>
-                    ))}
+                    {EMPLOYEES.length === 0 ? (
+                      <span className="text-xs text-muted-foreground italic">No employee vault folders initialized yet</span>
+                    ) : (
+                      EMPLOYEES.map(emp => (
+                        <button
+                          key={emp}
+                          onClick={() => setSelectedEmployee(emp)}
+                          className={`text-xs px-3 py-1 rounded-lg font-bold transition-all ${
+                            selectedEmployee === emp
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'bg-accent/40 text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {emp}
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -474,9 +477,9 @@ export const DataStorageFolderVault: React.FC = () => {
                 <div className="pl-2 space-y-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                     <Folder className="h-4 w-4 text-amber-400" />
-                    <span className="text-foreground font-bold">{selectedEmployee}/</span>
+                    <span className="text-foreground font-bold">{selectedEmployee || 'Employees'}/</span>
                     <span className="text-muted-foreground/80 font-mono text-[11px]">
-                      Path: Google Drive &gt; Acme &gt; Employees &gt; {selectedEmployee}
+                      Path: Google Drive &gt; Employees &gt; {selectedEmployee || 'Current'}
                     </span>
                   </div>
 
@@ -794,12 +797,12 @@ export const DataStorageFolderVault: React.FC = () => {
                     value={mailTargetFolder}
                     onChange={(e) => setMailTargetFolder(e.target.value)}
                     required
-                    placeholder="e.g. Employees/Amit Shah/Documents"
+                    placeholder="e.g. Employees/Documents"
                     className="w-full rounded-xl border border-border bg-accent/30 px-3.5 py-2.5 font-mono text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  You can specify specific subfolders like <code className="text-indigo-400">Employees/Amit Shah</code> or <code className="text-indigo-400">Leads</code> or <code className="text-indigo-400">Company Root (All Data)</code>.
+                  You can specify specific subfolders like <code className="text-indigo-400">Employees/Documents</code> or <code className="text-indigo-400">Leads</code> or <code className="text-indigo-400">Company Root (All Data)</code>.
                 </p>
               </div>
 

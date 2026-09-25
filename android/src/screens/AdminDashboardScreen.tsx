@@ -44,83 +44,7 @@ export interface ScheduledMeetingItem {
   status: 'CONFIRMED' | 'SCHEDULED' | 'IN_PROGRESS';
 }
 
-const MOCK_ADMIN_MEETINGS: ScheduledMeetingItem[] = [
-  {
-    id: 'mtg-1',
-    leadId: 'lead-1',
-    leadName: 'Rajesh Mehta',
-    company: 'TechCorp Solutions Ltd',
-    phone: '+91 98765 43210',
-    email: 'rajesh@techcorp.com',
-    value: '₹5,20,000',
-    assignedAgent: 'Rajesh Kumar',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Enterprise CRM Suite Demo & SLA Negotiation',
-    scheduledTimeStr: 'Today, 02:30 PM',
-    isToday: true,
-    status: 'CONFIRMED',
-  },
-  {
-    id: 'mtg-2',
-    leadId: 'lead-2',
-    leadName: 'Priya Sharma',
-    company: 'LogiTech Express',
-    phone: '+91 98123 45678',
-    email: 'priya@logitech.in',
-    value: '₹3,40,000',
-    assignedAgent: 'Amit Verma',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Lead Funnel & GPS Punch Telemetry Integration',
-    scheduledTimeStr: 'Today, 04:45 PM',
-    isToday: true,
-    status: 'SCHEDULED',
-  },
-  {
-    id: 'mtg-3',
-    leadId: 'lead-3',
-    leadName: 'Sunil Gavaskar',
-    company: 'Apex Industrial Gears',
-    phone: '+91 99001 22334',
-    email: 'sunil@apexingears.com',
-    value: '₹8,90,000',
-    assignedAgent: 'Rajesh Kumar',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Custom Quotation & WhatsApp Catalog Dispatch',
-    scheduledTimeStr: 'Tomorrow, 11:00 AM',
-    isToday: false,
-    status: 'CONFIRMED',
-  },
-  {
-    id: 'mtg-4',
-    leadId: 'lead-4',
-    leadName: 'Deepak Chopra',
-    company: 'Zenith Retail Chains',
-    phone: '+91 97788 44556',
-    email: 'deepak@zenithretail.in',
-    value: '₹12,50,000',
-    assignedAgent: 'Neha Joshi',
-    agentRole: 'Team Leader',
-    meetingPurpose: 'Annual License Renewal & Role Permission Audit',
-    scheduledTimeStr: 'Tomorrow, 03:15 PM',
-    isToday: false,
-    status: 'SCHEDULED',
-  },
-  {
-    id: 'mtg-5',
-    leadId: 'lead-5',
-    leadName: 'Anita Desai',
-    company: 'Global Fintech Ventures',
-    phone: '+91 98200 11223',
-    email: 'anita@globalfintech.com',
-    value: '₹4,10,000',
-    assignedAgent: 'Priya Sharma',
-    agentRole: 'Sales Executive',
-    meetingPurpose: 'Multi-Tenant Migration & Security Compliance',
-    scheduledTimeStr: '23 Aug 2026, 05:30 PM',
-    isToday: false,
-    status: 'SCHEDULED',
-  },
-];
+const MOCK_ADMIN_MEETINGS: ScheduledMeetingItem[] = [];
 
 interface ScreenProps {
   onNavigateToAttendance?: () => void;
@@ -190,14 +114,14 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.wonRevenue}</Text>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>$128,400</Text>
-            <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>↑ +14.2% closed</Text>
+            <Text style={[styles.statVal, { color: '#34d399' }]}>₹0</Text>
+            <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>0.0% closed</Text>
           </View>
 
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.activePipeline}</Text>
-            <Text style={[styles.statVal, { color: colors.text }]}>$412,000</Text>
-            <Text style={[styles.statSubLbl, { color: colors.primary }]}>42 Open Deals</Text>
+            <Text style={[styles.statVal, { color: colors.text }]}>₹0</Text>
+            <Text style={[styles.statSubLbl, { color: colors.primary }]}>0 Open Deals</Text>
           </View>
         </View>
 
@@ -205,13 +129,13 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.totalLeads}</Text>
-            <Text style={[styles.statVal, { color: '#93c5fd' }]}>3,420</Text>
+            <Text style={[styles.statVal, { color: '#93c5fd' }]}>0</Text>
             <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>Multi-Source</Text>
           </View>
 
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
             <Text style={[styles.cardHeaderLbl, { color: colors.textMuted }]}>{t.conversionRate}</Text>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>14.2%</Text>
+            <Text style={[styles.statVal, { color: '#c084fc' }]}>0.0%</Text>
             <Text style={[styles.statSubLbl, { color: colors.textMuted }]}>Target: 15.0%</Text>
           </View>
         </View>
@@ -281,43 +205,49 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
           {/* Meetings List */}
           <View style={{ marginTop: 8 }}>
-            {filteredMeetings.map((item, idx) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                onPress={() => setSelectedMeeting(item)}
-                activeOpacity={0.8}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.itemName, { color: colors.text }]}>{item.leadName}</Text>
-                    <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
-                      <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
-                        {item.status}
-                      </Text>
+            {filteredMeetings.length === 0 ? (
+              <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>No scheduled meetings found for this filter.</Text>
+              </View>
+            ) : (
+              filteredMeetings.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.meetingCardItem, idx < filteredMeetings.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                  onPress={() => setSelectedMeeting(item)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.itemName, { color: colors.text }]}>{item.leadName}</Text>
+                      <View style={[styles.statusPill, item.status === 'CONFIRMED' ? styles.pillConfirmed : styles.pillSched]}>
+                        <Text style={[styles.statusPillText, item.status === 'CONFIRMED' ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                          {item.status}
+                        </Text>
+                      </View>
                     </View>
+
+                    <Text style={[styles.itemSub, { color: colors.textMuted }]}>{item.company} • {item.phone}</Text>
+                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2, fontWeight: '700' }}>
+                      💼 {item.meetingPurpose}
+                    </Text>
+                    <Text style={{ fontSize: 9, color: colors.primary, marginTop: 2, fontWeight: '800' }}>
+                      👤 Assigned Rep: {item.assignedAgent} ({item.agentRole})
+                    </Text>
                   </View>
 
-                  <Text style={[styles.itemSub, { color: colors.textMuted }]}>{item.company} • {item.phone}</Text>
-                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2, fontWeight: '700' }}>
-                    💼 {item.meetingPurpose}
-                  </Text>
-                  <Text style={{ fontSize: 9, color: colors.primary, marginTop: 2, fontWeight: '800' }}>
-                    👤 Assigned Rep: {item.assignedAgent} ({item.agentRole})
-                  </Text>
-                </View>
-
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={[styles.meetingTimeBadge, item.isToday ? { color: '#34d399' } : { color: '#38bdf8' }]}>
-                    ⏰ {item.scheduledTimeStr}
-                  </Text>
-                  <Text style={styles.leadValBadge}>{item.value}</Text>
-                  <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '800', textDecorationLine: 'underline' }}>
-                    Inspect Lead →
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Text style={[styles.meetingTimeBadge, item.isToday ? { color: '#34d399' } : { color: '#38bdf8' }]}>
+                      ⏰ {item.scheduledTimeStr}
+                    </Text>
+                    <Text style={styles.leadValBadge}>{item.value}</Text>
+                    <Text style={{ fontSize: 9, color: colors.primary, fontWeight: '800', textDecorationLine: 'underline' }}>
+                      Inspect Lead →
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
 
@@ -326,17 +256,17 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <Text style={[styles.cardTitle, { color: isDark ? '#2dd4bf' : '#0d9488' }]}>👥 Workforce &amp; Attendance Today</Text>
             <TouchableOpacity onPress={onNavigateToAttendance}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#2dd4bf' : '#0d9488' }}>79.2% Rate • View All →</Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#2dd4bf' : '#0d9488' }}>0.0% Rate • View All →</Text>
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-            <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>19 Present</Text>
-            <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>/ 24 Total Employees</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>0 Present</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>/ 0 Total Employees</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
-            <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700' }}>🟢 19 Present</Text>
-            <Text style={{ fontSize: 10, color: isDark ? '#c084fc' : '#9333ea', fontWeight: '700' }}>🟣 3 On Leave</Text>
-            <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🔴 2 Absent</Text>
+            <Text style={{ fontSize: 10, color: '#34d399', fontWeight: '700' }}>🟢 0 Present</Text>
+            <Text style={{ fontSize: 10, color: isDark ? '#c084fc' : '#9333ea', fontWeight: '700' }}>🟣 0 On Leave</Text>
+            <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🔴 0 Absent</Text>
           </View>
         </View>
 
@@ -354,19 +284,19 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
           </View>
           <View style={[styles.telemetryGrid, { borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }]}>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: isDark ? '#93c5fd' : '#2563eb' }]}>142</Text>
+              <Text style={[styles.telemetryVal, { color: isDark ? '#93c5fd' : '#2563eb' }]}>0</Text>
               <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Leads Allocated</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: colors.primary }]}>384</Text>
+              <Text style={[styles.telemetryVal, { color: colors.primary }]}>0</Text>
               <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Calls Done</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: '#10b981' }]}>820</Text>
+              <Text style={[styles.telemetryVal, { color: '#10b981' }]}>0</Text>
               <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Msgs Sent</Text>
             </View>
             <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryVal, { color: '#f59e0b' }]}>8</Text>
+              <Text style={[styles.telemetryVal, { color: '#f59e0b' }]}>0</Text>
               <Text style={[styles.telemetryLbl, { color: colors.textMuted }]}>Deals Closed</Text>
             </View>
           </View>
@@ -376,9 +306,9 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Multi-Source Ingestion Telemetry</Text>
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           {[
-            { title: 'Google Sheets Live Sync', status: 'LIVE SYNC', count: 142 },
-            { title: 'Excel File Uploads', status: 'BATCH COMPLETE', count: 98 },
-            { title: 'Meta Ads Webhook', status: 'ACTIVE HOOK', count: 64 },
+            { title: 'Google Sheets Live Sync', status: 'READY', count: 0 },
+            { title: 'Excel File Uploads', status: 'READY', count: 0 },
+            { title: 'Meta Ads Webhook', status: 'READY', count: 0 },
           ].map((item, idx) => (
             <View key={idx} style={[styles.itemRow, idx < 2 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
               <View style={{ flex: 1 }}>
@@ -486,7 +416,7 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>⚡ In-Depth Operations Telemetry Report</Text>
                 <Text style={styles.modalSub}>
-                  Acme Sales Solutions • Real-Time Performance &amp; Lead Ingestion Audit
+                  Command Center • Real-Time Performance &amp; Lead Ingestion Audit
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setInDepthReportOpen(false)} style={styles.modalCloseBtn}>
@@ -500,19 +430,19 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
                 <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', padding: 10, alignItems: 'center' }}>
                   <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>WON REVENUE</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399', marginTop: 2 }}>$128,400</Text>
-                  <Text style={{ fontSize: 8, color: '#34d399', marginTop: 2, fontWeight: '700' }}>↑ +14.2% closed</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399', marginTop: 2 }}>₹0</Text>
+                  <Text style={{ fontSize: 8, color: '#34d399', marginTop: 2, fontWeight: '700' }}>0.0% closed</Text>
                 </View>
 
                 <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(129,140,248,0.3)', padding: 10, alignItems: 'center' }}>
                   <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>ACTIVE PIPELINE</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff', marginTop: 2 }}>$412,000</Text>
-                  <Text style={{ fontSize: 8, color: '#818cf8', marginTop: 2, fontWeight: '700' }}>42 Open Deals</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#ffffff', marginTop: 2 }}>₹0</Text>
+                  <Text style={{ fontSize: 8, color: '#818cf8', marginTop: 2, fontWeight: '700' }}>0 Open Deals</Text>
                 </View>
 
                 <View style={{ flex: 1, backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(192,132,252,0.3)', padding: 10, alignItems: 'center' }}>
                   <Text style={{ fontSize: 9, color: '#94a3b8', fontWeight: '700' }}>CONV. RATE</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc', marginTop: 2 }}>14.2%</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc', marginTop: 2 }}>0.0%</Text>
                   <Text style={{ fontSize: 8, color: '#c084fc', marginTop: 2, fontWeight: '700' }}>Target: 15.0%</Text>
                 </View>
               </View>
@@ -522,19 +452,19 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
                 <Text style={{ fontSize: 12, fontWeight: '900', color: '#34d399', marginBottom: 8 }}>⚡ Today's Telemetry Audit</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingBottom: 6 }}>
                   <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Total Leads Ingested &amp; Allocated:</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#93c5fd' }}>142 Leads</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#93c5fd' }}>0 Leads</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Outbound Calls Completed:</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>384 Calls (4m 18s avg)</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#818cf8' }}>0 Calls (0s avg)</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#1e293b', paddingVertical: 6 }}>
                   <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• WhatsApp &amp; SMS Dispatches:</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>820 Messages</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#34d399' }}>0 Messages</Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 6 }}>
                   <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '700' }}>• Closed Won Deals Today:</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#fbbf24' }}>8 Deals ($18,450)</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#fbbf24' }}>0 Deals (₹0)</Text>
                 </View>
               </View>
 
@@ -542,10 +472,10 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
               <View style={{ backgroundColor: colors.cardBgElevated, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 }}>
                 <Text style={{ fontSize: 12, fontWeight: '900', color: colors.text, marginBottom: 8 }}>📞 Call Outcome Distribution Audit</Text>
                 {[
-                  { outcome: '🟢 Connected / Picked Up', count: '228 Calls', pct: '59.3%', color: '#34d399' },
-                  { outcome: '💬 WhatsApp Follow-up Chat', count: '94 Chats', pct: '24.5%', color: '#38bdf8' },
-                  { outcome: '🟡 Line Busy / Call Back', count: '42 Calls', pct: '10.9%', color: '#fbbf24' },
-                  { outcome: '🔴 Not Responding / Switched Off', count: '20 Calls', pct: '5.2%', color: '#f87171' },
+                  { outcome: '🟢 Connected / Picked Up', count: '0 Calls', pct: '0.0%', color: '#34d399' },
+                  { outcome: '💬 WhatsApp Follow-up Chat', count: '0 Chats', pct: '0.0%', color: '#38bdf8' },
+                  { outcome: '🟡 Line Busy / Call Back', count: '0 Calls', pct: '0.0%', color: '#fbbf24' },
+                  { outcome: '🔴 Not Responding / Switched Off', count: '0 Calls', pct: '0.0%', color: '#f87171' },
                 ].map((item, idx) => (
                   <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: colors.border }}>
                     <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700' }}>{item.outcome}</Text>
@@ -557,17 +487,9 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
               {/* Sales Rep Leaderboard */}
               <View style={{ backgroundColor: colors.cardBgElevated, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 }}>
                 <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5', marginBottom: 8 }}>🏆 Sales Rep Leaderboard Today</Text>
-                {[
-                  { rank: '#1', rep: 'Rajesh Kumar (Sales Exec)', calls: '64 Calls', closed: '₹5,20,000' },
-                  { rank: '#2', rep: 'Amit Patel (Sales Exec)', calls: '52 Calls', closed: '₹3,50,000' },
-                  { rank: '#3', rep: 'Priya Sharma (Sales Exec)', calls: '48 Calls', closed: '₹2,45,000' },
-                  { rank: '#4', rep: 'Neha Joshi (Team Leader)', calls: '44 Calls', closed: '₹1,90,000' },
-                ].map((item, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderBottomWidth: idx < 3 ? 1 : 0, borderBottomColor: colors.border }}>
-                    <Text style={{ fontSize: 10, color: colors.text, fontWeight: '800' }}>{item.rank} {item.rep}</Text>
-                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#34d399' }}>{item.calls} • {item.closed}</Text>
-                  </View>
-                ))}
+                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: colors.textMuted }}>No sales reps active on today's leaderboard yet.</Text>
+                </View>
               </View>
 
               {/* Action Buttons */}

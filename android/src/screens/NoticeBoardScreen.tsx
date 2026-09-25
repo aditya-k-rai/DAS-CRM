@@ -27,56 +27,9 @@ export interface NoticeItem {
 
 const STAFF_LIST = [
   '@All Staff',
-  '@Rajesh Kumar',
-  '@Priya Sharma',
-  '@Amit Shah',
-  '@Sunita Verma',
-  '@Neha Joshi',
-  '@Amit Patel',
-  '@Rajesh Mehta',
 ];
 
-const INITIAL_NOTICES: NoticeItem[] = [
-  {
-    id: 'n_1',
-    title: '📢 Q3 Enterprise Revenue Targets & Incentive Structure',
-    content: 'Attention @All Staff and @Rajesh Kumar. New incentive tiers for Q3 deals have been published. Overtime & closure bonuses will be paid out bi-weekly. Please log all calls daily.',
-    author: 'Aditya Kumar Rai',
-    authorRole: 'ADMIN',
-    avatar: 'AR',
-    createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
-    expiresAt: Date.now() + 6 * 24 * 60 * 60 * 1000,
-    priority: 'CRITICAL',
-    mentions: ['@All Staff', '@Rajesh Kumar'],
-    acknowledgedBy: ['emp_1', 'emp_4'],
-  },
-  {
-    id: 'n_2',
-    title: '📌 System Maintenance & Database Sync Window',
-    content: 'Notice for @Amit Shah and @Neha Joshi: Backend sync & database migration scheduled tonight at 11:00 PM IST. Live GPS camera attendance remains active.',
-    author: 'Sunita Verma',
-    authorRole: 'HR MANAGER',
-    avatar: 'SV',
-    createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
-    expiresAt: Date.now() + 4 * 24 * 60 * 60 * 1000,
-    priority: 'IMPORTANT',
-    mentions: ['@Amit Shah', '@Neha Joshi'],
-    acknowledgedBy: ['emp_3'],
-  },
-  {
-    id: 'n_3',
-    title: '🎉 Top Sales Executive of the Week Award',
-    content: 'Congratulations to @Priya Sharma for closing 5 enterprise deals this week! Team celebration hosted this Friday at HQ Hub.',
-    author: 'Rajesh Mehta',
-    authorRole: 'DEPARTMENT MANAGER',
-    avatar: 'RM',
-    createdAt: Date.now() - 5 * 24 * 60 * 60 * 1000,
-    expiresAt: Date.now() + 2 * 24 * 60 * 60 * 1000,
-    priority: 'GENERAL',
-    mentions: ['@Priya Sharma'],
-    acknowledgedBy: ['emp_5', 'emp_7'],
-  },
-];
+const INITIAL_NOTICES: NoticeItem[] = [];
 
 interface NoticeBoardScreenProps {
   onClose?: () => void;

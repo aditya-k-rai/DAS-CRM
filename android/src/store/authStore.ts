@@ -129,13 +129,13 @@ export interface RoleTransitionLock {
 // ─── Mock / Demo Data (identical to web AuthContext) ────────────────────────
 
 export const MOCK_COMPANY_SUB: CompanySubscription = {
-  id: 'comp_acme',
-  companyName: 'Acme Sales Solutions',
+  id: 'comp_default',
+  companyName: 'DAS Organization',
   planType: 'FREE_TRIAL',
   trialDaysLeft: 30,
   isExpired: false,
   userSeatsAllocated: 10, // Free Trial default: 10 Users
-  userSeatsUsed: 6, // 6 Assigned roles
+  userSeatsUsed: 1, // 1 Admin role active
   hasTeamLeaders: true,
   features: {
     whatsApp: false, // Blocked on FREE_TRIAL and GROWTH
@@ -145,6 +145,7 @@ export const MOCK_COMPANY_SUB: CompanySubscription = {
     exportCSV: true,
   },
 };
+
 
 export const DEMO_USERS: Record<UserRole, UserProfile> = {
   SUPER_ADMIN: {
@@ -158,49 +159,49 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
   },
   ADMIN: {
     id: 'usr_admin',
-    name: 'Vikram Singh (Tenant Admin)',
-    email: 'vikram.admin@acme.com',
+    name: 'Workspace Admin',
+    email: 'admin@das.com',
     role: 'ADMIN',
-    avatar: 'VS',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'WA',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
   },
   HR: {
     id: 'usr_hr',
-    name: 'Sunita Verma (HR Manager)',
-    email: 'sunita.hr@acme.com',
+    name: 'HR Manager',
+    email: 'hr@das.com',
     role: 'HR',
-    avatar: 'SV',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'HR',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
   },
   MANAGER: {
     id: 'usr_mgr',
-    name: 'Rajesh Mehta (Department Manager)',
-    email: 'rajesh.mgr@acme.com',
+    name: 'Department Manager',
+    email: 'manager@das.com',
     role: 'MANAGER',
-    avatar: 'RM',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'DM',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
   },
   TEAM_LEADER: {
     id: 'usr_tl',
-    name: 'Amit Shah (Team Leader)',
-    email: 'amit.tl@acme.com',
+    name: 'Team Leader',
+    email: 'leader@das.com',
     role: 'TEAM_LEADER',
-    avatar: 'AS',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'TL',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
     managerId: 'usr_mgr',
   },
   SALES_EXEC: {
     id: 'usr_rep',
-    name: 'Rajesh Kumar (Employee)',
-    email: 'rajesh.rep@acme.com',
+    name: 'Sales Executive',
+    email: 'sales@das.com',
     role: 'SALES_EXEC',
-    avatar: 'RK',
-    companyId: 'comp_acme',
-    companyName: 'Acme Sales Solutions',
+    avatar: 'SE',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
     managerId: 'usr_mgr',
     teamLeaderId: 'usr_tl',
   },
@@ -267,7 +268,6 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   const em = email.toLowerCase().trim();
   if (em === 'adtyamighty@gmail.com') return 'SUPER_ADMIN';
   if (
-    em.includes('sunita.hr') ||
     em.includes('hr.manager') ||
     em.includes('hr@') ||
     em.includes('.hr@') ||
@@ -275,7 +275,6 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   )
     return 'HR';
   if (
-    em.includes('rajesh.mgr') ||
     em.includes('manager@') ||
     em.includes('.mgr@') ||
     em.startsWith('mgr.') ||
@@ -283,15 +282,14 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   )
     return 'MANAGER';
   if (
-    em.includes('amit.tl') ||
     em.includes('lead@') ||
+    em.includes('leader@') ||
     em.includes('.tl@') ||
     em.startsWith('tl.') ||
     em.includes('teamleader@')
   )
     return 'TEAM_LEADER';
   if (
-    em.includes('rajesh.rep') ||
     em.includes('sales@') ||
     em.includes('.rep@') ||
     em.includes('exec@') ||
@@ -300,7 +298,6 @@ export function inferRoleFromEmail(email?: string | null): UserRole | null {
   )
     return 'SALES_EXEC';
   if (
-    em.includes('vikram.admin') ||
     em.includes('admin@') ||
     em.includes('owner@')
   )

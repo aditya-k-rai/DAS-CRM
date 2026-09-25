@@ -2,14 +2,9 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-const data = [
-  { month: 'Mar', won: 18, lost: 6, pipeline: 45 },
-  { month: 'Apr', won: 24, lost: 8, pipeline: 52 },
-  { month: 'May', won: 19, lost: 5, pipeline: 38 },
-  { month: 'Jun', won: 31, lost: 10, pipeline: 67 },
-  { month: 'Jul', won: 27, lost: 7, pipeline: 58 },
-  { month: 'Aug', won: 22, lost: 4, pipeline: 49 },
-];
+import { TrendingUp } from 'lucide-react';
+
+const data: Array<{ month: string; won: number; lost: number; pipeline: number }> = [];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -43,17 +38,25 @@ export function PipelineChart() {
           ))}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data} barCategoryGap="35%" barGap={4}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgb(30 41 59)" vertical={false} />
-          <XAxis dataKey="month" tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(30 41 59 / 0.5)' }} />
-          <Bar dataKey="pipeline" name="In Pipeline" fill="rgb(99 102 241 / 0.5)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="won" name="Won" fill="rgb(34 197 94)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="lost" name="Lost" fill="rgb(239 68 68 / 0.7)" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      {data.length === 0 ? (
+        <div className="h-[220px] flex flex-col items-center justify-center p-8 text-center border border-dashed border-border/80 rounded-xl">
+          <TrendingUp size={32} className="text-muted/60 mb-2" />
+          <p className="font-bold text-sm text-foreground">No pipeline activity yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Deals and pipeline performance will be charted here as your team closes deals.</p>
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} barCategoryGap="35%" barGap={4}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgb(30 41 59)" vertical={false} />
+            <XAxis dataKey="month" tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(30 41 59 / 0.5)' }} />
+            <Bar dataKey="pipeline" name="In Pipeline" fill="rgb(99 102 241 / 0.5)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="won" name="Won" fill="rgb(34 197 94)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lost" name="Lost" fill="rgb(239 68 68 / 0.7)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }

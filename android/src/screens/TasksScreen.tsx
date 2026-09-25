@@ -37,12 +37,7 @@ export default function TasksScreen({ route }: any) {
   const [activeModule, setActiveModule] = useState<MoreModule>(initialModule);
 
   // ── 1. PRODUCTS STATE ───────────────────────────────────────────────────────
-  const [products, setProducts] = useState([
-    { id: 'p1', name: 'Enterprise CRM Suite (Per Seat)', sku: 'DAS-CRM-ENT', category: 'Software License', price: '$1,250', stock: 500 },
-    { id: 'p2', name: 'AI Lead Routing Engine Module', sku: 'DAS-AI-ROUTE', category: 'Add-On Module', price: '$450', stock: 100 },
-    { id: 'p3', name: 'Automated WhatsApp Telemetry Hook', sku: 'DAS-WA-HOOK', category: 'Integration', price: '$290', stock: 250 },
-    { id: 'p4', name: 'Custom Multi-Tenant Setup Service', sku: 'DAS-SRV-SETUP', category: 'Professional Services', price: '$2,500', stock: 20 },
-  ]);
+  const [products, setProducts] = useState<any[]>([]);
   const [createProductModal, setCreateProductModal] = useState(false);
   const [prodName, setProdName] = useState('');
   const [prodSku, setProdSku] = useState('');
@@ -50,29 +45,16 @@ export default function TasksScreen({ route }: any) {
   const [prodCategory, setProdCategory] = useState('Software License');
 
   // ── 2. QUOTATIONS STATE ─────────────────────────────────────────────────────
-  const [quotations, setQuotations] = useState([
-    { id: 'q1', quoteNumber: 'QUO-2026-001', clientName: 'TechCorp India', amount: '₹45,000', status: 'APPROVED', validUntil: 'Aug 30, 2026' },
-    { id: 'q2', quoteNumber: 'QUO-2026-002', clientName: 'Innovate Systems', amount: '₹120,000', status: 'SENT', validUntil: 'Sep 15, 2026' },
-    { id: 'q3', quoteNumber: 'QUO-2026-003', clientName: 'Apex Global', amount: '₹85,000', status: 'DRAFT', validUntil: 'Sep 01, 2026' },
-  ]);
+  const [quotations, setQuotations] = useState<any[]>([]);
   const [createQuoteModal, setCreateQuoteModal] = useState(false);
   const [clientName, setClientName] = useState('');
   const [quoteAmount, setQuoteAmount] = useState('');
 
   // ── 3. DEALS STATE ─────────────────────────────────────────────────────────
-  const [deals] = useState([
-    { id: 'd1', title: 'Enterprise CRM Rollout', company: 'Acme Corp', value: '$120,000', stage: 'Negotiation', rep: 'Rajesh Kumar' },
-    { id: 'd2', title: 'AI Call Telemetry Module', company: 'TechCorp India', value: '$45,000', stage: 'Proposal', rep: 'Priya Sharma' },
-    { id: 'd3', title: 'Multi-Tenant Setup Contract', company: 'Apex Global', value: '$85,000', stage: 'Qualified', rep: 'Amit Shah' },
-    { id: 'd4', title: 'Annual Support Renewal', company: 'Sun Realty', value: '$210,000', stage: 'Closed Won', rep: 'Sunita Verma' },
-  ]);
+  const [deals] = useState<any[]>([]);
 
   // ── 4. TASKS STATE ─────────────────────────────────────────────────────────
-  const [tasks, setTasks] = useState([
-    { id: 't1', title: 'Follow up on Acme Corp Quote', lead: 'Vikram Mehta', dueDate: 'Today, 4:00 PM', priority: 'HIGH', status: 'PENDING' },
-    { id: 't2', title: 'Schedule Product Demo Call', lead: 'Sunita Rao', dueDate: 'Tomorrow, 11:30 AM', priority: 'URGENT', status: 'PENDING' },
-    { id: 't3', title: 'Send Contract Proposal PDF', lead: 'Rajesh Kumar', dueDate: 'Yesterday', priority: 'MEDIUM', status: 'OVERDUE' },
-  ]);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   useEffect(() => {
     apiService.getProducts(token).then(data => {
@@ -196,32 +178,38 @@ export default function TasksScreen({ route }: any) {
               </TouchableOpacity>
             </View>
 
-            {quotations.map(q => (
-              <View key={q.id} style={styles.cardItem}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.itemTitle}>{q.quoteNumber}</Text>
-                  <View style={[styles.statusBadge, {
-                    backgroundColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.15)' : q.status === 'SENT' ? 'rgba(56,189,248,0.15)' : 'rgba(245,158,11,0.15)',
-                    borderColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.4)' : q.status === 'SENT' ? 'rgba(56,189,248,0.4)' : 'rgba(245,158,11,0.4)',
-                  }]}>
-                    <Text style={{ fontSize: 9, fontWeight: '800', color: q.status === 'APPROVED' ? '#34d399' : q.status === 'SENT' ? '#38bdf8' : '#fbbf24' }}>
-                      {q.status}
-                    </Text>
+            {quotations.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No quotations created yet.</Text>
+              </View>
+            ) : (
+              quotations.map(q => (
+                <View key={q.id} style={styles.cardItem}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.itemTitle}>{q.quoteNumber}</Text>
+                    <View style={[styles.statusBadge, {
+                      backgroundColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.15)' : q.status === 'SENT' ? 'rgba(56,189,248,0.15)' : 'rgba(245,158,11,0.15)',
+                      borderColor: q.status === 'APPROVED' ? 'rgba(16,185,129,0.4)' : q.status === 'SENT' ? 'rgba(56,189,248,0.4)' : 'rgba(245,158,11,0.4)',
+                    }]}>
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: q.status === 'APPROVED' ? '#34d399' : q.status === 'SENT' ? '#38bdf8' : '#fbbf24' }}>
+                        {q.status}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.itemMeta}>Client: {q.clientName} • Valid Until: {q.validUntil}</Text>
+                  
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, alignItems: 'center' }}>
+                    <Text style={styles.itemPrice}>{q.amount}</Text>
+                    <TouchableOpacity onPress={() => Alert.alert('PDF Export', `Exported PDF proposal for ${q.quoteNumber}.`)}>
+                      <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', textDecorationLine: 'underline' }}>
+                        📄 Download PDF →
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-
-                <Text style={styles.itemMeta}>Client: {q.clientName} • Valid Until: {q.validUntil}</Text>
-                
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, alignItems: 'center' }}>
-                  <Text style={styles.itemPrice}>{q.amount}</Text>
-                  <TouchableOpacity onPress={() => Alert.alert('PDF Export', `Exported PDF proposal for ${q.quoteNumber}.`)}>
-                    <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800', textDecorationLine: 'underline' }}>
-                      📄 Download PDF →
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+              ))
+            )}
           </View>
         )}
 
@@ -233,19 +221,25 @@ export default function TasksScreen({ route }: any) {
             <Text style={styles.moduleTitle}>💼 Deals &amp; Active Sales Pipeline Kanban</Text>
             <Text style={styles.moduleSub}>Track deal stages from initial prospecting to closed-won revenue.</Text>
 
-            {deals.map(d => (
-              <View key={d.id} style={styles.cardItem}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.itemTitle}>{d.title}</Text>
-                  <Text style={styles.itemPrice}>{d.value}</Text>
-                </View>
-                <Text style={styles.itemMeta}>Company: {d.company} • Rep: {d.rep}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                  <Text style={{ fontSize: 10, color: '#fbbf24', fontWeight: '800' }}>STAGE: {d.stage.toUpperCase()}</Text>
-                  <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '700' }}>85% Win Probability</Text>
-                </View>
+            {deals.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No active deals in pipeline.</Text>
               </View>
-            ))}
+            ) : (
+              deals.map(d => (
+                <View key={d.id} style={styles.cardItem}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.itemTitle}>{d.title}</Text>
+                    <Text style={styles.itemPrice}>{d.value}</Text>
+                  </View>
+                  <Text style={styles.itemMeta}>Company: {d.company} • Rep: {d.rep}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                    <Text style={{ fontSize: 10, color: '#fbbf24', fontWeight: '800' }}>STAGE: {d.stage.toUpperCase()}</Text>
+                    <Text style={{ fontSize: 10, color: '#38bdf8', fontWeight: '700' }}>Win Probability</Text>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -258,20 +252,20 @@ export default function TasksScreen({ route }: any) {
             <Text style={styles.moduleSub}>Track organizational revenue targets and team quota progress.</Text>
 
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>Q3 Revenue Target: $500,000</Text>
-              <Text style={styles.itemMeta}>Current Achieved: $412,000 (82.4% Progress)</Text>
+              <Text style={styles.itemTitle}>Quarterly Revenue Target: ₹0</Text>
+              <Text style={styles.itemMeta}>Current Achieved: ₹0 (0.0% Progress)</Text>
 
               <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: '82.4%' }]} />
+                <View style={[styles.progressBarFill, { width: '0%' }]} />
               </View>
             </View>
 
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>Monthly New Lead Ingestion Target: 4,000 Leads</Text>
-              <Text style={styles.itemMeta}>Current Achieved: 3,420 Leads (85.5% Progress)</Text>
+              <Text style={styles.itemTitle}>Monthly New Lead Ingestion Target: 0 Leads</Text>
+              <Text style={styles.itemMeta}>Current Achieved: 0 Leads (0.0% Progress)</Text>
 
               <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: '85.5%', backgroundColor: '#34d399' }]} />
+                <View style={[styles.progressBarFill, { width: '0%', backgroundColor: '#34d399' }]} />
               </View>
             </View>
           </View>
@@ -287,11 +281,11 @@ export default function TasksScreen({ route }: any) {
 
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
-                <Text style={styles.metricVal}>$128.4k</Text>
+                <Text style={styles.metricVal}>₹0</Text>
                 <Text style={styles.metricLbl}>Won Revenue</Text>
               </View>
               <View style={styles.metricCard}>
-                <Text style={[styles.metricVal, { color: '#38bdf8' }]}>$412k</Text>
+                <Text style={[styles.metricVal, { color: '#38bdf8' }]}>₹0</Text>
                 <Text style={styles.metricLbl}>Active Pipeline</Text>
               </View>
             </View>
@@ -307,12 +301,12 @@ export default function TasksScreen({ route }: any) {
             <Text style={styles.moduleSub}>Audit outbound WhatsApp messages, call logs, and response times.</Text>
 
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>📞 Today's Outbound Calling Telemetry: 384 Calls Logged</Text>
-              <Text style={styles.itemMeta}>Avg Call Duration: 4m 12s • Connected Rate: 78.4%</Text>
+              <Text style={styles.itemTitle}>📞 Today's Outbound Calling Telemetry: 0 Calls Logged</Text>
+              <Text style={styles.itemMeta}>Avg Call Duration: 0s • Connected Rate: 0.0%</Text>
             </View>
             <View style={styles.cardItem}>
-              <Text style={styles.itemTitle}>💬 WhatsApp Automated Ingestion: 820 Messages Sent</Text>
-              <Text style={styles.itemMeta}>Active Webhook Hook: Connected 🟢</Text>
+              <Text style={styles.itemTitle}>💬 WhatsApp Automated Ingestion: 0 Messages Sent</Text>
+              <Text style={styles.itemMeta}>Active Webhook Hook: Ready 🟢</Text>
             </View>
           </View>
         )}
@@ -324,15 +318,21 @@ export default function TasksScreen({ route }: any) {
           <View style={styles.moduleSection}>
             <Text style={styles.moduleTitle}>📋 Task Operations &amp; Call Reminders</Text>
 
-            {tasks.map(t => (
-              <View key={t.id} style={styles.cardItem}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.itemTitle}>{t.title}</Text>
-                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#ef4444' }}>{t.priority}</Text>
-                </View>
-                <Text style={styles.itemMeta}>Lead: {t.lead} • Due: {t.dueDate}</Text>
+            {tasks.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: '#94a3b8' }}>No operational tasks or reminders.</Text>
               </View>
-            ))}
+            ) : (
+              tasks.map(t => (
+                <View key={t.id} style={styles.cardItem}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.itemTitle}>{t.title}</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#ef4444' }}>{t.priority}</Text>
+                  </View>
+                  <Text style={styles.itemMeta}>Lead: {t.lead} • Due: {t.dueDate}</Text>
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -382,7 +382,7 @@ export default function TasksScreen({ route }: any) {
             </View>
 
             <Text style={styles.label}>Client Name *</Text>
-            <TextInput style={styles.input} placeholder="e.g. TechCorp Solutions" placeholderTextColor="#64748b" value={clientName} onChangeText={setClientName} />
+            <TextInput style={styles.input} placeholder="e.g. Client Enterprise Name" placeholderTextColor="#64748b" value={clientName} onChangeText={setClientName} />
 
             <Text style={styles.label}>Quote Total Amount (₹)</Text>
             <TextInput style={styles.input} placeholder="e.g. ₹65,000" placeholderTextColor="#64748b" value={quoteAmount} onChangeText={setQuoteAmount} />

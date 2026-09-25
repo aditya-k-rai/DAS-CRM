@@ -97,7 +97,7 @@ export function OnboardingWizard() {
             <label className="text-xs font-semibold text-muted block mb-1.5">Organization / Company Name</label>
             <input
               className="crm-input text-sm w-full"
-              placeholder="e.g. Acme Corporation"
+              placeholder="e.g. Enterprise Organization"
               value={orgName}
               onChange={e => setOrgName(e.target.value)}
             />

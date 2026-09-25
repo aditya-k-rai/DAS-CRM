@@ -6,7 +6,7 @@
  * 1. Source Option Switcher: All Sources | 📊 Google Sheets | 📁 Excel / CSV
  * 2. Date-Wise Grouped History in chronological order (Today, Yesterday, Specific Dates)
  * 3. In-Depth Allocation Data:
- *    - Batchwise ranges & assigned reps (Rows 1-62 -> Priya Sharma, etc.)
+ *    - Batchwise ranges & assigned reps (e.g. Rows 1-62 -> Rep Name)
  *    - Direct Assignments
  *    - Lead Pool claim window details
  * 4. Date and exact time of import (e.g., 13 Sep 2026, 03:15 PM)
@@ -87,154 +87,7 @@ interface LeadImportHistoryViewProps {
 
 // ── Mock Pre-Populated History (Ordered Date-Wise) ─────────────────────────────
 
-const INITIAL_IMPORT_HISTORY: DetailedImportHistoryItem[] = [
-  {
-    id: 'imp-001',
-    source: 'GOOGLE_SHEETS',
-    fileName: 'Website Inbound Leads 2026',
-    sheetTabName: 'Sept_Live_Sync',
-    importDateGroup: 'Today — 13 Sep 2026',
-    importDate: '13 Sep 2026',
-    importTime: '03:15 PM',
-    fullTimestamp: '13 Sep 2026, 03:15 PM',
-    totalRows: 142,
-    rowsCreated: 138,
-    rowsUpdated: 4,
-    rowsSkipped: 0,
-    status: 'VERIFIED',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'BATCHWISE',
-    allocationSummaryTitle: '2 Custom Batch Quotas Distributed',
-    batches: [
-      { ruleIndex: 1, fromRow: 1, toRow: 70, leadCount: 70, assigneeName: 'Priya Sharma', role: 'Team Leader', color: '#818cf8' },
-      { ruleIndex: 2, fromRow: 71, toRow: 142, leadCount: 72, assigneeName: 'Rohan Kumar', role: 'Sales Exec', color: '#34d399' },
-    ],
-    downloadFileName: 'Website_Inbound_Leads_SeptLive_13Sep2026.csv',
-    fileSizeStr: '412 KB',
-  },
-  {
-    id: 'imp-002',
-    source: 'CSV',
-    fileName: 'facebook_leads_aug2026.csv',
-    importDateGroup: 'Today — 13 Sep 2026',
-    importDate: '13 Sep 2026',
-    importTime: '11:40 AM',
-    fullTimestamp: '13 Sep 2026, 11:40 AM',
-    totalRows: 214,
-    rowsCreated: 198,
-    rowsUpdated: 16,
-    rowsSkipped: 0,
-    status: 'VERIFIED',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'BATCHWISE',
-    allocationSummaryTitle: '3 Batch Rules Allocated across Sales Team',
-    batches: [
-      { ruleIndex: 1, fromRow: 1, toRow: 100, leadCount: 100, assigneeName: 'Priya Sharma', role: 'Team Leader', color: '#818cf8' },
-      { ruleIndex: 2, fromRow: 101, toRow: 160, leadCount: 60, assigneeName: 'Amit Shah', role: 'Sales Exec', color: '#f59e0b' },
-      { ruleIndex: 3, fromRow: 161, toRow: 214, leadCount: 54, assigneeName: 'Neha Gupta', role: 'Sales Exec', color: '#f472b6' },
-    ],
-    downloadFileName: 'facebook_leads_aug2026_allocated.csv',
-    fileSizeStr: '580 KB',
-  },
-  {
-    id: 'imp-003',
-    source: 'EXCEL',
-    fileName: 'Enterprise_Leads_Batch_Q3.xlsx',
-    importDateGroup: 'Yesterday — 12 Sep 2026',
-    importDate: '12 Sep 2026',
-    importTime: '04:30 PM',
-    fullTimestamp: '12 Sep 2026, 04:30 PM',
-    totalRows: 124,
-    rowsCreated: 120,
-    rowsUpdated: 4,
-    rowsSkipped: 0,
-    status: 'VERIFIED',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'DIRECT_ASSIGN',
-    allocationSummaryTitle: 'Direct Assignment to Single User',
-    directAssignee: {
-      name: 'Rohan Kumar',
-      role: 'Sales Exec',
-      leadsCount: 124,
-    },
-    downloadFileName: 'Enterprise_Leads_Batch_Q3_Allocated.xlsx',
-    fileSizeStr: '1.2 MB',
-  },
-  {
-    id: 'imp-004',
-    source: 'GOOGLE_SHEETS',
-    fileName: 'Google Ads Inbound Campaign 2026',
-    sheetTabName: 'Master_Leads',
-    importDateGroup: 'Yesterday — 12 Sep 2026',
-    importDate: '12 Sep 2026',
-    importTime: '10:15 AM',
-    fullTimestamp: '12 Sep 2026, 10:15 AM',
-    totalRows: 89,
-    rowsCreated: 85,
-    rowsUpdated: 4,
-    rowsSkipped: 0,
-    status: 'ACTIVE_SYNC',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'LEAD_POOL',
-    allocationSummaryTitle: 'Realtime Lead Pool & Claim Window',
-    poolDetails: {
-      claimWindowMinutes: 30,
-      claimedCount: 64,
-      remainingCount: 25,
-    },
-    downloadFileName: 'Google_Ads_Inbound_Master_12Sep2026.csv',
-    fileSizeStr: '284 KB',
-  },
-  {
-    id: 'imp-005',
-    source: 'EXCEL',
-    fileName: 'Mumbai_RealEstate_Campaign.xlsx',
-    importDateGroup: '10 Sep 2026',
-    importDate: '10 Sep 2026',
-    importTime: '02:15 PM',
-    fullTimestamp: '10 Sep 2026, 02:15 PM',
-    totalRows: 350,
-    rowsCreated: 334,
-    rowsUpdated: 16,
-    rowsSkipped: 0,
-    status: 'COMPLETED',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'BATCHWISE',
-    allocationSummaryTitle: '3 Batch Rules Allocated across Sales Team',
-    batches: [
-      { ruleIndex: 1, fromRow: 1, toRow: 150, leadCount: 150, assigneeName: 'Amit Shah', role: 'Sales Exec', color: '#f59e0b' },
-      { ruleIndex: 2, fromRow: 151, toRow: 250, leadCount: 100, assigneeName: 'Neha Gupta', role: 'Sales Exec', color: '#f472b6' },
-      { ruleIndex: 3, fromRow: 251, toRow: 350, leadCount: 100, assigneeName: 'Rohan Kumar', role: 'Sales Exec', color: '#34d399' },
-    ],
-    downloadFileName: 'Mumbai_RealEstate_Campaign_Allocated.xlsx',
-    fileSizeStr: '2.8 MB',
-  },
-  {
-    id: 'imp-006',
-    source: 'GOOGLE_SHEETS',
-    fileName: 'Referral Partner Leads Network',
-    sheetTabName: 'Partners_Q3',
-    importDateGroup: '05 Sep 2026',
-    importDate: '05 Sep 2026',
-    importTime: '09:30 AM',
-    fullTimestamp: '05 Sep 2026, 09:30 AM',
-    totalRows: 65,
-    rowsCreated: 65,
-    rowsUpdated: 0,
-    rowsSkipped: 0,
-    status: 'COMPLETED',
-    importedBy: 'Aditya (Admin)',
-    allocationMode: 'DIRECT_ASSIGN',
-    allocationSummaryTitle: 'Direct Assignment to Single User',
-    directAssignee: {
-      name: 'Priya Sharma',
-      role: 'Team Leader',
-      leadsCount: 65,
-    },
-    downloadFileName: 'Referral_Partner_Leads_Network.csv',
-    fileSizeStr: '190 KB',
-  },
-];
+const INITIAL_IMPORT_HISTORY: DetailedImportHistoryItem[] = [];
 
 export const LeadImportHistoryView: React.FC<LeadImportHistoryViewProps> = ({
   onOpenNewIngestion,
@@ -249,7 +102,7 @@ export const LeadImportHistoryView: React.FC<LeadImportHistoryViewProps> = ({
   // 2. Mail to Admin Modal State
   const [mailModalVisible, setMailModalVisible] = useState(false);
   const [activeItemForMail, setActiveItemForMail] = useState<DetailedImportHistoryItem | null>(null);
-  const [adminRecipient, setAdminRecipient] = useState(currentUser?.email || 'adtyamighty@gmail.com');
+  const [adminRecipient, setAdminRecipient] = useState(currentUser?.email || 'admin@company.com');
   const [mailNotes, setMailNotes] = useState('');
   const [isSendingMail, setIsSendingMail] = useState(false);
 

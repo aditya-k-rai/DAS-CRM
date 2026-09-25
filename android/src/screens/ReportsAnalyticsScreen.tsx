@@ -52,27 +52,12 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
 
   const [reportsFilter, setReportsFilter] = useState<'TODAY' | 'WEEK' | 'MONTH'>('TODAY');
 
-  const LEADERBOARD_DATA: LeaderboardRep[] = [
-    { rankStr: '🥇', initials: 'RK', name: 'Rajesh Kumar', leadsHandled: 31, dealsClosed: 12, revenueGenerated: '₹5.2L', conversionPercent: 41, trend: 'UP' },
-    { rankStr: '🥈', initials: 'PS', name: 'Priya Sharma', leadsHandled: 24, dealsClosed: 8, revenueGenerated: '₹3.1L', conversionPercent: 33, trend: 'UP' },
-    { rankStr: '🥉', initials: 'AP', name: 'Amit Patel', leadsHandled: 18, dealsClosed: 5, revenueGenerated: '₹2.4L', conversionPercent: 28, trend: 'DOWN' },
-    { rankStr: '#4', initials: 'SV', name: 'Sunita Verma', leadsHandled: 12, dealsClosed: 4, revenueGenerated: '₹1.8L', conversionPercent: 22, trend: 'UP' },
-  ];
+  const LEADERBOARD_DATA: LeaderboardRep[] = [];
 
-  const callLogs: TelemetryCallLog[] = [
-    { id: '1', repName: 'Rajesh Kumar', clientName: 'TechCorp Solutions', duration: '05m 42s', status: 'CONNECTED', sentiment: 'POSITIVE', time: '10:45 AM' },
-    { id: '2', repName: 'Priya Sharma', clientName: 'LogiTech Freight', duration: '03m 15s', status: 'CONNECTED', sentiment: 'POSITIVE', time: '10:30 AM' },
-    { id: '3', repName: 'Amit Patel', clientName: 'Sunita Logistics', duration: '00m 00s', status: 'MISSED', sentiment: 'NEUTRAL', time: '10:12 AM' },
-    { id: '4', repName: 'Rajesh Kumar', clientName: 'Apex Retail Chain', duration: '08m 10s', status: 'CONNECTED', sentiment: 'POSITIVE', time: '09:50 AM' },
-  ];
+  const callLogs: TelemetryCallLog[] = [];
 
-  const chartBars = [
-    { day: 'Mon', calls: 45, rev: '₹1.2L' },
-    { day: 'Tue', calls: 62, rev: '₹2.4L' },
-    { day: 'Wed', calls: 58, rev: '₹1.8L' },
-    { day: 'Thu', calls: 74, rev: '₹3.2L' },
-    { day: 'Fri', calls: 81, rev: '₹4.0L' },
-  ];
+  const chartBars: { day: string; calls: number; rev: string }[] = [];
+
 
   const getConversionColor = (pct: number) => {
     if (pct >= 40) return '#22c55e'; // Green
@@ -113,54 +98,60 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
           </View>
 
           {/* Table Data Rows */}
-          {LEADERBOARD_DATA.map((rep, idx) => (
-            <View key={rep.name} style={[styles.tableDataRow, idx === LEADERBOARD_DATA.length - 1 && { borderBottomWidth: 0 }]}>
-              {/* Rank */}
-              <View style={{ width: 28, justifyContent: 'center' }}>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: idx === 0 ? '#f59e0b' : idx === 1 ? '#9ca3af' : idx === 2 ? '#b47850' : '#64748b' }}>
-                  {rep.rankStr}
-                </Text>
-              </View>
-
-              {/* Rep Name with Avatar Badge */}
-              <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarInitials}>{rep.initials}</Text>
+          {LEADERBOARD_DATA.length === 0 ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <Text style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No sales reps leaderboard data recorded</Text>
+            </View>
+          ) : (
+            LEADERBOARD_DATA.map((rep, idx) => (
+              <View key={rep.name} style={[styles.tableDataRow, idx === LEADERBOARD_DATA.length - 1 && { borderBottomWidth: 0 }]}>
+                {/* Rank */}
+                <View style={{ width: 28, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: idx === 0 ? '#f59e0b' : idx === 1 ? '#9ca3af' : idx === 2 ? '#b47850' : '#64748b' }}>
+                    {rep.rankStr}
+                  </Text>
                 </View>
-                <Text style={styles.repNameText} numberOfLines={1}>{rep.name}</Text>
-              </View>
 
-              {/* Leads Handled */}
-              <Text style={[styles.tdText, { flex: 1, textAlign: 'center' }]}>{rep.leadsHandled}</Text>
-
-              {/* Deals Closed */}
-              <Text style={[styles.tdText, { flex: 1, textAlign: 'center', fontWeight: '800' }]}>{rep.dealsClosed}</Text>
-
-              {/* Revenue Generated */}
-              <Text style={[styles.tdText, { flex: 1.2, textAlign: 'right', fontWeight: '900', color: '#818cf8' }]}>
-                {rep.revenueGenerated}
-              </Text>
-
-              {/* Conversion Rate with Progress Bar */}
-              <View style={{ flex: 1.8, paddingHorizontal: 4, justifyContent: 'center' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View style={styles.convBarTrack}>
-                    <View style={[styles.convBarFill, { width: `${rep.conversionPercent}%`, backgroundColor: getConversionColor(rep.conversionPercent) }]} />
+                {/* Rep Name with Avatar Badge */}
+                <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarInitials}>{rep.initials}</Text>
                   </View>
-                  <Text style={[styles.convPercentText, { color: getConversionColor(rep.conversionPercent) }]}>
-                    {rep.conversionPercent}%
+                  <Text style={styles.repNameText} numberOfLines={1}>{rep.name}</Text>
+                </View>
+
+                {/* Leads Handled */}
+                <Text style={[styles.tdText, { flex: 1, textAlign: 'center' }]}>{rep.leadsHandled}</Text>
+
+                {/* Deals Closed */}
+                <Text style={[styles.tdText, { flex: 1, textAlign: 'center', fontWeight: '800' }]}>{rep.dealsClosed}</Text>
+
+                {/* Revenue Generated */}
+                <Text style={[styles.tdText, { flex: 1.2, textAlign: 'right', fontWeight: '900', color: '#818cf8' }]}>
+                  {rep.revenueGenerated}
+                </Text>
+
+                {/* Conversion Rate with Progress Bar */}
+                <View style={{ flex: 1.8, paddingHorizontal: 4, justifyContent: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={styles.convBarTrack}>
+                      <View style={[styles.convBarFill, { width: `${rep.conversionPercent}%`, backgroundColor: getConversionColor(rep.conversionPercent) }]} />
+                    </View>
+                    <Text style={[styles.convPercentText, { color: getConversionColor(rep.conversionPercent) }]}>
+                      {rep.conversionPercent}%
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Trend Icon */}
+                <View style={{ width: 32, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: rep.trend === 'UP' ? '#22c55e' : '#ef4444' }}>
+                    {rep.trend === 'UP' ? '↗' : '↘'}
                   </Text>
                 </View>
               </View>
-
-              {/* Trend Icon */}
-              <View style={{ width: 32, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: rep.trend === 'UP' ? '#22c55e' : '#ef4444' }}>
-                  {rep.trend === 'UP' ? '↗' : '↘'}
-                </Text>
-              </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         {/* ── PERFORMANCE & TELEMETRY AUDIT ───────────────────────────────── */}
@@ -185,18 +176,18 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
             <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
               <Text style={{ fontSize: 16, fontWeight: '900', color: '#38bdf8' }}>
-                {reportsFilter === 'TODAY' ? '₹5.2L' : reportsFilter === 'WEEK' ? '₹12.5L' : '₹45.0L'}
+                ₹0
               </Text>
               <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Revenue Won</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
               <Text style={{ fontSize: 16, fontWeight: '900', color: '#34d399' }}>
-                {reportsFilter === 'TODAY' ? '384 Calls' : reportsFilter === 'WEEK' ? '1,840 Calls' : '7,920 Calls'}
+                0 Calls
               </Text>
               <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Done</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: '#020617', padding: 10, borderRadius: 10, alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc' }}>31.0%</Text>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#c084fc' }}>0.0%</Text>
               <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>Avg Conv. Rate</Text>
             </View>
           </View>
@@ -204,15 +195,21 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
           {/* Visual Call Volume Chart */}
           <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
             <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff', marginBottom: 8 }}>📈 Daily Call Volume &amp; Revenue Trend</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 80, paddingHorizontal: 10, backgroundColor: '#020617', borderRadius: 10, paddingVertical: 8 }}>
-              {chartBars.map((bar, i) => (
-                <View key={i} style={{ alignItems: 'center', gap: 4 }}>
-                  <Text style={{ fontSize: 7, color: '#34d399', fontWeight: '800' }}>{bar.rev}</Text>
-                  <View style={{ width: 18, height: bar.calls * 0.6, backgroundColor: '#4f46e5', borderRadius: 4 }} />
-                  <Text style={{ fontSize: 8, color: '#94a3b8', fontWeight: '800' }}>{bar.day}</Text>
-                </View>
-              ))}
-            </View>
+            {chartBars.length === 0 ? (
+              <View style={{ height: 60, justifyContent: 'center', alignItems: 'center', backgroundColor: '#020617', borderRadius: 10 }}>
+                <Text style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic' }}>No daily call telemetry trend recorded</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 80, paddingHorizontal: 10, backgroundColor: '#020617', borderRadius: 10, paddingVertical: 8 }}>
+                {chartBars.map((bar, i) => (
+                  <View key={i} style={{ alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 7, color: '#34d399', fontWeight: '800' }}>{bar.rev}</Text>
+                    <View style={{ width: 18, height: bar.calls * 0.6, backgroundColor: '#4f46e5', borderRadius: 4 }} />
+                    <Text style={{ fontSize: 8, color: '#94a3b8', fontWeight: '800' }}>{bar.day}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Lead Source Breakdown */}
@@ -220,10 +217,10 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
             <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff', marginBottom: 6 }}>📊 Lead Attribution Traffic Sources</Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {[
-                { source: 'WhatsApp API', pct: '42%' },
-                { source: 'Google Ads', pct: '28%' },
-                { source: 'Meta Ads', pct: '18%' },
-                { source: 'Direct Inbound', pct: '12%' },
+                { source: 'WhatsApp API', pct: '0%' },
+                { source: 'Google Ads', pct: '0%' },
+                { source: 'Meta Ads', pct: '0%' },
+                { source: 'Direct Inbound', pct: '0%' },
               ].map((src, idx) => (
                 <View key={idx} style={{ flex: 1, backgroundColor: '#020617', padding: 6, borderRadius: 8, alignItems: 'center' }}>
                   <Text style={{ fontSize: 11, fontWeight: '900', color: '#38bdf8' }}>{src.pct}</Text>
@@ -236,18 +233,24 @@ export const ReportsAnalyticsScreen: React.FC<ReportsAnalyticsScreenProps> = ({ 
           {/* Call Telemetry Audit */}
           <View style={{ marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#1e293b' }}>
             <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff', marginBottom: 6 }}>📞 Live Call Recording Audit Log</Text>
-            {callLogs.map((log) => (
-              <View key={log.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#020617' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>{log.repName} ➔ {log.clientName}</Text>
-                  <Text style={{ fontSize: 9, color: '#94a3b8' }}>{log.time} • Duration: {log.duration}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: log.status === 'CONNECTED' ? '#34d399' : '#ef4444' }}>{log.status}</Text>
-                  <Text style={{ fontSize: 8, color: '#c084fc', fontWeight: '800' }}>{log.sentiment}</Text>
-                </View>
+            {callLogs.length === 0 ? (
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                <Text style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic' }}>No live call recordings in current audit window</Text>
               </View>
-            ))}
+            ) : (
+              callLogs.map((log) => (
+                <View key={log.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#020617' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: '#ffffff', fontWeight: '700' }}>{log.repName} ➔ {log.clientName}</Text>
+                    <Text style={{ fontSize: 9, color: '#94a3b8' }}>{log.time} • Duration: {log.duration}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: log.status === 'CONNECTED' ? '#34d399' : '#ef4444' }}>{log.status}</Text>
+                    <Text style={{ fontSize: 8, color: '#c084fc', fontWeight: '800' }}>{log.sentiment}</Text>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
 
           <TouchableOpacity

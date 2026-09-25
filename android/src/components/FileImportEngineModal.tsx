@@ -153,16 +153,7 @@ export interface IncompleteContactRecord {
   isSkipped: boolean;
 }
 
-const DEFAULT_PREVIOUS_LEADS = [
-  { id: 'prev-1', name: 'Sonu Sharma', phone: '91999689978', email: 'kant0959@gmail.com', createdAt: '2026-09-09' },
-  { id: 'prev-2', name: 'Deepak Bhabar', phone: '916267012760', email: 'djbbr77@gmail.com', createdAt: '2026-09-09' },
-  { id: 'prev-3', name: 'Rajesh Kumar', phone: '9876543210', email: 'rajesh@acme.com', createdAt: '2026-08-15' },
-  { id: 'prev-4', name: 'Priya Sharma', phone: '8765432109', email: 'priya@techcorp.in', createdAt: '2026-08-16' },
-  { id: 'prev-5', name: 'Amit Shah', phone: '7654321098', email: 'amit@westreach.com', createdAt: '2026-08-20' },
-  { id: 'prev-6', name: 'Neha Gupta', phone: '6543210987', email: 'neha@lotwaala.org', createdAt: '2026-08-22' },
-  { id: 'prev-7', name: 'Vikram Mehta', phone: '9811122233', email: 'vikram@mehtas.com', createdAt: '2026-08-25' },
-  { id: 'prev-8', name: 'Ananya Roy', phone: '9822233344', email: 'ananya@royenterprises.in', createdAt: '2026-08-28' },
-];
+const DEFAULT_PREVIOUS_LEADS: Array<{ id: string; name: string; phone: string; email: string; createdAt: string }> = [];
 
 export const isPhoneMatch = (p1: string, p2: string): boolean => {
   const c1 = (p1 || '').replace(/[^0-9]/g, '');
@@ -193,81 +184,13 @@ export interface SavedImportSession {
 }
 
 export const DEFAULT_IMPORT_SESSION: SavedImportSession = {
-  fileName: '25-27 May_user_data.xlsx',
-  inputFileName: '25-27 May_user_data',
-  fileSize: '8.1 KB',
+  fileName: '',
+  inputFileName: '',
+  fileSize: '0 B',
   fmt: 'XLSX',
-  selectedPlatform: 'Google Ads',
+  selectedPlatform: 'Website Forms',
   activeIdx: 0,
-  sheets: [
-    {
-      name: '25_May_2026',
-      isBlocked: false,
-      columns: [
-        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
-        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
-        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
-        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
-        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
-        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
-        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
-      ],
-      blockedRows: [false, false, false, false, false, false, false, false, false, false, false],
-      data: [
-        ['Asfak Hunnani', 'Asfakhunnani@gmail.com', '+91 98765 43210', 'Hunnani Enterprises', '₹45,000', 'Mumbai', 'Enterprise CRM Suite'],
-        ['Shruti Kamble', 'mblephoto403@gmail.com', '+91 98123 45678', 'Kamble Studios', '₹35,000', 'Pune', 'WhatsApp Cloud API'],
-        ['Lalith Mukesh', 'lalithm300@gmail.com', '+91 97222 33445', 'Lalith Tech Labs', '₹75,000', 'Bangalore', 'AI Lead Scoring Engine'],
-        ['Anshika Kharola', 'harolaanshika@gmail.com', '+91 99887 11223', 'Kharola Logistics', '₹60,000', 'Delhi', 'Cold Outreach Pipeline'],
-        ['Abhishek Chouhan', 'k.chouhan42@gmail.com', '+91 96543 21098', 'Chouhan Corp', '₹30,000', 'Jaipur', 'Call Recording Integration'],
-        ['Parag Hadiya', 'hadiyaparag7@gmail.com', '+91 98444 55667', 'Hadiya & Sons', '₹50,000', 'Ahmedabad', 'Catalog PDF Generator'],
-        ['Ramesh Patel', 'ramesh.patel@gmail.com', '+91 98111 22334', 'Patel Industries', '₹90,000', 'Surat', 'Multi-Source Sync'],
-        ['Sneha Deshmukh', 'sneha.d@outlook.com', '+91 97555 44332', 'Deshmukh Pharma', '₹1,20,000', 'Nagpur', 'Full Suite License'],
-        ['Vikas Verma', 'vikas.verma@yahoo.com', '+91 98333 77889', 'Verma Tech Solutions', '₹40,000', 'Indore', 'Automated Lead Allocation'],
-        ['Pooja Nair', 'pooja.nair@gmail.com', '+91 98999 11223', 'Nair Healthcare Ltd', '₹85,000', 'Kochi', 'WhatsApp Broadcasts'],
-        ['Gaurav Mishra', 'gaurav.m@gmail.com', '+91 97444 88990', 'Mishra Traders', '₹28,000', 'Lucknow', 'HR & Attendance Sync'],
-      ],
-    },
-    {
-      name: '26_May_2026',
-      isBlocked: false,
-      columns: [
-        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
-        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
-        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
-        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
-        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
-        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
-        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
-      ],
-      blockedRows: [false, false, false, false, false],
-      data: [
-        ['Vikram Sethi', 'vikram@sethi.com', '+91 98777 66655', 'Sethi Global Pvt Ltd', '₹1,10,000', 'Chandigarh', 'Enterprise SLA'],
-        ['Meera Pillai', 'meera.p@outlook.com', '+91 98765 00112', 'Pillai Agro Exports', '₹65,000', 'Chennai', 'Lead Ingestion Portal'],
-        ['Yusuf Ansari', 'yusuf.ansari@yahoo.com', '+91 97345 88902', 'Ansari Textiles', '₹45,000', 'Varanasi', 'Quotations Module'],
-        ['Simran Kaur', 'simran.k@hotmail.com', '+91 99100 55678', 'Kaur Technologies', '₹80,000', 'Mohali', 'AI Chatbot Routing'],
-        ['Deepak Malhotra', 'deepak.m@gmail.com', '+91 98444 11223', 'Malhotra Auto Spares', '₹55,000', 'Ludhiana', 'Deals Pipeline Kanban'],
-      ],
-    },
-    {
-      name: '27_May_2026',
-      isBlocked: false,
-      columns: [
-        { key: 'col_0', header: 'User', index: 0, role: 'name', blocked: false, width: 170 },
-        { key: 'col_1', header: 'Email Address', index: 1, role: 'email', blocked: false, width: 170 },
-        { key: 'col_2', header: 'Phone Number', index: 2, role: 'phone', blocked: false, width: 170 },
-        { key: 'col_3', header: 'Company Name', index: 3, role: 'company', blocked: false, width: 170 },
-        { key: 'col_4', header: 'Lead Value', index: 4, role: 'value', blocked: false, width: 140 },
-        { key: 'col_5', header: 'City', index: 5, role: 'city', blocked: false, width: 140 },
-        { key: 'col_6', header: 'Requirement', index: 6, role: 'custom', blocked: false, width: 170 },
-      ],
-      blockedRows: [false, false, false],
-      data: [
-        ['Kiran Nair', 'kiran.nair@gmail.com', '+91 96543 21099', 'Nair Solar Power', '₹1,50,000', 'Thiruvananthapuram', 'Enterprise CRM'],
-        ['Tarun Singhal', 'tarun.s@singhal.com', '+91 98112 33445', 'Singhal Steel Works', '₹95,000', 'Bhilai', 'Live Sync Telemetry'],
-        ['Ritu Saxena', 'ritu.saxena@gmail.com', '+91 97123 99887', 'Saxena Design Hub', '₹38,000', 'Bhopal', 'Brochures & WhatsApp'],
-      ],
-    },
-  ],
+  sheets: [],
 };
 
 export interface FileImportEngineModalProps {
@@ -922,7 +845,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             name:'', email:'No Email Provided', phone:'',
             company:'Independent Prospect', source: selectedPlatform,
             status: isRetargeting ? 'RETARGETING' : 'NEW LEAD',
-            value:'₹25,000', assignedRep:'Rajesh Kumar',
+            value:'₹0', assignedRep:'Unassigned',
             city:'', budget:'', requirement:'',
             callSyncStatus:'Synced: Just Now • Pending',
             customFields: isRetargeting ? { isRetargeting: 'true', campaign: 'Retargeting Campaign' } : {},

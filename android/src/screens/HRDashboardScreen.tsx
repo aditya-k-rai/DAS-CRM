@@ -18,43 +18,17 @@ import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
 
-const LEAVE_REQUESTS = [
-  {
-    id: 'lr1',
-    name: 'Rajesh Kumar',
-    role: 'SALES EXEC',
-    type: 'Sick Leave',
-    dates: '20 Aug – 21 Aug',
-    days: 2,
-    status: 'PENDING',
-  },
-  {
-    id: 'lr2',
-    name: 'Ananya Sharma',
-    role: 'SALES EXEC',
-    type: 'Casual Leave',
-    dates: '22 Aug',
-    days: 1,
-    status: 'PENDING',
-  },
-  {
-    id: 'lr3',
-    name: 'Karan Mehta',
-    role: 'TEAM LEADER',
-    type: 'Earned Leave',
-    dates: '25 Aug – 28 Aug',
-    days: 4,
-    status: 'APPROVED',
-  },
-];
+const LEAVE_REQUESTS: {
+  id: string;
+  name: string;
+  role: string;
+  type: string;
+  dates: string;
+  days: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}[] = [];
 
-const ATTENDANCE_TODAY = [
-  { name: 'Vikram Singh', role: 'ADMIN', status: 'PRESENT', time: '09:02 AM' },
-  { name: 'Sunita Verma', role: 'HR', status: 'PRESENT', time: '09:15 AM' },
-  { name: 'Rajesh Kumar', role: 'SALES EXEC', status: 'SICK LEAVE', time: '—' },
-  { name: 'Amit Shah', role: 'TEAM LEADER', status: 'PRESENT', time: '08:58 AM' },
-  { name: 'Priya Sharma', role: 'SALES EXEC', status: 'LATE', time: '10:14 AM' },
-];
+const ATTENDANCE_TODAY: { name: string; role: string; status: string; time: string }[] = [];
 
 export default function HRDashboardScreen({ navigation }: any) {
   const { colors, isDark } = useTheme();
@@ -123,10 +97,10 @@ export default function HRDashboardScreen({ navigation }: any) {
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>👥</Text>
                   <Text style={[styles.statTag, { color: isDark ? '#38bdf8' : '#0284c7', backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(2,132,199,0.12)' }]}>
-                    +2 New
+                    Active
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: isDark ? '#38bdf8' : '#0284c7' }]}>45</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#38bdf8' : '#0284c7' }]}>0</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Staff Members</Text>
               </View>
 
@@ -134,10 +108,10 @@ export default function HRDashboardScreen({ navigation }: any) {
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>⏱️</Text>
                   <Text style={[styles.statTag, { color: isDark ? '#34d399' : '#059669', backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)' }]}>
-                    +1.2%
+                    0.0%
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: isDark ? '#34d399' : '#059669' }]}>95.5%</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#34d399' : '#059669' }]}>0.0%</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Attendance Rate Today</Text>
               </View>
 
@@ -145,10 +119,10 @@ export default function HRDashboardScreen({ navigation }: any) {
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>📅</Text>
                   <Text style={[styles.statTag, { color: isDark ? '#fbbf24' : '#b45309', backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)' }]}>
-                    ACTION
+                    CLEAN
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: isDark ? '#fbbf24' : '#b45309' }]}>3</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#fbbf24' : '#b45309' }]}>0</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Leave Requests Pending</Text>
               </View>
 
@@ -156,10 +130,10 @@ export default function HRDashboardScreen({ navigation }: any) {
                 <View style={styles.statHeader}>
                   <Text style={styles.statIcon}>💳</Text>
                   <Text style={[styles.statTag, { color: isDark ? '#c084fc' : '#7c3aed', backgroundColor: isDark ? 'rgba(168,85,247,0.15)' : 'rgba(124,58,237,0.12)' }]}>
-                    AUG
+                    PAYROLL
                   </Text>
                 </View>
-                <Text style={[styles.statValue, { color: isDark ? '#c084fc' : '#7c3aed' }]}>₹64.2L</Text>
+                <Text style={[styles.statValue, { color: isDark ? '#c084fc' : '#7c3aed' }]}>₹0</Text>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Monthly Payroll Total</Text>
               </View>
             </View>
@@ -168,9 +142,9 @@ export default function HRDashboardScreen({ navigation }: any) {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Attendance Summary Today</Text>
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               {[
-                { label: 'Present Staff', value: '43 Employees', color: isDark ? '#34d399' : '#059669' },
-                { label: 'On Approved Leave', value: '2 Employees', color: isDark ? '#fbbf24' : '#b45309' },
-                { label: 'Late Arrivals', value: '1 Employee', color: isDark ? '#f87171' : '#dc2626' },
+                { label: 'Present Staff', value: '0 Employees', color: isDark ? '#34d399' : '#059669' },
+                { label: 'On Approved Leave', value: '0 Employees', color: isDark ? '#fbbf24' : '#b45309' },
+                { label: 'Late Arrivals', value: '0 Employees', color: isDark ? '#f87171' : '#dc2626' },
                 { label: 'Absent / Unexplained', value: '0 Employees', color: colors.textSecondary },
               ].map((row, i) => (
                 <View
@@ -189,10 +163,10 @@ export default function HRDashboardScreen({ navigation }: any) {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Payroll Quick Stats</Text>
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               {[
-                { label: 'Base Salary Disbursed', value: '₹52.4L', color: colors.text },
-                { label: 'Incentives & Bonuses', value: '₹8.6L', color: isDark ? '#34d399' : '#059669' },
-                { label: 'Deductions (ESI/PF)', value: '₹3.2L', color: isDark ? '#f87171' : '#dc2626' },
-                { label: 'Net Payroll Processed', value: '₹64.2L', color: isDark ? '#c084fc' : '#7c3aed' },
+                { label: 'Base Salary Disbursed', value: '₹0', color: colors.text },
+                { label: 'Incentives & Bonuses', value: '₹0', color: isDark ? '#34d399' : '#059669' },
+                { label: 'Deductions (ESI/PF)', value: '₹0', color: isDark ? '#f87171' : '#dc2626' },
+                { label: 'Net Payroll Processed', value: '₹0', color: isDark ? '#c084fc' : '#7c3aed' },
               ].map((row, i) => (
                 <View
                   key={i}
@@ -215,56 +189,66 @@ export default function HRDashboardScreen({ navigation }: any) {
               Today's attendance log for all staff members
             </Text>
 
-            {ATTENDANCE_TODAY.map((emp, i) => {
-              const statusColor =
-                emp.status === 'PRESENT'
-                  ? (isDark ? '#34d399' : '#059669')
-                  : emp.status === 'LATE'
-                  ? (isDark ? '#fbbf24' : '#b45309')
-                  : (isDark ? '#f87171' : '#dc2626');
-              const statusBg =
-                emp.status === 'PRESENT'
-                  ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)')
-                  : emp.status === 'LATE'
-                  ? (isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)')
-                  : (isDark ? 'rgba(239,68,68,0.15)' : 'rgba(220,38,38,0.12)');
+            {ATTENDANCE_TODAY.length === 0 ? (
+              <View style={[styles.emptyCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={styles.emptyIcon}>⏱️</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Attendance Logs Today</Text>
+                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                  Staff check-ins and punches will appear here in real-time.
+                </Text>
+              </View>
+            ) : (
+              ATTENDANCE_TODAY.map((emp, i) => {
+                const statusColor =
+                  emp.status === 'PRESENT'
+                    ? (isDark ? '#34d399' : '#059669')
+                    : emp.status === 'LATE'
+                    ? (isDark ? '#fbbf24' : '#b45309')
+                    : (isDark ? '#f87171' : '#dc2626');
+                const statusBg =
+                  emp.status === 'PRESENT'
+                    ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)')
+                    : emp.status === 'LATE'
+                    ? (isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)')
+                    : (isDark ? 'rgba(239,68,68,0.15)' : 'rgba(220,38,38,0.12)');
 
-              return (
-                <View key={i} style={[styles.attendanceCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                  <View
-                    style={[
-                      styles.avatarCircle,
-                      { backgroundColor: statusColor + '20' },
-                    ]}
-                  >
-                    <Text style={[styles.avatarText, { color: statusColor }]}>
-                      {emp.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .slice(0, 2)}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
-                    <Text style={[styles.empRole, { color: colors.textSecondary }]}>{emp.role}</Text>
-                  </View>
-                  <View>
+                return (
+                  <View key={i} style={[styles.attendanceCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                     <View
                       style={[
-                        styles.statusTag,
-                        { backgroundColor: statusBg, borderColor: statusColor + '50' },
+                        styles.avatarCircle,
+                        { backgroundColor: statusColor + '20' },
                       ]}
                     >
-                      <Text style={[styles.statusTagText, { color: statusColor }]}>
-                        {emp.status}
+                      <Text style={[styles.avatarText, { color: statusColor }]}>
+                        {emp.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')
+                          .slice(0, 2)}
                       </Text>
                     </View>
-                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{emp.time}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
+                      <Text style={[styles.empRole, { color: colors.textSecondary }]}>{emp.role}</Text>
+                    </View>
+                    <View>
+                      <View
+                        style={[
+                          styles.statusTag,
+                          { backgroundColor: statusBg, borderColor: statusColor + '50' },
+                        ]}
+                      >
+                        <Text style={[styles.statusTagText, { color: statusColor }]}>
+                          {emp.status}
+                        </Text>
+                      </View>
+                      <Text style={[styles.timeText, { color: colors.textSecondary }]}>{emp.time}</Text>
+                    </View>
                   </View>
-                </View>
-              );
-            })}
+                );
+              })
+            )}
           </View>
         )}
 
@@ -275,88 +259,116 @@ export default function HRDashboardScreen({ navigation }: any) {
               Pending leave requests awaiting HR approval
             </Text>
 
-            {leaves.map((req) => {
-              const isPending = req.status === 'PENDING';
-              return (
-                <View key={req.id} style={[styles.leaveCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                  <View style={styles.leaveHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.leaveName, { color: colors.text }]}>{req.name}</Text>
-                      <Text style={[styles.leaveRole, { color: colors.textSecondary }]}>{req.role}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.leaveStatusTag,
-                        isPending
-                          ? {
-                              backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)',
-                              borderColor: isDark ? 'rgba(245,158,11,0.4)' : 'rgba(217,119,6,0.3)',
-                            }
-                          : {
-                              backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)',
-                              borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(5,150,105,0.3)',
-                            },
-                      ]}
-                    >
-                      <Text
+            {leaves.length === 0 ? (
+              <View style={[styles.emptyCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <Text style={styles.emptyIcon}>📅</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Pending Leaves</Text>
+                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                  All staff leave applications and adjustments have been processed.
+                </Text>
+              </View>
+            ) : (
+              leaves.map((req) => {
+                const isPending = req.status === 'PENDING';
+                return (
+                  <View key={req.id} style={[styles.leaveCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                    <View style={styles.leaveHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.leaveName, { color: colors.text }]}>{req.name}</Text>
+                        <Text style={[styles.leaveRole, { color: colors.textSecondary }]}>{req.role}</Text>
+                      </View>
+                      <View
                         style={[
-                          styles.leaveStatusText,
-                          { color: isPending ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#34d399' : '#059669') },
+                          styles.leaveStatusTag,
+                          isPending
+                            ? {
+                                backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.12)',
+                                borderColor: isDark ? 'rgba(245,158,11,0.4)' : 'rgba(217,119,6,0.3)',
+                              }
+                            : {
+                                backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(5,150,105,0.12)',
+                                borderColor: isDark ? 'rgba(16,185,129,0.4)' : 'rgba(5,150,105,0.3)',
+                              },
                         ]}
                       >
-                        {req.status}
+                        <Text
+                          style={[
+                            styles.leaveStatusText,
+                            { color: isPending ? (isDark ? '#fbbf24' : '#b45309') : (isDark ? '#34d399' : '#059669') },
+                          ]}
+                        >
+                          {req.status}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.leaveDetails}>
+                      <Text style={[styles.leaveType, { color: colors.textSecondary }]}>
+                        📋 {req.type} — {req.days} Day{req.days > 1 ? 's' : ''}
                       </Text>
+                      <Text style={[styles.leaveDates, { color: colors.textSecondary }]}>📅 {req.dates}</Text>
                     </View>
+                    {isPending && (
+                      <View style={styles.leaveActions}>
+                        <TouchableOpacity
+                          style={[
+                            styles.leaveActionBtn,
+                            styles.approveBtn,
+                            !isDark && { backgroundColor: 'rgba(5,150,105,0.12)', borderColor: 'rgba(5,150,105,0.35)' },
+                          ]}
+                          onPress={() => {
+                            setLeaves((prev) =>
+                              prev.map((l) => (l.id === req.id ? { ...l, status: 'APPROVED' } : l))
+                            );
+                            Alert.alert('✓ Leave Approved', `Approved leave request for ${req.name} (${req.days} Days).`);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.leaveActionText, { color: isDark ? '#34d399' : '#059669' }]}>
+                            ✓ Approve
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.leaveActionBtn,
+                            styles.rejectBtn,
+                            !isDark && { backgroundColor: 'rgba(220,38,38,0.12)', borderColor: 'rgba(220,38,38,0.35)' },
+                          ]}
+                          onPress={() => {
+                            setLeaves((prev) =>
+                              prev.map((l) => (l.id === req.id ? { ...l, status: 'REJECTED' } : l))
+                            );
+                            Alert.alert('✕ Leave Rejected', `Rejected leave request for ${req.name}.`);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.leaveActionText, { color: isDark ? '#f87171' : '#dc2626' }]}>
+                            ✕ Reject
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.leaveDetails}>
-                    <Text style={[styles.leaveType, { color: colors.textSecondary }]}>
-                      📋 {req.type} — {req.days} Day{req.days > 1 ? 's' : ''}
-                    </Text>
-                    <Text style={[styles.leaveDates, { color: colors.textSecondary }]}>📅 {req.dates}</Text>
-                  </View>
-                  {isPending && (
-                    <View style={styles.leaveActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.leaveActionBtn,
-                          styles.approveBtn,
-                          !isDark && { backgroundColor: 'rgba(5,150,105,0.12)', borderColor: 'rgba(5,150,105,0.35)' },
-                        ]}
-                        onPress={() => {
-                          setLeaves((prev) =>
-                            prev.map((l) => (l.id === req.id ? { ...l, status: 'APPROVED' } : l))
-                          );
-                          Alert.alert('✓ Leave Approved', `Approved leave request for ${req.name} (${req.days} Days).`);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.leaveActionText, { color: isDark ? '#34d399' : '#059669' }]}>
-                          ✓ Approve
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.leaveActionBtn,
-                          styles.rejectBtn,
-                          !isDark && { backgroundColor: 'rgba(220,38,38,0.12)', borderColor: 'rgba(220,38,38,0.35)' },
-                        ]}
-                        onPress={() => {
-                          setLeaves((prev) =>
-                            prev.map((l) => (l.id === req.id ? { ...l, status: 'REJECTED' } : l))
-                          );
-                          Alert.alert('✕ Leave Rejected', `Rejected leave request for ${req.name}.`);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.leaveActionText, { color: isDark ? '#f87171' : '#dc2626' }]}>
-                          ✕ Reject
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* ── PAYROLL ─────────────────────────────────────────────────── */}
+        {activeTab === 'payroll' && (
+          <View>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+              Salary disbursements, payslips and deductions
+            </Text>
+            <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyIcon}>💳</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Payroll Records</Text>
+                <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                  Monthly payroll cycle data will appear here once processed.
+                </Text>
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -564,4 +576,16 @@ const styles = StyleSheet.create({
   quickBarRow: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 8, marginBottom: 14 },
   quickChip: { flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#4f46e5', alignItems: 'center' },
   quickChipText: { fontSize: 11, fontWeight: '800', color: '#818cf8' },
+
+  emptyCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  emptyIcon: { fontSize: 32, marginBottom: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
+  emptySub: { fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });

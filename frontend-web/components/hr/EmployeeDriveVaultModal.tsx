@@ -32,7 +32,7 @@ export default function EmployeeDriveVaultModal({
   employee,
   isOpen,
   onClose,
-  companyName = 'Acme Sales Solutions',
+  companyName = 'DAS Organization',
 }: Props) {
   const [activeSubFolder, setActiveSubFolder] = useState<'DP' | 'Documents' | 'Details'>('Documents');
   const [files, setFiles] = useState<GoogleDriveStoredFile[]>([]);

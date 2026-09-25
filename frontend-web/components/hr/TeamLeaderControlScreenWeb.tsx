@@ -9,10 +9,7 @@ interface Props {
 
 export default function TeamLeaderControlScreenWeb({ employee, onBack, onUpdateEmployee }: Props) {
   const [subordinatesModalOpen, setSubordinatesModalOpen] = useState(false);
-  const [subordinatesList, setSubordinatesList] = useState([
-    { id: 'sub-1', name: 'Amit Patel', role: 'Sales Exec', calls: 84, revenue: '$22,000', leads: 25 },
-    { id: 'sub-2', name: 'Meera Kapoor', role: 'Sales Exec', calls: 65, revenue: '$18,500', leads: 15 },
-  ]);
+  const [subordinatesList, setSubordinatesList] = useState<{ id: string; name: string; role: string; calls: number; revenue: string; leads: number }[]>([]);
 
   const [leadAuditModalOpen, setLeadAuditModalOpen] = useState(false);
   const [leadCategory, setLeadCategory] = useState<'GOT' | 'CONNECTED' | 'NEGOTIATED' | 'MEETING' | 'WON'>('GOT');
@@ -27,10 +24,7 @@ export default function TeamLeaderControlScreenWeb({ employee, onBack, onUpdateE
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
-  const MOCK_LEAD_DISTRIBUTION = [
-    { id: 'dist-1', leadName: 'Acme Corp SLA Proposal', distributedTo: 'Amit Patel (Sales Exec)', timestamp: 'Today, 10:15 AM', status: 'GOT' },
-    { id: 'dist-2', leadName: 'LogiTech Enterprise Bot', distributedTo: 'Meera Kapoor (Sales Exec)', timestamp: 'Yesterday, 04:30 PM', status: 'CONNECTED' },
-  ];
+  const MOCK_LEAD_DISTRIBUTION: { id: string; leadName: string; distributedTo: string; timestamp: string; status: string }[] = [];
 
   const handleToggleLock = () => {
     const isLocked = !employee.isLocked;
@@ -99,39 +93,45 @@ export default function TeamLeaderControlScreenWeb({ employee, onBack, onUpdateE
             Add / Change Staff ✏️
           </button>
         </div>
-        <div className="space-y-2">
-          {subordinatesList.map(sub => (
-            <div key={sub.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
-              <div>
-                <div className="text-xs font-bold text-white">{sub.name} ({sub.role})</div>
-                <div className="text-xs text-slate-400">{sub.calls} Calls • {sub.leads} Leads</div>
+        {subordinatesList.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500 bg-slate-950/50 rounded-xl border border-dashed border-slate-800">
+            No employees assigned under {employee.name} yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {subordinatesList.map(sub => (
+              <div key={sub.id} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                <div>
+                  <div className="text-xs font-bold text-white">{sub.name} ({sub.role})</div>
+                  <div className="text-xs text-slate-400">{sub.calls} Calls • {sub.leads} Leads</div>
+                </div>
+                <div className="text-xs font-black text-emerald-400">{sub.revenue}</div>
               </div>
-              <div className="text-xs font-black text-emerald-400">{sub.revenue}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Lead Distribution Audit */}
       <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">📊 Lead Distribution & Status Audit</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <button onClick={() => { setLeadCategory('GOT'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-sky-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-sky-400">45</div>
+          <div className="text-2xl font-black text-sky-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Got & Distributed →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('CONNECTED'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-emerald-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-emerald-400">28</div>
+          <div className="text-2xl font-black text-emerald-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Connected →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('NEGOTIATED'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-indigo-500/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-indigo-400">10</div>
+          <div className="text-2xl font-black text-indigo-400">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Negotiated →</div>
         </button>
 
         <button onClick={() => { setLeadCategory('WON'); setLeadAuditModalOpen(true); }} className="bg-slate-900 border border-emerald-400/40 p-4 rounded-xl text-left">
-          <div className="text-2xl font-black text-emerald-300">2</div>
+          <div className="text-2xl font-black text-emerald-300">0</div>
           <div className="text-xs font-bold text-slate-400 mt-1">Deals Won →</div>
         </button>
       </div>

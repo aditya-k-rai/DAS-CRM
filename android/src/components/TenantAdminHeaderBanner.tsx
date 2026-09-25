@@ -31,8 +31,8 @@ export function TenantAdminHeaderBanner({
   const { colors, isDark } = useTheme();
   const activeRole: UserRole = normalizeRoleStr(role || currentUser?.role);
 
-  const companyName = currentUser?.companyName || subscription?.companyName || 'Acme Sales Solutions';
-  const avatarInitials = currentUser?.avatar || 'VS';
+  const companyName = currentUser?.companyName || subscription?.companyName || 'DAS Organization';
+  const avatarInitials = currentUser?.avatar || (currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U');
   const trialDays = subscription?.trialDaysLeft ?? 14;
 
   // Role Configuration Setup

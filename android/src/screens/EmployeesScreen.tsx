@@ -119,147 +119,14 @@ export default function EmployeesScreen() {
   const { currentUser, subscription } = useAuthStore();
   const userRole: UserRole = normalizeRoleStr(currentUser.role);
 
-  const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([
-    {
-      id: 'emp-1',
-      name: 'Amit Shah',
-      email: 'amit.shah@acme.com',
-      phone: '+91 98765 43210',
-      role: 'MANAGER',
-      assignedManager: 'Tenant Admin (Vikram Singh)',
-      status: 'ONLINE',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-      documents: {
-        pan: 'ABCDE1234F',
-        aadhaar: 'AADHAAR_9876_VERIFIED.pdf',
-        eduCert: 'DEGREE_MBA_2022.pdf',
-        offerLetter: 'OFFER_LETTER_MANAGER.pdf',
-        lastUpdatedDate: 'Aug 01, 2026',
-        historyLogs: [{ date: 'Aug 01, 2026', docType: 'PAN Card', oldValue: 'XYZDE9876K', newValue: 'ABCDE1234F' }],
-      },
-      bankDetails: {
-        bankName: 'HDFC Bank',
-        accountHolder: 'Amit Shah',
-        accountNo: '50100987654321',
-        ifscCode: 'HDFC0001234',
-        upiId: 'amit@hdfcbank',
-        lastUpdatedDate: 'Jul 28, 2026',
-        historyLogs: [{ date: 'Jul 28, 2026', bankName: 'ICICI Bank', accountNo: '9876XXXX4321' }],
-      },
-      leads: {
-        totalReceived: 140,
-        connected: 85,
-        inNegotiation: 32,
-        meetingScheduled: 18,
-        won: 14,
-        totalDistributed: 110,
-        distributionBreakdown: [
-          { targetName: 'Priya Sharma (TL)', targetRole: 'Team Leader', count: 45, dateStr: 'Today, 10:15 AM' },
-          { targetName: 'Karan Verma (TL)', targetRole: 'Team Leader', count: 40, dateStr: 'Yesterday, 4:30 PM' },
-        ],
-      },
-      attendance: { presentDays: 21, absentDays: 1, leaveDays: 1, todayInTime: '09:15 AM', todayOutTime: '06:30 PM', todayGps: '28.440743, 77.531117' },
-      subordinates: [
-        { id: 'sub-1', name: 'Priya Sharma', role: 'Team Leader', calls: 184, revenue: '$38,500', leads: 45 },
-        { id: 'sub-2', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000', leads: 25 },
-      ],
-    },
-    {
-      id: 'emp-2',
-      name: 'Neha Joshi',
-      email: 'neha.joshi@acme.com',
-      phone: '+91 98123 76543',
-      role: 'MANAGER',
-      assignedManager: 'Tenant Admin (Vikram Singh)',
-      status: 'ONLINE',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      documents: { pan: 'FGHIJ5678K', aadhaar: 'AADHAAR_5432_VERIFIED.pdf', eduCert: 'DEGREE_BTECH_2023.pdf', offerLetter: 'OFFER_LETTER_MGR_2026.pdf', lastUpdatedDate: 'Jul 15, 2026', historyLogs: [] },
-      bankDetails: { bankName: 'ICICI Bank', accountHolder: 'Neha Joshi', accountNo: '33440099887766', ifscCode: 'ICIC0005678', upiId: 'neha@icici', lastUpdatedDate: 'Jun 10, 2026', historyLogs: [] },
-      leads: { totalReceived: 120, connected: 70, inNegotiation: 28, meetingScheduled: 12, won: 10, totalDistributed: 95, distributionBreakdown: [] },
-      attendance: { presentDays: 22, absentDays: 0, leaveDays: 1, todayInTime: '09:05 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
-      subordinates: [
-        { id: 'sub-4', name: 'Sunita Verma', role: 'HR', calls: 142, revenue: '$29,000', leads: 50 },
-        { id: 'sub-5', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500', leads: 45 },
-      ],
-    },
-    {
-      id: 'emp-3',
-      name: 'Sunita Verma',
-      email: 'sunita.hr@acme.com',
-      phone: '+91 97654 32109',
-      role: 'HR',
-      assignedManager: 'Tenant Admin (Vikram Singh)',
-      status: 'ONLINE',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-      documents: { pan: 'KLMNO9012P', aadhaar: 'AADHAAR_1122_VERIFIED.pdf', eduCert: 'DEGREE_HR_2021.pdf', offerLetter: 'OFFER_LETTER_HR_2025.pdf', lastUpdatedDate: 'Aug 10, 2026', historyLogs: [] },
-      bankDetails: { bankName: 'Axis Bank', accountHolder: 'Sunita Verma', accountNo: '91802003344556', ifscCode: 'UTIB0009988', upiId: 'sunita@axis', lastUpdatedDate: 'May 02, 2026', historyLogs: [] },
-      leads: { totalReceived: 25, connected: 15, inNegotiation: 5, meetingScheduled: 3, won: 2, totalDistributed: 20, distributionBreakdown: [] },
-      attendance: { presentDays: 20, absentDays: 1, leaveDays: 2, todayInTime: '09:30 AM', todayOutTime: '06:15 PM', todayGps: '28.440743, 77.531117' },
-      subordinates: [],
-      hrMetrics: { pendingLeavesCount: 3, queriesResolvedCount: 42, reportsGeneratedCount: 18, totalHiredCount: 12, totalFiredCount: 2, interviewsConductedCount: 28, salaryPendingCount: 2, salaryReportsCount: 8 },
-    },
-    {
-      id: 'emp-4',
-      name: 'Priya Sharma',
-      email: 'priya.sharma@acme.com',
-      phone: '+91 99887 11223',
-      role: 'TEAM_LEADER',
-      assignedManager: 'Manager A (Amit Shah)',
-      status: 'IN_CALL',
-      avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      documents: { pan: 'PQRST3456U', aadhaar: 'AADHAAR_3344_VERIFIED.pdf', eduCert: 'DEGREE_BBA_2023.pdf', offerLetter: 'OFFER_LETTER_TL_2026.pdf', lastUpdatedDate: 'Jul 20, 2026', historyLogs: [] },
-      bankDetails: { bankName: 'Kotak Bank', accountHolder: 'Priya Sharma', accountNo: '66778899001122', ifscCode: 'KKBK0004455', upiId: 'priya@kotak', lastUpdatedDate: 'Jun 18, 2026', historyLogs: [] },
-      leads: { totalReceived: 45, connected: 28, inNegotiation: 10, meetingScheduled: 5, won: 2, totalDistributed: 40, distributionBreakdown: [] },
-      attendance: { presentDays: 21, absentDays: 1, leaveDays: 0, todayInTime: '09:10 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
-      subordinates: [
-        { id: 'sub-6', name: 'Rohan Kumar', role: 'Sales Exec', calls: 84, revenue: '$22,000', leads: 25 },
-        { id: 'sub-7', name: 'Ananya Roy', role: 'Sales Exec', calls: 65, revenue: '$18,500', leads: 15 },
-      ],
-    },
-    {
-      id: 'emp-5',
-      name: 'Rohan Kumar',
-      email: 'rohan.exec@acme.com',
-      phone: '+91 98111 22334',
-      role: 'SALES_EXEC',
-      assignedManager: 'Priya Sharma (Team Leader)',
-      status: 'ONLINE',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-      documents: { pan: 'VWXYZ7890A', aadhaar: 'AADHAAR_5566_VERIFIED.pdf', eduCert: 'DEGREE_BSC_2024.pdf', offerLetter: 'OFFER_LETTER_EXEC_2026.pdf', lastUpdatedDate: 'Aug 05, 2026', historyLogs: [] },
-      bankDetails: { bankName: 'SBI Bank', accountHolder: 'Rohan Kumar', accountNo: '20201122334455', ifscCode: 'SBIN0007788', upiId: 'rohan@sbi', lastUpdatedDate: 'Jul 12, 2026', historyLogs: [] },
-      leads: { totalReceived: 25, connected: 18, inNegotiation: 4, meetingScheduled: 2, won: 1, totalDistributed: 0, distributionBreakdown: [] },
-      attendance: { presentDays: 22, absentDays: 0, leaveDays: 0, todayInTime: '09:00 AM', todayOutTime: '06:00 PM', todayGps: '28.440743, 77.531117' },
-      subordinates: [],
-    },
-    {
-      id: 'emp-6',
-      name: 'Ananya Roy',
-      email: 'ananya.roy@acme.com',
-      phone: '+91 97222 33445',
-      role: 'SALES_EXEC',
-      assignedManager: 'Priya Sharma (Team Leader)',
-      status: 'OFFLINE',
-      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
-      documents: { pan: 'BCDEF1234G', aadhaar: 'AADHAAR_7788_VERIFIED.pdf', eduCert: 'DEGREE_BCOM_2023.pdf', offerLetter: 'OFFER_LETTER_EXEC_2025.pdf', lastUpdatedDate: 'Jun 30, 2026', historyLogs: [] },
-      bankDetails: { bankName: 'Punjab National Bank', accountHolder: 'Ananya Roy', accountNo: '11223344556677', ifscCode: 'PUNB0001122', upiId: 'ananya@pnb', lastUpdatedDate: 'May 14, 2026', historyLogs: [] },
-      leads: { totalReceived: 15, connected: 9, inNegotiation: 3, meetingScheduled: 2, won: 1, totalDistributed: 0, distributionBreakdown: [] },
-      attendance: { presentDays: 19, absentDays: 2, leaveDays: 1, todayInTime: '09:45 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
-      subordinates: [],
-    },
-  ]);
+  const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
 
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | null>(null);
 
-  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([
-    { id: 'ua-1', name: 'Deepak Malhotra', email: 'deepak.malhotra@gmail.com', phone: '+91 98444 11223', registeredAt: 'Today, 07:42 AM', deviceInfo: 'Android 14 · Samsung Galaxy A55' },
-    { id: 'ua-2', name: 'Simran Kaur', email: 'simran.k@hotmail.com', phone: '+91 99100 55678', registeredAt: 'Today, 09:15 AM', deviceInfo: 'Android 13 · Redmi Note 12' },
-    { id: 'ua-3', name: 'Yusuf Ansari', email: 'yusuf.ansari@yahoo.com', phone: '+91 97345 88902', registeredAt: 'Yesterday, 06:30 PM', deviceInfo: 'Android 14 · OnePlus 12R' },
-    { id: 'ua-4', name: 'Meera Pillai', email: 'meera.pillai@outlook.com', phone: '+91 98765 00112', registeredAt: '02 Sep 2026, 11:00 AM', deviceInfo: 'iOS 17 · iPhone 14' },
-    { id: 'ua-5', name: 'Kiran Nair', email: 'kiran.nair@gmail.com', phone: '+91 96543 21099', registeredAt: '01 Sep 2026, 04:22 PM', deviceInfo: 'Android 12 · Realme 11' },
-  ]);
+  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
 
   const totalQuota = subscription?.userSeatsAllocated ?? 10;
   const activeCount = employeesList.length;
@@ -299,28 +166,28 @@ export default function EmployeesScreen() {
       email: assignRoleTarget.email,
       phone: assignRoleTarget.phone,
       role: selectedRole,
-      assignedManager: 'Tenant Admin (Vikram Singh)',
+      assignedManager: `Tenant Admin (${currentUser?.name || 'Administrator'})`,
       status: 'ONLINE',
       avatarUrl: '',
       documents: {
-        pan: 'ABCDE1234F',
-        aadhaar: 'AADHAAR_VERIFIED.pdf',
-        eduCert: 'DEGREE_DOC.pdf',
-        offerLetter: 'OFFER_LETTER.pdf',
+        pan: '',
+        aadhaar: '',
+        eduCert: '',
+        offerLetter: '',
         lastUpdatedDate: 'Today',
         historyLogs: [],
       },
       bankDetails: {
-        bankName: 'HDFC Bank',
+        bankName: '',
         accountHolder: assignRoleTarget.name,
-        accountNo: '50100234567890',
-        ifscCode: 'HDFC0001234',
-        upiId: `${assignRoleTarget.email.split('@')[0]}@okhdfc`,
+        accountNo: '',
+        ifscCode: '',
+        upiId: '',
         lastUpdatedDate: 'Today',
         historyLogs: [],
       },
       leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '28.440743, 77.531117' },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
       subordinates: [],
     };
 
@@ -456,47 +323,57 @@ export default function EmployeesScreen() {
           </View>
 
           <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-            {employeesList.map((emp, index) => {
-              const roleStyle = getRoleBadgeStyle(emp.role);
-              return (
-                <View
-                  key={emp.id}
-                  style={[styles.empRow, index !== employeesList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
-                >
-                  {/* Avatar Initials */}
-                  <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
-                    <Text style={[styles.avatarInitials, { color: roleStyle.text }]}>
-                      {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </Text>
-                    <View style={[
-                      styles.statusDot,
-                      emp.status === 'ONLINE' ? { backgroundColor: '#34d399' }
-                      : emp.status === 'IN_CALL' ? { backgroundColor: '#fbbf24' }
-                      : { backgroundColor: '#64748b' }
-                    ]} />
-                  </View>
-
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
-                      <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
-                        <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
-                      </View>
+            {employeesList.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>👥</Text>
+                <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Employees Found</Text>
+                <Text style={[styles.emptyStateSub, { color: colors.textMuted }]}>
+                  No active employee profiles found in this organization.
+                </Text>
+              </View>
+            ) : (
+              employeesList.map((emp, index) => {
+                const roleStyle = getRoleBadgeStyle(emp.role);
+                return (
+                  <View
+                    key={emp.id}
+                    style={[styles.empRow, index !== employeesList.length - 1 && [styles.borderBottom, { borderBottomColor: colors.borderSubtle }]]}
+                  >
+                    {/* Avatar Initials */}
+                    <View style={[styles.avatarCircle, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                      <Text style={[styles.avatarInitials, { color: roleStyle.text }]}>
+                        {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </Text>
+                      <View style={[
+                        styles.statusDot,
+                        emp.status === 'ONLINE' ? { backgroundColor: '#34d399' }
+                        : emp.status === 'IN_CALL' ? { backgroundColor: '#fbbf24' }
+                        : { backgroundColor: '#64748b' }
+                      ]} />
                     </View>
-                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
-                      {emp.email}
-                    </Text>
-                    <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
-                      Under: <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontWeight: '700' }}>{emp.assignedManager}</Text>
-                    </Text>
-                  </View>
 
-                  <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
-                    <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={[styles.empName, { color: colors.text }]}>{emp.name}</Text>
+                        <View style={[styles.roleTag, { backgroundColor: roleStyle.bg, borderColor: roleStyle.border }]}>
+                          <Text style={[styles.roleTagText, { color: roleStyle.text }]}>{roleStyle.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
+                        {emp.email}
+                      </Text>
+                      <Text style={[styles.supervisorText, { color: colors.textMuted }]}>
+                        Under: <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontWeight: '700' }}>{emp.assignedManager}</Text>
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
+                      <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            )}
           </View>
         </ScrollView>
       )}

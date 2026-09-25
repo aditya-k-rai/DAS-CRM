@@ -109,7 +109,7 @@ export function LeadsTable() {
             statusColor: statusColors[l.status?.name || l.status] || '#6366f1',
             source: l.source?.name || l.source || 'Website',
             score: l.score || 0,
-            aiScore: l.aiScore || (l.score ? generateMockAIScore(Number((l.score / 10).toFixed(1))) : undefined),
+            aiScore: l.aiScore || undefined,
             owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
             value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
             created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
@@ -297,7 +297,7 @@ export function LeadsTable() {
           if (!inTrail && !l.owner.toLowerCase().includes(userName.toLowerCase())) return false;
         }
       } else {
-        // Sales Rep (e.g. Amit Patel): can ONLY see leads explicitly assigned to him
+        // Sales Rep: can ONLY see leads explicitly assigned to him
         const isAssignedToUser = l.owner.toLowerCase().includes(userName.toLowerCase()) || (l.currentAssignee && l.currentAssignee.toLowerCase().includes(userName.toLowerCase()));
         if (!isAssignedToUser) return false;
       }
@@ -971,10 +971,11 @@ export function LeadsTable() {
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { id: 'ALL', label: '👥 All Persons' },
-                    { id: 'Rajesh', label: '👤 Rajesh K. (Sales)' },
-                    { id: 'Priya', label: '👤 Priya S. (Sales)' },
-                    { id: 'Amit', label: '👤 Amit P. (Sales)' },
                     { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
+                    ...Array.from(new Set(leadsList.map((l: any) => l.owner || l.currentAssignee).filter((o: any) => Boolean(o) && o !== 'Unassigned' && o !== '—'))).map(person => ({
+                      id: person as string,
+                      label: `👤 ${person}`,
+                    })),
                   ].map((item) => (
                     <button
                       key={item.id}

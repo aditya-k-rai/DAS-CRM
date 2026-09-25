@@ -104,51 +104,12 @@ const INITIAL_COLUMN_MAPPINGS: ColumnMapItem[] = [
   { sheetHeader: 'Created Date',  crmField: 'IGNORE',  isIgnored: true,  isRequired: false, transformType: 'DATE_ISO' },
 ];
 
-const INITIAL_SYNC_LOGS: SyncRunLog[] = [
-  {
-    id: 'sync-103',
-    source: 'CSV',
-    fileName: 'facebook_leads_aug2026.csv',
-    tabName: '—',
-    status: 'SUCCESS',
-    rowsDetected: 214,
-    rowsCreated: 48,
-    rowsUpdated: 162,
-    rowsSkipped: 4,
-    errorCount: 0,
-    timestamp: 'Today, 11:40 AM',
-  },
-  {
-    id: 'sync-102',
-    source: 'GOOGLE_SHEETS',
-    fileName: 'Facebook Leads August 2026',
-    tabName: 'Leads',
-    status: 'SUCCESS',
-    rowsDetected: 142,
-    rowsCreated: 38,
-    rowsUpdated: 102,
-    rowsSkipped: 2,
-    errorCount: 0,
-    timestamp: 'Today, 10:15 AM',
-  },
-  {
-    id: 'sync-101',
-    source: 'EXCEL',
-    fileName: 'website_leads_batch2.xlsx',
-    tabName: '—',
-    status: 'PARTIAL_FAIL',
-    rowsDetected: 89,
-    rowsCreated: 84,
-    rowsUpdated: 3,
-    rowsSkipped: 0,
-    errorCount: 2,
-    timestamp: 'Yesterday, 4:30 PM',
-  },
-];
+const INITIAL_SYNC_LOGS: SyncRunLog[] = [];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClose }) => {
   const insets = useSafeAreaInsets();
+  const { currentUser } = useAuthStore();
   const topPadding   = Math.max(insets.top + 4, 16);
   const bottomPadding = Math.max(insets.bottom + 16, 24);
 
@@ -172,7 +133,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
   // Google Sheets State
   const [googleConnected, setGoogleConnected] = useState(true);
   const [googleAccountEmail] = useState('org.sales@enterprise-dascrm.com');
-  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState('Facebook Leads August 2026');
+  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState('Google Leads Spreadsheet');
   const [selectedSheetTab, setSelectedSheetTab]       = useState('Leads');
   const [headerRowIndex, setHeaderRowIndex]           = useState(2);
   const [dataStartRowIndex, setDataStartRowIndex]     = useState(3);
@@ -192,10 +153,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handlePickFile = async () => {
     // Simulate file picker (real impl: use expo-document-picker or react-native-document-picker)
-    setSelectedFileName('facebook_leads_batch_sept2026.csv');
+    setSelectedFileName('leads_import_file.csv');
     setIsDriveUploaded(false);
     setDriveProgress(null);
-    Alert.alert('📂 File Selected', 'facebook_leads_batch_sept2026.csv\n214 rows detected. Review column mapping below.');
+    Alert.alert('📂 File Selected', 'leads_import_file.csv\nFile loaded. Review column mapping below.');
   };
 
   const handleUploadToGoogleDrive = async () => {
@@ -207,7 +168,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
     setIsUploadingDrive(true);
     try {
       const progress = await uploadFileToGoogleDriveAndroid(selectedFileName, {
-        companyName: 'Acme Sales Solutions',
+        companyName: currentUser?.companyName || 'DAS Organization',
         category: 'LEADS',
         onProgress: (p) => {
           setDriveProgress(p);
@@ -498,7 +459,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
           <View style={S.drivePathBadge}>
             <Text style={S.drivePathText} numberOfLines={1}>
-              📁 Google Drive &gt; Acme Sales Solutions &gt; Leads &gt; {formatTimestampedFileName(selectedFileName)}
+              📁 Google Drive &gt; {currentUser?.companyName || 'DAS Organization'} &gt; Leads &gt; {formatTimestampedFileName(selectedFileName)}
             </Text>
           </View>
 

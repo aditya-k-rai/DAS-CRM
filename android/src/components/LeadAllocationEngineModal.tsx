@@ -54,17 +54,11 @@ export interface LeadAllocationEngineModalProps {
 }
 
 const MOCK_TEAM = [
-  { id: 'usr-1', name: 'Priya Sharma', role: 'Team Leader', leadsCount: 42, color: '#818cf8' },
-  { id: 'usr-2', name: 'Rohan Kumar', role: 'Sales Exec', leadsCount: 28, color: '#34d399' },
-  { id: 'usr-3', name: 'Amit Shah', role: 'Sales Exec', leadsCount: 19, color: '#f59e0b' },
-  { id: 'usr-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
+  { id: 'usr-1', name: 'Sales Representative', role: 'Sales Exec', leadsCount: 0, color: '#818cf8' },
 ];
 
 const MOCK_TL_REPS = [
-  { id: 'sub-1', name: 'Amit Patel', role: 'Sales Exec', leadsCount: 25, color: '#34d399' },
-  { id: 'sub-2', name: 'Meera Kapoor', role: 'Sales Exec', leadsCount: 15, color: '#f59e0b' },
-  { id: 'sub-3', name: 'Rohan Kumar', role: 'Sales Exec', leadsCount: 28, color: '#38bdf8' },
-  { id: 'sub-4', name: 'Neha Gupta', role: 'Sales Exec', leadsCount: 31, color: '#f472b6' },
+  { id: 'sub-1', name: 'Sales Representative', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
 ];
 
 export interface ValidationConflict {
@@ -175,12 +169,11 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
 
   // Batchwise Allocation State — Row numbers are NOT autofilled
   const [batchRules, setBatchRules] = useState<BatchRule[]>([
-    { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0].id, assigneeName: `${activeTeam[0].name} (${activeTeam[0].role})`, role: activeTeam[0].role },
-    { id: 'b-2', fromRow: '', toRow: '', assigneeId: activeTeam[1].id, assigneeName: `${activeTeam[1].name} (${activeTeam[1].role})`, role: activeTeam[1].role },
+    { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0]?.id || '1', assigneeName: `${activeTeam[0]?.name || 'Sales Rep'} (${activeTeam[0]?.role || 'Rep'})`, role: activeTeam[0]?.role || 'Rep' },
   ]);
 
   // Direct Assign State
-  const [selectedUser, setSelectedUser] = useState(MOCK_TEAM[0]);
+  const [selectedUser, setSelectedUser] = useState(activeTeam[0] || MOCK_TEAM[0]);
 
   // Lead Pool State
   const [poolEnabled, setPoolEnabled] = useState(true);
@@ -190,13 +183,12 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (batchRules.length === 0) {
+    if (batchRules.length === 0 && activeTeam[0]) {
       setBatchRules([
         { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0].id, assigneeName: `${activeTeam[0].name} (${activeTeam[0].role})`, role: activeTeam[0].role },
-        { id: 'b-2', fromRow: '', toRow: '', assigneeId: activeTeam[1].id, assigneeName: `${activeTeam[1].name} (${activeTeam[1].role})`, role: activeTeam[1].role },
       ]);
     }
-  }, [totalLeadsCount]);
+  }, [totalLeadsCount, activeTeam]);
 
   useEffect(() => {
     if (visible) {
@@ -454,12 +446,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
 
   // 👁️ Preview & Edit Sheet State
   const [isSheetPreviewMode, setIsSheetPreviewMode] = useState(false);
-  const [sheetRows, setSheetRows] = useState([
-    { id: '1', name: 'Rajesh Kumar', email: 'rajesh@acme.com', phone: '+91 98765 43210', company: 'Acme Solutions', city: 'Delhi NCR' },
-    { id: '2', name: 'Priya Sharma', email: 'priya@techcorp.in', phone: '+91 87654 32109', company: 'TechCorp India', city: 'Mumbai' },
-    { id: '3', name: 'Amit Shah', email: 'amit@westreach.com', phone: '+91 76543 21098', company: 'West Reach Pvt', city: 'Ahmedabad' },
-    { id: '4', name: 'Neha Gupta', email: 'neha@lotwaala.org', phone: '+91 65432 10987', company: 'Lotwaala Work Plan', city: 'Bengaluru' },
-  ]);
+  const [sheetRows, setSheetRows] = useState<{ id: string; name: string; email: string; phone: string; company: string; city: string }[]>([]);
+
 
   const [allocationSuccessModalOpen, setAllocationSuccessModalOpen] = useState(false);
   const [successDetails, setSuccessDetails] = useState<{ title: string; items: string[] }>({
@@ -539,7 +527,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     setPoolClaimedSuccess(true);
     setTimeout(() => {
       setPoolClaimedSuccess(false);
-      Alert.alert('🎯 Live Lead Claimed!', 'Google Sheets Inbound Lead #L-9041 (Spectro Labs) claimed & added to your pipeline!');
+      Alert.alert('🎯 Live Lead Claimed!', 'Inbound Lead claimed & added to your pipeline!');
     }, 1500);
   };
 
@@ -1052,8 +1040,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                   <Text style={styles.claimHeaderTitle}>LIVE POOL CLAIM WINDOW</Text>
                   <Text style={styles.claimTimerText}>⏱️ 14m 32s left</Text>
                 </View>
-                <Text style={styles.claimLeadName}>Spectro Analytical Labs Pvt Ltd</Text>
-                <Text style={styles.claimLeadSub}>Value: ₹2,38,950 • Source: Google Sheets Live • City: Greater Noida</Text>
+                <Text style={styles.claimLeadName}>Incoming Realtime Lead</Text>
+                <Text style={styles.claimLeadSub}>Value: ₹0 • Source: Google Sheets Live • Status: Pending Claim</Text>
 
                 <TouchableOpacity
                   style={[styles.claimBtn, poolClaimedSuccess && { backgroundColor: '#10b981' }]}
