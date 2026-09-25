@@ -5,6 +5,51 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
 export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
 
+/**
+ * 🎯 SINGLE SOURCE OF TRUTH: Canonical SaaS Plan Seat Allocation
+ * Maps plan tiers strictly to their exact user seat limit.
+ */
+export function getPlanSeatQuota(planType?: string): number {
+  if (!planType) return 18;
+  const p = planType.toUpperCase().replace(/\s+/g, '_');
+  switch (p) {
+    case 'FREE_TRIAL':
+    case 'TRIAL':
+      return 6;
+    case 'GROW':
+    case 'GROWTH':
+    case 'STARTER':
+    case 'BASIC':
+      return 6;
+    case 'BUSINESS':
+    case 'PRO':
+      return 18;
+    case 'PRO_50':
+      return 50;
+    case 'ENTERPRISE':
+    case 'PRO_MAX':
+    case 'MAX':
+      return 60;
+    default:
+      return 18;
+  }
+}
+
+export function formatPlanName(planType?: string): string {
+  if (!planType) return 'Business Plan';
+  const p = planType.toUpperCase().replace(/\s+/g, '_');
+  switch (p) {
+    case 'FREE_TRIAL': return 'Free Trial';
+    case 'GROW': case 'GROWTH': return 'Grow Plan';
+    case 'BUSINESS': return 'Business Plan';
+    case 'ENTERPRISE': return 'Enterprise Plan';
+    case 'PRO': return 'Pro Plan';
+    case 'PRO_50': return 'Pro 50 Plan';
+    case 'PRO_MAX': case 'MAX': return 'Enterprise Max';
+    default: return `${planType.replace('_', ' ')} Plan`;
+  }
+}
+
 export interface PlanConfig {
   id: PlanType;
   name: string;
@@ -130,15 +175,15 @@ export interface RoleTransitionLock {
 export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_default',
   companyName: 'DAS Organization',
-  planType: 'FREE_TRIAL',
+  planType: 'BUSINESS',
   trialDaysLeft: 30,
   isExpired: false,
-  userSeatsAllocated: 10, // Free Trial provides 10 Users quota
+  userSeatsAllocated: 18, // Business Plan standard quota
   userSeatsUsed: 1, // 1 Admin role active
   hasTeamLeaders: true,
   features: {
-    whatsApp: false, // Hard-blocked on FREE_TRIAL and GROWTH
-    emailAutomation: false, // Hard-blocked on FREE_TRIAL and GROWTH
+    whatsApp: true,
+    emailAutomation: true,
     aiLeadScoring: true,
     customSalaryBuilder: true,
     exportCSV: true,
@@ -334,6 +379,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsed = JSON.parse(storedSub);
           if (parsed && parsed.companyName && parsed.companyName !== 'DAS Organization') {
+            const plan: PlanType = parsed.planType || 'BUSINESS';
+            parsed.planType = plan;
+            parsed.userSeatsAllocated = parsed.userSeatsAllocated || getPlanSeatQuota(plan);
             return parsed;
           }
         } catch (_) {}
@@ -343,10 +391,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsedUser = JSON.parse(storedUser);
           if (parsedUser && parsedUser.companyName && parsedUser.companyName !== 'DAS Organization') {
+            const plan: PlanType = 'BUSINESS';
             return {
               ...MOCK_COMPANY_SUB,
               id: parsedUser.companyId || 'comp_current',
               companyName: parsedUser.companyName,
+              planType: plan,
+              userSeatsAllocated: getPlanSeatQuota(plan),
             };
           }
         } catch (_) {}
@@ -356,10 +407,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsedReg = JSON.parse(lastReg);
           if (parsedReg?.name) {
+            const plan: PlanType = (parsedReg.planTier || 'BUSINESS') as PlanType;
             return {
               ...MOCK_COMPANY_SUB,
               id: parsedReg.id || 'comp_current',
               companyName: parsedReg.name,
+              planType: plan,
+              userSeatsAllocated: parsedReg.memberLimit || getPlanSeatQuota(plan),
             };
           }
         } catch (_) {}
@@ -480,13 +534,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       phone: userPhone,
     };
     const compName = user.companyName || sub?.companyName || 'Adorable Trading';
+    const effectivePlan: PlanType = sub?.planType || (compName.includes('Adorable') ? 'BUSINESS' : subscription.planType || 'BUSINESS');
+    const allocatedSeats = sub?.userSeatsAllocated || getPlanSeatQuota(effectivePlan);
+
     const effectiveSub: CompanySubscription = sub ? {
       ...sub,
       companyName: compName,
+      planType: effectivePlan,
+      userSeatsAllocated: allocatedSeats,
     } : {
       ...subscription,
       id: user.companyId || subscription.id,
       companyName: compName,
+      planType: effectivePlan,
+      userSeatsAllocated: allocatedSeats,
     };
 
     setCurrentUser(normalizedUser);

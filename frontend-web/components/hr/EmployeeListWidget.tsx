@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, ShieldCheck, Cloud, Plus, Edit2, Check, X, Phone } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, getPlanSeatQuota } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
 import TeamLeaderControlScreenWeb from './TeamLeaderControlScreenWeb';
 import ManagerControlScreenWeb from './ManagerControlScreenWeb';
@@ -281,7 +281,7 @@ export function EmployeeListWidget() {
     fetchUsers();
   }, [currentUser]);
 
-  const totalQuota = subscription?.userSeatsAllocated ?? 10;
+  const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const activeCount = employees.length;
 
   const handleUpdateEmployee = (updated: EmployeeProfileWeb) => {

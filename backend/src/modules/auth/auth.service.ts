@@ -334,12 +334,12 @@ export class AuthService {
         ? dto.planTier
         : 'FREE_TRIAL') as PlanTier;
       const memberLimit =
-        chosenTier === PlanTier.ENTERPRISE
+        chosenTier === PlanTier.ENTERPRISE || chosenTier === PlanTier.PRO_MAX
           ? 60
-          : chosenTier === PlanTier.BUSINESS
+          : chosenTier === PlanTier.PRO_50
+          ? 50
+          : chosenTier === PlanTier.BUSINESS || chosenTier === PlanTier.PRO
           ? 18
-          : chosenTier === PlanTier.PRO || chosenTier === PlanTier.PRO_50 || chosenTier === PlanTier.PRO_MAX
-          ? 15
           : 6;
 
       keyRecord = await this.companyKeyService.generateCompanyKey({
@@ -1299,7 +1299,8 @@ export class AuthService {
         const settings = (org.settings as any) || {};
         const regKey = keyMap.get(org.id) || org.registrationKeyId || 'N/A';
         const plan = org.subscription?.planTier || settings.requestedPlan || 'GROW';
-        const seats = org.subscription?.memberLimit || 15;
+        const defaultSeats = (plan === 'BUSINESS' || plan === 'PRO') ? 18 : (plan === 'ENTERPRISE' || plan === 'PRO_MAX') ? 60 : plan === 'PRO_50' ? 50 : 6;
+        const seats = org.subscription?.memberLimit || defaultSeats;
         return {
           id: org.id,
           name: org.name,
@@ -1371,7 +1372,8 @@ export class AuthService {
     if (!org) throw new BadRequestException('Company not found');
 
     const planTier = dto.planTier || dto.plan || org.subscription?.planTier || 'FREE_TRIAL';
-    const memberLimit = dto.memberLimit ?? org.subscription?.memberLimit ?? 10;
+    const defaultPlanSeats = (planTier === 'BUSINESS' || planTier === 'PRO') ? 18 : (planTier === 'ENTERPRISE' || planTier === 'PRO_MAX') ? 60 : planTier === 'PRO_50' ? 50 : 6;
+    const memberLimit = dto.memberLimit ?? org.subscription?.memberLimit ?? defaultPlanSeats;
     const validityDays = dto.validityDays ?? 30;
     const newExpiry = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
 

@@ -6,7 +6,7 @@ import {
   Zap, Check, Shield, AlertTriangle, ArrowRight, Lock, CheckCircle2,
   Building2, Users, DollarSign, Smartphone, HelpCircle
 } from 'lucide-react';
-import { useAuth, PlanType } from '@/context/AuthContext';
+import { useAuth, PlanType, formatPlanName } from '@/context/AuthContext';
 
 export default function BillingPage() {
   const { subscription, updateSubscription, currentUser } = useAuth();
@@ -215,8 +215,12 @@ export default function BillingPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-muted uppercase tracking-wider">Active Workspace Plan:</span>
-            <span className="text-xs font-extrabold px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              {subscription.planType} ({subscription.trialDaysLeft} Days Remaining)
+            <span className={`text-xs font-extrabold px-3 py-0.5 rounded-full border ${
+              subscription.planType === 'FREE_TRIAL'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+            }`}>
+              {formatPlanName(subscription.planType)} {subscription.planType === 'FREE_TRIAL' ? `(${subscription.trialDaysLeft} Days Remaining)` : '· Active'}
             </span>
           </div>
           <h2 className="text-xl font-bold text-foreground dark:text-white">{subscription.companyName}</h2>

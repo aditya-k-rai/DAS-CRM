@@ -11,6 +11,32 @@ import { ThemeToggle } from './ThemeToggle';
 export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'STARTER' | 'PRO' | 'PRO_MAX';
 export type AITierType = 'BASIC' | 'PRO' | 'ENTERPRISE_CUSTOM';
 
+export function getPlanSeatQuota(planType?: string): number {
+  if (!planType) return 18;
+  const p = planType.toUpperCase().replace(/\s+/g, '_');
+  switch (p) {
+    case 'FREE_TRIAL':
+    case 'TRIAL':
+      return 6;
+    case 'GROW':
+    case 'GROWTH':
+    case 'STARTER':
+    case 'BASIC':
+      return 6;
+    case 'BUSINESS':
+    case 'PRO':
+      return 18;
+    case 'PRO_50':
+      return 50;
+    case 'ENTERPRISE':
+    case 'PRO_MAX':
+    case 'MAX':
+      return 60;
+    default:
+      return 18;
+  }
+}
+
 export interface AICompanyConfig {
   enabled: boolean;
   tier: AITierType;
@@ -848,7 +874,7 @@ export function SuperAdminDashboard() {
     // General
     setEditName(comp.name);
     setEditPlan(comp.plan);
-    const defaultSeats = comp.seatsAllocated || (comp.plan === 'FREE_TRIAL' ? 10 : comp.plan === 'GROWTH' ? 20 : comp.plan === 'BUSINESS' ? 50 : 100);
+    const defaultSeats = comp.seatsAllocated || getPlanSeatQuota(comp.plan);
     setEditSeats(defaultSeats);
     const defaultTrialDays = comp.trialDaysLeft > 0 ? Math.min(40, Math.max(15, comp.trialDaysLeft)) : 30;
     setEditTrialDuration(defaultTrialDays);

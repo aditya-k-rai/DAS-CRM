@@ -42,45 +42,86 @@ export interface PlanConfig {
   description: string;
 }
 
+export function getPlanSeatQuota(planType?: string): number {
+  if (!planType) return 18;
+  const p = planType.toUpperCase().replace(/\s+/g, '_');
+  switch (p) {
+    case 'FREE_TRIAL':
+    case 'TRIAL':
+      return 6;
+    case 'GROW':
+    case 'GROWTH':
+    case 'STARTER':
+    case 'BASIC':
+      return 6;
+    case 'BUSINESS':
+    case 'PRO':
+      return 18;
+    case 'PRO_50':
+      return 50;
+    case 'ENTERPRISE':
+    case 'PRO_MAX':
+    case 'MAX':
+      return 60;
+    default:
+      return 18;
+  }
+}
+
+export function formatPlanName(planType?: string): string {
+  if (!planType) return 'Business Plan';
+  const p = planType.toUpperCase().replace(/\s+/g, '_');
+  switch (p) {
+    case 'FREE_TRIAL': return 'Free Trial';
+    case 'GROW': case 'GROWTH': return 'Grow Plan';
+    case 'BUSINESS': return 'Business Plan';
+    case 'ENTERPRISE': return 'Enterprise Plan';
+    case 'PRO': return 'Pro Plan';
+    case 'PRO_50': return 'Pro 50 Plan';
+    case 'PRO_MAX': case 'MAX': return 'Enterprise Max';
+    default: return `${planType.replace('_', ' ')} Plan`;
+  }
+}
+
 export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   FREE_TRIAL: {
     id: 'FREE_TRIAL',
     name: 'Free Trial Plan',
-    seats: 10,
+    seats: 6,
     durationMinDays: 15,
     durationMaxDays: 40,
     defaultDurationDays: 30,
     hasAllAiFeatures: false, // Basic AI only (Only Lead Score)
     hasWhatsApp: false,
     hasEmailMarketing: false,
-    description: '10 Users · Basic AI (Lead Score only) · 15-40 days duration',
+    description: '6 Users · Core CRM · 15-40 days duration',
   },
   GROWTH: {
     id: 'GROWTH',
-    name: 'Growth Plan',
-    seats: 20,
-    hasAllAiFeatures: true, // All AI features included
+    name: 'Grow Plan',
+    seats: 6,
+    hasAllAiFeatures: false, // Blocked
     hasWhatsApp: false, // Blocked
     hasEmailMarketing: false, // Blocked
-    description: '20 Users · All AI Features · WhatsApp & Email excluded',
+    description: '6 Users · Core CRM · WhatsApp & Email excluded',
   },
   BUSINESS: {
     id: 'BUSINESS',
     name: 'Business Plan',
-    seats: 50,
+    seats: 18,
     hasAllAiFeatures: true,
     hasWhatsApp: true,
     hasEmailMarketing: true,
-    description: '50 Users · All Features Included (All AI + WhatsApp + Email)',
+    description: '18 Users · All Features Included (All AI + WhatsApp + Email)',
   },
   ENTERPRISE: {
     id: 'ENTERPRISE',
     name: 'Enterprise Plan',
-    seats: 100,
+    seats: 60,
     hasAllAiFeatures: true,
     hasWhatsApp: true,
     hasEmailMarketing: true,
-    description: '100 Users · All Features Included · Enterprise Scale & SLA',
+    description: '60 Users · All Features Included · Enterprise Scale & SLA',
   },
 };
 
@@ -131,16 +172,16 @@ export interface RoleTransitionLock {
 export const MOCK_COMPANY_SUB: CompanySubscription = {
   id: 'comp_default',
   companyName: 'DAS Organization',
-  planType: 'FREE_TRIAL',
+  planType: 'BUSINESS',
   trialDaysLeft: 30,
   isExpired: false,
-  userSeatsAllocated: 10, // Free Trial default: 10 Users
+  userSeatsAllocated: 18, // Business Plan default: 18 Users
   userSeatsUsed: 1, // 1 Admin role active
   hasTeamLeaders: true,
   features: {
-    whatsApp: false, // Blocked on FREE_TRIAL and GROWTH
-    emailAutomation: false, // Blocked on FREE_TRIAL and GROWTH
-    aiLeadScoring: true, // Only AI feature enabled on FREE_TRIAL
+    whatsApp: true,
+    emailAutomation: true,
+    aiLeadScoring: true,
     customSalaryBuilder: true,
     exportCSV: true,
   },
@@ -468,10 +509,25 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       ...user,
       role: normalizeRoleStr(user.role || inferRoleFromEmail(user.email)),
     };
+    const effectivePlan = sub?.planType || (user as any)?.companyPlan || 'BUSINESS';
+    const allocatedSeats = sub?.userSeatsAllocated || getPlanSeatQuota(effectivePlan);
+    const resolvedSub: CompanySubscription = sub
+      ? {
+          ...sub,
+          planType: effectivePlan as PlanType,
+          userSeatsAllocated: allocatedSeats,
+        }
+      : {
+          ...MOCK_COMPANY_SUB,
+          companyName: user.companyName || MOCK_COMPANY_SUB.companyName,
+          planType: effectivePlan as PlanType,
+          userSeatsAllocated: allocatedSeats,
+        };
+
     set({
       currentUser: normalizedUser,
       token,
-      ...(sub ? { subscription: sub } : {}),
+      subscription: resolvedSub,
     });
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(normalizedUser)),

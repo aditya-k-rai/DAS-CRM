@@ -21,7 +21,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore, UserRole, normalizeRoleStr } from '../store/authStore';
+import { useAuthStore, UserRole, normalizeRoleStr, getPlanSeatQuota } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -128,7 +128,7 @@ export default function EmployeesScreen() {
 
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
 
-  const totalQuota = subscription?.userSeatsAllocated ?? 10;
+  const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const activeCount = employeesList.length;
   const unassignedCount = unassignedUsers.length;
   const totalUsersCount = activeCount + unassignedCount;

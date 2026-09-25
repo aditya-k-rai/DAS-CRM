@@ -11,7 +11,7 @@ import {
   UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X,
   Loader2
 } from 'lucide-react';
-import { useAuth, UserRole } from '@/context/AuthContext';
+import { useAuth, UserRole, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
 
 interface DashboardLeadRecord {
   id: string;
@@ -520,6 +520,12 @@ export function TenantAdminDashboard() {
     setImportStatus(null);
   };
 
+  const planTier = subscription?.planType || 'BUSINESS';
+  const isTrial = planTier === 'FREE_TRIAL';
+  const allocatedSeats = subscription?.userSeatsAllocated || getPlanSeatQuota(planTier);
+  const assignedSeats = Math.max(1, subscription?.userSeatsUsed || 1);
+  const seatsAvailable = Math.max(0, allocatedSeats - assignedSeats);
+
   return (
     <div className="space-y-6">
       {/* ============================================================ */}
@@ -534,9 +540,19 @@ export function TenantAdminDashboard() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-extrabold text-foreground tracking-tight">TENANT ADMIN COMMAND CENTER</h1>
-                <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse">
-                  ⏱️ {subscription.trialDaysLeft ?? 14} Days Remaining in Free Trial
-                </span>
+                {subscription?.isExpired ? (
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40">
+                    ⚠️ Plan Expired · Action Required
+                  </span>
+                ) : isTrial ? (
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse">
+                    ⏱️ {subscription.trialDaysLeft ?? 14} Days Remaining in Free Trial
+                  </span>
+                ) : (
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
+                    ⚡ {formatPlanName(planTier).toUpperCase()} ACTIVE · {allocatedSeats} SEATS ALLOCATED
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 font-medium">
                 {currentUser?.companyName || subscription?.companyName || 'Adorable Trading'} · Executive Operating System & Multi-Tenant Control Hub
@@ -600,17 +616,27 @@ export function TenantAdminDashboard() {
             <span>Active Seats</span>
             <Users size={14} className="text-amber-500 dark:text-amber-400" />
           </div>
-          <p className="text-xl font-extrabold text-amber-600 dark:text-amber-300">1 / 20</p>
-          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">19 Seats Available</p>
+          <p className="text-xl font-extrabold text-amber-600 dark:text-amber-300">{assignedSeats} / {allocatedSeats}</p>
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">{seatsAvailable} Seats Available</p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
           <div className="flex items-center justify-between text-muted-foreground text-xs font-semibold mb-1">
             <span>System Status</span>
-            <CheckCircle2 size={14} className="text-emerald-500 dark:text-emerald-400" />
+            <CheckCircle2 size={14} className={subscription?.isExpired ? 'text-rose-500' : 'text-emerald-500 dark:text-emerald-400'} />
           </div>
-          <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">TRIAL_ACTIVE</p>
-          <p className="text-[10px] text-muted-foreground font-semibold mt-1">Fresh Production Instance</p>
+          <p className={`text-sm font-extrabold uppercase tracking-wider ${
+            subscription?.isExpired
+              ? 'text-rose-600 dark:text-rose-400'
+              : isTrial
+              ? 'text-amber-600 dark:text-amber-400'
+              : 'text-emerald-600 dark:text-emerald-400'
+          }`}>
+            {subscription?.isExpired ? 'PLAN_EXPIRED' : isTrial ? 'TRIAL_ACTIVE' : 'ACTIVE_SUBSCRIPTION'}
+          </p>
+          <p className="text-[10px] text-muted-foreground font-semibold mt-1">
+            {subscription?.isExpired ? 'Plan renewal required' : isTrial ? 'Trial License Active' : `${formatPlanName(planTier)} Workspace`}
+          </p>
         </div>
 
         {/* 🆕 BOX 7: TOTAL EMPLOYEES & PRESENT TODAY */}
@@ -620,8 +646,8 @@ export function TenantAdminDashboard() {
             <UserCheck size={14} className="text-teal-500 dark:text-teal-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-300">1 Present</p>
-            <span className="text-xs text-muted-foreground font-semibold">/ 1 Total</span>
+            <p className="text-xl font-extrabold text-teal-700 dark:text-teal-300">{assignedSeats} Present</p>
+            <span className="text-xs text-muted-foreground font-semibold">/ {assignedSeats} Total</span>
           </div>
           <p className="text-[10px] text-teal-700 dark:text-teal-400/90 font-bold mt-1">🟢 100% Attendance · 0 Leave · 0 Absent</p>
         </div>

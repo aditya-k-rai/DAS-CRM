@@ -1,9 +1,9 @@
-import type { Metadata } from 'next';
+'use client';
+
 import { Topbar } from '@/components/layout/Topbar';
 import { CreditCard, Check, Zap, Building2, Users, User, Shield, Info } from 'lucide-react';
 import Link from 'next/link';
-
-export const metadata: Metadata = { title: 'Subscription & Billing | DAS CRM' };
+import { useAuth, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
 
 const PLANS = [
   {
@@ -35,6 +35,9 @@ const PLANS = [
 ];
 
 export default function BillingPage() {
+  const { subscription } = useAuth();
+  const planName = formatPlanName(subscription?.planType);
+  const seats = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar title="Subscription & Billing" />
@@ -66,9 +69,9 @@ export default function BillingPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300">CURRENT PLAN</span>
-                <h3 className="font-bold text-lg">Pro Plan</h3>
+                <h3 className="font-bold text-lg">{planName}</h3>
               </div>
-              <p className="text-xs text-muted mt-1">15 Active User Seats · Renews on Sep 1, 2026</p>
+              <p className="text-xs text-muted mt-1">{seats} Active User Seats · Renews on Sep 1, 2026</p>
             </div>
             <button className="btn-secondary text-sm">Manage Invoices</button>
           </div>

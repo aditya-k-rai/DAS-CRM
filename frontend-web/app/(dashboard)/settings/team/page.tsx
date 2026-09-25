@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Users, Plus, Shield, Mail, MoreHorizontal, UserPlus, Building2, CreditCard, User, Info } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
 
 export default function TeamSettingsPage() {
   const { currentUser, subscription } = useAuth();
@@ -79,8 +79,17 @@ export default function TeamSettingsPage() {
         <div className="col-span-12 lg:col-span-9 space-y-4">
           <div className="crm-card p-0 overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'rgb(var(--border))' }}>
-              <h3 className="font-semibold text-sm">Active Members ({members.length} / {(subscription as any)?.maxUsers || 20} seats used)</h3>
-              <span className="text-xs text-brand font-medium">Pro Plan · {Math.max(0, ((subscription as any)?.maxUsers || 20) - members.length)} seats remaining</span>
+              {(() => {
+                const planSeats = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
+                const planName = formatPlanName(subscription?.planType);
+                const seatsRemaining = Math.max(0, planSeats - members.length);
+                return (
+                  <>
+                    <h3 className="font-semibold text-sm">Active Members ({members.length} / {planSeats} seats used)</h3>
+                    <span className="text-xs text-brand font-medium">{planName} · {seatsRemaining} seats remaining</span>
+                  </>
+                );
+              })()}
             </div>
             <table className="crm-table">
               <thead>
