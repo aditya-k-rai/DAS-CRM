@@ -96,6 +96,21 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27b
+          link-to-sdk: true
+
+      - name: Accept Android SDK Licenses & Prepare NDK
+        run: |
+          yes | sdkmanager --licenses || true
+          if [ ! -d "$ANDROID_HOME/ndk/27.1.12297006" ]; then
+            echo "Installing NDK 27.1.12297006 via sdkmanager fallback..."
+            sdkmanager --install "ndk;27.1.12297006" || true
+          fi
+
       - name: Install Mobile Dependencies
         run: cd android && npm install --legacy-peer-deps
 
@@ -103,33 +118,48 @@ jobs:
         run: |
           cd android/android
           chmod +x gradlew
+          rm -rf app/build/outputs/apk
           export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
           ./gradlew assembleRelease --no-daemon \
             -PreactNativeArchitectures=arm64-v8a \
             -PreactNativeArchitecturesOnly=true
-          cp app/build/outputs/apk/release/*.apk ../app-arm64-v8a-release.apk
-          echo "✓ arm64-v8a APK built"
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: arm64-v8a APK not found!" && exit 1
+          fi
+          cp "$APK_FILE" ../app-arm64-v8a-release.apk
+          echo "✓ arm64-v8a APK built: $APK_FILE -> ../app-arm64-v8a-release.apk"
 
       - name: Build APK 2/3 — armeabi-v7a
         run: |
           cd android/android
           chmod +x gradlew
+          rm -rf app/build/outputs/apk
           export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
           ./gradlew assembleRelease --no-daemon \
             -PreactNativeArchitectures=armeabi-v7a \
             -PreactNativeArchitecturesOnly=true
-          cp app/build/outputs/apk/release/*.apk ../app-armeabi-v7a-release.apk
-          echo "✓ armeabi-v7a APK built"
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: armeabi-v7a APK not found!" && exit 1
+          fi
+          cp "$APK_FILE" ../app-armeabi-v7a-release.apk
+          echo "✓ armeabi-v7a APK built: $APK_FILE -> ../app-armeabi-v7a-release.apk"
 
       - name: Build APK 3/3 — Universal (all architectures)
         run: |
           cd android/android
           chmod +x gradlew
+          rm -rf app/build/outputs/apk
           export ORG_GRADLE_OPTS="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError"
           ./gradlew assembleRelease --no-daemon \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86,x86_64
-          cp app/build/outputs/apk/release/*.apk ../app-universal-release.apk
-          echo "✓ universal APK built"
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: Universal APK not found!" && exit 1
+          fi
+          cp "$APK_FILE" ../app-universal-release.apk
+          echo "✓ universal APK built: $APK_FILE -> ../app-universal-release.apk"
 
       - name: List built APKs
         run: |
