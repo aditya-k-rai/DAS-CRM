@@ -78,17 +78,20 @@ export function Sidebar() {
   const profileHref = isAdmin ? '/profile' : '/settings/profile';
 
   // Strict role-based navigation item filtering
-  const filteredNav = adminNavigation.filter(item => {
-    if (!item.roles) return true;
-    const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
-    if (isAdmin && (normalizedItemRoles.includes('ADMIN') || normalizedItemRoles.includes('SUPER_ADMIN'))) {
-      return true;
-    }
-    return normalizedItemRoles.includes(currentNormalizedRole);
-  });
+  const filteredNav: NavItem[] = currentNormalizedRole === 'UNASSIGNED'
+    ? [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['UNASSIGNED' as any] }]
+    : adminNavigation.filter(item => {
+        if (!item.roles) return true;
+        const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
+        if (isAdmin && (normalizedItemRoles.includes('ADMIN') || normalizedItemRoles.includes('SUPER_ADMIN'))) {
+          return true;
+        }
+        return normalizedItemRoles.includes(currentNormalizedRole);
+      });
 
   // For Dashboard, route based on role
   const getDashboardHref = () => {
+    if (currentNormalizedRole === 'UNASSIGNED') return '/dashboard';
     if (currentNormalizedRole === 'HR') return '/hr';
     if (currentNormalizedRole === 'MANAGER') return '/dashboard/manager';
     if (currentNormalizedRole === 'TEAM_LEADER') return '/dashboard/team-leader';

@@ -926,94 +926,128 @@ export class AuthService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // STANDARD TENANT ADMIN / STAFF LOGIN
+  // EXACT SAAS LOGIN / AUTHORIZATION / AUTHENTICATION FLOW
+  // 1. Company Selection
+  // 2. Role Selection
+  // 3. Company Key Verification & Active Plan Verification
+  // 4. Email Verification & User Search in Company DB
+  // 5. Role Matching Logic
+  // 6. Password Verification
   // ═══════════════════════════════════════════════════════════
 
   async login(dto: LoginDto) {
     const emailLower = (dto.email || '').toLowerCase().trim();
-
-    // ══════════════════════════════════════════════════════════
-    // STEP 1: Company Key is MANDATORY and PRIMARY identifier.
-    // The key resolves which company the user belongs to.
-    // NO key = NO access. Period.
-    // ══════════════════════════════════════════════════════════
     const keyInput = (dto.key || '').trim().toUpperCase();
+    const companyIdent = (dto.organizationId || dto.company || '').trim();
 
-    if (!keyInput) {
-      throw new UnauthorizedException(
-        'Company Key is required. Please enter the Company Key provided to your organisation during registration.',
-      );
+    // ──────────────────────────────────────────────────────────
+    // STEP 1: Company / Workspace Selection
+    // All further auth & user verification MUST be performed
+    // against the selected company's own database.
+    // ──────────────────────────────────────────────────────────
+    let selectedOrg: any = null;
+
+    if (companyIdent) {
+      selectedOrg = await this.prisma.organization.findFirst({
+        where: {
+          OR: [
+            { id: companyIdent },
+            { slug: companyIdent.toLowerCase() },
+            { name: { equals: companyIdent, mode: 'insensitive' } },
+          ],
+        },
+        include: { subscription: true },
+      });
     }
 
-    let resolvedOrgId: string | null = null;
-    let resolvedCompanyKey: any = null;
+    // ──────────────────────────────────────────────────────────
+    // STEP 3: Company Key Verification
+    // The Company Key must confirm:
+    // - The key belongs to the selected company
+    // - The company's subscription / SaaS plan is active
+    // ──────────────────────────────────────────────────────────
+    if (!keyInput) {
+      throw new UnauthorizedException('Company Key is required.');
+    }
 
-    // Look up EXACT key match — no aliases, no fallbacks
-    resolvedCompanyKey = await this.prisma.companyRegistrationKey.findUnique({
+    const resolvedCompanyKey = await this.prisma.companyRegistrationKey.findUnique({
       where: { key: keyInput },
     });
 
+    const resolvedUserKey = !resolvedCompanyKey
+      ? await this.prisma.userInviteKey.findUnique({ where: { key: keyInput } })
+      : null;
+
+    // If company was not explicitly passed in DTO, resolve from key
+    if (!selectedOrg) {
+      const orgIdFromKey = resolvedCompanyKey?.usedByOrganizationId || resolvedUserKey?.organizationId;
+      if (orgIdFromKey) {
+        selectedOrg = await this.prisma.organization.findUnique({
+          where: { id: orgIdFromKey },
+          include: { subscription: true },
+        });
+      }
+    }
+
+    if (!selectedOrg) {
+      throw new UnauthorizedException('No user found with this role.');
+    }
+
+    // Verify key belongs to the selected company
+    const keyBelongsToOrg =
+      (resolvedCompanyKey && (resolvedCompanyKey.usedByOrganizationId === selectedOrg.id || selectedOrg.registrationKeyId === keyInput)) ||
+      (resolvedUserKey && resolvedUserKey.organizationId === selectedOrg.id) ||
+      (selectedOrg.registrationKeyId === keyInput);
+
+    if (!keyBelongsToOrg) {
+      throw new UnauthorizedException('Invalid company key or key does not belong to selected company.');
+    }
+
+    // Check key revocation / expiry
     if (resolvedCompanyKey) {
-      // Validate key status
       if (resolvedCompanyKey.status === 'REVOKED') {
-        throw new ForbiddenException(
-          `Company Key Revoked: The key "${keyInput}" has been revoked by Super Admin. Please contact support to get a new key.`,
-        );
+        throw new ForbiddenException('Company Key has been revoked. Contact Super Admin.');
       }
       if (resolvedCompanyKey.expiresAt && resolvedCompanyKey.expiresAt < new Date()) {
-        const keyExpiryStr = resolvedCompanyKey.expiresAt.toLocaleDateString('en-IN', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        });
-        throw new ForbiddenException(
-          `Company Key Expired: The key "${keyInput}" expired on ${keyExpiryStr}. Please contact Super Admin to renew your plan.`,
-        );
+        throw new ForbiddenException('Company Key has expired. Contact Super Admin to renew your plan.');
       }
-      // Key is valid — resolve the organisation it belongs to
-      if (!resolvedCompanyKey.usedByOrganizationId) {
-        throw new ForbiddenException(
-          `Company Key "${keyInput}" is not yet assigned to any company workspace. Please register your company first.`,
-        );
+    } else if (resolvedUserKey) {
+      if (resolvedUserKey.status === 'REVOKED') {
+        throw new ForbiddenException('Staff Invite Key has been revoked.');
       }
-      resolvedOrgId = resolvedCompanyKey.usedByOrganizationId;
-    } else {
-      // Not a company key — check if it is a staff invite key
-      const userKey = await this.prisma.userInviteKey.findUnique({
-        where: { key: keyInput },
-      });
-      if (userKey) {
-        if (userKey.status === 'REVOKED') {
-          throw new ForbiddenException(
-            `Staff Invite Key Revoked: The key "${keyInput}" has been revoked. Contact your Tenant Admin.`,
-          );
-        }
-        if (userKey.expiresAt && userKey.expiresAt < new Date()) {
-          throw new ForbiddenException(
-            `Staff Invite Key Expired: The key "${keyInput}" has expired. Contact your Tenant Admin for a new key.`,
-          );
-        }
-        resolvedOrgId = userKey.organizationId || null;
-      } else {
-        // Key exists in neither table — hard reject
-        throw new UnauthorizedException(
-          `Invalid Company Key: "${keyInput}" does not match any registered company. Please check your Company Key and try again.`,
-        );
+      if (resolvedUserKey.expiresAt && resolvedUserKey.expiresAt < new Date()) {
+        throw new ForbiddenException('Staff Invite Key has expired.');
       }
     }
 
-    if (!resolvedOrgId) {
-      throw new UnauthorizedException(
-        `Company Key "${keyInput}" could not be linked to any active company workspace. Please contact support.`,
-      );
+    // Confirm company's subscription / SaaS plan is active
+    const orgSettings = (selectedOrg.settings as any) || {};
+    if (selectedOrg.isActive === false || orgSettings.verificationStatus === 'REJECTED') {
+      throw new ForbiddenException('Company subscription plan is not active.');
     }
 
-    // ══════════════════════════════════════════════════════════
-    // STEP 2: Find user — SCOPED to the key's organization.
-    // A user can only authenticate within their own company.
-    // ══════════════════════════════════════════════════════════
-    let user = await this.prisma.user.findFirst({
+    const subscription = selectedOrg.subscription || (await this.prisma.subscription.findUnique({
+      where: { organizationId: selectedOrg.id },
+    }));
+
+    if (subscription) {
+      const now = new Date();
+      const trialExpired = subscription.trialExpiresAt && subscription.trialExpiresAt < now;
+      const subExpired = subscription.expiresAt && subscription.expiresAt < now;
+      const isInactive = subscription.isActive === false;
+      if (trialExpired || subExpired || isInactive) {
+        throw new ForbiddenException('Company subscription plan is not active.');
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // STEP 4: Email Verification & User Search in Selected Company
+    // Search ONLY inside the selected company's database
+    // ──────────────────────────────────────────────────────────
+    const user = await this.prisma.user.findFirst({
       where: {
+        organizationId: selectedOrg.id,
         email: emailLower,
-        ...(resolvedOrgId ? { organizationId: resolvedOrgId } : {}),
       },
       include: {
         organization: true,
@@ -1021,148 +1055,98 @@ export class AuthService {
       },
     });
 
-    // Demo user provisioning (no key scope restriction for demo accounts)
-    if (!user && !resolvedOrgId) {
-      user = await this.autoProvisionDemoRoleUser(dto.email, dto.password);
-    }
-
     if (!user) {
-      if (resolvedOrgId) {
-        // User was not found IN the key's company — give a clear message
-        const keyOrg = await this.prisma.organization.findUnique({
-          where: { id: resolvedOrgId },
-          select: { name: true },
-        });
-        throw new UnauthorizedException(
-          `Wrong Key or Email: No account for "${emailLower}" was found in company workspace "${keyOrg?.name || resolvedOrgId}". Please use your own Company Key.`,
-        );
+      // User does not exist in selected company
+      throw new UnauthorizedException('No user found with this role.');
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // STEP 6: User Registered But Role Not Assigned
+    // If the user has no role assigned yet:
+    // - Authenticate user if password is correct
+    // - Return restricted dashboard state:
+    //   "Your role is not assigned. Contact Admin or Manager."
+    // ──────────────────────────────────────────────────────────
+    const hasAssignedRole = Boolean(
+      user.roleId && user.role && user.role.name && user.role.name !== 'UNASSIGNED'
+    );
+
+    if (!hasAssignedRole) {
+      // Check password first
+      let valid = await bcrypt.compare(dto.password, user.passwordHash);
+      if (!valid && dto.password && typeof dto.password === 'string' && dto.password.trim() !== dto.password) {
+        valid = await bcrypt.compare(dto.password.trim(), user.passwordHash);
       }
-      throw new UnauthorizedException(
-        `Wrong Email: No registered user account found for "${emailLower}". Please check your email address or register your company.`,
-      );
+      if (!valid) {
+        throw new UnauthorizedException('Incorrect password.');
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+
+      const tokens = await this.generateTokens(user.id, user.organizationId, 'UNASSIGNED');
+      await this.saveRefreshToken(user.id, tokens.refreshToken);
+
+      return {
+        user: {
+          ...this.sanitizeUser(user),
+          role: null,
+          hasAssignedRole: false,
+          roleNotAssigned: true,
+          message: 'Your role is not assigned. Contact Admin or Manager.',
+        },
+        organization: user.organization,
+        role: null,
+        hasAssignedRole: false,
+        roleNotAssigned: true,
+        message: 'Your role is not assigned. Contact Admin or Manager.',
+        isCompanyVerified: true,
+        verificationStatus: 'APPROVED',
+        ...tokens,
+      };
     }
 
-    // ══════════════════════════════════════════════════════════
-    // STEP 3: Cross-verify — if key resolved an org, ensure the
-    // user actually belongs to THAT org (belt + suspenders).
-    // ══════════════════════════════════════════════════════════
-    if (resolvedOrgId && user.organizationId !== resolvedOrgId) {
-      throw new ForbiddenException(
-        `Wrong Company Key: This key belongs to a different company workspace. Please use your own Company Key to log in.`,
-      );
+    // ──────────────────────────────────────────────────────────
+    // STEP 2 & 4: Role Matching Logic
+    // If user exists in company but assigned role is different:
+    // Show: "User exists with a different role."
+    // ──────────────────────────────────────────────────────────
+    if (dto.selectedRole) {
+      const normalizeRolePerspective = (roleName?: string | null): string => {
+        if (!roleName) return '';
+        const r = roleName.trim().toUpperCase().replace(/[\s_\-]+/g, '');
+        if (r === 'ADMIN' || r.includes('ADMIN') || r === 'OWNER') return 'Admin';
+        if (r === 'HR') return 'HR';
+        if (r === 'MANAGER' || r.includes('MANAGER')) return 'Manager';
+        if (r.includes('TEAMLEAD') || r === 'TL') return 'Team Leader';
+        if (r.includes('SALES') || r.includes('EXEC') || r === 'EMPLOYEE') return 'Sales Executive';
+        return roleName;
+      };
+
+      const normAssigned = normalizeRolePerspective(user.role?.name);
+      const normSelected = normalizeRolePerspective(dto.selectedRole);
+
+      if (normAssigned !== normSelected) {
+        throw new UnauthorizedException('User exists with a different role.');
+      }
     }
 
-    // If organizationId was passed from UI, also verify it matches
-    if (dto.organizationId && user.organizationId && user.organizationId !== dto.organizationId) {
-      throw new ForbiddenException(
-        'Selected company workspace does not match this user account. Please select your registered company workspace.',
-      );
-    }
-
-    // 4. User Account Status Verification
     if (user.isActive === false) {
-      throw new ForbiddenException(
-        `User Account Deactivated: Your account (${emailLower}) has been deactivated by your Tenant Admin. Please contact your company administrator.`,
-      );
+      throw new ForbiddenException('User account has been deactivated by company administrator.');
     }
 
-    if (AuthService.DEMO_ROLE_MAP[emailLower]) {
-      const expectedRoleName = AuthService.DEMO_ROLE_MAP[emailLower].role;
-      if (user.role?.name !== expectedRoleName) {
-        let targetRole = await this.prisma.role.findFirst({
-          where: { organizationId: user.organizationId, name: expectedRoleName },
-        });
-        if (!targetRole) {
-          targetRole = await this.prisma.role.create({
-            data: { organizationId: user.organizationId, name: expectedRoleName },
-          });
-        }
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { roleId: targetRole.id },
-        });
-        user.role = targetRole as any;
-      }
-    }
-
-    // 5. Password Verification
+    // ──────────────────────────────────────────────────────────
+    // STEP 5: Password Verification
+    // If password incorrect: Show "Incorrect password."
+    // ──────────────────────────────────────────────────────────
     let valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid && dto.password && typeof dto.password === 'string' && dto.password.trim() !== dto.password) {
       valid = await bcrypt.compare(dto.password.trim(), user.passwordHash);
     }
     if (!valid) {
-      throw new UnauthorizedException(
-        `Wrong Password: The password entered for account "${emailLower}" is incorrect. Please check your password or click "Forgot Password?" to reset.`,
-      );
-    }
-
-    // 6. Company Workspace & Verification Status Check
-    if (user.organization) {
-      const settings = (user.organization.settings as any) || {};
-      const regKey = user.organization.registrationKeyId || keyInput || 'N/A';
-
-      if (settings.verificationStatus === 'REJECTED') {
-        throw new ForbiddenException({
-          code: 'VERIFICATION_REJECTED',
-          message: `Company Registration Declined: ${settings.rejectionReason || 'Your company workspace registration was not approved by Super Admin.'}`,
-          company: {
-            id: user.organization.id,
-            name: user.organization.name,
-            rejectionReason: settings.rejectionReason,
-          },
-        });
-      }
-
-      if (settings.verificationStatus === 'PENDING' || (user.organization.isActive === false && settings.verificationStatus !== 'APPROVED')) {
-        throw new ForbiddenException({
-          code: 'VERIFICATION_PENDING',
-          message: 'Verification in process: Your company workspace plan is awaiting Super Admin verification. Please wait.',
-          company: {
-            id: user.organization.id,
-            name: user.organization.name,
-            adminEmail: user.organization.adminEmail,
-            registrationKey: regKey,
-            plan: settings.requestedPlan || 'FREE_TRIAL',
-            registeredAt: user.organization.createdAt,
-            verificationStatus: 'PENDING',
-          },
-        });
-      }
-
-      if (user.organization.isActive === false) {
-        throw new ForbiddenException(
-          `Company Account Suspended: Access to workspace "${user.organization.name}" has been suspended by System Administrator.`,
-        );
-      }
-    }
-
-    // 7. Subscription Plan Active & Expiry Check (Key tells us if the plan is active)
-    if (user.organizationId) {
-      const subscription = await this.prisma.subscription.findUnique({
-        where: { organizationId: user.organizationId },
-      });
-
-      if (subscription) {
-        const now = new Date();
-        const trialExpired = subscription.trialExpiresAt && subscription.trialExpiresAt < now;
-        const subExpired = subscription.expiresAt && subscription.expiresAt < now;
-        const isInactive = subscription.isActive === false;
-
-        if (trialExpired || subExpired || isInactive) {
-          const expiryDate = subscription.expiresAt || subscription.trialExpiresAt;
-          const expiryDateFormatted = expiryDate
-            ? expiryDate.toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })
-            : 'recently';
-
-          throw new ForbiddenException(
-            `Plan Expired: Your company subscription plan (${subscription.planTier}) expired on ${expiryDateFormatted}. Please contact your Tenant Admin or Super Admin to renew your plan.`,
-          );
-        }
-      }
+      throw new UnauthorizedException('Incorrect password.');
     }
 
     await this.prisma.user.update({
@@ -1178,8 +1162,14 @@ export class AuthService {
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return {
-      user: this.sanitizeUser(user),
+      user: {
+        ...this.sanitizeUser(user),
+        hasAssignedRole: true,
+        roleNotAssigned: false,
+      },
       organization: user.organization,
+      hasAssignedRole: true,
+      roleNotAssigned: false,
       isCompanyVerified: true,
       verificationStatus: 'APPROVED',
       ...tokens,

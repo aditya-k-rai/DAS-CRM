@@ -258,23 +258,16 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   /** Mirrors LoginGateway.tsx handleWorkspaceLogin */
   const handleWorkspaceLogin = async () => {
-    if (!companyKeyInput.trim() || companyKeyInput.trim().length < 11) {
-      setError(
-        'Please enter a valid Company Key (format: DAS-KX-7421).',
-      );
+    if (!companyKeyInput.trim()) {
+      setError('Please enter your Company Key.');
       return;
     }
-    if (!email || !password) {
+    if (!selectedCompanyId) {
+      setError('Please select your company workspace.');
+      return;
+    }
+    if (!email.trim() || !password) {
       setError('Please enter your email and password.');
-      return;
-    }
-
-    // Role vs email mismatch check
-    const matchCheck = validateEmailRoleMatch(email, selectedRole);
-    if (!matchCheck.valid && matchCheck.expectedRole) {
-      setError(
-        `Wrong credential or role mismatch: "${email}" is assigned to role "${matchCheck.expectedRole.replace('_', ' ')}", not "${selectedRole.replace('_', ' ')}". Check your email and selected role.`,
-      );
       return;
     }
 
@@ -286,28 +279,65 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
+          email: email.trim(),
           password,
           key: companyKeyInput.trim(),
           organizationId: selectedCompanyId,
+          selectedRole,
         }),
       });
 
       const data = await res.json();
 
+      if (!res.ok) {
+        setError(data.message || 'Login failed.');
+        setLoading(false);
+        return;
+      }
+
       if (res.ok && data.accessToken) {
-        const inferred = inferRoleFromEmail(email);
+        // STEP 6: User registered but role not assigned yet
+        if (data.hasAssignedRole === false || data.roleNotAssigned === true || !data.user?.role) {
+          if (rememberMe) {
+            const credsStr = JSON.stringify({
+              email: email.trim(),
+              password,
+              companyKey: companyKeyInput.trim(),
+              companyId: selectedCompanyId,
+              role: 'UNASSIGNED',
+              savedAt: new Date().toISOString(),
+            });
+            AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+          }
+          await setAuthSession(
+            {
+              id: data.user?.id || 'usr_unassigned',
+              name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || 'User',
+              email: data.user?.email || email.trim(),
+              role: 'UNASSIGNED',
+              avatar: 'UA',
+              companyId: data.organization?.id || selectedCompanyId,
+              companyName: data.organization?.name || selectedCompanyName,
+              hasAssignedRole: false,
+              roleNotAssigned: true,
+              unassignedMessage: data.message || 'Your role is not assigned. Contact Admin or Manager.',
+            },
+            data.accessToken,
+          );
+          setLoading(false);
+          onLoginSuccess('Home');
+          return;
+        }
+
         const backendRoleName =
           data.user?.role?.name ||
           (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(
-          inferred || backendRoleName || selectedRole,
-        );
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
         const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
 
         if (rememberMe) {
           const credsStr = JSON.stringify({
-            email,
+            email: email.trim(),
             password,
             companyKey: companyKeyInput.trim(),
             companyId: selectedCompanyId,
@@ -326,15 +356,15 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             name:
               `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
               demoProfile.name,
-            email: data.user?.email || email,
+            email: data.user?.email || email.trim(),
             role: finalRole,
             avatar: data.user?.firstName
               ? data.user.firstName.slice(0, 2).toUpperCase()
               : demoProfile.avatar,
             companyId: data.organization?.id || selectedCompanyId,
-            companyName:
-              data.organization?.name ||
-              selectedCompanyName,
+            companyName: data.organization?.name || selectedCompanyName,
+            hasAssignedRole: true,
+            roleNotAssigned: false,
           },
           data.accessToken,
         );
@@ -342,38 +372,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         onLoginSuccess(getPostLoginDefaultTab(finalRole));
         return;
       }
-
-      if (!res.ok) {
-        setError(
-          data.message ||
-            'Login failed. Please verify your company workspace selection and registration key.',
-        );
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // Backend unavailable — demo mode fallback
+    } catch (err: any) {
+      setError(err?.message || 'Unable to connect to authentication server. Please check your network connection.');
+      setLoading(false);
     }
-
-    // Demo mode fallback
-    const finalRole = normalizeRoleStr(
-      inferRoleFromEmail(email) || selectedRole,
-    );
-    if (rememberMe) {
-      const credsStr = JSON.stringify({
-        email,
-        password,
-        companyKey: companyKeyInput.trim(),
-        companyId: selectedCompanyId,
-        role: finalRole,
-        savedAt: new Date().toISOString(),
-      });
-      AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-      AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
-    }
-    await switchRole(finalRole);
-    setLoading(false);
-    onLoginSuccess(getPostLoginDefaultTab(finalRole));
   };
 
   /** Mirrors LoginGateway.tsx handleGoogleSignIn */
@@ -574,41 +576,10 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </View>
               ) : null}
 
-              {/* Role Pills */}
-              <Text style={styles.label}>
-                Select Login Role / Perspective *
-                {loading ? (
-                  <Text style={styles.labelNote}> (Locked during authentication)</Text>
-                ) : null}
-              </Text>
-              <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
-                {ALL_ROLES.map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    disabled={loading}
-                    style={[
-                      styles.rolePill,
-                      selectedRole === r && styles.rolePillActive,
-                    ]}
-                    onPress={() => handleRoleSelect(r)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.rolePillText,
-                        selectedRole === r && styles.rolePillTextActive,
-                      ]}
-                    >
-                      {r.replace('_', ' ')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Company Selector */}
+              {/* STEP 1 — COMPANY / WORKSPACE SELECTION */}
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Select Company / Workspace *</Text>
+                  <Text style={styles.label}>1. Select Company / Workspace *</Text>
                   <TouchableOpacity
                     onPress={() => fetchAndSyncCompanies(true)}
                     disabled={syncingCompanies || loading}
@@ -634,10 +605,41 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </TouchableOpacity>
               </View>
 
-              {/* Company Key */}
+              {/* STEP 2 — ROLE / PERSPECTIVE SELECTION */}
+              <Text style={styles.label}>
+                2. Select Login Role / Perspective *
+                {loading ? (
+                  <Text style={styles.labelNote}> (Locked during authentication)</Text>
+                ) : null}
+              </Text>
+              <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
+                {ALL_ROLES.map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    disabled={loading}
+                    style={[
+                      styles.rolePill,
+                      selectedRole === r && styles.rolePillActive,
+                    ]}
+                    onPress={() => handleRoleSelect(r)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.rolePillText,
+                        selectedRole === r && styles.rolePillTextActive,
+                      ]}
+                    >
+                      {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'ADMIN' ? 'Admin' : r === 'HR' ? 'HR' : 'Manager'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* STEP 3 — COMPANY KEY VERIFICATION */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Company / User Key (Format: DAS-KX-7421) *
+                  3. Enter Company Key (e.g. ADOR-EC-7187) *
                 </Text>
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔑</Text>
@@ -649,7 +651,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       styles.monoInput,
                       loading && { opacity: 0.5 },
                     ]}
-                    placeholder="DAS-KX-7421"
+                    placeholder="ADOR-EC-7187"
                     placeholderTextColor="#64748b"
                     value={companyKeyInput}
                     maxLength={12}
@@ -661,22 +663,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </View>
               </View>
 
-              {/* Email */}
+              {/* STEP 4 — ENTER EMAIL */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email Address *</Text>
+                <Text style={styles.label}>4. Enter Email *</Text>
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>✉️</Text>
                   <TextInput
                     editable={!loading}
                     style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
-                    placeholder="user@organization.com"
+                    placeholder="user@gmail.com"
                     placeholderTextColor="#64748b"
                     value={email}
-                    onChangeText={(val) => {
-                      setEmail(val);
-                      const inferred = inferRoleFromEmail(val);
-                      if (inferred) setSelectedRole(inferred);
-                    }}
+                    onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -684,9 +682,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </View>
               </View>
 
-              {/* Password */}
+              {/* STEP 5 — ENTER PASSWORD */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password *</Text>
+                <Text style={styles.label}>5. Enter Password *</Text>
                 <View style={{ position: 'relative', justifyContent: 'center' }}>
                   <Text style={styles.inputIcon}>🔒</Text>
                   <TextInput
@@ -749,7 +747,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </View>
               </View>
 
-              {/* Sign In Button */}
+              {/* STEP 6 — LOGIN BUTTON */}
               <TouchableOpacity
                 style={styles.button}
                 onPress={handleWorkspaceLogin}
@@ -760,21 +758,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.buttonText}>
-                    Sign In as {selectedRole.replace('_', ' ')} →
+                    Login →
                   </Text>
                 )}
-              </TouchableOpacity>
-
-              {/* Google Sign-In */}
-              <TouchableOpacity
-                style={styles.googleButton}
-                onPress={handleGoogleSignIn}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.googleButtonText}>
-                  🌐 Sign in with Google (Gmail Verified)
-                </Text>
               </TouchableOpacity>
             </View>
         </ScrollView>

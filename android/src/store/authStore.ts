@@ -15,7 +15,8 @@ export type UserRole =
   | 'HR'
   | 'MANAGER'
   | 'TEAM_LEADER'
-  | 'SALES_EXEC';
+  | 'SALES_EXEC'
+  | 'UNASSIGNED';
 
 export type PlanType =
   | 'FREE_TRIAL'
@@ -156,6 +157,9 @@ export interface UserProfile {
   isLocked?: boolean;
   isSuspended?: boolean;
   deletionScheduledAt?: string | null;
+  hasAssignedRole?: boolean;
+  roleNotAssigned?: boolean;
+  unassignedMessage?: string;
 }
 
 export interface RoleTransitionLock {
@@ -246,6 +250,18 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     managerId: 'usr_mgr',
     teamLeaderId: 'usr_tl',
   },
+  UNASSIGNED: {
+    id: 'usr_unassigned',
+    name: 'Unassigned User',
+    email: 'unassigned@das.com',
+    role: 'UNASSIGNED',
+    avatar: 'UA',
+    companyId: 'comp_default',
+    companyName: 'DAS Organization',
+    hasAssignedRole: false,
+    roleNotAssigned: true,
+    unassignedMessage: 'Your role is not assigned. Contact Admin or Manager.',
+  },
 };
 
 // ─── Helper Functions (identical to web AuthContext) ─────────────────────────
@@ -267,6 +283,8 @@ export function normalizeRoleStr(r?: any): UserRole {
   }
 
   const norm = str.trim().toUpperCase();
+  if (norm === 'UNASSIGNED' || norm === 'NONE' || norm === 'NO_ROLE' || norm === 'NOT_ASSIGNED')
+    return 'UNASSIGNED';
   if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN')
     return 'SUPER_ADMIN';
   if (

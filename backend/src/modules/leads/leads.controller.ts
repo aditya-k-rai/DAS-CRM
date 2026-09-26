@@ -32,7 +32,7 @@ export class LeadsController {
   @Get()
   @ApiOperation({ summary: 'List all leads with filters, pagination & search' })
   findAll(@CurrentUser() user: any, @Query() query: LeadQueryDto) {
-    return this.leadsService.findAll(user.organizationId, query);
+    return this.leadsService.findAll(user.organizationId, query, user?.id);
   }
 
   @Get('statuses')
@@ -50,7 +50,7 @@ export class LeadsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get lead detail with full timeline' })
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.leadsService.findOne(user.organizationId, id);
+    return this.leadsService.findOne(user.organizationId, id, user?.id);
   }
 
   @Post()
@@ -96,7 +96,7 @@ export class LeadsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete lead' })
   remove(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.leadsService.remove(user.organizationId, id);
+    return this.leadsService.remove(user.organizationId, user.id, id);
   }
 
   // ── Lead Distribution Engine (3 Allocation Models + Manager Control) ──

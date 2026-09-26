@@ -93,9 +93,63 @@ function LeadsStackNavigator() {
 
 const Tab = createBottomTabNavigator();
 
+function UnassignedRoleScreen() {
+  const { currentUser, logout } = useAuthStore();
+  const { colors } = useTheme();
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <View style={{
+        maxWidth: 380,
+        width: '100%',
+        backgroundColor: colors.cardBg,
+        borderColor: '#f59e0b',
+        borderWidth: 1.5,
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+      }}>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>🔒</Text>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 8, textAlign: 'center' }}>
+          Restricted Workspace Access
+        </Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', textAlign: 'center', marginBottom: 12 }}>
+          Your role is not assigned. Contact Admin or Manager.
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+          You have successfully authenticated to {currentUser?.companyName || 'your company workspace'}. However, an administrator has not yet assigned a role to your account. You will not have access to dashboard data or operational modules until your role is assigned.
+        </Text>
+        <TouchableOpacity
+          onPress={() => logout()}
+          style={{
+            backgroundColor: '#ef4444',
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 12,
+            width: '100%',
+            alignItems: 'center',
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 function RoleDashboardDispatcher(props: any) {
   const { currentUser } = useAuthStore();
   const role = currentUser.role;
+
+  if (currentUser.hasAssignedRole === false || role === 'UNASSIGNED') {
+    return <UnassignedRoleScreen />;
+  }
 
   if (role === 'ADMIN') {
     return <AdminDashboardScreen {...props} />;
@@ -127,22 +181,25 @@ function MainTabNavigator({
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
   const topPadding = Math.max(insets.top, 12);
 
-  const roleStr = currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
+  const isUnassigned = currentUser?.hasAssignedRole === false || currentUser?.role === 'UNASSIGNED';
+  const roleStr = isUnassigned ? 'UNASSIGNED' : currentUser?.role ? currentUser.role.replace('_', ' ') : 'SALES EXEC';
   const companyStr = currentUser?.companyName || 'Acme Sales Solutions';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* Dynamic Header */}
       <View style={[styles.topHeader, { backgroundColor: colors.headerBg, borderBottomColor: colors.border, paddingTop: topPadding + 6 }]}>
-        <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenDrawer} activeOpacity={0.7}>
-          <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
-          <View style={[styles.hamburgerLine, { width: 14, backgroundColor: colors.primary }]} />
-          <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
-        </TouchableOpacity>
+        {!isUnassigned && (
+          <TouchableOpacity style={styles.hamburgerBtn} onPress={onOpenDrawer} activeOpacity={0.7}>
+            <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
+            <View style={[styles.hamburgerLine, { width: 14, backgroundColor: colors.primary }]} />
+            <View style={[styles.hamburgerLine, { backgroundColor: colors.primary }]} />
+          </TouchableOpacity>
+        )}
 
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>{companyStr}</Text>
-          <Text style={[styles.headerSub, { color: colors.primary }]}>{t.headerRolePrefix || 'ROLE'}: {roleStr}</Text>
+          <Text style={[styles.headerSub, { color: isUnassigned ? '#f59e0b' : colors.primary }]}>{t.headerRolePrefix || 'ROLE'}: {roleStr}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -150,20 +207,22 @@ function MainTabNavigator({
           <ThemeToggle compact style={{ height: 36, minHeight: 36 }} />
 
           {/* 🔔 NOTIFICATION BELL BUTTON WITH RED UNREAD BADGE COUNT (Replaces Avatar Initials) */}
-          <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
-            <Text style={{ fontSize: 17 }}>🔔</Text>
-            {unreadCount > 0 && (
-              <View style={styles.notifBadgeCircle}>
-                <Text style={styles.notifBadgeCountText}>{unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {!isUnassigned && (
+            <TouchableOpacity style={[styles.notifHeaderBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border }]} onPress={onOpenNotifications} activeOpacity={0.7}>
+              <Text style={{ fontSize: 17 }}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.notifBadgeCircle}>
+                  <Text style={styles.notifBadgeCountText}>{unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
       <Tab.Navigator
         tabBar={(props) => {
-          const filteredRoutes = props.state.routes.filter((r) => r.name !== 'WorkflowBuilder');
+          const filteredRoutes = props.state.routes.filter((r) => isUnassigned ? r.name === 'Home' : r.name !== 'WorkflowBuilder');
           const currentRoute = props.state.routes[props.state.index];
           const activeIndex = filteredRoutes.findIndex((r) => r.key === currentRoute?.key);
           return (

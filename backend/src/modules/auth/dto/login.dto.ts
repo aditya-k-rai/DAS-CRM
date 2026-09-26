@@ -19,4 +19,14 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @ApiPropertyOptional({ example: 'Adorable Trading', description: 'Selected company workspace Name or ID' })
+  @IsOptional()
+  @IsString()
+  company?: string;
+
+  @ApiPropertyOptional({ example: 'Admin', description: 'Selected login role / perspective: Admin, HR, Manager, Team Leader, Sales Executive' })
+  @IsOptional()
+  @IsString()
+  selectedRole?: string;
 }

@@ -386,22 +386,18 @@ export function LoginGateway() {
   // 1. Workspace Login Handler
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
-      setError('Please enter your Company Registration Key or User Key.');
+      setError('Please enter your Company Key.');
       return;
     }
 
     const effectiveCompanyId = selectedCompanyId || (publicCompanies.length > 0 ? publicCompanies[0].id : '');
     if (!effectiveCompanyId) {
-      setError('Please select your company workspace. If you have not registered yet, please register your company first.');
+      setError('Please select your company workspace.');
       return;
     }
 
-    // Role vs Email validation check
-    const matchCheck = validateEmailRoleMatch(email, selectedRole);
-    if (!matchCheck.valid && matchCheck.expectedRole) {
-      setError(
-        `Wrong credential or role mismatch: The account "${email}" is assigned to role "${matchCheck.expectedRole.replace('_', ' ')}", not "${selectedRole.replace('_', ' ')}". Please check your email, password, and selected role.`
-      );
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
       return;
     }
 
@@ -409,15 +405,15 @@ export function LoginGateway() {
     setError(null);
 
     try {
-      // Try backend API first
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
+          email: email.trim(),
           password,
           key: companyKeyInput.trim(),
           organizationId: effectiveCompanyId,
+          selectedRole,
         }),
       });
 
@@ -441,32 +437,12 @@ export function LoginGateway() {
           );
           return;
         }
-        setError(data.message || 'Login failed. Please verify your company workspace selection and registration key.');
+        setError(data.message || 'Login failed.');
         setLoading(false);
         return;
       }
+
       if (res.ok && data.accessToken) {
-        // Resolve target role from email pattern first, then backend user role object, then UI selector
-        const inferred = inferRoleFromEmail(email);
-        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole: UserRole = normalizeRoleStr(inferred || backendRoleName || selectedRole);
-        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
-
-        if (rememberMe) {
-          saveLoginCredentials({
-            email,
-            password,
-            companyKey: companyKeyInput.trim(),
-            companyId: effectiveCompanyId,
-            companyName: data.organization?.name || publicCompanies.find(c => c.id === effectiveCompanyId)?.name,
-            role: finalRole,
-            savedAt: new Date().toISOString(),
-          });
-        } else {
-          clearLoginCredentials();
-        }
-
-        const redirectUrl = getPostLoginRedirectRoute(finalRole);
         const compName = data.organization?.name || data.user?.organization?.name || publicCompanies.find(c => c.id === selectedCompanyId)?.name || 'Adorable Trading';
         const compId = data.organization?.id || data.user?.organization?.id || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
         const subData: CompanySubscription = {
@@ -487,25 +463,76 @@ export function LoginGateway() {
           },
         };
 
-        let storedPhone = '';
-        if (typeof window !== 'undefined') {
-          try {
-            const raw = localStorage.getItem('last_registered_company');
-            if (raw) storedPhone = JSON.parse(raw)?.phone || '';
-          } catch (_) {}
+        const userPhone = data.user?.phone || data.organization?.phone || '';
+
+        // STEP 6: Registered but role not assigned yet
+        if (data.hasAssignedRole === false || data.roleNotAssigned === true || !data.user?.role) {
+          if (rememberMe) {
+            saveLoginCredentials({
+              email: email.trim(),
+              password,
+              companyKey: companyKeyInput.trim(),
+              companyId: effectiveCompanyId,
+              companyName: compName,
+              role: 'UNASSIGNED',
+              savedAt: new Date().toISOString(),
+            });
+          }
+          setAuthSession(
+            {
+              id: data.user?.id || 'usr_unassigned',
+              name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || 'User',
+              email: data.user?.email || email.trim(),
+              role: 'UNASSIGNED',
+              avatar: 'UA',
+              companyId: compId,
+              companyName: compName,
+              phone: userPhone,
+              hasAssignedRole: false,
+              roleNotAssigned: true,
+              unassignedMessage: data.message || 'Your role is not assigned. Contact Admin or Manager.',
+            },
+            data.accessToken,
+            subData
+          );
+          setLoading(false);
+          navigateToRoute('/dashboard');
+          return;
         }
-        const userPhone = data.user?.phone || data.organization?.phone || storedPhone || (email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
+
+        // Full authenticated assigned role
+        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
+        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
+
+        if (rememberMe) {
+          saveLoginCredentials({
+            email: email.trim(),
+            password,
+            companyKey: companyKeyInput.trim(),
+            companyId: effectiveCompanyId,
+            companyName: compName,
+            role: finalRole,
+            savedAt: new Date().toISOString(),
+          });
+        } else {
+          clearLoginCredentials();
+        }
+
+        const redirectUrl = getPostLoginRedirectRoute(finalRole);
 
         setAuthSession(
           {
             id: data.user?.id || demoProfile.id,
             name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || demoProfile.name,
-            email: data.user?.email || email,
+            email: data.user?.email || email.trim(),
             role: finalRole,
             avatar: data.user?.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : demoProfile.avatar,
             companyId: compId,
             companyName: compName,
             phone: userPhone,
+            hasAssignedRole: true,
+            roleNotAssigned: false,
           },
           data.accessToken,
           subData
@@ -513,117 +540,10 @@ export function LoginGateway() {
         setLoading(false);
         navigateToRoute(redirectUrl);
         return;
-      } else {
-        const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
-        if (rememberMe) {
-          saveLoginCredentials({
-            email,
-            password,
-            companyKey: companyKeyInput.trim(),
-            companyId: effectiveCompanyId,
-            role: finalRole,
-            savedAt: new Date().toISOString(),
-          });
-        }
-        switchRole(finalRole);
-        setLoading(false);
-        navigateToRoute(getPostLoginRedirectRoute(finalRole));
-        return;
       }
-    } catch (err) {
-      if (selectedCompanyId === 'comp_pending_apex_solar' || companyKeyInput.toUpperCase().startsWith('SOLAR')) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('pending_company_key', companyKeyInput.trim());
-          localStorage.setItem('pending_company_name', 'Apex Solar Energy Solutions');
-          localStorage.setItem('pending_user_email', email);
-          localStorage.setItem('pending_company_id', selectedCompanyId);
-        }
-        setLoading(false);
-        router.push(
-          `/verification-pending?companyKey=${encodeURIComponent(companyKeyInput.trim())}&companyName=Apex%20Solar%20Energy%20Solutions&email=${encodeURIComponent(email)}`
-        );
-        return;
-      }
-      console.warn('Backend login unavailable, activating selected role mode:', err);
-      const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
-      switchRole(finalRole);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to connect to authentication server. Please try again.');
       setLoading(false);
-      navigateToRoute(getPostLoginRedirectRoute(finalRole));
-    }
-  };
-
-  // Google OAuth Handler (Requires Company & Key Verification, Bypasses Password)
-  const handleGoogleSignIn = async () => {
-    if (!selectedCompanyId || !companyKeyInput.trim()) {
-      setError('Company Workspace selection and Registration/User Key are required before signing in with Google.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email || 'user@gmail.com',
-          googleId: 'google_oauth_' + Date.now(),
-          name: email ? email.split('@')[0] : 'Google User',
-          organizationId: selectedCompanyId,
-          key: companyKeyInput.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        if (
-          data.code === 'VERIFICATION_PENDING' ||
-          (res.status === 403 && (data.message?.toLowerCase().includes('verification') || data.message?.toLowerCase().includes('pending')))
-        ) {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('pending_company_key', companyKeyInput.trim());
-            localStorage.setItem('pending_company_name', data.company?.name || '');
-            localStorage.setItem('pending_user_email', email);
-          }
-          setLoading(false);
-          router.push(
-            `/verification-pending?companyKey=${encodeURIComponent(companyKeyInput.trim())}&companyName=${encodeURIComponent(data.company?.name || '')}&email=${encodeURIComponent(email)}`
-          );
-          return;
-        }
-        setError(data.message || 'Google OAuth authentication failed.');
-        setLoading(false);
-        return;
-      }
-      if (res.ok && data.accessToken) {
-        const backendRoleName = data.user?.role?.name || (typeof data.user?.role === 'string' ? data.user.role : null);
-        const finalRole = normalizeRoleStr(backendRoleName || inferRoleFromEmail(email) || selectedRole);
-        const userPhone = data.user?.phone || data.organization?.phone || (email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
-        setAuthSession(
-          {
-            id: data.user.id,
-            name: `${data.user.firstName || ''} ${data.user.lastName || ''}`.trim() || 'Google User',
-            email: data.user.email,
-            role: finalRole,
-            avatar: data.user.firstName ? data.user.firstName.slice(0, 2).toUpperCase() : 'GU',
-            companyId: data.organization?.id || selectedCompanyId,
-            companyName: data.organization?.name || 'DAS Organization',
-            phone: userPhone,
-          },
-          data.accessToken
-        );
-        setLoading(false);
-        navigateToRoute(getPostLoginRedirectRoute(finalRole));
-        return;
-      } else {
-        setError(data.message || 'Google OAuth authentication failed. Please ensure you are using a valid Gmail email ID.');
-        setLoading(false);
-      }
-    } catch (err) {
-      const finalRole = normalizeRoleStr(inferRoleFromEmail(email) || selectedRole);
-      switchRole(finalRole);
-      setLoading(false);
-      navigateToRoute(getPostLoginRedirectRoute(finalRole));
     }
   };
 
@@ -930,57 +850,12 @@ export function LoginGateway() {
               <p className="text-xs text-muted mt-0.5">Select your company and provide your assigned key to authenticate.</p>
             </div>
 
-            {/* Target Role / Perspective Selector */}
-            <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">
-                Select Login Role / Perspective * {loading && <span className="text-indigo-400 font-normal">(Locked during authentication)</span>}
-              </label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => {
-                      setSelectedRole(r);
-                      setError(null);
-                      // Autofill ONLY if there is a saved previous login cookie for this role
-                      const savedForRole = loadLoginCredentials(r);
-                      if (savedForRole && savedForRole.email) {
-                        setEmail(savedForRole.email);
-                        if (savedForRole.password) setPassword(savedForRole.password);
-                        if (savedForRole.companyKey && !companyKeyInput) setCompanyKeyInput(savedForRole.companyKey);
-                        setHasAutofilled(true);
-                      } else {
-                        // NO fake demo emails! If current email was from another role's saved login, clear it
-                        const gen = loadLoginCredentials();
-                        if (gen && gen.role !== r && email === gen.email) {
-                          setEmail('');
-                          setPassword('');
-                          setHasAutofilled(false);
-                        }
-                      }
-                    }}
-                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${
-                      loading ? 'opacity-50 cursor-not-allowed' : ''
-                    } ${
-                      selectedRole === r
-                        ? 'bg-indigo-500/25 border-indigo-500 text-indigo-600 dark:text-indigo-300 shadow-md font-bold'
-                        : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                    }`}
-                  >
-                    {r.replace('_', ' ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={`space-y-3 pt-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-              {/* Company Selection Dropdown */}
+            <div className={`space-y-3.5 pt-1 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {/* STEP 1 — COMPANY / WORKSPACE SELECTION */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
-                    <Building2 size={13} className="text-indigo-400" /> Select Company / Workspace *
+                    <Building2 size={13} className="text-indigo-400" /> 1. Select Company / Workspace *
                   </label>
                   <button
                     type="button"
@@ -1053,11 +928,47 @@ export function LoginGateway() {
                 )}
               </div>
 
-              {/* Company Key Input */}
+              {/* STEP 2 — ROLE / PERSPECTIVE SELECTION */}
+              <div>
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-1.5">
+                  2. Select Login Role / Perspective * {loading && <span className="text-indigo-400 font-normal">(Locked during authentication)</span>}
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                  {(['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).map((r) => {
+                    const roleLabel =
+                      r === 'ADMIN' ? 'Admin' :
+                      r === 'HR' ? 'HR' :
+                      r === 'MANAGER' ? 'Manager' :
+                      r === 'TEAM_LEADER' ? 'Team Leader' : 'Sales Executive';
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          setSelectedRole(r);
+                          setError(null);
+                        }}
+                        className={`py-1.5 px-1 rounded-xl text-[10px] font-bold border transition-all ${
+                          loading ? 'opacity-50 cursor-not-allowed' : ''
+                        } ${
+                          selectedRole === r
+                            ? 'bg-indigo-500/25 border-indigo-500 text-indigo-600 dark:text-indigo-300 shadow-md font-bold'
+                            : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        {roleLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* STEP 3 — COMPANY KEY VERIFICATION */}
               <div>
                 <label className="text-xs text-muted block mb-1">
-                  Company Key (Format: ADOR-EC-7187) *
-                  <span className="ml-2 text-[10px] text-indigo-400 font-normal">Use your own company&apos;s key</span>
+                  3. Enter Company Key (e.g. ADOR-EC-7187) *
+                  <span className="ml-2 text-[10px] text-indigo-400 font-normal">Must belong to selected company &amp; active plan</span>
                 </label>
                 <div className="relative flex items-center">
                   <Key size={15} className="absolute left-3 text-purple-400" />
@@ -1081,33 +992,34 @@ export function LoginGateway() {
                 )}
               </div>
 
+              {/* STEP 4 & STEP 5 — EMAIL & PASSWORD */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* STEP 4 — ENTER EMAIL */}
                 <div>
-                  <label className="text-xs text-muted block mb-1">Email *</label>
+                  <label className="text-xs text-muted block mb-1">4. Enter Email *</label>
                   <div className="relative flex items-center">
                     <Mail size={15} className="absolute left-3 text-muted" />
                     <input
                       disabled={loading}
+                      type="email"
                       className="crm-input pl-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+                      placeholder="user@gmail.com"
                       value={email}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setEmail(val);
-                        const inferred = inferRoleFromEmail(val);
-                        if (inferred) setSelectedRole(inferred);
-                      }}
+                      onChange={e => setEmail(e.target.value)}
                     />
                   </div>
                 </div>
 
+                {/* STEP 5 — ENTER PASSWORD */}
                 <div>
-                  <label className="text-xs text-muted block mb-1">Password *</label>
+                  <label className="text-xs text-muted block mb-1">5. Enter Password *</label>
                   <div className="relative flex items-center">
                     <Lock size={15} className="absolute left-3 text-muted pointer-events-none" />
                     <input
                       disabled={loading}
                       type={showPassword ? 'text' : 'password'}
                       className="crm-input pl-9 pr-9 text-sm h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
+                      placeholder="••••••••"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                     />
@@ -1137,7 +1049,7 @@ export function LoginGateway() {
                         }}
                         className="rounded border-border text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
                       />
-                      <span>Remember credentials (Cookies)</span>
+                      <span>Remember credentials</span>
                     </label>
                     <div className="flex items-center gap-2">
                       {hasAutofilled && (
@@ -1150,7 +1062,7 @@ export function LoginGateway() {
                             setHasAutofilled(false);
                           }}
                           className="text-[10px] text-slate-500 hover:text-red-400 font-medium transition-colors"
-                          title="Clear remembered cookies"
+                          title="Clear remembered credentials"
                         >
                           Clear Saved
                         </button>
@@ -1177,34 +1089,19 @@ export function LoginGateway() {
 
             {error && (
               <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-                <AlertCircle size={14} /> {error}
+                <AlertCircle size={14} className="flex-shrink-0" /> {error}
               </div>
             )}
 
-            <div className="space-y-2">
+            {/* STEP 6 — LOGIN */}
+            <div className="pt-2">
               <button
                 onClick={handleWorkspaceLogin}
                 disabled={loading}
-                className="btn-primary text-sm font-bold w-full py-3 gap-2 flex items-center justify-center shadow-xl"
+                className="btn-primary text-sm font-bold w-full py-3 gap-2 flex items-center justify-center shadow-xl cursor-pointer"
                 style={{ background: 'linear-gradient(135deg, #4f46e5, #8b5cf6)' }}
               >
-                {loading ? 'Authenticating Key...' : `Sign In as ${selectedRole}`} <ArrowRight size={15} />
-              </button>
-
-              {/* Google OAuth Button with Gmail Verification */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-secondary/80 border border-border hover:bg-card text-foreground font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                Sign in with Google (Gmail Verified)
+                {loading ? 'Authenticating...' : `Login`} <ArrowRight size={15} />
               </button>
             </div>
           </div>

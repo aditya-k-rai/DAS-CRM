@@ -21,7 +21,14 @@ export class TasksService {
 
     const where: any = {
       organizationId,
-      ...(assignedToMe && { assigneeId: userId }),
+      AND: [
+        {
+          OR: [
+            { assigneeId: userId },
+            { createdById: userId },
+          ],
+        },
+      ],
       ...(status === 'OVERDUE'
         ? { isCompleted: false, dueAt: { lt: now } }
         : status === 'COMPLETED'

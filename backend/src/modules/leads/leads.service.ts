@@ -16,7 +16,7 @@ export class LeadsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async findAll(organizationId: string, query: LeadQueryDto) {
+  async findAll(organizationId: string, query: LeadQueryDto, userId?: string) {
     const {
       page = 1,
       limit = 20,
@@ -29,8 +29,22 @@ export class LeadsService {
     } = query;
     const skip = (page - 1) * limit;
 
+    // STEP 7: User-specific data isolation
+    // A user must only see leads owned by them or created by them
+    const userScope = userId
+      ? [
+          {
+            OR: [
+              { ownerId: userId },
+              { createdById: userId },
+            ],
+          },
+        ]
+      : [];
+
     const where: any = {
       organizationId,
+      ...(userScope.length > 0 && { AND: userScope }),
       ...(statusId && { statusId }),
       ...(ownerId && { ownerId }),
       ...(sourceId && { sourceId }),
@@ -74,9 +88,20 @@ export class LeadsService {
     };
   }
 
-  async findOne(organizationId: string, id: string) {
+  async findOne(organizationId: string, id: string, userId?: string) {
     const lead = await this.prisma.lead.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(userId
+          ? {
+              OR: [
+                { ownerId: userId },
+                { createdById: userId },
+              ],
+            }
+          : {}),
+      },
       include: {
         status: true,
         owner: {
@@ -117,7 +142,7 @@ export class LeadsService {
       },
     });
 
-    if (!lead) throw new NotFoundException('Lead not found');
+    if (!lead) throw new NotFoundException('Lead not found or access denied');
     return lead;
   }
 
@@ -169,9 +194,13 @@ export class LeadsService {
     dto: UpdateLeadDto,
   ) {
     const existing = await this.prisma.lead.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+      },
     });
-    if (!existing) throw new NotFoundException('Lead not found');
+    if (!existing) throw new NotFoundException('Lead not found or access denied');
 
     const lead = await this.prisma.lead.update({
       where: { id },
@@ -201,9 +230,13 @@ export class LeadsService {
     notes?: string,
   ) {
     const lead = await this.prisma.lead.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+      },
     });
-    if (!lead) throw new NotFoundException('Lead not found');
+    if (!lead) throw new NotFoundException('Lead not found or access denied');
 
     // Find status by ID or by name (case-insensitive)
     let status = await this.prisma.leadStatus.findFirst({
@@ -381,11 +414,15 @@ export class LeadsService {
     return this.getStatuses(organizationId);
   }
 
-  async remove(organizationId: string, id: string) {
+  async remove(organizationId: string, userId: string, id: string) {
     const existing = await this.prisma.lead.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+      },
     });
-    if (!existing) throw new NotFoundException('Lead not found');
+    if (!existing) throw new NotFoundException('Lead not found or access denied');
     await this.prisma.lead.delete({ where: { id } });
     return { message: 'Lead deleted' };
   }

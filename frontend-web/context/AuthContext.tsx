@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | 'UNASSIGNED';
 export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
 
 /**
@@ -161,6 +161,9 @@ export interface UserProfile {
   phone?: string;
   managerId?: string;
   teamLeaderId?: string;
+  hasAssignedRole?: boolean;
+  roleNotAssigned?: boolean;
+  unassignedMessage?: string;
 }
 
 export interface RoleTransitionLock {
@@ -248,6 +251,18 @@ export const DEMO_USERS: Record<UserRole, UserProfile> = {
     managerId: 'usr_mgr',
     teamLeaderId: 'usr_tl',
   },
+  UNASSIGNED: {
+    id: 'usr_unassigned',
+    name: 'Unassigned User',
+    email: 'unassigned@das.com',
+    role: 'UNASSIGNED',
+    avatar: 'UA',
+    companyId: 'comp_das',
+    companyName: 'DAS Organization',
+    hasAssignedRole: false,
+    roleNotAssigned: true,
+    unassignedMessage: 'Your role is not assigned. Contact Admin or Manager.',
+  },
 };
 
 interface AuthContextType {
@@ -283,6 +298,7 @@ export function normalizeRoleStr(r?: any): UserRole {
   }
 
   const norm = str.trim().toUpperCase();
+  if (norm === 'UNASSIGNED' || norm === 'NONE' || norm === 'NO_ROLE' || norm === 'PENDING') return 'UNASSIGNED';
   if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN') return 'SUPER_ADMIN';
   if (norm === 'ADMIN' || norm === 'TENANT_ADMIN' || norm === 'OWNER' || norm === 'COMPANY_ADMIN') return 'ADMIN';
   if (norm === 'HR' || norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES' || norm === 'HR_ADMIN' || norm === 'HR_EXEC') return 'HR';
