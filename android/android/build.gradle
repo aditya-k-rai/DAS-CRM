@@ -2,8 +2,8 @@
 
 buildscript {
   ext {
-    buildToolsVersion = findProperty('android.buildToolsVersion') ?: '35.0.0'
-    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
+    buildToolsVersion = findProperty('android.buildToolsVersion') ?: '36.0.0'
+    compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '36')
     targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '35')
     minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
     ndkVersion = "27.1.12297006"
@@ -24,6 +24,26 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
+  }
+  configurations.all {
+    resolutionStrategy {
+      force 'androidx.core:core:1.15.0'
+      force 'androidx.core:core-ktx:1.15.0'
+    }
+  }
+}
+
+subprojects { subproject ->
+  afterEvaluate {
+    if (subproject.hasProperty("android")) {
+      subproject.android {
+        if (namespace == null) {
+          // preserve namespace
+        }
+        compileSdkVersion rootProject.ext.compileSdkVersion
+        buildToolsVersion rootProject.ext.buildToolsVersion
+      }
+    }
   }
 }
 
