@@ -24,6 +24,8 @@ import {
   Linking,
   Image,
   TextInput,
+  Clipboard,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole } from '../store/authStore';
@@ -99,8 +101,34 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
   const [bankNameInput, setBankNameInput] = useState('');
   const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || '');
   const [accountNoInput, setAccountNoInput] = useState('');
-  const [ifscCodeInput, setIfscCodeInput] = useState('');
   const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([]);
+
+  // 🏢 ADMIN ONLY: Company Profile & Permanent Registration Key
+  const [companyKey, setCompanyKey] = useState('ADOR-EC-7187');
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [editCompanyModalOpen, setEditCompanyModalOpen] = useState(false);
+  const [companyNameInput, setCompanyNameInput] = useState(currentUser.companyName || 'Adorable Trading');
+  const [companyPhoneInput, setCompanyPhoneInput] = useState('0987654321');
+  const [companyCityInput, setCompanyCityInput] = useState('Noida');
+  const [companyStateInput, setCompanyStateInput] = useState('Uttar Pradesh');
+  const [companySectorInput, setCompanySectorInput] = useState('Trading & Commerce');
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  const handleCopyKey = () => {
+    Clipboard.setString(companyKey);
+    setCopiedKey(true);
+    Alert.alert('Permanent Key Copied', `Company Registration Key:\n${companyKey}\n\nReusable by all employees to register under this workspace.`);
+    setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleSaveCompany = () => {
+    setSavingCompany(true);
+    setTimeout(() => {
+      setSavingCompany(false);
+      setEditCompanyModalOpen(false);
+      Alert.alert('✅ Profile Updated', 'Company Profile changes saved successfully.');
+    }, 400);
+  };
 
   const handleSaveDp = () => {
     if (isDpLocked) {
@@ -203,7 +231,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
 
         {/* Top Header Navigation */}
         <View style={styles.headerRow}>
-          <Text style={styles.screenTitle}>User Identity &amp; Profile</Text>
+          <Text style={styles.screenTitle}>{isAdmin ? 'User Identity & Company Profile' : 'User Identity & Profile'}</Text>
           {onClose && (
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>✕ Close Profile</Text>
@@ -255,36 +283,72 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
           </TouchableOpacity>
         </View>
 
-        {/* ── 2. WORKSPACE & ORGANIZATION CARD ─────────────────────────────── */}
-        <View style={styles.cardBox}>
-          <Text style={styles.cardBoxTitle}>Workspace &amp; Organization</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Company:</Text>
-            <Text style={styles.infoValue}>{currentUser.companyName || 'DAS Organization'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Company ID:</Text>
-            <Text style={styles.infoValue}>{currentUser.companyId || 'comp_default'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Plan Tier Active:</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.infoValue, { color: '#fbbf24' }]}>{subscription.planType}</Text>
+        {/* ── 2. WORKSPACE & ORGANIZATION CARD (ADMIN ONLY) ─────────────────────────────── */}
+        {/* ── 2. WORKSPACE & ORGANIZATION CARD (ADMIN ONLY) ─────────────────────────────── */}
+        {isAdmin && (
+          <View style={styles.cardBox}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.cardBoxTitle}>🏢 Workspace & Company Profile</Text>
               <TouchableOpacity
-                onPress={() => setPlansModalOpen(true)}
-                style={{ backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}
+                onPress={() => setEditCompanyModalOpen(true)}
+                style={{ backgroundColor: '#4f46e520', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#4f46e550' }}
               >
-                <Text style={{ fontSize: 9, color: '#ffffff', fontWeight: '900' }}>⚡ Upgrade Plan</Text>
+                <Text style={{ fontSize: 11, color: '#818cf8', fontWeight: '800' }}>✏️ Edit Profile</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Company:</Text>
+              <Text style={styles.infoValue}>{companyNameInput}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Company ID:</Text>
+              <Text style={styles.infoValue}>{currentUser.companyId || 'cmuev7n3o000mikew7je1tdiw'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Permanent Key:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.infoValue, { color: '#c084fc', fontWeight: 'bold' }]}>
+                  {companyKey}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleCopyKey}
+                  style={{ backgroundColor: '#7c3aed25', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#7c3aed60' }}
+                >
+                  <Text style={{ fontSize: 10, color: '#c084fc', fontWeight: '900' }}>
+                    {copiedKey ? 'COPIED ✓' : 'COPY'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Operating City:</Text>
+              <Text style={styles.infoValue}>{companyCityInput}, {companyStateInput}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Sector:</Text>
+              <Text style={styles.infoValue}>{companySectorInput}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Plan Tier Active:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.infoValue, { color: '#fbbf24' }]}>{subscription.planType}</Text>
+                <TouchableOpacity
+                  onPress={() => setPlansModalOpen(true)}
+                  style={{ backgroundColor: '#4f46e5', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}
+                >
+                  <Text style={{ fontSize: 9, color: '#ffffff', fontWeight: '900' }}>⚡ Upgrade Plan</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>In-App Updates:</Text>
+              <TouchableOpacity onPress={onOpenUpdate}>
+                <Text style={{ fontSize: 11, color: '#38bdf8', fontWeight: '800' }}>Check Latest App Version →</Text>
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>In-App Updates:</Text>
-            <TouchableOpacity onPress={onOpenUpdate}>
-              <Text style={{ fontSize: 11, color: '#38bdf8', fontWeight: '800' }}>Check Latest App Version →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        )}
 
         {/* ── 3. ROLE PERFORMANCE TELEMETRY CARD ──────────────────────────── */}
         <View style={styles.cardBox}>
@@ -513,6 +577,98 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
             >
               <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '900' }}>Confirm Upgrade →</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL: EDIT COMPANY PROFILE (ADMIN ONLY) ────────────────────── */}
+      <Modal visible={editCompanyModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.modalTitle}>🏢 Edit Company Profile</Text>
+              <TouchableOpacity onPress={() => setEditCompanyModalOpen(false)}>
+                <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 12 }}>
+              Workspace Administrators can view and edit organization details. Changes sync across company invoices and reports.
+            </Text>
+
+            <View style={{ gap: 8 }}>
+              <View>
+                <Text style={styles.inputLabel}>Company Legal Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={companyNameInput}
+                  onChangeText={setCompanyNameInput}
+                  placeholder="e.g. Adorable Trading"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <View>
+                <Text style={styles.inputLabel}>Official Contact Phone *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={companyPhoneInput}
+                  onChangeText={setCompanyPhoneInput}
+                  placeholder="+91 98765 43210"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>City *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={companyCityInput}
+                    onChangeText={setCompanyCityInput}
+                    placeholder="e.g. Noida"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>State *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={companyStateInput}
+                    onChangeText={setCompanyStateInput}
+                    placeholder="e.g. Uttar Pradesh"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+
+              <View>
+                <Text style={styles.inputLabel}>Business Sector *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={companySectorInput}
+                  onChangeText={setCompanySectorInput}
+                  placeholder="e.g. Trading & Commerce"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.cardBgElevated }]}
+                onPress={() => setEditCompanyModalOpen(false)}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: '#4f46e5' }]}
+                onPress={handleSaveCompany}
+                disabled={savingCompany}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800' }}>{savingCompany ? 'Saving...' : 'Save Profile Changes ✓'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

@@ -32,6 +32,7 @@ import NoticeBoardScreen from './NoticeBoardScreen';
 import AppSettingsScreen from './AppSettingsScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuthStore } from '../store/authStore';
 
 export type ModuleKey =
   | 'PRODUCTS'
@@ -76,6 +77,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const topPadding = Math.max(insets.top + 6, 18);
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
+  const { currentUser } = useAuthStore();
+  const role = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
   const closeModal = () => {
     setActiveModal(null);
@@ -108,7 +112,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
       else if (initMod === 'REPORTS') setActiveModal('REPORTS');
       else if (initMod === 'GOALS') setActiveModal('GOALS');
       else if (initMod === 'ATTENDANCE') setActiveModal('ATTENDANCE');
-      else if (initMod === 'PROFILE' || initMod === 'SALARY') setActiveModal('PROFILE');
+      else if (initMod === 'PROFILE' || initMod === 'SALARY') {
+        if (isAdmin) setActiveModal('PROFILE');
+      }
       else if (initMod === 'EMPLOYEES') setActiveModal('INTERVIEWS');
       else if (initMod === 'AI_HUB') setActiveModal('AI_HUB');
       else if (initMod === 'AI_CONTROL' || initMod === 'AI_CUSTOMIZATION') setActiveModal('AI_CONTROL');
@@ -118,6 +124,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   }, [route?.params?.initialModule]);
 
   const handleOpenModule = (key: ModuleKey) => {
+    if ((key === 'PROFILE' || key === 'SETTINGS') && !isAdmin) {
+      Alert.alert('Access Restricted', 'Company Profile Settings are restricted to Admin dashboard only.');
+      return;
+    }
     if (key === 'PRODUCTS' && onOpenProductsCatalog) {
       onOpenProductsCatalog();
     } else if (key === 'PROFILE' && onOpenProfile) {
@@ -323,7 +333,12 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 85 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.gridContainer}>
-          {GRID_BUTTONS.map((item) => (
+          {GRID_BUTTONS.filter(item => {
+            if (item.key === 'PROFILE' || item.key === 'SETTINGS') {
+              return isAdmin;
+            }
+            return true;
+          }).map((item) => (
             <TouchableOpacity
               key={item.key}
               style={[

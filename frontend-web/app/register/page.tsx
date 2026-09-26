@@ -804,10 +804,11 @@ export default function RegisterCompanyPage() {
       setRegistrationSuccess(resultData);
     } catch (err: any) {
       // Client-side fallback if backend offline
-      const firstWord = companyName.trim().split(/\s+/)[0]?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'COMPANY';
+      const cleanComp = companyName.trim().replace(/[^a-zA-Z]/g, '').toUpperCase();
+      const compPrefix = cleanComp.length >= 4 ? cleanComp.slice(0, 4) : (cleanComp + 'DASC').slice(0, 4);
       const alpha = Array.from({ length: 2 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 22)]).join('');
       const digits = Math.floor(1000 + Math.random() * 9000).toString();
-      const fallbackKey = `${firstWord}-${alpha}-${digits}`;
+      const fallbackKey = `${compPrefix}-${alpha}-${digits}`;
 
       resultData = {
         success: true,

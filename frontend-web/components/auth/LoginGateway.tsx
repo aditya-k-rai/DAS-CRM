@@ -20,6 +20,22 @@ interface PublicCompany {
 }
 
 function formatCompanyKey(input: string): string {
+  const raw = input.trim().toUpperCase();
+  if (raw.includes('-')) {
+    const segments = raw.split('-');
+    const p1 = segments[0]?.replace(/[^A-Z]/g, '').slice(0, 4) || '';
+    const p2 = segments[1]?.replace(/[^A-Z]/g, '').slice(0, 2) || '';
+    const p3 = segments[2]?.replace(/[^0-9]/g, '').slice(0, 4) || '';
+    let res = p1;
+    if (segments.length > 1) {
+      res += '-' + p2;
+      if (segments.length > 2) {
+        res += '-' + p3;
+      }
+    }
+    return res;
+  }
+
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   let part1 = '';
   let part2 = '';
@@ -27,7 +43,7 @@ function formatCompanyKey(input: string): string {
 
   for (let i = 0; i < clean.length; i++) {
     const char = clean[i];
-    if (part1.length < 3) {
+    if (part1.length < 4) {
       if (/[A-Z]/.test(char)) part1 += char;
     } else if (part2.length < 2) {
       if (/[A-Z]/.test(char)) part2 += char;
@@ -37,7 +53,7 @@ function formatCompanyKey(input: string): string {
   }
 
   let formatted = part1;
-  if (part1.length === 3) {
+  if (part1.length === 4) {
     formatted += '-';
     if (part2.length > 0) {
       formatted += part2;
@@ -127,6 +143,8 @@ function clearLoginCredentials() {
     (['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] as UserRole[]).forEach(r => {
       localStorage.removeItem(`${LOGIN_COOKIE_KEY}_${r}`);
     });
+    localStorage.removeItem('last_registered_company');
+    localStorage.removeItem('pending_company_key');
   } catch (_) {}
 }
 
@@ -195,14 +213,40 @@ export function LoginGateway() {
   // Load previous login credentials ONLY from cookie on initial mount.
   // Guard: never restore a legacy DAS- prefixed key — user must enter their current key.
   useEffect(() => {
+    // Purge any stale non-4-letter keys from localStorage immediately
+    if (typeof window !== 'undefined') {
+      try {
+        const lastReg = localStorage.getItem('last_registered_company');
+        if (lastReg) {
+          const parsed = JSON.parse(lastReg);
+          if (parsed?.key && (parsed.key.startsWith('ADORABLE-') || parsed.key.startsWith('ADO-') || parsed.key.startsWith('DAS-'))) {
+            parsed.key = 'ADOR-EC-7187';
+            localStorage.setItem('last_registered_company', JSON.stringify(parsed));
+          }
+        }
+        const pendKey = localStorage.getItem('pending_company_key');
+        if (pendKey && (pendKey.startsWith('ADORABLE-') || pendKey.startsWith('ADO-') || pendKey.startsWith('DAS-'))) {
+          localStorage.setItem('pending_company_key', 'ADOR-EC-7187');
+        }
+      } catch (_) {}
+    }
+
     const saved = loadLoginCredentials();
     if (saved) {
       if (saved.email) setEmail(saved.email);
       if (saved.password) setPassword(saved.password);
-      // Reject any key that looks like a legacy DAS-* key
+      // Validate key format strictly: 4 letters - 2 letters - 4 digits
       const savedKey = saved.companyKey || '';
-      const isLegacyKey = savedKey.toUpperCase().startsWith('DAS-');
-      if (savedKey && !isLegacyKey && !urlKey) setCompanyKeyInput(savedKey);
+      const isInvalidKey = savedKey.toUpperCase().startsWith('DAS-') ||
+        savedKey.toUpperCase().startsWith('ADO-') ||
+        savedKey.toUpperCase().startsWith('ADORABLE-') ||
+        (savedKey.includes('-') && savedKey.split('-')[0].length !== 4);
+
+      if (savedKey && !isInvalidKey && !urlKey) {
+        setCompanyKeyInput(formatCompanyKey(savedKey));
+      } else if (!urlKey && (saved.companyName === 'Adorable Trading' || !saved.companyName)) {
+        setCompanyKeyInput('ADOR-EC-7187');
+      }
       if (saved.companyId && !urlCompanyId) setSelectedCompanyId(saved.companyId);
       if (saved.role) setSelectedRole(saved.role);
       setHasAutofilled(true);
@@ -254,6 +298,7 @@ export function LoginGateway() {
         phone: '9717355779',
         adminName: 'Anurag Sharma',
         email: 'adorabletrading08@gmail.com',
+        companyKey: 'ADOR-EC-7187',
       };
 
       if (companies.length === 0) {
@@ -262,7 +307,8 @@ export function LoginGateway() {
 
       const targetCompanyId = urlCompanyId || storedCompany?.id || DEFAULT_ACTIVE_COMPANY.id;
       const targetCompanyName = urlCompanyName || storedCompany?.name || DEFAULT_ACTIVE_COMPANY.name;
-      const targetKey = urlKey || storedCompany?.key || '';
+      const matchedComp = companies.find(c => c.id === targetCompanyId);
+      const targetKey = urlKey || (storedCompany?.key && !storedCompany.key.startsWith('ADO-') ? storedCompany.key : '') || matchedComp?.companyKey || (targetCompanyId === DEFAULT_ACTIVE_COMPANY.id ? 'ADOR-EC-7187' : '');
       const targetEmail = urlEmail || storedCompany?.email || '';
 
       // If target company is not in the list, prepend it
@@ -273,6 +319,7 @@ export function LoginGateway() {
           slug: targetCompanyName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           isActive: true,
           status: 'APPROVED',
+          companyKey: 'ADOR-EC-7187',
         });
       }
 
@@ -285,7 +332,7 @@ export function LoginGateway() {
         setSelectedCompanyId(prev => (prev && companies.some(c => c.id === prev) ? prev : companies[0].id));
       }
 
-      if (targetKey && !companyKeyInput) {
+      if (targetKey && (!companyKeyInput || companyKeyInput.startsWith('ADO-') || companyKeyInput.startsWith('DAS-'))) {
         setCompanyKeyInput(targetKey);
       }
       if (targetEmail && !email) {
@@ -1009,7 +1056,7 @@ export function LoginGateway() {
               {/* Company Key Input */}
               <div>
                 <label className="text-xs text-muted block mb-1">
-                  Company Key (Format: ADO-EC-7187) *
+                  Company Key (Format: ADOR-EC-7187) *
                   <span className="ml-2 text-[10px] text-indigo-400 font-normal">Use your own company&apos;s key</span>
                 </label>
                 <div className="relative flex items-center">
@@ -1017,7 +1064,7 @@ export function LoginGateway() {
                   <input
                     disabled={loading}
                     className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-                    placeholder="e.g. ADO-EC-7187"
+                    placeholder="e.g. ADOR-EC-7187"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -1179,11 +1226,11 @@ export function LoginGateway() {
             <div className="space-y-3">
               {/* Key Input + Validate */}
               <div>
-                <label className="text-xs text-muted block mb-1">Company Key (e.g. ADO-EC-7187) *</label>
+                <label className="text-xs text-muted block mb-1">Company Key (e.g. ADOR-EC-7187) *</label>
                 <div className="flex gap-2">
                   <input
                     className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider pl-4"
-                    placeholder="ADO-EC-7187"
+                    placeholder="ADOR-EC-7187"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"

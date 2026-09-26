@@ -45,8 +45,19 @@ import { API_BASE, getApiBase } from '../config/api';
 
 function formatCompanyKey(input: string): string {
   const raw = input.trim().toUpperCase();
-  if (raw.includes('-') && !raw.startsWith('DAS')) {
-    return raw;
+  if (raw.includes('-')) {
+    const segments = raw.split('-');
+    const p1 = segments[0]?.replace(/[^A-Z]/g, '').slice(0, 4) || '';
+    const p2 = segments[1]?.replace(/[^A-Z]/g, '').slice(0, 2) || '';
+    const p3 = segments[2]?.replace(/[^0-9]/g, '').slice(0, 4) || '';
+    let res = p1;
+    if (segments.length > 1) {
+      res += '-' + p2;
+      if (segments.length > 2) {
+        res += '-' + p3;
+      }
+    }
+    return res;
   }
   const clean = input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   let part1 = '';
@@ -55,7 +66,7 @@ function formatCompanyKey(input: string): string {
 
   for (let i = 0; i < clean.length; i++) {
     const char = clean[i];
-    if (part1.length < 3) {
+    if (part1.length < 4) {
       if (/[A-Z]/.test(char)) part1 += char;
     } else if (part2.length < 2) {
       if (/[A-Z]/.test(char)) part2 += char;
@@ -65,7 +76,7 @@ function formatCompanyKey(input: string): string {
   }
 
   let formatted = part1;
-  if (part1.length === 3) {
+  if (part1.length === 4) {
     formatted += '-';
     if (part2.length > 0) {
       formatted += part2;

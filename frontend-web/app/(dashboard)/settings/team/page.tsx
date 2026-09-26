@@ -4,11 +4,45 @@ import { useState, useEffect } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { Users, Plus, Shield, Mail, MoreHorizontal, UserPlus, Building2, CreditCard, User, Info } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
+import { useAuth, getPlanSeatQuota, formatPlanName, normalizeRoleStr } from '@/context/AuthContext';
 
 export default function TeamSettingsPage() {
   const { currentUser, subscription } = useAuth();
+  const normalizedRole = normalizeRoleStr(currentUser?.role);
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole);
   const [members, setMembers] = useState<any[]>([]);
+
+  if (!isAdmin) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 bg-background">
+        <Topbar title="Team & Member Management" />
+        <main className="flex-1 p-6 flex items-center justify-center min-h-[70vh]">
+          <div className="crm-card p-8 text-center max-w-md w-full space-y-5 border border-rose-500/30 bg-rose-500/5 shadow-2xl rounded-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30 shadow-lg">
+              <Shield size={32} />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                Admin Dashboard Only
+              </span>
+              <h2 className="text-xl font-extrabold text-white mt-3">Access Restricted</h2>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Team and member management settings are restricted exclusively to Workspace Administrators.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/leads"
+                className="inline-flex items-center justify-center w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
+              >
+                ← Return to My Workspace
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   useEffect(() => {
     fetch('/api/v1/users', { credentials: 'include' })

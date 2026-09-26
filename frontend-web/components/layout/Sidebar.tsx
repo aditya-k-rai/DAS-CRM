@@ -45,8 +45,8 @@ const adminNavigation: NavItem[] = [
   { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
   { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'The Notice Board', href: '/communicate', icon: Radio, dividerAfter: true, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN'] },
+  { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN'] },
   { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'About & Developer', href: '/about', icon: Info, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
 ];
@@ -72,15 +72,18 @@ export function Sidebar() {
     router.push('/login');
   };
 
-  const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'ADMIN');
+  const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'SALES_EXEC');
 
-  const isAdminOrManager = ['ADMIN', 'MANAGER'].includes(currentNormalizedRole);
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(currentNormalizedRole);
+  const profileHref = isAdmin ? '/profile' : '/settings/profile';
 
-  // Filter navigation items for Admin & Manager (all 20) vs other roles
+  // Strict role-based navigation item filtering
   const filteredNav = adminNavigation.filter(item => {
-    if (isAdminOrManager) return true;
     if (!item.roles) return true;
     const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
+    if (isAdmin && (normalizedItemRoles.includes('ADMIN') || normalizedItemRoles.includes('SUPER_ADMIN'))) {
+      return true;
+    }
     return normalizedItemRoles.includes(currentNormalizedRole);
   });
 
@@ -214,7 +217,7 @@ export function Sidebar() {
           {!collapsed ? (
             <div className="flex items-center justify-between p-2 rounded-2xl bg-secondary/80 hover:bg-secondary border border-border transition-all duration-200 shadow-sm">
               <Link
-                href="/profile"
+                href={profileHref}
                 onClick={closeMobile}
                 className="flex items-center gap-2.5 min-w-0 flex-1 p-1 rounded-xl hover:bg-background/60 transition-colors"
                 title="View Profile & Account Settings"
@@ -244,7 +247,7 @@ export function Sidebar() {
           ) : (
             <div className="flex flex-col items-center gap-2 py-1">
               <Link
-                href="/profile"
+                href={profileHref}
                 title={`${currentUser.name} (View Profile)`}
                 className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm hover:ring-2 hover:ring-indigo-500/40 transition-all"
               >

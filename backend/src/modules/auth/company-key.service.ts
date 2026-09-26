@@ -27,7 +27,7 @@ export interface GenerateUserKeyOptions {
 export class CompanyKeyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Generate a company registration key using rule-based format: e.g. ADO-EC-7187 */
+  /** Generate a company registration key using rule-based format: e.g. ADOR-EC-7187 */
   async generateCompanyKey(opts: GenerateCompanyKeyOptions) {
     const key = this.buildCompanyKeyString(opts.companyName, opts.gstNumber, opts.panNumber);
     const qrCodeDataUrl = await QRCode.toDataURL(key, {
@@ -194,15 +194,15 @@ export class CompanyKeyService {
 
   /**
    * Rule-based company registration key generation:
-   * 1. First 3 letters of Company Name (e.g., "Adorable" -> "ADO")
+   * 1. First 4 letters of Company Name (e.g., "Adorable" -> "ADOR")
    * 2. Next 2 letters from GST (e.g. from "09ECBPS7187H1ZY" -> "EC")
    * 3. Next 4 digits from GST (e.g. from "09ECBPS7187H1ZY" -> "7187")
-   * Format: ADO-EC-7187 (11 characters)
+   * Format: ADOR-EC-7187 (12 characters)
    */
   buildCompanyKeyString(companyName?: string, gstNumber?: string, panNumber?: string): string {
-    // 1. First 3 letters from Company Name
+    // 1. First 4 letters from Company Name
     const cleanName = (companyName || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
-    const compPrefix = (cleanName.length >= 3 ? cleanName.slice(0, 3) : (cleanName + 'DAS').slice(0, 3));
+    const compPrefix = (cleanName.length >= 4 ? cleanName.slice(0, 4) : (cleanName + 'DASC').slice(0, 4));
 
     // 2. Two letters from GST (or PAN, or random fallback)
     const gstClean = (gstNumber || '').toUpperCase().trim();
@@ -246,11 +246,11 @@ export class CompanyKeyService {
 
   /**
    * Rule-based staff user invite key generation:
-   * Format: e.g. ADO-RX-4312 (11 characters)
+   * Format: e.g. ADOR-RX-4312 (12 characters)
    */
   buildUserKeyString(orgName?: string): string {
     const cleanName = (orgName || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
-    const compPrefix = (cleanName.length >= 3 ? cleanName.slice(0, 3) : (cleanName + 'DAS').slice(0, 3));
+    const compPrefix = (cleanName.length >= 4 ? cleanName.slice(0, 4) : (cleanName + 'DASC').slice(0, 4));
     const alpha = this.randomAlpha(2);
     const digits = this.randomDigits(4);
     return `${compPrefix}-${alpha}-${digits}`;

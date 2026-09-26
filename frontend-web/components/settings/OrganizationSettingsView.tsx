@@ -19,7 +19,7 @@ export function OrganizationSettingsView() {
   const companyId = currentUser?.companyId || subscription?.id || '';
 
   // Retrieve registration key from stored metadata
-  const [companyKey, setCompanyKey] = useState<string>('DAS-VW-8329');
+  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
   const [copiedKey, setCopiedKey] = useState(false);
 
   // Form Fields
@@ -118,6 +118,26 @@ export function OrganizationSettingsView() {
 
   if (!mounted) {
     return <div className="p-8 text-xs text-muted-foreground">Loading settings...</div>;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="crm-card p-8 text-center max-w-xl mx-auto space-y-4 my-12 border border-rose-500/20 bg-rose-500/5">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
+          <Shield size={24} />
+        </div>
+        <h2 className="text-lg font-bold text-white">Access Restricted to Admin Dashboard</h2>
+        <p className="text-xs text-muted">
+          Company Profile Settings and Organization controls are restricted exclusively to Workspace Administrators.
+        </p>
+        <Link
+          href="/leads"
+          className="inline-block px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors"
+        >
+          Return to My Workspace
+        </Link>
+      </div>
+    );
   }
 
   return (
