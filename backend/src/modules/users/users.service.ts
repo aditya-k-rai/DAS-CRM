@@ -280,6 +280,67 @@ export class UsersService {
     };
   }
 
+  /**
+   * Remove or reject an unassigned user or employee from the company workspace.
+   */
+  async removeUser(
+    organizationId: string,
+    adminUserId: string,
+    targetUserId: string,
+  ) {
+    if (!organizationId || !targetUserId) {
+      throw new BadRequestException('Organization ID and Target User ID are required.');
+    }
+
+    // 1. Verify requester is Admin/Owner
+    await this.assertAdminOrOwner(organizationId, adminUserId);
+
+    // 2. Prevent admin from deleting their own account
+    if (adminUserId === targetUserId) {
+      throw new BadRequestException('Administrators cannot remove their own account.');
+    }
+
+    // 3. Fetch target user
+    const targetUser = await this.prisma.user.findFirst({
+      where: { id: targetUserId, organizationId },
+      include: { role: true },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found in this organization workspace.');
+    }
+
+    // 4. If target is Admin, prevent removal
+    const targetRoleName = targetUser.role?.name?.toUpperCase() || '';
+    if (targetRoleName.includes('ADMIN') || targetRoleName.includes('OWNER')) {
+      throw new ForbiddenException('Cannot remove an Administrator or Owner from the organization.');
+    }
+
+    // 5. Delete associations and remove user
+    try {
+      await this.prisma.employeeProfile.deleteMany({ where: { userId: targetUserId } }).catch(() => null);
+      await this.prisma.employeeAttendance.deleteMany({ where: { userId: targetUserId } }).catch(() => null);
+      await this.prisma.notification.deleteMany({ where: { userId: targetUserId } }).catch(() => null);
+      await this.prisma.activity.deleteMany({ where: { userId: targetUserId } }).catch(() => null);
+      await this.prisma.user.delete({ where: { id: targetUserId } });
+    } catch (_) {
+      // If foreign keys prevent hard delete, mark inactive and reset role
+      await this.prisma.user.update({
+        where: { id: targetUserId },
+        data: {
+          isActive: false,
+          roleId: null,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: `User ${targetUser.firstName || targetUser.email} has been removed from the organization.`,
+      removedUserId: targetUserId,
+    };
+  }
+
   private async assertAdminOrOwner(organizationId: string, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, organizationId },

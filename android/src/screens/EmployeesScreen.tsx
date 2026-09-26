@@ -330,6 +330,40 @@ export default function EmployeesScreen() {
     );
   };
 
+  const handleRemoveUser = (user: UnassignedUser) => {
+    Alert.alert(
+      'Remove User from Workspace',
+      `Are you sure you want to remove ${user.name} (${user.email}) from this company?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove 🗑️',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = useAuthStore.getState().token;
+              const res = await fetch(`${getApiBase()}/users/${user.id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.message || 'Failed to remove user');
+              }
+              Alert.alert('User Removed', `${user.name} has been removed from the organization.`);
+              loadUsers();
+            } catch (e: any) {
+              Alert.alert('Removal Error', e.message || 'Could not remove user.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   useEffect(() => {
     const onBackPress = () => {
       if (inspectingEmp !== null) {
@@ -599,12 +633,31 @@ export default function EmployeesScreen() {
                     <Text style={[styles.supervisorText, { color: colors.textMuted, marginTop: 2 }]}>{user.deviceInfo}</Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.assignBtn}
-                    onPress={() => { setAssignRoleTarget(user); setSelectedRole(null); }}
-                  >
-                    <Text style={styles.assignBtnText}>{t.empAssignRole}</Text>
-                  </TouchableOpacity>
+                  <View style={{ gap: 6, alignItems: 'flex-end' }}>
+                    <TouchableOpacity
+                      style={styles.assignBtn}
+                      onPress={() => { setAssignRoleTarget(user); setSelectedRole(null); }}
+                    >
+                      <Text style={styles.assignBtnText}>Set Role & Verify ✓</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                        borderRadius: 8,
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        borderColor: 'rgba(239, 68, 68, 0.35)',
+                        borderWidth: 1,
+                        alignItems: 'center',
+                      }}
+                      onPress={() => handleRemoveUser(user)}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#ef4444' }}>
+                        Remove 🗑️
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>

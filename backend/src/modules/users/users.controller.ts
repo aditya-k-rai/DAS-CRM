@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -29,8 +30,9 @@ export class UsersController {
   async verifyAndAssignRole(
     @CurrentUser() adminUser: any,
     @Param('id') targetUserId: string,
-    @Body('role') role: string,
+    @Body() body: { role?: string; assignedRole?: string },
   ) {
+    const role = body?.assignedRole || body?.role || 'SALES_EXEC';
     return this.usersService.verifyAndAssignRole(
       adminUser.organizationId,
       adminUser.id,
@@ -46,6 +48,19 @@ export class UsersController {
     @Param('id') targetUserId: string,
   ) {
     return this.usersService.upgradeUserRole(
+      adminUser.organizationId,
+      adminUser.id,
+      targetUserId,
+    );
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Admin removes/rejects an unassigned user or employee from the workspace' })
+  async removeUser(
+    @CurrentUser() adminUser: any,
+    @Param('id') targetUserId: string,
+  ) {
+    return this.usersService.removeUser(
       adminUser.organizationId,
       adminUser.id,
       targetUserId,

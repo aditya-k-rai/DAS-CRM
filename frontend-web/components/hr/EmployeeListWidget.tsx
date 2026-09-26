@@ -14,6 +14,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
+  Trash2,
+  UserX,
 } from 'lucide-react';
 import { useAuth, getPlanSeatQuota } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
@@ -243,6 +245,43 @@ export function EmployeeListWidget() {
       setActionFeedback({ text: e.message || 'Error upgrading role', type: 'error' });
     } finally {
       setUpgradingId(null);
+    }
+  };
+
+  // ── 3. REMOVE / REJECT UNASSIGNED USER ────────────────────────
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const handleRemoveUser = async (emp: EmployeeProfileWeb) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${emp.name} (${emp.email}) from this organization? They will be removed from your workspace.`
+    );
+    if (!confirmed) return;
+
+    setRemovingId(emp.id);
+    setActionFeedback(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const res = await fetch(`${apiBase}/users/${emp.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to remove user');
+      }
+      setActionFeedback({
+        text: `Removed ${emp.name} from workspace successfully.`,
+        type: 'success',
+      });
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e: any) {
+      setActionFeedback({ text: e.message || 'Error removing user', type: 'error' });
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -542,14 +581,25 @@ export function EmployeeListWidget() {
                       </select>
                     </div>
 
-                    <button
-                      onClick={() => handleVerifyAndAssignRole(emp.id)}
-                      disabled={isVerifying}
-                      className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-                    >
-                      <UserCheck size={15} />
-                      <span>{isVerifying ? 'Verifying & Activating...' : 'Approve & Verify Role ✓'}</span>
-                    </button>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => handleVerifyAndAssignRole(emp.id)}
+                        disabled={isVerifying || removingId === emp.id}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
+                      >
+                        <UserCheck size={15} />
+                        <span>{isVerifying ? 'Verifying...' : 'Set Role & Verify ✓'}</span>
+                      </button>
+                      <button
+                        onClick={() => handleRemoveUser(emp)}
+                        disabled={isVerifying || removingId === emp.id}
+                        title="Remove unassigned user from workspace"
+                        className="py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 disabled:opacity-50 font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      >
+                        <Trash2 size={14} />
+                        <span>{removingId === emp.id ? '...' : 'Remove'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
