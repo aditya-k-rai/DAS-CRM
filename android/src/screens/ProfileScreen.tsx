@@ -101,6 +101,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
   const [bankNameInput, setBankNameInput] = useState('');
   const [accountHolderInput, setAccountHolderInput] = useState(currentUser.name || '');
   const [accountNoInput, setAccountNoInput] = useState('');
+  const [ifscCodeInput, setIfscCodeInput] = useState('');
   const [bankHistoryLogs, setBankHistoryLogs] = useState<{ date: string; bankName: string; accountNo: string }[]>([]);
 
   // 🏢 ADMIN ONLY: Company Profile & Permanent Registration Key

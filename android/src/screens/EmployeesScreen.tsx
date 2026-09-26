@@ -19,6 +19,10 @@ import {
   Modal,
   Alert,
   Platform,
+  TextInput,
+  Share,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore, UserRole, normalizeRoleStr, getPlanSeatQuota } from '../store/authStore';
@@ -106,12 +110,14 @@ interface UnassignedUser {
   deviceInfo: string;
 }
 
-const AVAILABLE_ROLES: { key: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC'; label: string; color: string }[] = [
+const AVAILABLE_ROLES: { key: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT'; label: string; color: string }[] = [
   { key: 'ADMIN', label: 'Company Admin', color: '#f43f5e' },
-  { key: 'MANAGER', label: 'Manager', color: '#c084fc' },
+  { key: 'MANAGER', label: 'Department Manager', color: '#c084fc' },
   { key: 'TEAM_LEADER', label: 'Team Leader', color: '#fbbf24' },
-  { key: 'HR', label: 'HR', color: '#38bdf8' },
+  { key: 'HR', label: 'HR Manager', color: '#38bdf8' },
   { key: 'SALES_EXEC', label: 'Sales Executive', color: '#34d399' },
+  { key: 'TELECALLER', label: 'Telecaller', color: '#2dd4bf' },
+  { key: 'SUPPORT', label: 'Customer Support', color: '#818cf8' },
 ];
 
 export default function EmployeesScreen() {
@@ -122,13 +128,23 @@ export default function EmployeesScreen() {
   const userRole: UserRole = normalizeRoleStr(currentUser.role);
 
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
-
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | null>(null);
-
+  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT' | null>(null);
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
+
+  // Company Registration Key
+  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
+
+  // Add Staff Member Modal States
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('Staff@123');
+  const [newStaffRole, setNewStaffRole] = useState<'UNASSIGNED' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT' | 'TEAM_LEADER' | 'MANAGER' | 'HR'>('UNASSIGNED');
+  const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const activeCount = employeesList.length;
@@ -149,6 +165,23 @@ export default function EmployeesScreen() {
 
   const loadUsers = async () => {
     const token = useAuthStore.getState().token;
+
+    // Fetch workspace registration key
+    try {
+      const keyRes = await fetch(`${getApiBase()}/users/company-key`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (keyRes.ok) {
+        const keyJson = await keyRes.json();
+        if (keyJson?.companyKey) {
+          setCompanyKey(keyJson.companyKey);
+        }
+      }
+    } catch (_) {}
+
     try {
       const res = await fetch(`${getApiBase()}/users`, {
         headers: {
@@ -159,6 +192,9 @@ export default function EmployeesScreen() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
+          if (data[0]?.companyKey) {
+            setCompanyKey(data[0].companyKey);
+          }
           const assigned: EmployeeProfile[] = [];
           const unassigned: UnassignedUser[] = [];
 
@@ -243,6 +279,80 @@ export default function EmployeesScreen() {
           subordinates: [],
         },
       ]);
+    }
+  };
+
+  const handleShareKey = async () => {
+    try {
+      await Share.share({
+        message: `Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\n1. Open DAS CRM\n2. Sign up with this Company Key\n3. Your account will appear for Admin role assignment.`,
+        title: `DAS CRM Company Key: ${companyKey}`,
+      });
+    } catch (e) {
+      console.warn('Share error:', e);
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    const msg = encodeURIComponent(`Join our organization workspace on DAS CRM!\n\nCompany Registration Key: *${companyKey}*\n\nEnter this key during registration to join.`);
+    Linking.openURL(`whatsapp://send?text=${msg}`).catch(() => {
+      Linking.openURL(`https://api.whatsapp.com/send?text=${msg}`).catch(() => {
+        Alert.alert('Notice', 'Could not open WhatsApp directly. Use Share Key instead.');
+      });
+    });
+  };
+
+  const handleCreateStaff = async () => {
+    if (!newStaffName.trim() || !newStaffEmail.trim()) {
+      Alert.alert('Required Fields', 'Please enter both the staff member’s full name and email address.');
+      return;
+    }
+
+    setIsSubmittingStaff(true);
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch(`${getApiBase()}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: newStaffName.trim(),
+          email: newStaffEmail.trim().toLowerCase(),
+          phone: newStaffPhone.trim(),
+          password: newStaffPassword.trim() || 'Staff@123',
+          role: newStaffRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to add staff member');
+      }
+
+      Alert.alert(
+        'Staff Member Added',
+        `${newStaffName} has been added successfully! ${newStaffRole === 'UNASSIGNED' ? 'They are placed in the Unassigned verification queue.' : `Assigned as ${newStaffRole}.`}`,
+        [{ text: 'OK' }]
+      );
+
+      // Reset
+      setNewStaffName('');
+      setNewStaffEmail('');
+      setNewStaffPhone('');
+      setNewStaffPassword('Staff@123');
+      setNewStaffRole('UNASSIGNED');
+      setShowAddStaffModal(false);
+
+      if (newStaffRole === 'UNASSIGNED') {
+        setActiveTab('UNASSIGNED');
+      }
+
+      loadUsers();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not add staff member.');
+    } finally {
+      setIsSubmittingStaff(false);
     }
   };
 
@@ -430,10 +540,19 @@ export default function EmployeesScreen() {
             {totalUsersCount} {t.empTotalUsers} · {activeCount} {t.empTabAssigned} · {unassignedCount} {t.empTabUnassigned}
           </Text>
         </View>
-        <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
-          <Text style={[styles.countPillText, { color: pillStyle.text }]}>
-            {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} {t.empSeatsAssigned}
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={styles.addStaffHeaderBtn}
+            onPress={() => setShowAddStaffModal(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addStaffHeaderBtnText}>+ Add Staff</Text>
+          </TouchableOpacity>
+          <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
+            <Text style={[styles.countPillText, { color: pillStyle.text }]}>
+              {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} {t.empSeatsAssigned}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -596,17 +715,73 @@ export default function EmployeesScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Workspace Registration Key Hub Card */}
+          <View style={[styles.companyKeyCard, { borderColor: '#818cf8', backgroundColor: isDark ? 'rgba(79, 70, 229, 0.12)' : 'rgba(79, 70, 229, 0.08)' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: '#a5b4fc', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                WORKSPACE REGISTRATION KEY
+              </Text>
+              <View style={{ backgroundColor: 'rgba(52, 211, 153, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#34d399' }}>
+                  {Math.max(0, totalQuota - activeCount)} Seats Free
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.keyDisplayBox}>
+              <Text style={styles.keyDisplayText}>{companyKey}</Text>
+            </View>
+
+            <Text style={[styles.companyKeyInfoText, { color: isDark ? '#cbd5e1' : '#475569' }]}>
+              Candidates can download DAS CRM and enter this key during registration to join your workspace.
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+              <TouchableOpacity
+                style={[styles.keyActionBtn, { backgroundColor: '#4f46e5', flex: 1 }]}
+                onPress={handleShareKey}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyActionBtnText}>📤 Share</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.keyActionBtn, { backgroundColor: '#059669', flex: 1 }]}
+                onPress={handleShareWhatsApp}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyActionBtnText}>💬 WhatsApp</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.keyActionBtn, { backgroundColor: '#6366f1', flex: 1.2 }]}
+                onPress={() => setShowAddStaffModal(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.keyActionBtnText}>+ Pre-register</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={[styles.tabInfoBanner, { borderColor: 'rgba(251,191,36,0.35)', backgroundColor: isDark ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.15)' }]}>
             <Text style={[styles.tabInfoText, { color: isDark ? '#fde68a' : '#854d0e' }]}>
-              ⚠️ These users have registered in DAS CRM but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. You have <Text style={{ fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>{Math.max(0, totalQuota - activeCount)} available seat(s)</Text> on your plan ({activeCount}/{totalQuota} used).
+              ⚠️ Unassigned users have registered in your company but have <Text style={{ fontWeight: '900' }}>no role assigned yet</Text>. Allocate a role below to activate their account.
             </Text>
           </View>
 
           {unassignedUsers.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateIcon}>🎉</Text>
-              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>All Caught Up!</Text>
-              <Text style={[styles.emptyStateSub, { color: colors.textMuted }]}>No pending role assignments. All registered users have been activated.</Text>
+              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Pending Unassigned Users</Text>
+              <Text style={[styles.emptyStateSub, { color: colors.textMuted }]}>
+                All registered users have been activated with CRM roles. Share your Company Key ({companyKey}) or pre-register new team members below.
+              </Text>
+              <TouchableOpacity
+                style={[styles.assignBtn, { marginTop: 14, backgroundColor: '#4f46e5', borderColor: '#818cf8', paddingHorizontal: 16, paddingVertical: 10 }]}
+                onPress={() => setShowAddStaffModal(true)}
+              >
+                <Text style={[styles.assignBtnText, { color: '#ffffff', fontSize: 12 }]}>+ Add / Pre-register Staff</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -734,6 +909,106 @@ export default function EmployeesScreen() {
           )}
         </View>
       </Modal>
+
+      {/* ── Add / Pre-register Staff Modal ── */}
+      <Modal visible={showAddStaffModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+            <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Add Staff Member</Text>
+                <Text style={[styles.modalSub, { color: colors.textMuted }]}>
+                  Pre-register employee or add to unassigned queue
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                onPress={() => setShowAddStaffModal(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>FULL NAME *</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. Rahul Sharma"
+                placeholderTextColor={colors.textMuted}
+                value={newStaffName}
+                onChangeText={setNewStaffName}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>EMAIL ADDRESS *</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. rahul@company.com"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={newStaffEmail}
+                onChangeText={setNewStaffEmail}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>PHONE NUMBER</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+                placeholder="e.g. 9876543210"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+                value={newStaffPhone}
+                onChangeText={setNewStaffPhone}
+              />
+
+              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>INITIAL ROLE</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.roleChip,
+                    { backgroundColor: colors.inputBg, borderColor: colors.border },
+                    newStaffRole === 'UNASSIGNED' && { borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.15)' }
+                  ]}
+                  onPress={() => setNewStaffRole('UNASSIGNED')}
+                >
+                  <Text style={[styles.roleChipText, { color: colors.textMuted }, newStaffRole === 'UNASSIGNED' && { color: '#fbbf24', fontWeight: '900' }]}>
+                    ⏳ Unassigned (Review Queue)
+                  </Text>
+                </TouchableOpacity>
+
+                {AVAILABLE_ROLES.map(r => (
+                  <TouchableOpacity
+                    key={r.key}
+                    style={[
+                      styles.roleChip,
+                      { backgroundColor: colors.inputBg, borderColor: colors.border },
+                      newStaffRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}20` }
+                    ]}
+                    onPress={() => setNewStaffRole(r.key as any)}
+                  >
+                    <Text style={[styles.roleChipText, { color: colors.textMuted }, newStaffRole === r.key && { color: r.color, fontWeight: '900' }]}>
+                      {r.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, isSubmittingStaff && { opacity: 0.6 }]}
+                disabled={isSubmittingStaff}
+                onPress={handleCreateStaff}
+                activeOpacity={0.85}
+              >
+                {isSubmittingStaff ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Add to Workspace →</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -746,8 +1021,65 @@ const styles = StyleSheet.create({
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   pageTitle: { fontSize: 16, fontWeight: '900', color: '#ffffff', letterSpacing: 0.3 },
   pageSub: { fontSize: 10, color: '#64748b', fontWeight: '600', marginTop: 2 },
+  addStaffHeaderBtn: {
+    backgroundColor: '#4f46e5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#818cf8',
+  },
+  addStaffHeaderBtnText: {
+    color: '#ffffff',
+    fontSize: 10.5,
+    fontWeight: '900',
+  },
   countPill: { backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.4)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   countPillText: { fontSize: 11, fontWeight: '900', color: '#34d399' },
+
+  // Company Key Card
+  companyKeyCard: {
+    width: '100%',
+    maxWidth: 600,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 14,
+    marginBottom: 14,
+  },
+  keyDisplayBox: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.3)',
+  },
+  keyDisplayText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  companyKeyInfoText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
+  },
+  keyActionBtn: {
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyActionBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
 
   // Tab Bar
   tabBar: { flexDirection: 'row', gap: 0, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0c1322' },
@@ -806,6 +1138,33 @@ const styles = StyleSheet.create({
   modalCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   modalCloseBtnText: { color: '#94a3b8', fontSize: 13, fontWeight: '900' },
   modalSectionLbl: { fontSize: 10, fontWeight: '900', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+  modalInputLabel: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 5,
+    marginTop: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  roleChip: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  roleChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
 
   // Role Options
   roleOption: {

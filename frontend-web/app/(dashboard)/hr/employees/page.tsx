@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { EmployeeListWidget } from '@/components/hr/EmployeeListWidget';
 import { Plus, Download, Lock } from 'lucide-react';
@@ -7,6 +8,9 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function EmployeesPage() {
   const { currentUser } = useAuth();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [exportTrigger, setExportTrigger] = useState(0);
+
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isHrOrAdmin = rawRole === 'HR' || rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
 
@@ -31,14 +35,33 @@ export default function EmployeesPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <Topbar title="Employee Directory & Reports" actions={
-        <div className="flex gap-2">
-          <button className="btn-secondary text-sm gap-1.5"><Download size={14} /> Export Directory</button>
-          <button className="btn-primary text-sm gap-1.5"><Plus size={14} /> Add Employee</button>
-        </div>
-      } />
+      <Topbar
+        title="Employee Directory & Reports"
+        actions={
+          <div className="flex gap-2">
+            <button
+              onClick={() => setExportTrigger(Date.now())}
+              className="btn-secondary text-sm gap-1.5 cursor-pointer hover:bg-slate-800 transition-all"
+              title="Download CSV report of all employees"
+            >
+              <Download size={14} /> Export Directory
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="btn-primary text-sm gap-1.5 cursor-pointer shadow-lg hover:brightness-110 transition-all"
+              title="Add a new employee or pre-register unassigned user"
+            >
+              <Plus size={14} /> Add Employee
+            </button>
+          </div>
+        }
+      />
       <main className="flex-1 p-6 overflow-auto">
-        <EmployeeListWidget />
+        <EmployeeListWidget
+          isAddModalOpen={isAddModalOpen}
+          setIsAddModalOpen={setIsAddModalOpen}
+          exportTrigger={exportTrigger}
+        />
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Body,
@@ -23,6 +24,32 @@ export class UsersController {
   @ApiOperation({ summary: 'List all organization users/members (including unassigned)' })
   async findAll(@CurrentUser() user: any) {
     return this.usersService.findAll(user.organizationId);
+  }
+
+  @Get('company-key')
+  @ApiOperation({ summary: 'Get company registration key for inviting unassigned users' })
+  async getCompanyKey(@CurrentUser() user: any) {
+    return this.usersService.getCompanyKey(user.organizationId);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Admin directly adds an employee or unassigned user to the company workspace' })
+  async createUser(
+    @CurrentUser() adminUser: any,
+    @Body()
+    body: {
+      name: string;
+      email: string;
+      password?: string;
+      phone?: string;
+      role?: string;
+    },
+  ) {
+    return this.usersService.createUser(
+      adminUser.organizationId,
+      adminUser.id,
+      body,
+    );
   }
 
   @Patch(':id/verify-role')
