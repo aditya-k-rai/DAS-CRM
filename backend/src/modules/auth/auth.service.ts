@@ -691,15 +691,11 @@ export class AuthService {
       );
     }
 
-    // Role: employee picks during registration, default to SALES_EXEC
-    const assignedRoleName = (dto.role || 'SALES_EXEC').toUpperCase();
-    const roleRecord = await this.prisma.role.findFirst({
-      where: { organizationId: orgId, name: assignedRoleName },
-    });
-
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const [firstName, ...rest] = dto.name.trim().split(' ');
 
+    // Non-admin user self-registration directly goes to UNASSIGNED (roleId: null)
+    // The Company Admin will verify and assign their role from the Employees Dashboard.
     const user = await this.prisma.user.create({
       data: {
         organizationId: orgId,
@@ -707,14 +703,37 @@ export class AuthService {
         passwordHash,
         firstName,
         lastName: rest.join(' ') || '',
-        roleId: roleRecord?.id ?? null,
+        roleId: null, // Strictly UNASSIGNED until Admin approves & verifies
       },
     });
 
-    // Company key stays active — multiple employees can join using the same key
-    const tokens = await this.generateTokens(user.id, orgId, assignedRoleName);
+    // Notify organization admin about the new unassigned registration
+    try {
+      await this.prisma.notification.create({
+        data: {
+          organizationId: orgId,
+          userId: user.id,
+          type: 'ROLE_TRANSITION',
+          title: 'New Staff Registration — Pending Role Verification',
+          body: `${user.firstName} ${user.lastName} (${user.email}) registered using Company Key and is pending your role assignment.`,
+        },
+      });
+    } catch (_) {}
+
+    // Tokens generated with UNASSIGNED role so user sees Account Pending Role Assignment
+    const tokens = await this.generateTokens(user.id, orgId, 'UNASSIGNED');
     await this.saveRefreshToken(user.id, tokens.refreshToken);
-    return { user: this.sanitizeUser(user), ...tokens };
+
+    return {
+      user: {
+        ...this.sanitizeUser(user),
+        role: null,
+        hasAssignedRole: false,
+        roleNotAssigned: true,
+        message: 'Your role is not assigned. Contact Admin or Manager.',
+      },
+      ...tokens,
+    };
   }
 
   /** Shared seat-limit guard used by employee registration */
@@ -879,15 +898,17 @@ export class AuthService {
         );
       }
 
-      const [firstName, ...rest] = dto.name.split(' ');
+      const [firstName, ...rest] = (dto.name || 'User').split(' ');
       const randomPassword = await bcrypt.hash(Math.random().toString(36), 12);
 
-      let defaultRole = await this.prisma.role.findFirst({
-        where: { organizationId: targetOrgId, name: 'SALES' },
-      });
-      if (!defaultRole) {
-        defaultRole = await this.prisma.role.findFirst({
-          where: { organizationId: targetOrgId },
+      const isCompanyAdmin = Boolean(
+        organization?.adminEmail && emailLower === organization.adminEmail.toLowerCase()
+      );
+      let adminRole: { id: string } | null = null;
+      if (isCompanyAdmin) {
+        adminRole = await this.prisma.role.findFirst({
+          where: { organizationId: targetOrgId, name: 'ADMIN' },
+          select: { id: true },
         });
       }
 
@@ -899,7 +920,7 @@ export class AuthService {
           firstName,
           lastName: rest.join(' ') || '',
           avatarUrl: dto.picture,
-          roleId: defaultRole?.id ?? null,
+          roleId: isCompanyAdmin ? adminRole?.id ?? null : null, // Non-admin goes directly to UNASSIGNED
         },
         include: {
           organization: true,
@@ -912,6 +933,27 @@ export class AuthService {
       throw new ForbiddenException(
         `User Account Deactivated: Your account (${emailLower}) has been deactivated by your Tenant Admin.`,
       );
+    }
+
+    const hasAssignedRole = Boolean(
+      user.roleId && user.role && user.role.name && user.role.name !== 'UNASSIGNED'
+    );
+
+    if (!hasAssignedRole) {
+      const tokens = await this.generateTokens(user.id, user.organizationId, 'UNASSIGNED');
+      await this.saveRefreshToken(user.id, tokens.refreshToken);
+
+      return {
+        user: {
+          ...this.sanitizeUser(user),
+          role: null,
+          hasAssignedRole: false,
+          roleNotAssigned: true,
+          message: 'Your role is not assigned. Contact Admin or Manager.',
+        },
+        organization: user.organization || organization,
+        ...tokens,
+      };
     }
 
     const roleName = user.role?.name || 'ADMIN';

@@ -98,7 +98,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current authenticated user' })
   me(@CurrentUser() user: any) {
     const { passwordHash, mfaSecret, ...safe } = user;
-    return safe;
+    const isUnassigned = !user.roleId || !user.role || user.role.name === 'UNASSIGNED';
+    return {
+      ...safe,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || user.email,
+      role: isUnassigned ? 'UNASSIGNED' : user.role.name,
+      hasAssignedRole: !isUnassigned,
+      roleNotAssigned: isUnassigned,
+      companyId: user.organizationId,
+      companyName: user.organization?.name,
+    };
   }
 
   // ── Super Admin Auth ───────────────────────────────────────

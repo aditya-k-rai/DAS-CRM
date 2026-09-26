@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, Building2, UserX, LogOut, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Building2, UserX, LogOut, RefreshCw, Loader2 } from 'lucide-react';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { TenantAdminDashboard } from './TenantAdminDashboard';
 import { HRRoleDashboard } from './HRRoleDashboard';
@@ -11,8 +11,49 @@ import { TeamLeaderRoleDashboard } from './TeamLeaderRoleDashboard';
 import { EmployeeRoleDashboard } from './EmployeeRoleDashboard';
 
 export function RoleDashboardRouter() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, updateUserProfile } = useAuth();
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
+  const handleRefreshStatus = async () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const res = await fetch(`${apiBase}/auth/me`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        if (typeof window !== 'undefined') {
+          const currentStored = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+          const merged = { ...currentStored, ...updated };
+          localStorage.setItem('das_crm_user', JSON.stringify(merged));
+        }
+        if (updated.role && updated.role !== 'UNASSIGNED') {
+          updateUserProfile(updated);
+          setRefreshMsg(`Role approved as ${updated.role}! Entering dashboard...`);
+          setTimeout(() => {
+            window.location.reload();
+          }, 500);
+          return;
+        } else {
+          setRefreshMsg('Account is still awaiting role approval from Admin.');
+        }
+      } else {
+        setRefreshMsg('Could not verify status. Please try again.');
+      }
+    } catch (e) {
+      setRefreshMsg('Network error checking status.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const isRoleUnassigned =
     currentUser?.hasAssignedRole === false ||
@@ -86,12 +127,20 @@ export function RoleDashboardRouter() {
             </div>
           </div>
 
+          {refreshMsg && (
+            <div className="mb-4 p-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
+              {refreshMsg}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row items-center gap-3 justify-center">
             <button
-              onClick={() => window.location.reload()}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+              onClick={handleRefreshStatus}
+              disabled={refreshing}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
             >
-              <RefreshCw size={14} /> Refresh Role Status
+              {refreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              <span>{refreshing ? 'Checking Approval Status...' : 'Refresh Role Status'}</span>
             </button>
             <button
               onClick={() => {

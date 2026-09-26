@@ -54,6 +54,7 @@ import WorkflowBuilderScreen from './src/screens/WorkflowBuilderScreen';
 import { ModernAlertModal } from './src/components/ModernAlertModal';
 import { ModernAlert, initModernAlertOverride } from './src/services/modernAlert';
 import { ThemeToggle } from './src/components/ThemeToggle';
+import { getApiBase } from './src/config/api';
 
 // 🚀 Initialize Global Modern Alert Override across entire app
 initModernAlertOverride();
@@ -94,8 +95,47 @@ function LeadsStackNavigator() {
 const Tab = createBottomTabNavigator();
 
 function UnassignedRoleScreen() {
-  const { currentUser, logout } = useAuthStore();
+  const { currentUser, logout, setAuthSession, token, subscription } = useAuthStore();
   const { colors } = useTheme();
+  const [checking, setChecking] = useState(false);
+
+  const handleRefreshRole = async () => {
+    setChecking(true);
+    try {
+      const res = await fetch(`${getApiBase()}/auth/me`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        if (updated.role && updated.role !== 'UNASSIGNED') {
+          Alert.alert('Role Approved!', `Your account has been verified as ${updated.role}. Welcome to DAS CRM!`);
+          await setAuthSession(
+            {
+              ...currentUser,
+              ...updated,
+              role: updated.role,
+              hasAssignedRole: true,
+              roleNotAssigned: false,
+            },
+            token || '',
+            subscription
+          );
+          return;
+        } else {
+          Alert.alert('Pending Verification', 'Your account is still awaiting role assignment from the Admin.');
+        }
+      } else {
+        Alert.alert('Notice', 'Could not verify status. Please retry in a moment.');
+      }
+    } catch (_) {
+      Alert.alert('Network Error', 'Please check your connection and retry.');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
@@ -124,10 +164,37 @@ function UnassignedRoleScreen() {
         <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
           You have successfully authenticated to {currentUser?.companyName || 'your company workspace'}. However, an administrator has not yet assigned a role to your account. You will not have access to dashboard data or operational modules until your role is assigned.
         </Text>
+
+        <TouchableOpacity
+          onPress={handleRefreshRole}
+          disabled={checking}
+          style={{
+            backgroundColor: '#4f46e5',
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 12,
+            width: '100%',
+            alignItems: 'center',
+            marginBottom: 10,
+            opacity: checking ? 0.6 : 1,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+          activeOpacity={0.8}
+        >
+          {checking && <ActivityIndicator color="#fff" size="small" />}
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+            {checking ? 'Checking Status...' : 'Refresh Role Status 🔄'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => logout()}
           style={{
-            backgroundColor: '#ef4444',
+            backgroundColor: 'transparent',
+            borderColor: colors.borderSubtle,
+            borderWidth: 1,
             paddingVertical: 12,
             paddingHorizontal: 24,
             borderRadius: 12,
@@ -136,7 +203,7 @@ function UnassignedRoleScreen() {
           }}
           activeOpacity={0.8}
         >
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Sign Out</Text>
+          <Text style={{ color: colors.textMuted, fontWeight: '700', fontSize: 14 }}>Sign Out</Text>
         </TouchableOpacity>
       </View>
     </View>

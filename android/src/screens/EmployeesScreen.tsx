@@ -147,7 +147,106 @@ export default function EmployeesScreen() {
 
   const pillStyle = getCountPillStyle();
 
-  const handleAssignRole = () => {
+  const loadUsers = async () => {
+    const token = useAuthStore.getState().token;
+    try {
+      const res = await fetch(`${getApiBase()}/users`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const assigned: EmployeeProfile[] = [];
+          const unassigned: UnassignedUser[] = [];
+
+          data.forEach((u: any) => {
+            const rawRole = (u.role || '').toUpperCase();
+            const isUnassigned =
+              !u.roleId ||
+              rawRole === 'UNASSIGNED' ||
+              !u.role ||
+              u.roleNotAssigned ||
+              u.hasAssignedRole === false;
+
+            if (isUnassigned) {
+              unassigned.push({
+                id: String(u.id),
+                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+                email: u.email,
+                phone: u.phone || '—',
+                registeredAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recently',
+                deviceInfo: 'App/Web Registration',
+              });
+            } else {
+              let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = 'SALES_EXEC';
+              if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) role = 'ADMIN';
+              else if (rawRole.includes('MANAGER')) role = 'MANAGER';
+              else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
+              else if (rawRole.includes('HR')) role = 'HR';
+              else role = 'SALES_EXEC';
+
+              assigned.push({
+                id: String(u.id),
+                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+                email: u.email,
+                phone: u.phone || '—',
+                role,
+                assignedManager: 'Admin',
+                status: 'ONLINE',
+                avatarUrl: u.avatarUrl || '',
+                documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+                bankDetails: { bankName: 'Direct Deposit', accountHolder: u.name || u.email, accountNo: '••••••••', ifscCode: '—', upiId: u.email, lastUpdatedDate: 'Recently', historyLogs: [] },
+                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+                attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+                subordinates: [],
+              });
+            }
+          });
+
+          setEmployeesList(assigned);
+          setUnassignedUsers(unassigned);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (currentUser) {
+      const uRole = (currentUser.role || '').toUpperCase();
+      const isOwnerOrAdmin = uRole.includes('ADMIN') || uRole.includes('OWNER') || uRole.includes('SUPER_ADMIN');
+      const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
+        ? 'ADMIN'
+        : uRole.includes('HR')
+        ? 'HR'
+        : uRole.includes('MANAGER')
+        ? 'MANAGER'
+        : uRole.includes('LEADER') || uRole.includes('TL')
+        ? 'TEAM_LEADER'
+        : 'SALES_EXEC';
+
+      setEmployeesList([
+        {
+          id: currentUser.id || 'admin_1',
+          name: currentUser.name || 'Admin',
+          email: currentUser.email || 'admin@company.com',
+          phone: '+91 9717355779',
+          role,
+          assignedManager: 'Admin',
+          status: 'ONLINE',
+          avatarUrl: '',
+          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+          bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+          subordinates: [],
+        },
+      ]);
+    }
+  };
+
+  const handleAssignRole = async () => {
     if (!assignRoleTarget || !selectedRole) return;
 
     if (totalQuota > 0 && activeCount >= totalQuota) {
@@ -161,47 +260,73 @@ export default function EmployeesScreen() {
 
     const roleConf = AVAILABLE_ROLES.find(r => r.key === selectedRole);
 
-    // Create new assigned employee profile
-    const newEmployee: EmployeeProfile = {
-      id: `emp-${Date.now()}`,
-      name: assignRoleTarget.name,
-      email: assignRoleTarget.email,
-      phone: assignRoleTarget.phone,
-      role: selectedRole,
-      assignedManager: 'Admin',
-      status: 'ONLINE',
-      avatarUrl: '',
-      documents: {
-        pan: '',
-        aadhaar: '',
-        eduCert: '',
-        offerLetter: '',
-        lastUpdatedDate: 'Today',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: '',
-        accountHolder: assignRoleTarget.name,
-        accountNo: '',
-        ifscCode: '',
-        upiId: '',
-        lastUpdatedDate: 'Today',
-        historyLogs: [],
-      },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-      subordinates: [],
-    };
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch(`${getApiBase()}/users/${assignRoleTarget.id}/verify-role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ assignedRole: selectedRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to verify and assign role');
+      }
 
-    setEmployeesList(prev => [newEmployee, ...prev]);
-    setUnassignedUsers(prev => prev.filter(u => u.id !== assignRoleTarget.id));
-    setAssignRoleTarget(null);
-    setSelectedRole(null);
+      setAssignRoleTarget(null);
+      setSelectedRole(null);
+
+      Alert.alert(
+        'Role Assigned Successfully',
+        `${assignRoleTarget.name} has been assigned and verified as ${roleConf?.label}.`,
+        [{ text: 'OK' }]
+      );
+
+      loadUsers();
+    } catch (e: any) {
+      Alert.alert('Assignment Error', e.message || 'Could not verify role on server.');
+    }
+  };
+
+  const handleUpgradeRole = (emp: EmployeeProfile) => {
+    const nextRoleName =
+      emp.role === 'SALES_EXEC'
+        ? 'Team Leader (TL)'
+        : emp.role === 'TEAM_LEADER'
+        ? 'Department Manager'
+        : 'Next Rank';
 
     Alert.alert(
-      'Role Assigned Successfully',
-      `${assignRoleTarget.name} has been assigned as ${roleConf?.label}. They are now active in your Employee Structure.`,
-      [{ text: 'OK' }]
+      'Confirm Role Promotion',
+      `Upgrade ${emp.name} from ${emp.role.replace('_', ' ')} to ${nextRoleName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Promote ⬆',
+          onPress: async () => {
+            try {
+              const token = useAuthStore.getState().token;
+              const res = await fetch(`${getApiBase()}/users/${emp.id}/upgrade-role`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+              });
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.message || 'Promotion failed');
+              }
+              Alert.alert('Promoted Successfully', `${emp.name} is now promoted to ${data.currentRole || nextRoleName}!`);
+              loadUsers();
+            } catch (e: any) {
+              Alert.alert('Promotion Error', e.message || 'Could not upgrade role on server.');
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -218,84 +343,7 @@ export default function EmployeesScreen() {
   }, [inspectingEmp]);
 
   useEffect(() => {
-    let isMounted = true;
-    const loadUsers = async () => {
-      const token = useAuthStore.getState().token;
-      try {
-        const res = await fetch(`${getApiBase()}/users`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0 && isMounted) {
-            const mapped: EmployeeProfile[] = data.map((u: any) => {
-              const rawRole = (u.role || 'SALES_EXEC').toUpperCase();
-              let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = 'SALES_EXEC';
-              if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) role = 'ADMIN';
-              else if (rawRole.includes('MANAGER')) role = 'MANAGER';
-              else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
-              else if (rawRole.includes('HR')) role = 'HR';
-
-              return {
-                id: String(u.id),
-                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-                email: u.email,
-                phone: u.phone || '—',
-                role,
-                assignedManager: 'Admin',
-                status: 'ONLINE',
-                avatarUrl: u.avatarUrl || '',
-                documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-                bankDetails: { bankName: 'Direct Deposit', accountHolder: u.name || u.email, accountNo: '••••••••', ifscCode: '—', upiId: u.email, lastUpdatedDate: 'Recently', historyLogs: [] },
-                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-                attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-                subordinates: [],
-              };
-            });
-            setEmployeesList(mapped);
-            return;
-          }
-        }
-      } catch (_) {}
-
-      if (currentUser && isMounted) {
-        const uRole = (currentUser.role || '').toUpperCase();
-        const isOwnerOrAdmin = uRole.includes('ADMIN') || uRole.includes('OWNER') || uRole.includes('SUPER_ADMIN');
-        const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
-          ? 'ADMIN'
-          : uRole.includes('HR')
-          ? 'HR'
-          : uRole.includes('MANAGER')
-          ? 'MANAGER'
-          : uRole.includes('LEADER') || uRole.includes('TL')
-          ? 'TEAM_LEADER'
-          : 'SALES_EXEC';
-
-        setEmployeesList([
-          {
-            id: currentUser.id || 'admin_1',
-            name: currentUser.name || 'Admin',
-            email: currentUser.email || 'admin@company.com',
-            phone: '+91 9717355779',
-            role,
-            assignedManager: 'Admin',
-            status: 'ONLINE',
-            avatarUrl: '',
-            documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-            bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
-            leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-            attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-            subordinates: [],
-          },
-        ]);
-      }
-    };
-
     loadUsers();
-    return () => { isMounted = false; };
   }, [currentUser]);
 
   const topPadding = Math.max(insets.top + 6, 18);
@@ -451,9 +499,55 @@ export default function EmployeesScreen() {
                       </Text>
                     </View>
 
-                    <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
-                      <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
-                    </TouchableOpacity>
+                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                      <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
+                        <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
+                      </TouchableOpacity>
+
+                      {emp.role === 'SALES_EXEC' && (
+                        <TouchableOpacity
+                          style={{
+                            paddingVertical: 5,
+                            paddingHorizontal: 8,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(251,191,36,0.18)',
+                            borderColor: 'rgba(251,191,36,0.4)',
+                            borderWidth: 1,
+                            alignItems: 'center',
+                          }}
+                          onPress={() => handleUpgradeRole(emp)}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>
+                            Upgrade to TL ⬆
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {emp.role === 'TEAM_LEADER' && (
+                        <TouchableOpacity
+                          style={{
+                            paddingVertical: 5,
+                            paddingHorizontal: 8,
+                            borderRadius: 8,
+                            backgroundColor: 'rgba(168,85,247,0.18)',
+                            borderColor: 'rgba(168,85,247,0.4)',
+                            borderWidth: 1,
+                            alignItems: 'center',
+                          }}
+                          onPress={() => handleUpgradeRole(emp)}
+                        >
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc' }}>
+                            Upgrade to Manager ⬆
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {emp.role === 'MANAGER' && (
+                        <View style={{ paddingVertical: 3, paddingHorizontal: 6, borderRadius: 6, backgroundColor: 'rgba(52,211,153,0.15)' }}>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: '#34d399' }}>⭐ Max Rank</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 );
               })

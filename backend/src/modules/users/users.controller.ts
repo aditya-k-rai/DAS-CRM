@@ -1,4 +1,11 @@
-import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
@@ -12,9 +19,37 @@ export class UsersController {
   constructor(private usersService: UsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all organization users/members' })
+  @ApiOperation({ summary: 'List all organization users/members (including unassigned)' })
   async findAll(@CurrentUser() user: any) {
     return this.usersService.findAll(user.organizationId);
+  }
+
+  @Patch(':id/verify-role')
+  @ApiOperation({ summary: 'Admin approves & verifies an unassigned user and sets their initial role' })
+  async verifyAndAssignRole(
+    @CurrentUser() adminUser: any,
+    @Param('id') targetUserId: string,
+    @Body('role') role: string,
+  ) {
+    return this.usersService.verifyAndAssignRole(
+      adminUser.organizationId,
+      adminUser.id,
+      targetUserId,
+      role,
+    );
+  }
+
+  @Patch(':id/upgrade-role')
+  @ApiOperation({ summary: 'Admin upgrades employee role strictly along Sales -> TL -> Manager' })
+  async upgradeUserRole(
+    @CurrentUser() adminUser: any,
+    @Param('id') targetUserId: string,
+  ) {
+    return this.usersService.upgradeUserRole(
+      adminUser.organizationId,
+      adminUser.id,
+      targetUserId,
+    );
   }
 
   @Patch('phone')
