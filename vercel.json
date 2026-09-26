@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm install --prefix frontend-web --legacy-peer-deps",
+  "buildCommand": "npm run --prefix frontend-web build",
+  "outputDirectory": "frontend-web/.next",
+  "cleanUrls": true
+}
