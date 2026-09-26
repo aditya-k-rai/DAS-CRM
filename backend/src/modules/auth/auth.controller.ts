@@ -185,7 +185,13 @@ export class AuthController {
   })
   async validateCompanyKey(@Body('key') key: string) {
     const record = await this.companyKeyService.validateCompanyKey(key);
-    if (!record) return { valid: false };
+    if (!record) return { valid: false, message: 'Invalid or expired key.' };
+    if (record.usedByOrganizationId) {
+      return {
+        valid: false,
+        message: 'This Company Key has already been registered to an existing company workspace.',
+      };
+    }
     return {
       valid: true,
       planTier: record.planTier,

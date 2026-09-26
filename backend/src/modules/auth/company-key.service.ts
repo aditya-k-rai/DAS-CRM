@@ -94,23 +94,30 @@ export class CompanyKeyService {
     return record;
   }
 
-  /** Validate a company registration key — returns the key record or null */
+  /** Validate a company registration key — returns the key record or null if not found, revoked, or expired */
   async validateCompanyKey(key: string) {
+    const cleanKey = (key || '').trim().toUpperCase();
+    if (!cleanKey) return null;
+
     const record = await this.prisma.companyRegistrationKey.findUnique({
-      where: { key },
+      where: { key: cleanKey },
     });
 
     if (!record) return null;
-    if (record.status !== KeyStatus.ACTIVE) return null;
-    if (record.expiresAt < new Date()) return null;
+    // A permanent company key is valid as long as it has not been revoked or expired
+    if (record.status === KeyStatus.REVOKED) return null;
+    if (record.expiresAt && record.expiresAt < new Date()) return null;
 
     return record;
   }
 
   /** Validate a user invite key — returns the key record or null */
   async validateUserKey(key: string) {
+    const cleanKey = (key || '').trim().toUpperCase();
+    if (!cleanKey) return null;
+
     const record = await this.prisma.userInviteKey.findUnique({
-      where: { key },
+      where: { key: cleanKey },
     });
 
     if (!record) return null;
@@ -120,12 +127,12 @@ export class CompanyKeyService {
     return record;
   }
 
-  /** Mark a company key as USED */
+  /** Link a company key permanently to an organization (remains ACTIVE as the permanent company key) */
   async markCompanyKeyUsed(keyId: string, organizationId: string) {
     await this.prisma.companyRegistrationKey.update({
       where: { id: keyId },
       data: {
-        status: KeyStatus.USED,
+        status: KeyStatus.ACTIVE,
         usedByOrganizationId: organizationId,
         usedAt: new Date(),
       },

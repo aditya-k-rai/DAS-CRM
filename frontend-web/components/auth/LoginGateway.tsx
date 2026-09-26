@@ -580,11 +580,11 @@ export function LoginGateway() {
     }
   };
 
-  // 2. Staff User Key Redeem Handler
+  // 2. Company Key Staff Register Handler
   const handleValidateUserKey = async () => {
     const trimmedKey = userKey.trim().toUpperCase();
     if (!trimmedKey) {
-      setError('Please enter your Staff Invite Key.');
+      setError('Please enter your Company Key.');
       return;
     }
     setKeyValidating(true);
@@ -599,7 +599,7 @@ export function LoginGateway() {
       const data = await res.json();
       setKeyInfo(data);
       if (!data.valid) {
-        setError(data.message || 'Invalid, expired, or already used Staff Invite Key. Please contact your Admin.');
+        setError(data.message || 'Invalid or inactive Company Key. Please check with your Admin.');
       }
     } catch (err) {
       setError('Could not reach server. Please check your connection and try again.');
@@ -610,11 +610,11 @@ export function LoginGateway() {
 
   const handleStaffKeyRegister = async () => {
     if (!userKey || !staffEmail || !staffPassword || !staffName) {
-      setError('Please fill all required fields including a valid Staff Invite Key.');
+      setError('Please fill all required fields including a valid Company Key.');
       return;
     }
     if (!keyInfo?.valid) {
-      setError('Please validate your Staff Invite Key first using the "Validate Key" button.');
+      setError('Please validate your Company Key first using the "Validate Key" button.');
       return;
     }
     setLoading(true);
@@ -1328,7 +1328,7 @@ export function LoginGateway() {
               {loading
                 ? 'Creating Account...'
                 : keyInfo?.valid
-                ? `Join ${keyInfo.organizationName || 'Company'} as ${keyInfo.keyType === 'COMPANY_KEY' ? staffRole.replace('_', ' ') : (keyInfo.assignedRole || 'Staff')}`
+                ? `Join ${keyInfo.organizationName || 'Company'} as ${staffRole.replace('_', ' ')}`
                 : 'Validate Key First'}
               {!loading && <ArrowRight size={15} />}
             </button>
