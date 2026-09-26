@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import {
   Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
-  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal, Download, Loader2
+  Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal, Download, Loader2,
+  Copy, MapPin, Phone, ExternalLink, FileText
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -67,6 +68,17 @@ export interface CompanyRecord {
   adminName: string;
   adminEmail: string;
   phone?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  panType?: string;
+  companyType?: string;
+  sector?: string;
+  accountType?: 'BUY_REQUEST' | 'TRIAL';
+  validityDays?: number;
+  couponCode?: string;
   verificationStatus?: string;
   registrationKey: string;
   plan: PlanType;
@@ -80,10 +92,12 @@ export interface CompanyRecord {
   conversionRate: number;
   isActive: boolean;
   createdAt: string;
+  registeredAt?: string;
   expiryDate: string;
   emailConfig: EmailCompanyConfig;
   whatsAppConfig: WhatsAppCompanyConfig;
   aiConfig: AICompanyConfig;
+  settings?: any;
 }
 
 export interface CompanyEmployee {
@@ -157,6 +171,16 @@ export interface PendingCompanyRecord {
   domain?: string;
   adminName: string;
   adminEmail: string;
+  phone?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  panType?: string;
+  companyType?: string;
+  sector?: string;
+  couponCode?: string;
   registrationKey: string;
   requestedPlan: PlanType;
   registeredAt: string;
@@ -166,13 +190,12 @@ export interface PendingCompanyRecord {
   delayInquiries?: DelayInquiry[];
   accountType?: 'BUY_REQUEST' | 'TRIAL';
   validityDays?: number;
-  panNumber?: string;
-  panType?: string;
   features?: {
     emailMarketing?: boolean;
     whatsappCloud?: boolean;
     aiEngine?: boolean;
   };
+  settings?: any;
 }
 
 const MOCK_PENDING_COMPANIES: PendingCompanyRecord[] = [];
@@ -231,6 +254,61 @@ export function SuperAdminDashboard() {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfSelectedCompany, setPdfSelectedCompany] = useState<any>(null);
   const [pdfCustomEmail, setPdfCustomEmail] = useState('');
+
+  // 🏢 Comprehensive Company Registration Details Modal
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [viewCompanyDetails, setViewCompanyDetails] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  const handleOpenCompanyDetails = async (comp: any) => {
+    setViewCompanyDetails(comp);
+    setDetailsModalOpen(true);
+    setDetailsLoading(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const org = data.organization || {};
+        setViewCompanyDetails((prev: any) => ({
+          ...prev,
+          ...org,
+          city: org.city || prev?.city,
+          state: org.state || prev?.state,
+          pincode: org.pincode || (org.settings as any)?.pincode || prev?.pincode,
+          gstNumber: org.gstNumber || prev?.gstNumber,
+          panNumber: org.panNumber || (org.settings as any)?.panNumber || prev?.panNumber,
+          panType: org.panType || (org.settings as any)?.panType || prev?.panType || 'BUSINESS',
+          companyType: org.companyType || prev?.companyType,
+          sector: org.sector || prev?.sector,
+          accountType: org.accountType || (org.settings as any)?.accountType || prev?.accountType,
+          validityDays: org.validityDays || (org.settings as any)?.requestedValidityDays || prev?.validityDays,
+          couponCode: org.couponCode || (org.settings as any)?.couponCode || prev?.couponCode,
+          registeredAt: org.registeredAt || (org.settings as any)?.registeredAt || org.createdAt || prev?.registeredAt || prev?.createdAt,
+          registrationKey: org.registrationKey || prev?.registrationKey,
+          employees: data.employees || prev?.employees || [],
+          leadStats: data.leadStats || prev?.leadStats || null,
+          subscription: data.subscription || prev?.subscription,
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching deep company details:', err);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const handleCopyRegistrationKey = (key: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(key);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    }
+  };
 
   const handleOpenPdfModal = (comp?: any) => {
     const targetComp = comp || companies[0] || (pendingCompanies[0] ? pendingCompanies[0] : null);
@@ -502,7 +580,17 @@ export function SuperAdminDashboard() {
             adminName: 'Anurag Sharma',
             adminEmail: 'adorabletrading08@gmail.com',
             phone: '9717355779',
-            registrationKey: 'DAS-VW-8329',
+            city: 'Gautam Buddha Nagar',
+            state: 'Uttar Pradesh',
+            pincode: '201306',
+            gstNumber: '09ECBPS7187H1ZY',
+            panNumber: 'ECBPS7187H',
+            panType: 'BUSINESS',
+            companyType: 'Proprietorship',
+            sector: 'Textile & Apparel',
+            accountType: 'TRIAL',
+            validityDays: 15,
+            registrationKey: 'ADOR-EC-7187',
             plan: 'BUSINESS',
             seatsAllocated: 18,
             seatsUsed: 1,
@@ -515,6 +603,7 @@ export function SuperAdminDashboard() {
             trialDaysLeft: 15,
             isActive: true,
             createdAt: '2026-09-24',
+            registeredAt: '2026-09-24T01:40:31.278Z',
             verificationStatus: 'APPROVED',
             emailConfig: { enabled: true, monthlyLimit: 5000, used: 0 },
             whatsAppConfig: { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
@@ -1589,6 +1678,15 @@ export function SuperAdminDashboard() {
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         <button
                           type="button"
+                          onClick={() => handleOpenCompanyDetails(c)}
+                          className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          title="View Full Company Registration Details"
+                        >
+                          <Eye size={13} className="text-cyan-500" />
+                          View Details
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleSendPdfEmail(c)}
                           disabled={sendingPdfCompanyId === c.id}
                           className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
@@ -1765,6 +1863,15 @@ export function SuperAdminDashboard() {
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
                             type="button"
+                            onClick={() => handleOpenCompanyDetails(c)}
+                            className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                            title="View Full Registration Details"
+                          >
+                            <Eye size={13} className="text-cyan-500" />
+                            View Details
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleSendPdfEmail(c)}
                             disabled={sendingPdfCompanyId === c.id}
                             className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
@@ -1857,6 +1964,15 @@ export function SuperAdminDashboard() {
                       </td>
                       <td className="p-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCompanyDetails(c)}
+                            className="px-2.5 py-1.5 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                            title="View Full Company Registration Details"
+                          >
+                            <Eye size={12} className="text-cyan-500" />
+                            View Details
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleSendPdfEmail(c)}
@@ -1967,6 +2083,15 @@ export function SuperAdminDashboard() {
                       </td>
                       <td className="p-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCompanyDetails(c)}
+                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                            title="View All Registration Details"
+                          >
+                            <Eye size={12} className="text-cyan-500" />
+                            View Details
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleSendPdfEmail(c)}
@@ -2178,6 +2303,16 @@ export function SuperAdminDashboard() {
                   <option key={c.id} value={c.id}>{c.name} ({c.seatsUsed}/{c.seatsAllocated} Seats)</option>
                 ))}
               </select>
+              {companies.find(c => c.id === selectedCompanyId) && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenCompanyDetails(companies.find(c => c.id === selectedCompanyId))}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                  title="View Full Company Registration Details"
+                >
+                  <Eye size={13} className="text-cyan-500" /> View Company Dossier
+                </button>
+              )}
             </div>
           </div>
 
@@ -3451,35 +3586,83 @@ export function SuperAdminDashboard() {
               </button>
             </div>
 
-            {/* Company Metadata Header Card */}
-            <div className="p-4 rounded-2xl bg-muted/40 border border-border grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Company Name</span>
-                <span className="font-black text-foreground text-sm">{verifyingCompany.name}</span>
-                {verifyingCompany.domain && (
-                  <span className="text-[11px] text-cyan-600 dark:text-cyan-400 block font-mono">{verifyingCompany.domain}</span>
-                )}
-              </div>
-              <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Admin Contact</span>
-                <span className="font-bold text-foreground">{verifyingCompany.adminName}</span>
-                <span className="text-[11px] text-muted-foreground block font-mono truncate">{verifyingCompany.adminEmail}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Registration Key</span>
-                <span className="font-mono font-bold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-block mt-0.5">
-                  {verifyingCompany.registrationKey}
-                </span>
-                <div className="mt-1">
-                  {verifyingCompany.accountType === 'BUY_REQUEST' ? (
-                    <span className="text-[10px] font-extrabold text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                      🛒 Buy Request (30 Days)
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-extrabold text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30">
-                      ⚡ Free Trial (15 Days)
+            {/* Company Metadata Header Card (Full Registration Details) */}
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Company Profile</span>
+                  <span className="font-black text-foreground text-sm">{verifyingCompany.name}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {verifyingCompany.companyType && (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border">
+                        {verifyingCompany.companyType}
+                      </span>
+                    )}
+                    {verifyingCompany.sector && (
+                      <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400">
+                        • {verifyingCompany.sector}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Admin Contact & Phone</span>
+                  <span className="font-bold text-foreground">{verifyingCompany.adminName}</span>
+                  <span className="text-[11px] text-muted-foreground block font-mono truncate">{verifyingCompany.adminEmail}</span>
+                  {verifyingCompany.phone && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono font-bold block mt-0.5">
+                      📞 +91 {verifyingCompany.phone}
                     </span>
                   )}
+                </div>
+
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Registration Key & Type</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 inline-block mt-0.5">
+                    {verifyingCompany.registrationKey}
+                  </span>
+                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                    {verifyingCompany.accountType === 'BUY_REQUEST' ? (
+                      <span className="text-[10px] font-extrabold text-emerald-500 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        🛒 Buy Request (30 Days)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-extrabold text-amber-500 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30">
+                        ⚡ Free Trial (15 Days)
+                      </span>
+                    )}
+                    {verifyingCompany.couponCode && (
+                      <span className="text-[10px] font-extrabold text-indigo-400 bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30">
+                        🏷️ {verifyingCompany.couponCode}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Second Row: Address & Statutory Taxes */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2.5 border-t border-border/60 text-[11px]">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Registered Location</span>
+                  <span className="font-medium text-foreground">
+                    {verifyingCompany.city || verifyingCompany.state
+                      ? `${verifyingCompany.city || ''}${verifyingCompany.city && verifyingCompany.state ? ', ' : ''}${verifyingCompany.state || ''}`
+                      : 'India'}
+                    {verifyingCompany.pincode ? ` (${verifyingCompany.pincode})` : ''}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">GSTIN Number</span>
+                  <span className="font-mono font-bold text-amber-500">
+                    {verifyingCompany.gstNumber || 'Not Registered'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Permanent Account Number (PAN)</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {verifyingCompany.panNumber ? `${verifyingCompany.panNumber} (${verifyingCompany.panType || 'BUSINESS'})` : 'Not provided'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -3931,6 +4114,396 @@ export function SuperAdminDashboard() {
                     <Mail size={14} />
                   )}
                   Send PDF with Mail
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏢 COMPREHENSIVE COMPANY REGISTRATION DOSSIER MODAL */}
+      {detailsModalOpen && viewCompanyDetails && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+          <div className="crm-card max-w-4xl w-full p-6 bg-card border border-cyan-500/40 rounded-3xl shadow-2xl relative space-y-6 text-foreground my-8 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-border pb-4 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center font-black text-xl shrink-0 shadow-inner">
+                  🏢
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400 bg-cyan-950/70 border border-cyan-500/40 px-2.5 py-0.5 rounded-full shadow-inner inline-flex items-center gap-1">
+                      <Shield size={10} /> COMPANY REGISTRATION DOSSIER
+                    </span>
+                    {viewCompanyDetails.verificationStatus === 'APPROVED' || viewCompanyDetails.isActive ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                        <CheckCircle2 size={11} /> APPROVED & ACTIVE
+                      </span>
+                    ) : viewCompanyDetails.verificationStatus === 'REJECTED' ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1">
+                        <AlertCircle size={11} /> DECLINED / REJECTED
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1 animate-pulse">
+                        <Clock size={11} /> AWAITING APPROVAL
+                      </span>
+                    )}
+                    {detailsLoading && (
+                      <span className="text-[10px] text-cyan-400 flex items-center gap-1">
+                        <RefreshCw size={10} className="animate-spin" /> Fetching live details...
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-xl font-black text-foreground mt-1 tracking-tight flex items-center gap-2">
+                    {viewCompanyDetails.name}
+                    {viewCompanyDetails.companyType && (
+                      <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg border border-border">
+                        {viewCompanyDetails.companyType}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    Workspace ID: {viewCompanyDetails.id} {viewCompanyDetails.slug ? `• Slug: ${viewCompanyDetails.slug}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setDetailsModalOpen(false)}
+                className="w-9 h-9 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center justify-center font-bold text-base transition-colors cursor-pointer shrink-0"
+                title="Close Dossier"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Permanent Company Registration Key Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-indigo-950/40 to-slate-900 border border-cyan-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-wider text-cyan-300 block">
+                  Official Permanent Company Registration Key
+                </span>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xl font-black font-mono tracking-widest text-cyan-400 bg-slate-950/80 px-3.5 py-1 rounded-xl border border-cyan-500/50 shadow-inner">
+                    {viewCompanyDetails.registrationKey || 'N/A'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyRegistrationKey(viewCompanyDetails.registrationKey)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Copy size={13} /> {copiedKey ? 'Copied!' : 'Copy Key'}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(viewCompanyDetails)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Download size={13} /> Download Certificate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendPdfEmail(viewCompanyDetails)}
+                  disabled={sendingPdfCompanyId === viewCompanyDetails.id}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  {sendingPdfCompanyId === viewCompanyDetails.id ? (
+                    <Loader2 size={13} className="animate-spin text-indigo-400" />
+                  ) : (
+                    <Mail size={13} className="text-indigo-400" />
+                  )}
+                  Email Certificate
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Core Information Grid Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Card 1: Primary Administrator & Contact */}
+              <div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Users size={14} className="text-cyan-500" /> Primary Administrator Contact
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Admin Full Name</span>
+                    <span className="font-extrabold text-foreground">{viewCompanyDetails.adminName || 'Not Specified'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Official Email</span>
+                    <a
+                      href={`mailto:${viewCompanyDetails.adminEmail}`}
+                      className="font-mono text-cyan-600 dark:text-cyan-400 hover:underline break-all"
+                    >
+                      {viewCompanyDetails.adminEmail || 'Not Specified'}
+                    </a>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Contact Phone Number</span>
+                    {viewCompanyDetails.phone ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <a href={`tel:${viewCompanyDetails.phone}`} className="font-mono font-bold text-foreground hover:underline">
+                          +91 {viewCompanyDetails.phone}
+                        </a>
+                        <a
+                          href={`https://wa.me/91${String(viewCompanyDetails.phone).replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1"
+                        >
+                          <MessageSquare size={10} /> WhatsApp
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground italic">Not provided</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Registered Date</span>
+                    <span className="font-medium text-foreground">
+                      {viewCompanyDetails.registeredAt || viewCompanyDetails.createdAt
+                        ? new Date(viewCompanyDetails.registeredAt || viewCompanyDetails.createdAt).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Registered Business Address */}
+              <div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <MapPin size={14} className="text-rose-500" /> Registered Business Location
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">City / District</span>
+                    <span className="font-extrabold text-foreground">{viewCompanyDetails.city || 'Not Specified'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">State</span>
+                    <span className="font-extrabold text-foreground">{viewCompanyDetails.state || 'Not Specified'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Postal Code / Pincode</span>
+                    <span className="font-mono font-bold text-foreground">{viewCompanyDetails.pincode || 'Not Specified'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Country / Region</span>
+                    <span className="font-medium text-foreground">India (IN)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Tax Identification & Statutory Compliance */}
+              <div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <FileText size={14} className="text-amber-500" /> Tax & Statutory Compliance
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">GSTIN Number</span>
+                    {viewCompanyDetails.gstNumber ? (
+                      <span className="font-mono font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 inline-block">
+                        {viewCompanyDetails.gstNumber}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic">Not Registered / Optional</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Permanent Account Number (PAN)</span>
+                    {viewCompanyDetails.panNumber ? (
+                      <span className="font-mono font-black text-foreground bg-muted px-2 py-0.5 rounded border border-border inline-block">
+                        {viewCompanyDetails.panNumber}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic">Not provided</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">PAN Classification</span>
+                    <span className="font-semibold text-foreground">
+                      {viewCompanyDetails.panType === 'INDIVIDUAL' ? '👤 Individual / Proprietor' : '🏢 Business / Entity'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Industry Sector</span>
+                    <span className="font-semibold text-foreground">{viewCompanyDetails.sector || 'General Business'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Plan Tier, Quota & Commercial Terms */}
+              <div className="p-4 rounded-2xl bg-muted/30 border border-border space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <CreditCard size={14} className="text-emerald-500" /> Plan, Quotas & Terms
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Plan Tier</span>
+                    <span className="font-black px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 text-xs inline-block">
+                      {viewCompanyDetails.plan || viewCompanyDetails.requestedPlan || 'FREE_TRIAL'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Registration Account Type</span>
+                    <span className="font-bold text-foreground">
+                      {viewCompanyDetails.accountType === 'BUY_REQUEST' ? '🛒 Buy Request (Paid 30 Days)' : '⚡ Free Trial (15 Days)'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">User Seats Ratio</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      {viewCompanyDetails.seatsUsed ?? 0} Used / {viewCompanyDetails.seatsAllocated ?? viewCompanyDetails.seatsRequested ?? 6} Allocated
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Subscription Expiry</span>
+                    <span className="font-mono font-bold text-foreground">
+                      {viewCompanyDetails.expiryDate || 'N/A'}
+                    </span>
+                  </div>
+                  {viewCompanyDetails.couponCode && (
+                    <div className="col-span-2">
+                      <span className="text-[10px] text-muted-foreground block uppercase font-bold">Promo Coupon Applied</span>
+                      <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                        🏷️ {viewCompanyDetails.couponCode}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Modules Entitlements Strip */}
+            <div className="p-4 rounded-2xl bg-muted/20 border border-border space-y-2">
+              <span className="text-[10px] uppercase font-black tracking-wider text-muted-foreground block">
+                Active Module Feature Entitlements
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-cyan-400" />
+                    <div>
+                      <p className="font-bold text-foreground">Email Marketing</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {viewCompanyDetails.emailConfig?.monthlyLimit ? `${viewCompanyDetails.emailConfig.monthlyLimit.toLocaleString()}/mo` : 'Standard Quota'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${viewCompanyDetails.emailConfig?.enabled || viewCompanyDetails.features?.emailMarketing ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                    {viewCompanyDetails.emailConfig?.enabled || viewCompanyDetails.features?.emailMarketing ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={16} className="text-indigo-400" />
+                    <div>
+                      <p className="font-bold text-foreground">WhatsApp Cloud</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {viewCompanyDetails.whatsAppConfig?.monthlyLimit ? `${viewCompanyDetails.whatsAppConfig.monthlyLimit.toLocaleString()} credits` : 'Standard Quota'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${viewCompanyDetails.whatsAppConfig?.enabled || viewCompanyDetails.features?.whatsappCloud ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                    {viewCompanyDetails.whatsAppConfig?.enabled || viewCompanyDetails.features?.whatsappCloud ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot size={16} className="text-purple-400" />
+                    <div>
+                      <p className="font-bold text-foreground">AI Engine Hub</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">
+                        {viewCompanyDetails.aiConfig?.tier || 'PRO'} Tier
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black ${viewCompanyDetails.aiConfig?.enabled || viewCompanyDetails.features?.aiEngine ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                    {viewCompanyDetails.aiConfig?.enabled || viewCompanyDetails.features?.aiEngine ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Registered Employees List if available */}
+            {viewCompanyDetails.employees && viewCompanyDetails.employees.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-black tracking-wider text-muted-foreground block">
+                  Registered Staff & Employees ({viewCompanyDetails.employees.length})
+                </span>
+                <div className="overflow-x-auto rounded-xl border border-border max-h-48 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] font-bold">
+                      <tr>
+                        <th className="p-2.5">Name</th>
+                        <th className="p-2.5">Email</th>
+                        <th className="p-2.5">Role</th>
+                        <th className="p-2.5">Key Used</th>
+                        <th className="p-2.5">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border font-medium">
+                      {viewCompanyDetails.employees.map((emp: any) => (
+                        <tr key={emp.id} className="hover:bg-muted/20">
+                          <td className="p-2.5 font-bold text-foreground">{emp.name}</td>
+                          <td className="p-2.5 font-mono text-cyan-400">{emp.email}</td>
+                          <td className="p-2.5 uppercase font-mono text-[10px]">{emp.role}</td>
+                          <td className="p-2.5 font-mono text-[10px] text-muted-foreground">{emp.keyUsed}</td>
+                          <td className="p-2.5">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${emp.isActive ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+                              {emp.isActive ? 'ACTIVE' : 'BLOCKED'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Bottom Action Bar */}
+            <div className="flex items-center justify-between pt-4 border-t border-border flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setDetailsModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Close Dossier
+              </button>
+
+              <div className="flex items-center gap-2">
+                {(!viewCompanyDetails.isActive || viewCompanyDetails.verificationStatus === 'PENDING') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDetailsModalOpen(false);
+                      handleOpenVerificationModal(viewCompanyDetails);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-600/25 transition-all cursor-pointer"
+                  >
+                    <Shield size={13} /> Review & Verify Plan →
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(viewCompanyDetails)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/25 transition-all cursor-pointer"
+                >
+                  <Download size={13} /> Download Certificate PDF
                 </button>
               </div>
             </div>

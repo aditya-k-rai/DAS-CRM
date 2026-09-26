@@ -385,9 +385,19 @@ export class AuthService {
             accountType: dto.accountType || (requestValidity === 30 ? 'BUY_REQUEST' : 'TRIAL'),
             requestedValidityDays: requestValidity,
             registeredAt: new Date().toISOString(),
+            registrationKey: keyRecord.key,
+            companyName: dto.companyName,
+            adminName: dto.adminName,
+            adminEmail: dto.adminEmail,
+            phone: dto.phone,
+            city: dto.city,
+            state: dto.state,
+            pincode: dto.pincode || null,
+            gstNumber: dto.gstNumber || null,
             panNumber: dto.panNumber || (dto.gstNumber && dto.gstNumber.length === 15 ? dto.gstNumber.slice(2, 12).toUpperCase() : null),
             panType: dto.panType || 'BUSINESS',
-            pincode: dto.pincode || null,
+            companyType: dto.companyType || null,
+            sector: dto.sector || null,
             couponCode: dto.couponCode || null,
           },
         },
@@ -1207,17 +1217,31 @@ export class AuthService {
         ? Math.max(0, Math.ceil((new Date(effectiveExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 30;
 
+      const settings = (org.settings as any) || {};
+      const regKey = keyMap.get(org.id) || org.registrationKeyId || settings.registrationKey || 'N/A';
+
       return {
         id: org.id,
         name: org.name,
         slug: org.slug,
-        adminName: org.adminName || 'Admin',
-        adminEmail: org.adminEmail || (org.users[0]?.email ?? 'No Admin Email'),
-        phone: org.phone,
-        companyType: org.companyType,
-        sector: org.sector,
+        adminName: org.adminName || settings.adminName || 'Admin',
+        adminEmail: org.adminEmail || settings.adminEmail || (org.users[0]?.email ?? 'No Admin Email'),
+        phone: org.phone || settings.phone || null,
+        city: org.city || settings.city || null,
+        state: org.state || settings.state || null,
+        pincode: settings.pincode || null,
+        gstNumber: org.gstNumber || settings.gstNumber || null,
+        panNumber: org.panNumber || settings.panNumber || null,
+        panType: settings.panType || 'BUSINESS',
+        companyType: org.companyType || settings.companyType || null,
+        sector: org.sector || settings.sector || null,
+        accountType: settings.accountType || (org.subscription?.isTrialActive ? 'TRIAL' : 'BUY_REQUEST'),
+        validityDays: settings.requestedValidityDays || (org.subscription?.trialExpiresAt ? 15 : 30),
+        couponCode: settings.couponCode || null,
+        registeredAt: settings.registeredAt || org.createdAt,
+        settings: org.settings,
         isActive: org.isActive !== false,
-        registrationKey: keyMap.get(org.id) || org.registrationKeyId || 'N/A',
+        registrationKey: regKey,
         createdAt: org.createdAt,
         plan: org.subscription?.planTier ?? 'FREE_TRIAL',
         seatsAllocated: org.subscription?.memberLimit ?? 6,
@@ -1230,7 +1254,7 @@ export class AuthService {
         isExpired,
         trialDaysLeft,
         subscription: org.subscription,
-        verificationStatus: ((org.settings as any)?.verificationStatus) || (org.isActive ? 'APPROVED' : 'PENDING'),
+        verificationStatus: settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING'),
       };
     });
   }
@@ -1264,6 +1288,9 @@ export class AuthService {
     });
     const userKeyMap = new Map(userInviteKeys.map((k) => [k.usedByUserId, k.key]));
 
+    const settings = (org.settings as any) || {};
+    const regKey = regKeyRecord?.key || org.registrationKeyId || settings.registrationKey || 'N/A';
+
     const totalLeads = org.leads.length;
     const convertedLeads = org.leads.filter((l) => l.isConverted).length;
     const totalDeals = org.deals.length;
@@ -1277,16 +1304,25 @@ export class AuthService {
         id: org.id,
         name: org.name,
         slug: org.slug,
-        adminName: org.adminName,
-        adminEmail: org.adminEmail,
-        phone: org.phone,
-        city: org.city,
-        state: org.state,
-        gstNumber: org.gstNumber,
-        companyType: org.companyType,
-        sector: org.sector,
+        adminName: org.adminName || settings.adminName || 'Admin',
+        adminEmail: org.adminEmail || settings.adminEmail || '',
+        phone: org.phone || settings.phone || null,
+        city: org.city || settings.city || null,
+        state: org.state || settings.state || null,
+        pincode: settings.pincode || null,
+        gstNumber: org.gstNumber || settings.gstNumber || null,
+        panNumber: org.panNumber || settings.panNumber || null,
+        panType: settings.panType || 'BUSINESS',
+        companyType: org.companyType || settings.companyType || null,
+        sector: org.sector || settings.sector || null,
+        accountType: settings.accountType || (org.subscription?.isTrialActive ? 'TRIAL' : 'BUY_REQUEST'),
+        validityDays: settings.requestedValidityDays || (org.subscription?.trialExpiresAt ? 15 : 30),
+        couponCode: settings.couponCode || null,
+        registeredAt: settings.registeredAt || org.createdAt,
+        verificationStatus: settings.verificationStatus || (org.isActive ? 'APPROVED' : 'PENDING'),
+        settings: org.settings,
         isActive: org.isActive !== false,
-        registrationKey: regKeyRecord?.key || org.registrationKeyId || 'N/A',
+        registrationKey: regKey,
         createdAt: org.createdAt,
       },
       subscription: org.subscription,
@@ -1417,32 +1453,35 @@ export class AuthService {
       })
       .map((org) => {
         const settings = (org.settings as any) || {};
-        const regKey = keyMap.get(org.id) || org.registrationKeyId || 'N/A';
+        const regKey = keyMap.get(org.id) || org.registrationKeyId || settings.registrationKey || 'N/A';
         const plan = org.subscription?.planTier || settings.requestedPlan || 'GROW';
         const defaultSeats = (plan === 'BUSINESS' || plan === 'PRO') ? 18 : (plan === 'ENTERPRISE' || plan === 'PRO_MAX') ? 60 : plan === 'PRO_50' ? 50 : 6;
         const seats = org.subscription?.memberLimit || defaultSeats;
         return {
           id: org.id,
           name: org.name,
-          adminName: org.adminName || 'Admin',
-          adminEmail: org.adminEmail,
-          phone: org.phone,
-          city: org.city,
-          state: org.state,
-          gstNumber: org.gstNumber,
-          companyType: org.companyType,
-          sector: org.sector,
+          adminName: org.adminName || settings.adminName || 'Admin',
+          adminEmail: org.adminEmail || settings.adminEmail,
+          phone: org.phone || settings.phone || null,
+          city: org.city || settings.city || null,
+          state: org.state || settings.state || null,
+          pincode: settings.pincode || null,
+          gstNumber: org.gstNumber || settings.gstNumber || null,
+          panNumber: org.panNumber || settings.panNumber || null,
+          panType: settings.panType || 'BUSINESS',
+          companyType: org.companyType || settings.companyType || null,
+          sector: org.sector || settings.sector || null,
+          couponCode: settings.couponCode || null,
+          settings: org.settings,
           registrationKey: regKey,
           plan,
           requestedPlan: plan,
           requestedSeats: seats,
           seatsRequested: seats,
-          registeredAt: org.createdAt,
+          registeredAt: settings.registeredAt || org.createdAt,
           verificationStatus: 'PENDING',
           accountType: settings.accountType || (settings.requestedValidityDays === 30 ? 'BUY_REQUEST' : 'TRIAL'),
           validityDays: settings.requestedValidityDays || (settings.accountType === 'BUY_REQUEST' ? 30 : 15),
-          panNumber: settings.panNumber || null,
-          panType: settings.panType || 'BUSINESS',
           rejectionReason: settings.rejectionReason,
           delayInquiries: settings.delayInquiries || [],
           features: {
