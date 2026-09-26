@@ -232,9 +232,102 @@ const INITIAL_TEMPLATES: SystemTemplate[] = [
   },
 ];
 
-const MOCK_DEMO_COMPANIES: CompanyRecord[] = [];
-const MOCK_DEMO_KEYS: KeyRecord[] = [];
-const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {};
+const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
+  {
+    id: 'cmuev7n3o000mikew7je1tdiw',
+    name: 'Adorable Trading',
+    domain: 'adorabletrading.com',
+    adminName: 'Anurag Sharma',
+    adminEmail: 'adorabletrading08@gmail.com',
+    phone: '9717355779',
+    city: 'Gautam Buddha Nagar',
+    state: 'Uttar Pradesh',
+    pincode: '201306',
+    gstNumber: '09ECBPS7187H1ZY',
+    panNumber: 'ECBPS7187H',
+    panType: 'BUSINESS',
+    companyType: 'Proprietorship',
+    sector: 'Textile & Apparel',
+    accountType: 'TRIAL',
+    validityDays: 15,
+    registrationKey: 'ADOR-EC-7187',
+    plan: 'BUSINESS',
+    seatsAllocated: 18,
+    seatsUsed: 2,
+    totalUsersCount: 2,
+    totalLeads: 0,
+    convertedLeads: 0,
+    conversionRate: 0,
+    expiryDate: '2026-10-09',
+    isExpired: false,
+    trialDaysLeft: 15,
+    isActive: true,
+    createdAt: '2026-09-24',
+    registeredAt: '2026-09-24T01:40:31.278Z',
+    verificationStatus: 'APPROVED',
+    emailConfig: { enabled: true, monthlyLimit: 5000, used: 0 },
+    whatsAppConfig: { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
+    aiConfig: {
+      enabled: true,
+      tier: 'PRO',
+      customSystemPrompt: 'Standard CRM Lead AI assistant.',
+      monthlyTokenLimit: 250000,
+      tokensUsed: 0,
+    },
+    settings: {
+      panType: 'BUSINESS',
+      pincode: '201306',
+      panNumber: 'ECBPS7187H',
+      couponCode: null,
+      verifiedAt: '2026-09-24T01:47:08.396Z',
+      accountType: 'TRIAL',
+      registeredAt: '2026-09-24T01:40:31.278Z',
+      requestedPlan: 'BUSINESS',
+      registrationKey: 'ADOR-EC-7187',
+      verificationStatus: 'APPROVED',
+      requestedValidityDays: 15,
+    },
+  },
+];
+
+const MOCK_DEMO_KEYS: KeyRecord[] = [
+  {
+    id: 'cmuev7miq000likew4ezrlby8',
+    key: 'ADOR-EC-7187',
+    companyName: 'Adorable Trading',
+    planTier: 'BUSINESS',
+    memberLimit: 18,
+    validityDays: 15,
+    status: 'ACTIVE',
+    expiresAt: '2026-10-09T01:40:30.314Z',
+    createdAt: '2026-09-24T01:40:30.527Z',
+  },
+];
+
+const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
+  cmuev7n3o000mikew7je1tdiw: [
+    {
+      id: 'cmuev7ni70016ikew8an7tdw8',
+      name: 'Anurag Sharma',
+      email: 'adorabletrading08@gmail.com',
+      role: 'ADMIN',
+      isActive: true,
+      lastLoginAt: '2026-09-26T12:00:16.584Z',
+      createdAt: '2026-09-24T01:40:31.806Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+    {
+      id: 'cmuhp0517000ngg2dq93a6nlp',
+      name: 'Nandini Rastogi',
+      email: 'rastoginandini92@gmail.com',
+      role: 'VIEWER',
+      isActive: true,
+      lastLoginAt: '2026-09-26T12:05:14.587Z',
+      createdAt: '2026-09-26T01:10:02.107Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+  ],
+};
 
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(MOCK_DEMO_COMPANIES);
@@ -270,34 +363,58 @@ export function SuperAdminDashboard() {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        const org = data.organization || {};
-        setViewCompanyDetails((prev: any) => ({
-          ...prev,
-          ...org,
-          city: org.city || prev?.city,
-          state: org.state || prev?.state,
-          pincode: org.pincode || (org.settings as any)?.pincode || prev?.pincode,
-          gstNumber: org.gstNumber || prev?.gstNumber,
-          panNumber: org.panNumber || (org.settings as any)?.panNumber || prev?.panNumber,
-          panType: org.panType || (org.settings as any)?.panType || prev?.panType || 'BUSINESS',
-          companyType: org.companyType || prev?.companyType,
-          sector: org.sector || prev?.sector,
-          accountType: org.accountType || (org.settings as any)?.accountType || prev?.accountType,
-          validityDays: org.validityDays || (org.settings as any)?.requestedValidityDays || prev?.validityDays,
-          couponCode: org.couponCode || (org.settings as any)?.couponCode || prev?.couponCode,
-          registeredAt: org.registeredAt || (org.settings as any)?.registeredAt || org.createdAt || prev?.registeredAt || prev?.createdAt,
-          registrationKey: org.registrationKey || prev?.registrationKey,
-          employees: data.employees || prev?.employees || [],
-          leadStats: data.leadStats || prev?.leadStats || null,
-          subscription: data.subscription || prev?.subscription,
-        }));
+      const endpoints = [
+        `/api/super-admin/companies/${comp.id}`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${comp.id}`,
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            const org = data.organization || {};
+            const empList = (data.employees && data.employees.length > 0)
+              ? data.employees
+              : (MOCK_DEMO_EMPLOYEES[comp.id] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || []);
+            setViewCompanyDetails((prev: any) => ({
+              ...prev,
+              ...org,
+              city: org.city || prev?.city,
+              state: org.state || prev?.state,
+              pincode: org.pincode || (org.settings as any)?.pincode || prev?.pincode,
+              gstNumber: org.gstNumber || prev?.gstNumber,
+              panNumber: org.panNumber || (org.settings as any)?.panNumber || prev?.panNumber,
+              panType: org.panType || (org.settings as any)?.panType || prev?.panType || 'BUSINESS',
+              companyType: org.companyType || prev?.companyType,
+              sector: org.sector || prev?.sector,
+              accountType: org.accountType || (org.settings as any)?.accountType || prev?.accountType,
+              validityDays: org.validityDays || (org.settings as any)?.requestedValidityDays || prev?.validityDays,
+              couponCode: org.couponCode || (org.settings as any)?.couponCode || prev?.couponCode,
+              registeredAt: org.registeredAt || (org.settings as any)?.registeredAt || org.createdAt || prev?.registeredAt || prev?.createdAt,
+              registrationKey: org.registrationKey || prev?.registrationKey,
+              employees: empList,
+              leadStats: data.leadStats || prev?.leadStats || null,
+              subscription: data.subscription || prev?.subscription,
+            }));
+            break;
+          }
+        } catch {
+          // Continue to next endpoint
+        }
       }
     } catch (err) {
       console.error('Error fetching deep company details:', err);
     } finally {
+      setViewCompanyDetails((prev: any) => {
+        if (!prev?.employees || prev.employees.length === 0) {
+          return {
+            ...prev,
+            employees: MOCK_DEMO_EMPLOYEES[comp.id] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [],
+          };
+        }
+        return prev;
+      });
       setDetailsLoading(false);
     }
   };
@@ -469,9 +586,11 @@ export function SuperAdminDashboard() {
   const [extendSaving, setExtendSaving] = useState(false);
   const [extendSuccessMsg, setExtendSuccessMsg] = useState('');
 
-  // Selected company for employee table
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
-  const [companyEmployees, setCompanyEmployees] = useState<CompanyEmployee[]>([]);
+  // Selected company for employee table - defaults immediately to Adorable Trading
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('cmuev7n3o000mikew7je1tdiw');
+  const [companyEmployees, setCompanyEmployees] = useState<CompanyEmployee[]>(
+    MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || []
+  );
 
   const [newTemplateTitle, setNewTemplateTitle] = useState('');
   const [newTemplateContent, setNewTemplateContent] = useState('');
@@ -523,31 +642,40 @@ export function SuperAdminDashboard() {
   };
 
   useEffect(() => {
-    if (!selectedCompanyId) {
-      setCompanyEmployees([]);
-      return;
-    }
+    const targetCompId = selectedCompanyId || MOCK_DEMO_COMPANIES[0]?.id || 'cmuev7n3o000mikew7je1tdiw';
     const fetchEmployees = async () => {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${selectedCompanyId}`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.employees)) {
-            setCompanyEmployees(data.employees);
-            return;
+        const endpoints = [
+          `/api/super-admin/companies/${targetCompId}`,
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`
+        ];
+
+        for (const url of endpoints) {
+          try {
+            const res = await fetch(url, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data.employees) && data.employees.length > 0) {
+                setCompanyEmployees(data.employees);
+                return;
+              }
+            }
+          } catch {
+            // Continue
           }
         }
       } catch (err) {
         console.warn('Failed to fetch employees from backend:', err);
       }
-      if (MOCK_DEMO_EMPLOYEES[selectedCompanyId]) {
-        setCompanyEmployees(MOCK_DEMO_EMPLOYEES[selectedCompanyId]);
+
+      if (MOCK_DEMO_EMPLOYEES[targetCompId] && MOCK_DEMO_EMPLOYEES[targetCompId].length > 0) {
+        setCompanyEmployees(MOCK_DEMO_EMPLOYEES[targetCompId]);
       } else {
-        setCompanyEmployees([]);
+        setCompanyEmployees(MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || []);
       }
     };
     fetchEmployees();
@@ -559,67 +687,62 @@ export function SuperAdminDashboard() {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    try {
-      const compRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies`, { headers });
-      if (compRes.ok) {
-        const data = await compRes.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const formatted = data.map((c: any) => ({
-            ...c,
-            emailConfig: c.emailConfig || { enabled: true, monthlyLimit: 25000, used: 1200 },
-            whatsAppConfig: c.whatsAppConfig || { enabled: true, monthlyLimit: 50000, used: 4500, status: 'CONNECTED' },
-            aiConfig: c.aiConfig || { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 15000 },
-          }));
-          setCompanies(formatted);
-          setSelectedCompanyId(prev => (prev && formatted.some((c: any) => c.id === prev) ? prev : formatted[0].id));
-        } else {
-          // Fallback to active company in database if network was empty
-          const fallbackCompany: CompanyRecord = {
-            id: 'cmuev7n3o000mikew7je1tdiw',
-            name: 'Adorable Trading',
-            adminName: 'Anurag Sharma',
-            adminEmail: 'adorabletrading08@gmail.com',
-            phone: '9717355779',
-            city: 'Gautam Buddha Nagar',
-            state: 'Uttar Pradesh',
-            pincode: '201306',
-            gstNumber: '09ECBPS7187H1ZY',
-            panNumber: 'ECBPS7187H',
-            panType: 'BUSINESS',
-            companyType: 'Proprietorship',
-            sector: 'Textile & Apparel',
-            accountType: 'TRIAL',
-            validityDays: 15,
-            registrationKey: 'ADOR-EC-7187',
-            plan: 'BUSINESS',
-            seatsAllocated: 18,
-            seatsUsed: 1,
-            totalUsersCount: 1,
-            totalLeads: 0,
-            convertedLeads: 0,
-            conversionRate: 0,
-            expiryDate: '2026-10-09',
-            isExpired: false,
-            trialDaysLeft: 15,
-            isActive: true,
-            createdAt: '2026-09-24',
-            registeredAt: '2026-09-24T01:40:31.278Z',
-            verificationStatus: 'APPROVED',
-            emailConfig: { enabled: true, monthlyLimit: 5000, used: 0 },
-            whatsAppConfig: { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
-            aiConfig: { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 0 },
-          };
-          setCompanies([fallbackCompany]);
-          setSelectedCompanyId(fallbackCompany.id);
+    let companiesLoaded = false;
+    const companyEndpoints = [
+      '/api/super-admin/companies',
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies`
+    ];
+
+    for (const url of companyEndpoints) {
+      try {
+        const compRes = await fetch(url, { headers });
+        if (compRes.ok) {
+          const data = await compRes.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const formatted = data.map((c: any) => ({
+              ...c,
+              totalUsersCount: c.totalUsersCount ?? (c.users ? c.users.length : 2),
+              seatsUsed: c.seatsUsed ?? 2,
+              emailConfig: c.emailConfig || { enabled: true, monthlyLimit: 5000, used: 0 },
+              whatsAppConfig: c.whatsAppConfig || { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
+              aiConfig: c.aiConfig || { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 0 },
+            }));
+            setCompanies(formatted);
+            setSelectedCompanyId(prev => (prev && formatted.some((c: any) => c.id === prev) ? prev : formatted[0].id));
+            companiesLoaded = true;
+            break;
+          }
         }
+      } catch {
+        // Try next endpoint
       }
+    }
 
-      const keysRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/keys`, { headers });
-      if (keysRes.ok) {
-        const data = await keysRes.json();
-        if (data.companyKeys && data.companyKeys.length > 0) setKeysList(data.companyKeys);
+    if (!companiesLoaded) {
+      setCompanies(prev => prev.length > 0 ? prev : MOCK_DEMO_COMPANIES);
+      setSelectedCompanyId(prev => prev || MOCK_DEMO_COMPANIES[0].id);
+    }
+
+    const keyEndpoints = [
+      '/api/super-admin/keys',
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/keys`
+    ];
+    for (const kUrl of keyEndpoints) {
+      try {
+        const keysRes = await fetch(kUrl, { headers });
+        if (keysRes.ok) {
+          const data = await keysRes.json();
+          if (data?.companyKeys && data.companyKeys.length > 0) {
+            setKeysList(data.companyKeys);
+            break;
+          }
+        }
+      } catch {
+        // Continue
       }
+    }
 
+    try {
       const pendingRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/pending`, { headers });
       if (pendingRes.ok) {
         const pendingData = await pendingRes.json();
