@@ -105,6 +105,18 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
   },
 
   getPermission: (userId, role, moduleKey) => {
+    // Permanent root access for Organization Head / Admin / Super Admin / Owner
+    const normalizedRole = (role || '').toUpperCase();
+    if (
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'OWNER' ||
+      normalizedRole === 'TENANT_ADMIN' ||
+      normalizedRole.includes('ADMIN')
+    ) {
+      return { active: true, canView: true, canShare: true, canEdit: true };
+    }
+
     const { policies } = get();
     const key: PolicyKey = `${userId}:${moduleKey}`;
     if (policies[key]) return policies[key];
@@ -123,6 +135,13 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
 
   setPermission: async (userId, moduleKey, patch) => {
     const state = get();
+    const targetUser = state.managedUsers.find((u) => u.id === userId);
+    const targetRole = (targetUser?.role || '').toUpperCase();
+    // Never apply policy overrides to Admins/SuperAdmins
+    if (targetRole.includes('ADMIN') || targetRole.includes('OWNER')) {
+      return;
+    }
+
     const key: PolicyKey = `${userId}:${moduleKey}`;
     const existing = state.policies[key] ?? { active: true, canView: true, canShare: false, canEdit: false };
     const updated = { ...existing, ...patch };

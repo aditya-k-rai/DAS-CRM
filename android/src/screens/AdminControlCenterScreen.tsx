@@ -173,12 +173,17 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
       if (res.ok) {
         const data: any[] = await res.json();
         fetchedUsers = data
-          .filter((u: any) => String(u.id) !== userId) // exclude self
+          .filter((u: any) => {
+            const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase().trim();
+            const isAdm = rawRole.includes('ADMIN') || rawRole.includes('OWNER');
+            const isSelf = String(u.id) === userId || (currentUser?.email && u.email?.toLowerCase() === currentUser.email?.toLowerCase());
+            // Organization Head / Admin cannot have their access restricted
+            return !isAdm && !isSelf;
+          })
           .map((u: any) => {
             const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase();
             let role: UserRole = 'SALES_EXEC';
-            if (rawRole.includes('ADMIN') || rawRole.includes('OWNER')) role = 'ADMIN';
-            else if (rawRole.includes('MANAGER')) role = 'MANAGER';
+            if (rawRole.includes('MANAGER')) role = 'MANAGER';
             else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
             else if (rawRole.includes('HR')) role = 'HR';
             else if (!rawRole || rawRole === 'UNASSIGNED') role = 'UNASSIGNED';
@@ -199,7 +204,10 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
       if (!signal?.aborted) {
         // Fall back to cached list from store if network yielded nothing
         if (fetchedUsers.length === 0) {
-          fetchedUsers = store.getManagedUsers();
+          fetchedUsers = store.getManagedUsers().filter((u) => {
+            const r = (u.role || '').toUpperCase();
+            return !r.includes('ADMIN') && !r.includes('OWNER') && String(u.id) !== userId;
+          });
         }
         // Update cache only when we have fresh data
         if (fetchedUsers.length > 0) {
@@ -209,7 +217,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
         setLoading(false);
       }
     }
-  }, [currentUser?.companyId, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser?.companyId, currentUser?.id, currentUser?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAudit = useCallback(async () => {
     try {
@@ -234,6 +242,12 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
     field: keyof ModulePermission,
     value: boolean,
   ) => {
+    const rawRole = (user.role || '').toUpperCase();
+    if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || String(user.id) === (currentUser?.id || '')) {
+      Alert.alert('Protected Account', 'The Organization Head / Administrator account possesses permanent full root access and cannot be modified.');
+      return;
+    }
+
     const policyKey = `${user.id}:${mod.key}`;
     setSaving(policyKey + ':' + field);
     await store.setPermission(user.id, mod.key, { [field]: value });
@@ -251,6 +265,12 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
   };
 
   const handleResetUser = (user: ManagedUser) => {
+    const rawRole = (user.role || '').toUpperCase();
+    if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || String(user.id) === (currentUser?.id || '')) {
+      Alert.alert('Protected Account', 'The Organization Head / Administrator account possesses permanent full root access and cannot be modified.');
+      return;
+    }
+
     Alert.alert(
       `Reset ${user.name}'s Permissions`,
       `This will restore all module defaults for ${user.name} (${ROLE_BADGE[user.role]?.label ?? user.role}). Custom overrides will be removed.`,
@@ -408,7 +428,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
       <View style={[styles.summaryBanner, { backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(79,70,229,0.06)', borderColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.2)' }]}>
         <View style={styles.summaryItem}>
           <Text style={[styles.summaryVal, { color: colors.text }]}>{users.length}</Text>
-          <Text style={[styles.summaryLbl, { color: colors.textMuted }]}>Users</Text>
+          <Text style={[styles.summaryLbl, { color: colors.textMuted }]}>Staff</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
         <View style={styles.summaryItem}>
@@ -432,7 +452,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
         <Text style={{ color: colors.textMuted, marginRight: 6, fontSize: 14 }}>🔍</Text>
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search users by name or email..."
+          placeholder="Search employees by name or email..."
           placeholderTextColor={colors.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -440,29 +460,29 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
         />
       </View>
 
-      {/* Info tip */}
-      <View style={[styles.tipBox, { backgroundColor: isDark ? 'rgba(251,191,36,0.08)' : 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.25)' }]}>
-        <Text style={{ fontSize: 11, color: '#fbbf24', fontWeight: '600', lineHeight: 16 }}>
-          💡 Tap any user to manage their module access individually. Changes apply immediately and persist across app restarts.
+      {/* Head Protection info tip */}
+      <View style={[styles.tipBox, { backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(79,70,229,0.08)', borderColor: 'rgba(99,102,241,0.3)' }]}>
+        <Text style={{ fontSize: 11, color: isDark ? '#a5b4fc' : '#4f46e5', fontWeight: '700', lineHeight: 16 }}>
+          👑 Organization Head Protected: Administrator accounts have permanent, unrestricted master access across all modules. Tap any workspace employee below to manage their access.
         </Text>
       </View>
 
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading workspace users...</Text>
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading workspace employees...</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 24) + 80 }} showsVerticalScrollIndicator={false}>
           {filteredUsers.length === 0 ? (
             <View style={[styles.emptyBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
               <Text style={{ fontSize: 28, marginBottom: 8 }}>👥</Text>
-              <Text style={[styles.emptyText, { color: colors.text }]}>No Users Found</Text>
+              <Text style={[styles.emptyText, { color: colors.text }]}>No Team Employees Found</Text>
               <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                {searchQuery ? 'No users match your search.' : 'No workspace users loaded yet. Check your connection and reload.'}
+                {searchQuery ? 'No employees match your search.' : 'As the Organization Head, you have full access to all modules. Subordinate employees added to the workspace will appear here for permission management.'}
               </Text>
               <TouchableOpacity style={[styles.reloadBtn, { backgroundColor: colors.primary }]} onPress={() => loadUsers()} activeOpacity={0.8}>
-                <Text style={styles.reloadBtnText}>Reload Users</Text>
+                <Text style={styles.reloadBtnText}>Reload Employees</Text>
               </TouchableOpacity>
             </View>
           ) : (

@@ -134,18 +134,30 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Load Policies & Audit logs from localStorage
+  // Load Policies & Audit logs from localStorage (and clean up any accidental admin policies)
   useEffect(() => {
     try {
       const rawPol = localStorage.getItem(STORAGE_KEY);
-      if (rawPol) setPolicies(JSON.parse(rawPol));
+      if (rawPol) {
+        const parsed = JSON.parse(rawPol);
+        if (currentUser?.id) {
+          // Remove any policy key associated with current admin to guarantee permanent full access
+          Object.keys(parsed).forEach(k => {
+            if (k.startsWith(`${currentUser.id}:`)) {
+              delete parsed[k];
+            }
+          });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+        setPolicies(parsed);
+      }
 
       const rawAud = localStorage.getItem(AUDIT_STORAGE_KEY);
       if (rawAud) setAuditLogs(JSON.parse(rawAud));
     } catch (e) {}
-  }, []);
+  }, [currentUser?.id]);
 
-  // Fetch Managed Users
+  // Fetch Managed Non-Admin Employees
   useEffect(() => {
     const fetchUsers = async () => {
       setLoadingUsers(true);
@@ -162,20 +174,29 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           const data = await res.json();
           const items = Array.isArray(data) ? data : (data.items || data.users || []);
           if (items.length > 0) {
-            const mapped: ManagedWorkspaceUser[] = items.map((u: any) => {
-              const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email || 'Team Member';
-              const initials = fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
-              return {
-                id: u.id || `usr-${Math.random()}`,
-                name: fullName,
-                email: u.email || 'user@organization.com',
-                role: (u.role || 'SALES_EXEC').toUpperCase(),
-                avatarInitials: initials,
-                department: u.department || 'Sales',
-              };
-            });
+            const mapped: ManagedWorkspaceUser[] = items
+              .filter((u: any) => {
+                const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase().trim();
+                const isAdm = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER' || rawRole === 'TENANT_ADMIN' || rawRole.includes('ADMIN');
+                const isSelf = (currentUser?.id && String(u.id) === String(currentUser.id)) ||
+                               (currentUser?.email && u.email?.toLowerCase() === currentUser.email?.toLowerCase());
+                // Exclude Head / Admin from configurable list
+                return !isAdm && !isSelf;
+              })
+              .map((u: any) => {
+                const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email || 'Team Member';
+                const initials = fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
+                return {
+                  id: u.id || `usr-${Math.random()}`,
+                  name: fullName,
+                  email: u.email || 'user@organization.com',
+                  role: (u.role || 'SALES_EXEC').toUpperCase(),
+                  avatarInitials: initials,
+                  department: u.department || 'Sales',
+                };
+              });
             setManagedUsers(mapped);
-            if (!selectedUserId && mapped.length > 0) {
+            if (mapped.length > 0) {
               setSelectedUserId(mapped[0].id);
             }
           }
@@ -203,7 +224,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     };
 
     fetchUsers();
-  }, []);
+  }, [currentUser?.id, currentUser?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filtered User List
   const filteredUsers = useMemo(() => {
@@ -217,16 +238,28 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   }, [managedUsers, searchQuery, roleFilter]);
 
   const selectedUser = useMemo(() => {
-    return managedUsers.find(u => u.id === selectedUserId) || managedUsers[0];
+    return managedUsers.find(u => u.id === selectedUserId) || (managedUsers.length > 0 ? managedUsers[0] : null);
   }, [managedUsers, selectedUserId]);
 
   // Compute Permission for a user and module
   const getUserModulePermission = (userId: string, userRole: string, moduleKey: string): ModulePermission => {
+    const normalizedRole = (userRole || '').toUpperCase();
+    // Admin / Super Admin / Owner / Head always has permanent 100% full root access
+    if (
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'OWNER' ||
+      normalizedRole === 'TENANT_ADMIN' ||
+      normalizedRole.includes('ADMIN') ||
+      (currentUser?.id && userId === currentUser.id)
+    ) {
+      return { active: true, canView: true, canShare: true, canEdit: true };
+    }
+
     const key = `${userId}:${moduleKey}`;
     if (policies[key]) return policies[key];
 
     // Check defaults
-    const normalizedRole = userRole.toUpperCase();
     const isRestrictedByDefault = (RESTRICTED_BY_DEFAULT_ROLE[normalizedRole] || []).includes(moduleKey);
     const base = ROLE_DEFAULT_PERMISSIONS[normalizedRole] || ROLE_DEFAULT_PERMISSIONS.SALES_EXEC;
 
@@ -245,6 +278,19 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     moduleLabel: string
   ) => {
     if (!selectedUser) return;
+    const normalizedRole = (selectedUser.role || '').toUpperCase();
+    if (
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'OWNER' ||
+      normalizedRole === 'TENANT_ADMIN' ||
+      normalizedRole.includes('ADMIN') ||
+      (currentUser?.id && userId === currentUser.id)
+    ) {
+      showToast('⚠️ Organization Head / Admin has permanent root authority and cannot be modified.');
+      return;
+    }
+
     const key = `${userId}:${moduleKey}`;
     const nextVal = !currentPerm[field];
 
@@ -284,6 +330,19 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   // Bulk Quick Presets for Selected User
   const handleApplyPreset = (preset: 'FULL_ACCESS' | 'READ_ONLY' | 'REVOKE_ALL' | 'RESET_DEFAULTS') => {
     if (!selectedUser) return;
+    const normalizedRole = (selectedUser.role || '').toUpperCase();
+    if (
+      normalizedRole === 'ADMIN' ||
+      normalizedRole === 'SUPER_ADMIN' ||
+      normalizedRole === 'OWNER' ||
+      normalizedRole === 'TENANT_ADMIN' ||
+      normalizedRole.includes('ADMIN') ||
+      (currentUser?.id && selectedUser.id === currentUser.id)
+    ) {
+      showToast('⚠️ Organization Head / Admin has permanent root authority and cannot be modified.');
+      return;
+    }
+
     const nextPolicies = { ...policies };
 
     ALL_WEB_MODULES.forEach(mod => {
@@ -336,7 +395,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       )}
 
       {/* Header Banner */}
-      <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl relative overflow-hidden shadow-2xl">
+      <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl relative overflow-hidden shadow-2xl space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center font-black shadow-lg shadow-indigo-500/10">
@@ -379,11 +438,24 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           </div>
         </div>
 
+        {/* 👑 Head / Administrator Protected Status Notice */}
+        <div className="flex items-center gap-3 p-3 bg-indigo-950/60 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-sm flex-shrink-0">
+            👑
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="font-extrabold text-white">Organization Head Protected: </span>
+            <span className="text-slate-300">
+              Admin account (<strong>{currentUser?.name || currentUser?.email || 'Admin'}</strong>) possesses permanent root access to all modules and cannot be restricted. Only subordinate workspace employees are configured below.
+            </span>
+          </div>
+        </div>
+
         {/* Live Metrics Telemetry Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-800/80">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-slate-800/80">
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Workspace Users</span>
-            <span className="text-lg font-black text-white mt-0.5 block">{managedUsers.length} Users</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Managed Employees</span>
+            <span className="text-lg font-black text-white mt-0.5 block">{managedUsers.length} Staff</span>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Protected Modules</span>
@@ -394,9 +466,9 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             <span className="text-lg font-black text-emerald-400 mt-0.5 block">{activeOverridesCount} Rules</span>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">System Security State</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Admin Authority</span>
             <span className="text-xs font-black text-amber-400 mt-1 flex items-center gap-1">
-              <Lock size={12} /> RBAC Strict Enforcement
+              <Lock size={12} /> Permanent Full Root Access
             </span>
           </div>
         </div>
@@ -688,8 +760,14 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
             </div>
           ) : (
-            <div className="crm-card p-12 text-center text-slate-500 text-sm font-bold bg-slate-900 border border-slate-800 rounded-2xl">
-              Please select a workspace user from the left to configure module access.
+            <div className="crm-card p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 mx-auto flex items-center justify-center">
+                <Shield size={28} />
+              </div>
+              <h3 className="text-base font-extrabold text-white">Organization Head Authority Active</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                As the Organization Head / Administrator, you possess full unrestricted access across all CRM modules. Select an employee from the left panel to configure their specific access permissions.
+              </p>
             </div>
           )}
         </div>
