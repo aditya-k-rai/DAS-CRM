@@ -15,11 +15,12 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ModuleKey } from '../screens/MoreControlsScreen';
+import type { ModuleKey } from '../types/moduleTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED';
+// UserRole mirrors authStore.UserRole exactly — kept here to avoid circular imports
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED';
 
 export interface ModulePermission {
   active: boolean;   // Has access to this module at all
@@ -42,6 +43,7 @@ export interface ManagedUser {
 
 // Default permissions per role
 const ROLE_DEFAULTS: Record<UserRole, ModulePermission> = {
+  SUPER_ADMIN: { active: true,  canView: true,  canShare: true,  canEdit: true },
   ADMIN:       { active: true,  canView: true,  canShare: true,  canEdit: true },
   MANAGER:     { active: true,  canView: true,  canShare: true,  canEdit: true },
   TEAM_LEADER: { active: true,  canView: true,  canShare: true,  canEdit: false },
@@ -50,14 +52,15 @@ const ROLE_DEFAULTS: Record<UserRole, ModulePermission> = {
   UNASSIGNED:  { active: false, canView: false, canShare: false, canEdit: false },
 };
 
-// Modules that Sales Exec / Team Leader should NOT see by default
+// Modules restricted by default per role (Admin/SuperAdmin have no restrictions)
 const RESTRICTED_BY_DEFAULT: Record<UserRole, ModuleKey[]> = {
+  SUPER_ADMIN: [],
   ADMIN:       [],
   MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE'],
   TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS'],
   HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB'],
   SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL'],
-  UNASSIGNED:  [], // All blocked anyway
+  UNASSIGNED:  [],
 };
 
 export const STORAGE_KEY = '@das_crm_module_policies_v1';

@@ -29,7 +29,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useModuleAccessStore, ManagedUser, ModulePermission, UserRole } from '../store/moduleAccessStore';
 import { getApiBase } from '../config/api';
 import { useAuthStore } from '../store/authStore';
-import { ModuleKey } from './MoreControlsScreen';
+import type { ModuleKey } from '../types/moduleTypes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Module Registry ──────────────────────────────────────────────────────────
@@ -78,12 +78,13 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
 };
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
-  ADMIN:       { label: 'Admin',          color: '#6366f1' },
-  MANAGER:     { label: 'Manager',        color: '#c084fc' },
-  TEAM_LEADER: { label: 'Team Leader',    color: '#fbbf24' },
-  HR:          { label: 'HR',             color: '#38bdf8' },
-  SALES_EXEC:  { label: 'Sales Exec',     color: '#34d399' },
-  UNASSIGNED:  { label: 'Unassigned',     color: '#94a3b8' },
+  SUPER_ADMIN: { label: 'Super Admin',     color: '#f43f5e' },
+  ADMIN:       { label: 'Admin',           color: '#6366f1' },
+  MANAGER:     { label: 'Manager',         color: '#c084fc' },
+  TEAM_LEADER: { label: 'Team Leader',     color: '#fbbf24' },
+  HR:          { label: 'HR',              color: '#38bdf8' },
+  SALES_EXEC:  { label: 'Sales Exec',      color: '#34d399' },
+  UNASSIGNED:  { label: 'Unassigned',      color: '#94a3b8' },
 };
 
 // ─── Audit Entry ──────────────────────────────────────────────────────────────
@@ -133,10 +134,11 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
 
   // ─── Load users from server + cache ────────────────────────────────────────
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     const token = useAuthStore.getState().token;
     const compId = currentUser?.companyId || '';
+    const userId = currentUser?.id || '';
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -145,11 +147,11 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
 
     let fetchedUsers: ManagedUser[] = [];
     try {
-      const res = await fetch(`${getApiBase()}/users?organizationId=${compId}`, { headers });
+      const res = await fetch(`${getApiBase()}/users?organizationId=${compId}`, { headers, signal });
       if (res.ok) {
         const data: any[] = await res.json();
         fetchedUsers = data
-          .filter((u: any) => u.id !== currentUser?.id) // exclude self
+          .filter((u: any) => String(u.id) !== userId) // exclude self
           .map((u: any) => {
             const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase();
             let role: UserRole = 'SALES_EXEC';
@@ -168,21 +170,24 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
             } as ManagedUser;
           });
       }
-    } catch {}
-
-    // Fall back to cached list from EmployeesScreen
-    if (fetchedUsers.length === 0) {
-      fetchedUsers = store.getManagedUsers();
+    } catch (err: any) {
+      // AbortError is expected on unmount — don't update state
+      if (err?.name === 'AbortError') return;
+    } finally {
+      if (!signal?.aborted) {
+        // Fall back to cached list from store if network yielded nothing
+        if (fetchedUsers.length === 0) {
+          fetchedUsers = store.getManagedUsers();
+        }
+        // Update cache only when we have fresh data
+        if (fetchedUsers.length > 0) {
+          await store.setManagedUsers(fetchedUsers);
+        }
+        setUsers(fetchedUsers);
+        setLoading(false);
+      }
     }
-
-    // Ensure store cache is up-to-date
-    if (fetchedUsers.length > 0) {
-      await store.setManagedUsers(fetchedUsers);
-    }
-
-    setUsers(fetchedUsers);
-    setLoading(false);
-  }, [currentUser?.companyId]);
+  }, [currentUser?.companyId, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAudit = useCallback(async () => {
     try {
@@ -191,9 +196,12 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
     } catch {}
   }, []);
 
+  // Mount effect with abort signal so state updates never fire on unmounted component
   useEffect(() => {
-    loadUsers();
+    const controller = new AbortController();
+    loadUsers(controller.signal);
     loadAudit();
+    return () => controller.abort();
   }, [loadUsers, loadAudit]);
 
   // ─── Permission Toggle Handler ──────────────────────────────────────────────
@@ -431,7 +439,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
               <Text style={[styles.emptySub, { color: colors.textMuted }]}>
                 {searchQuery ? 'No users match your search.' : 'No workspace users loaded yet. Check your connection and reload.'}
               </Text>
-              <TouchableOpacity style={[styles.reloadBtn, { backgroundColor: colors.primary }]} onPress={loadUsers} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.reloadBtn, { backgroundColor: colors.primary }]} onPress={() => loadUsers()} activeOpacity={0.8}>
                 <Text style={styles.reloadBtnText}>Reload Users</Text>
               </TouchableOpacity>
             </View>

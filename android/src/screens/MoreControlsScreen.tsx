@@ -35,29 +35,11 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
 import { useModuleAccessStore } from '../store/moduleAccessStore';
 
-
-export type ModuleKey =
-  | 'PRODUCTS'
-  | 'QUOTES'
-  | 'COMMUNICATIONS'
-  | 'WA_TEMPLATES'
-  | 'EXTRA_EMAIL'
-  | 'AI_CONTROL'
-  | 'AI_HUB'
-  | 'PDF_CATALOG'
-  | 'REPORTS'
-  | 'AUTOMATIONS'
-  | 'DATABASE'
-  | 'IMPORT_EXPORT'
-  | 'ATTENDANCE'
-  | 'DEALS'
-  | 'GOALS'
-  | 'INTERVIEWS'
-  | 'UPCOMING_COMMS'
-  | 'SETTINGS'
-  | 'PROFILE'
-  | 'SUPPORT'
-  | 'ABOUT';
+// ModuleKey is defined in shared types and re-exported for backward compatibility
+// with any existing imports from MoreControlsScreen across the codebase
+export type { ModuleKey } from '../types/moduleTypes';
+// Local type alias for use within this file
+type ModuleKey = import('../types/moduleTypes').ModuleKey;
 
 interface MoreControlsScreenProps {
   navigation?: any;
@@ -84,7 +66,8 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const { getPermission } = useModuleAccessStore();
   const userId = currentUser?.id || '';
-  const userRole = (currentUser?.role || 'SALES_EXEC') as any;
+  // Normalize SUPER_ADMIN → ADMIN for module access lookup (both have identical full access)
+  const userRole = (role === 'SUPER_ADMIN' ? 'ADMIN' : role) as import('../store/moduleAccessStore').UserRole;
 
   const closeModal = () => {
     setActiveModal(null);

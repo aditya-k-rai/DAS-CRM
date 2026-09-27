@@ -86,7 +86,9 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
 
   // Permission checks
   const userId = currentUser?.id || '';
-  const userRole = (currentUser?.role || 'SALES_EXEC') as any;
+  // Normalize SUPER_ADMIN → ADMIN for module access lookup (both have identical full access)
+  const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+  const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('../store/moduleAccessStore').UserRole;
   const productsPerm = accessStore.getPermission(userId, userRole, 'PRODUCTS');
   const pdfPerm = accessStore.getPermission(userId, userRole, 'PDF_CATALOG');
 
