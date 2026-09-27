@@ -56,26 +56,35 @@ export function normalizeApiUrl(rawUrl: string): string {
 export function getCandidateApiUrls(): string[] {
   const candidates: string[] = [];
 
-  // 1. Explicit environment variable if provided
+  // 1. Current active or previously validated API base
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
+    candidates.push(normalizeApiUrl(API_BASE));
+  }
+
+  // 2. Explicit environment variable if provided
   if (process.env.EXPO_PUBLIC_API_URL) {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Dynamic host IP from Expo bundler (auto-detected when running on physical device)
+  // 3. Dynamic host IP from Expo bundler (auto-detected when running on physical device)
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 3. Known developer machine LAN IP
+  // 4. Known developer machine LAN IP
   candidates.push('http://192.168.29.26:3001/api/v1');
 
-  // 4. Android emulator loopback (10.0.2.2)
+  // 5. Cloud backend on Render (HTTPS)
+  candidates.push('https://nexcrm-backend.onrender.com/api/v1');
+  candidates.push('https://dascrm-backend.onrender.com/api/v1');
+
+  // 6. Android emulator loopback (10.0.2.2)
   if (Platform.OS === 'android') {
     candidates.push('http://10.0.2.2:3001/api/v1');
   }
 
-  // 5. Localhost fallback
+  // 7. Localhost fallback
   candidates.push('http://localhost:3001/api/v1');
   candidates.push('http://127.0.0.1:3001/api/v1');
 

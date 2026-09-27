@@ -20,6 +20,7 @@
         "backgroundColor": "#060810"
       },
       "package": "com.dascrm.app",
+      "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",

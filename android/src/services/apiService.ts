@@ -24,7 +24,7 @@ export const DEFAULT_ACTIVE_COMPANY: PublicCompany = {
   slug: 'adorable-trading-muev7mo0',
   isActive: true,
   status: 'APPROVED',
-  companyKey: 'DAS-VW-8329',
+  companyKey: 'ADOR-EC-7187',
 };
 
 export interface LeadItem {
