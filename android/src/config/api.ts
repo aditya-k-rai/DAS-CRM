@@ -56,35 +56,28 @@ export function normalizeApiUrl(rawUrl: string): string {
 export function getCandidateApiUrls(): string[] {
   const candidates: string[] = [];
 
-  // 1. Current active or previously validated API base
-  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
-    candidates.push(normalizeApiUrl(API_BASE));
-  }
-
-  // 2. Explicit environment variable if provided
+  // 1. Explicit environment variable if provided
   if (process.env.EXPO_PUBLIC_API_URL) {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 3. Dynamic host IP from Expo bundler (auto-detected when running on physical device)
+  // 2. Previously saved working API base from AsyncStorage (ignoring legacy LAN IPs)
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('192.168.29.26')) {
+    candidates.push(normalizeApiUrl(API_BASE));
+  }
+
+  // 3. Dynamic host IP from Expo bundler (auto-detected when running via Expo Metro)
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Known developer machine LAN IP
-  candidates.push('http://192.168.29.26:3001/api/v1');
-
-  // 5. Cloud backend on Render (HTTPS)
-  candidates.push('https://nexcrm-backend.onrender.com/api/v1');
-  candidates.push('https://dascrm-backend.onrender.com/api/v1');
-
-  // 6. Android emulator loopback (10.0.2.2)
+  // 4. Android emulator loopback (10.0.2.2)
   if (Platform.OS === 'android') {
     candidates.push('http://10.0.2.2:3001/api/v1');
   }
 
-  // 7. Localhost fallback
+  // 5. Localhost fallback
   candidates.push('http://localhost:3001/api/v1');
   candidates.push('http://127.0.0.1:3001/api/v1');
 
@@ -100,9 +93,8 @@ export const getApiBaseUrl = (): string => {
   if (expoIp) {
     return `http://${expoIp}:3001/api/v1`;
   }
-  if (Platform.OS === 'android') {
-    // Default to developer LAN IP so physical devices work out-of-the-box
-    return 'http://192.168.29.26:3001/api/v1';
+  if (__DEV__ && Platform.OS === 'android') {
+    return 'http://10.0.2.2:3001/api/v1';
   }
   return 'http://localhost:3001/api/v1';
 };
@@ -121,11 +113,16 @@ export function getApiBase(): string {
   return API_BASE;
 }
 
-// Hydrate saved working API_BASE on app startup
+// Hydrate saved working API_BASE on app startup & purge stale legacy private IPs
 try {
   AsyncStorage.getItem(STORAGE_KEY_API_BASE).then((saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      API_BASE = normalizeApiUrl(saved);
+      if (saved.includes('192.168.29.26')) {
+        // Clear stale local developer IP from device storage
+        AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
+      } else {
+        API_BASE = normalizeApiUrl(saved);
+      }
     }
   }).catch(() => {});
 } catch (_) {}

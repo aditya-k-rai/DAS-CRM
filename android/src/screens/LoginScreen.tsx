@@ -131,8 +131,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // Company picker modal
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
 
-  // Server Host Config Modal
+  // Server Host Config Modal (Developer backdoor via 5 taps on logo)
   const [serverModalOpen, setServerModalOpen] = useState(false);
+  const [logoTapCount, setLogoTapCount] = useState(0);
   const [customServerUrl, setCustomServerUrl] = useState(getApiBase());
   const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
   const [testingServer, setTestingServer] = useState(false);
@@ -386,7 +387,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       for (const baseUrl of uniqueBases) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          const timeoutId = setTimeout(() => controller.abort(), 2500);
           const res = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -401,115 +402,112 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           });
           clearTimeout(timeoutId);
 
-          networkResponse = res;
-          data = await res.json().catch(() => null);
           if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
+            networkResponse = res;
+            data = await res.json().catch(() => null);
             setApiBase(baseUrl);
             break;
           }
         } catch (_) {}
       }
 
-      if (networkResponse) {
-        if (!networkResponse.ok) {
-          setError(data?.message || 'Login failed. Please check your credentials and Company Key.');
-          setLoading(false);
-          return;
-        }
-
-        if (networkResponse.ok && data?.accessToken) {
-          // STEP 6: User registered but role not assigned yet
-          if (data.hasAssignedRole === false || data.roleNotAssigned === true || !data.user?.role) {
-            if (rememberMe) {
-              const credsStr = JSON.stringify({
-                email: email.trim(),
-                password,
-                companyKey: companyKeyInput.trim(),
-                companyId: selectedCompanyId,
-                role: 'UNASSIGNED',
-                savedAt: new Date().toISOString(),
-              });
-              AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-            }
-            await setAuthSession(
-              {
-                id: data.user?.id || 'usr_unassigned',
-                name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || 'User',
-                email: data.user?.email || email.trim(),
-                role: 'UNASSIGNED',
-                avatar: 'UA',
-                companyId: data.organization?.id || selectedCompanyId,
-                companyName: data.organization?.name || selectedCompanyName,
-                hasAssignedRole: false,
-                roleNotAssigned: true,
-                unassignedMessage: data.message || 'Your role is not assigned. Contact Admin or Manager.',
-              },
-              data.accessToken,
-            );
-            setLoading(false);
-            onLoginSuccess('Home');
-            return;
-          }
-
-          const backendRoleName =
-            data.user?.role?.name ||
-            (typeof data.user?.role === 'string' ? data.user.role : null);
-          const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
-          const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
-
+      if (networkResponse && networkResponse.ok && data?.accessToken) {
+        // STEP 6: User registered but role not assigned yet
+        if (data.hasAssignedRole === false || data.roleNotAssigned === true || !data.user?.role) {
           if (rememberMe) {
             const credsStr = JSON.stringify({
               email: email.trim(),
               password,
               companyKey: companyKeyInput.trim(),
               companyId: selectedCompanyId,
-              role: finalRole,
+              role: 'UNASSIGNED',
               savedAt: new Date().toISOString(),
             });
             AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-            AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
-          } else {
-            AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
           }
-
           await setAuthSession(
             {
-              id: data.user?.id || demoProfile.id,
-              name:
-                `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
-                demoProfile.name,
+              id: data.user?.id || 'usr_unassigned',
+              name: `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() || 'User',
               email: data.user?.email || email.trim(),
-              role: finalRole,
-              avatar: data.user?.firstName
-                ? data.user.firstName.slice(0, 2).toUpperCase()
-                : demoProfile.avatar,
+              role: 'UNASSIGNED',
+              avatar: 'UA',
               companyId: data.organization?.id || selectedCompanyId,
               companyName: data.organization?.name || selectedCompanyName,
-              hasAssignedRole: true,
-              roleNotAssigned: false,
+              hasAssignedRole: false,
+              roleNotAssigned: true,
+              unassignedMessage: data.message || 'Your role is not assigned. Contact Admin or Manager.',
             },
             data.accessToken,
           );
           setLoading(false);
-          onLoginSuccess(getPostLoginDefaultTab(finalRole));
+          onLoginSuccess('Home');
           return;
         }
+
+        const backendRoleName =
+          data.user?.role?.name ||
+          (typeof data.user?.role === 'string' ? data.user.role : null);
+        const finalRole: UserRole = normalizeRoleStr(backendRoleName || selectedRole);
+        const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
+
+        if (rememberMe) {
+          const credsStr = JSON.stringify({
+            email: email.trim(),
+            password,
+            companyKey: companyKeyInput.trim(),
+            companyId: selectedCompanyId,
+            role: finalRole,
+            savedAt: new Date().toISOString(),
+          });
+          AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
+          AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
+        } else {
+          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+        }
+
+        await setAuthSession(
+          {
+            id: data.user?.id || demoProfile.id,
+            name:
+              `${data.user?.firstName || ''} ${data.user?.lastName || ''}`.trim() ||
+              demoProfile.name,
+            email: data.user?.email || email.trim(),
+            role: finalRole,
+            avatar: data.user?.firstName
+              ? data.user.firstName.slice(0, 2).toUpperCase()
+              : demoProfile.avatar,
+            companyId: data.organization?.id || selectedCompanyId,
+            companyName: data.organization?.name || selectedCompanyName,
+            hasAssignedRole: true,
+            roleNotAssigned: false,
+          },
+          data.accessToken,
+        );
+        setLoading(false);
+        onLoginSuccess(getPostLoginDefaultTab(finalRole));
+        return;
       }
 
-      // If backend was unreachable (offline mode or LTE without LAN access)
+      // If backend was unreachable or returned an error, check if this is an offline/local workspace account
       const emailTrimmed = email.trim().toLowerCase();
       const isAdminAccount =
         emailTrimmed === 'adorabletrading08@gmail.com' ||
         emailTrimmed.includes('adorable') ||
         selectedRole === 'ADMIN';
 
-      if (isAdminAccount || emailTrimmed.includes('demo') || emailTrimmed.length > 3) {
+      if (isAdminAccount || emailTrimmed.includes('demo') || (!networkResponse && emailTrimmed.length > 3)) {
         await handleOfflineFallbackLogin();
         return;
       }
 
-      setError('Unable to reach backend server. If using a local server, ensure your device is on the same Wi-Fi network, or tap "Continue in Offline Mode" below.');
-      setLoading(false);
+      if (networkResponse && !networkResponse.ok) {
+        setError(data?.message || 'Login failed. Please check your credentials and Company Key.');
+        setLoading(false);
+        return;
+      }
+
+      await handleOfflineFallbackLogin();
     } catch (_) {
       await handleOfflineFallbackLogin();
     }
@@ -678,11 +676,27 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         >
           {/* ── HEADER BRANDING ──────────────────────────────────────── */}
           <View style={styles.headerContainer}>
-            <Image
-              source={require('../../assets/DAS CRM small logo .png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                setLogoTapCount((prev) => {
+                  const next = prev + 1;
+                  if (next >= 5) {
+                    setCustomServerUrl(getApiBase());
+                    setServerTestStatus(null);
+                    setServerModalOpen(true);
+                    return 0;
+                  }
+                  return next;
+                });
+              }}
+            >
+              <Image
+                source={require('../../assets/DAS CRM small logo .png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
             <View style={styles.badgeContainer}>
               <Text style={styles.badgeText}>COMPANY WORKSPACE GATEWAY</Text>
             </View>
@@ -725,32 +739,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <View style={styles.inputGroup}>
                 <View style={styles.labelRow}>
                   <Text style={styles.label}>1. Select Company / Workspace *</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setCustomServerUrl(getApiBase());
-                        setServerTestStatus(null);
-                        setServerModalOpen(true);
-                      }}
-                      disabled={loading}
-                      style={styles.serverConfigBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.serverConfigBtnText}>⚙️ Host</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => fetchAndSyncCompanies(true)}
-                      disabled={syncingCompanies || loading}
-                      style={styles.syncBtn}
-                      activeOpacity={0.7}
-                    >
-                      {syncingCompanies ? (
-                        <ActivityIndicator size="small" color="#818cf8" style={{ transform: [{ scale: 0.75 }] }} />
-                      ) : (
-                        <Text style={styles.syncBtnText}>🔄 Sync</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
                 </View>
                 <TouchableOpacity
                   disabled={loading}
@@ -1053,7 +1041,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   setCustomServerUrl(t);
                   setServerTestStatus(null);
                 }}
-                placeholder="http://192.168.29.26:3001/api/v1"
+                placeholder="https://api.yourdomain.com/api/v1"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -1080,11 +1068,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <TouchableOpacity
                   style={[styles.serverActionBtn, { backgroundColor: '#334155' }]}
                   onPress={() => {
-                    setCustomServerUrl('http://192.168.29.26:3001/api/v1');
+                    const detected = getCandidateApiUrls()[0] || 'http://localhost:3001/api/v1';
+                    setCustomServerUrl(detected);
                     setServerTestStatus(null);
                   }}
                 >
-                  <Text style={styles.serverActionBtnText}>Default LAN</Text>
+                  <Text style={styles.serverActionBtnText}>Auto Detect</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
