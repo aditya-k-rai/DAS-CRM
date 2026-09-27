@@ -59,11 +59,11 @@ export class ProductsController {
     return this.productsService.getProductById(id);
   }
 
-  // ─── CREATE PRODUCT (Admin only via role check in service) ───────────────────
+  // ─── CREATE PRODUCT (Admin & Manager) ───────────────────────────────────────
   @Post()
-  @ApiOperation({ summary: 'Create new catalog product — Admin only' })
+  @ApiOperation({ summary: 'Create new catalog product — Admin & Manager' })
   @ApiResponse({ status: 201, description: 'Product created successfully.' })
-  @ApiResponse({ status: 403, description: 'Only Admins can create products.' })
+  @ApiResponse({ status: 403, description: 'Only Admins and Managers can create products.' })
   async createProduct(
     @Body() body: CreateProductDto,
     @CurrentUser() user: any,
@@ -71,9 +71,9 @@ export class ProductsController {
     return this.productsService.createProduct(body);
   }
 
-  // ─── UPDATE PRODUCT (Admin only via role check in service) ───────────────────
+  // ─── UPDATE PRODUCT (Admin & Manager) ───────────────────────────────────────
   @Put(':id')
-  @ApiOperation({ summary: 'Update product details — Admin only' })
+  @ApiOperation({ summary: 'Update product details — Admin & Manager' })
   @ApiParam({ name: 'id', description: 'Product ID (cuid)' })
   @ApiResponse({ status: 200, description: 'Product updated successfully.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
@@ -85,13 +85,13 @@ export class ProductsController {
     return this.productsService.updateProduct(id, body);
   }
 
-  // ─── DELETE PRODUCT — ADMIN ONLY — PERMANENTLY REMOVES FROM DATABASE ─────────
+  // ─── DELETE PRODUCT — ADMIN & MANAGER — PERMANENTLY REMOVES FROM DATABASE ─────
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '🗑️ Delete product — ADMIN ONLY — Permanently removes from database' })
+  @ApiOperation({ summary: '🗑️ Delete product — ADMIN & MANAGER — Permanently removes from database' })
   @ApiParam({ name: 'id', description: 'Product ID (cuid) to permanently delete' })
   @ApiResponse({ status: 200, description: 'Product permanently deleted. Will no longer be visible to anyone.' })
-  @ApiResponse({ status: 403, description: '⛔ Forbidden: Only Admins can delete products.' })
+  @ApiResponse({ status: 403, description: '⛔ Forbidden: Only Admins and Managers can delete products.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   async deleteProduct(
     @Param('id') id: string,

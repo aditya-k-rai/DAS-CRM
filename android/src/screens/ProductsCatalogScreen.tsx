@@ -62,9 +62,13 @@ export default function ProductsCatalogScreen({
   const [activeSubCategory, setActiveSubCategory] = useState<string>('ALL');
 
   const { currentUser } = useAuthStore();
-  const isAdmin = normalizeRoleStr(currentUser?.role) === 'ADMIN';
+  const normalizedRole = normalizeRoleStr(currentUser?.role);
+  const rawRole = (currentUser?.role || '').toUpperCase();
+  const isAdmin = normalizedRole === 'ADMIN' || rawRole.includes('ADMIN') || rawRole.includes('OWNER');
+  const isManager = normalizedRole === 'MANAGER' || rawRole.includes('MANAGER');
+  const canManage = isAdmin || isManager;
 
-  // Product Card Display Configuration State (Admin-governed)
+  // Product Card Display Configuration State (Admin & Manager governed)
   const [cardConfig, setCardConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [tempConfig, setTempConfig] = useState<ProductCardDisplayConfig>(DEFAULT_CARD_DISPLAY_CONFIG);
@@ -77,19 +81,33 @@ export default function ProductsCatalogScreen({
   const [viewDetailProduct, setViewDetailProduct] = useState<CatalogProductItem | null>(null);
   const [selectedDetailImg, setSelectedDetailImg] = useState<string | null>(null);
 
-  // Category Creation Modal State
+  // Category Management & Modal State
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [newCatNameInput, setNewCatNameInput] = useState('');
   const [newSubCatNameInput, setNewSubCatNameInput] = useState('');
+  const [manageCatsModalOpen, setManageCatsModalOpen] = useState(false);
+  const [editCatModalOpen, setEditCatModalOpen] = useState(false);
+  const [editingCatOldName, setEditingCatOldName] = useState('');
+  const [editingCatNewName, setEditingCatNewName] = useState('');
 
-  // Sub-Category Creation Modal State (separate from Category modal)
+  // Sub-Category Management & Modal State
   const [subCatModalOpen, setSubCatModalOpen] = useState(false);
   const [newSubCatOnlyNameInput, setNewSubCatOnlyNameInput] = useState('');
   const [newSubCatParentInput, setNewSubCatParentInput] = useState('');
+  const [manageSubCatsModalOpen, setManageSubCatsModalOpen] = useState(false);
+  const [selectedParentForSubManage, setSelectedParentForSubManage] = useState('');
+  const [editSubCatModalOpen, setEditSubCatModalOpen] = useState(false);
+  const [editingSubCatParent, setEditingSubCatParent] = useState('');
+  const [editingSubCatOldName, setEditingSubCatOldName] = useState('');
+  const [editingSubCatNewName, setEditingSubCatNewName] = useState('');
 
-  // Brand Creation Modal State
+  // Brand Management & Modal State
   const [brandModalOpen, setBrandModalOpen] = useState(false);
   const [newBrandNameInput, setNewBrandNameInput] = useState('');
+  const [manageBrandsModalOpen, setManageBrandsModalOpen] = useState(false);
+  const [editBrandModalOpen, setEditBrandModalOpen] = useState(false);
+  const [editingBrandOldName, setEditingBrandOldName] = useState('');
+  const [editingBrandNewName, setEditingBrandNewName] = useState('');
 
   // Form Field Inputs & Conditions
   const [nameInput, setNameInput] = useState('');
@@ -111,6 +129,22 @@ export default function ProductsCatalogScreen({
   const [featuresList, setFeaturesList] = useState<string[]>(['Gold Plated', 'Waterproof']);
   const [featureTagInput, setFeatureTagInput] = useState('');
 
+  // ── Product Count Helpers by Taxonomy ────────────────────────────────────
+  const countProductsInCategory = (catName: string) => {
+    return products.filter((p) => p.category.trim().toLowerCase() === catName.trim().toLowerCase()).length;
+  };
+
+  const countProductsInSubCategory = (parentCat: string, subCatName: string) => {
+    return products.filter((p) => {
+      const matchCat = !parentCat || parentCat === 'ALL' || p.category.trim().toLowerCase() === parentCat.trim().toLowerCase();
+      return matchCat && (p.subCategory || '').trim().toLowerCase() === subCatName.trim().toLowerCase();
+    }).length;
+  };
+
+  const countProductsInBrand = (brandName: string) => {
+    return products.filter((p) => (p.brand || '').trim().toLowerCase() === brandName.trim().toLowerCase()).length;
+  };
+
   useEffect(() => {
     loadCatalogData();
   }, []);
@@ -128,15 +162,16 @@ export default function ProductsCatalogScreen({
     if (cats.length > 0) {
       setCategoryInput(cats[0].name);
       setSubCategoryInput(cats[0].subCategories[0] || 'General');
+      setSelectedParentForSubManage(cats[0].name);
     }
   };
 
-  // ── Admin Card Display Handlers ──────────────────────────────────────────
+  // ── Admin & Manager Card Display Handlers ────────────────────────────────
   const handleOpenConfigModal = () => {
-    if (!isAdmin) {
+    if (!canManage) {
       Alert.alert(
-        '🔒 Admin Access Required',
-        'Only Organization Admins are permitted to configure product card display fields on this screen.'
+        '🔒 Access Restricted',
+        'Only Organization Admins and Managers are permitted to configure product card display fields on this screen.'
       );
       return;
     }
@@ -145,8 +180,8 @@ export default function ProductsCatalogScreen({
   };
 
   const handleSaveCardConfig = async () => {
-    if (!isAdmin) {
-      Alert.alert('🔒 Admin Access Required', 'Only Organization Admins can save card display preferences.');
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can save card display preferences.');
       return;
     }
     await productCatalogService.saveCardDisplayConfig(tempConfig);
@@ -325,6 +360,77 @@ export default function ProductsCatalogScreen({
     Alert.alert('✅ Brand Added', `Added brand "${brandName}"!`);
   };
 
+  const handleDeleteBrand = (brandName: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can delete brands.');
+      return;
+    }
+    if (brandName.toLowerCase() === 'generic / unbranded') {
+      Alert.alert('Notice', 'The default "Generic / Unbranded" brand cannot be deleted.');
+      return;
+    }
+    const count = countProductsInBrand(brandName);
+    Alert.alert(
+      `🗑️ Delete Brand: "${brandName}"`,
+      `⚠️ WARNING: Brand "${brandName}" currently has ${count} product(s) associated with it.\n\nDeleting this brand will remove it and automatically reassign all ${count} product(s) to "Generic / Unbranded".\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Delete & Reassign (${count})`,
+          style: 'destructive',
+          onPress: async () => {
+            const updated = await productCatalogService.deleteBrand(brandName);
+            setBrands(updated);
+            if (brandInput.toLowerCase() === brandName.toLowerCase()) {
+              setBrandInput('Generic / Unbranded');
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            Alert.alert('✅ Brand Deleted', `Brand "${brandName}" was deleted and ${count} product(s) were reassigned to "Generic / Unbranded".`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleConfirmEditBrand = (oldBrand: string, newBrand: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can edit brands.');
+      return;
+    }
+    const trimmed = newBrand.trim();
+    if (!trimmed) {
+      Alert.alert('Validation Error', 'Brand name cannot be empty.');
+      return;
+    }
+    if (trimmed.toLowerCase() === oldBrand.trim().toLowerCase()) {
+      setEditBrandModalOpen(false);
+      return;
+    }
+    const count = countProductsInBrand(oldBrand);
+    Alert.alert(
+      '✏️ Confirm Brand Rename',
+      `ℹ️ NOTICE: Brand "${oldBrand}" currently contains ${count} product(s).\n\nRenaming it to "${trimmed}" will update the brand name across all ${count} associated product(s).\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Rename & Update (${count})`,
+          onPress: async () => {
+            const updated = await productCatalogService.editBrand(oldBrand, trimmed);
+            setBrands(updated);
+            if (brandInput.toLowerCase() === oldBrand.toLowerCase()) {
+              setBrandInput(trimmed);
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            setEditBrandModalOpen(false);
+            Alert.alert('✅ Brand Renamed', `"${oldBrand}" renamed to "${trimmed}". All ${count} product(s) updated.`);
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveCategory = async () => {
     if (!newCatNameInput.trim()) {
       Alert.alert('Validation Error', 'Category Name is required.');
@@ -341,6 +447,77 @@ export default function ProductsCatalogScreen({
     Alert.alert('✅ Category Added', `Added category "${newCatNameInput.trim()}" with sub-category "${subCatStr}"!`);
   };
 
+  const handleDeleteCategory = (catName: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can delete categories.');
+      return;
+    }
+    const count = countProductsInCategory(catName);
+    Alert.alert(
+      `🗑️ Delete Category: "${catName}"`,
+      `⚠️ WARNING: Category "${catName}" currently has ${count} product(s) associated with it.\n\nDeleting this category will remove it permanently and automatically reassign all ${count} product(s) to "General".\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Delete & Reassign (${count})`,
+          style: 'destructive',
+          onPress: async () => {
+            const updated = await productCatalogService.deleteCategory(catName);
+            setCategories(updated);
+            if (activeCategory.toLowerCase() === catName.toLowerCase()) {
+              setActiveCategory('ALL');
+              setActiveSubCategory('ALL');
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            Alert.alert('✅ Category Deleted', `"${catName}" deleted. ${count} product(s) reassigned to "General".`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleConfirmEditCategory = (oldName: string, newName: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can edit categories.');
+      return;
+    }
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      Alert.alert('Validation Error', 'Category name cannot be empty.');
+      return;
+    }
+    if (trimmed.toLowerCase() === oldName.trim().toLowerCase()) {
+      setEditCatModalOpen(false);
+      return;
+    }
+    const count = countProductsInCategory(oldName);
+    Alert.alert(
+      '✏️ Confirm Category Rename',
+      `ℹ️ NOTICE: Category "${oldName}" currently contains ${count} product(s).\n\nRenaming it to "${trimmed}" will update the category name across all ${count} associated product(s).\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Rename & Update (${count})`,
+          onPress: async () => {
+            const updated = await productCatalogService.editCategory(oldName, trimmed);
+            setCategories(updated);
+            if (activeCategory.toLowerCase() === oldName.toLowerCase()) {
+              setActiveCategory(trimmed);
+            }
+            if (categoryInput.toLowerCase() === oldName.toLowerCase()) {
+              setCategoryInput(trimmed);
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            setEditCatModalOpen(false);
+            Alert.alert('✅ Category Renamed', `"${oldName}" renamed to "${trimmed}". All ${count} product(s) updated.`);
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveSubCategory = async () => {
     const subName = newSubCatOnlyNameInput.trim();
     const parentName = newSubCatParentInput.trim();
@@ -352,7 +529,6 @@ export default function ProductsCatalogScreen({
       Alert.alert('Validation Error', 'Please select a Parent Category for this Sub-Category.');
       return;
     }
-    // Find existing category and add sub-category under it
     const existingCat = categories.find(c => c.name === parentName);
     if (!existingCat) {
       Alert.alert('Error', `Parent category "${parentName}" does not exist. Please create it first.`);
@@ -365,6 +541,76 @@ export default function ProductsCatalogScreen({
     setNewSubCatOnlyNameInput('');
     setNewSubCatParentInput('');
     Alert.alert('✅ Sub-Category Added', `Added sub-category "${subName}" under "${parentName}"!`);
+  };
+
+  const handleDeleteSubCategory = (parentCat: string, subCatName: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can delete sub-categories.');
+      return;
+    }
+    const count = countProductsInSubCategory(parentCat, subCatName);
+    Alert.alert(
+      `🗑️ Delete Sub-Category: "${subCatName}"`,
+      `⚠️ WARNING: Sub-Category "${subCatName}" under "${parentCat}" currently has ${count} product(s) associated with it.\n\nDeleting this sub-category will remove it and automatically reassign all ${count} product(s) to "General".\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Delete & Reassign (${count})`,
+          style: 'destructive',
+          onPress: async () => {
+            const updated = await productCatalogService.deleteSubCategory(parentCat, subCatName);
+            setCategories(updated);
+            if (activeSubCategory.toLowerCase() === subCatName.toLowerCase()) {
+              setActiveSubCategory('ALL');
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            Alert.alert('✅ Sub-Category Deleted', `"${subCatName}" deleted. ${count} product(s) reassigned to "General".`);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleConfirmEditSubCategory = (parentCat: string, oldSubName: string, newSubName: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can edit sub-categories.');
+      return;
+    }
+    const trimmed = newSubName.trim();
+    if (!trimmed) {
+      Alert.alert('Validation Error', 'Sub-Category name cannot be empty.');
+      return;
+    }
+    if (trimmed.toLowerCase() === oldSubName.trim().toLowerCase()) {
+      setEditSubCatModalOpen(false);
+      return;
+    }
+    const count = countProductsInSubCategory(parentCat, oldSubName);
+    Alert.alert(
+      '✏️ Confirm Sub-Category Rename',
+      `ℹ️ NOTICE: Sub-Category "${oldSubName}" currently contains ${count} product(s).\n\nRenaming it to "${trimmed}" will update the sub-category name across all ${count} associated product(s).\n\nDo you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Rename & Update (${count})`,
+          onPress: async () => {
+            const updated = await productCatalogService.editSubCategory(parentCat, oldSubName, trimmed);
+            setCategories(updated);
+            if (activeSubCategory.toLowerCase() === oldSubName.toLowerCase()) {
+              setActiveSubCategory(trimmed);
+            }
+            if (subCategoryInput.toLowerCase() === oldSubName.toLowerCase()) {
+              setSubCategoryInput(trimmed);
+            }
+            const prods = await productCatalogService.getProducts();
+            setProducts(prods);
+            setEditSubCatModalOpen(false);
+            Alert.alert('✅ Sub-Category Renamed', `"${oldSubName}" renamed to "${trimmed}". All ${count} product(s) updated.`);
+          },
+        },
+      ]
+    );
   };
 
   const handleSaveProduct = async () => {
@@ -431,25 +677,43 @@ export default function ProductsCatalogScreen({
       features: featuresList.length > 0 ? featuresList : ['Enterprise Quality Verified'],
     };
 
-    let updated: CatalogProductItem[] = [];
     if (editingId) {
-      updated = await productCatalogService.updateProduct(editingId, payload);
-      Alert.alert('✅ Product Updated', `Updated "${payload.name}" successfully!`);
-    } else {
-      updated = await productCatalogService.createProduct(payload);
-      Alert.alert('✅ Product Created', `Added "${payload.name}" (${payload.sku}) to Product Catalog!`);
+      Alert.alert(
+        '✏️ Confirm Product Update',
+        `Save changes to "${payload.name}" (${payload.sku})?\n\nPrice: ${payload.currency}${payload.minPrice} - ${payload.currency}${payload.maxPrice}\nStock: ${payload.stockQuantity} units\nCategory: ${payload.category} > ${payload.subCategory}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Save Changes',
+            onPress: async () => {
+              const updated = await productCatalogService.updateProduct(editingId, payload);
+              setProducts(updated);
+              setModalOpen(false);
+              resetForm();
+              Alert.alert('✅ Product Updated', `Updated "${payload.name}" successfully!`);
+            },
+          },
+        ]
+      );
+      return;
     }
 
+    const updated = await productCatalogService.createProduct(payload);
     setProducts(updated);
     setModalOpen(false);
     resetForm();
+    Alert.alert('✅ Product Created', `Added "${payload.name}" (${payload.sku}) to Product Catalog!`);
   };
 
   const handleDeleteProduct = (id: string, name: string) => {
+    if (!canManage) {
+      Alert.alert('🔒 Access Restricted', 'Only Organization Admins and Managers can delete products.');
+      return;
+    }
     setViewDetailProduct(null);
     Alert.alert(
-      '🗑️ Delete Product',
-      `Are you sure you want to delete "${name}" from the catalog?`,
+      '🗑️ Delete Product Confirmation',
+      `Are you sure you want to permanently delete "${name}" from the product catalog?\n\nThis action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -523,56 +787,57 @@ export default function ProductsCatalogScreen({
           </View>
         </View>
 
-        {/* Quick Action Bar: + Create Product, 🏷️ + Brand, 📁 + Category, 📂 + Sub-Category */}
+        {/* Quick Action Bar: + Create Product, 🏷️ Brands, 📁 Categories, 📂 Sub-Categories */}
         <View style={{ width: '100%', maxWidth: 650, flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-          <TouchableOpacity style={[styles.createProductBtn, { flex: 1.4 }]} onPress={openCreateModal} activeOpacity={0.85}>
-            <Text style={styles.createProductBtnText}>+ Create Product →</Text>
-          </TouchableOpacity>
+          {canManage ? (
+            <>
+              <TouchableOpacity style={[styles.createProductBtn, { flex: 1.3 }]} onPress={openCreateModal} activeOpacity={0.85}>
+                <Text style={styles.createProductBtnText}>+ Create Product</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 0.9 }]}
-            onPress={() => {
-              setNewBrandNameInput('');
-              setBrandModalOpen(true);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.createCatBtnText, { color: isDark ? '#fbbf24' : '#d97706' }]}>🏷️ + Brand</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 0.9 }]}
+                onPress={() => setManageBrandsModalOpen(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.createCatBtnText, { color: isDark ? '#fbbf24' : '#d97706' }]}>🏷️ Brands ({brands.length})</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 1 }]}
-            onPress={() => {
-              setNewCatNameInput('');
-              setNewSubCatNameInput('');
-              setCatModalOpen(true);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.createCatBtnText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>📁 + Category</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createCatBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 1 }]}
+                onPress={() => setManageCatsModalOpen(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.createCatBtnText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>📁 Categories ({categories.length})</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.createSubCatBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, flex: 1.1 }]}
-            onPress={() => {
-              // Pre-fill parent with first available category
-              setNewSubCatParentInput(categories.length > 0 ? categories[0].name : '');
-              setNewSubCatOnlyNameInput('');
-              setSubCatModalOpen(true);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.createSubCatBtnText, { color: isDark ? '#38bdf8' : '#0284c7' }]}>📂 + Sub-Category</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createSubCatBtn, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, flex: 1 }]}
+                onPress={() => {
+                  if (categories.length > 0) {
+                    setSelectedParentForSubManage(categories[0].name);
+                  }
+                  setManageSubCatsModalOpen(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.createSubCatBtnText, { color: isDark ? '#38bdf8' : '#0284c7' }]}>📂 Sub-Cats</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={[styles.createProductBtn, { flex: 1 }]} onPress={openCreateModal} activeOpacity={0.85}>
+              <Text style={styles.createProductBtnText}>+ Create Product →</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Admin Card Display Customization Action Row */}
+        {/* Admin & Manager Card Display Customization Action Row */}
         <View style={{ width: '100%', maxWidth: 650, marginBottom: 12 }}>
           <TouchableOpacity
             style={[
               styles.adminConfigBtn,
               { backgroundColor: colors.cardBg, borderColor: isDark ? '#4338ca' : '#c7d2fe' },
-              !isAdmin && styles.adminConfigBtnDisabled,
+              !canManage && styles.adminConfigBtnDisabled,
             ]}
             onPress={handleOpenConfigModal}
             activeOpacity={0.85}
@@ -582,19 +847,19 @@ export default function ProductsCatalogScreen({
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={[styles.adminConfigBtnTitle, { color: colors.text }]}>Configure Card Display</Text>
-                  <View style={[styles.adminRoleBadge, !isAdmin && { backgroundColor: '#334155' }]}>
-                    <Text style={styles.adminRoleBadgeText}>{isAdmin ? 'ADMIN ONLY' : '🔒 ADMIN ONLY'}</Text>
+                  <View style={[styles.adminRoleBadge, !canManage && { backgroundColor: '#334155' }]}>
+                    <Text style={styles.adminRoleBadgeText}>{canManage ? 'ADMIN & MANAGER' : '🔒 ADMIN & MANAGER'}</Text>
                   </View>
                 </View>
                 <Text style={[styles.adminConfigBtnSubtitle, { color: colors.textSecondary }]}>
-                  {isAdmin
+                  {canManage
                     ? 'Customize visible fields & attributes on this catalog screen'
-                    : 'Only Organization Admins can configure visible screen fields'}
+                    : 'Only Organization Admins and Managers can configure visible screen fields'}
                 </Text>
               </View>
             </View>
-            <Text style={{ color: isAdmin ? (isDark ? '#818cf8' : '#4f46e5') : colors.textMuted, fontSize: 11, fontWeight: '800' }}>
-              {isAdmin ? 'Customize →' : 'Locked'}
+            <Text style={{ color: canManage ? (isDark ? '#818cf8' : '#4f46e5') : colors.textMuted, fontSize: 11, fontWeight: '800' }}>
+              {canManage ? 'Customize →' : 'Locked'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -615,35 +880,62 @@ export default function ProductsCatalogScreen({
           </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
             {[
-              { key: 'ALL', label: `All (${products.length})` },
-              ...categories.map((c) => ({ key: c.name, label: c.name })),
-              { key: 'LOW_STOCK', label: `⚠️ Low Stock (${lowStockCount + outOfStockCount})` },
+              { key: 'ALL', label: `All (${products.length})`, rawName: '' },
+              ...categories.map((c) => ({
+                key: c.name,
+                label: `${c.name} (${countProductsInCategory(c.name)})`,
+                rawName: c.name,
+              })),
+              { key: 'LOW_STOCK', label: `⚠️ Low Stock (${lowStockCount + outOfStockCount})`, rawName: '' },
             ].map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                style={[
-                  styles.filterChip,
-                  { backgroundColor: colors.cardBg, borderColor: colors.border },
-                  activeCategory === f.key && {
-                    backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)',
-                    borderColor: isDark ? '#818cf8' : '#4f46e5',
-                  },
-                ]}
-                onPress={() => {
-                  setActiveCategory(f.key);
-                  setActiveSubCategory('ALL');
-                }}
-              >
-                <Text
+              <View key={f.key} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 6 }}>
+                <TouchableOpacity
                   style={[
-                    styles.filterChipText,
-                    { color: colors.textSecondary },
-                    activeCategory === f.key && { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
+                    styles.filterChip,
+                    { backgroundColor: colors.cardBg, borderColor: colors.border },
+                    activeCategory === f.key && {
+                      backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)',
+                      borderColor: isDark ? '#818cf8' : '#4f46e5',
+                    },
                   ]}
+                  onPress={() => {
+                    setActiveCategory(f.key);
+                    setActiveSubCategory('ALL');
+                  }}
                 >
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      { color: colors.textSecondary },
+                      activeCategory === f.key && { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Inline Edit & Delete when this category is active */}
+                {canManage && !!f.rawName && activeCategory === f.rawName && (
+                  <View style={{ flexDirection: 'row', gap: 2, marginLeft: 2 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingCatOldName(f.rawName);
+                        setEditingCatNewName(f.rawName);
+                        setEditCatModalOpen(true);
+                      }}
+                      style={{ paddingHorizontal: 6, paddingVertical: 4, backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderRadius: 6 }}
+                    >
+                      <Text style={{ fontSize: 10 }}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteCategory(f.rawName)}
+                      style={{ paddingHorizontal: 6, paddingVertical: 4, backgroundColor: isDark ? '#7f1d1d' : '#fee2e2', borderRadius: 6 }}
+                    >
+                      <Text style={{ fontSize: 10 }}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             ))}
           </ScrollView>
 
@@ -655,31 +947,59 @@ export default function ProductsCatalogScreen({
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
                 {[
-                  { key: 'ALL', label: 'All Sub-Categories' },
-                  ...availableFilterSubCats.map((sc) => ({ key: sc, label: sc })),
+                  { key: 'ALL', label: 'All Sub-Categories', rawName: '' },
+                  ...availableFilterSubCats.map((sc) => ({
+                    key: sc,
+                    label: `${sc} (${countProductsInSubCategory(activeCategory, sc)})`,
+                    rawName: sc,
+                  })),
                 ].map((scObj) => (
-                  <TouchableOpacity
-                    key={scObj.key}
-                    style={[
-                      styles.subFilterChip,
-                      { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
-                      activeSubCategory === scObj.key && {
-                        backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.12)',
-                        borderColor: isDark ? '#38bdf8' : '#0284c7',
-                      },
-                    ]}
-                    onPress={() => setActiveSubCategory(scObj.key)}
-                  >
-                    <Text
+                  <View key={scObj.key} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 6 }}>
+                    <TouchableOpacity
                       style={[
-                        styles.subFilterChipText,
-                        { color: colors.textSecondary },
-                        activeSubCategory === scObj.key && { color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' },
+                        styles.subFilterChip,
+                        { backgroundColor: colors.cardBgElevated, borderColor: colors.border },
+                        activeSubCategory === scObj.key && {
+                          backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : 'rgba(14,165,233,0.12)',
+                          borderColor: isDark ? '#38bdf8' : '#0284c7',
+                        },
                       ]}
+                      onPress={() => setActiveSubCategory(scObj.key)}
                     >
-                      {scObj.label}
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={[
+                          styles.subFilterChipText,
+                          { color: colors.textSecondary },
+                          activeSubCategory === scObj.key && { color: isDark ? '#38bdf8' : '#0284c7', fontWeight: '900' },
+                        ]}
+                      >
+                        {scObj.label}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Inline Edit & Delete when this sub-category is active */}
+                    {canManage && scObj.rawName && activeSubCategory === scObj.rawName && (
+                      <View style={{ flexDirection: 'row', gap: 2, marginLeft: 2 }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditingSubCatParent(activeCategory);
+                            setEditingSubCatOldName(scObj.rawName);
+                            setEditingSubCatNewName(scObj.rawName);
+                            setEditSubCatModalOpen(true);
+                          }}
+                          style={{ paddingHorizontal: 6, paddingVertical: 4, backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderRadius: 6 }}
+                        >
+                          <Text style={{ fontSize: 10 }}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteSubCategory(activeCategory, scObj.rawName)}
+                          style={{ paddingHorizontal: 6, paddingVertical: 4, backgroundColor: isDark ? '#7f1d1d' : '#fee2e2', borderRadius: 6 }}
+                        >
+                          <Text style={{ fontSize: 10 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 ))}
               </ScrollView>
             </>
@@ -794,6 +1114,24 @@ export default function ProductsCatalogScreen({
                 {cardConfig.showTapHint && (
                   <View style={[styles.tapDetailsHintRow, { borderTopColor: colors.border }]}>
                     <Text style={[styles.tapDetailsHintText, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🔍 Tap Card to View Full Product Specs &amp; Tier Pricing →</Text>
+                  </View>
+                )}
+
+                {/* Admin & Manager Quick Product Edit / Delete */}
+                {canManage && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                    <TouchableOpacity
+                      onPress={() => openEditModal(p)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }}
+                    >
+                      <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteProduct(p.id, p.name)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, backgroundColor: isDark ? '#7f1d1d' : '#fee2e2' }}
+                    >
+                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </TouchableOpacity>
@@ -1251,17 +1589,21 @@ export default function ProductsCatalogScreen({
 
                 {/* Detail Action Buttons */}
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-                  <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal(viewDetailProduct)}>
-                    <Text style={styles.editBtnText}>✏️ Edit Product</Text>
-                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity style={styles.editBtn} onPress={() => openEditModal(viewDetailProduct)}>
+                      <Text style={styles.editBtnText}>✏️ Edit Product</Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity style={styles.quoteBtn} onPress={() => handleShareWhatsAppQuote(viewDetailProduct)}>
                     <Text style={styles.quoteBtnText}>💬 WhatsApp Quote</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteProduct(viewDetailProduct.id, viewDetailProduct.name)}>
-                    <Text style={styles.deleteBtnText}>🗑️ Delete</Text>
-                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteProduct(viewDetailProduct.id, viewDetailProduct.name)}>
+                      <Text style={styles.deleteBtnText}>🗑️ Delete</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
               </ScrollView>
@@ -1386,6 +1728,398 @@ export default function ProductsCatalogScreen({
             <TouchableOpacity style={styles.saveProductBtn} onPress={handleSaveBrand} activeOpacity={0.85}>
               <Text style={styles.saveProductBtnText}>💾 Save Brand →</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 📁 MANAGE CATEGORIES MODAL (Lists all categories with product counts, edit, delete, + create) */}
+      <Modal visible={manageCatsModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardLarge, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>📁 Categories Management</Text>
+                <Text style={styles.modalSub}>Admin & Manager Governance: Edit or delete categories with live product count tracking</Text>
+              </View>
+              <TouchableOpacity onPress={() => setManageCatsModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.saveProductBtn, { backgroundColor: '#4f46e5', marginTop: 4, marginBottom: 14 }]}
+                onPress={() => {
+                  setNewCatNameInput('');
+                  setNewSubCatNameInput('');
+                  setCatModalOpen(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveProductBtnText}>+ Add New Category</Text>
+              </TouchableOpacity>
+
+              {categories.map((cat) => {
+                const count = countProductsInCategory(cat.name);
+                return (
+                  <View key={cat.id} style={styles.modalManageRow}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.modalManageRowText}>📁 {cat.name}</Text>
+                      <Text style={styles.modalManageRowSub}>
+                        📦 {count} product(s) • {cat.subCategories.length} sub-categories
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.border }]}
+                        onPress={() => {
+                          setEditingCatOldName(cat.name);
+                          setEditingCatNewName(cat.name);
+                          setEditCatModalOpen(true);
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#7f1d1d' : '#fee2e2', borderColor: '#ef4444' }]}
+                        onPress={() => handleDeleteCategory(cat.name)}
+                      >
+                        <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✏️ EDIT CATEGORY MODAL */}
+      <Modal visible={editCatModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardSmall, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>✏️ Rename Category</Text>
+                <Text style={styles.modalSub}>Editing: "{editingCatOldName}"</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditCatModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Product Count Impact Warning */}
+            <View style={[styles.configInfoBanner, { borderColor: '#818cf8', backgroundColor: isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)' }]}>
+              <Text style={[styles.configInfoBannerText, { color: isDark ? '#c7d2fe' : '#3730a3' }]}>
+                ℹ️ <Text style={{ fontWeight: '900' }}>Product Count Notice:</Text> This category currently contains{' '}
+                <Text style={{ fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                  {countProductsInCategory(editingCatOldName)} product(s)
+                </Text>
+                . Renaming it will update all {countProductsInCategory(editingCatOldName)} associated product(s).
+              </Text>
+            </View>
+
+            <Text style={styles.inputLabel}>New Category Name:</Text>
+            <TextInput
+              style={styles.formInput}
+              value={editingCatNewName}
+              onChangeText={setEditingCatNewName}
+              placeholder="Category Name"
+              placeholderTextColor="#64748b"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.configResetBtn, { flex: 1 }]}
+                onPress={() => setEditCatModalOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configResetBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.configSaveBtn, { flex: 1.5, backgroundColor: '#4f46e5' }]}
+                onPress={() => handleConfirmEditCategory(editingCatOldName, editingCatNewName)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configSaveBtnText}>Confirm Rename →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 📂 MANAGE SUB-CATEGORIES MODAL */}
+      <Modal visible={manageSubCatsModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardLarge, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>📂 Sub-Categories Management</Text>
+                <Text style={styles.modalSub}>Select a parent category to manage its nested sub-categories</Text>
+              </View>
+              <TouchableOpacity onPress={() => setManageSubCatsModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Parent Category Selector */}
+            <Text style={[styles.inputLabel, { marginBottom: 6 }]}>1. Select Parent Category:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 12 }}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.catChip,
+                    selectedParentForSubManage === cat.name && styles.catChipActive,
+                  ]}
+                  onPress={() => setSelectedParentForSubManage(cat.name)}
+                >
+                  <Text style={[
+                    styles.catChipText,
+                    selectedParentForSubManage === cat.name && { color: '#818cf8', fontWeight: '900' },
+                  ]}>
+                    📁 {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.saveProductBtn, { backgroundColor: '#0284c7', marginTop: 0, marginBottom: 14 }]}
+              onPress={() => {
+                setNewSubCatParentInput(selectedParentForSubManage || (categories[0]?.name || ''));
+                setNewSubCatOnlyNameInput('');
+                setSubCatModalOpen(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.saveProductBtnText}>+ Add Sub-Category under "{selectedParentForSubManage}"</Text>
+            </TouchableOpacity>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+              {(() => {
+                const currentTree = categories.find((c) => c.name === selectedParentForSubManage);
+                const subCats = currentTree ? currentTree.subCategories : [];
+
+                if (subCats.length === 0) {
+                  return (
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginVertical: 20 }}>
+                      No sub-categories under "{selectedParentForSubManage}". Tap "+ Add Sub-Category" above.
+                    </Text>
+                  );
+                }
+
+                return subCats.map((sub) => {
+                  const count = countProductsInSubCategory(selectedParentForSubManage, sub);
+                  return (
+                    <View key={sub} style={styles.modalManageRow}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.modalManageRowText}>📂 {sub}</Text>
+                        <Text style={styles.modalManageRowSub}>
+                          📦 {count} product(s) in this sub-category
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.border }]}
+                          onPress={() => {
+                            setEditingSubCatParent(selectedParentForSubManage);
+                            setEditingSubCatOldName(sub);
+                            setEditingSubCatNewName(sub);
+                            setEditSubCatModalOpen(true);
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#7f1d1d' : '#fee2e2', borderColor: '#ef4444' }]}
+                          onPress={() => handleDeleteSubCategory(selectedParentForSubManage, sub)}
+                        >
+                          <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                });
+              })()}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✏️ EDIT SUB-CATEGORY MODAL */}
+      <Modal visible={editSubCatModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardSmall, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>✏️ Rename Sub-Category</Text>
+                <Text style={styles.modalSub}>Parent: "{editingSubCatParent}" • Editing: "{editingSubCatOldName}"</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditSubCatModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Product Count Impact Warning */}
+            <View style={[styles.configInfoBanner, { borderColor: '#38bdf8', backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(56, 189, 248, 0.08)' }]}>
+              <Text style={[styles.configInfoBannerText, { color: isDark ? '#bae6fd' : '#0369a1' }]}>
+                ℹ️ <Text style={{ fontWeight: '900' }}>Product Count Notice:</Text> This sub-category currently contains{' '}
+                <Text style={{ fontWeight: '900', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                  {countProductsInSubCategory(editingSubCatParent, editingSubCatOldName)} product(s)
+                </Text>
+                . Renaming it will update all {countProductsInSubCategory(editingSubCatParent, editingSubCatOldName)} associated product(s).
+              </Text>
+            </View>
+
+            <Text style={styles.inputLabel}>New Sub-Category Name:</Text>
+            <TextInput
+              style={styles.formInput}
+              value={editingSubCatNewName}
+              onChangeText={setEditingSubCatNewName}
+              placeholder="Sub-Category Name"
+              placeholderTextColor="#64748b"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.configResetBtn, { flex: 1 }]}
+                onPress={() => setEditSubCatModalOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configResetBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.configSaveBtn, { flex: 1.5, backgroundColor: '#0284c7' }]}
+                onPress={() => handleConfirmEditSubCategory(editingSubCatParent, editingSubCatOldName, editingSubCatNewName)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configSaveBtnText}>Confirm Rename →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🏷️ MANAGE BRANDS MODAL */}
+      <Modal visible={manageBrandsModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardLarge, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>🏷️ Brands Management</Text>
+                <Text style={styles.modalSub}>Admin & Manager Governance: Edit or delete brands with live product count tracking</Text>
+              </View>
+              <TouchableOpacity onPress={() => setManageBrandsModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.saveProductBtn, { backgroundColor: '#d97706', marginTop: 4, marginBottom: 14 }]}
+                onPress={() => {
+                  setNewBrandNameInput('');
+                  setBrandModalOpen(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveProductBtnText}>+ Add New Brand</Text>
+              </TouchableOpacity>
+
+              {brands.map((b) => {
+                const count = countProductsInBrand(b);
+                const isDefault = b.toLowerCase() === 'generic / unbranded';
+                return (
+                  <View key={b} style={styles.modalManageRow}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.modalManageRowText}>🏷️ {b}</Text>
+                      <Text style={styles.modalManageRowSub}>
+                        📦 {count} product(s) linked to this brand {isDefault ? '• (Default Brand)' : ''}
+                      </Text>
+                    </View>
+                    {!isDefault && (
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.border }]}
+                          onPress={() => {
+                            setEditingBrandOldName(b);
+                            setEditingBrandNewName(b);
+                            setEditBrandModalOpen(true);
+                          }}
+                        >
+                          <Text style={{ fontSize: 10, color: colors.text, fontWeight: '700' }}>✏️ Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionSmallBtn, { backgroundColor: isDark ? '#7f1d1d' : '#fee2e2', borderColor: '#ef4444' }]}
+                          onPress={() => handleDeleteBrand(b)}
+                        >
+                          <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>🗑️ Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✏️ EDIT BRAND MODAL */}
+      <Modal visible={editBrandModalOpen} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCardSmall, { paddingBottom: Math.max(insets.bottom + 16, 20) }]}>
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>✏️ Rename Brand</Text>
+                <Text style={styles.modalSub}>Editing: "{editingBrandOldName}"</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditBrandModalOpen(false)} style={styles.modalCloseBtn}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Product Count Impact Warning */}
+            <View style={[styles.configInfoBanner, { borderColor: '#f59e0b', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)' }]}>
+              <Text style={[styles.configInfoBannerText, { color: isDark ? '#fde68a' : '#b45309' }]}>
+                ℹ️ <Text style={{ fontWeight: '900' }}>Product Count Notice:</Text> This brand currently contains{' '}
+                <Text style={{ fontWeight: '900', color: isDark ? '#fbbf24' : '#d97706' }}>
+                  {countProductsInBrand(editingBrandOldName)} product(s)
+                </Text>
+                . Renaming it will update all {countProductsInBrand(editingBrandOldName)} associated product(s).
+              </Text>
+            </View>
+
+            <Text style={styles.inputLabel}>New Brand Name:</Text>
+            <TextInput
+              style={styles.formInput}
+              value={editingBrandNewName}
+              onChangeText={setEditingBrandNewName}
+              placeholder="Brand Name"
+              placeholderTextColor="#64748b"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.configResetBtn, { flex: 1 }]}
+                onPress={() => setEditBrandModalOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configResetBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.configSaveBtn, { flex: 1.5, backgroundColor: '#d97706' }]}
+                onPress={() => handleConfirmEditBrand(editingBrandOldName, editingBrandNewName)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.configSaveBtnText}>Confirm Rename →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2264,5 +2998,35 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '900',
+  },
+  modalManageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardBgElevated,
+    marginBottom: 8,
+  },
+  modalManageRowText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  modalManageRowSub: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  actionSmallBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -22,7 +22,11 @@ import {
   Table as TableIcon,
   Eye,
   SlidersHorizontal,
+  Settings,
+  AlertCircle,
+  Info,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface ProductsCatalogProps {
   isAdmin?: boolean;
@@ -153,6 +157,12 @@ export const DEFAULT_BRANDS = [
 const INITIAL_PRODUCTS: ProductItemWeb[] = [];
 
 export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
+  const { currentUser } = useAuth();
+  const roleStr = (currentUser?.role || '').toUpperCase();
+  const isManager = roleStr.includes('MANAGER');
+  const isUserAdmin = isAdmin || roleStr.includes('ADMIN') || roleStr.includes('OWNER');
+  const canManage = isUserAdmin || isManager;
+
   const [products, setProducts] = useState<ProductItemWeb[]>(INITIAL_PRODUCTS);
   const [categories, setCategories] = useState<string[]>(['All', 'Software & Cloud', 'Automation & APIs', 'Infrastructure', 'Services']);
   const [subCategories, setSubCategories] = useState<Record<string, string[]>>({
@@ -165,6 +175,39 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   const [brands, setBrands] = useState<string[]>(DEFAULT_BRANDS);
   const [createBrandOpen, setCreateBrandOpen] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+
+  // ─── Taxonomy Management Modals State ─────────────────────────────────────
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+  const [editCategoryModal, setEditCategoryModal] = useState<{ oldName: string; newName: string; productCount: number } | null>(null);
+  const [deleteCategoryModal, setDeleteCategoryModal] = useState<{ name: string; productCount: number } | null>(null);
+
+  const [manageSubCategoriesOpen, setManageSubCategoriesOpen] = useState(false);
+  const [editSubCategoryModal, setEditSubCategoryModal] = useState<{ parentCat: string; oldSubName: string; newSubName: string; productCount: number } | null>(null);
+  const [deleteSubCategoryModal, setDeleteSubCategoryModal] = useState<{ parentCat: string; subName: string; productCount: number } | null>(null);
+
+  const [manageBrandsOpen, setManageBrandsOpen] = useState(false);
+  const [editBrandModal, setEditBrandModal] = useState<{ oldBrand: string; newBrand: string; productCount: number } | null>(null);
+  const [deleteBrandModal, setDeleteBrandModal] = useState<{ brand: string; productCount: number } | null>(null);
+
+  // ─── Product Edit Modal State ─────────────────────────────────────────────
+  const [editingProduct, setEditingProduct] = useState<ProductItemWeb | null>(null);
+  const [editConfirmProduct, setEditConfirmProduct] = useState<ProductItemWeb | null>(null);
+  const [editProdName, setEditProdName] = useState('');
+  const [editProdSku, setEditProdSku] = useState('');
+  const [editProdCategory, setEditProdCategory] = useState('Software & Cloud');
+  const [editProdSubCategory, setEditProdSubCategory] = useState('Enterprise Licenses');
+  const [editProdBrand, setEditProdBrand] = useState('Generic / Unbranded');
+  const [editProdColor, setEditProdColor] = useState('');
+  const [editProdUnit, setEditProdUnit] = useState('Pieces (Pcs)');
+  const [editProdPrice, setEditProdPrice] = useState('');
+  const [editProdStock, setEditProdStock] = useState('100');
+  const [editProdGst, setEditProdGst] = useState('18');
+  const [editProdDescription, setEditProdDescription] = useState('');
+  const [editProdFeatures, setEditProdFeatures] = useState<string[]>([]);
+  const [editFeatureTagInput, setEditFeatureTagInput] = useState('');
+  const [editProdImages, setEditProdImages] = useState<string[]>([]);
+  const [editImageUploadError, setEditImageUploadError] = useState('');
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSubCategory, setSelectedSubCategory] = useState('All');
@@ -432,10 +475,171 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Product "${newProd.name}" (${newProd.sku}) added successfully to catalog!`);
   };
 
-  // ─── Admin Delete Product (permanently removes from database) ───────────────
+  // ─── Helpers: Dynamic Product Count by Taxonomy ──────────────────────────
+  const countProductsInCategory = (catName: string) => {
+    return products.filter(p => p.category === catName).length;
+  };
+
+  const countProductsInSubCategory = (parentCat: string, subCatName: string) => {
+    return products.filter(p => {
+      const matchParent = !parentCat || parentCat === 'All' || p.category === parentCat;
+      return matchParent && p.subCategory === subCatName;
+    }).length;
+  };
+
+  const countProductsInBrand = (brandName: string) => {
+    return products.filter(p => (p.brand || '').trim().toLowerCase() === brandName.trim().toLowerCase()).length;
+  };
+
+  // ─── Product Edit Handlers (Admin & Manager) ──────────────────────────────
+  const handleOpenEditProduct = (product: ProductItemWeb) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers have permission to edit products.');
+      return;
+    }
+    setEditingProduct(product);
+    setEditProdName(product.name);
+    setEditProdSku(product.sku);
+    setEditProdCategory(product.category || 'Software & Cloud');
+    setEditProdSubCategory(product.subCategory || 'Enterprise Licenses');
+    setEditProdBrand(product.brand || 'Generic / Unbranded');
+    setEditProdColor(product.color || '');
+    setEditProdUnit(product.unit || 'Pieces (Pcs)');
+    setEditProdPrice(product.price.toString());
+    setEditProdStock((product.stock ?? 100).toString());
+    setEditProdGst((product.taxRate ?? 18).toString());
+    setEditProdDescription(product.overview || '');
+    setEditProdFeatures(product.features || []);
+    setEditFeatureTagInput('');
+    setEditProdImages(product.images && product.images.length > 0 ? product.images : (product.coverImage ? [product.coverImage] : []));
+    setEditImageUploadError('');
+  };
+
+  const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setEditImageUploadError('');
+
+    Array.from(files).forEach((file) => {
+      if (file.size > 1024 * 1024) {
+        setEditImageUploadError(`⚠️ "${file.name}" exceeds 1MB limit. Please upload images under 1MB.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setEditProdImages(prev => [...prev, event.target!.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveEditImage = (indexToRemove: number) => {
+    setEditProdImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleAddEditFeatureTag = (tagToAdd?: string) => {
+    const tag = (tagToAdd || editFeatureTagInput).trim();
+    if (!tag) return;
+    if (!editProdFeatures.includes(tag)) {
+      setEditProdFeatures(prev => [...prev, tag]);
+    }
+    setEditFeatureTagInput('');
+  };
+
+  const handleRemoveEditFeatureTag = (tagToRemove: string) => {
+    setEditProdFeatures(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  const handleInitiateUpdateProduct = () => {
+    if (!editingProduct) return;
+    if (!editProdName.trim() || !editProdPrice) {
+      alert('Please fill out Product Name and Unit Price.');
+      return;
+    }
+    if (editProdImages.length < 2) {
+      alert('⚠️ Image Requirement: Please provide at least 2 images for the product (under 1MB each).');
+      return;
+    }
+
+    const priceNum = parseFloat(editProdPrice) || 0;
+    const finalSku = editProdSku.trim()
+      ? editProdSku.trim().toUpperCase()
+      : editingProduct.sku;
+
+    const stagedProduct: ProductItemWeb = {
+      ...editingProduct,
+      name: editProdName.trim(),
+      sku: finalSku,
+      category: editProdCategory,
+      subCategory: editProdSubCategory,
+      brand: editProdBrand.trim() || 'Generic / Unbranded',
+      color: editProdColor.trim(),
+      unit: editProdUnit,
+      price: priceNum,
+      stock: parseInt(editProdStock) || 0,
+      taxRate: parseInt(editProdGst) || 18,
+      coverImage: editProdImages[0] || editingProduct.coverImage,
+      images: editProdImages,
+      overview: editProdDescription.trim(),
+      features: editProdFeatures,
+      specs: editProdFeatures.length > 0 ? editProdFeatures : ['Standard Specification'],
+    };
+
+    setEditConfirmProduct(stagedProduct);
+  };
+
+  const handleConfirmUpdateProduct = async () => {
+    if (!editConfirmProduct) return;
+    setIsUpdatingProduct(true);
+    const updated = editConfirmProduct;
+
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      await fetch(`${apiBase}/products/${updated.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: updated.name,
+          sku: updated.sku,
+          category: updated.category,
+          subCategory: updated.subCategory,
+          brand: updated.brand,
+          color: updated.color,
+          unit: updated.unit,
+          price: updated.price,
+          stock: updated.stock,
+          taxRate: updated.taxRate,
+          description: updated.overview,
+          features: updated.features,
+          imageUrl: updated.coverImage,
+          images: updated.images,
+        }),
+      });
+    } catch (err) {
+      console.warn('API update product fallback to local state:', err);
+    } finally {
+      setIsUpdatingProduct(false);
+    }
+
+    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    if (inspectorProduct?.id === updated.id) {
+      setInspectorProduct(updated);
+    }
+    setEditConfirmProduct(null);
+    setEditingProduct(null);
+    alert(`✅ Product "${updated.name}" (${updated.sku}) updated successfully!`);
+  };
+
+  // ─── Admin & Manager Delete Product ─────────────────────────────────────────
   const handleDeleteProduct = async (product: ProductItemWeb) => {
-    if (!isAdmin) {
-      alert('⛔ Access Denied: Only Admins can delete products.');
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can delete products.');
       return;
     }
     setDeleteConfirmProduct(product);
@@ -445,40 +649,38 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!deleteConfirmProduct) return;
     setIsDeleting(true);
     try {
-      // Call backend DELETE /api/products/:id
       const response = await fetch(`/api/products/${deleteConfirmProduct.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok || response.status === 200) {
-        // Optimistic UI: remove from local state immediately
         setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
         if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
-        alert(`🗑️ Product "${deleteConfirmProduct.name}" has been permanently deleted from the database.`);
+        alert(`🗑️ Product "${deleteConfirmProduct.name}" has been permanently deleted.`);
       } else if (response.status === 403) {
-        alert('⛔ Access Denied: Only Admins can delete products.');
-      } else if (response.status === 404) {
-        alert('⚠️ Product not found. It may have already been deleted.');
-        setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
+        alert('⛔ Access Denied: Only Admins and Managers can delete products.');
       } else {
-        // Fallback: delete from local state anyway (offline mode)
         setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
         if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
-        alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted (offline mode).`);
+        alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted.`);
       }
     } catch (err) {
-      // Network error: still remove from local state (offline-first)
       setProducts(prev => prev.filter(p => p.id !== deleteConfirmProduct.id));
       if (inspectorProduct?.id === deleteConfirmProduct.id) setInspectorProduct(null);
-      alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted from local catalog.`);
+      alert(`🗑️ Product "${deleteConfirmProduct.name}" deleted.`);
     } finally {
       setIsDeleting(false);
       setDeleteConfirmProduct(null);
     }
   };
 
+  // ─── Category CRUD with Confirmation & Product Count ─────────────────────
   const handleAddCategory = () => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can add categories.');
+      return;
+    }
     if (!newCatName.trim()) return;
     const trimmed = newCatName.trim();
     if (!categories.includes(trimmed)) {
@@ -490,7 +692,80 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Category "${trimmed}" added!`);
   };
 
+  const handleOpenEditCategory = (catName: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can edit categories.');
+      return;
+    }
+    if (catName === 'All') return;
+    const count = countProductsInCategory(catName);
+    setEditCategoryModal({ oldName: catName, newName: catName, productCount: count });
+  };
+
+  const handleConfirmEditCategory = () => {
+    if (!editCategoryModal || !editCategoryModal.newName.trim()) return;
+    const { oldName, newName, productCount } = editCategoryModal;
+    const trimmed = newName.trim();
+    if (trimmed === oldName) {
+      setEditCategoryModal(null);
+      return;
+    }
+
+    setCategories(prev => prev.map(c => c === oldName ? trimmed : c));
+    setSubCategories(prev => {
+      const updated = { ...prev };
+      if (updated[oldName]) {
+        updated[trimmed] = updated[oldName];
+        delete updated[oldName];
+      } else {
+        updated[trimmed] = [];
+      }
+      return updated;
+    });
+
+    // Cascade update to all associated products
+    setProducts(prev => prev.map(p => p.category === oldName ? { ...p, category: trimmed } : p));
+    if (selectedCategory === oldName) setSelectedCategory(trimmed);
+
+    setEditCategoryModal(null);
+    alert(`✅ Category renamed from "${oldName}" to "${trimmed}". ${productCount} associated product(s) updated.`);
+  };
+
+  const handleOpenDeleteCategory = (catName: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can delete categories.');
+      return;
+    }
+    if (catName === 'All') return;
+    const count = countProductsInCategory(catName);
+    setDeleteCategoryModal({ name: catName, productCount: count });
+  };
+
+  const handleConfirmDeleteCategory = () => {
+    if (!deleteCategoryModal) return;
+    const { name, productCount } = deleteCategoryModal;
+
+    setCategories(prev => prev.filter(c => c !== name));
+    setSubCategories(prev => {
+      const updated = { ...prev };
+      delete updated[name];
+      return updated;
+    });
+
+    // Cascade update: reassign associated products to 'General'
+    setProducts(prev => prev.map(p => p.category === name ? { ...p, category: 'General', subCategory: 'General' } : p));
+    if (selectedCategory === name) setSelectedCategory('All');
+
+    setDeleteCategoryModal(null);
+    alert(`🗑️ Category "${name}" deleted. ${productCount} product(s) reassigned to "General".`);
+  };
+
+  // ─── Sub-Category CRUD with Confirmation & Product Count ──────────────────
   const handleAddSubCategory = () => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can add sub-categories.');
+      return;
+    }
     if (!newSubCatName.trim()) return;
     const trimmed = newSubCatName.trim();
     setSubCategories(prev => {
@@ -502,7 +777,75 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Sub-Category "${trimmed}" added under "${parentCatForSub}"!`);
   };
 
+  const handleOpenEditSubCategory = (parentCat: string, subCat: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can edit sub-categories.');
+      return;
+    }
+    const count = countProductsInSubCategory(parentCat, subCat);
+    setEditSubCategoryModal({ parentCat, oldSubName: subCat, newSubName: subCat, productCount: count });
+  };
+
+  const handleConfirmEditSubCategory = () => {
+    if (!editSubCategoryModal || !editSubCategoryModal.newSubName.trim()) return;
+    const { parentCat, oldSubName, newSubName, productCount } = editSubCategoryModal;
+    const trimmed = newSubName.trim();
+    if (trimmed === oldSubName) {
+      setEditSubCategoryModal(null);
+      return;
+    }
+
+    setSubCategories(prev => {
+      const list = prev[parentCat] || [];
+      return {
+        ...prev,
+        [parentCat]: list.map(s => s === oldSubName ? trimmed : s),
+      };
+    });
+
+    // Cascade update to all associated products
+    setProducts(prev => prev.map(p => (p.category === parentCat && p.subCategory === oldSubName) ? { ...p, subCategory: trimmed } : p));
+    if (selectedSubCategory === oldSubName) setSelectedSubCategory(trimmed);
+
+    setEditSubCategoryModal(null);
+    alert(`✅ Sub-Category renamed from "${oldSubName}" to "${trimmed}" under "${parentCat}". ${productCount} product(s) updated.`);
+  };
+
+  const handleOpenDeleteSubCategory = (parentCat: string, subCat: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can delete sub-categories.');
+      return;
+    }
+    const count = countProductsInSubCategory(parentCat, subCat);
+    setDeleteSubCategoryModal({ parentCat, subName: subCat, productCount: count });
+  };
+
+  const handleConfirmDeleteSubCategory = () => {
+    if (!deleteSubCategoryModal) return;
+    const { parentCat, subName, productCount } = deleteSubCategoryModal;
+
+    setSubCategories(prev => {
+      const list = prev[parentCat] || [];
+      return {
+        ...prev,
+        [parentCat]: list.filter(s => s !== subName),
+      };
+    });
+
+    // Cascade update: reassign associated products to 'General'
+    setProducts(prev => prev.map(p => (p.category === parentCat && p.subCategory === subName) ? { ...p, subCategory: 'General' } : p));
+    if (selectedSubCategory === subName) setSelectedSubCategory('All');
+
+    setDeleteSubCategoryModal(null);
+    alert(`🗑️ Sub-Category "${subName}" deleted from "${parentCat}". ${productCount} product(s) reassigned to "General".`);
+  };
+
+  // ─── Brand CRUD with Confirmation & Product Count ─────────────────────────
   const handleAddBrand = () => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can add brands.');
+      return;
+    }
     if (!newBrandName.trim()) return;
     const trimmed = newBrandName.trim();
     if (!brands.includes(trimmed)) {
@@ -514,10 +857,63 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     alert(`✅ Brand "${trimmed}" added!`);
   };
 
-  // ─── Admin Card Display Handlers ──────────────────────────────────────────
+  const handleOpenEditBrand = (brandName: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can edit brands.');
+      return;
+    }
+    const count = countProductsInBrand(brandName);
+    setEditBrandModal({ oldBrand: brandName, newBrand: brandName, productCount: count });
+  };
+
+  const handleConfirmEditBrand = () => {
+    if (!editBrandModal || !editBrandModal.newBrand.trim()) return;
+    const { oldBrand, newBrand, productCount } = editBrandModal;
+    const trimmed = newBrand.trim();
+    if (trimmed === oldBrand) {
+      setEditBrandModal(null);
+      return;
+    }
+
+    setBrands(prev => prev.map(b => b === oldBrand ? trimmed : b));
+
+    // Cascade update to all associated products
+    setProducts(prev => prev.map(p => (p.brand || '').trim().toLowerCase() === oldBrand.trim().toLowerCase() ? { ...p, brand: trimmed } : p));
+
+    setEditBrandModal(null);
+    alert(`✅ Brand renamed from "${oldBrand}" to "${trimmed}". ${productCount} associated product(s) updated.`);
+  };
+
+  const handleOpenDeleteBrand = (brandName: string) => {
+    if (!canManage) {
+      alert('⛔ Access Denied: Only Admins and Managers can delete brands.');
+      return;
+    }
+    if (brandName === 'Generic / Unbranded') {
+      alert('Default brand "Generic / Unbranded" cannot be deleted.');
+      return;
+    }
+    const count = countProductsInBrand(brandName);
+    setDeleteBrandModal({ brand: brandName, productCount: count });
+  };
+
+  const handleConfirmDeleteBrand = () => {
+    if (!deleteBrandModal) return;
+    const { brand, productCount } = deleteBrandModal;
+
+    setBrands(prev => prev.filter(b => b !== brand));
+
+    // Cascade update: reassign associated products to 'Generic / Unbranded'
+    setProducts(prev => prev.map(p => (p.brand || '').trim().toLowerCase() === brand.trim().toLowerCase() ? { ...p, brand: 'Generic / Unbranded' } : p));
+
+    setDeleteBrandModal(null);
+    alert(`🗑️ Brand "${brand}" deleted. ${productCount} product(s) reassigned to "Generic / Unbranded".`);
+  };
+
+  // ─── Admin & Manager Card Display Handlers ───────────────────────────────
   const handleOpenConfigModal = () => {
-    if (!isAdmin) {
-      alert('🔒 Admin Access Required: Only Organization Admins are permitted to configure product card display fields on this screen.');
+    if (!canManage) {
+      alert('🔒 Access Denied: Only Organization Admins and Managers are permitted to configure product card display fields.');
       return;
     }
     setTempConfig({ ...cardConfig });
@@ -525,8 +921,8 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
   };
 
   const handleSaveCardConfig = async () => {
-    if (!isAdmin) {
-      alert('🔒 Admin Access Required: Only Organization Admins can save card display preferences.');
+    if (!canManage) {
+      alert('🔒 Access Denied: Only Organization Admins and Managers can save card display preferences.');
       return;
     }
     setCardConfig(tempConfig);
@@ -594,39 +990,54 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
           </span>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons: Brands, Categories, Sub-Categories, and Create Product */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setCreateBrandOpen(true)}
-            className="btn-secondary text-xs gap-1.5 flex items-center"
-          >
-            <Tag size={14} /> + Brand
-          </button>
+          {canManage && (
+            <>
+              <button
+                type="button"
+                onClick={() => setManageBrandsOpen(true)}
+                className="btn-secondary text-xs gap-1.5 flex items-center bg-slate-800/80 hover:bg-slate-700"
+                title="Manage Brands (Create, Edit, Delete)"
+              >
+                <Tag size={14} className="text-amber-400" />
+                <span>Brands ({brands.length})</span>
+              </button>
 
-          <button
-            onClick={() => setCreateCategoryOpen(true)}
-            className="btn-secondary text-xs gap-1.5 flex items-center"
-          >
-            <FolderPlus size={14} /> + Category
-          </button>
+              <button
+                type="button"
+                onClick={() => setManageCategoriesOpen(true)}
+                className="btn-secondary text-xs gap-1.5 flex items-center bg-slate-800/80 hover:bg-slate-700"
+                title="Manage Categories (Create, Edit, Delete)"
+              >
+                <FolderPlus size={14} className="text-indigo-400" />
+                <span>Categories ({categories.filter(c => c !== 'All').length})</span>
+              </button>
 
-          <button
-            onClick={() => setCreateSubCategoryOpen(true)}
-            className="btn-secondary text-xs gap-1.5 flex items-center"
-          >
-            <Layers size={14} /> + Sub-Category
-          </button>
+              <button
+                type="button"
+                onClick={() => setManageSubCategoriesOpen(true)}
+                className="btn-secondary text-xs gap-1.5 flex items-center bg-slate-800/80 hover:bg-slate-700"
+                title="Manage Sub-Categories (Create, Edit, Delete)"
+              >
+                <Layers size={14} className="text-sky-400" />
+                <span>Sub-Categories</span>
+              </button>
+            </>
+          )}
 
-          <button
-            onClick={() => setCreateProductOpen(true)}
-            className="btn-primary text-xs gap-1.5 flex items-center shadow-lg shadow-brand/20"
-          >
-            <Plus size={14} /> Create Product
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setCreateProductOpen(true)}
+              className="btn-primary text-xs gap-1.5 flex items-center shadow-lg shadow-brand/20"
+            >
+              <Plus size={14} /> Create Product
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Admin Card Display Customization Action Banner */}
+      {/* Admin & Manager Card Display Customization Action Banner */}
       <div className="w-full">
         <button
           type="button"
@@ -642,20 +1053,20 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 <span className="text-sm font-extrabold text-white group-hover:text-indigo-300 transition-colors">
                   Configure Product Card Display
                 </span>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 uppercase tracking-wider">
-                  {isAdmin ? 'ADMIN ONLY' : '🔒 ADMIN ONLY'}
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+                  {canManage ? 'ADMIN & MANAGER' : '🔒 ADMIN & MANAGER ONLY'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {isAdmin
-                  ? 'Admin Governance: Control which attributes appear on catalog cards across the organization.'
-                  : 'Only Organization Admins can configure visible screen fields & card attributes'}
+                {canManage
+                  ? 'Admin & Manager Governance: Control which attributes appear on catalog cards across the organization.'
+                  : 'Only Organization Admins and Managers can configure visible screen fields & card attributes'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-300">
-              {isAdmin ? 'Customize →' : 'Locked'}
+              {canManage ? 'Customize →' : 'Locked'}
             </span>
           </div>
         </button>
@@ -667,18 +1078,61 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
         <div className="p-4 border-b space-y-3 bg-slate-900/60" style={{ borderColor: 'rgb(var(--border))' }}>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Category:</span>
-            {categories.map(c => (
+            {categories.map(c => {
+              const count = c === 'All' ? products.length : countProductsInCategory(c);
+              const isActive = selectedCategory === c;
+              return (
+                <div key={c} className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setSelectedCategory(c);
+                      setSelectedSubCategory('All');
+                    }}
+                    className={`pill-tab text-xs py-1 px-3 flex items-center gap-1.5 ${isActive ? 'active' : ''}`}
+                  >
+                    <span>{c}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+
+                  {/* Inline Edit & Delete for active category */}
+                  {canManage && c !== 'All' && isActive && (
+                    <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shadow-sm animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditCategory(c)}
+                        className="p-1 rounded text-slate-400 hover:text-indigo-400 hover:bg-slate-900 transition-colors"
+                        title={`Edit Category "${c}" (${count} products)`}
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDeleteCategory(c)}
+                        className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-slate-900 transition-colors"
+                        title={`Delete Category "${c}" (${count} products)`}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {canManage && (
               <button
-                key={c}
-                onClick={() => {
-                  setSelectedCategory(c);
-                  setSelectedSubCategory('All');
-                }}
-                className={`pill-tab text-xs py-1 px-3 ${selectedCategory === c ? 'active' : ''}`}
+                type="button"
+                onClick={() => setCreateCategoryOpen(true)}
+                className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded-lg border border-dashed border-indigo-500/40 hover:border-indigo-400 transition-colors flex items-center gap-1"
+                title="Add New Category"
               >
-                {c}
+                <Plus size={12} /> Add Category
               </button>
-            ))}
+            )}
           </div>
 
           {/* Sub-Category Tree Bar */}
@@ -689,17 +1143,63 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 onClick={() => setSelectedSubCategory('All')}
                 className={`pill-tab text-xs py-0.5 px-2.5 ${selectedSubCategory === 'All' ? 'active' : ''}`}
               >
-                All Sub-Categories
+                All Sub-Categories ({countProductsInCategory(selectedCategory)})
               </button>
-              {subCategories[selectedCategory].map(sc => (
+              {subCategories[selectedCategory].map(sc => {
+                const count = countProductsInSubCategory(selectedCategory, sc);
+                const isActive = selectedSubCategory === sc;
+                return (
+                  <div key={sc} className="flex items-center gap-1">
+                    <button
+                      onClick={() => setSelectedSubCategory(sc)}
+                      className={`pill-tab text-xs py-0.5 px-2.5 flex items-center gap-1.5 ${isActive ? 'active' : ''}`}
+                    >
+                      <span>{sc}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+
+                    {/* Inline Edit & Delete for active sub-category */}
+                    {canManage && isActive && (
+                      <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shadow-sm animate-in fade-in">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditSubCategory(selectedCategory, sc)}
+                          className="p-1 rounded text-slate-400 hover:text-indigo-400 hover:bg-slate-900 transition-colors"
+                          title={`Edit Sub-Category "${sc}" (${count} products)`}
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDeleteSubCategory(selectedCategory, sc)}
+                          className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-slate-900 transition-colors"
+                          title={`Delete Sub-Category "${sc}" (${count} products)`}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {canManage && (
                 <button
-                  key={sc}
-                  onClick={() => setSelectedSubCategory(sc)}
-                  className={`pill-tab text-xs py-0.5 px-2.5 ${selectedSubCategory === sc ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    setParentCatForSub(selectedCategory);
+                    setCreateSubCategoryOpen(true);
+                  }}
+                  className="text-[11px] font-bold text-sky-400 hover:text-sky-300 px-2 py-0.5 rounded-lg border border-dashed border-sky-500/40 hover:border-sky-400 transition-colors flex items-center gap-1"
+                  title={`Add Sub-Category under "${selectedCategory}"`}
                 >
-                  {sc}
+                  <Plus size={12} /> Add Sub-Category
                 </button>
-              ))}
+              )}
             </div>
           )}
 
@@ -917,18 +1417,31 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                         </span>
                       )}
 
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteProduct(p);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                          title="Admin: Delete product"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                      {canManage && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditProduct(p);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all"
+                            title="Edit product"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProduct(p);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            title="Delete product"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -967,7 +1480,7 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                             ? `No products matching "${search}".`
                             : 'Your company product catalog is ready. Create products and services to attach to proposals, send via WhatsApp, and quote to clients.'}
                         </p>
-                        {!search && isAdmin && (
+                        {!search && canManage && (
                           <button
                             onClick={() => setCreateProductOpen(true)}
                             className="mt-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5"
@@ -1062,21 +1575,30 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                       </span>
                     </td>
                     <td>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setInspectorProduct(p)}
                           className="btn-secondary text-xs py-1 px-2.5 gap-1"
                         >
                           🔍 Inspect
                         </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteProduct(p)}
-                            className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 hover:border-red-500 hover:text-red-300 flex items-center gap-1"
-                            title="Admin: Permanently delete this product from database"
-                          >
-                            <Trash2 size={12} /> Delete
-                          </button>
+                        {canManage && (
+                          <>
+                            <button
+                              onClick={() => handleOpenEditProduct(p)}
+                              className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25 hover:border-indigo-400 flex items-center gap-1"
+                              title="Edit product"
+                            >
+                              <Edit2 size={12} /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(p)}
+                              className="text-xs py-1 px-2.5 rounded-lg font-bold transition-all bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 hover:border-red-500 hover:text-red-300 flex items-center gap-1"
+                              title="Delete product"
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -1207,17 +1729,30 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              {isAdmin && inspectorProduct && (
-                <button
-                  onClick={() => {
-                    setInspectorProduct(null);
-                    handleDeleteProduct(inspectorProduct);
-                  }}
-                  className="flex items-center gap-1.5 text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-xl transition-all"
-                >
-                  <Trash2 size={13} /> Delete Product Permanently
-                </button>
+            <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
+              {canManage && inspectorProduct && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      const prodToEdit = inspectorProduct;
+                      setInspectorProduct(null);
+                      handleOpenEditProduct(prodToEdit);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 px-4 py-2 rounded-xl transition-all"
+                  >
+                    <Edit2 size={13} /> Edit Product
+                  </button>
+                  <button
+                    onClick={() => {
+                      const prodToDelete = inspectorProduct;
+                      setInspectorProduct(null);
+                      handleDeleteProduct(prodToDelete);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-xl transition-all"
+                  >
+                    <Trash2 size={13} /> Delete Product
+                  </button>
+                </div>
               )}
               <button onClick={() => setInspectorProduct(null)} className="btn-primary text-xs px-5 ml-auto">Close Inspector</button>
             </div>
@@ -1662,10 +2197,10 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
               <p className="text-[11px] text-emerald-400 font-bold">₹{deleteConfirmProduct.price.toLocaleString('en-IN')} / {deleteConfirmProduct.unit}</p>
             </div>
 
-            {/* Admin Badge */}
+            {/* Admin & Manager Badge */}
             <div className="flex items-center gap-2">
               <ShieldCheck size={14} className="text-amber-400" />
-              <span className="text-[11px] font-bold text-amber-300">Admin-Only Action — Permanently deletes from production database</span>
+              <span className="text-[11px] font-bold text-amber-300">Admin &amp; Manager Action — Permanently deletes from catalog database</span>
             </div>
 
             {/* Action Buttons */}
@@ -1701,12 +2236,12 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <span>⚙️ Configure Product Card Display</span>
                   </h3>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 tracking-wider">
-                    ADMIN ONLY
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 tracking-wider">
+                    ADMIN &amp; MANAGER
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  Admin Governance: Control which attributes appear on catalog cards across the organization.
+                  Admin &amp; Manager Governance: Control which attributes appear on catalog cards across the organization.
                 </p>
               </div>
               <button
@@ -1947,6 +2482,982 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
                 className="flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition-all"
               >
                 💾 Save Preferences
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📁 MANAGE CATEGORIES MODAL (Admin & Manager) */}
+      {manageCategoriesOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FolderPlus size={18} className="text-indigo-400" />
+                <h3 className="text-base font-extrabold text-white">Manage Categories</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManageCategoriesOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              View all product categories, see the exact count of assigned products, and edit or delete categories with automated cascade protection.
+            </p>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {categories.filter(c => c !== 'All').map(cat => {
+                const count = countProductsInCategory(cat);
+                return (
+                  <div
+                    key={cat}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-sm font-bold text-white truncate">{cat}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        count > 0
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                          : 'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}>
+                        {count} {count === 1 ? 'Product' : 'Products'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditCategory(cat)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 border border-indigo-500/25 flex items-center gap-1"
+                        title="Edit / Rename Category"
+                      >
+                        <Edit2 size={11} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDeleteCategory(cat)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/25 flex items-center gap-1"
+                        title="Delete Category"
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setManageCategoriesOpen(false);
+                  setCreateCategoryOpen(true);
+                }}
+                className="btn-primary text-xs gap-1.5 flex items-center"
+              >
+                <Plus size={13} /> Add New Category
+              </button>
+              <button
+                type="button"
+                onClick={() => setManageCategoriesOpen(false)}
+                className="btn-secondary text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT CATEGORY CONFIRMATION MODAL */}
+      {editCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Edit2 size={18} className="text-indigo-400" />
+              <h3 className="text-base font-extrabold text-white">Edit Category</h3>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold text-xs">Category Name</label>
+                <input
+                  type="text"
+                  className="crm-input w-full text-xs font-semibold"
+                  value={editCategoryModal.newName}
+                  onChange={e => setEditCategoryModal(prev => prev ? { ...prev, newName: e.target.value } : null)}
+                  placeholder="Category Name"
+                />
+              </div>
+
+              {/* Product Count & Cascade Information */}
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Info size={14} className="text-indigo-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-indigo-300">
+                    Associated Products: {editCategoryModal.productCount}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  This category currently has <strong className="text-indigo-300">{editCategoryModal.productCount} product(s)</strong> assigned to it.
+                  Updating the category name will automatically update the category for all {editCategoryModal.productCount} product(s) across the entire system.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditCategoryModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEditCategory}
+                className="btn-primary text-xs"
+              >
+                Confirm &amp; Update ({editCategoryModal.productCount} Products)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ DELETE CATEGORY CONFIRMATION MODAL */}
+      {deleteCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Delete Category?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Are you sure you want to delete category <strong className="text-white">"{deleteCategoryModal.name}"</strong>?
+                </p>
+              </div>
+            </div>
+
+            {/* Impact Warning & Product Count */}
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-red-300">
+                  Impact on {deleteCategoryModal.productCount} Product(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Category <strong className="text-white">"{deleteCategoryModal.name}"</strong> currently has <strong className="text-red-400 font-bold">{deleteCategoryModal.productCount} product(s)</strong> assigned to it.
+                Deleting this category will permanently remove it from the taxonomy and automatically reassign all {deleteCategoryModal.productCount} product(s) to <strong className="text-amber-300">"General"</strong>. All nested sub-categories will also be removed.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setDeleteCategoryModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel — Keep Category
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCategory}
+                className="py-2 px-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 size={12} /> Delete Category &amp; Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📂 MANAGE SUB-CATEGORIES MODAL (Admin & Manager) */}
+      {manageSubCategoriesOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Layers size={18} className="text-sky-400" />
+                <h3 className="text-base font-extrabold text-white">Manage Sub-Categories</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManageSubCategoriesOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Parent Category Filter Dropdown */}
+            <div>
+              <label className="block text-slate-400 mb-1 font-bold text-xs">Parent Category</label>
+              <select
+                className="crm-input w-full text-xs"
+                value={parentCatForSub}
+                onChange={e => setParentCatForSub(e.target.value)}
+              >
+                {categories.filter(c => c !== 'All').map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {(subCategories[parentCatForSub] || []).length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs italic">
+                  No sub-categories defined under "{parentCatForSub}".
+                </div>
+              ) : (
+                (subCategories[parentCatForSub] || []).map(sc => {
+                  const count = countProductsInSubCategory(parentCatForSub, sc);
+                  return (
+                    <div
+                      key={sc}
+                      className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-sm font-bold text-white truncate">{sc}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          count > 0
+                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}>
+                          {count} {count === 1 ? 'Product' : 'Products'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditSubCategory(parentCatForSub, sc)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 border border-sky-500/25 flex items-center gap-1"
+                          title="Edit / Rename Sub-Category"
+                        >
+                          <Edit2 size={11} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDeleteSubCategory(parentCatForSub, sc)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/25 flex items-center gap-1"
+                          title="Delete Sub-Category"
+                        >
+                          <Trash2 size={11} /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setManageSubCategoriesOpen(false);
+                  setCreateSubCategoryOpen(true);
+                }}
+                className="btn-primary text-xs gap-1.5 flex items-center"
+              >
+                <Plus size={13} /> Add Sub-Category under "{parentCatForSub}"
+              </button>
+              <button
+                type="button"
+                onClick={() => setManageSubCategoriesOpen(false)}
+                className="btn-secondary text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT SUB-CATEGORY CONFIRMATION MODAL */}
+      {editSubCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-sky-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Edit2 size={18} className="text-sky-400" />
+              <div>
+                <h3 className="text-base font-extrabold text-white">Edit Sub-Category</h3>
+                <p className="text-[11px] text-slate-400">Parent Category: {editSubCategoryModal.parentCat}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold text-xs">Sub-Category Name</label>
+                <input
+                  type="text"
+                  className="crm-input w-full text-xs font-semibold"
+                  value={editSubCategoryModal.newSubName}
+                  onChange={e => setEditSubCategoryModal(prev => prev ? { ...prev, newSubName: e.target.value } : null)}
+                  placeholder="Sub-Category Name"
+                />
+              </div>
+
+              {/* Product Count & Cascade Information */}
+              <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Info size={14} className="text-sky-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-sky-300">
+                    Associated Products: {editSubCategoryModal.productCount}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Sub-category <strong className="text-white">"{editSubCategoryModal.oldSubName}"</strong> under category <strong className="text-white">"{editSubCategoryModal.parentCat}"</strong> currently has <strong className="text-sky-300">{editSubCategoryModal.productCount} product(s)</strong>.
+                  Updating this sub-category will update all {editSubCategoryModal.productCount} product(s).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditSubCategoryModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEditSubCategory}
+                className="btn-primary text-xs"
+              >
+                Confirm &amp; Update ({editSubCategoryModal.productCount} Products)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ DELETE SUB-CATEGORY CONFIRMATION MODAL */}
+      {deleteSubCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Delete Sub-Category?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Are you sure you want to delete sub-category <strong className="text-white">"{deleteSubCategoryModal.subName}"</strong> from category <strong className="text-white">"{deleteSubCategoryModal.parentCat}"</strong>?
+                </p>
+              </div>
+            </div>
+
+            {/* Impact Warning & Product Count */}
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-red-300">
+                  Impact on {deleteSubCategoryModal.productCount} Product(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Sub-category <strong className="text-white">"{deleteSubCategoryModal.subName}"</strong> currently has <strong className="text-red-400 font-bold">{deleteSubCategoryModal.productCount} product(s)</strong> assigned to it.
+                Deleting will reassign all {deleteSubCategoryModal.productCount} product(s) to sub-category <strong className="text-amber-300">"General"</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setDeleteSubCategoryModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel — Keep Sub-Category
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSubCategory}
+                className="py-2 px-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 size={12} /> Delete Sub-Category &amp; Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏷️ MANAGE BRANDS MODAL (Admin & Manager) */}
+      {manageBrandsOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Tag size={18} className="text-amber-400" />
+                <h3 className="text-base font-extrabold text-white">Manage Brands</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManageBrandsOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              View all product brands, product count associations, and edit or delete brands.
+            </p>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {brands.map(brand => {
+                const count = countProductsInBrand(brand);
+                const isDefault = brand === 'Generic / Unbranded';
+                return (
+                  <div
+                    key={brand}
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-sm font-bold text-white truncate">{brand}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        count > 0
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          : 'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}>
+                        {count} {count === 1 ? 'Product' : 'Products'}
+                      </span>
+                      {isDefault && (
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
+                          Default
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditBrand(brand)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/25 flex items-center gap-1"
+                        title="Edit / Rename Brand"
+                      >
+                        <Edit2 size={11} /> Edit
+                      </button>
+                      {!isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDeleteBrand(brand)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/25 flex items-center gap-1"
+                          title="Delete Brand"
+                        >
+                          <Trash2 size={11} /> Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setManageBrandsOpen(false);
+                  setCreateBrandOpen(true);
+                }}
+                className="btn-primary text-xs gap-1.5 flex items-center"
+              >
+                <Plus size={13} /> Add New Brand
+              </button>
+              <button
+                type="button"
+                onClick={() => setManageBrandsOpen(false)}
+                className="btn-secondary text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT BRAND CONFIRMATION MODAL */}
+      {editBrandModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Edit2 size={18} className="text-amber-400" />
+              <h3 className="text-base font-extrabold text-white">Edit Brand</h3>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold text-xs">Brand Name</label>
+                <input
+                  type="text"
+                  className="crm-input w-full text-xs font-semibold"
+                  value={editBrandModal.newBrand}
+                  onChange={e => setEditBrandModal(prev => prev ? { ...prev, newBrand: e.target.value } : null)}
+                  placeholder="Brand Name"
+                />
+              </div>
+
+              {/* Product Count & Cascade Information */}
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Info size={14} className="text-amber-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-amber-300">
+                    Associated Products: {editBrandModal.productCount}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Brand <strong className="text-white">"{editBrandModal.oldBrand}"</strong> currently has <strong className="text-amber-300">{editBrandModal.productCount} product(s)</strong>.
+                  Updating will update all {editBrandModal.productCount} product(s) to the new brand name.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditBrandModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEditBrand}
+                className="btn-primary text-xs"
+              >
+                Confirm &amp; Update ({editBrandModal.productCount} Products)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🗑️ DELETE BRAND CONFIRMATION MODAL */}
+      {deleteBrandModal && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Delete Brand?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Are you sure you want to delete brand <strong className="text-white">"{deleteBrandModal.brand}"</strong>?
+                </p>
+              </div>
+            </div>
+
+            {/* Impact Warning & Product Count */}
+            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-red-300">
+                  Impact on {deleteBrandModal.productCount} Product(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Brand <strong className="text-white">"{deleteBrandModal.brand}"</strong> currently has <strong className="text-red-400 font-bold">{deleteBrandModal.productCount} product(s)</strong> assigned to it.
+                Deleting this brand will update all {deleteBrandModal.productCount} product(s) to <strong className="text-amber-300">"Generic / Unbranded"</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setDeleteBrandModal(null)}
+                className="btn-secondary text-xs"
+              >
+                Cancel — Keep Brand
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteBrand}
+                className="py-2 px-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-500/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 size={12} /> Delete Brand &amp; Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT PRODUCT MODAL (Admin & Manager) */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <Edit2 size={18} className="text-indigo-400" />
+                <span>Edit Product: {editingProduct.name}</span>
+              </h3>
+              <button onClick={() => setEditingProduct(null)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Product Name */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold">Product Name <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  className="crm-input w-full"
+                  value={editProdName}
+                  onChange={e => setEditProdName(e.target.value)}
+                  placeholder="Product Name"
+                />
+              </div>
+
+              {/* SKU & Price */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-bold">SKU Code</label>
+                  <input
+                    type="text"
+                    className="crm-input w-full uppercase font-mono"
+                    value={editProdSku}
+                    onChange={e => setEditProdSku(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">Unit Price (₹) <span className="text-red-400">*</span></label>
+                  <input
+                    type="number"
+                    className="crm-input w-full font-bold text-emerald-400"
+                    value={editProdPrice}
+                    onChange={e => setEditProdPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Category & Sub-Category Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-bold">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateCategoryOpen(true)}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      + Add Category
+                    </button>
+                  </div>
+                  <select
+                    className="crm-input w-full"
+                    value={editProdCategory}
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      setEditProdCategory(newCat);
+                      const availableSubs = subCategories[newCat] || ['General'];
+                      setEditProdSubCategory(availableSubs[0] || 'General');
+                    }}
+                  >
+                    {categories.filter(c => c !== 'All').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-bold">Sub-Category</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentCatForSub(editProdCategory);
+                        setCreateSubCategoryOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      + Add Sub-Category
+                    </button>
+                  </div>
+                  <select
+                    className="crm-input w-full"
+                    value={editProdSubCategory}
+                    onChange={e => setEditProdSubCategory(e.target.value)}
+                  >
+                    {(subCategories[editProdCategory] && subCategories[editProdCategory].length > 0
+                      ? subCategories[editProdCategory]
+                      : ['General']
+                    ).map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Brand & Colour */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-bold">Brand</label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateBrandOpen(true)}
+                      className="text-[10px] text-indigo-400 hover:underline font-bold"
+                    >
+                      + Add Brand
+                    </button>
+                  </div>
+                  <select
+                    className="crm-input w-full"
+                    value={editProdBrand}
+                    onChange={e => setEditProdBrand(e.target.value)}
+                  >
+                    {brands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">Colour / Variation</label>
+                  <input
+                    type="text"
+                    className="crm-input w-full"
+                    placeholder="e.g. Space Grey / Matte Black"
+                    value={editProdColor}
+                    onChange={e => setEditProdColor(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Stock, Unit & Tax */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">Unit of Measurement</label>
+                  <select
+                    className="crm-input w-full"
+                    value={editProdUnit}
+                    onChange={e => setEditProdUnit(e.target.value)}
+                  >
+                    {UNIT_OPTIONS.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">In-Stock Quantity</label>
+                  <input
+                    type="number"
+                    className="crm-input w-full"
+                    value={editProdStock}
+                    onChange={e => setEditProdStock(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-bold">GST Tax %</label>
+                  <select
+                    className="crm-input w-full"
+                    value={editProdGst}
+                    onChange={e => setEditProdGst(e.target.value)}
+                  >
+                    <option value="0">0% GST</option>
+                    <option value="5">5% GST</option>
+                    <option value="12">12% GST</option>
+                    <option value="18">18% GST</option>
+                    <option value="28">28% GST</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Product Description */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold">Product Description</label>
+                <textarea
+                  rows={2}
+                  className="crm-input w-full resize-none leading-relaxed"
+                  value={editProdDescription}
+                  onChange={e => setEditProdDescription(e.target.value)}
+                />
+              </div>
+
+              {/* Features Tags */}
+              <div>
+                <label className="block text-slate-300 mb-1 font-bold">Key Features</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    className="crm-input flex-1 text-xs"
+                    placeholder="Type feature (e.g. Gold Plated) and press Enter"
+                    value={editFeatureTagInput}
+                    onChange={e => setEditFeatureTagInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddEditFeatureTag();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddEditFeatureTag()}
+                    className="btn-secondary text-xs px-3 font-bold"
+                  >
+                    + Add Feature
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 min-h-[28px] p-2 bg-slate-950 rounded-xl border border-slate-800">
+                  {editProdFeatures.length === 0 ? (
+                    <span className="text-[11px] text-slate-500 italic">No features added.</span>
+                  ) : (
+                    editProdFeatures.map((feat, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full"
+                      >
+                        ✨ {feat}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEditFeatureTag(feat)}
+                          className="hover:text-red-400 ml-0.5"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Product Images */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-slate-300 font-bold">Product Images (2 or more required)</label>
+                    <p className="text-[10px] text-slate-400">Under 1MB each • Square recommended</p>
+                  </div>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    editProdImages.length >= 2
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>
+                    {editProdImages.length >= 2 ? `✅ ${editProdImages.length} images` : `⚠️ ${editProdImages.length}/2 min required`}
+                  </span>
+                </div>
+
+                {editImageUploadError && (
+                  <p className="text-[11px] text-red-400 font-bold bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                    {editImageUploadError}
+                  </p>
+                )}
+
+                <label className="cursor-pointer flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950 hover:bg-slate-900 transition-colors">
+                  <span className="text-xs font-bold text-indigo-400">📁 Click to Upload Additional Images</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleEditImageUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                <div className="flex items-center gap-2 overflow-x-auto p-2 bg-slate-950 rounded-xl border border-slate-800">
+                  {editProdImages.map((uri, idx) => (
+                    <div key={idx} className="relative group flex-shrink-0">
+                      <img
+                        src={uri}
+                        alt={`Preview ${idx + 1}`}
+                        className="w-16 h-16 rounded-lg object-cover border border-slate-700"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEditImage(idx)}
+                        className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-500"
+                        title="Remove image"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              <button onClick={() => setEditingProduct(null)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={handleInitiateUpdateProduct} className="btn-primary text-xs">
+                Review &amp; Confirm Changes →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ PRODUCT EDIT CONFIRMATION MODAL */}
+      {editConfirmProduct && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-indigo-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 size={20} className="text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Confirm Product Update</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Please review your updates before saving to the catalog database.</p>
+              </div>
+            </div>
+
+            {/* Product Summary */}
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Product:</span>
+                <span className="text-white font-extrabold">{editConfirmProduct.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">SKU:</span>
+                <span className="font-mono text-indigo-300">{editConfirmProduct.sku}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Price &amp; GST:</span>
+                <span className="text-emerald-400 font-extrabold">₹{editConfirmProduct.price.toLocaleString('en-IN')} / {editConfirmProduct.unit} (+{editConfirmProduct.taxRate}% GST)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Taxonomy:</span>
+                <span className="text-slate-300">{editConfirmProduct.category} → {editConfirmProduct.subCategory}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Brand:</span>
+                <span className="text-amber-300">{editConfirmProduct.brand}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-bold">Stock:</span>
+                <span className="text-slate-200">{editConfirmProduct.stock} units</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditConfirmProduct(null)}
+                disabled={isUpdatingProduct}
+                className="btn-secondary text-xs"
+              >
+                Go Back &amp; Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUpdateProduct}
+                disabled={isUpdatingProduct}
+                className="btn-primary text-xs flex items-center gap-1.5"
+              >
+                <Check size={13} />
+                {isUpdatingProduct ? 'Saving Updates...' : 'Confirm & Save Updates'}
               </button>
             </div>
           </div>

@@ -127,10 +127,10 @@ export class ProductsService {
       ? requestingUser.role
       : requestingUser?.role?.name;
 
-    const allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER'];
+    const allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER'];
     if (roleName && !allowedRoles.includes(roleName)) {
       throw new ForbiddenException(
-        `⛔ Access Denied: Only Admins can configure product card display. Your role "${roleName}" is not authorized.`,
+        `⛔ Access Denied: Only Admins and Managers can configure product card display. Your role "${roleName}" is not authorized.`,
       );
     }
 
@@ -366,10 +366,10 @@ export class ProductsService {
       ? requestingUser.role
       : requestingUser?.role?.name;
 
-    const allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER'];
+    const allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER'];
     if (!allowedRoles.includes(roleName)) {
       throw new ForbiddenException(
-        `⛔ Access Denied: Only Admins can delete products. Your role "${roleName}" does not have delete permission.`,
+        `⛔ Access Denied: Only Admins and Managers can delete products. Your role "${roleName}" does not have delete permission.`,
       );
     }
 
@@ -382,7 +382,7 @@ export class ProductsService {
         await this.prisma.product.delete({ where: { id } });
         return {
           success: true,
-          message: `✅ Product "${productName}" (ID: ${id}) has been permanently deleted from the database by Admin.`,
+          message: `✅ Product "${productName}" (ID: ${id}) has been permanently deleted from the database.`,
           deletedId: id,
         };
       }
@@ -401,7 +401,7 @@ export class ProductsService {
 
     return {
       success: true,
-      message: `✅ Product "${productName}" has been permanently deleted by Admin.`,
+      message: `✅ Product "${productName}" has been permanently deleted.`,
       deletedId: id,
     };
   }

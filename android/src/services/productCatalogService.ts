@@ -172,6 +172,55 @@ class ProductCatalogService {
     return this.brands;
   }
 
+  async editBrand(oldBrand: string, newBrand: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmedOld = oldBrand.trim();
+    const trimmedNew = newBrand.trim();
+
+    const updated = list.map((b) => b.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : b);
+    this.brands = updated;
+    try {
+      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.log('Failed to save brands:', err);
+    }
+
+    // Cascade update all products
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if ((p.brand || '').trim().toLowerCase() === trimmedOld.toLowerCase()) {
+        return { ...p, brand: trimmedNew };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  async deleteBrand(brandName: string): Promise<string[]> {
+    const list = await this.getBrands();
+    const trimmed = brandName.trim();
+
+    const updated = list.filter((b) => b.toLowerCase() !== trimmed.toLowerCase());
+    this.brands = updated;
+    try {
+      await AsyncStorage.setItem(STORAGE_BRANDS_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.log('Failed to save brands:', err);
+    }
+
+    // Cascade update all products to 'Generic / Unbranded'
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if ((p.brand || '').trim().toLowerCase() === trimmed.toLowerCase()) {
+        return { ...p, brand: 'Generic / Unbranded' };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
   async getProducts(): Promise<CatalogProductItem[]> {
     if (!this.initialized) {
       await this.loadAll();
@@ -235,6 +284,105 @@ class ProductCatalogService {
       }
     }
     return list;
+  }
+
+  async editCategory(oldName: string, newName: string): Promise<CategoryTree[]> {
+    const list = await this.getCategories();
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    const updated = list.map((c) => {
+      if (c.name.toLowerCase() === trimmedOld.toLowerCase()) {
+        return { ...c, name: trimmedNew };
+      }
+      return c;
+    });
+    await this.saveCategories(updated);
+
+    // Cascade update all products
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if (p.category.toLowerCase() === trimmedOld.toLowerCase()) {
+        return { ...p, category: trimmedNew };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  async deleteCategory(catName: string): Promise<CategoryTree[]> {
+    const list = await this.getCategories();
+    const trimmed = catName.trim();
+    const updated = list.filter((c) => c.name.toLowerCase() !== trimmed.toLowerCase());
+    await this.saveCategories(updated);
+
+    // Cascade reassign products to 'General'
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if (p.category.toLowerCase() === trimmed.toLowerCase()) {
+        return { ...p, category: 'General', subCategory: 'General' };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  async editSubCategory(parentCat: string, oldSubName: string, newSubName: string): Promise<CategoryTree[]> {
+    const list = await this.getCategories();
+    const trimmedParent = parentCat.trim();
+    const trimmedOld = oldSubName.trim();
+    const trimmedNew = newSubName.trim();
+
+    const updated = list.map((c) => {
+      if (c.name.toLowerCase() === trimmedParent.toLowerCase()) {
+        return {
+          ...c,
+          subCategories: c.subCategories.map((s) => s.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : s),
+        };
+      }
+      return c;
+    });
+    await this.saveCategories(updated);
+
+    // Cascade update all products under parent category
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if (p.category.toLowerCase() === trimmedParent.toLowerCase() && p.subCategory?.toLowerCase() === trimmedOld.toLowerCase()) {
+        return { ...p, subCategory: trimmedNew };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
+  }
+
+  async deleteSubCategory(parentCat: string, subCatName: string): Promise<CategoryTree[]> {
+    const list = await this.getCategories();
+    const trimmedParent = parentCat.trim();
+    const trimmedSub = subCatName.trim();
+
+    const updated = list.map((c) => {
+      if (c.name.toLowerCase() === trimmedParent.toLowerCase()) {
+        return {
+          ...c,
+          subCategories: c.subCategories.filter((s) => s.toLowerCase() !== trimmedSub.toLowerCase()),
+        };
+      }
+      return c;
+    });
+    await this.saveCategories(updated);
+
+    // Cascade update products to 'General' subCategory
+    const prods = await this.getProducts();
+    const updatedProds = prods.map((p) => {
+      if (p.category.toLowerCase() === trimmedParent.toLowerCase() && p.subCategory?.toLowerCase() === trimmedSub.toLowerCase()) {
+        return { ...p, subCategory: 'General' };
+      }
+      return p;
+    });
+    await this.saveProducts(updatedProds);
+    return updated;
   }
 
   async saveProducts(newProducts: CatalogProductItem[]): Promise<void> {
