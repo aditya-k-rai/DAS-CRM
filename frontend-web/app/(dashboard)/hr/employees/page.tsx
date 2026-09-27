@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { EmployeeListWidget } from '@/components/hr/EmployeeListWidget';
 import { Download, Lock, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-export default function EmployeesPage() {
+export const dynamic = 'force-dynamic';
+
+function EmployeesContent() {
   const { currentUser } = useAuth();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab') as 'assigned' | 'unassigned' | 'all' | 'control_center' | null;
@@ -76,5 +78,19 @@ export default function EmployeesPage() {
         />
       </main>
     </div>
+  );
+}
+
+export default function EmployeesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex flex-col min-h-0 p-6 items-center justify-center text-xs text-slate-400">
+          Loading Employee Directory &amp; Admin Control...
+        </div>
+      }
+    >
+      <EmployeesContent />
+    </Suspense>
   );
 }
