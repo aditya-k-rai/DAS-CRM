@@ -24,6 +24,7 @@ import {
   Lock,
   MessageSquare,
   Sparkles,
+  Shield,
 } from 'lucide-react';
 import { useAuth, getPlanSeatQuota } from '@/context/AuthContext';
 import SalesExecControlScreenWeb from './SalesExecControlScreenWeb';
@@ -31,11 +32,13 @@ import TeamLeaderControlScreenWeb from './TeamLeaderControlScreenWeb';
 import ManagerControlScreenWeb from './ManagerControlScreenWeb';
 import HrControlScreenWeb from './HrControlScreenWeb';
 import EmployeeDriveVaultModal from './EmployeeDriveVaultModal';
+import { AdminControlCenterView } from '../admin/AdminControlCenterView';
 
 export interface EmployeeListWidgetProps {
   isAddModalOpen?: boolean;
   setIsAddModalOpen?: (open: boolean) => void;
   exportTrigger?: number;
+  initialTab?: 'assigned' | 'unassigned' | 'all' | 'control_center';
 }
 
 export interface EmployeeProfileWeb {
@@ -115,8 +118,12 @@ export function EmployeeListWidget({
   isAddModalOpen: externalAddModalOpen,
   setIsAddModalOpen: setExternalAddModalOpen,
   exportTrigger,
+  initialTab,
 }: EmployeeListWidgetProps = {}) {
   const { currentUser, subscription, updateUserProfile } = useAuth();
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+  const isAdmin = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
+
   const [employees, setEmployees] = useState<EmployeeProfileWeb[]>([]);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
   const [vaultEmp, setVaultEmp] = useState<EmployeeProfileWeb | null>(null);
@@ -125,7 +132,7 @@ export function EmployeeListWidget({
   const [savingPhone, setSavingPhone] = useState(false);
 
   // Tabs & Views
-  const [activeTab, setActiveTab] = useState<'assigned' | 'unassigned' | 'all'>('assigned');
+  const [activeTab, setActiveTab] = useState<'assigned' | 'unassigned' | 'all' | 'control_center'>(initialTab || 'assigned');
 
   // Company Registration Key & Invite
   const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
@@ -942,8 +949,53 @@ export function EmployeeListWidget({
             <Users size={14} />
             <span>All Directory ({employees.length})</span>
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('control_center')}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'control_center'
+                  ? 'bg-indigo-600/25 text-indigo-300 border-2 border-indigo-500/60 shadow-lg shadow-indigo-500/15'
+                  : 'bg-card text-muted hover:text-white border border-border/60 hover:border-border'
+              }`}
+            >
+              <Shield size={14} className={activeTab === 'control_center' ? 'text-indigo-400' : 'text-slate-400'} />
+              <span>🛡️ Admin Control Center</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                20 Modules
+              </span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          🛡️ SECTION: ADMIN CONTROL CENTER MODULE MATRIX
+          ───────────────────────────────────────────────────────────────────────────── */}
+      {activeTab === 'control_center' && (
+        <div className="space-y-4">
+          <div className="crm-card bg-gradient-to-r from-indigo-950/40 via-card to-indigo-950/30 border border-indigo-500/30 p-5 rounded-2xl flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold">
+                <Shield size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-white">Employees Module Visibility &amp; Permissions Matrix</h3>
+                <p className="text-xs text-muted">
+                  Configure granular Master Active, View, Share &amp; Edit permissions across all 20 CRM modules for each staff member.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveTab('assigned')}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-all cursor-pointer"
+            >
+              ← Back to Staff Directory
+            </button>
+          </div>
+          <AdminControlCenterView />
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           🚨 SECTION: UNASSIGNED USERS VIEW (HUB + CARDS)
@@ -1120,8 +1172,34 @@ export function EmployeeListWidget({
       {/* ─────────────────────────────────────────────────────────────────────────────
           👥 SECTION: VERIFIED & ACTIVE STAFF DIRECTORY (OR ALL)
           ───────────────────────────────────────────────────────────────────────────── */}
-      {activeTab !== 'unassigned' && (
-        <div>
+      {(activeTab === 'assigned' || activeTab === 'all') && (
+        <div className="space-y-4">
+          {/* Admin Control Center Hero Banner */}
+          {isAdmin && (
+            <div className="crm-card bg-gradient-to-r from-indigo-950/40 via-slate-900 to-indigo-950/30 border border-indigo-500/35 p-4.5 rounded-2xl flex items-center justify-between flex-wrap gap-4 shadow-md mb-2">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold shrink-0">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-extrabold text-white">🛡️ Admin Control Center Module</h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">● 20 Modules RBAC</span>
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">
+                    Manage per-user module visibility, toggle Master Active access, View, Share &amp; Edit permissions across all 20 modules for each employee.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('control_center')}
+                className="btn-primary bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold px-4 py-2 rounded-xl flex items-center gap-2 shadow-md cursor-pointer transition-all shrink-0"
+              >
+                <Shield size={14} /> Open Admin Control Center Matrix →
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-extrabold text-white flex items-center gap-2">
               <span>{activeTab === 'all' ? 'All Organization Accounts' : 'Verified Staff Members'}</span>
@@ -1260,6 +1338,16 @@ export function EmployeeListWidget({
                       >
                         Inspect &amp; Control →
                       </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setActiveTab('control_center')}
+                          title={`Manage ${emp.name}'s module access & permissions in Admin Control Center`}
+                          className="px-2.5 py-2.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-extrabold text-xs flex items-center justify-center gap-1 transition-all shadow-md cursor-pointer"
+                        >
+                          <Shield size={14} />
+                          <span>Access</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => setVaultEmp(emp)}
                         title={`Open ${emp.name}'s Google Drive Vault`}

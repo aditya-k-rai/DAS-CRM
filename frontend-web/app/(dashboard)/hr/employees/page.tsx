@@ -1,17 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { EmployeeListWidget } from '@/components/hr/EmployeeListWidget';
-import { Download, Lock } from 'lucide-react';
+import { Download, Lock, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function EmployeesPage() {
   const { currentUser } = useAuth();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab') as 'assigned' | 'unassigned' | 'all' | 'control_center' | null;
   const [exportTrigger, setExportTrigger] = useState(0);
+  const [currentTab, setCurrentTab] = useState<'assigned' | 'unassigned' | 'all' | 'control_center'>(
+    tabParam === 'control_center' ? 'control_center' : 'assigned'
+  );
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isHrOrAdmin = rawRole === 'HR' || rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
+  const isAdmin = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
 
   if (!isHrOrAdmin) {
     return (
@@ -35,12 +42,25 @@ export default function EmployeesPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar
-        title="Employee Directory & Reports"
+        title="Employee Directory & Admin Control"
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => setCurrentTab('control_center')}
+                className={`btn-secondary text-xs gap-1.5 cursor-pointer transition-all ${
+                  currentTab === 'control_center'
+                    ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/60'
+                    : 'hover:bg-indigo-900/30 text-indigo-400 border-indigo-500/30'
+                }`}
+                title="Open Admin Control Center Matrix"
+              >
+                <Shield size={14} /> Admin Control Center
+              </button>
+            )}
             <button
               onClick={() => setExportTrigger(Date.now())}
-              className="btn-secondary text-sm gap-1.5 cursor-pointer hover:bg-slate-800 transition-all"
+              className="btn-secondary text-xs gap-1.5 cursor-pointer hover:bg-slate-800 transition-all"
               title="Download CSV report of all employees"
             >
               <Download size={14} /> Export Directory
@@ -51,6 +71,8 @@ export default function EmployeesPage() {
       <main className="flex-1 p-6 overflow-auto">
         <EmployeeListWidget
           exportTrigger={exportTrigger}
+          initialTab={currentTab}
+          key={currentTab}
         />
       </main>
     </div>
