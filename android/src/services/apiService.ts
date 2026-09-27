@@ -6,6 +6,7 @@
 
 import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineSyncEngine } from './offlineSyncEngine';
 
 export const STORAGE_KEY_PUBLIC_COMPANIES = '@das_crm_public_companies';
 
@@ -47,6 +48,12 @@ export interface LeadItem {
 
   // AI Lead Score
   aiScore?: AIScoreData;
+
+  // Offline Sync & Conflict Resolution Fields
+  _synced?: boolean;
+  _isOfflineDraft?: boolean;
+  _updatedAt?: number;
+  _hasConflict?: boolean;
 }
 
 // AI Lead Score Types
@@ -217,22 +224,34 @@ class ApiService {
     return null;
   }
 
-  /** Fetch list of leads for active workspace (/leads) */
+  /** Fetch list of leads for active workspace (/leads) with cache-first offline support and smart conflict merge */
   async getLeads(token: string | null): Promise<LeadItem[]> {
-    if (!token) return FALLBACK_LEADS;
+    // 1. Immediately read cached leads for instant offline display
+    const cachedLeads: LeadItem[] = await offlineSyncEngine.getCachedLeads();
+
+    if (!token) {
+      return cachedLeads.length > 0 ? cachedLeads : FALLBACK_LEADS;
+    }
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
       const res = await fetch(`${API_BASE}/leads`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const result = await res.json();
         const rawList = Array.isArray(result) ? result : (result.data || []);
         if (rawList.length > 0) {
-          return rawList.map((item: any) => ({
+          const serverLeads: LeadItem[] = rawList.map((item: any) => ({
             id: String(item.id),
             name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.name || 'Unnamed Lead',
             company: item.companyName || item.company || '—',
@@ -242,62 +261,247 @@ class ApiService {
             value: item.estimatedValue ? `$${Number(item.estimatedValue).toLocaleString()}` : (item.value || '$5,000'),
             source: item.source || 'Direct',
             priority: item.priority || 'Medium',
+            assignedRep: item.assignedRep || item.assignedTo || 'Unassigned',
+            city: item.city || '—',
+            budget: item.budget || '—',
+            requirement: item.requirement || '—',
+            callSyncStatus: item.callSyncStatus || 'Never',
+            aiScore: item.aiScore,
+            _synced: true,
+            _isOfflineDraft: false,
+            _updatedAt: item.updatedAt ? new Date(item.updatedAt).getTime() : Date.now(),
           }));
+
+          // Smart merge: Preserve any local offline drafts that haven't been pushed yet
+          const pendingDrafts = cachedLeads.filter(
+            (c) => c._isOfflineDraft || c.id.startsWith('lead-local-') || c._synced === false
+          );
+
+          // For server leads that exist in cachedLeads, check if local has unsynced field updates
+          const mergedServerLeads = serverLeads.map((sLead) => {
+            const localVersion = cachedLeads.find((c) => c.id === sLead.id);
+            if (localVersion && localVersion._synced === false && (localVersion._updatedAt || 0) > (sLead._updatedAt || 0)) {
+              return { ...sLead, ...localVersion, _synced: false };
+            }
+            return sLead;
+          });
+
+          // Unique combined list with pending local drafts pinned at top
+          const serverIds = new Set(mergedServerLeads.map((l) => l.id));
+          const uniquePending = pendingDrafts.filter((d) => !serverIds.has(d.id));
+          const finalLeads = [...uniquePending, ...mergedServerLeads];
+
+          // Persist to local cache for instant future loads
+          await offlineSyncEngine.saveCachedLeads(finalLeads);
+          return finalLeads;
         }
       }
     } catch {
-      // Backend offline fallback
+      // Backend unreachable or offline: gracefully return cache
     }
-    return FALLBACK_LEADS;
+
+    return cachedLeads.length > 0 ? cachedLeads : FALLBACK_LEADS;
   }
 
-  /** Create a new lead (/leads) */
-  async createLead(token: string | null, leadData: Partial<LeadItem>): Promise<boolean> {
-    if (!token) return true;
-    try {
-      const res = await fetch(`${API_BASE}/leads`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          firstName: leadData.name?.split(' ')[0] || 'New',
-          lastName: leadData.name?.split(' ').slice(1).join(' ') || 'Lead',
-          companyName: leadData.company || 'Enterprise',
-          email: leadData.email || 'lead@company.com',
-          phone: leadData.phone || '+91 99999 00000',
-          stage: leadData.status || 'NEW',
-          source: leadData.source || 'Mobile App',
-          estimatedValue: 150000,
-        }),
-      });
-      return res.ok;
-    } catch {
-      return true; // Fallback success in demo mode
+  /** Create a new lead with optimistic local cache and offline queue */
+  async createLead(token: string | null, leadData: Partial<LeadItem>): Promise<{ success: boolean; lead: LeadItem }> {
+    const newLead: LeadItem = {
+      id: leadData.id || `lead-local-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: leadData.name || 'New Lead',
+      company: leadData.company || 'Enterprise Prospect',
+      email: leadData.email || 'lead@company.com',
+      phone: leadData.phone || '+91 99999 00000',
+      status: (leadData.status || 'NEW LEAD').toUpperCase(),
+      value: leadData.value || '₹0',
+      source: leadData.source || 'Mobile App',
+      priority: leadData.priority || 'Medium',
+      assignedRep: leadData.assignedRep || 'Unassigned',
+      city: leadData.city || '—',
+      budget: leadData.budget || '—',
+      requirement: leadData.requirement || '—',
+      callSyncStatus: 'Never',
+      _synced: false,
+      _isOfflineDraft: true,
+      _updatedAt: Date.now(),
+    };
+
+    // 1. Optimistic write to local cache
+    await offlineSyncEngine.upsertCachedLead(newLead, true);
+
+    const payload = {
+      firstName: newLead.name.split(' ')[0] || 'New',
+      lastName: newLead.name.split(' ').slice(1).join(' ') || 'Lead',
+      companyName: newLead.company,
+      email: newLead.email,
+      phone: newLead.phone,
+      stage: newLead.status,
+      source: newLead.source,
+      priority: newLead.priority,
+      estimatedValue: Number(newLead.value.replace(/[^0-9.]/g, '')) || 5000,
+    };
+
+    // 2. If online and authenticated, push to backend
+    if (token) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`${API_BASE}/leads`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const created = await res.json();
+          if (created && created.id) {
+            newLead.id = String(created.id);
+          }
+          await offlineSyncEngine.markLeadSynced(newLead.id);
+          return { success: true, lead: newLead };
+        }
+      } catch (_) {}
     }
+
+    // 3. If offline or network error, enqueue for auto-sync upon reconnection
+    await offlineSyncEngine.enqueue({
+      action: 'CREATE_LEAD',
+      endpoint: '/leads',
+      method: 'POST',
+      payload,
+      entityId: newLead.id,
+    });
+
+    return { success: true, lead: newLead };
   }
 
-  /** Update lead status (/leads/:id/status) with Authoritative Backend Verification */
+  /** Update an existing lead with optimistic local cache and offline queue */
+  async updateLead(token: string | null, leadId: string, updates: Partial<LeadItem>): Promise<boolean> {
+    const cachedLeads = await offlineSyncEngine.getCachedLeads();
+    const existing = cachedLeads.find((l) => l.id === leadId);
+    const updatedLead: LeadItem = {
+      ...(existing || { id: leadId, name: 'Lead', company: '—', email: '—', phone: '—', status: 'NEW LEAD', value: '₹0', source: '—', priority: 'Medium' }),
+      ...updates,
+      _synced: false,
+      _updatedAt: Date.now(),
+    };
+    await offlineSyncEngine.upsertCachedLead(updatedLead, true);
+
+    const payload = {
+      ...updates,
+      ...(updates.name ? {
+        firstName: updates.name.split(' ')[0],
+        lastName: updates.name.split(' ').slice(1).join(' '),
+      } : {}),
+    };
+
+    if (token && !leadId.startsWith('lead-local-')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`${API_BASE}/leads/${leadId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          await offlineSyncEngine.markLeadSynced(leadId);
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    await offlineSyncEngine.enqueue({
+      action: 'UPDATE_LEAD',
+      endpoint: `/leads/${leadId}`,
+      method: 'PATCH',
+      payload,
+      entityId: leadId,
+    });
+
+    return true;
+  }
+
+  /** Update lead status with optimistic local cache and offline queue */
   async updateLeadStatus(token: string | null, leadId: string, newStatus: string): Promise<boolean> {
-    const idx = FALLBACK_LEADS.findIndex(l => l.id === leadId);
-    if (idx >= 0) {
-      FALLBACK_LEADS[idx].status = newStatus;
+    const cachedLeads = await offlineSyncEngine.getCachedLeads();
+    const existing = cachedLeads.find((l) => l.id === leadId);
+    if (existing) {
+      existing.status = newStatus;
+      existing._synced = false;
+      existing._updatedAt = Date.now();
+      await offlineSyncEngine.upsertCachedLead(existing, true);
     }
-    if (!token) return true;
-    try {
-      const res = await fetch(`${API_BASE}/leads/${leadId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ statusId: newStatus, status: newStatus }),
+
+    if (token && !leadId.startsWith('lead-local-')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`${API_BASE}/leads/${leadId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ statusId: newStatus, status: newStatus }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          await offlineSyncEngine.markLeadSynced(leadId);
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    await offlineSyncEngine.enqueue({
+      action: 'UPDATE_LEAD_STATUS',
+      endpoint: `/leads/${leadId}/status`,
+      method: 'PATCH',
+      payload: { statusId: newStatus, status: newStatus },
+      entityId: leadId,
+    });
+
+    return true;
+  }
+
+  /** Delete a lead with optimistic local cache removal and offline queue */
+  async deleteLead(token: string | null, leadId: string): Promise<boolean> {
+    await offlineSyncEngine.removeCachedLead(leadId);
+
+    if (token && !leadId.startsWith('lead-local-')) {
+      try {
+        const res = await fetch(`${API_BASE}/leads/${leadId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) return true;
+      } catch (_) {}
+
+      await offlineSyncEngine.enqueue({
+        action: 'DELETE_LEAD',
+        endpoint: `/leads/${leadId}`,
+        method: 'DELETE',
+        payload: { id: leadId },
+        entityId: leadId,
       });
-      return res.ok;
-    } catch {
-      return true;
     }
+
+    return true;
   }
 
   /** Authoritative Online-Verified Lead Allocation with Employee Notification Dispatch */
@@ -399,10 +603,15 @@ class ApiService {
     };
   }
 
-  /** Record attendance punch in / punch out (/attendance/punch) */
+  /** Record attendance punch in / punch out (/attendance/punch) with offline queue fallback */
   async recordAttendancePunch(token: string | null, payload: { type: 'IN' | 'OUT'; location?: string; image?: string }) {
-    if (!token) return { success: true, timestamp: new Date().toISOString() };
+    const localResult = { success: true, timestamp: new Date().toISOString() };
+
+    if (!token) return localResult;
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`${API_BASE}/attendance/punch`, {
         method: 'POST',
         headers: {
@@ -410,12 +619,24 @@ class ApiService {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         return await res.json();
       }
-    } catch {}
-    return { success: true, timestamp: new Date().toISOString() };
+    } catch (_) {
+      // Backend unreachable: queue the punch for later sync
+      await offlineSyncEngine.enqueue({
+        action: 'ATTENDANCE_PUNCH',
+        endpoint: '/attendance/punch',
+        method: 'POST',
+        payload: { ...payload, queuedAt: new Date().toISOString() },
+      });
+    }
+
+    return localResult;
   }
 
   /** Fetch Products Catalog (/products) */

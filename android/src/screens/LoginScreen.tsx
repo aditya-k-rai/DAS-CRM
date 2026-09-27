@@ -33,7 +33,7 @@ import {
   getPostLoginDefaultTab,
 } from '../store/authStore';
 import { apiService, PublicCompany, DEFAULT_ACTIVE_COMPANY } from '../services/apiService';
-import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls, normalizeApiUrl } from '../config/api';
+import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,42 +131,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // Company picker modal
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
 
-  // Server Host Config Modal (Developer backdoor via 5 taps on logo)
-  const [serverModalOpen, setServerModalOpen] = useState(false);
-  const [logoTapCount, setLogoTapCount] = useState(0);
-  const [customServerUrl, setCustomServerUrl] = useState(getApiBase());
-  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
-  const [testingServer, setTestingServer] = useState(false);
-
-  const handleTestAndSaveServer = async () => {
-    const raw = customServerUrl.trim();
-    if (!raw) return;
-    const normalized = normalizeApiUrl(raw);
-    setTestingServer(true);
-    setServerTestStatus('Testing connection...');
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`${normalized}/health`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        setApiBase(normalized);
-        setServerTestStatus('✓ Connected successfully! Host saved.');
-        setTimeout(() => {
-          setServerModalOpen(false);
-          fetchAndSyncCompanies(true);
-        }, 1200);
-      } else {
-        setServerTestStatus(`⚠️ Server responded with HTTP ${res.status}. Host saved.`);
-        setApiBase(normalized);
-      }
-    } catch (_) {
-      setServerTestStatus('⚠️ Could not reach server. Host saved for offline/local use.');
-      setApiBase(normalized);
-    } finally {
-      setTestingServer(false);
-    }
-  };
 
   // General UI state
   const [loading, setLoading] = useState(false);
@@ -676,27 +640,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         >
           {/* ── HEADER BRANDING ──────────────────────────────────────── */}
           <View style={styles.headerContainer}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => {
-                setLogoTapCount((prev) => {
-                  const next = prev + 1;
-                  if (next >= 5) {
-                    setCustomServerUrl(getApiBase());
-                    setServerTestStatus(null);
-                    setServerModalOpen(true);
-                    return 0;
-                  }
-                  return next;
-                });
-              }}
-            >
-              <Image
-                source={require('../../assets/DAS CRM small logo .png')}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </TouchableOpacity>
+            <Image
+              source={require('../../assets/DAS CRM small logo .png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <View style={styles.badgeContainer}>
               <Text style={styles.badgeText}>COMPANY WORKSPACE GATEWAY</Text>
             </View>
@@ -1013,102 +961,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </View>
       </Modal>
 
-      {/* ── SERVER HOST CONFIG MODAL ──────────────────────────────────── */}
-      <Modal visible={serverModalOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={styles.modalTitle}>⚙️ Backend Server Host</Text>
-                <Text style={styles.modalSubtitle}>
-                  Configure backend API IP / URL for local or network testing.
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setServerModalOpen(false)}
-                style={styles.modalCloseX}
-              >
-                <Text style={styles.modalCloseXText}>✕</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={{ marginVertical: 10, width: '100%' }}>
-              <Text style={styles.label}>Active API Base URL</Text>
-              <TextInput
-                style={[styles.input, styles.monoInput, { fontSize: 12, marginBottom: 8 }]}
-                value={customServerUrl}
-                onChangeText={(t) => {
-                  setCustomServerUrl(t);
-                  setServerTestStatus(null);
-                }}
-                placeholder="https://api.yourdomain.com/api/v1"
-                placeholderTextColor="#64748b"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={{ fontSize: 10, color: '#94a3b8', marginBottom: 12 }}>
-                Current active: {getApiBase()}
-              </Text>
-
-              {serverTestStatus ? (
-                <View style={[
-                  styles.statusBanner,
-                  serverTestStatus.startsWith('✓') ? styles.statusSuccess : styles.statusWarning
-                ]}>
-                  <Text style={[
-                    styles.statusBannerText,
-                    serverTestStatus.startsWith('✓') ? { color: '#6ee7b7' } : { color: '#fcd34d' }
-                  ]}>
-                    {serverTestStatus}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                <TouchableOpacity
-                  style={[styles.serverActionBtn, { backgroundColor: '#334155' }]}
-                  onPress={() => {
-                    const detected = getCandidateApiUrls()[0] || 'http://localhost:3001/api/v1';
-                    setCustomServerUrl(detected);
-                    setServerTestStatus(null);
-                  }}
-                >
-                  <Text style={styles.serverActionBtnText}>Auto Detect</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.serverActionBtn, { backgroundColor: '#334155' }]}
-                  onPress={() => {
-                    setCustomServerUrl('http://10.0.2.2:3001/api/v1');
-                    setServerTestStatus(null);
-                  }}
-                >
-                  <Text style={styles.serverActionBtnText}>Emulator</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.serverActionBtn, { backgroundColor: '#4f46e5', flex: 1.5 }]}
-                  onPress={handleTestAndSaveServer}
-                  disabled={testingServer}
-                >
-                  {testingServer ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={[styles.serverActionBtnText, { fontWeight: '800' }]}>Save &amp; Connect</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setServerModalOpen(false)}
-            >
-              <Text style={styles.modalCloseText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* ── FORGOT PASSWORD MODAL ─────────────────────────────────────── */}
       <Modal visible={forgotModalOpen} transparent animationType="slide">
@@ -1536,36 +1389,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '800',
-  },
-  statusBanner: {
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  statusSuccess: {
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    borderColor: 'rgba(16,185,129,0.3)',
-  },
-  statusWarning: {
-    backgroundColor: 'rgba(245,158,11,0.15)',
-    borderColor: 'rgba(245,158,11,0.3)',
-  },
-  statusBannerText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  serverActionBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serverActionBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '600',
   },
   modalCloseButton: { marginTop: 10, paddingVertical: 8, width: '100%', alignItems: 'center' },
   modalCloseText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },

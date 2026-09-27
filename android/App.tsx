@@ -55,6 +55,8 @@ import { ModernAlertModal } from './src/components/ModernAlertModal';
 import { ModernAlert, initModernAlertOverride } from './src/services/modernAlert';
 import { ThemeToggle } from './src/components/ThemeToggle';
 import { getApiBase } from './src/config/api';
+import NetworkStatusBanner from './src/components/NetworkStatusBanner';
+import { offlineSyncEngine } from './src/services/offlineSyncEngine';
 
 // 🚀 Initialize Global Modern Alert Override across entire app
 initModernAlertOverride();
@@ -477,6 +479,16 @@ function RootAppContent() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // 🔄 Keep offline sync engine in sync with auth token and trigger initial check
+  useEffect(() => {
+    offlineSyncEngine.setAuthToken(token ?? null);
+    if (token) {
+      // Trigger a network status check and queue flush whenever user session is restored
+      offlineSyncEngine.checkNetworkStatus();
+    }
+  }, [token]);
+
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [productsModalOpen, setProductsModalOpen] = useState(false);
@@ -645,6 +657,8 @@ function RootAppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* 📶 Global Network & Offline Sync Status Banner — auto-slides in when needed */}
+      <NetworkStatusBanner token={token} />
       <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />
