@@ -43,6 +43,8 @@ import PostCallOutcomeModal, { CallOutcomeData } from '../components/PostCallOut
 import { PaymentStatusModal, PaymentOutcomeResult } from '../components/PaymentStatusModal';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 import CustomAlertModal, { CustomAlertState } from '../components/CustomAlertModal';
+import { useModuleAccessStore } from '../store/moduleAccessStore';
+import { isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
 
 type LeadDetailRouteProp = RouteProp<LeadsStackParamList, 'LeadDetail'>;
 
@@ -56,6 +58,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const { colors, isDark } = useTheme();
   const { currentUser, token } = useAuthStore();
   const userRole = currentUser?.role || 'SALES_EXEC';
+  const { managedUsers } = useModuleAccessStore();
 
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
   const [customAlertConfig, setCustomAlertConfig] = useState<CustomAlertState | null>(null);
@@ -82,6 +85,59 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
   const leadPhone = lead?.phone || matchedLead?.phone || '';
   const leadCompany = lead?.company || matchedLead?.company || '—';
   const leadValue = lead?.value || matchedLead?.value || '₹0';
+
+  // Lead Assigned Rep State & Reassignment (TL + Sales Exec only)
+  const [leadAssignedRep, setLeadAssignedRep] = useState<string>(lead?.assignedRep || matchedLead?.assignedRep || 'Unassigned');
+
+  const assignableRepOptions = React.useMemo(() => {
+    const validUsers = (managedUsers || []).filter(u => isBatchAssignableRole(u.role));
+    if (validUsers.length > 0) {
+      return validUsers.map(u => {
+        const r = (u.role || '').toUpperCase();
+        const tag = r.includes('LEADER') || r.includes('TL') ? 'TL' : 'Sales Exec';
+        return `${u.name} (${tag})`;
+      });
+    }
+    return ['Team Leader A (TL)', 'Sales Rep 1 (Sales Exec)', 'Sales Rep 2 (Sales Exec)'];
+  }, [managedUsers]);
+
+  const handleReassignLead = () => {
+    const isUnassigned = !leadAssignedRep || leadAssignedRep === 'Unassigned' || leadAssignedRep === '—';
+    const assignOptions = [
+      ...assignableRepOptions.map(p => ({
+        text: p,
+        onPress: () => {
+          setLeadAssignedRep(p);
+          apiService.updateLead(token, leadId, { assignedRep: p }).catch(() => {});
+          setToastConfig({
+            id: String(Date.now()),
+            title: 'Lead Reassigned',
+            message: `👤 Lead reassigned to ${p} successfully.`,
+            type: 'SUCCESS',
+          });
+        },
+      })),
+      {
+        text: 'Unassigned',
+        onPress: () => {
+          setLeadAssignedRep('Unassigned');
+          apiService.updateLead(token, leadId, { assignedRep: 'Unassigned' }).catch(() => {});
+          setToastConfig({
+            id: String(Date.now()),
+            title: 'Lead Unassigned',
+            message: '👤 Lead marked as Unassigned.',
+            type: 'INFO',
+          });
+        },
+      },
+      { text: 'Cancel', style: 'cancel' as const },
+    ];
+    Alert.alert(
+      '👤 Reassign Lead (TL / Sales Rep Only)',
+      `Assign ${leadName} (${isUnassigned ? 'Currently Unassigned' : leadAssignedRep}) to:`,
+      assignOptions
+    );
+  };
 
   // Dynamic Lead Status State
   const [leadStatusState, setLeadStatusState] = useState<string>(lead?.status || 'NEW LEAD');
@@ -583,11 +639,21 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
 
           {/* Currently Assigned To Banner */}
           <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.12)' : 'rgba(5,150,105,0.08)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.35)' : 'rgba(5,150,105,0.25)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Currently Assigned To</Text>
-            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginTop: 2 }}>{lead?.assignedRep || 'Unassigned'}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 9, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Currently Assigned To</Text>
+              <TouchableOpacity
+                style={{ backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: isDark ? 'rgba(99,102,241,0.4)' : '#6366f1', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}
+                onPress={handleReassignLead}
+              >
+                <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#818cf8' : '#4f46e5' }}>Reassign ✏️</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: colors.text, marginTop: 4 }}>{leadAssignedRep}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
               <View style={{ backgroundColor: isDark ? 'rgba(52,211,153,0.2)' : 'rgba(5,150,105,0.15)', borderWidth: 1, borderColor: isDark ? 'rgba(52,211,153,0.4)' : 'rgba(5,150,105,0.3)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>SALES EXECUTIVE</Text>
+                <Text style={{ fontSize: 9, fontWeight: '900', color: isDark ? '#34d399' : '#059669' }}>
+                  {leadAssignedRep.toUpperCase().includes('TL') || leadAssignedRep.toUpperCase().includes('LEADER') ? 'TEAM LEADER' : 'SALES EXECUTIVE'}
+                </Text>
               </View>
               <Text style={{ fontSize: 9, color: colors.textSecondary }}>• Final Assignment</Text>
             </View>
@@ -654,7 +720,7 @@ export default function LeadDetailScreen({ lead: propLead, onBack }: LeadDetailS
                   </View>
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '900', color: colors.text, marginBottom: 2 }}>
-                  🎯 Assigned to{'\n'}{lead?.assignedRep || 'Unassigned'}
+                  🎯 Assigned to{'\n'}{leadAssignedRep}
                 </Text>
                 <Text style={{ fontSize: 9, color: colors.textSecondary, marginBottom: 3 }}>By TL A</Text>
                 <Text style={{ fontSize: 9, fontWeight: '800', color: isDark ? '#34d399' : '#059669' }}>Aug 21 • 11:45 AM</Text>

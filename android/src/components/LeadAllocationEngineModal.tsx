@@ -15,6 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiService } from '../services/apiService';
 import { useAuthStore } from '../store/authStore';
+import { useModuleAccessStore, ManagedUser } from '../store/moduleAccessStore';
+import { getApiBase } from '../config/api';
 
 export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN' | 'LEAD_POOL';
 
@@ -36,6 +38,15 @@ export interface AllocatedBatchRule {
   role: string;
 }
 
+export interface WorkspaceTeamMember {
+  id: string;
+  name: string;
+  role: string;
+  leadsCount?: number;
+  color?: string;
+  email?: string;
+}
+
 export interface LeadAllocationEngineModalProps {
   visible: boolean;
   onClose: () => void;
@@ -43,6 +54,7 @@ export interface LeadAllocationEngineModalProps {
   fileName?: string;
   sourceType?: 'EXCEL_CSV' | 'GOOGLE_SHEETS';
   isTeamLeaderMode?: boolean;
+  workspaceUsers?: WorkspaceTeamMember[];
   /** Called when user taps Preview & Edit Sheet — closes modal and navigates to the spreadsheet grid */
   onPreviewSheet?: () => void;
   onAllocationComplete?: (result: {
@@ -53,12 +65,47 @@ export interface LeadAllocationEngineModalProps {
   }) => void;
 }
 
-const MOCK_TEAM = [
-  { id: 'usr-1', name: 'Sales Representative', role: 'Sales Exec', leadsCount: 0, color: '#818cf8' },
+/**
+ * Validates whether a given user role is eligible to receive leads in Batchwise Allocation.
+ * Super Admin, Admin, Manager, HR, and Unassigned roles are EXCLUDED.
+ * ONLY Team Leaders and Sales Executives / Reps are eligible.
+ */
+export const isBatchAssignableRole = (roleStr: string): boolean => {
+  const r = (roleStr || '').toUpperCase().trim();
+  if (!r) return false;
+  // Exclude Admin, Super Admin, Owner, Manager, HR, Unassigned
+  if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('OWNER')) return false;
+  if (r.includes('MANAGER') || r.includes('MGR')) return false;
+  if (r.includes('HR')) return false;
+  if (r.includes('UNASSIGNED') || r === 'NONE' || r === 'NO_ROLE' || r === 'NOT_ASSIGNED') return false;
+
+  // Positive match: Team Leader or Sales Representative / Exec
+  if (
+    r.includes('LEADER') ||
+    r.includes('TL') ||
+    r.includes('SALES') ||
+    r.includes('EXEC') ||
+    r.includes('REP') ||
+    r.includes('AGENT') ||
+    r.includes('STAFF') ||
+    r.includes('EMPLOYEE')
+  ) {
+    return true;
+  }
+  return true; // Fallback for standard staff
+};
+
+const COLOR_PALETTE = ['#818cf8', '#34d399', '#f59e0b', '#ec4899', '#38bdf8', '#a855f7', '#14b8a6'];
+
+const FALLBACK_BATCH_TEAM: WorkspaceTeamMember[] = [
+  { id: 'usr-tl-1', name: 'Team Leader A', role: 'Team Leader', leadsCount: 0, color: '#818cf8' },
+  { id: 'usr-rep-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+  { id: 'usr-rep-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
 ];
 
-const MOCK_TL_REPS = [
-  { id: 'sub-1', name: 'Sales Representative', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+const FALLBACK_TL_REPS: WorkspaceTeamMember[] = [
+  { id: 'sub-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+  { id: 'sub-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
 ];
 
 export interface ValidationConflict {
@@ -158,22 +205,115 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   fileName = 'Spreadsheet_Import_Data',
   sourceType = 'EXCEL_CSV',
   isTeamLeaderMode = false,
+  workspaceUsers,
   onPreviewSheet,
   onAllocationComplete,
 }) => {
   const insets = useSafeAreaInsets();
   const { width: SW } = useWindowDimensions();
-  const activeTeam = isTeamLeaderMode ? MOCK_TL_REPS : MOCK_TEAM;
+  const { token, currentUser } = useAuthStore();
+  const { managedUsers, getManagedUsers, setManagedUsers } = useModuleAccessStore();
+
+  // Fetch workspace users from API if store cache is empty
+  useEffect(() => {
+    if (!workspaceUsers && (!managedUsers || managedUsers.length === 0) && currentUser?.companyId) {
+      const compId = currentUser.companyId;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'x-organization-id': compId,
+      };
+      fetch(`${getApiBase()}/users?organizationId=${compId}`, { headers })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            const mapped: ManagedUser[] = data.map((u: any) => {
+              const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase();
+              let role: any = 'SALES_EXEC';
+              if (rawRole.includes('ADMIN') || rawRole.includes('OWNER')) role = 'ADMIN';
+              else if (rawRole.includes('MANAGER')) role = 'MANAGER';
+              else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
+              else if (rawRole.includes('HR')) role = 'HR';
+              else if (!rawRole || rawRole === 'UNASSIGNED') role = 'UNASSIGNED';
+              const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email;
+              return {
+                id: String(u.id),
+                name,
+                email: u.email,
+                role,
+                avatarInitials: name.slice(0, 2).toUpperCase(),
+              };
+            });
+            setManagedUsers(mapped);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [workspaceUsers, managedUsers, currentUser?.companyId, token, setManagedUsers]);
+
+  // 1. All Workspace Members (includes Admin, Manager, TL, Sales Exec, etc.)
+  const allWorkspaceMembers: WorkspaceTeamMember[] = React.useMemo(() => {
+    let source: any[] = [];
+    if (workspaceUsers && workspaceUsers.length > 0) {
+      source = workspaceUsers;
+    } else if (managedUsers && managedUsers.length > 0) {
+      source = managedUsers;
+    } else {
+      const cached = getManagedUsers();
+      if (cached && cached.length > 0) {
+        source = cached;
+      }
+    }
+
+    if (source.length === 0) {
+      return isTeamLeaderMode ? FALLBACK_TL_REPS : FALLBACK_BATCH_TEAM;
+    }
+
+    return source.map((u, idx) => ({
+      id: String(u.id),
+      name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Team Member',
+      role: u.role || 'SALES_EXEC',
+      leadsCount: u.leadsCount || 0,
+      color: u.color || COLOR_PALETTE[idx % COLOR_PALETTE.length],
+      email: u.email,
+    }));
+  }, [workspaceUsers, managedUsers, getManagedUsers, isTeamLeaderMode]);
+
+  // 2. Batch Assignable Team: Strictly Team Leader + Sales Exec (Admin & Manager EXCLUDED)
+  const batchAssignableTeam: WorkspaceTeamMember[] = React.useMemo(() => {
+    let list = allWorkspaceMembers.filter(m => isBatchAssignableRole(m.role));
+    if (isTeamLeaderMode) {
+      // In Team Leader Mode, TL only allocates down to Sales Execs
+      list = list.filter(m => {
+        const r = (m.role || '').toUpperCase();
+        return !r.includes('LEADER') && !r.includes('TL');
+      });
+    }
+    if (list.length === 0) {
+      return isTeamLeaderMode ? FALLBACK_TL_REPS : FALLBACK_BATCH_TEAM;
+    }
+    return list;
+  }, [allWorkspaceMembers, isTeamLeaderMode]);
+
+  // 3. Direct Assign Team: Any workspace member (Managers can assign to themselves if desired)
+  const directAssignTeam: WorkspaceTeamMember[] = allWorkspaceMembers;
 
   const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
 
   // Batchwise Allocation State — Row numbers are NOT autofilled
   const [batchRules, setBatchRules] = useState<BatchRule[]>([
-    { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0]?.id || '1', assigneeName: `${activeTeam[0]?.name || 'Sales Rep'} (${activeTeam[0]?.role || 'Rep'})`, role: activeTeam[0]?.role || 'Rep' },
+    {
+      id: 'b-1',
+      fromRow: '',
+      toRow: '',
+      assigneeId: batchAssignableTeam[0]?.id || '1',
+      assigneeName: `${batchAssignableTeam[0]?.name || 'Sales Rep'} (${batchAssignableTeam[0]?.role || 'Rep'})`,
+      role: batchAssignableTeam[0]?.role || 'Rep',
+    },
   ]);
 
   // Direct Assign State
-  const [selectedUser, setSelectedUser] = useState(activeTeam[0] || MOCK_TEAM[0]);
+  const [selectedUser, setSelectedUser] = useState<WorkspaceTeamMember>(directAssignTeam[0] || batchAssignableTeam[0]);
 
   // Lead Pool State
   const [poolEnabled, setPoolEnabled] = useState(true);
@@ -183,12 +323,19 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (batchRules.length === 0 && activeTeam[0]) {
+    if (batchRules.length === 0 && batchAssignableTeam[0]) {
       setBatchRules([
-        { id: 'b-1', fromRow: '', toRow: '', assigneeId: activeTeam[0].id, assigneeName: `${activeTeam[0].name} (${activeTeam[0].role})`, role: activeTeam[0].role },
+        {
+          id: 'b-1',
+          fromRow: '',
+          toRow: '',
+          assigneeId: batchAssignableTeam[0].id,
+          assigneeName: `${batchAssignableTeam[0].name} (${batchAssignableTeam[0].role})`,
+          role: batchAssignableTeam[0].role,
+        },
       ]);
     }
-  }, [totalLeadsCount, activeTeam]);
+  }, [totalLeadsCount, batchAssignableTeam]);
 
   useEffect(() => {
     if (visible) {
@@ -202,8 +349,20 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
 
   // Custom Batch Distribution State (Mobile Parity)
   const [customBatchSize, setCustomBatchSize] = useState<string>('100');
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(activeTeam.map(m => m.id));
-  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(activeTeam[0]?.id || '1');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(batchAssignableTeam.map(m => m.id));
+  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(batchAssignableTeam[0]?.id || '1');
+
+  useEffect(() => {
+    if (batchAssignableTeam.length > 0) {
+      setSelectedMemberIds(prev => {
+        const valid = prev.filter(id => batchAssignableTeam.some(m => m.id === id));
+        return valid.length > 0 ? valid : batchAssignableTeam.map(m => m.id);
+      });
+      setRemainingAssigneeId(prev => {
+        return batchAssignableTeam.some(m => m.id === prev) ? prev : (batchAssignableTeam[0]?.id || '1');
+      });
+    }
+  }, [batchAssignableTeam]);
 
   // Compute allocated rows & remaining rows
   const allocatedRowsCount = React.useMemo(() => {
@@ -231,7 +390,9 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       ranges: string[];
     }> = {};
 
-    activeTeam.forEach(m => {
+    const teamToDisplay = mode === 'BATCHWISE' ? batchAssignableTeam : directAssignTeam;
+
+    teamToDisplay.forEach(m => {
       stats[m.id] = {
         id: m.id,
         name: m.name,
@@ -275,7 +436,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     }
 
     return Object.values(stats);
-  }, [batchRules, mode, selectedUser, totalLeadsCount, activeTeam]);
+  }, [batchRules, mode, selectedUser, totalLeadsCount, batchAssignableTeam, directAssignTeam]);
 
   const handleToggleMember = (id: string) => {
     setSelectedMemberIds(prev =>
@@ -284,10 +445,10 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   };
 
   const handleSelectAllMembers = () => {
-    if (selectedMemberIds.length === activeTeam.length) {
+    if (selectedMemberIds.length === batchAssignableTeam.length) {
       setSelectedMemberIds([]);
     } else {
-      setSelectedMemberIds(activeTeam.map(m => m.id));
+      setSelectedMemberIds(batchAssignableTeam.map(m => m.id));
     }
   };
 
@@ -302,7 +463,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       return;
     }
 
-    const selectedMembers = activeTeam.filter(m => selectedMemberIds.includes(m.id));
+    const selectedMembers = batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id));
     let currentStart = 1;
     const newRules: BatchRule[] = [];
 
@@ -329,7 +490,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       Alert.alert('Done', 'All leads in the dataset have already been allocated.');
       return;
     }
-    const member = activeTeam.find(m => m.id === assigneeId) || activeTeam[0];
+    const member = batchAssignableTeam.find(m => m.id === assigneeId) || batchAssignableTeam[0];
 
     let maxTo = 0;
     batchRules.forEach(r => {
@@ -361,8 +522,8 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
       return;
     }
     const membersToUse = selectedMemberIds.length > 0
-      ? activeTeam.filter(m => selectedMemberIds.includes(m.id))
-      : activeTeam;
+      ? batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id))
+      : batchAssignableTeam;
 
     let maxTo = 0;
     batchRules.forEach(r => {
@@ -398,7 +559,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
   const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
-    const nextUser = activeTeam[batchRules.length % activeTeam.length];
+    const nextUser = batchAssignableTeam[batchRules.length % batchAssignableTeam.length] || batchAssignableTeam[0];
     setBatchRules(prev => [
       ...prev,
       {
@@ -454,8 +615,6 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
     title: '',
     items: [],
   });
-
-  const { token } = useAuthStore();
 
   const handleConfirmAllocation = async () => {
     if (mode === 'BATCHWISE') {
@@ -666,14 +825,14 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                     <Text style={styles.fieldLabel}>Select Assignees ({selectedMemberIds.length}):</Text>
                     <TouchableOpacity onPress={handleSelectAllMembers}>
                       <Text style={{ fontSize: 10, color: '#818cf8', fontWeight: '800' }}>
-                        {selectedMemberIds.length === activeTeam.length ? 'Deselect All' : 'Select All'}
+                        {selectedMemberIds.length === batchAssignableTeam.length ? 'Deselect All' : 'Select All'}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      {activeTeam.map(usr => {
+                      {batchAssignableTeam.map(usr => {
                         const isSel = selectedMemberIds.includes(usr.id);
                         return (
                           <TouchableOpacity
@@ -735,7 +894,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                         </Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                           <View style={{ flexDirection: 'row', gap: 6 }}>
-                            {activeTeam.map(usr => (
+                            {batchAssignableTeam.map(usr => (
                               <TouchableOpacity
                                 key={usr.id}
                                 style={styles.assignRemainingBtn}
@@ -834,7 +993,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
                     <Text style={styles.fieldLabel}>Assignee (TL / Sales Rep)</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                       <View style={{ flexDirection: 'row', gap: 6 }}>
-                        {activeTeam.map(usr => {
+                        {batchAssignableTeam.map(usr => {
                           const isSel = rule.assigneeId === usr.id;
                           return (
                             <TouchableOpacity
@@ -971,7 +1130,7 @@ export const LeadAllocationEngineModal: React.FC<LeadAllocationEngineModalProps>
               <Text style={styles.cardSub}>Assign all {totalLeadsCount} incoming leads to a single Team Leader or Sales Rep</Text>
 
               <View style={{ gap: 8, marginTop: 10 }}>
-                {activeTeam.map(usr => {
+                {directAssignTeam.map(usr => {
                   const isSel = selectedUser.id === usr.id;
                   return (
                     <TouchableOpacity

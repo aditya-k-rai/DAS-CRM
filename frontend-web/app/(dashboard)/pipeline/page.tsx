@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
 import { DealsKanban } from '@/components/deals/DealsKanban';
 import { FileImportEngineModal } from '@/components/ingestion/FileImportEngineModal';
-import { LeadAllocationModal } from '@/components/ingestion/LeadAllocationModal';
+import { LeadAllocationModal, isBatchAssignableRole } from '@/components/ingestion/LeadAllocationModal';
 import { isLeadContactedAndLocked } from '@/components/leads/LeadsTable';
 import {
   Shield, Zap, DollarSign, TrendingUp, Users, Target, Building2, Briefcase,
@@ -111,18 +111,22 @@ export default function LeadPipelinePage() {
   const [newLeadValue, setNewLeadValue] = useState('45000');
   const [newLeadAssignedRep, setNewLeadAssignedRep] = useState('Unassigned');
 
-  // Tenant-scoped sales representatives & users
+  // Tenant-scoped sales representatives & users (Restricted to TL & Sales Exec for lead assignment)
   const [tenantReps, setTenantReps] = useState<Array<{ id: string; name: string; role: string }>>(() => {
     if (typeof window !== 'undefined') {
       try {
         const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
         if (u && (u.name || u.email)) {
-          return [{ id: u.id || 'usr-1', name: u.name || 'Admin User', role: u.role || 'Admin' }];
+          return [{ id: u.id || 'usr-1', name: u.name || 'Sales Rep', role: u.role || 'Sales Rep' }];
         }
       } catch (e) {}
     }
     return [];
   });
+
+  const assignableReps = useMemo(() => {
+    return tenantReps.filter(rep => isBatchAssignableRole(rep.role));
+  }, [tenantReps]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -977,7 +981,7 @@ export default function LeadPipelinePage() {
                                 }`}
                               >
                                 <option value="Unassigned">⚠️ Unassigned</option>
-                                {tenantReps.map(rep => (
+                                {assignableReps.map(rep => (
                                   <option key={rep.id} value={rep.name}>
                                     {rep.name} ({rep.role})
                                   </option>

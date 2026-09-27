@@ -39,8 +39,33 @@ export interface LeadAllocationModalProps {
   }) => void;
 }
 
-const DEFAULT_MOCK_TEAM = [
-  { id: 'usr-admin', name: 'Admin', role: 'ADMIN', leadsCount: 0, color: '#818cf8' },
+export const isBatchAssignableRole = (roleStr: string): boolean => {
+  const r = (roleStr || '').toUpperCase().trim();
+  if (!r) return false;
+  if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('OWNER')) return false;
+  if (r.includes('MANAGER') || r.includes('MGR')) return false;
+  if (r.includes('HR')) return false;
+  if (r.includes('UNASSIGNED') || r === 'NONE' || r === 'NO_ROLE' || r === 'NOT_ASSIGNED') return false;
+
+  if (
+    r.includes('LEADER') ||
+    r.includes('TL') ||
+    r.includes('SALES') ||
+    r.includes('EXEC') ||
+    r.includes('REP') ||
+    r.includes('AGENT') ||
+    r.includes('STAFF') ||
+    r.includes('EMPLOYEE')
+  ) {
+    return true;
+  }
+  return true;
+};
+
+const DEFAULT_BATCH_TEAM = [
+  { id: 'usr-tl-1', name: 'Team Leader A', role: 'Team Leader', leadsCount: 0, color: '#818cf8' },
+  { id: 'usr-rep-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+  { id: 'usr-rep-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
 ];
 
 export interface ValidationConflict {
@@ -155,18 +180,32 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
         }
       } catch (e) {}
     }
-    return DEFAULT_MOCK_TEAM;
+    return DEFAULT_BATCH_TEAM;
   });
 
   const [selectedUser, setSelectedUser] = useState(teamMembers[0]);
+
+  // Restrict batchwise assignees strictly to Team Leaders and Sales Reps (Excludes Super Admin, Admin, Manager, HR)
+  const batchAssignableTeam = useMemo(() => {
+    const filtered = teamMembers.filter(m => isBatchAssignableRole(m.role));
+    return filtered.length > 0 ? filtered : DEFAULT_BATCH_TEAM;
+  }, [teamMembers]);
 
   // Batchwise Allocation State
   const [batchRules, setBatchRules] = useState<WebBatchRule[]>([]);
 
   // Custom Batch Distribution State
   const [customBatchSize, setCustomBatchSize] = useState<number | ''>(100);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(teamMembers.map(m => m.id));
-  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(teamMembers[0]?.id || '');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(() => batchAssignableTeam.map(m => m.id));
+  const [remainingAssigneeId, setRemainingAssigneeId] = useState<string>(() => batchAssignableTeam[0]?.id || '');
+
+  // Keep selected members synced with batchAssignableTeam
+  useEffect(() => {
+    if (batchAssignableTeam.length > 0) {
+      setSelectedMemberIds(batchAssignableTeam.map(m => m.id));
+      setRemainingAssigneeId(batchAssignableTeam[0]?.id || '');
+    }
+  }, [batchAssignableTeam]);
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -190,8 +229,6 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
             }));
             setTeamMembers(mapped);
             setSelectedUser(mapped[0]);
-            setSelectedMemberIds(mapped.map((m: any) => m.id));
-            setRemainingAssigneeId(mapped[0]?.id || '');
           }
         }
       } catch (e) {}
@@ -225,7 +262,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       ranges: string[];
     }> = {};
 
-    teamMembers.forEach(m => {
+    const membersForStats = mode === 'BATCHWISE' ? batchAssignableTeam : teamMembers;
+    membersForStats.forEach(m => {
       stats[m.id] = {
         id: m.id,
         name: m.name,
@@ -269,7 +307,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     }
 
     return Object.values(stats);
-  }, [batchRules, mode, selectedUser, totalLeadsCount]);
+  }, [batchRules, mode, selectedUser, totalLeadsCount, batchAssignableTeam, teamMembers]);
 
   const handleToggleMember = (id: string) => {
     setSelectedMemberIds(prev =>
@@ -278,10 +316,10 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   const handleSelectAllMembers = () => {
-    if (selectedMemberIds.length === teamMembers.length) {
+    if (selectedMemberIds.length === batchAssignableTeam.length) {
       setSelectedMemberIds([]);
     } else {
-      setSelectedMemberIds(teamMembers.map(m => m.id));
+      setSelectedMemberIds(batchAssignableTeam.map(m => m.id));
     }
   };
 
@@ -296,7 +334,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       return;
     }
 
-    const selectedMembers = teamMembers.filter(m => selectedMemberIds.includes(m.id));
+    const selectedMembers = batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id));
     let currentStart = 1;
     const newRules: WebBatchRule[] = [];
 
@@ -323,7 +361,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       alert('All leads in the dataset have already been allocated.');
       return;
     }
-    const member = teamMembers.find(m => m.id === assigneeId) || teamMembers[0];
+    const member = batchAssignableTeam.find(m => m.id === assigneeId) || batchAssignableTeam[0];
     if (!member) return;
 
     let maxTo = 0;
@@ -356,8 +394,8 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       return;
     }
     const membersToUse = selectedMemberIds.length > 0
-      ? teamMembers.filter(m => selectedMemberIds.includes(m.id))
-      : teamMembers;
+      ? batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id))
+      : batchAssignableTeam;
     if (membersToUse.length === 0) return;
 
     let maxTo = 0;
@@ -411,22 +449,22 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   useEffect(() => {
-    if (batchRules.length === 0 && teamMembers.length > 0) {
-      const u1 = teamMembers[0];
-      const u2 = teamMembers[1] || teamMembers[0];
+    if (batchRules.length === 0 && batchAssignableTeam.length > 0) {
+      const u1 = batchAssignableTeam[0];
+      const u2 = batchAssignableTeam[1] || batchAssignableTeam[0];
       setBatchRules([
         { id: 'b-1', fromRow: '', toRow: '', assigneeId: u1.id, assigneeName: `${u1.name} (${u1.role})`, role: u1.role },
-        ...(teamMembers.length > 1 ? [{ id: 'b-2', fromRow: '', toRow: '', assigneeId: u2.id, assigneeName: `${u2.name} (${u2.role})`, role: u2.role }] : []),
+        ...(batchAssignableTeam.length > 1 ? [{ id: 'b-2', fromRow: '', toRow: '', assigneeId: u2.id, assigneeName: `${u2.name} (${u2.role})`, role: u2.role }] : []),
       ]);
     }
-  }, [totalLeadsCount, teamMembers]);
+  }, [totalLeadsCount, batchAssignableTeam]);
 
   if (!isOpen) return null;
 
   const validation = validateBatchRules(batchRules, totalLeadsCount);
 
   const handleAddBatchRule = () => {
-    const nextUser = teamMembers[batchRules.length % (teamMembers.length || 1)] || { id: 'usr-1', name: 'Staff', role: 'Sales Exec' };
+    const nextUser = batchAssignableTeam[batchRules.length % (batchAssignableTeam.length || 1)] || batchAssignableTeam[0] || { id: 'usr-1', name: 'Staff', role: 'Sales Exec' };
 
     setBatchRules(prev => [
       ...prev,
@@ -939,7 +977,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                     </div>
 
                     <div className="flex gap-1.5 flex-wrap">
-                      {teamMembers.map((member: any) => {
+                      {batchAssignableTeam.map((member: any) => {
                         const isSelected = selectedMemberIds.includes(member.id);
                         return (
                           <button
@@ -1033,7 +1071,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                             borderColor: '#475569',
                           }}
                         >
-                          {teamMembers.map((m: any) => (
+                          {batchAssignableTeam.map((m: any) => (
                             <option
                               key={m.id}
                               value={m.id}
@@ -1188,7 +1226,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                     <div>
                       <label className="text-[10px] font-bold text-slate-300 block mb-1">Assignee (TL / Sales Rep)</label>
                       <div className="flex gap-2 overflow-x-auto pb-1.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        {teamMembers.map((usr: any) => {
+                        {batchAssignableTeam.map((usr: any) => {
                           const isSel = rule.assigneeId === usr.id;
                           return (
                             <button

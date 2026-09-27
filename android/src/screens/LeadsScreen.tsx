@@ -42,7 +42,8 @@ import {
   SavedImportSession,
   DEFAULT_IMPORT_SESSION,
 } from '../components/FileImportEngineModal';
-import { LeadAllocationEngineModal } from '../components/LeadAllocationEngineModal';
+import { LeadAllocationEngineModal, isBatchAssignableRole } from '../components/LeadAllocationEngineModal';
+import { useModuleAccessStore } from '../store/moduleAccessStore';
 import { getStoredStatuses, LeadStatusItem, DEFAULT_ANDROID_STATUSES } from '../services/workflowStorage';
 import { GoogleSheetsLiveSyncModal } from '../components/GoogleSheetsLiveSyncModal';
 import { AIScoreBadge, generateMockAIScore } from '../components/AIScoreComponents';
@@ -95,6 +96,8 @@ export default function LeadsScreen() {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [leadsList, setLeadsList] = useState<LeadItem[]>(FALLBACK_LEADS);
 
+  const { managedUsers } = useModuleAccessStore();
+
   const availablePersons = useMemo(() => {
     const persons = new Set<string>();
     if (currentUser?.name) {
@@ -107,6 +110,43 @@ export default function LeadsScreen() {
     });
     return Array.from(persons);
   }, [leadsList, currentUser]);
+
+  // Lead Assignee Options for Reassignment: Strictly TL + Sales Exec (Admin & Manager EXCLUDED)
+  const assignableRepOptions = useMemo(() => {
+    // 1. From managedUsers in moduleAccessStore
+    const validUsers = (managedUsers || []).filter(u => isBatchAssignableRole(u.role));
+    if (validUsers.length > 0) {
+      return validUsers.map(u => {
+        const r = (u.role || '').toUpperCase();
+        const tag = r.includes('LEADER') || r.includes('TL') ? 'TL' : 'Sales Exec';
+        return `${u.name} (${tag})`;
+      });
+    }
+
+    // 2. Fallback: filter leadsList persons to strictly exclude Admin, Manager, HR, Super Admin
+    const persons = new Set<string>();
+    leadsList.forEach((l) => {
+      if (l.assignedRep && !l.assignedRep.toLowerCase().includes('unassigned') && l.assignedRep !== '—') {
+        const rep = l.assignedRep.trim();
+        const rUpper = rep.toUpperCase();
+        if (
+          !rUpper.includes('ADMIN') &&
+          !rUpper.includes('MANAGER') &&
+          !rUpper.includes('HR') &&
+          !rUpper.includes('SUPER') &&
+          !rUpper.includes('OWNER')
+        ) {
+          persons.add(rep);
+        }
+      }
+    });
+
+    if (persons.size === 0) {
+      return ['Team Leader A (TL)', 'Sales Rep 1 (Sales Exec)', 'Sales Rep 2 (Sales Exec)'];
+    }
+
+    return Array.from(persons);
+  }, [managedUsers, leadsList]);
 
   // ── MULTI-DIMENSIONAL ADVANCED FILTER STATE ──────────────────────────────────
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -642,7 +682,7 @@ export default function LeadsScreen() {
               ]}
               onPress={() => {
                 const assignOptions = [
-                  ...(availablePersons.length > 0 ? availablePersons : (currentUser?.name ? [currentUser.name] : ['Sales Team'])).map((p) => ({
+                  ...assignableRepOptions.map((p) => ({
                     text: p,
                     onPress: () => handleReassignLeadItem(item.id, p),
                   })),
@@ -650,7 +690,7 @@ export default function LeadsScreen() {
                   { text: 'Cancel', style: 'cancel' as const },
                 ];
                 Alert.alert(
-                  '👤 Reassign Lead',
+                  '👤 Reassign Lead (TL / Sales Rep Only)',
                   `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
                   assignOptions
                 );
@@ -1326,7 +1366,7 @@ export default function LeadsScreen() {
                           ]}
                           onPress={() => {
                             const assignOptions = [
-                              ...(availablePersons.length > 0 ? availablePersons : (currentUser?.name ? [currentUser.name] : ['Sales Team'])).map((p) => ({
+                              ...assignableRepOptions.map((p) => ({
                                 text: p,
                                 onPress: () => handleReassignLeadItem(item.id, p),
                               })),
@@ -1334,7 +1374,7 @@ export default function LeadsScreen() {
                               { text: 'Cancel', style: 'cancel' as const },
                             ];
                             Alert.alert(
-                              '👤 Reassign Lead',
+                              '👤 Reassign Lead (TL / Sales Rep Only)',
                               `Assign ${item.name} (${isUnassigned ? 'Currently Unassigned' : item.assignedRep}) to:`,
                               assignOptions
                             );
