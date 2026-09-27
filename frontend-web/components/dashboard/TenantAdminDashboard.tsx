@@ -543,7 +543,7 @@ export function TenantAdminDashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-extrabold text-foreground tracking-tight">ADMIN COMMAND CENTER</h1>
+                <h1 className="text-xl font-extrabold text-foreground tracking-tight">ADMIN CONTROL CENTER</h1>
                 {subscription?.isExpired ? (
                   <span className="text-[11px] px-3 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40">
                     ⚠️ Plan Expired · Action Required

@@ -128,9 +128,31 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [saving, setSaving] = useState<string | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [auditOpen, setAuditOpen] = useState(false);
-  const [saving, setSaving] = useState<string | null>(null); // PolicyKey currently saving
+  const userRole = (currentUser?.role || '').toUpperCase().trim();
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'OWNER' || userRole.includes('ADMIN');
+
+  if (!isAdmin) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <View style={{ width: '100%', maxWidth: 360, backgroundColor: colors.cardBg, borderRadius: 20, borderWidth: 1, borderColor: '#ef4444', padding: 24, alignItems: 'center' }}>
+          <Text style={{ fontSize: 36, marginBottom: 12 }}>🛡️</Text>
+          <Text style={{ fontSize: 16, fontWeight: '900', color: colors.text, marginBottom: 6 }}>Admin Access Restricted</Text>
+          <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 16 }}>
+            The Admin Control Center is restricted exclusively to Organization Administrators.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#4f46e5', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 }}
+            onPress={onClose}
+          >
+            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>← Return to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   // ─── Load users from server + cache ────────────────────────────────────────
 
