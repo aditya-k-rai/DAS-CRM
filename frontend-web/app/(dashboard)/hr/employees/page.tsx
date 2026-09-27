@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Topbar } from '@/components/layout/Topbar';
 import { EmployeeListWidget } from '@/components/hr/EmployeeListWidget';
-import { Download, Lock, Shield } from 'lucide-react';
+import { Download, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export const dynamic = 'force-dynamic';
@@ -12,20 +12,19 @@ export const dynamic = 'force-dynamic';
 function EmployeesContent() {
   const { currentUser } = useAuth();
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab') as 'assigned' | 'unassigned' | 'all' | 'control_center' | null;
+  const tabParam = searchParams.get('tab') as 'assigned' | 'unassigned' | 'all' | null;
   const [exportTrigger, setExportTrigger] = useState(0);
-  const [currentTab, setCurrentTab] = useState<'assigned' | 'unassigned' | 'all' | 'control_center'>(
-    tabParam === 'control_center' ? 'control_center' : 'assigned'
+  const [currentTab, setCurrentTab] = useState<'assigned' | 'unassigned' | 'all'>(
+    tabParam === 'unassigned' || tabParam === 'all' ? tabParam : 'assigned'
   );
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isHrOrAdmin = rawRole === 'HR' || rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
-  const isAdmin = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
 
   if (!isHrOrAdmin) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
-        <Topbar title="Employee Directory & Reports" />
+        <Topbar title="Employee Directory & Staff Management" />
         <main className="flex-1 p-6 overflow-auto flex items-center justify-center">
           <div className="crm-card border border-red-500/30 bg-red-500/10 p-8 rounded-3xl text-center space-y-3 max-w-lg">
             <div className="w-12 h-12 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center font-bold mx-auto">
@@ -44,22 +43,9 @@ function EmployeesContent() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar
-        title="Employee Directory & Admin Control"
+        title="Employee Directory & Staff Management"
         actions={
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                onClick={() => setCurrentTab('control_center')}
-                className={`btn-secondary text-xs gap-1.5 cursor-pointer transition-all ${
-                  currentTab === 'control_center'
-                    ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/60'
-                    : 'hover:bg-indigo-900/30 text-indigo-400 border-indigo-500/30'
-                }`}
-                title="Open Admin Control Center Matrix"
-              >
-                <Shield size={14} /> Admin Control Center
-              </button>
-            )}
             <button
               onClick={() => setExportTrigger(Date.now())}
               className="btn-secondary text-xs gap-1.5 cursor-pointer hover:bg-slate-800 transition-all"
@@ -86,7 +72,7 @@ export default function EmployeesPage() {
     <Suspense
       fallback={
         <div className="flex-1 flex flex-col min-h-0 p-6 items-center justify-center text-xs text-slate-400">
-          Loading Employee Directory &amp; Admin Control...
+          Loading Employee Directory...
         </div>
       }
     >

@@ -33,7 +33,6 @@ import SalesExecControlScreen from './SalesExecControlScreen';
 import TeamLeaderControlScreen from './TeamLeaderControlScreen';
 import ManagerControlScreen from './ManagerControlScreen';
 import HrControlScreen from './HrControlScreen';
-import AdminControlCenterScreen from './AdminControlCenterScreen';
 import { getApiBase } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -130,7 +129,7 @@ export default function EmployeesScreen() {
 
   const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED' | 'CONTROL_CENTER'>('ASSIGNED');
+  const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | null>(null);
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
@@ -700,36 +699,7 @@ export default function EmployeesScreen() {
             {t.empTabUnassigned} ({unassignedUsers.length})
           </Text>
         </TouchableOpacity>
-
-        {isAdmin && (
-          <TouchableOpacity
-            style={[styles.tabBtn, activeTab === 'CONTROL_CENTER' && styles.tabBtnActive]}
-            onPress={() => setActiveTab('CONTROL_CENTER')}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 12, marginRight: 2 }}>🛡️</Text>
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-              style={[
-                styles.tabBtnText,
-                { color: colors.textMuted },
-                activeTab === 'CONTROL_CENTER' && { color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' },
-              ]}
-            >
-              Control Center
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
-
-      {/* ── Admin Control Center Tab Content ── */}
-      {activeTab === 'CONTROL_CENTER' && (
-        <View style={{ flex: 1 }}>
-          <AdminControlCenterScreen onClose={() => setActiveTab('ASSIGNED')} />
-        </View>
-      )}
 
       {/* ── Assigned Tab Content ── */}
       {activeTab === 'ASSIGNED' && (
@@ -737,50 +707,6 @@ export default function EmployeesScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 95 }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* 🛡️ ADMIN CONTROL CENTER HERO BANNER */}
-          {isAdmin && (
-            <View
-              style={[
-                styles.controlCenterHeroCard,
-                {
-                  backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(79,70,229,0.07)',
-                  borderColor: isDark ? 'rgba(129,140,248,0.45)' : 'rgba(99,102,241,0.35)',
-                },
-              ]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={[styles.controlCenterIconBox, { backgroundColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(79,70,229,0.15)' }]}>
-                    <Text style={{ fontSize: 16 }}>🛡️</Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.controlCenterHeroTitle, { color: isDark ? '#a5b4fc' : '#4338ca' }]}>
-                      ADMIN CONTROL CENTER
-                    </Text>
-                    <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '700' }}>
-                      Per-User Module Visibility &amp; Permissions Matrix
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.controlCenterBadge, { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.35)' }]}>
-                  <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '900' }}>● 20 Modules</Text>
-                </View>
-              </View>
-
-              <Text style={[styles.controlCenterHeroSub, { color: colors.textSecondary }]}>
-                Configure Master Active access, View, Share &amp; Edit permissions across all 20 modules for each employee.
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.openControlCenterBtn, { backgroundColor: isDark ? '#6366f1' : '#4f46e5' }]}
-                onPress={() => setActiveTab('CONTROL_CENTER')}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.openControlCenterBtnText}>🛡️ Open Admin Control Center Matrix →</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           <View style={[styles.tabInfoBanner, !isDark && { backgroundColor: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.4)' }]}>
             <Text style={[styles.tabInfoText, !isDark && { color: '#065f46' }]}>
               {t.empAssignedBanner}
@@ -836,26 +762,6 @@ export default function EmployeesScreen() {
                       <TouchableOpacity style={styles.inspectBtn} onPress={() => setInspectingEmp(emp)}>
                         <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
                       </TouchableOpacity>
-
-                      {isAdmin && (
-                        <TouchableOpacity
-                          style={{
-                            paddingVertical: 5,
-                            paddingHorizontal: 8,
-                            borderRadius: 8,
-                            backgroundColor: isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.15)',
-                            borderColor: isDark ? 'rgba(99,102,241,0.5)' : 'rgba(79,70,229,0.3)',
-                            borderWidth: 1,
-                            alignItems: 'center',
-                          }}
-                          onPress={() => setActiveTab('CONTROL_CENTER')}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={{ fontSize: 10, fontWeight: '900', color: isDark ? '#a5b4fc' : '#4338ca' }}>
-                            🛡️ Module Access
-                          </Text>
-                        </TouchableOpacity>
-                      )}
 
                       {emp.role !== 'ADMIN' && (
                         <TouchableOpacity
