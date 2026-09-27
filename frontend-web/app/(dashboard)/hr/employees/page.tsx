@@ -3,12 +3,11 @@
 import { useState } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { EmployeeListWidget } from '@/components/hr/EmployeeListWidget';
-import { Plus, Download, Lock } from 'lucide-react';
+import { Download, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function EmployeesPage() {
   const { currentUser } = useAuth();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [exportTrigger, setExportTrigger] = useState(0);
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
@@ -46,20 +45,11 @@ export default function EmployeesPage() {
             >
               <Download size={14} /> Export Directory
             </button>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="btn-primary text-sm gap-1.5 cursor-pointer shadow-lg hover:brightness-110 transition-all"
-              title="Add a new employee or pre-register unassigned user"
-            >
-              <Plus size={14} /> Add Employee
-            </button>
           </div>
         }
       />
       <main className="flex-1 p-6 overflow-auto">
         <EmployeeListWidget
-          isAddModalOpen={isAddModalOpen}
-          setIsAddModalOpen={setIsAddModalOpen}
           exportTrigger={exportTrigger}
         />
       </main>

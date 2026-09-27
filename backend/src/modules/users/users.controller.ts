@@ -114,13 +114,13 @@ export class UsersController {
     );
   }
 
-  @Patch(':id/upgrade-role')
-  @ApiOperation({ summary: 'Admin upgrades employee role strictly along Sales -> TL -> Manager' })
-  async upgradeUserRole(
+  @Patch(':id/change-role')
+  @ApiOperation({ summary: 'Admin upgrades or downgrades permanent employee role with Company Key confirmation' })
+  async changeUserRole(
     @CurrentUser() adminUser: any,
     @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
-    @Body() body: { organizationId?: string },
+    @Body() body: { targetRole: string; companyKey: string; organizationId?: string },
   ) {
     const orgId =
       adminUser?.organizationId ||
@@ -128,6 +128,38 @@ export class UsersController {
       headerOrgId ||
       'cmuev7n3o000mikew7je1tdiw';
     const adminId = adminUser?.id || 'admin_direct';
+    return this.usersService.changeUserRole(
+      orgId,
+      adminId,
+      targetUserId,
+      body.targetRole,
+      body.companyKey,
+    );
+  }
+
+  @Patch(':id/upgrade-role')
+  @ApiOperation({ summary: 'Admin upgrades employee role with Company Key confirmation' })
+  async upgradeUserRole(
+    @CurrentUser() adminUser: any,
+    @Headers('x-organization-id') headerOrgId: string,
+    @Param('id') targetUserId: string,
+    @Body() body: { organizationId?: string; targetRole?: string; companyKey?: string },
+  ) {
+    const orgId =
+      adminUser?.organizationId ||
+      body?.organizationId ||
+      headerOrgId ||
+      'cmuev7n3o000mikew7je1tdiw';
+    const adminId = adminUser?.id || 'admin_direct';
+    if (body?.targetRole && body?.companyKey) {
+      return this.usersService.changeUserRole(
+        orgId,
+        adminId,
+        targetUserId,
+        body.targetRole,
+        body.companyKey,
+      );
+    }
     return this.usersService.upgradeUserRole(
       orgId,
       adminId,

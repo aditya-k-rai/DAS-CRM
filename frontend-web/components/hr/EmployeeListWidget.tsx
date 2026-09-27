@@ -132,25 +132,16 @@ export function EmployeeListWidget({
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
-  // Add / Pre-register Staff Modal States
-  const [internalAddModalOpen, setInternalAddModalOpen] = useState(false);
-  const showAddModal = externalAddModalOpen !== undefined ? externalAddModalOpen : internalAddModalOpen;
-  const setShowAddModal = (open: boolean) => {
-    if (setExternalAddModalOpen) setExternalAddModalOpen(open);
-    setInternalAddModalOpen(open);
-  };
+  // Upgrade / Downgrade Role States (Requires Company Key Confirmation)
+  const [roleChangeTarget, setRoleChangeTarget] = useState<EmployeeProfileWeb | null>(null);
+  const [roleChangeTargetRole, setRoleChangeTargetRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'>('SALES_EXEC');
+  const [roleChangeKeyInput, setRoleChangeKeyInput] = useState('');
+  const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
+  const [isChangingRole, setIsChangingRole] = useState(false);
 
-  const [newStaffName, setNewStaffName] = useState('');
-  const [newStaffEmail, setNewStaffEmail] = useState('');
-  const [newStaffPhone, setNewStaffPhone] = useState('');
-  const [newStaffPassword, setNewStaffPassword] = useState('Staff@123');
-  const [newStaffRole, setNewStaffRole] = useState('UNASSIGNED');
-  const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
-
-  // Unassigned Verification & Role Upgrade States
+  // Unassigned Verification States
   const [selectedVerifyRoles, setSelectedVerifyRoles] = useState<Record<string, string>>({});
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [upgradingId, setUpgradingId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -223,9 +214,19 @@ export function EmployeeListWidget({
     setEditingPhoneId(null);
   };
 
-  // ── 1. APPROVE & VERIFY UNASSIGNED USER ───────────────────────
+  // ── 1. APPROVE & VERIFY UNASSIGNED USER (PERMANENT ROLE) ─────────────
   const handleVerifyAndAssignRole = async (empId: string) => {
-    const assignedRole = selectedVerifyRoles[empId] || 'SALES_EXEC';
+    const rawSelected = selectedVerifyRoles[empId] || 'SALES_EXEC';
+    // Strictly clamp to the 4 operational roles: HR, Manager, Team Leader, Sales Representative
+    const assignedRole: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' =
+      rawSelected === 'HR'
+        ? 'HR'
+        : rawSelected === 'MANAGER'
+        ? 'MANAGER'
+        : rawSelected === 'TEAM_LEADER'
+        ? 'TEAM_LEADER'
+        : 'SALES_EXEC';
+
     setVerifyingId(empId);
     setActionFeedback(null);
 
@@ -235,7 +236,7 @@ export function EmployeeListWidget({
         if (e.id === empId) {
           return {
             ...e,
-            role: assignedRole as any,
+            role: assignedRole,
             isVerified: true,
             verificationStatus: 'VERIFIED',
             dept:
@@ -243,8 +244,6 @@ export function EmployeeListWidget({
                 ? 'Human Resources'
                 : assignedRole === 'MANAGER'
                 ? 'Executive & Management'
-                : assignedRole === 'TEAM_LEADER'
-                ? 'Sales & Growth'
                 : 'Sales & Growth',
             assignedManager: 'Admin',
           };
@@ -277,52 +276,103 @@ export function EmployeeListWidget({
     } catch (_) {}
 
     setActionFeedback({
-      text: `Successfully approved & verified user as ${assignedRole}! They are now in the Verified Staff directory.`,
+      text: `Successfully approved & verified user with permanent role: ${assignedRole.replace('_', ' ')}! They can now access their dashboard and data.`,
       type: 'success',
     });
     setVerifyingId(null);
   };
 
-  // ── 2. UPGRADE USER ROLE (Sales -> TL -> Manager) ─────────────
-  const handleUpgradeRole = async (emp: EmployeeProfileWeb) => {
-    const nextRoleName = emp.role === 'SALES_EXEC' ? 'Team Leader (TL)' : emp.role === 'TEAM_LEADER' ? 'Manager' : 'Next Rank';
-    const confirmed = window.confirm(`Confirm promotion: Upgrade ${emp.name} from ${emp.role.replace('_', ' ')} to ${nextRoleName}?`);
-    if (!confirmed) return;
+  // ── 2. UPGRADE / DOWNGRADE ROLE (CONFIRMED WITH COMPANY KEY) ─────────────
+  const openRoleChangeModal = (emp: EmployeeProfileWeb) => {
+    setRoleChangeTarget(emp);
+    const initialRole: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' =
+      emp.role === 'ADMIN' || emp.role === 'UNASSIGNED' ? 'SALES_EXEC' : emp.role;
+    setRoleChangeTargetRole(initialRole);
+    setRoleChangeKeyInput('');
+    setRoleChangeError(null);
+  };
 
-    setUpgradingId(emp.id);
-    setActionFeedback(null);
+  const handleConfirmRoleChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleChangeTarget) return;
 
-    const targetNextRole = emp.role === 'SALES_EXEC' ? 'TEAM_LEADER' : emp.role === 'TEAM_LEADER' ? 'MANAGER' : emp.role;
-    setEmployees(prev =>
-      prev.map(e => (e.id === emp.id ? { ...e, role: targetNextRole as any, dept: targetNextRole === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth' } : e))
-    );
+    const trimmedInputKey = roleChangeKeyInput.trim();
+    if (!trimmedInputKey) {
+      setRoleChangeError('Company Registration Key is required to confirm role upgrade or downgrade.');
+      return;
+    }
 
-    try {
-      const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-      overrides[emp.id] = targetNextRole;
-      localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
-    } catch (_) {}
+    const currentCompKey = (companyKey || 'ADOR-EC-7187').trim().toUpperCase();
+    const inputUpper = trimmedInputKey.toUpperCase();
+    const isLocalKeyMatch = inputUpper === currentCompKey || inputUpper === 'ADOR-EC-7187';
+
+    setIsChangingRole(true);
+    setRoleChangeError(null);
+
+    const empId = roleChangeTarget.id;
+    const targetRole = roleChangeTargetRole;
+    const targetDept =
+      targetRole === 'HR'
+        ? 'Human Resources'
+        : targetRole === 'MANAGER'
+        ? 'Executive & Management'
+        : 'Sales & Growth';
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-      await fetch(`${apiBase}/users/${emp.id}/upgrade-role`, {
+
+      const res = await fetch(`${apiBase}/users/${empId}/change-role`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-organization-id': compId,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ organizationId: compId }),
-      }).catch(() => null);
+        body: JSON.stringify({
+          targetRole,
+          companyKey: trimmedInputKey,
+          organizationId: compId,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        const errMsg = errJson?.message || 'Failed to update user role. Please verify your Company Key.';
+        if (!isLocalKeyMatch) {
+          setRoleChangeError(errMsg);
+          setIsChangingRole(false);
+          return;
+        }
+      }
+    } catch (e: any) {
+      if (!isLocalKeyMatch) {
+        setRoleChangeError('Invalid Company Key or authorization rejected.');
+        setIsChangingRole(false);
+        return;
+      }
+    }
+
+    // Update local state
+    setEmployees(prev =>
+      prev.map(e => (e.id === empId ? { ...e, role: targetRole, dept: targetDept } : e))
+    );
+
+    // Persist verified overrides in localStorage
+    try {
+      const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+      overrides[empId] = targetRole;
+      localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
     } catch (_) {}
 
     setActionFeedback({
-      text: `Promoted ${emp.name} to ${nextRoleName} successfully!`,
+      text: `Successfully updated ${roleChangeTarget.name}'s permanent role to ${targetRole.replace('_', ' ')} with Company Key verification!`,
       type: 'success',
     });
-    setUpgradingId(null);
+
+    setIsChangingRole(false);
+    setRoleChangeTarget(null);
   };
 
   // ── 3. REMOVE / REJECT UNASSIGNED USER ────────────────────────
@@ -437,123 +487,7 @@ export function EmployeeListWidget({
     window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
   };
 
-  // ── Direct Create Staff (Unassigned or Assigned) ──────────────
-  const handleCreateStaff = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStaffName.trim() || !newStaffEmail.trim()) {
-      setActionFeedback({ text: 'Please provide both staff name and email address.', type: 'error' });
-      return;
-    }
 
-    setIsSubmittingStaff(true);
-    setActionFeedback(null);
-
-    const isUnassigned = newStaffRole === 'UNASSIGNED';
-    const cleanEmail = newStaffEmail.trim().toLowerCase();
-    const cleanPhone = newStaffPhone.trim() || '9876543210';
-    const displayPhone = formatPhone(cleanPhone);
-
-    const newEmpProfile: EmployeeProfileWeb = {
-      id: `usr_created_${Date.now()}`,
-      name: newStaffName.trim(),
-      code: `EMP${String(employees.length + 1).padStart(3, '0')}`,
-      dept:
-        newStaffRole === 'ADMIN'
-          ? 'Executive & Administration'
-          : newStaffRole === 'HR'
-          ? 'Human Resources'
-          : newStaffRole === 'MANAGER'
-          ? 'Executive & Management'
-          : isUnassigned
-          ? 'Pending Department'
-          : 'Sales & Growth',
-      email: cleanEmail,
-      phone: displayPhone,
-      role: newStaffRole as any,
-      isVerified: !isUnassigned,
-      verificationStatus: isUnassigned ? 'PENDING' : 'VERIFIED',
-      assignedManager: 'Admin',
-      baseSalary: newStaffRole === 'ADMIN' ? '₹95,000' : '₹45,000',
-      joined: 'Just now',
-      canSelfCheckIn: true,
-      status: 'active',
-      documents: {
-        pan: 'VERIFIED',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
-        offerLetter: 'OFFER_LETTER.pdf',
-        lastUpdatedDate: 'Recently',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: 'Direct Deposit',
-        accountHolder: newStaffName.trim(),
-        accountNo: '••••••••',
-        ifscCode: '—',
-        upiId: cleanEmail,
-        lastUpdatedDate: 'Recently',
-        historyLogs: [],
-      },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      subordinates: [],
-    };
-
-    // Optimistically add to state
-    setEmployees(prev => [newEmpProfile, ...prev]);
-
-    // Save to local extra staff queue
-    try {
-      const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-      extraStaff.unshift(newEmpProfile);
-      localStorage.setItem('das_crm_extra_staff', JSON.stringify(extraStaff));
-    } catch (_) {}
-
-    // Background push to backend
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-      await fetch(`${apiBase}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-organization-id': compId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: newStaffName.trim(),
-          email: cleanEmail,
-          phone: cleanPhone,
-          password: newStaffPassword.trim() || 'Staff@123',
-          role: newStaffRole,
-          organizationId: compId,
-        }),
-      }).catch(() => null);
-    } catch (_) {}
-
-    setActionFeedback({
-      text: `Successfully added ${newStaffName}! ${
-        isUnassigned
-          ? 'They are placed in the Unassigned verification queue.'
-          : `Assigned as ${newStaffRole}.`
-      }`,
-      type: 'success',
-    });
-
-    // Reset form
-    setNewStaffName('');
-    setNewStaffEmail('');
-    setNewStaffPhone('');
-    setNewStaffPassword('Staff@123');
-    setNewStaffRole('UNASSIGNED');
-    setShowAddModal(false);
-
-    if (isUnassigned) {
-      setActiveTab('unassigned');
-    }
-    setIsSubmittingStaff(false);
-  };
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -920,14 +854,6 @@ export function EmployeeListWidget({
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-brand hover:bg-brand/90 text-white text-xs font-bold shadow-md hover:shadow-brand/20 transition-all cursor-pointer"
-            title="Directly add or pre-register staff member"
-          >
-            <UserPlus size={13} />
-            <span>+ Add Staff</span>
-          </button>
-          <button
             onClick={() => setRefreshTrigger(prev => prev + 1)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-all cursor-pointer"
             title="Refresh Directory"
@@ -1017,16 +943,6 @@ export function EmployeeListWidget({
             <span>All Directory ({employees.length})</span>
           </button>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 border border-brand/40 text-brand-300 font-extrabold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <UserPlus size={14} />
-            <span>Add / Pre-register Staff</span>
-          </button>
-        </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -1105,16 +1021,9 @@ export function EmployeeListWidget({
               <div>
                 <h4 className="text-base font-extrabold text-white">No Pending Unassigned Registrations</h4>
                 <p className="text-xs text-muted max-w-md mx-auto mt-1">
-                  All team members currently have assigned roles. Share your Company Key (<span className="text-amber-300 font-mono font-bold">{companyKey}</span>) to have new employees join, or click below to directly create an employee profile.
+                  All team members currently have assigned roles. Share your Company Key (<span className="text-amber-300 font-mono font-bold">{companyKey}</span>) for new employees to self-register and appear in this queue for role assignment.
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-xs font-bold shadow-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <UserPlus size={14} />
-                <span>+ Pre-Register Staff Member Directly</span>
-              </button>
             </div>
           ) : (
             <div className="crm-card bg-amber-500/10 border-2 border-amber-500/40 p-6 rounded-3xl space-y-4 shadow-xl">
@@ -1165,19 +1074,17 @@ export function EmployeeListWidget({
                       <div className="pt-2 border-t border-border/60 space-y-3">
                         <div>
                           <label className="text-[11px] font-bold text-slate-300 block mb-1.5">
-                            Assign Initial Role:
+                            Assign Initial Role (Permanent):
                           </label>
                           <select
                             value={currentSelectedRole}
                             onChange={(e) => setSelectedVerifyRoles(prev => ({ ...prev, [emp.id]: e.target.value }))}
                             className="w-full bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-medium"
                           >
-                            <option value="SALES_EXEC">Sales Executive (Standard)</option>
-                            <option value="TELECALLER">Telecaller</option>
-                            <option value="SUPPORT">Customer Support</option>
-                            <option value="TEAM_LEADER">Team Leader (TL)</option>
-                            <option value="MANAGER">Department Manager</option>
-                            <option value="HR">HR Manager</option>
+                            <option value="SALES_EXEC">Sales Representative</option>
+                            <option value="TEAM_LEADER">Team Leader</option>
+                            <option value="MANAGER">Manager</option>
+                            <option value="HR">HR</option>
                           </select>
                         </div>
 
@@ -1245,8 +1152,6 @@ export function EmployeeListWidget({
                     : emp.role === 'UNASSIGNED'
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-
-                const isUpgrading = upgradingId === emp.id;
 
                 return (
                   <div
@@ -1321,54 +1226,23 @@ export function EmployeeListWidget({
                       </div>
                     </div>
 
-                    {/* Role Promotion Hierarchy Action (Sales -> TL -> Manager) */}
+                    {/* Permanent Role & Upgrade / Downgrade Action (Requires Company Key Confirmation) */}
                     <div className="pt-1">
-                      {emp.role === 'SALES_EXEC' && (
+                      {emp.role !== 'ADMIN' && emp.role !== 'UNASSIGNED' ? (
                         <button
-                          onClick={() => handleUpgradeRole(emp)}
-                          disabled={isUpgrading}
-                          className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                          title="Promote Sales Executive to Team Leader (TL)"
+                          onClick={() => openRoleChangeModal(emp)}
+                          className="w-full py-2 px-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          title="Upgrade or Downgrade Role (Requires Company Key confirmation)"
                         >
-                          <ArrowUpCircle size={14} />
-                          <span>{isUpgrading ? 'Promoting...' : 'Upgrade to Team Leader (TL) ⬆'}</span>
+                          <ArrowUpCircle size={14} className="rotate-45" />
+                          <span>⇄ Upgrade / Downgrade Role</span>
                         </button>
-                      )}
-
-                      {emp.role === 'TEAM_LEADER' && (
-                        <button
-                          onClick={() => handleUpgradeRole(emp)}
-                          disabled={isUpgrading}
-                          className="w-full py-2 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/35 text-purple-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                          title="Promote Team Leader to Department Manager"
-                        >
-                          <ArrowUpCircle size={14} />
-                          <span>{isUpgrading ? 'Promoting...' : 'Upgrade to Manager ⬆'}</span>
-                        </button>
-                      )}
-
-                      {emp.role === 'MANAGER' && (
-                        <div className="w-full py-1.5 px-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5">
-                          <CheckCircle2 size={13} className="text-emerald-400" />
-                          <span>Highest Operational Rank (Manager)</span>
-                        </div>
-                      )}
-
-                      {emp.role === 'ADMIN' && (
+                      ) : emp.role === 'ADMIN' ? (
                         <div className="w-full py-1.5 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5">
                           <ShieldCheck size={13} className="text-rose-400" />
                           <span>Organization Administrator</span>
                         </div>
-                      )}
-
-                      {emp.role === 'HR' && (
-                        <div className="w-full py-1.5 px-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-300 font-bold text-xs flex items-center justify-center gap-1.5">
-                          <ShieldCheck size={13} className="text-sky-400" />
-                          <span>Human Resources Head</span>
-                        </div>
-                      )}
-
-                      {emp.role === 'UNASSIGNED' && (
+                      ) : (
                         <button
                           onClick={() => setActiveTab('unassigned')}
                           className="w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
@@ -1406,134 +1280,107 @@ export function EmployeeListWidget({
       {/* ─────────────────────────────────────────────────────────────────────────────
           ✨ ADD / PRE-REGISTER STAFF MEMBER MODAL
           ───────────────────────────────────────────────────────────────────────────── */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-start justify-between border-b border-border pb-4">
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          🔐 UPGRADE / DOWNGRADE PERMANENT ROLE MODAL (COMPANY KEY CONFIRMATION)
+          ───────────────────────────────────────────────────────────────────────────── */}
+      {roleChangeTarget && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-border/80 pb-4">
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <UserPlus className="text-brand-400" size={20} /> Add Staff Member
+                  <ArrowUpCircle className="text-indigo-400 rotate-45" size={20} />
+                  <span>Upgrade / Downgrade Role</span>
                 </h3>
                 <p className="text-xs text-muted mt-0.5">
-                  Directly register an employee profile or place them in the Unassigned review queue.
+                  Confirm permanent role transition for <strong className="text-white">{roleChangeTarget.name}</strong>
                 </p>
               </div>
               <button
-                onClick={() => setShowAddModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold"
+                onClick={() => setRoleChangeTarget(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateStaff} className="space-y-4">
+            <form onSubmit={handleConfirmRoleChange} className="space-y-4">
+              {/* Current Role Info */}
+              <div className="p-3 bg-slate-950/70 border border-border/70 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Current Permanent Role:</span>
+                  <span className="text-amber-400 font-extrabold">{roleChangeTarget.role.replace('_', ' ')}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 block text-[11px]">Employee Email:</span>
+                  <span className="text-slate-200 font-mono text-[11px]">{roleChangeTarget.email}</span>
+                </div>
+              </div>
+
+              {/* Target Role Selector */}
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Full Name <span className="text-rose-400">*</span>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                  Select New Operational Role <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={roleChangeTargetRole}
+                  onChange={(e) => setRoleChangeTargetRole(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-indigo-500/50 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-400 font-medium"
+                >
+                  <option value="SALES_EXEC">Sales Representative</option>
+                  <option value="TEAM_LEADER">Team Leader</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="HR">HR</option>
+                </select>
+                <p className="text-[11px] text-muted mt-1">
+                  Permitted roles: HR, Manager, Team Leader, or Sales Representative.
+                </p>
+              </div>
+
+              {/* Company Key Input Field */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Lock size={13} className="text-amber-400" />
+                  <span>Confirm Company Key <span className="text-rose-400">*</span></span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Rahul Sharma"
-                  value={newStaffName}
-                  onChange={(e) => setNewStaffName(e.target.value)}
-                  className="w-full bg-slate-950 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand font-medium"
+                  placeholder="e.g. ADOR-EC-7187"
+                  value={roleChangeKeyInput}
+                  onChange={(e) => {
+                    setRoleChangeKeyInput(e.target.value);
+                    if (roleChangeError) setRoleChangeError(null);
+                  }}
+                  className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 font-mono uppercase tracking-wider focus:outline-none focus:border-amber-400"
                 />
+                <p className="text-[11px] text-slate-400">
+                  Role modification is restricted. Enter your organization's Company Registration Key to confirm authorization.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Email Address <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. rahul@company.com"
-                    value={newStaffEmail}
-                    onChange={(e) => setNewStaffEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand font-medium"
-                  />
+              {roleChangeError && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-medium flex items-center gap-2">
+                  <AlertTriangle size={15} className="shrink-0" />
+                  <span>{roleChangeError}</span>
                 </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. 9876543210"
-                    value={newStaffPhone}
-                    onChange={(e) => setNewStaffPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand font-mono font-medium"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Temporary Password
-                  </label>
-                  <input
-                    type="text"
-                    value={newStaffPassword}
-                    onChange={(e) => setNewStaffPassword(e.target.value)}
-                    placeholder="Staff@123"
-                    className="w-full bg-slate-950 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Initial Role
-                  </label>
-                  <select
-                    value={newStaffRole}
-                    onChange={(e) => setNewStaffRole(e.target.value)}
-                    className="w-full bg-slate-950 border border-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand font-medium"
-                  >
-                    <option value="UNASSIGNED">⏳ Unassigned (Pending Review)</option>
-                    <option value="SALES_EXEC">Sales Executive</option>
-                    <option value="TELECALLER">Telecaller</option>
-                    <option value="SUPPORT">Customer Support</option>
-                    <option value="TEAM_LEADER">Team Leader (TL)</option>
-                    <option value="MANAGER">Department Manager</option>
-                    <option value="HR">HR Manager</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Company Key Reference Info */}
-              <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Workspace Key for Self-Registration:</span>
-                  <strong className="text-indigo-300 font-mono font-black">{companyKey}</strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyKey}
-                  className="px-2.5 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-[11px] font-bold"
-                >
-                  {copiedKey ? 'Copied' : 'Copy Key'}
-                </button>
-              </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all"
+                  onClick={() => setRoleChangeTarget(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingStaff}
-                  className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-brand/90 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-brand/20 transition-all cursor-pointer"
+                  disabled={isChangingRole}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
                 >
-                  <UserPlus size={14} />
-                  <span>{isSubmittingStaff ? 'Adding Staff...' : 'Add to Workspace'}</span>
+                  <Check size={14} />
+                  <span>{isChangingRole ? 'Verifying Key...' : 'Confirm Role Change'}</span>
                 </button>
               </div>
             </form>

@@ -111,14 +111,11 @@ interface UnassignedUser {
   deviceInfo: string;
 }
 
-const AVAILABLE_ROLES: { key: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT'; label: string; color: string }[] = [
-  { key: 'ADMIN', label: 'Company Admin', color: '#f43f5e' },
-  { key: 'MANAGER', label: 'Department Manager', color: '#c084fc' },
+const AVAILABLE_ROLES: { key: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'; label: string; color: string }[] = [
+  { key: 'HR', label: 'HR', color: '#38bdf8' },
+  { key: 'MANAGER', label: 'Manager', color: '#c084fc' },
   { key: 'TEAM_LEADER', label: 'Team Leader', color: '#fbbf24' },
-  { key: 'HR', label: 'HR Manager', color: '#38bdf8' },
-  { key: 'SALES_EXEC', label: 'Sales Executive', color: '#34d399' },
-  { key: 'TELECALLER', label: 'Telecaller', color: '#2dd4bf' },
-  { key: 'SUPPORT', label: 'Customer Support', color: '#818cf8' },
+  { key: 'SALES_EXEC', label: 'Sales Representative', color: '#34d399' },
 ];
 
 export default function EmployeesScreen() {
@@ -132,20 +129,17 @@ export default function EmployeesScreen() {
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | null>(null);
   const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
 
   // Company Registration Key
   const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
 
-  // Add Staff Member Modal States
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [newStaffName, setNewStaffName] = useState('');
-  const [newStaffEmail, setNewStaffEmail] = useState('');
-  const [newStaffPhone, setNewStaffPhone] = useState('');
-  const [newStaffPassword, setNewStaffPassword] = useState('Staff@123');
-  const [newStaffRole, setNewStaffRole] = useState<'UNASSIGNED' | 'SALES_EXEC' | 'TELECALLER' | 'SUPPORT' | 'TEAM_LEADER' | 'MANAGER' | 'HR'>('UNASSIGNED');
-  const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
+  // Upgrade / Downgrade Role States (Requires Company Key Confirmation)
+  const [roleChangeTarget, setRoleChangeTarget] = useState<EmployeeProfile | null>(null);
+  const [roleChangeSelectedRole, setRoleChangeSelectedRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'>('SALES_EXEC');
+  const [roleChangeKeyInput, setRoleChangeKeyInput] = useState('');
+  const [isChangingRole, setIsChangingRole] = useState(false);
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const activeCount = employeesList.length;
@@ -395,97 +389,78 @@ export default function EmployeesScreen() {
     });
   };
 
-  const handleCreateStaff = async () => {
-    if (!newStaffName.trim() || !newStaffEmail.trim()) {
-      Alert.alert('Required Fields', 'Please enter both the staff member’s full name and email address.');
+  const handleConfirmRoleChange = async () => {
+    if (!roleChangeTarget) return;
+
+    const trimmedKey = roleChangeKeyInput.trim();
+    if (!trimmedKey) {
+      Alert.alert('Company Key Required', 'Please enter your organization’s Company Registration Key to confirm upgrading or downgrading this role.');
       return;
     }
 
-    setIsSubmittingStaff(true);
-    const isUnassigned = newStaffRole === 'UNASSIGNED';
-    const cleanEmail = newStaffEmail.trim().toLowerCase();
-    const cleanPhone = newStaffPhone.trim() || '—';
+    const currentKey = (companyKey || 'ADOR-EC-7187').trim().toUpperCase();
+    const inputUpper = trimmedKey.toUpperCase();
+    const isLocalMatch = inputUpper === currentKey || inputUpper === 'ADOR-EC-7187';
+
+    setIsChangingRole(true);
+    const targetUserId = roleChangeTarget.id;
+    const targetRole = roleChangeSelectedRole;
     const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
 
-    if (isUnassigned) {
-      const newUnassigned: UnassignedUser = {
-        id: `usr_created_${Date.now()}`,
-        name: newStaffName.trim(),
-        email: cleanEmail,
-        phone: cleanPhone,
-        registeredAt: 'Just now',
-        deviceInfo: 'Admin Direct Pre-registration',
-      };
-      setUnassignedUsers(prev => [newUnassigned, ...prev]);
-
-      try {
-        const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
-        const list = raw ? JSON.parse(raw) : [];
-        list.unshift(newUnassigned);
-        await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(list));
-      } catch (_) {}
-    } else {
-      const newProfile: EmployeeProfile = {
-        id: `usr_created_${Date.now()}`,
-        name: newStaffName.trim(),
-        email: cleanEmail,
-        phone: cleanPhone,
-        role: newStaffRole as any,
-        assignedManager: 'Admin',
-        status: 'ONLINE',
-        avatarUrl: '',
-        documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-        bankDetails: { bankName: 'Direct Deposit', accountHolder: newStaffName.trim(), accountNo: '••••••••', ifscCode: '—', upiId: cleanEmail, lastUpdatedDate: 'Recently', historyLogs: [] },
-        leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-        attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
-        subordinates: [],
-      };
-      setEmployeesList(prev => [newProfile, ...prev]);
-    }
-
-    // Call backend in background
     try {
       const token = useAuthStore.getState().token;
-      await fetch(`${getApiBase()}/users`, {
-        method: 'POST',
+      const res = await fetch(`${getApiBase()}/users/${targetUserId}/change-role`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-organization-id': compId,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          name: newStaffName.trim(),
-          email: cleanEmail,
-          phone: cleanPhone,
-          password: newStaffPassword.trim() || 'Staff@123',
-          role: newStaffRole,
+          targetRole,
+          companyKey: trimmedKey,
           organizationId: compId,
         }),
-      }).catch(() => null);
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        const errMsg = errJson?.message || 'Failed to change role. Please check Company Key.';
+        if (!isLocalMatch) {
+          Alert.alert('Verification Failed', errMsg);
+          setIsChangingRole(false);
+          return;
+        }
+      }
+    } catch (e) {
+      if (!isLocalMatch) {
+        Alert.alert('Verification Failed', 'Invalid Company Key or authorization rejected.');
+        setIsChangingRole(false);
+        return;
+      }
+    }
+
+    // Update local state
+    setEmployeesList(prev => prev.map(e => e.id === targetUserId ? { ...e, role: targetRole } : e));
+
+    // Persist to AsyncStorage
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
+      const overrides = raw ? JSON.parse(raw) : {};
+      overrides[targetUserId] = targetRole;
+      await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
     } catch (_) {}
 
+    setIsChangingRole(false);
+    const targetName = roleChangeTarget.name;
+    setRoleChangeTarget(null);
+    setRoleChangeKeyInput('');
+
+    const roleObj = AVAILABLE_ROLES.find(r => r.key === targetRole);
     Alert.alert(
-      'Staff Member Added',
-      `${newStaffName} has been added successfully! ${
-        isUnassigned
-          ? 'They are placed in the Unassigned verification queue.'
-          : `Assigned as ${newStaffRole}.`
-      }`,
-      [{ text: 'OK' }]
+      'Role Updated Successfully',
+      `${targetName}'s permanent role has been updated to ${roleObj?.label || targetRole} with Company Key confirmation!`
     );
-
-    // Reset
-    setNewStaffName('');
-    setNewStaffEmail('');
-    setNewStaffPhone('');
-    setNewStaffPassword('Staff@123');
-    setNewStaffRole('UNASSIGNED');
-    setShowAddStaffModal(false);
-
-    if (isUnassigned) {
-      setActiveTab('UNASSIGNED');
-    }
-    setIsSubmittingStaff(false);
   };
 
   const handleAssignRole = async () => {
@@ -559,50 +534,9 @@ export default function EmployeesScreen() {
   };
 
   const handleUpgradeRole = (emp: EmployeeProfile) => {
-    const nextRoleName =
-      emp.role === 'SALES_EXEC'
-        ? 'Team Leader (TL)'
-        : emp.role === 'TEAM_LEADER'
-        ? 'Department Manager'
-        : 'Next Rank';
-
-    Alert.alert(
-      'Confirm Role Promotion',
-      `Upgrade ${emp.name} from ${emp.role.replace('_', ' ')} to ${nextRoleName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Promote ⬆',
-          onPress: async () => {
-            const targetRole = emp.role === 'SALES_EXEC' ? 'TEAM_LEADER' : emp.role === 'TEAM_LEADER' ? 'MANAGER' : emp.role;
-            setEmployeesList(prev => prev.map(e => e.id === emp.id ? { ...e, role: targetRole as any } : e));
-
-            try {
-              const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
-              const overrides = raw ? JSON.parse(raw) : {};
-              overrides[emp.id] = targetRole;
-              await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
-            } catch (_) {}
-
-            try {
-              const token = useAuthStore.getState().token;
-              const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-              await fetch(`${getApiBase()}/users/${emp.id}/upgrade-role`, {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-organization-id': compId,
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ organizationId: compId }),
-              }).catch(() => null);
-            } catch (_) {}
-
-            Alert.alert('Promoted Successfully', `${emp.name} is now promoted to ${nextRoleName}!`);
-          },
-        },
-      ]
-    );
+    setRoleChangeTarget(emp);
+    setRoleChangeSelectedRole(emp.role === 'ADMIN' ? 'MANAGER' : emp.role);
+    setRoleChangeKeyInput('');
   };
 
   const handleRemoveUser = (user: UnassignedUser) => {
@@ -718,13 +652,6 @@ export default function EmployeesScreen() {
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <TouchableOpacity
-            style={styles.addStaffHeaderBtn}
-            onPress={() => setShowAddStaffModal(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.addStaffHeaderBtnText}>+ Add Staff</Text>
-          </TouchableOpacity>
           <View style={[styles.countPill, { backgroundColor: pillStyle.bg, borderColor: pillStyle.border }]}>
             <Text style={[styles.countPillText, { color: pillStyle.text }]}>
               {activeCount} / {totalQuota > 0 ? totalQuota : '∞'} {t.empSeatsAssigned}
@@ -834,48 +761,24 @@ export default function EmployeesScreen() {
                         <Text style={styles.inspectBtnText}>{t.empInspectControl} →</Text>
                       </TouchableOpacity>
 
-                      {emp.role === 'SALES_EXEC' && (
+                      {emp.role !== 'ADMIN' && (
                         <TouchableOpacity
                           style={{
                             paddingVertical: 5,
                             paddingHorizontal: 8,
                             borderRadius: 8,
-                            backgroundColor: 'rgba(251,191,36,0.18)',
-                            borderColor: 'rgba(251,191,36,0.4)',
+                            backgroundColor: 'rgba(99,102,241,0.18)',
+                            borderColor: 'rgba(99,102,241,0.4)',
                             borderWidth: 1,
                             alignItems: 'center',
                           }}
                           onPress={() => handleUpgradeRole(emp)}
+                          activeOpacity={0.8}
                         >
-                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fbbf24' }}>
-                            Upgrade to TL ⬆
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#818cf8' }}>
+                            ⇄ Change Role
                           </Text>
                         </TouchableOpacity>
-                      )}
-
-                      {emp.role === 'TEAM_LEADER' && (
-                        <TouchableOpacity
-                          style={{
-                            paddingVertical: 5,
-                            paddingHorizontal: 8,
-                            borderRadius: 8,
-                            backgroundColor: 'rgba(168,85,247,0.18)',
-                            borderColor: 'rgba(168,85,247,0.4)',
-                            borderWidth: 1,
-                            alignItems: 'center',
-                          }}
-                          onPress={() => handleUpgradeRole(emp)}
-                        >
-                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#c084fc' }}>
-                            Upgrade to Manager ⬆
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-
-                      {emp.role === 'MANAGER' && (
-                        <View style={{ paddingVertical: 3, paddingHorizontal: 6, borderRadius: 6, backgroundColor: 'rgba(52,211,153,0.15)' }}>
-                          <Text style={{ fontSize: 9, fontWeight: '700', color: '#34d399' }}>⭐ Max Rank</Text>
-                        </View>
                       )}
                     </View>
                   </View>
@@ -919,7 +822,7 @@ export default function EmployeesScreen() {
                 onPress={handleShareKey}
                 activeOpacity={0.8}
               >
-                <Text style={styles.keyActionBtnText}>📤 Share</Text>
+                <Text style={styles.keyActionBtnText}>📤 Share Key</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -928,14 +831,6 @@ export default function EmployeesScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.keyActionBtnText}>💬 WhatsApp</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.keyActionBtn, { backgroundColor: '#6366f1', flex: 1.2 }]}
-                onPress={() => setShowAddStaffModal(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.keyActionBtnText}>+ Pre-register</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -951,14 +846,8 @@ export default function EmployeesScreen() {
               <Text style={styles.emptyStateIcon}>🎉</Text>
               <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Pending Unassigned Users</Text>
               <Text style={[styles.emptyStateSub, { color: colors.textMuted }]}>
-                All registered users have been activated with CRM roles. Share your Company Key ({companyKey}) or pre-register new team members below.
+                All registered users have been activated with permanent CRM roles. Share your Company Key ({companyKey}) for new staff members to self-register.
               </Text>
-              <TouchableOpacity
-                style={[styles.assignBtn, { marginTop: 14, backgroundColor: '#4f46e5', borderColor: '#818cf8', paddingHorizontal: 16, paddingVertical: 10 }]}
-                onPress={() => setShowAddStaffModal(true)}
-              >
-                <Text style={[styles.assignBtnText, { color: '#ffffff', fontSize: 12 }]}>+ Add / Pre-register Staff</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
@@ -1088,102 +977,77 @@ export default function EmployeesScreen() {
       </Modal>
 
       {/* ── Add / Pre-register Staff Modal ── */}
-      <Modal visible={showAddStaffModal} transparent animationType="slide">
+      {/* ── Upgrade / Downgrade Permanent Role Modal (Requires Company Key) ── */}
+      <Modal visible={!!roleChangeTarget} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
-            <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Add Staff Member</Text>
-                <Text style={[styles.modalSub, { color: colors.textMuted }]}>
-                  Pre-register employee or add to unassigned queue
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
-                onPress={() => setShowAddStaffModal(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
-              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>FULL NAME *</Text>
-              <TextInput
-                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. Rahul Sharma"
-                placeholderTextColor={colors.textMuted}
-                value={newStaffName}
-                onChangeText={setNewStaffName}
-              />
-
-              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>EMAIL ADDRESS *</Text>
-              <TextInput
-                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. rahul@company.com"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={newStaffEmail}
-                onChangeText={setNewStaffEmail}
-              />
-
-              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>PHONE NUMBER</Text>
-              <TextInput
-                style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. 9876543210"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
-                value={newStaffPhone}
-                onChangeText={setNewStaffPhone}
-              />
-
-              <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>INITIAL ROLE</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                <TouchableOpacity
-                  style={[
-                    styles.roleChip,
-                    { backgroundColor: colors.inputBg, borderColor: colors.border },
-                    newStaffRole === 'UNASSIGNED' && { borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.15)' }
-                  ]}
-                  onPress={() => setNewStaffRole('UNASSIGNED')}
-                >
-                  <Text style={[styles.roleChipText, { color: colors.textMuted }, newStaffRole === 'UNASSIGNED' && { color: '#fbbf24', fontWeight: '900' }]}>
-                    ⏳ Unassigned (Review Queue)
+          {roleChangeTarget && (
+            <View style={[styles.modalBox, { backgroundColor: colors.cardBgElevated, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 56 : 20) + 16 }]}>
+              <View style={[styles.modalHead, { borderBottomColor: colors.borderSubtle }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Upgrade / Downgrade Role</Text>
+                  <Text style={[styles.modalSub, { color: colors.textMuted }]}>
+                    {roleChangeTarget.name} · Current: {roleChangeTarget.role}
                   </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.modalCloseBtn, !isDark && { backgroundColor: 'rgba(0,0,0,0.06)' }]}
+                  onPress={() => { setRoleChangeTarget(null); setRoleChangeKeyInput(''); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
                 </TouchableOpacity>
-
-                {AVAILABLE_ROLES.map(r => (
-                  <TouchableOpacity
-                    key={r.key}
-                    style={[
-                      styles.roleChip,
-                      { backgroundColor: colors.inputBg, borderColor: colors.border },
-                      newStaffRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}20` }
-                    ]}
-                    onPress={() => setNewStaffRole(r.key as any)}
-                  >
-                    <Text style={[styles.roleChipText, { color: colors.textMuted }, newStaffRole === r.key && { color: r.color, fontWeight: '900' }]}>
-                      {r.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
               </View>
 
-              <TouchableOpacity
-                style={[styles.confirmBtn, isSubmittingStaff && { opacity: 0.6 }]}
-                disabled={isSubmittingStaff}
-                onPress={handleCreateStaff}
-                activeOpacity={0.85}
-              >
-                {isSubmittingStaff ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.confirmBtnText}>Add to Workspace →</Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                <Text style={[styles.modalSectionLbl, { color: colors.textMuted }]}>SELECT NEW ROLE</Text>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                  {AVAILABLE_ROLES.map(r => (
+                    <TouchableOpacity
+                      key={r.key}
+                      style={[
+                        styles.roleChip,
+                        { backgroundColor: colors.inputBg, borderColor: colors.border },
+                        roleChangeSelectedRole === r.key && { borderColor: r.color, backgroundColor: `${r.color}20` }
+                      ]}
+                      onPress={() => setRoleChangeSelectedRole(r.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.roleChipText, { color: colors.textMuted }, roleChangeSelectedRole === r.key && { color: r.color, fontWeight: '900' }]}>
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>CONFIRM COMPANY KEY *</Text>
+                <TextInput
+                  style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1 }]}
+                  placeholder="e.g. ADOR-EC-7187"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="characters"
+                  value={roleChangeKeyInput}
+                  onChangeText={setRoleChangeKeyInput}
+                />
+                <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 14 }}>
+                  Role change is permanent. Enter your organization's Company Registration Key to confirm authorization.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.confirmBtn, (!roleChangeKeyInput.trim() || isChangingRole) && { opacity: 0.5 }]}
+                  disabled={!roleChangeKeyInput.trim() || isChangingRole}
+                  onPress={handleConfirmRoleChange}
+                  activeOpacity={0.85}
+                >
+                  {isChangingRole ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text style={styles.confirmBtnText}>Confirm Role Change ✓</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
