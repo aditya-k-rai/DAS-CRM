@@ -33,6 +33,8 @@ import AppSettingsScreen from './AppSettingsScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
+import { useModuleAccessStore } from '../store/moduleAccessStore';
+
 
 export type ModuleKey =
   | 'PRODUCTS'
@@ -80,6 +82,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   const { currentUser } = useAuthStore();
   const role = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const { getPermission } = useModuleAccessStore();
+  const userId = currentUser?.id || '';
+  const userRole = (currentUser?.role || 'SALES_EXEC') as any;
 
   const closeModal = () => {
     setActiveModal(null);
@@ -127,6 +132,18 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     if ((key === 'PROFILE' || key === 'SETTINGS') && !isAdmin) {
       Alert.alert('Access Restricted', 'Company Profile Settings are restricted to Admin dashboard only.');
       return;
+    }
+    // Check module access permission for non-admin users
+    if (!isAdmin) {
+      const perm = getPermission(userId, userRole, key);
+      if (!perm.active || !perm.canView) {
+        Alert.alert(
+          '🔒 Module Access Restricted',
+          'Your Admin has restricted access to this module. Contact your Admin or Manager to request access.',
+          [{ text: 'OK' }],
+        );
+        return;
+      }
     }
     if (key === 'PRODUCTS' && onOpenProductsCatalog) {
       onOpenProductsCatalog();
@@ -338,32 +355,45 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
               return isAdmin;
             }
             return true;
-          }).map((item) => (
-            <TouchableOpacity
-              key={item.key}
-              style={[
-                styles.gridCard,
-                {
-                  backgroundColor: colors.cardBg,
-                  borderColor: colors.border,
-                }
-              ]}
-              onPress={() => handleOpenModule(item.key)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardIcon}>{item.icon}</Text>
-                {item.upcoming && (
-                  <View style={styles.upcomingTag}>
-                    <Text style={styles.upcomingTagText}>UPCOMING</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.cardLabel, { color: colors.text }]} numberOfLines={2}>
-                {getModuleLabel(item.key, item.label)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          }).map((item) => {
+            // Determine if this module is locked for the current user
+            const perm = isAdmin ? { active: true, canView: true } : getPermission(userId, userRole, item.key);
+            const isLocked = !perm.active || !perm.canView;
+
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.gridCard,
+                  {
+                    backgroundColor: colors.cardBg,
+                    borderColor: isLocked ? 'rgba(239,68,68,0.25)' : colors.border,
+                    opacity: isLocked ? 0.72 : 1,
+                  }
+                ]}
+                onPress={() => handleOpenModule(item.key)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <Text style={[styles.cardIcon, isLocked && { opacity: 0.5 }]}>{item.icon}</Text>
+                  {item.upcoming && (
+                    <View style={styles.upcomingTag}>
+                      <Text style={styles.upcomingTagText}>UPCOMING</Text>
+                    </View>
+                  )}
+                  {isLocked && !item.upcoming && (
+                    <View style={styles.lockedTag}>
+                      <Text style={styles.lockedTagText}>🔒</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.cardLabel, { color: isLocked ? colors.textMuted : colors.text }]} numberOfLines={2}>
+                  {getModuleLabel(item.key, item.label)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
         </View>
       </ScrollView>
     </View>
@@ -400,6 +430,8 @@ const styles = StyleSheet.create({
 
   upcomingTag: { backgroundColor: 'rgba(251,191,36,0.18)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)' },
   upcomingTagText: { color: '#fbbf24', fontSize: 8, fontWeight: '900' },
+  lockedTag: { backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
+  lockedTagText: { fontSize: 9 },
 
   // Back Banner for screens
   backBanner: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', flexDirection: 'row', alignItems: 'center', gap: 12 },

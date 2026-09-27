@@ -57,6 +57,7 @@ import { ThemeToggle } from './src/components/ThemeToggle';
 import { getApiBase } from './src/config/api';
 import NetworkStatusBanner from './src/components/NetworkStatusBanner';
 import { offlineSyncEngine } from './src/services/offlineSyncEngine';
+import { useModuleAccessStore } from './src/store/moduleAccessStore';
 
 // 🚀 Initialize Global Modern Alert Override across entire app
 initModernAlertOverride();
@@ -488,6 +489,12 @@ function RootAppContent() {
       offlineSyncEngine.checkNetworkStatus();
     }
   }, [token]);
+
+  // 🛡️ Hydrate module access store (Admin Control Center permissions) on startup
+  const hydrateModuleAccess = useModuleAccessStore((s) => s.hydrate);
+  useEffect(() => {
+    hydrateModuleAccess();
+  }, []);
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);

@@ -9,7 +9,7 @@
  * 6. 🟢 Multi-Source Ingestion Telemetry (Google Sheets Live Sync, CSV Uploads, Meta Webhooks)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { callSyncEngine } from '../services/callSyncEngine';
 import IngestionChannelsWidget from '../components/IngestionChannelsWidget';
 import { TenantAdminHeaderBanner } from '../components/TenantAdminHeaderBanner';
+import AdminControlCenterScreen from './AdminControlCenterScreen';
+import { useModuleAccessStore } from '../store/moduleAccessStore';
 
 export interface ScheduledMeetingItem {
   id: string;
@@ -59,6 +61,13 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
   const [meetingFilter, setMeetingFilter] = useState<'ALL' | 'TODAY' | 'UPCOMING'>('TODAY');
   const [selectedMeeting, setSelectedMeeting] = useState<ScheduledMeetingItem | null>(null);
   const [inDepthReportOpen, setInDepthReportOpen] = useState(false);
+  const [controlCenterOpen, setControlCenterOpen] = useState(false);
+
+  // Hydrate module access store once on mount so permissions are available app-wide
+  const { hydrate: hydrateAccess, isHydrated: accessHydrated } = useModuleAccessStore();
+  useEffect(() => {
+    if (!accessHydrated) hydrateAccess();
+  }, [accessHydrated, hydrateAccess]);
 
   const filteredMeetings = MOCK_ADMIN_MEETINGS.filter((m) => {
     if (meetingFilter === 'TODAY') return m.isToday;
@@ -142,6 +151,29 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
         {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
         <IngestionChannelsWidget navigation={navigation} />
+
+        {/* 🛡️ ADMIN CONTROL CENTER ENTRY CARD */}
+        <TouchableOpacity
+          style={[
+            styles.controlCenterCard,
+            {
+              backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(79,70,229,0.06)',
+              borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(79,70,229,0.25)',
+            },
+          ]}
+          onPress={() => setControlCenterOpen(true)}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.controlCenterTitle, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🛡️ Admin Control Center</Text>
+            <Text style={[styles.controlCenterSub, { color: colors.textMuted }]}>
+              Manage module access, permissions &amp; visibility per user
+            </Text>
+          </View>
+          <View style={[styles.controlCenterBadge, { backgroundColor: isDark ? '#6366f133' : '#4f46e522', borderColor: isDark ? '#6366f144' : '#4f46e533' }]}>
+            <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' }}>Open →</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* 📅 SCHEDULED MEETINGS TODAY & UPCOMING WIDGET */}
         <View style={[styles.cardBox, { borderColor: isDark ? 'rgba(129,140,248,0.4)' : 'rgba(99,102,241,0.3)', backgroundColor: isDark ? 'rgba(129,140,248,0.06)' : 'rgba(99,102,241,0.04)' }]}>
@@ -321,6 +353,13 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
         </View>
 
       </ScrollView>
+
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      {/* 🛡️ ADMIN CONTROL CENTER FULL-SCREEN OVERLAY                                */}
+      {/* ─────────────────────────────────────────────────────────────────────────── */}
+      <Modal visible={controlCenterOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setControlCenterOpen(false)}>
+        <AdminControlCenterScreen onClose={() => setControlCenterOpen(false)} />
+      </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────────────── */}
       {/* 🔍 SCHEDULED MEETING & LEAD INSPECTOR MODAL                                */}
@@ -572,6 +611,11 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
   itemRow: { paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+  controlCenterCard: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+  controlCenterTitle: { fontSize: 14, fontWeight: '900' },
+  controlCenterSub: { fontSize: 10, marginTop: 2 },
+  controlCenterBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalCard: { width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },
