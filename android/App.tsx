@@ -215,22 +215,22 @@ function UnassignedRoleScreen() {
 
 function RoleDashboardDispatcher(props: any) {
   const { currentUser } = useAuthStore();
-  const role = currentUser.role;
+  const rawRole = (currentUser?.role || '').toUpperCase().trim();
 
-  if (currentUser.hasAssignedRole === false || role === 'UNASSIGNED') {
+  if (currentUser?.hasAssignedRole === false || rawRole === 'UNASSIGNED' || !rawRole) {
     return <UnassignedRoleScreen />;
   }
 
-  if (role === 'ADMIN') {
+  if (rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'OWNER' || rawRole.includes('ADMIN')) {
     return <AdminDashboardScreen {...props} />;
   }
-  if (role === 'MANAGER') {
+  if (rawRole === 'MANAGER' || rawRole.includes('MGR')) {
     return <ManagerDashboardScreen {...props} />;
   }
-  if (role === 'HR') {
+  if (rawRole === 'HR') {
     return <HRDashboardScreen {...props} />;
   }
-  if (role === 'TEAM_LEADER') {
+  if (rawRole === 'TEAM_LEADER' || rawRole === 'TL' || rawRole.includes('LEADER')) {
     return <TeamLeaderDashboardScreen {...props} />;
   }
   return <EmployeeDashboardScreen {...props} />;

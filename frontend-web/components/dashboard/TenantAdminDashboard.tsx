@@ -12,6 +12,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth, UserRole, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
+import { AdminControlCenterView } from '@/components/admin/AdminControlCenterView';
 
 interface DashboardLeadRecord {
   id: string;
@@ -75,6 +76,9 @@ interface DatewiseLeadsAnalytics {
 
 export function TenantAdminDashboard() {
   const { currentUser, subscription } = useAuth();
+
+  // Admin Control Center Modal State
+  const [controlCenterModalOpen, setControlCenterModalOpen] = useState(false);
 
   // Widget 1: Ingestion & Routing State
   const [routingStrategy, setRoutingStrategy] = useState<'BATCH_QUOTA' | 'VANISH_POOL' | 'MANUAL'>('BATCH_QUOTA');
@@ -561,6 +565,13 @@ export function TenantAdminDashboard() {
           </div>
 
           <div className="flex gap-2 flex-wrap items-center">
+            <button
+              type="button"
+              onClick={() => setControlCenterModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
+            >
+              <Shield size={14} className="text-amber-300" /> 🛡️ Control Center
+            </button>
             <Link href="/admin/team-leaders" className="btn-secondary text-xs gap-1.5 flex items-center font-bold">
               <Shield size={14} className="text-indigo-500 dark:text-indigo-400" /> Structure Builder
             </Link>
@@ -666,6 +677,62 @@ export function TenantAdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* 🛡️ ADMIN CONTROL CENTER MODULE (CORE RBAC & PERMISSIONS)    */}
+      {/* ============================================================ */}
+      <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 border-2 border-indigo-500/50 rounded-3xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 shadow-2xl relative overflow-hidden">
+        <div className="absolute -right-16 -top-16 w-48 h-48 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-start sm:items-center gap-4 relative z-10">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/30 border border-indigo-400/40">
+            <Shield size={28} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                🛡️ ADMIN CONTROL CENTER MODULE
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                20 Registered Modules
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <Lock size={11} /> Per-User RBAC Active
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 font-medium mt-1 leading-relaxed max-w-2xl">
+              Comprehensive per-user module access &amp; security policy manager. Granularly grant or restrict Active status, Read (View), Share/Export, and Write (Edit) permissions across all 20 CRM modules for each employee.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap flex-shrink-0 relative z-10">
+          <button
+            type="button"
+            onClick={() => setControlCenterModalOpen(true)}
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs flex items-center gap-2 shadow-xl shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
+          >
+            <Shield size={16} className="text-amber-300" />
+            Open Admin Control Center →
+          </button>
+          <Link
+            href="/admin/control-center"
+            className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Sliders size={14} className="text-cyan-400" />
+            Full Page View
+          </Link>
+        </div>
+      </div>
+
+      {/* 🛡️ ADMIN CONTROL CENTER FULL-SCREEN OVERLAY MODAL */}
+      {controlCenterModalOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl relative custom-scrollbar">
+            <AdminControlCenterView isModal onClose={() => setControlCenterModalOpen(false)} />
+          </div>
+        </div>
+      )}
+
       {/* ── Lead Pipeline & Ingestion Banner ── */}
       <div className="crm-card p-5 border-indigo-500/30 bg-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

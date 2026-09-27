@@ -27,6 +27,7 @@ interface NavItem {
 // Displayed for ADMIN and MANAGER roles
 const adminNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },

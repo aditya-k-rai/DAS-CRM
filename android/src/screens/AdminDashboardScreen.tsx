@@ -117,7 +117,64 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding + 85 }]} showsVerticalScrollIndicator={false}>
 
         {/* 👑 HEADER BANNER (TENANT ADMIN COMMAND CENTER) */}
-        <TenantAdminHeaderBanner navigation={navigation} />
+        <TenantAdminHeaderBanner
+          navigation={navigation}
+          onControlCenterPress={() => setControlCenterOpen(true)}
+        />
+
+        {/* 🛡️ ADMIN CONTROL CENTER HERO MODULE CARD */}
+        <View
+          style={[
+            styles.heroControlCenterCard,
+            {
+              backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(79,70,229,0.07)',
+              borderColor: isDark ? 'rgba(129,140,248,0.45)' : 'rgba(99,102,241,0.35)',
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={[styles.controlCenterIconBox, { backgroundColor: isDark ? 'rgba(99,102,241,0.3)' : 'rgba(79,70,229,0.15)' }]}>
+                <Text style={{ fontSize: 16 }}>🛡️</Text>
+              </View>
+              <View>
+                <Text style={[styles.controlCenterTitle, { color: isDark ? '#a5b4fc' : '#4338ca' }]}>
+                  ADMIN CONTROL CENTER MODULE
+                </Text>
+                <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: '700' }}>
+                  Per-User Module Visibility &amp; Permissions Matrix
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.controlCenterStatusBadge, { backgroundColor: 'rgba(52,211,153,0.15)', borderColor: 'rgba(52,211,153,0.35)' }]}>
+              <Text style={{ fontSize: 9, color: '#34d399', fontWeight: '900' }}>● RBAC Active</Text>
+            </View>
+          </View>
+
+          <Text style={[styles.controlCenterDescText, { color: colors.textSecondary }]}>
+            Configure 20 CRM modules across Sales, Communication, AI, Operations and Admin. Toggle Master Active, View, Share &amp; Edit permissions per staff member with instant audit logging.
+          </Text>
+
+          <View style={styles.controlCenterChipsRow}>
+            <View style={[styles.miniChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+              <Text style={[styles.miniChipText, { color: colors.textSecondary }]}>📦 20 Registered Modules</Text>
+            </View>
+            <View style={[styles.miniChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+              <Text style={[styles.miniChipText, { color: colors.textSecondary }]}>⚡ Role Presets</Text>
+            </View>
+            <View style={[styles.miniChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border }]}>
+              <Text style={[styles.miniChipText, { color: colors.textSecondary }]}>📜 Audit Logs</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.openControlCenterBtn, { backgroundColor: isDark ? '#6366f1' : '#4f46e5' }]}
+            onPress={() => setControlCenterOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.openControlCenterBtnText}>🛡️ Open Admin Control Center Matrix →</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* 📊 ROW 1: PRIMARY FINANCIAL & LEAD KPI CARDS */}
         <View style={styles.statsGrid}>
@@ -151,29 +208,6 @@ export default function AdminDashboardScreen({ onNavigateToAttendance, navigatio
 
         {/* 🟢 LIVE INGESTION CHANNELS & TRAFFIC SOURCES WIDGET */}
         <IngestionChannelsWidget navigation={navigation} />
-
-        {/* 🛡️ ADMIN CONTROL CENTER ENTRY CARD */}
-        <TouchableOpacity
-          style={[
-            styles.controlCenterCard,
-            {
-              backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(79,70,229,0.06)',
-              borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(79,70,229,0.25)',
-            },
-          ]}
-          onPress={() => setControlCenterOpen(true)}
-          activeOpacity={0.8}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.controlCenterTitle, { color: isDark ? '#818cf8' : '#4f46e5' }]}>🛡️ Admin Control Center</Text>
-            <Text style={[styles.controlCenterSub, { color: colors.textMuted }]}>
-              Manage module access, permissions &amp; visibility per user
-            </Text>
-          </View>
-          <View style={[styles.controlCenterBadge, { backgroundColor: isDark ? '#6366f133' : '#4f46e522', borderColor: isDark ? '#6366f144' : '#4f46e533' }]}>
-            <Text style={{ fontSize: 10, color: isDark ? '#818cf8' : '#4f46e5', fontWeight: '900' }}>Open →</Text>
-          </View>
-        </TouchableOpacity>
 
         {/* 📅 SCHEDULED MEETINGS TODAY & UPCOMING WIDGET */}
         <View style={[styles.cardBox, { borderColor: isDark ? 'rgba(129,140,248,0.4)' : 'rgba(99,102,241,0.3)', backgroundColor: isDark ? 'rgba(129,140,248,0.06)' : 'rgba(99,102,241,0.04)' }]}>
@@ -612,10 +646,28 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 13, fontWeight: '800', color: '#f8fafc', marginBottom: 8, width: '100%', maxWidth: 600 },
   itemRow: { paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
-  controlCenterCard: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
-  controlCenterTitle: { fontSize: 14, fontWeight: '900' },
-  controlCenterSub: { fontSize: 10, marginTop: 2 },
-  controlCenterBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  heroControlCenterCard: {
+    width: '100%',
+    maxWidth: 600,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  controlCenterIconBox: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  controlCenterTitle: { fontSize: 13.5, fontWeight: '900', letterSpacing: 0.3 },
+  controlCenterStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
+  controlCenterDescText: { fontSize: 11, lineHeight: 16, marginTop: 6, marginBottom: 10 },
+  controlCenterChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  miniChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  miniChipText: { fontSize: 10, fontWeight: '700' },
+  openControlCenterBtn: { width: '100%', paddingVertical: 11, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  openControlCenterBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '900', letterSpacing: 0.3 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(2, 6, 23, 0.85)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalCard: { width: '100%', maxWidth: 420, backgroundColor: '#0f172a', borderRadius: 20, borderWidth: 1, borderColor: '#1e293b', padding: 16 },

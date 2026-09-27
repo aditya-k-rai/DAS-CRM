@@ -25,4 +25,5 @@ export type ModuleKey =
   | 'SETTINGS'
   | 'PROFILE'
   | 'SUPPORT'
-  | 'ABOUT';
+  | 'ABOUT'
+  | 'ADMIN_CONTROL';

@@ -19,6 +19,7 @@ interface TenantAdminHeaderBannerProps {
   role?: UserRole;
   onButton1Press?: () => void;
   onButton2Press?: () => void;
+  onControlCenterPress?: () => void;
 }
 
 export function TenantAdminHeaderBanner({
@@ -26,6 +27,7 @@ export function TenantAdminHeaderBanner({
   role,
   onButton1Press,
   onButton2Press,
+  onControlCenterPress,
 }: TenantAdminHeaderBannerProps) {
   const { currentUser, subscription } = useAuthStore();
   const { colors, isDark } = useTheme();
@@ -47,15 +49,14 @@ export function TenantAdminHeaderBanner({
   let badgeBorder = isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.3)';
   let badgeTextColor = isDark ? '#fbbf24' : '#d97706';
 
-  let btn1Text = '🛡️ Structure Builder';
-  let btn2Text = '⚡ Workflow Rules';
-  let defaultBtn1Handler = () => {
+  let btn1Text = '🛡️ Control Center';
+  let btn2Text = '⚡ Structure Builder';
+  let defaultBtn1Handler = onControlCenterPress || (() => {
+    try { navigation?.navigate('Employees'); } catch { navigation?.navigate('Menu'); }
+  });
+  let defaultBtn2Handler = () => {
     // Structure -> Employees screen (Assigned / Unassigned)
     try { navigation?.navigate('Employees'); } catch { navigation?.navigate('Menu'); }
-  };
-  let defaultBtn2Handler = () => {
-    // Workflow -> WorkflowBuilder screen
-    try { navigation?.navigate('WorkflowBuilder'); } catch { navigation?.navigate('Menu'); }
   };
 
   if (activeRole === 'MANAGER') {

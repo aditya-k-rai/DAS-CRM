@@ -30,6 +30,7 @@ import AttendanceScreen from './AttendanceScreen';
 import ProfileScreen from './ProfileScreen';
 import NoticeBoardScreen from './NoticeBoardScreen';
 import AppSettingsScreen from './AppSettingsScreen';
+import AdminControlCenterScreen from './AdminControlCenterScreen';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuthStore } from '../store/authStore';
@@ -137,8 +138,9 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
     }
   };
 
-  // 19 Navigation Items in Exact Specified Order
+  // 20 Navigation Items in Exact Specified Order
   const GRID_BUTTONS: { key: ModuleKey; icon: string; label: string; upcoming?: boolean }[] = [
+    ...(isAdmin ? [{ key: 'ADMIN_CONTROL' as ModuleKey, icon: '🛡️', label: 'Admin Control Center' }] : []),
     { key: 'PRODUCTS', icon: '📦', label: 'Product Catalogue' },
     { key: 'QUOTES', icon: '📝', label: 'Quotations & Invoices' },
     { key: 'COMMUNICATIONS', icon: '☁️', label: 'WhatsApp Cloud' },
@@ -163,6 +165,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
   const getModuleLabel = (key: ModuleKey, defaultLabel: string): string => {
     switch (key) {
+      case 'ADMIN_CONTROL': return 'Admin Control Center';
       case 'PRODUCTS': return t.modProducts || defaultLabel;
       case 'QUOTES': return t.modQuotes || defaultLabel;
       case 'COMMUNICATIONS': return t.modComms || defaultLabel;
@@ -205,6 +208,7 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
   if (activeModal !== null) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: 0 }}>
+        {activeModal === 'ADMIN_CONTROL' && <AdminControlCenterScreen onClose={closeModal} />}
         {activeModal === 'PRODUCTS' && <ProductsCatalogScreen onClose={closeModal} />}
         {activeModal === 'COMMUNICATIONS' && <CommunicationScreen onClose={closeModal} />}
         {activeModal === 'WA_TEMPLATES' && <WhatsAppTemplatesScreen onClose={closeModal} />}
