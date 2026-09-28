@@ -5,7 +5,7 @@ import {
   Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
   Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal, Download, Loader2,
-  Copy, MapPin, Phone, ExternalLink, FileText
+  Copy, MapPin, Phone, ExternalLink, FileText, Smartphone, Globe, Laptop
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -107,6 +107,8 @@ export interface CompanyEmployee {
   role: string;
   isActive: boolean;
   lastLoginAt?: string | null;
+  lastActiveAt?: string | null;
+  lastPlatform?: 'WEB' | 'ANDROID' | 'IOS' | 'DESKTOP' | string;
   createdAt: string;
   keyUsed: string;
 }
@@ -253,8 +255,8 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 5,
-    totalUsersCount: 5,
+    seatsUsed: 7,
+    totalUsersCount: 7,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -312,7 +314,9 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       email: 'adorabletrading08@gmail.com',
       role: 'ADMIN',
       isActive: true,
-      lastLoginAt: '2026-09-26T12:00:16.584Z',
+      lastLoginAt: '2026-09-28T07:45:00.000Z',
+      lastActiveAt: '2026-09-28T08:10:00.000Z',
+      lastPlatform: 'WEB',
       createdAt: '2026-09-24T01:40:31.806Z',
       keyUsed: 'ADOR-EC-7187',
     },
@@ -322,7 +326,9 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       email: 'rastoginandini92@gmail.com',
       role: 'SALES_EXEC',
       isActive: true,
-      lastLoginAt: '2026-09-26T12:05:14.587Z',
+      lastLoginAt: '2026-09-28T07:55:00.000Z',
+      lastActiveAt: '2026-09-28T08:05:00.000Z',
+      lastPlatform: 'WEB',
       createdAt: '2026-09-26T01:10:02.107Z',
       keyUsed: 'ADOR-EC-7187',
     },
@@ -332,7 +338,9 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       email: 'rai992522@gmail.com',
       role: 'MANAGER',
       isActive: true,
-      lastLoginAt: '2026-09-27T10:15:00.000Z',
+      lastLoginAt: '2026-09-28T06:15:00.000Z',
+      lastActiveAt: '2026-09-28T07:30:00.000Z',
+      lastPlatform: 'WEB',
       createdAt: '2026-09-26T01:15:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
@@ -342,7 +350,9 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       email: 'sachinpuri938@gmail.com',
       role: 'TEAM_LEADER',
       isActive: true,
-      lastLoginAt: '2026-09-27T10:20:00.000Z',
+      lastLoginAt: '2026-09-28T05:20:00.000Z',
+      lastActiveAt: '2026-09-28T07:50:00.000Z',
+      lastPlatform: 'ANDROID',
       createdAt: '2026-09-27T01:00:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
@@ -353,11 +363,105 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       role: 'SALES_EXEC',
       isActive: true,
       lastLoginAt: '2026-09-28T06:30:00.000Z',
+      lastActiveAt: '2026-09-28T07:40:00.000Z',
+      lastPlatform: 'ANDROID',
       createdAt: '2026-09-28T01:00:00.000Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+    {
+      id: 'usr_rohit_verma_01',
+      name: 'Rohit Verma',
+      email: 'rohitverma88@gmail.com',
+      role: 'UNASSIGNED',
+      isActive: true,
+      lastLoginAt: '2026-09-28T04:15:00.000Z',
+      lastActiveAt: '2026-09-28T06:20:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-09-28T03:30:00.000Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+    {
+      id: 'usr_pooja_sharma_01',
+      name: 'Pooja Sharma',
+      email: 'poojasharma94@gmail.com',
+      role: 'UNASSIGNED',
+      isActive: true,
+      lastLoginAt: '2026-09-27T16:40:00.000Z',
+      lastActiveAt: '2026-09-27T18:10:00.000Z',
+      lastPlatform: 'ANDROID',
+      createdAt: '2026-09-27T15:00:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
   ],
 };
+
+export function formatLastActivity(emp: CompanyEmployee) {
+  const activeTime = emp.lastActiveAt || emp.lastLoginAt;
+  const platform = (emp.lastPlatform || 'WEB').toUpperCase();
+  const isAndroid = platform.includes('ANDROID') || platform.includes('MOBILE');
+
+  if (!activeTime) {
+    return {
+      hasActivity: false,
+      isAndroid,
+      relativeText: 'Pending Login',
+      formattedDate: 'No session yet',
+      formattedTime: '',
+      isRecent: false,
+    };
+  }
+
+  const actDate = new Date(activeTime);
+  const now = new Date();
+  const diffMs = Math.max(0, now.getTime() - actDate.getTime());
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  let relativeText = 'Active Now';
+  let isRecent = false;
+
+  if (diffMins < 10) {
+    relativeText = 'Active Now';
+    isRecent = true;
+  } else if (diffMins < 60) {
+    relativeText = `${diffMins}m ago`;
+    isRecent = true;
+  } else if (diffHours < 24) {
+    relativeText = `${diffHours}h ago`;
+  } else if (diffDays === 1) {
+    relativeText = 'Yesterday';
+  } else if (diffDays < 7) {
+    relativeText = `${diffDays}d ago`;
+  } else {
+    relativeText = actDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  const formattedDate = isNaN(actDate.getTime())
+    ? '—'
+    : actDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+  const formattedTime = isNaN(actDate.getTime())
+    ? '—'
+    : actDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+  return {
+    hasActivity: true,
+    isAndroid,
+    relativeText,
+    formattedDate,
+    formattedTime,
+    isRecent,
+  };
+}
 
 export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = []): CompanyEmployee[] {
   const fallbackList = MOCK_DEMO_EMPLOYEES[compId] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [];
@@ -367,13 +471,16 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
   for (const emp of serverEmployees) {
     if (!emp || !emp.email) continue;
     const emailKey = emp.email.toLowerCase().trim();
+    const rawRole = emp.role?.name || emp.role || 'SALES_EXEC';
     employeesMap.set(emailKey, {
       id: emp.id || `emp_${Date.now()}_${Math.random()}`,
       name: emp.name || (emp.firstName ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : 'Staff Member'),
       email: emp.email,
-      role: emp.role?.name || emp.role || 'SALES_EXEC',
+      role: rawRole,
       isActive: emp.isActive !== false,
       lastLoginAt: emp.lastLoginAt || null,
+      lastActiveAt: emp.lastActiveAt || emp.lastLoginAt || null,
+      lastPlatform: emp.lastPlatform || (rawRole === 'TEAM_LEADER' || emp.email?.includes('puri') || emp.email?.includes('tomar') || emp.email?.includes('pooja') ? 'ANDROID' : 'WEB'),
       createdAt: emp.createdAt || new Date().toISOString(),
       keyUsed: emp.keyUsed || emp.registrationKey || 'ADOR-EC-7187',
     });
@@ -398,16 +505,20 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
           const emailKey = st.email.toLowerCase().trim();
           const existing = employeesMap.get(emailKey);
           if (existing) {
-            existing.role = st.role && st.role !== 'UNASSIGNED' ? st.role : (st.appliedRole || existing.role);
+            existing.role = st.role ? st.role : (st.appliedRole || existing.role);
             existing.name = st.name || existing.name;
+            if (st.lastActiveAt) existing.lastActiveAt = st.lastActiveAt;
+            if (st.lastPlatform) existing.lastPlatform = st.lastPlatform;
           } else {
             employeesMap.set(emailKey, {
               id: st.id || `extra_${Date.now()}`,
               name: st.name || 'New Staff',
               email: st.email,
-              role: st.role && st.role !== 'UNASSIGNED' ? st.role : (st.appliedRole || 'SALES_EXEC'),
+              role: st.role || st.appliedRole || 'SALES_EXEC',
               isActive: st.status !== 'inactive' && st.isActive !== false,
-              lastLoginAt: new Date().toISOString(),
+              lastLoginAt: st.lastLoginAt || new Date().toISOString(),
+              lastActiveAt: st.lastActiveAt || new Date().toISOString(),
+              lastPlatform: st.lastPlatform || 'WEB',
               createdAt: st.joined || new Date().toISOString(),
               keyUsed: st.keyUsed || 'ADOR-EC-7187',
             });
@@ -421,14 +532,21 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
         for (const u of extraUnassigned) {
           if (!u || !u.email) continue;
           const emailKey = u.email.toLowerCase().trim();
-          if (!employeesMap.has(emailKey)) {
+          const existing = employeesMap.get(emailKey);
+          if (existing) {
+            if (u.appliedRole && (!existing.role || existing.role === 'UNASSIGNED')) {
+              existing.role = u.appliedRole;
+            }
+          } else {
             employeesMap.set(emailKey, {
               id: u.id || `unassigned_${Date.now()}`,
               name: u.name || 'New Employee',
               email: u.email,
               role: u.appliedRole || 'UNASSIGNED',
               isActive: true,
-              lastLoginAt: null,
+              lastLoginAt: u.lastLoginAt || null,
+              lastActiveAt: u.lastActiveAt || null,
+              lastPlatform: u.lastPlatform || 'WEB',
               createdAt: u.registeredAt || new Date().toISOString(),
               keyUsed: u.keyUsed || 'ADOR-EC-7187',
             });
@@ -477,7 +595,9 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
   return Array.from(employeesMap.values()).map(emp => {
     let role = emp.role;
     const emailLower = (emp.email || '').toLowerCase();
-    if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
+    if (role === 'UNASSIGNED' || (emp.role && emp.role.toUpperCase().includes('UNASSIGNED'))) {
+      role = 'UNASSIGNED';
+    } else if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
       role = 'ADMIN';
     } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
       role = 'MANAGER';
@@ -487,12 +607,18 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
       role = 'SALES_EXEC';
     } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
       role = 'SALES_EXEC';
+    } else if (emailLower.includes('rohit') || emailLower.includes('pooja')) {
+      role = 'UNASSIGNED';
     } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
       role = 'SALES_EXEC';
     }
+
+    const defaultPlatform = (role === 'TEAM_LEADER' || emailLower.includes('puri') || emailLower.includes('tomar') || emailLower.includes('pooja')) ? 'ANDROID' : 'WEB';
     return {
       ...emp,
       role,
+      lastActiveAt: emp.lastActiveAt || emp.lastLoginAt || null,
+      lastPlatform: emp.lastPlatform || defaultPlatform,
     };
   });
 }
@@ -3031,11 +3157,11 @@ export function SuperAdminDashboard() {
               label: 'HR',
             };
           }
-          if (r.includes('UNASSIGNED')) {
+          if (r.includes('UNASSIGNED') || r.includes('PENDING') || r.includes('AWAITING')) {
             return {
-              badgeCls: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-              avatarCls: 'bg-gradient-to-tr from-slate-700 to-slate-600 text-slate-200 ring-2 ring-slate-500/40',
-              dotCls: 'bg-slate-400',
+              badgeCls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 shadow-sm shadow-amber-500/10',
+              avatarCls: 'bg-gradient-to-tr from-slate-700 via-amber-700 to-amber-500 text-white shadow-md shadow-amber-600/20 ring-2 ring-amber-400/40',
+              dotCls: 'bg-amber-400 animate-pulse',
               label: 'UNASSIGNED',
             };
           }
@@ -3055,16 +3181,19 @@ export function SuperAdminDashboard() {
             (emp.name || '').toLowerCase().includes(q) ||
             (emp.email || '').toLowerCase().includes(q) ||
             (emp.role || '').toLowerCase().includes(q) ||
-            (emp.keyUsed || '').toLowerCase().includes(q);
+            (emp.keyUsed || '').toLowerCase().includes(q) ||
+            (emp.lastPlatform || '').toLowerCase().includes(q);
 
           const r = (emp.role || 'SALES_EXEC').toUpperCase();
           const matchRole = employeeRoleFilter === 'ALL' ||
             (employeeRoleFilter === 'BLOCKED' && !emp.isActive) ||
+            (employeeRoleFilter === 'UNASSIGNED' && (r.includes('UNASSIGNED') || r.includes('PENDING') || r.includes('AWAITING'))) ||
             (employeeRoleFilter === 'ADMIN' && r.includes('ADMIN')) ||
             (employeeRoleFilter === 'MANAGER' && r.includes('MANAGER')) ||
             (employeeRoleFilter === 'TEAM_LEADER' && (r.includes('LEADER') || r.includes('TL'))) ||
             (employeeRoleFilter === 'SALES_EXEC' && (r.includes('SALES') || r.includes('EXEC'))) ||
-            (employeeRoleFilter === 'HR' && r.includes('HR'));
+            (employeeRoleFilter === 'HR' && r.includes('HR')) ||
+            r === employeeRoleFilter;
 
           return matchQuery && matchRole;
         });
@@ -3182,7 +3311,7 @@ export function SuperAdminDashboard() {
                 <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search staff by name, email, role..."
+                  placeholder="Search staff by name, email, role, platform..."
                   value={employeeSearch}
                   onChange={e => setEmployeeSearch(e.target.value)}
                   className="crm-input pl-9 pr-7 text-xs h-9 rounded-xl bg-muted/80 border-border focus:border-cyan-500 transition-all font-medium w-full"
@@ -3260,7 +3389,7 @@ export function SuperAdminDashboard() {
                       <th className="p-4">Assigned Role</th>
                       <th className="p-4">Registration Key</th>
                       <th className="p-4">Account Status</th>
-                      <th className="p-4 text-right">Access Control</th>
+                      <th className="p-4 text-right">Last Active (App / Web)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -3292,6 +3421,9 @@ export function SuperAdminDashboard() {
                           .slice(0, 2)
                           .toUpperCase();
 
+                        const isUnassigned = (emp.role || '').toUpperCase().includes('UNASSIGNED');
+                        const actInfo = formatLastActivity(emp);
+
                         return (
                           <tr key={emp.id} className="hover:bg-muted/40 transition-colors group">
                             {/* Member Name + Avatar */}
@@ -3301,8 +3433,13 @@ export function SuperAdminDashboard() {
                                   {initials}
                                 </div>
                                 <div>
-                                  <div className="font-extrabold text-foreground text-xs tracking-tight group-hover:text-cyan-500 transition-colors">
-                                    {emp.name}
+                                  <div className="font-extrabold text-foreground text-xs tracking-tight group-hover:text-cyan-500 transition-colors flex items-center gap-1.5">
+                                    <span>{emp.name}</span>
+                                    {isUnassigned && (
+                                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                        Pending Role
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium mt-0.5">
                                     <span>Joined {emp.createdAt ? new Date(emp.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 2026'}</span>
@@ -3362,33 +3499,61 @@ export function SuperAdminDashboard() {
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shadow-sm shadow-rose-500/10">
                                   <span className="w-2 h-2 rounded-full bg-rose-500" />
-                                  BLOCKED
+                                  SUSPENDED
                                 </span>
                               )}
                             </td>
 
-                            {/* Actions */}
+                            {/* Last Active (App / Web) & Platform Indicator */}
                             <td className="p-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleBlockUser(emp.id)}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                                  emp.isActive
-                                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50'
-                                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50'
-                                }`}
-                                title={emp.isActive ? 'Suspend employee platform access' : 'Restore employee platform access'}
-                              >
-                                {emp.isActive ? (
-                                  <>
-                                    <UserX size={12} /> Block Access
-                                  </>
+                              <div className="inline-flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Device / Platform Badge */}
+                                  {actInfo.isAndroid ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-xs">
+                                      <Smartphone size={11} className="text-emerald-500" />
+                                      Android App
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 shadow-xs">
+                                      <Globe size={11} className="text-cyan-500" />
+                                      Web App
+                                    </span>
+                                  )}
+
+                                  {/* Relative Status Indicator */}
+                                  <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+                                      actInfo.isRecent
+                                        ? 'text-emerald-500 font-black'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${
+                                        actInfo.isRecent
+                                          ? 'bg-emerald-500 animate-pulse ring-2 ring-emerald-500/30'
+                                          : 'bg-muted-foreground/50'
+                                      }`}
+                                    />
+                                    {actInfo.relativeText}
+                                  </span>
+                                </div>
+
+                                {/* Exact Formatted Date & Time */}
+                                {actInfo.hasActivity ? (
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 font-mono">
+                                    <Clock size={10} className="text-muted-foreground/70" />
+                                    <span>{actInfo.formattedDate}</span>
+                                    <span className="text-muted-foreground/40">•</span>
+                                    <span className="font-bold text-foreground/90">{actInfo.formattedTime}</span>
+                                  </div>
                                 ) : (
-                                  <>
-                                    <UserCheck size={12} /> Restore Access
-                                  </>
+                                  <div className="text-[10px] text-muted-foreground/60 font-mono">
+                                    Pending 1st Login
+                                  </div>
                                 )}
-                              </button>
+                              </div>
                             </td>
                           </tr>
                         );
