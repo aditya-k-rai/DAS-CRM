@@ -98,11 +98,6 @@ export function TenantAdminDashboard() {
     delegateManagerConfig: true,
   });
 
-  // Widget 4: AI & Channels State
-  const [pathMode, setPathMode] = useState<'PAID_AI' | 'MANUAL_DIALER'>('PAID_AI');
-  const [whatsAppConnected, setWhatsAppConnected] = useState(true);
-  const [emailCampaignDelegated, setEmailCampaignDelegated] = useState(true);
-
   // Widget 5: Master Pipeline Filter State
   const [pipelineFilterRole, setPipelineFilterRole] = useState<'ALL' | 'MANAGER' | 'TEAM_LEADER' | 'EMPLOYEE'>('ALL');
 

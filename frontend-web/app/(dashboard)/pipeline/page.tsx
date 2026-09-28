@@ -82,11 +82,6 @@ export default function LeadPipelinePage() {
   const rawRole = (currentUser?.role || '').toString().toUpperCase();
   const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER' || !currentUser;
 
-  // Widget 4: AI, WhatsApp & Email Marketing State
-  const [pathMode, setPathMode] = useState<'PAID_AI' | 'MANUAL_DIALER'>('PAID_AI');
-  const [whatsAppConnected, setWhatsAppConnected] = useState(true);
-  const [emailCampaignDelegated, setEmailCampaignDelegated] = useState(true);
-
   // Ingestion Modal States
   const [insertLeadModalOpen, setInsertLeadModalOpen] = useState(false);
   const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
@@ -1239,94 +1234,6 @@ export default function LeadPipelinePage() {
               </table>
             </div>
           )}
-        </div>
-
-        {/* ------------------------------------------------------------ */}
-        {/* WIDGET 4: AI, WHATSAPP & EMAIL MARKETING MODULES             */}
-        {/* ------------------------------------------------------------ */}
-        <div className="crm-card p-5 space-y-4 border border-emerald-500/40 bg-gradient-to-r from-slate-900 via-emerald-950/20 to-slate-900 rounded-2xl shadow-xl mb-6">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-black text-xs border border-emerald-500/30">
-                W4
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                  <Bot size={16} className="text-emerald-400" /> WIDGET 4: AI, WHATSAPP &amp; EMAIL MARKETING MODULES
-                </h3>
-                <p className="text-[11px] text-muted">Configure Communication Gateways &amp; AI Operation Path Mode</p>
-              </div>
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
-              Lead Pipeline Active
-            </span>
-          </div>
-
-          {/* Path Mode Toggle */}
-          <div>
-            <label className="text-[11px] font-bold text-muted uppercase tracking-wider block mb-1.5">
-              Operation Path Mode
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setPathMode('PAID_AI')}
-                className={`p-3.5 rounded-xl border text-left transition-all ${pathMode === 'PAID_AI' ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500/50' : 'bg-background border-border text-muted hover:text-white'}`}
-              >
-                <p className="font-bold text-xs flex items-center gap-1.5">
-                  <Bot size={14} className="text-emerald-400" /> Paid AI &amp; Automations
-                </p>
-                <p className="text-[10px] text-muted mt-0.5">Automated AI Lead Scoring, Instant Auto-Responders &amp; Webhook Triggers</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPathMode('MANUAL_DIALER')}
-                className={`p-3.5 rounded-xl border text-left transition-all ${pathMode === 'MANUAL_DIALER' ? 'bg-indigo-500/20 border-indigo-500 text-white shadow-md ring-1 ring-indigo-500/50' : 'bg-background border-border text-muted hover:text-white'}`}
-              >
-                <p className="font-bold text-xs flex items-center gap-1.5">
-                  <PhoneCall size={14} className="text-indigo-400" /> Manual Dialer
-                </p>
-                <p className="text-[10px] text-muted mt-0.5">Standard Telephony Calling, Manual Follow-ups &amp; Rep Assignment</p>
-              </button>
-            </div>
-          </div>
-
-          {/* WhatsApp Co-Existence Gateway & Email Campaign Delegation */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-xl bg-background/80 border border-border flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                  <MessageSquare size={16} className="text-emerald-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white">WhatsApp Co-Existence Gateway</p>
-                  <p className="text-[10px] text-muted">Simultaneous Official Cloud API + Web Session Status</p>
-                </div>
-              </div>
-              <span className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${whatsAppConnected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}`}>
-                {whatsAppConnected ? 'ONLINE · CONNECTED' : 'OFFLINE'}
-              </span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-background/80 border border-border flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                  <Mail size={16} className="text-purple-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white">Delegate Email Campaigns to Managers</p>
-                  <p className="text-[10px] text-muted">Allows department managers to broadcast email campaigns directly</p>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={emailCampaignDelegated}
-                onChange={e => setEmailCampaignDelegated(e.target.checked)}
-                className="w-4 h-4 rounded accent-indigo-500 cursor-pointer"
-              />
-            </div>
-          </div>
         </div>
 
         {/* ============================================================ */}
