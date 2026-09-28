@@ -302,7 +302,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: sachinRole,
       isVerified: isSachinVerified,
       verificationStatus: isSachinVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || (isSachinVerified ? 'Admin' : 'Pending Admin Assignment'),
+      assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Aditya Kumar Rai (Manager)',
       baseSalary: '₹55,000',
       joined: 'Sep 27, 2026',
       canSelfCheckIn: true,
@@ -322,6 +322,49 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
         ifscCode: '—',
         upiId: 'sachinpuri938@okaxis',
         lastUpdatedDate: 'Sep 27, 2026',
+        historyLogs: [],
+      },
+      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    });
+  }
+
+  // 5. Sulekha Tomar (Sales Exec)
+  const sulekhaId = 'usr_sulekha_tomar_01';
+  if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
+    const sulekhaRole = (storedOverrides[sulekhaId] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any;
+    const isSulekhaVerified = sulekhaRole !== 'UNASSIGNED';
+    list.push({
+      id: sulekhaId,
+      name: 'Sulekha Tomar',
+      code: 'EMP005',
+      dept: isSulekhaVerified ? 'Sales & Growth' : 'Pending Department',
+      email: 'sulekhatmr@gmail.com',
+      phone: formatPhone(storedPhones[sulekhaId] || storedPhones['sulekhatmr@gmail.com'] || '+91 93661 03735'),
+      role: sulekhaRole,
+      isVerified: isSulekhaVerified,
+      verificationStatus: isSulekhaVerified ? 'VERIFIED' : 'PENDING',
+      assignedManager: storedManagers[sulekhaId] || storedManagers['sulekhatmr@gmail.com'] || 'Sachin Puri (Team Leader)',
+      baseSalary: '₹45,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: false,
+      status: 'active',
+      documents: {
+        pan: 'VERIFIED',
+        aadhaar: 'AADHAAR_SUBMITTED.pdf',
+        eduCert: 'DEGREE_SUBMITTED.pdf',
+        offerLetter: 'OFFER_LETTER.pdf',
+        lastUpdatedDate: 'Sep 28, 2026',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'Direct Deposit',
+        accountHolder: 'Sulekha Tomar',
+        accountNo: '••••••••',
+        ifscCode: '—',
+        upiId: 'sulekhatmr@okaxis',
+        lastUpdatedDate: 'Sep 28, 2026',
         historyLogs: [],
       },
       attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
@@ -488,6 +531,9 @@ export async function getUserDirectory(
             }
             if (!rawPhone && u.email === 'sachinpuri938@gmail.com') {
               rawPhone = '+91 93102 03982';
+            }
+            if (!rawPhone && u.email === 'sulekhatmr@gmail.com') {
+              rawPhone = '+91 93661 03735';
             }
             const displayPhone = formatPhone(rawPhone);
 

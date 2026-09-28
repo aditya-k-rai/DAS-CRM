@@ -362,6 +362,36 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           isVerified: adityaAssigned !== 'UNASSIGNED',
         });
       }
+
+      const sachinId = 'usr_sachin_puri_01';
+      if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
+        const sachinAssigned = storedOverrides[sachinId] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER';
+        realUsers.push({
+          id: sachinId,
+          name: 'Sachin Puri',
+          email: 'sachinpuri938@gmail.com',
+          role: sachinAssigned,
+          avatarInitials: 'SP',
+          department: sachinAssigned === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth',
+          phone: '+91 93102 03982',
+          isVerified: sachinAssigned !== 'UNASSIGNED',
+        });
+      }
+
+      const sulekhaId = 'usr_sulekha_tomar_01';
+      if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
+        const sulekhaAssigned = storedOverrides[sulekhaId] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC';
+        realUsers.push({
+          id: sulekhaId,
+          name: 'Sulekha Tomar',
+          email: 'sulekhatmr@gmail.com',
+          role: sulekhaAssigned,
+          avatarInitials: 'ST',
+          department: 'Sales & Growth',
+          phone: '+91 93661 03735',
+          isVerified: sulekhaAssigned !== 'UNASSIGNED',
+        });
+      }
     }
 
     setManagedUsers(realUsers);

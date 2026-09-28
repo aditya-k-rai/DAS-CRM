@@ -1392,6 +1392,8 @@ export class AuthService {
           roleName = 'TEAM_LEADER';
         } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
           roleName = 'SALES_EXEC';
+        } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
+          roleName = 'SALES_EXEC';
         }
         return {
           id: u.id,

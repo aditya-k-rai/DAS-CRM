@@ -112,6 +112,16 @@ const LIVE_DETAILS: Record<string, any> = {
         createdAt: '2026-09-27T01:00:00.000Z',
         keyUsed: 'ADOR-EC-7187',
       },
+      {
+        id: 'usr_sulekha_tomar_01',
+        name: 'Sulekha Tomar',
+        email: 'sulekhatmr@gmail.com',
+        role: 'SALES_EXEC',
+        isActive: true,
+        lastLoginAt: '2026-09-28T06:30:00.000Z',
+        createdAt: '2026-09-28T01:00:00.000Z',
+        keyUsed: 'ADOR-EC-7187',
+      },
     ],
   },
 };
@@ -129,9 +139,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const [companyRes, usersRes] = await Promise.allSettled([
+    const [companyRes, usersRes, crmSyncRes] = await Promise.allSettled([
       fetch(`${backendUrl}/auth/super-admin/companies/${id}`, { headers, signal: controller.signal }),
       fetch(`${backendUrl}/users?organizationId=${id}`, { headers, signal: controller.signal }),
+      fetch(`http://localhost:3000/api/crm-sync?organizationId=${id}`, { headers, signal: controller.signal }),
     ]);
     clearTimeout(timeoutId);
 
@@ -147,6 +158,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       try {
         const parsed = await usersRes.value.json();
         if (Array.isArray(parsed)) usersData = parsed;
+      } catch (_) {}
+    }
+
+    if (crmSyncRes.status === 'fulfilled' && crmSyncRes.value.ok) {
+      try {
+        const crmParsed = await crmSyncRes.value.json();
+        if (Array.isArray(crmParsed?.employees)) {
+          usersData = [...usersData, ...crmParsed.employees];
+        } else if (Array.isArray(crmParsed)) {
+          usersData = [...usersData, ...crmParsed];
+        }
       } catch (_) {}
     }
 

@@ -338,6 +338,7 @@ export default function EmployeesScreen() {
               (userEmail === 'rai992522@gmail.com' ? '+91 99252 20000' : null) ||
               (userEmail === 'rastoginandini92@gmail.com' ? '+91 98765 43210' : null) ||
               (userEmail === 'sachinpuri938@gmail.com' ? '+91 93102 03982' : null) ||
+              (userEmail === 'sulekhatmr@gmail.com' ? '+91 93661 03735' : null) ||
               u.phone ||
               '—';
 
@@ -573,11 +574,46 @@ export default function EmployeesScreen() {
           email: 'sachinpuri938@gmail.com',
           phone: sachinPhone,
           role: finalRole,
-          assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Admin',
+          assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Aditya Kumar Rai (Manager)',
           status: 'ONLINE',
           avatarUrl: '',
           documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
           bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sachin Puri', accountNo: '••••••••', ifscCode: '—', upiId: 'sachinpuri938@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
+          subordinates: [],
+        });
+      }
+    }
+
+    // Sales Exec (Sulekha Tomar)
+    const sulekhaId = 'usr_sulekha_tomar_01';
+    if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
+      const sulekhaAssigned = roleOverrides[sulekhaId] || roleOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC';
+      const sulekhaPhone = storedPhones[sulekhaId] || storedPhones['sulekhatmr@gmail.com'] || '+91 93661 03735';
+      if (sulekhaAssigned === 'UNASSIGNED') {
+        fallbackUnassigned.push({
+          id: sulekhaId,
+          name: 'Sulekha Tomar',
+          email: 'sulekhatmr@gmail.com',
+          phone: sulekhaPhone,
+          registeredAt: 'Sep 28, 2026',
+          deviceInfo: 'App/Web Registration',
+        });
+      } else {
+        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
+          (sulekhaAssigned as any) || 'SALES_EXEC';
+        fallbackAssigned.push({
+          id: sulekhaId,
+          name: 'Sulekha Tomar',
+          email: 'sulekhatmr@gmail.com',
+          phone: sulekhaPhone,
+          role: finalRole,
+          assignedManager: storedManagers[sulekhaId] || storedManagers['sulekhatmr@gmail.com'] || 'Sachin Puri (Team Leader)',
+          status: 'ONLINE',
+          avatarUrl: '',
+          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
+          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sulekha Tomar', accountNo: '••••••••', ifscCode: '—', upiId: 'sulekhatmr@okaxis', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
           leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
           attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
           subordinates: [],

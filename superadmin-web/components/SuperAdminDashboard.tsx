@@ -253,8 +253,8 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 4,
-    totalUsersCount: 4,
+    seatsUsed: 5,
+    totalUsersCount: 5,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -344,6 +344,16 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       isActive: true,
       lastLoginAt: '2026-09-27T10:20:00.000Z',
       createdAt: '2026-09-27T01:00:00.000Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+    {
+      id: 'usr_sulekha_tomar_01',
+      name: 'Sulekha Tomar',
+      email: 'sulekhatmr@gmail.com',
+      role: 'SALES_EXEC',
+      isActive: true,
+      lastLoginAt: '2026-09-28T06:30:00.000Z',
+      createdAt: '2026-09-28T01:00:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
   ],
@@ -474,6 +484,8 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
     } else if (emailLower.includes('sachinpuri') || emailLower.includes('sachin')) {
       role = 'TEAM_LEADER';
     } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
+      role = 'SALES_EXEC';
+    } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
       role = 'SALES_EXEC';
     } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
       role = 'SALES_EXEC';
@@ -829,6 +841,7 @@ export function SuperAdminDashboard() {
       `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/users?organizationId=${targetCompId}`,
       `http://localhost:3001/api/v1/auth/super-admin/companies/${targetCompId}`,
       `http://localhost:3001/api/v1/users?organizationId=${targetCompId}`,
+      `http://localhost:3000/api/crm-sync?organizationId=${targetCompId}`,
     ];
 
     try {
@@ -860,7 +873,7 @@ export function SuperAdminDashboard() {
     setCompanies(prev => prev.map(c => {
       if (c.id === targetCompId) {
         const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-        const count = isAdorable ? Math.max(merged.length, 4) : Math.max(merged.length, 1);
+        const count = isAdorable ? Math.max(merged.length, 5) : Math.max(merged.length, 1);
         return {
           ...c,
           seatsUsed: count,
@@ -964,8 +977,8 @@ export function SuperAdminDashboard() {
             const formatted = data.map((c: any) => {
               const compEmps = mergeCompanyEmployees(c.id, c.users || c.employees || []);
               const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-              const seatsUsed = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 4) : Math.max(compEmps.length, c.seatsUsed ?? 1);
-              const totalUsersCount = isAdorable ? Math.max(compEmps.length, c.totalUsersCount ?? 0, 4) : Math.max(compEmps.length, c.totalUsersCount ?? 1);
+              const seatsUsed = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 5) : Math.max(compEmps.length, c.seatsUsed ?? 1);
+              const totalUsersCount = isAdorable ? Math.max(compEmps.length, c.totalUsersCount ?? 0, 5) : Math.max(compEmps.length, c.totalUsersCount ?? 1);
               return {
                 ...c,
                 totalUsersCount,
@@ -992,7 +1005,7 @@ export function SuperAdminDashboard() {
         return list.map(c => {
           const compEmps = mergeCompanyEmployees(c.id, []);
           const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-          const count = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 4) : Math.max(compEmps.length, c.seatsUsed ?? 1);
+          const count = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 5) : Math.max(compEmps.length, c.seatsUsed ?? 1);
           return {
             ...c,
             seatsUsed: count,
