@@ -127,33 +127,70 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authHeader) headers['Authorization'] = authHeader;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const res = await fetch(`${backendUrl}/auth/super-admin/companies/${id}`, {
-      headers,
-      signal: controller.signal,
-    });
+    const [companyRes, usersRes] = await Promise.allSettled([
+      fetch(`${backendUrl}/auth/super-admin/companies/${id}`, { headers, signal: controller.signal }),
+      fetch(`${backendUrl}/users?organizationId=${id}`, { headers, signal: controller.signal }),
+    ]);
     clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data) {
-        // Ensure verified employees from fallback are never dropped
-        const backendEmps: any[] = Array.isArray(data.employees) ? data.employees : [];
-        const fallbackEmps: any[] = fallback?.employees || [];
-        const mergedEmps = [...backendEmps];
+    let companyData: any = null;
+    if (companyRes.status === 'fulfilled' && companyRes.value.ok) {
+      try {
+        companyData = await companyRes.value.json();
+      } catch (_) {}
+    }
 
-        for (const fb of fallbackEmps) {
-          if (!mergedEmps.some((e: any) => e.email?.toLowerCase() === fb.email?.toLowerCase())) {
-            mergedEmps.push(fb);
-          }
+    let usersData: any[] = [];
+    if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
+      try {
+        const parsed = await usersRes.value.json();
+        if (Array.isArray(parsed)) usersData = parsed;
+      } catch (_) {}
+    }
+
+    if (companyData || usersData.length > 0) {
+      const base = companyData || fallback;
+      const combinedEmpsMap = new Map<string, any>();
+
+      // 1. Add company details employees
+      if (companyData && Array.isArray(companyData.employees)) {
+        for (const e of companyData.employees) {
+          if (e?.email) combinedEmpsMap.set(e.email.toLowerCase().trim(), e);
         }
-
-        return NextResponse.json({
-          ...data,
-          employees: mergedEmps,
-        });
       }
+
+      // 2. Add users from users endpoint
+      for (const u of usersData) {
+        if (!u?.email) continue;
+        const key = u.email.toLowerCase().trim();
+        if (!combinedEmpsMap.has(key)) {
+          combinedEmpsMap.set(key, {
+            id: u.id,
+            name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+            email: u.email,
+            role: u.role || 'SALES_EXEC',
+            isActive: u.isActive !== false,
+            lastLoginAt: u.lastLoginAt || null,
+            createdAt: u.createdAt || new Date().toISOString(),
+            keyUsed: u.companyKey || 'ADOR-EC-7187',
+          });
+        }
+      }
+
+      // 3. Fallback employees
+      const fallbackEmps: any[] = fallback?.employees || [];
+      for (const fb of fallbackEmps) {
+        if (fb?.email && !combinedEmpsMap.has(fb.email.toLowerCase().trim())) {
+          combinedEmpsMap.set(fb.email.toLowerCase().trim(), fb);
+        }
+      }
+
+      return NextResponse.json({
+        ...base,
+        employees: Array.from(combinedEmpsMap.values()),
+      });
     }
   } catch (err) {
     // Network or timeout error

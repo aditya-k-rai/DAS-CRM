@@ -1382,7 +1382,7 @@ export class AuthService {
         totalRevenue,
       },
       employees: org.users.map((u) => {
-        let roleName = u.role?.name || 'SALES_EXEC';
+        let roleName = u.role?.name || (u.roleId ? 'SALES_EXEC' : 'UNASSIGNED');
         const emailLower = (u.email || '').toLowerCase();
         if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
           roleName = 'ADMIN';
@@ -1395,13 +1395,13 @@ export class AuthService {
         }
         return {
           id: u.id,
-          name: `${u.firstName} ${u.lastName}`.trim(),
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
           email: u.email,
           role: roleName,
           isActive: u.isActive !== false,
           lastLoginAt: u.lastLoginAt,
           createdAt: u.createdAt,
-          keyUsed: u.inviteKeyUsed || userKeyMap.get(u.id) || 'DIRECT_REG',
+          keyUsed: u.inviteKeyUsed || userKeyMap.get(u.id) || regKey || 'ADOR-EC-7187',
         };
       }),
     };

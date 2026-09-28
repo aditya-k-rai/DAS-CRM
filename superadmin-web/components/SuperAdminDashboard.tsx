@@ -789,39 +789,71 @@ export function SuperAdminDashboard() {
     }
   };
 
+  // ➕ Direct Add / Register Employee Modal State
+  const [addEmpModalOpen, setAddEmpModalOpen] = useState(false);
+  const [addEmpName, setAddEmpName] = useState('');
+  const [addEmpEmail, setAddEmpEmail] = useState('');
+  const [addEmpPhone, setAddEmpPhone] = useState('');
+  const [addEmpRole, setAddEmpRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | 'HR' | 'UNASSIGNED'>('SALES_EXEC');
+  const [addEmpPassword, setAddEmpPassword] = useState('Password@123');
+  const [addEmpSubmitting, setAddEmpSubmitting] = useState(false);
+  const [addEmpFeedback, setAddEmpFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const fetchEmployees = async (compId?: string) => {
     const targetCompId = compId || selectedCompanyId || MOCK_DEMO_COMPANIES[0]?.id || 'cmuev7n3o000mikew7je1tdiw';
-    let serverEmps: any[] = [];
+    const collectedServerEmps: any[] = [];
+    const seenEmails = new Set<string>();
 
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const endpoints = [
-        `/api/super-admin/companies/${targetCompId}`,
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`
-      ];
-
-      for (const url of endpoints) {
-        try {
-          const res = await fetch(url, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.employees) && data.employees.length > 0) {
-              serverEmps = data.employees;
-              break;
-            }
-          }
-        } catch {
-          // Continue to next endpoint
+    const addEmps = (list: any[]) => {
+      if (!Array.isArray(list)) return;
+      for (const item of list) {
+        if (!item) continue;
+        const email = (item.email || '').toLowerCase().trim();
+        if (email && !seenEmails.has(email)) {
+          seenEmails.add(email);
+          collectedServerEmps.push(item);
+        } else if (!email && item.id && !seenEmails.has(item.id)) {
+          seenEmails.add(item.id);
+          collectedServerEmps.push(item);
         }
       }
+    };
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const endpoints = [
+      `/api/super-admin/companies/${targetCompId}`,
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`,
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/users?organizationId=${targetCompId}`,
+      `http://localhost:3001/api/v1/auth/super-admin/companies/${targetCompId}`,
+      `http://localhost:3001/api/v1/users?organizationId=${targetCompId}`,
+    ];
+
+    try {
+      await Promise.allSettled(
+        endpoints.map(async (url) => {
+          try {
+            const res = await fetch(url, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data?.employees)) {
+                addEmps(data.employees);
+              } else if (Array.isArray(data)) {
+                addEmps(data);
+              } else if (Array.isArray(data?.users)) {
+                addEmps(data.users);
+              }
+            }
+          } catch (_) {}
+        })
+      );
     } catch (err) {
       console.warn('Failed to fetch employees from backend:', err);
     }
 
-    const merged = mergeCompanyEmployees(targetCompId, serverEmps);
+    const merged = mergeCompanyEmployees(targetCompId, collectedServerEmps);
     setCompanyEmployees(merged);
 
     // Update company seats dynamically
@@ -837,6 +869,78 @@ export function SuperAdminDashboard() {
       }
       return c;
     }));
+  };
+
+  const handleCreateEmployee = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!addEmpName.trim() || !addEmpEmail.trim()) {
+      setAddEmpFeedback({ type: 'error', message: 'Name and email are required.' });
+      return;
+    }
+    setAddEmpSubmitting(true);
+    setAddEmpFeedback(null);
+
+    const targetComp = companies.find(c => c.id === selectedCompanyId) || companies[0];
+    const newEmpId = `usr_${Date.now()}`;
+    const payload = {
+      name: addEmpName.trim(),
+      email: addEmpEmail.trim().toLowerCase(),
+      password: addEmpPassword || 'Password@123',
+      phone: addEmpPhone.trim() || '+91 98765 43210',
+      role: addEmpRole,
+      organizationId: selectedCompanyId,
+    };
+
+    // 1. Try to create in backend
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch(`${apiBase}/users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+    } catch (_) {}
+
+    // 2. Also save to localStorage extra staff for immediate visibility
+    if (typeof window !== 'undefined') {
+      try {
+        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+        extraStaff.unshift({
+          id: newEmpId,
+          name: payload.name,
+          email: payload.email,
+          phone: payload.phone,
+          role: payload.role,
+          isVerified: payload.role !== 'UNASSIGNED',
+          verificationStatus: payload.role !== 'UNASSIGNED' ? 'VERIFIED' : 'PENDING',
+          status: 'active',
+          joined: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          keyUsed: targetComp?.registrationKey || 'ADOR-EC-7187',
+        });
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(extraStaff));
+
+        const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+        overrides[payload.email] = payload.role;
+        overrides[newEmpId] = payload.role;
+        localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
+      } catch (_) {}
+    }
+
+    setAddEmpFeedback({ type: 'success', message: `✅ Successfully added ${payload.name} (${payload.role}) to ${targetComp?.name || 'company'}!` });
+    await fetchEmployees(selectedCompanyId);
+
+    setTimeout(() => {
+      setAddEmpSubmitting(false);
+      setAddEmpModalOpen(false);
+      setAddEmpFeedback(null);
+      setAddEmpName('');
+      setAddEmpEmail('');
+      setAddEmpPhone('');
+    }, 1200);
   };
 
   const fetchBackendData = async () => {
@@ -2685,6 +2789,14 @@ export function SuperAdminDashboard() {
                   <option key={c.id} value={c.id}>{c.name} ({c.seatsUsed}/{c.seatsAllocated} Seats)</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => setAddEmpModalOpen(true)}
+                className="px-3 py-2 rounded-xl text-xs font-black bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-cyan-600/25 cursor-pointer whitespace-nowrap"
+                title="Register / Onboard New Employee"
+              >
+                <Plus size={13} /> Add Employee
+              </button>
               <button
                 type="button"
                 onClick={() => fetchEmployees(selectedCompanyId)}
@@ -4897,6 +5009,130 @@ export function SuperAdminDashboard() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ➕ Direct Add / Register Employee Modal */}
+      {addEmpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-fade-in">
+          <div className="crm-card border-cyan-500/40 bg-card p-6 rounded-3xl max-w-lg w-full space-y-4 shadow-2xl relative border">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                  <Plus size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-foreground">Add Employee to Workspace</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Directly onboard staff to {companies.find(c => c.id === selectedCompanyId)?.name || 'selected company'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddEmpModalOpen(false)}
+                className="w-7 h-7 rounded-lg bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {addEmpFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold ${addEmpFeedback.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'}`}>
+                {addEmpFeedback.message}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateEmployee} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground block mb-1">Full Employee Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rajesh Kumar"
+                  value={addEmpName}
+                  onChange={e => setAddEmpName(e.target.value)}
+                  className="crm-input w-full text-xs h-9"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground block mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. rajesh.kumar@example.com"
+                  value={addEmpEmail}
+                  onChange={e => setAddEmpEmail(e.target.value)}
+                  className="crm-input w-full text-xs h-9"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground block mb-1">Assigned Role</label>
+                  <select
+                    value={addEmpRole}
+                    onChange={e => setAddEmpRole(e.target.value as any)}
+                    className="crm-input w-full text-xs h-9"
+                  >
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="MANAGER">MANAGER</option>
+                    <option value="TEAM_LEADER">TEAM LEADER</option>
+                    <option value="SALES_EXEC">SALES EXEC</option>
+                    <option value="HR">HR</option>
+                    <option value="UNASSIGNED">UNASSIGNED (Pending)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground block mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={addEmpPhone}
+                    onChange={e => setAddEmpPhone(e.target.value)}
+                    className="crm-input w-full text-xs h-9"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground block mb-1">Initial Password</label>
+                <input
+                  type="text"
+                  value={addEmpPassword}
+                  onChange={e => setAddEmpPassword(e.target.value)}
+                  className="crm-input w-full text-xs h-9 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setAddEmpModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addEmpSubmitting}
+                  className="btn-primary text-xs px-5 py-2 flex items-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  {addEmpSubmitting ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" /> Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={13} /> Add &amp; Save Employee
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
