@@ -507,6 +507,13 @@ export function SuperAdminDashboard() {
   const [templateTab, setTemplateTab] = useState<'funnel' | 'whatsapp' | 'email'>('funnel');
   const [activeTab, setActiveTab] = useState<'overview' | 'features_hub' | 'company_approvals' | 'keys' | 'templates' | 'whatsapp' | 'pending' | 'employees' | 'expired' | 'coupons' | 'data_retention'>('overview');
 
+  // Search & Filter state for elevated dashboard experience
+  const [companySearch, setCompanySearch] = useState('');
+  const [companyPlanFilter, setCompanyPlanFilter] = useState<string>('ALL');
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
+  const [pendingSearch, setPendingSearch] = useState('');
+
   // PDF Action State & Notification
   const [sendingPdfCompanyId, setSendingPdfCompanyId] = useState<string | null>(null);
   const [pdfNotification, setPdfNotification] = useState<{ type: 'success' | 'error'; message: string; previewUrl?: string } | null>(null);
@@ -521,6 +528,15 @@ export function SuperAdminDashboard() {
   const [viewCompanyDetails, setViewCompanyDetails] = useState<any>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedEmpText, setCopiedEmpText] = useState<string | null>(null);
+
+  const handleCopyEmpText = (text: string) => {
+    if (typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(text);
+      setCopiedEmpText(text);
+      setTimeout(() => setCopiedEmpText(null), 2000);
+    }
+  };
 
   const handleOpenCompanyDetails = async (comp: any) => {
     setViewCompanyDetails(comp);
@@ -801,15 +817,27 @@ export function SuperAdminDashboard() {
     }
   };
 
-  // ➕ Direct Add / Register Employee Modal State
-  const [addEmpModalOpen, setAddEmpModalOpen] = useState(false);
-  const [addEmpName, setAddEmpName] = useState('');
-  const [addEmpEmail, setAddEmpEmail] = useState('');
-  const [addEmpPhone, setAddEmpPhone] = useState('');
-  const [addEmpRole, setAddEmpRole] = useState<'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | 'HR' | 'UNASSIGNED'>('SALES_EXEC');
-  const [addEmpPassword, setAddEmpPassword] = useState('Password@123');
-  const [addEmpSubmitting, setAddEmpSubmitting] = useState(false);
-  const [addEmpFeedback, setAddEmpFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // 🔄 Dedicated Manual Refresh State with Visual Feedback
+  const [employeesRefreshing, setEmployeesRefreshing] = useState(false);
+  const [refreshSuccessBadge, setRefreshSuccessBadge] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setEmployeesRefreshing(true);
+    try {
+      await Promise.allSettled([
+        fetchBackendData(),
+        fetchEmployees(selectedCompanyId),
+        fetchCoupons(),
+        fetchRetentionStatus(),
+      ]);
+      setRefreshSuccessBadge(true);
+      setTimeout(() => setRefreshSuccessBadge(false), 2500);
+    } catch (err) {
+      console.warn('Manual refresh error:', err);
+    } finally {
+      setEmployeesRefreshing(false);
+    }
+  };
 
   const fetchEmployees = async (compId?: string) => {
     const targetCompId = compId || selectedCompanyId || MOCK_DEMO_COMPANIES[0]?.id || 'cmuev7n3o000mikew7je1tdiw';
@@ -882,78 +910,6 @@ export function SuperAdminDashboard() {
       }
       return c;
     }));
-  };
-
-  const handleCreateEmployee = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!addEmpName.trim() || !addEmpEmail.trim()) {
-      setAddEmpFeedback({ type: 'error', message: 'Name and email are required.' });
-      return;
-    }
-    setAddEmpSubmitting(true);
-    setAddEmpFeedback(null);
-
-    const targetComp = companies.find(c => c.id === selectedCompanyId) || companies[0];
-    const newEmpId = `usr_${Date.now()}`;
-    const payload = {
-      name: addEmpName.trim(),
-      email: addEmpEmail.trim().toLowerCase(),
-      password: addEmpPassword || 'Password@123',
-      phone: addEmpPhone.trim() || '+91 98765 43210',
-      role: addEmpRole,
-      organizationId: selectedCompanyId,
-    };
-
-    // 1. Try to create in backend
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      await fetch(`${apiBase}/users`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-    } catch (_) {}
-
-    // 2. Also save to localStorage extra staff for immediate visibility
-    if (typeof window !== 'undefined') {
-      try {
-        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-        extraStaff.unshift({
-          id: newEmpId,
-          name: payload.name,
-          email: payload.email,
-          phone: payload.phone,
-          role: payload.role,
-          isVerified: payload.role !== 'UNASSIGNED',
-          verificationStatus: payload.role !== 'UNASSIGNED' ? 'VERIFIED' : 'PENDING',
-          status: 'active',
-          joined: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          keyUsed: targetComp?.registrationKey || 'ADOR-EC-7187',
-        });
-        localStorage.setItem('das_crm_extra_staff', JSON.stringify(extraStaff));
-
-        const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-        overrides[payload.email] = payload.role;
-        overrides[newEmpId] = payload.role;
-        localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
-      } catch (_) {}
-    }
-
-    setAddEmpFeedback({ type: 'success', message: `✅ Successfully added ${payload.name} (${payload.role}) to ${targetComp?.name || 'company'}!` });
-    await fetchEmployees(selectedCompanyId);
-
-    setTimeout(() => {
-      setAddEmpSubmitting(false);
-      setAddEmpModalOpen(false);
-      setAddEmpFeedback(null);
-      setAddEmpName('');
-      setAddEmpEmail('');
-      setAddEmpPhone('');
-    }, 1200);
   };
 
   const fetchBackendData = async () => {
@@ -1762,131 +1718,184 @@ export function SuperAdminDashboard() {
   const expiredCompanies = companies.filter(c => c.isExpired || (c.expiryDate && new Date(c.expiryDate) < new Date()));
 
   return (
-    <div className="space-y-6 animate-fade-in p-4 sm:p-6 max-w-7xl mx-auto pb-16 text-foreground">
-      {/* 👑 SECTION 1: DASHBOARD HERO BANNER (Explicit High Contrast Dark Cyan Glassmorphic Banner) */}
-      <div className="p-6 border border-cyan-500/40 bg-gradient-to-r from-slate-950 via-cyan-950/90 to-slate-950 relative overflow-hidden shadow-2xl rounded-3xl text-white dark-context">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+    <div className="space-y-6 animate-fade-in p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-20 text-foreground">
+      {/* 👑 SECTION 1: DASHBOARD HERO BANNER (Modern Ambient Glassmorphism Banner) */}
+      <div className="p-6 sm:p-8 border border-cyan-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/80 relative overflow-hidden shadow-2xl rounded-3xl text-white dark-context glass-glow-cyan">
+        {/* Ambient background glow */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
           <div className="flex items-center gap-4">
-            <img src="/das-logo.png" alt="DAS CRM Logo" className="h-12 w-auto object-contain rounded-xl border border-cyan-500/40 shadow-lg bg-slate-900 p-1" />
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 bg-cyan-900/60 border border-cyan-400/50 px-3 py-1 rounded-full shadow-inner inline-flex items-center gap-1.5">
-                👑 SUPER ADMIN SYSTEM OVERLORD
+            <div className="relative group">
+              <img
+                src="/das-logo.png"
+                alt="DAS CRM Logo"
+                className="h-14 w-auto object-contain rounded-2xl border border-cyan-400/40 shadow-xl bg-slate-900/90 p-1.5 transition-transform group-hover:scale-105"
+              />
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
               </span>
-              <h1 className="text-2xl font-black text-white mt-1.5 tracking-tight">Super Admin Dashboard</h1>
-              <p className="text-xs text-slate-300 font-medium">Multi-Tenant Platform Control & Management Center</p>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-widest text-cyan-300 bg-cyan-950/80 border border-cyan-400/50 px-3 py-1 rounded-full shadow-inner inline-flex items-center gap-1.5">
+                  <Sparkles size={11} className="text-cyan-400" /> SUPER ADMIN SYSTEM OVERLORD
+                </span>
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <CheckCircle2 size={10} /> 24/7 MULTI-TENANT CONTROL
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white mt-1.5 tracking-tight flex items-center gap-2">
+                Super Admin Dashboard
+              </h1>
+              <p className="text-xs text-slate-300 font-medium">
+                Enterprise Multi-Tenant Provisioning, Quota Governance &amp; Staff Telemetry Center
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => handleOpenPdfModal()}
-              className="px-4 py-2 text-xs font-extrabold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/40 cursor-pointer"
+              className="px-4 py-2.5 text-xs font-black rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all border border-indigo-400/40 cursor-pointer active:scale-95"
               title="Open Certificate PDF Management Hub"
             >
-              <Mail size={14} /> Send PDF with Mail / Download
+              <Mail size={14} /> Send PDF Mail / Download
             </button>
             <ThemeToggle />
-            <button onClick={fetchBackendData} className="px-4 py-2 text-xs font-extrabold rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-2 shadow-lg transition-all border border-cyan-400/30">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Data
+            <button
+              onClick={handleManualRefresh}
+              disabled={loading || employeesRefreshing}
+              className="px-4 py-2.5 text-xs font-black rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white flex items-center gap-2 shadow-lg shadow-cyan-600/25 transition-all border border-cyan-400/40 cursor-pointer disabled:opacity-60 active:scale-95"
+              title="Refresh All System Data & Sync Across Apps"
+            >
+              <RefreshCw size={14} className={loading || employeesRefreshing ? 'animate-spin' : ''} />
+              {loading || employeesRefreshing ? 'Syncing...' : refreshSuccessBadge ? '✓ Data Synced!' : 'Refresh Telemetry'}
             </button>
           </div>
         </div>
 
-        {/* 5 KPI CARDS (High contrast text in all themes) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-6">
-          <div className="p-4 rounded-2xl bg-slate-900/90 border border-cyan-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
-            <span className="text-[11px] font-extrabold text-cyan-300 uppercase tracking-wider block">Total Companies & Users</span>
-            <div className="mt-2 flex items-center justify-center gap-4">
+        {/* 5 KPI METRICS CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-7">
+          {/* Card 1: Total Companies & Users */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-cyan-500/40 text-center shadow-lg hover:border-cyan-400 hover:scale-[1.02] transition-all group backdrop-blur-md">
+            <div className="flex items-center justify-between text-cyan-300 text-[11px] font-black uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1.5"><Building2 size={13} /> Workspaces</span>
+              <span className="text-[10px] text-cyan-400/80 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30">Total</span>
+            </div>
+            <div className="flex items-center justify-center gap-4">
               <div>
                 <span className="text-2xl font-black text-white">{totalCompanies}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Companies</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Companies</span>
               </div>
-              <div className="w-px h-8 bg-cyan-500/40" />
+              <div className="w-px h-8 bg-cyan-500/30" />
               <div>
                 <span className="text-2xl font-black text-cyan-300">{totalUsers}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Total Users</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Total Users</span>
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-900/90 border border-teal-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
-            <span className="text-[11px] font-extrabold text-teal-300 uppercase tracking-wider block">Active Companies & Users</span>
-            <div className="mt-2 flex items-center justify-center gap-4">
+          {/* Card 2: Active Companies & Users */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-emerald-500/40 text-center shadow-lg hover:border-emerald-400 hover:scale-[1.02] transition-all group backdrop-blur-md">
+            <div className="flex items-center justify-between text-emerald-300 text-[11px] font-black uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1.5"><CheckCircle2 size={13} /> Active Status</span>
+              <span className="text-[10px] text-emerald-400/80 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">Live</span>
+            </div>
+            <div className="flex items-center justify-center gap-4">
               <div>
                 <span className="text-2xl font-black text-white">{activeCompanies}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Active Cos.</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Active Cos.</span>
               </div>
-              <div className="w-px h-8 bg-teal-500/40" />
+              <div className="w-px h-8 bg-emerald-500/30" />
               <div>
                 <span className="text-2xl font-black text-emerald-300">{totalUsers}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Active Users</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Active Staff</span>
               </div>
             </div>
           </div>
 
+          {/* Card 3: Pending Approvals */}
           <div
             onClick={() => setActiveTab('company_approvals')}
-            className={`p-4 rounded-2xl bg-slate-900/90 border ${
-              pendingCompanies.length > 0 ? 'border-amber-400 shadow-lg shadow-amber-500/20' : 'border-amber-500/40'
-            } text-center shadow-lg hover:scale-[1.02] transition-transform cursor-pointer relative overflow-hidden`}
+            className={`p-4 rounded-2xl bg-slate-900/80 border ${
+              pendingCompanies.length > 0
+                ? 'border-amber-400 shadow-amber-500/20 ring-1 ring-amber-400/40'
+                : 'border-amber-500/40'
+            } text-center shadow-lg hover:border-amber-300 hover:scale-[1.02] transition-all cursor-pointer relative overflow-hidden group backdrop-blur-md`}
           >
             {pendingCompanies.length > 0 && (
-              <span className="absolute top-2 right-2 flex h-3 w-3">
+              <span className="absolute top-2.5 right-2.5 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
               </span>
             )}
-            <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider block">Pending Approvals</span>
-            <div className="mt-2 flex items-center justify-center gap-2">
+            <div className="flex items-center justify-between text-amber-300 text-[11px] font-black uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1.5"><Clock size={13} /> Pending</span>
+              <span className="text-[10px] text-amber-400/80 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-500/30">Queue</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
               <span className="text-2xl font-black text-amber-400">{pendingCompanies.length}</span>
-              <span className="text-xs text-slate-300 font-bold">Review Queue</span>
+              <span className="text-xs text-slate-300 font-bold mt-1">Review Queue</span>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform">
-            <span className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-wider block">Trials & Paid Plans</span>
-            <div className="mt-2 flex items-center justify-center gap-4">
+          {/* Card 4: Trials & Paid Plans */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-indigo-500/40 text-center shadow-lg hover:border-indigo-400 hover:scale-[1.02] transition-all group backdrop-blur-md">
+            <div className="flex items-center justify-between text-indigo-300 text-[11px] font-black uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1.5"><CreditCard size={13} /> Subscriptions</span>
+              <span className="text-[10px] text-indigo-400/80 bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-500/30">Plans</span>
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-4">
               <div>
                 <span className="text-2xl font-black text-amber-400">{activeFreeTrials}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Free Trials</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Trials</span>
               </div>
-              <div className="w-px h-8 bg-indigo-500/40" />
+              <div className="w-px h-8 bg-indigo-500/30" />
               <div>
                 <span className="text-2xl font-black text-indigo-300">{activePaidPlans}</span>
-                <span className="text-[10px] text-slate-300 block font-bold">Paid Plans</span>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Paid Plans</span>
               </div>
             </div>
           </div>
 
+          {/* Card 5: Expired Companies */}
           <div
             onClick={() => setActiveTab('expired')}
-            className="p-4 rounded-2xl bg-slate-900/90 border border-red-500/50 text-center shadow-lg hover:scale-[1.02] transition-transform cursor-pointer"
+            className={`p-4 rounded-2xl bg-slate-900/80 border ${
+              expiredCompanies.length > 0 ? 'border-rose-500/60' : 'border-slate-800'
+            } text-center shadow-lg hover:border-rose-400 hover:scale-[1.02] transition-all cursor-pointer group backdrop-blur-md`}
           >
-            <span className="text-[11px] font-extrabold text-red-300 uppercase tracking-wider block">Plan Expired Companies</span>
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <span className="text-2xl font-black text-red-400">{expiredCompanies.length}</span>
-              <span className="text-xs text-slate-300 font-bold">Expired Plans</span>
+            <div className="flex items-center justify-between text-rose-300 text-[11px] font-black uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1.5"><AlertCircle size={13} /> Expired</span>
+              <span className="text-[10px] text-rose-400/80 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-500/30">Tenants</span>
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              <span className="text-2xl font-black text-rose-400">{expiredCompanies.length}</span>
+              <span className="text-xs text-slate-300 font-bold mt-1">Expired Plans</span>
             </div>
           </div>
         </div>
 
-        {/* 6-Month Data Retention & Verified Employee Documents Guarantee Strip */}
-        <div className="mt-4 p-3.5 rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-slate-900/50 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        {/* 6-Month Data Retention Policy Guarantee Strip */}
+        <div className="mt-5 p-4 rounded-2xl border border-blue-500/30 bg-gradient-to-r from-blue-950/50 via-indigo-950/40 to-slate-900/60 flex flex-wrap items-center justify-between gap-3 shadow-md backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
-              <Shield size={18} />
+            <div className="w-10 h-10 rounded-xl bg-blue-600/25 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0 shadow-inner">
+              <Shield size={20} />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-black text-white">6-Month Company History Auto-Purge Policy:</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                   ACTIVE (180 DAYS)
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
                   🔒 VERIFIED EMPLOYEE DOCUMENTS PERMANENTLY EXEMPT
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                All company operational history, leads, activities, and logs older than 6 months auto-delete daily. Employee KYC, PAN, UAN, Bank details &amp; Drive documents are permanently preserved.
+              <p className="text-[11px] text-slate-300 mt-1">
+                Operational history older than 6 months automatically purges daily. Verified Employee Profiles, PAN, KYC, and Drive Vault files remain permanently protected.
               </p>
             </div>
           </div>
@@ -1895,97 +1904,144 @@ export function SuperAdminDashboard() {
               setActiveTab('data_retention');
               fetchRetentionStatus();
             }}
-            className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 text-xs font-bold transition-all flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-blue-600/40 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 text-xs font-black transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer ml-auto"
           >
             Manage Retention &amp; Audit Logs →
           </button>
         </div>
       </div>
 
-      {/* Main Section Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto">
+      {/* Main Section Navigation Tabs (Segmented & Responsive) */}
+      <div className="flex items-center gap-2 border-b border-border/80 pb-3.5 overflow-x-auto scrollbar-thin">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'overview' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'overview'
+              ? 'bg-cyan-600 text-white border-cyan-500 shadow-lg shadow-cyan-600/25 ring-2 ring-cyan-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
         >
-          🔑 Keys & Companies Table
+          🔑 Keys &amp; Companies Table
         </button>
+
         <button
           onClick={() => setActiveTab('company_approvals')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap active:scale-95 ${
             activeTab === 'company_approvals'
-              ? 'bg-amber-600 text-white border-amber-500 shadow-md ring-2 ring-amber-400/30'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+              ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-600/25 ring-2 ring-amber-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
           }`}
         >
           <Building2 size={14} className={activeTab === 'company_approvals' ? 'text-white' : 'text-amber-500'} />
-          🏢 Pending Approvals
+          <span>Pending Approvals</span>
           {pendingCompanies.length > 0 && (
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                activeTab === 'company_approvals' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white animate-pulse'
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'company_approvals' ? 'bg-white text-amber-800' : 'bg-amber-500 text-white animate-pulse'
               }`}
             >
               {pendingCompanies.length}
             </span>
           )}
         </button>
+
         <button
           onClick={() => setActiveTab('features_hub')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${activeTab === 'features_hub' ? 'bg-purple-600 text-white border-purple-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'features_hub'
+              ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/25 ring-2 ring-purple-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
         >
-          <Zap size={14} className={activeTab === 'features_hub' ? 'text-white' : 'text-purple-400'} /> ⚡ Company Features & Quotas Hub
+          <Zap size={14} className={activeTab === 'features_hub' ? 'text-white' : 'text-purple-400'} />
+          <span>Features &amp; Quotas Hub</span>
         </button>
-        <button
-          onClick={() => setActiveTab('expired')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'expired' ? 'bg-red-600 text-white border-red-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
-        >
-          ⚠️ Expired Companies ({expiredCompanies.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'templates' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
-        >
-          📑 System Templates Hub
-        </button>
-        <button
-          onClick={() => setActiveTab('whatsapp')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'whatsapp' ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
-        >
-          💬 WhatsApp Cloud Logs
-        </button>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'pending' ? 'bg-amber-600 text-white border-amber-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
-        >
-          💳 Upgrades Pending ({upgradeRequests.length})
-        </button>
+
         <button
           onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all ${activeTab === 'employees' ? 'bg-cyan-600 text-white border-cyan-500 shadow-md' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'employees'
+              ? 'bg-cyan-600 text-white border-cyan-500 shadow-lg shadow-cyan-600/25 ring-2 ring-cyan-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
         >
-          👥 Tenant Employees
+          <Users size={14} className={activeTab === 'employees' ? 'text-white' : 'text-cyan-400'} />
+          <span>Tenant Staff Directory</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('expired')}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'expired'
+              ? 'bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-600/25 ring-2 ring-rose-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
+        >
+          <AlertCircle size={14} className={activeTab === 'expired' ? 'text-white' : 'text-rose-500'} />
+          <span>Expired ({expiredCompanies.length})</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('coupons')}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${activeTab === 'coupons' ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30' : 'bg-card border-border text-muted-foreground hover:text-foreground'}`}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'coupons'
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
         >
           <Tag size={14} className={activeTab === 'coupons' ? 'text-white' : 'text-emerald-500'} />
-          🏷️ Discount Coupons ({couponsList.length})
+          <span>Coupons ({couponsList.length})</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('templates')}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'templates'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/25'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
+        >
+          <Layers size={14} className={activeTab === 'templates' ? 'text-white' : 'text-indigo-400'} />
+          <span>System Templates</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('whatsapp')}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'whatsapp'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/25'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
+        >
+          <MessageSquare size={14} className={activeTab === 'whatsapp' ? 'text-white' : 'text-indigo-400'} />
+          <span>WhatsApp Logs</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('pending')}
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
+            activeTab === 'pending'
+              ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-600/25'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          }`}
+        >
+          <CreditCard size={14} className={activeTab === 'pending' ? 'text-white' : 'text-amber-400'} />
+          <span>Upgrades ({upgradeRequests.length})</span>
+        </button>
+
         <button
           onClick={() => {
             setActiveTab('data_retention');
             fetchRetentionStatus();
           }}
-          className={`px-4 py-2.5 text-xs font-extrabold rounded-xl border transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2.5 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
             activeTab === 'data_retention'
-              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md ring-2 ring-blue-400/30'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-lg shadow-blue-600/25 ring-2 ring-blue-400/30'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
           }`}
         >
           <Shield size={14} className={activeTab === 'data_retention' ? 'text-white' : 'text-blue-500'} />
-          🛡️ 6-Month Data Retention &amp; Purge
+          <span>6-Month Retention</span>
         </button>
       </div>
 
@@ -2511,125 +2567,278 @@ export function SuperAdminDashboard() {
       )}
 
       {/* 🔑 SECTION 2: KEYS AND THEIR COMPANIES TABLE */}
-      {(activeTab === 'overview' || activeTab === 'keys') && (
-        <div className="crm-card p-5 border-border bg-card space-y-4 rounded-2xl shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h3 className="text-base font-black text-foreground flex items-center gap-2">
-              <Key size={18} className="text-cyan-500" /> Keys and Their Companies Table
-            </h3>
-            <span className="text-[10px] font-extrabold text-cyan-700 dark:text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 rounded-full flex items-center gap-1.5 w-max">
-              <Shield size={12} /> Auto-Created via Company Registration
-            </span>
-          </div>
+      {(activeTab === 'overview' || activeTab === 'keys') && (() => {
+        const filteredCompanies = companies.filter(c => {
+          const q = companySearch.trim().toLowerCase();
+          const matchQuery = !q ||
+            (c.name || '').toLowerCase().includes(q) ||
+            (c.domain || '').toLowerCase().includes(q) ||
+            (c.adminEmail || '').toLowerCase().includes(q) ||
+            (c.registrationKey || '').toLowerCase().includes(q);
 
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
-                <tr>
-                  <th className="p-3.5">Registration Key</th>
-                  <th className="p-3.5">Company Name</th>
-                  <th className="p-3.5">Plan Tier</th>
-                  <th className="p-3.5">Active Features</th>
-                  <th className="p-3.5">Expiry Date</th>
-                  <th className="p-3.5">Users & Seats</th>
-                  <th className="p-3.5 text-right">Edit Controls</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {companies.map(c => {
-                  const isCompExpired = c.isExpired || (c.expiryDate && new Date(c.expiryDate) < new Date());
-                  return (
-                    <tr key={c.id} className={`transition-colors ${isCompExpired ? 'bg-red-500/10 hover:bg-red-500/15' : 'hover:bg-muted/40'}`}>
-                      <td className="p-3.5 font-mono text-cyan-600 dark:text-cyan-400 font-extrabold">{c.registrationKey}</td>
-                      <td className="p-3.5">
-                        <p className="font-extrabold text-foreground">{c.name}</p>
-                        {isCompExpired && (
-                          <span className="text-[9px] font-black text-red-500 uppercase tracking-wider block">⚠️ PLAN EXPIRED</span>
-                        )}
-                      </td>
-                      <td className="p-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${isCompExpired ? 'bg-red-500/20 border-red-500/40 text-red-600 dark:text-red-300' : c.plan === 'FREE_TRIAL' ? 'bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300' : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'}`}>
-                          {c.plan} {isCompExpired ? '(EXPIRED)' : ''}
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.emailConfig?.enabled ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
-                            MAIL: {c.emailConfig?.enabled ? 'ON' : 'OFF'}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
-                            WA: {c.whatsAppConfig?.enabled ? 'ON' : 'OFF'}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.aiConfig?.enabled ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
-                            AI: {c.aiConfig?.enabled ? c.aiConfig.tier : 'OFF'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-mono text-muted-foreground">
-                        <span className={isCompExpired ? 'text-red-500 font-bold' : ''}>{c.expiryDate}</span>
-                      </td>
-                      <td className="p-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {c.seatsUsed} Used ({c.seatsAllocated} Allocated)
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenCompanyDetails(c)}
-                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
-                            title="View All Registration Details"
-                          >
-                            <Eye size={12} className="text-cyan-500" />
-                            View Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSendPdfEmail(c)}
-                            disabled={sendingPdfCompanyId === c.id}
-                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                            title={`Send Registration Certificate PDF to ${c.adminEmail}`}
-                          >
-                            {sendingPdfCompanyId === c.id ? (
-                              <Loader2 size={12} className="animate-spin text-indigo-500" />
-                            ) : (
-                              <Mail size={12} className="text-indigo-500" />
-                            )}
-                            Send PDF Email
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadPdf(c)}
-                            className="px-2.5 py-1 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer"
-                            title="Download Official Registration Certificate PDF"
-                          >
-                            <Download size={12} className="text-emerald-500" />
-                            Download PDF
-                          </button>
-                          <button
-                            onClick={() => handleOpenExtendModal(c)}
-                            className={`px-2.5 py-1 rounded-xl font-bold text-xs inline-flex items-center gap-1 border transition-all ${
-                              isCompExpired
-                                ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600/30 shadow-sm'
-                                : 'bg-muted/60 hover:bg-muted text-foreground border-border'
-                            }`}
-                            title="Set Custom Expiry Date"
-                          >
-                            <Calendar size={11} className={isCompExpired ? 'text-emerald-600 dark:text-emerald-400' : 'text-cyan-500'} />
-                            {isCompExpired ? 'Extend Expiry' : 'Set Expiry'}
-                          </button>
-                          <button onClick={() => handleOpenEditModal(c, 'general')} className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-bold text-xs inline-flex items-center gap-1">
-                            <Edit2 size={12} /> Edit & Features
-                          </button>
-                        </div>
-                      </td>
+          const matchPlan = companyPlanFilter === 'ALL' ||
+            c.plan.toUpperCase() === companyPlanFilter.toUpperCase() ||
+            (companyPlanFilter === 'GROW' && (c.plan === 'GROW' || c.plan === 'GROWTH'));
+
+          return matchQuery && matchPlan;
+        });
+
+        return (
+          <div className="crm-card p-6 border-border bg-card space-y-5 rounded-3xl shadow-xl animate-fade-in">
+            {/* Table Header with Search & Plan Filters */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/80 pb-4">
+              <div>
+                <h3 className="text-base font-black text-foreground flex items-center gap-2">
+                  <Key size={18} className="text-cyan-500" /> Keys &amp; Tenant Companies Master Directory
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Master registry of active keys, seat limits, plan validity, and feature configs.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Search Bar */}
+                <div className="relative min-w-[220px]">
+                  <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search company, key, email..."
+                    value={companySearch}
+                    onChange={e => setCompanySearch(e.target.value)}
+                    className="crm-input pl-9 pr-7 text-xs h-9 rounded-xl bg-muted/80 border-border focus:border-cyan-500 transition-all font-medium"
+                  />
+                  {companySearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCompanySearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Plan Tier Filter Pills */}
+                <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border overflow-x-auto text-[11px]">
+                  {['ALL', 'FREE_TRIAL', 'GROW', 'BUSINESS', 'ENTERPRISE'].map(plan => (
+                    <button
+                      key={plan}
+                      type="button"
+                      onClick={() => setCompanyPlanFilter(plan)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                        companyPlanFilter === plan
+                          ? 'bg-cyan-600 text-white shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {plan === 'ALL' ? 'All Plans' : plan === 'FREE_TRIAL' ? 'Trial' : plan}
+                    </button>
+                  ))}
+                </div>
+
+                <span className="text-[10px] font-black text-cyan-700 dark:text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1.5 rounded-xl whitespace-nowrap shadow-sm">
+                  {filteredCompanies.length} / {companies.length} Companies
+                </span>
+              </div>
+            </div>
+
+            {/* Companies Table */}
+            <div className="overflow-hidden rounded-2xl border border-border/80 shadow-sm bg-card/40">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
+                      <th className="p-3.5">Registration Key</th>
+                      <th className="p-3.5">Company Workspace</th>
+                      <th className="p-3.5">Plan Tier</th>
+                      <th className="p-3.5">Module Features</th>
+                      <th className="p-3.5">Expiry Date</th>
+                      <th className="p-3.5">Seats Occupancy</th>
+                      <th className="p-3.5 text-right">Master Actions</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredCompanies.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-10 text-center text-muted-foreground">
+                          <Building2 size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                          <p className="font-bold text-sm">No companies matched your search criteria.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompanySearch('');
+                              setCompanyPlanFilter('ALL');
+                            }}
+                            className="mt-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25"
+                          >
+                            Reset Search Filters
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCompanies.map(c => {
+                        const isCompExpired = c.isExpired || (c.expiryDate && new Date(c.expiryDate) < new Date());
+                        const seatRatio = Math.min(100, Math.round(((c.seatsUsed || 1) / (c.seatsAllocated || 18)) * 100));
+
+                        return (
+                          <tr key={c.id} className={`transition-colors group ${isCompExpired ? 'bg-rose-500/5 hover:bg-rose-500/10' : 'hover:bg-muted/40'}`}>
+                            {/* Key with Copy */}
+                            <td className="p-3.5">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyEmpText(c.registrationKey)}
+                                className="inline-flex items-center gap-1.5 font-mono text-cyan-600 dark:text-cyan-400 font-extrabold hover:text-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/30 transition-all cursor-pointer text-xs"
+                                title="Click to copy registration key"
+                              >
+                                <Key size={11} className="text-cyan-500" />
+                                {c.registrationKey}
+                                {copiedEmpText === c.registrationKey && (
+                                  <Check size={11} className="text-emerald-400" />
+                                )}
+                              </button>
+                            </td>
+
+                            {/* Company Name & Avatar */}
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
+                                  {(c.name || 'C').slice(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-black text-foreground text-xs group-hover:text-cyan-500 transition-colors">
+                                    {c.name}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground font-mono">
+                                    {c.adminEmail}
+                                  </p>
+                                  {isCompExpired && (
+                                    <span className="text-[9px] font-black text-rose-500 uppercase tracking-wider block mt-0.5">
+                                      ⚠️ Plan Expired
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Plan Tier Badge */}
+                            <td className="p-3.5">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${
+                                isCompExpired
+                                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
+                                  : c.plan === 'FREE_TRIAL'
+                                  ? 'bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                                  : c.plan === 'ENTERPRISE'
+                                  ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                                  : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'
+                              }`}>
+                                {c.plan}
+                              </span>
+                            </td>
+
+                            {/* Feature Pills */}
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.emailConfig?.enabled ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                                  MAIL: {c.emailConfig?.enabled ? 'ON' : 'OFF'}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.whatsAppConfig?.enabled ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                                  WA: {c.whatsAppConfig?.enabled ? 'ON' : 'OFF'}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black ${c.aiConfig?.enabled ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                                  AI: {c.aiConfig?.enabled ? (c.aiConfig.tier || 'PRO') : 'OFF'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Expiry Date */}
+                            <td className="p-3.5 font-mono text-xs">
+                              <span className={isCompExpired ? 'text-rose-500 font-bold' : 'text-muted-foreground'}>
+                                {c.expiryDate}
+                              </span>
+                            </td>
+
+                            {/* Seats Progress */}
+                            <td className="p-3.5 font-mono">
+                              <div className="space-y-1 min-w-[120px]">
+                                <div className="flex items-center justify-between text-[11px] font-bold">
+                                  <span className="text-emerald-600 dark:text-emerald-400">{c.seatsUsed || 1} Used</span>
+                                  <span className="text-muted-foreground">/{c.seatsAllocated || 18}</span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden border border-border/50">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full"
+                                    style={{ width: `${Math.max(10, seatRatio)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Action Buttons */}
+                            <td className="p-3.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCompanyDetails(c)}
+                                  className="px-2.5 py-1 rounded-xl font-bold text-xs bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer active:scale-95"
+                                  title="View Full Registration Dossier"
+                                >
+                                  <Eye size={12} className="text-cyan-500" />
+                                  Details
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendPdfEmail(c)}
+                                  disabled={sendingPdfCompanyId === c.id}
+                                  className="px-2.5 py-1 rounded-xl font-bold text-xs bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+                                  title={`Send Registration Certificate PDF to ${c.adminEmail}`}
+                                >
+                                  {sendingPdfCompanyId === c.id ? (
+                                    <Loader2 size={12} className="animate-spin text-indigo-500" />
+                                  ) : (
+                                    <Mail size={12} className="text-indigo-500" />
+                                  )}
+                                  PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadPdf(c)}
+                                  className="px-2.5 py-1 rounded-xl font-bold text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition-all shadow-sm cursor-pointer active:scale-95"
+                                  title="Download Official Registration Certificate PDF"
+                                >
+                                  <Download size={12} className="text-emerald-500" />
+                                  PDF
+                                </button>
+                                <button
+                                  onClick={() => handleOpenExtendModal(c)}
+                                  className={`px-2.5 py-1 rounded-xl font-bold text-xs inline-flex items-center gap-1 border transition-all cursor-pointer active:scale-95 ${
+                                    isCompExpired
+                                      ? 'bg-rose-500/20 border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/30 shadow-sm'
+                                      : 'bg-muted/80 hover:bg-muted text-foreground border-border'
+                                  }`}
+                                  title="Set Custom Expiry Date"
+                                >
+                                  <Calendar size={11} className={isCompExpired ? 'text-rose-500' : 'text-cyan-500'} />
+                                  {isCompExpired ? 'Extend' : 'Expiry'}
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditModal(c, 'general')}
+                                  className="px-3 py-1 bg-cyan-600/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600/30 rounded-xl font-black text-xs inline-flex items-center gap-1 cursor-pointer active:scale-95"
+                                >
+                                  <Edit2 size={12} /> Edit
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 📑 SECTION 4: SYSTEM TEMPLATES HUB */}
       {activeTab === 'templates' && (
@@ -2776,118 +2985,422 @@ export function SuperAdminDashboard() {
       )}
 
       {/* 👥 SECTION 7: COMPANIES AND THEIR EMPLOYEES */}
-      {(activeTab === 'overview' || activeTab === 'employees') && (
-        <div className="crm-card p-5 border-border bg-card space-y-4 rounded-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                <Users size={18} className="text-cyan-500" /> Companies and Their Employees
-              </h3>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live Auto-Sync Active
-              </span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-xs text-muted-foreground">Select Company Workspace:</label>
-              <select
-                className="crm-input text-xs h-9 min-w-[200px]"
-                value={selectedCompanyId}
-                onChange={e => {
-                  setSelectedCompanyId(e.target.value);
-                  fetchEmployees(e.target.value);
-                }}
-              >
-                {companies.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.seatsUsed}/{c.seatsAllocated} Seats)</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setAddEmpModalOpen(true)}
-                className="px-3 py-2 rounded-xl text-xs font-black bg-cyan-600 hover:bg-cyan-500 text-white flex items-center gap-1.5 transition-all shadow-md shadow-cyan-600/25 cursor-pointer whitespace-nowrap"
-                title="Register / Onboard New Employee"
-              >
-                <Plus size={13} /> Add Employee
-              </button>
-              <button
-                type="button"
-                onClick={() => fetchEmployees(selectedCompanyId)}
-                className="px-3 py-2 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                title="Refresh Employee Directory"
-              >
-                <RefreshCw size={12} className="text-cyan-500" /> Refresh
-              </button>
-              {companies.find(c => c.id === selectedCompanyId) && (
+      {(activeTab === 'overview' || activeTab === 'employees') && (() => {
+        const activeComp = companies.find(c => c.id === selectedCompanyId) || companies[0];
+        const allocatedSeats = activeComp?.seatsAllocated || 18;
+        const usedSeats = companyEmployees.length;
+        const seatPercent = Math.min(100, Math.round((usedSeats / allocatedSeats) * 100));
+
+        const roleCounts = companyEmployees.reduce((acc: Record<string, number>, e) => {
+          const r = (e.role || 'SALES_EXEC').toUpperCase();
+          acc[r] = (acc[r] || 0) + 1;
+          return acc;
+        }, {});
+
+        const getRoleBadgeStyle = (role: string) => {
+          const r = (role || '').toUpperCase();
+          if (r.includes('ADMIN')) {
+            return {
+              badgeCls: 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30 shadow-sm shadow-purple-500/10',
+              avatarCls: 'bg-gradient-to-tr from-purple-700 via-indigo-600 to-cyan-500 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400/40',
+              dotCls: 'bg-purple-400',
+              label: 'ADMIN',
+            };
+          }
+          if (r.includes('MANAGER')) {
+            return {
+              badgeCls: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30 shadow-sm shadow-blue-500/10',
+              avatarCls: 'bg-gradient-to-tr from-blue-700 via-indigo-600 to-sky-400 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-400/40',
+              dotCls: 'bg-blue-400',
+              label: 'MANAGER',
+            };
+          }
+          if (r.includes('LEADER') || r.includes('TL')) {
+            return {
+              badgeCls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30 shadow-sm shadow-amber-500/10',
+              avatarCls: 'bg-gradient-to-tr from-amber-600 via-orange-500 to-yellow-400 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400/40',
+              dotCls: 'bg-amber-400',
+              label: 'TEAM LEADER',
+            };
+          }
+          if (r.includes('HR')) {
+            return {
+              badgeCls: 'bg-pink-500/15 text-pink-600 dark:text-pink-300 border-pink-500/30 shadow-sm shadow-pink-500/10',
+              avatarCls: 'bg-gradient-to-tr from-pink-600 via-rose-500 to-red-400 text-white shadow-md shadow-pink-600/30 ring-2 ring-pink-400/40',
+              dotCls: 'bg-pink-400',
+              label: 'HR',
+            };
+          }
+          if (r.includes('UNASSIGNED')) {
+            return {
+              badgeCls: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+              avatarCls: 'bg-gradient-to-tr from-slate-700 to-slate-600 text-slate-200 ring-2 ring-slate-500/40',
+              dotCls: 'bg-slate-400',
+              label: 'UNASSIGNED',
+            };
+          }
+          return {
+            badgeCls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-500/10',
+            avatarCls: 'bg-gradient-to-tr from-emerald-600 via-teal-600 to-cyan-400 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400/40',
+            dotCls: 'bg-emerald-400',
+            label: 'SALES EXEC',
+          };
+        };
+
+        const blockedCount = companyEmployees.filter(e => !e.isActive).length;
+
+        const filteredEmployees = companyEmployees.filter(emp => {
+          const q = employeeSearch.trim().toLowerCase();
+          const matchQuery = !q ||
+            (emp.name || '').toLowerCase().includes(q) ||
+            (emp.email || '').toLowerCase().includes(q) ||
+            (emp.role || '').toLowerCase().includes(q) ||
+            (emp.keyUsed || '').toLowerCase().includes(q);
+
+          const r = (emp.role || 'SALES_EXEC').toUpperCase();
+          const matchRole = employeeRoleFilter === 'ALL' ||
+            (employeeRoleFilter === 'BLOCKED' && !emp.isActive) ||
+            (employeeRoleFilter === 'ADMIN' && r.includes('ADMIN')) ||
+            (employeeRoleFilter === 'MANAGER' && r.includes('MANAGER')) ||
+            (employeeRoleFilter === 'TEAM_LEADER' && (r.includes('LEADER') || r.includes('TL'))) ||
+            (employeeRoleFilter === 'SALES_EXEC' && (r.includes('SALES') || r.includes('EXEC'))) ||
+            (employeeRoleFilter === 'HR' && r.includes('HR'));
+
+          return matchQuery && matchRole;
+        });
+
+        return (
+          <div className="crm-card p-6 border-cyan-500/30 bg-card space-y-5 rounded-3xl shadow-xl hover:border-cyan-500/50 transition-all duration-300 animate-fade-in">
+            {/* Header with Title & Workspace Selector */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/80 pb-5">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-indigo-500/20 to-purple-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-md shadow-cyan-500/10">
+                    <Users size={20} className="text-cyan-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2">
+                      Companies &amp; Operational Staff Directory
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Real-time synchronized roster of verified members across all organization tenants.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="relative">
+                  <select
+                    className="crm-input text-xs h-10 pl-3 pr-8 rounded-xl font-bold bg-muted/90 border-border hover:border-cyan-500/50 focus:border-cyan-500 transition-all min-w-[240px] cursor-pointer shadow-sm"
+                    value={selectedCompanyId}
+                    onChange={e => {
+                      setSelectedCompanyId(e.target.value);
+                      fetchEmployees(e.target.value);
+                    }}
+                  >
+                    {companies.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.seatsUsed || 0}/{c.seatsAllocated || 18} Seats)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => handleOpenCompanyDetails(companies.find(c => c.id === selectedCompanyId))}
-                  className="px-3 py-2 rounded-xl text-xs font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
-                  title="View Full Company Registration Details"
+                  onClick={handleManualRefresh}
+                  disabled={employeesRefreshing}
+                  className="h-10 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-muted to-muted/80 hover:from-muted/80 hover:to-muted text-foreground border border-border flex items-center gap-2 transition-all shadow-sm cursor-pointer whitespace-nowrap disabled:opacity-60 hover:border-cyan-500/40 active:scale-95"
+                  title="Force Sync Directory Across Workspaces"
                 >
-                  <Eye size={13} className="text-cyan-500" /> View Company Dossier
+                  <RefreshCw size={13} className={`text-cyan-500 ${employeesRefreshing ? 'animate-spin' : ''}`} />
+                  {employeesRefreshing ? 'Syncing...' : refreshSuccessBadge ? '✓ Synced!' : 'Refresh'}
                 </button>
-              )}
+
+                {activeComp && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCompanyDetails(activeComp)}
+                    className="h-10 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white flex items-center gap-2 transition-all shadow-lg shadow-cyan-600/25 cursor-pointer whitespace-nowrap active:scale-95 border border-cyan-400/40"
+                    title="View Full Company Registration Details"
+                  >
+                    <Eye size={14} /> Dossier
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Active Company Status & Seat Allocation Bar */}
+            {activeComp && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 border border-border/70 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-cyan-600/20">
+                    {(activeComp.name || 'C').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-extrabold text-foreground">{activeComp.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 uppercase tracking-wider">
+                        {activeComp.plan || 'BUSINESS'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live Auto-Sync
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 font-mono">
+                      <span>Key: <strong className="text-foreground">{activeComp.registrationKey || 'ADOR-EC-7187'}</strong></span>
+                      <span>•</span>
+                      <span>Admin: <strong className="text-foreground">{activeComp.adminEmail || 'admin'}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seat Quota Metric Bar */}
+                <div className="min-w-[240px] space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-muted-foreground">Workspace Seat Capacity:</span>
+                    <span className="font-black text-foreground font-mono">
+                      <strong className="text-cyan-500">{usedSeats}</strong> / {allocatedSeats} ({seatPercent}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden border border-border">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(8, seatPercent)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Staff Search Bar & Role Filter Chips */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              {/* Staff Search Input */}
+              <div className="relative min-w-[240px] sm:max-w-xs w-full">
+                <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search staff by name, email, role..."
+                  value={employeeSearch}
+                  onChange={e => setEmployeeSearch(e.target.value)}
+                  className="crm-input pl-9 pr-7 text-xs h-9 rounded-xl bg-muted/80 border-border focus:border-cyan-500 transition-all font-medium w-full"
+                />
+                {employeeSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Interactive Role Breakdown Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setEmployeeRoleFilter('ALL')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-black text-[11px] border transition-all cursor-pointer whitespace-nowrap ${
+                    employeeRoleFilter === 'ALL'
+                      ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
+                      : 'bg-muted/80 border-border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  All Staff: {companyEmployees.length}
+                </button>
+
+                {Object.entries(roleCounts).map(([role, count]) => {
+                  const style = getRoleBadgeStyle(role);
+                  const isSelected = employeeRoleFilter === role;
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setEmployeeRoleFilter(isSelected ? 'ALL' : role)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-extrabold text-[11px] border transition-all cursor-pointer whitespace-nowrap ${
+                        isSelected
+                          ? 'ring-2 ring-cyan-400 bg-card text-foreground font-black'
+                          : style.badgeCls
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${style.dotCls}`} />
+                      {style.label}: {count}
+                    </button>
+                  );
+                })}
+
+                {blockedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeRoleFilter(employeeRoleFilter === 'BLOCKED' ? 'ALL' : 'BLOCKED')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl font-extrabold text-[11px] border transition-all cursor-pointer whitespace-nowrap ${
+                      employeeRoleFilter === 'BLOCKED'
+                        ? 'bg-rose-600 text-white border-rose-500 shadow-sm'
+                        : 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    Blocked: {blockedCount}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* High-Performance Table */}
+            <div className="overflow-hidden rounded-2xl border border-border/80 shadow-md bg-card/60 backdrop-blur-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-muted/90 via-muted/70 to-muted/90 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
+                      <th className="p-4">Staff Member</th>
+                      <th className="p-4">Email Address</th>
+                      <th className="p-4">Assigned Role</th>
+                      <th className="p-4">Registration Key</th>
+                      <th className="p-4">Account Status</th>
+                      <th className="p-4 text-right">Access Control</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredEmployees.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-12 text-center text-muted-foreground">
+                          <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                          <p className="font-bold text-sm">No staff members found matching your search or filter.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeSearch('');
+                              setEmployeeRoleFilter('ALL');
+                            }}
+                            className="mt-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 cursor-pointer"
+                          >
+                            Reset Staff Filters
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredEmployees.map(emp => {
+                        const style = getRoleBadgeStyle(emp.role);
+                        const initials = (emp.name || emp.email || 'EM')
+                          .split(' ')
+                          .filter(Boolean)
+                          .map((n: string) => n[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase();
+
+                        return (
+                          <tr key={emp.id} className="hover:bg-muted/40 transition-colors group">
+                            {/* Member Name + Avatar */}
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${style.avatarCls}`}>
+                                  {initials}
+                                </div>
+                                <div>
+                                  <div className="font-extrabold text-foreground text-xs tracking-tight group-hover:text-cyan-500 transition-colors">
+                                    {emp.name}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium mt-0.5">
+                                    <span>Joined {emp.createdAt ? new Date(emp.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 2026'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Email Address with Click to Copy */}
+                            <td className="p-4">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyEmpText(emp.email)}
+                                className="inline-flex items-center gap-1.5 font-mono text-cyan-600 dark:text-cyan-300 hover:text-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/20 transition-all cursor-pointer text-xs"
+                                title="Click to copy email address"
+                              >
+                                {emp.email}
+                                {copiedEmpText === emp.email ? (
+                                  <Check size={11} className="text-emerald-400 shrink-0" />
+                                ) : (
+                                  <Copy size={11} className="opacity-60 group-hover:opacity-100 shrink-0" />
+                                )}
+                              </button>
+                            </td>
+
+                            {/* Assigned Role */}
+                            <td className="p-4">
+                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black border uppercase tracking-wider ${style.badgeCls}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${style.dotCls}`} />
+                                {style.label}
+                              </span>
+                            </td>
+
+                            {/* Registration Key */}
+                            <td className="p-4">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyEmpText(emp.keyUsed || 'ADOR-EC-7187')}
+                                className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/80 hover:bg-muted px-2.5 py-1 rounded-lg border border-border transition-all cursor-pointer"
+                                title="Click to copy Company Registration Key"
+                              >
+                                <Key size={11} className="text-amber-500 shrink-0" />
+                                {emp.keyUsed || 'ADOR-EC-7187'}
+                                {copiedEmpText === (emp.keyUsed || 'ADOR-EC-7187') ? (
+                                  <Check size={11} className="text-emerald-400 shrink-0" />
+                                ) : null}
+                              </button>
+                            </td>
+
+                            {/* Account Status */}
+                            <td className="p-4">
+                              {emp.isActive ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                  ACTIVE
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shadow-sm shadow-rose-500/10">
+                                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                  BLOCKED
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleBlockUser(emp.id)}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                                  emp.isActive
+                                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50'
+                                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50'
+                                }`}
+                                title={emp.isActive ? 'Suspend employee platform access' : 'Restore employee platform access'}
+                              >
+                                {emp.isActive ? (
+                                  <>
+                                    <UserX size={12} /> Block Access
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck size={12} /> Restore Access
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/80 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
-                <tr>
-                  <th className="p-3.5">Employee Name</th>
-                  <th className="p-3.5">Email Address</th>
-                  <th className="p-3.5">Assigned Role</th>
-                  <th className="p-3.5">Registration Key Used</th>
-                  <th className="p-3.5">Account Status</th>
-                  <th className="p-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {companyEmployees.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-muted-foreground">
-                      No registered employees found for selected company workspace.
-                    </td>
-                  </tr>
-                ) : (
-                  companyEmployees.map(emp => (
-                    <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3.5 font-bold text-foreground">{emp.name}</td>
-                      <td className="p-3.5 font-mono text-cyan-600 dark:text-cyan-300">{emp.email}</td>
-                      <td className="p-3.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-muted text-foreground border border-border uppercase">
-                          {emp.role}
-                        </span>
-                      </td>
-                      <td className="p-3.5 font-mono text-muted-foreground">{emp.keyUsed}</td>
-                      <td className="p-3.5">
-                        {emp.isActive ? (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                            ACTIVE
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                            DEACTIVATED / BLOCKED
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <button
-                          onClick={() => handleToggleBlockUser(emp.id)}
-                          className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${emp.isActive ? 'bg-rose-600/20 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-600/30' : 'bg-emerald-600/20 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600/30'}`}
-                        >
-                          {emp.isActive ? 'Block Employee' : 'Unblock Employee'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 🏷️ SECTION: DISCOUNT COUPONS MANAGEMENT HUB */}
       {activeTab === 'coupons' && (
@@ -5022,130 +5535,6 @@ export function SuperAdminDashboard() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ➕ Direct Add / Register Employee Modal */}
-      {addEmpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-fade-in">
-          <div className="crm-card border-cyan-500/40 bg-card p-6 rounded-3xl max-w-lg w-full space-y-4 shadow-2xl relative border">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
-                  <Plus size={16} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-foreground">Add Employee to Workspace</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Directly onboard staff to {companies.find(c => c.id === selectedCompanyId)?.name || 'selected company'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAddEmpModalOpen(false)}
-                className="w-7 h-7 rounded-lg bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {addEmpFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-bold ${addEmpFeedback.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'}`}>
-                {addEmpFeedback.message}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateEmployee} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-bold text-muted-foreground block mb-1">Full Employee Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rajesh Kumar"
-                  value={addEmpName}
-                  onChange={e => setAddEmpName(e.target.value)}
-                  className="crm-input w-full text-xs h-9"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-muted-foreground block mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. rajesh.kumar@example.com"
-                  value={addEmpEmail}
-                  onChange={e => setAddEmpEmail(e.target.value)}
-                  className="crm-input w-full text-xs h-9"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground block mb-1">Assigned Role</label>
-                  <select
-                    value={addEmpRole}
-                    onChange={e => setAddEmpRole(e.target.value as any)}
-                    className="crm-input w-full text-xs h-9"
-                  >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="MANAGER">MANAGER</option>
-                    <option value="TEAM_LEADER">TEAM LEADER</option>
-                    <option value="SALES_EXEC">SALES EXEC</option>
-                    <option value="HR">HR</option>
-                    <option value="UNASSIGNED">UNASSIGNED (Pending)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground block mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. 9876543210"
-                    value={addEmpPhone}
-                    onChange={e => setAddEmpPhone(e.target.value)}
-                    className="crm-input w-full text-xs h-9"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-muted-foreground block mb-1">Initial Password</label>
-                <input
-                  type="text"
-                  value={addEmpPassword}
-                  onChange={e => setAddEmpPassword(e.target.value)}
-                  className="crm-input w-full text-xs h-9 font-mono"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setAddEmpModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addEmpSubmitting}
-                  className="btn-primary text-xs px-5 py-2 flex items-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  {addEmpSubmitting ? (
-                    <>
-                      <Loader2 size={13} className="animate-spin" /> Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={13} /> Add &amp; Save Employee
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
