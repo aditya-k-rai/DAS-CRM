@@ -134,13 +134,14 @@ export async function testApiEndpoint(url: string): Promise<{ success: boolean; 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    // Try /api/v1/health or /health
+    // 1. Try /api/v1/health
     let res = await fetch(`${normalized}/health`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
     }).catch(() => null);
 
+    // 2. Try /health at root
     if (!res || !res.ok) {
       const rootUrl = normalized.replace(/\/api\/v1$/, '');
       res = await fetch(`${rootUrl}/health`, {
@@ -150,9 +151,19 @@ export async function testApiEndpoint(url: string): Promise<{ success: boolean; 
       }).catch(() => null);
     }
 
+    // 3. Fallback check: public auth endpoint /api/v1/auth/plan-definitions
+    if (!res || !res.ok) {
+      res = await fetch(`${normalized}/auth/plan-definitions`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      }).catch(() => null);
+    }
+
     clearTimeout(timeoutId);
 
-    if (res && res.ok) {
+    // Any response from the server (even 401 for auth routes) indicates network reachability
+    if (res && (res.ok || res.status === 401 || res.status === 403)) {
       const latencyMs = Date.now() - start;
       return { success: true, latencyMs };
     }

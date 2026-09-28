@@ -68,8 +68,10 @@ async function bootstrap() {
     }),
   );
 
-  // Global prefix
-  app.setGlobalPrefix('api/v1');
+  // Global prefix with health check exclusions
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health', 'api/v1/health', ''],
+  });
 
   // Swagger
   const swaggerConfig = new DocumentBuilder()

@@ -108,7 +108,11 @@ export default function NetworkStatusBanner({ token }: Props) {
           activeOpacity={0.85}
           onPress={() => {
             if (!syncState.isBackendConnected) {
-              setShowConfigModal(true);
+              if (__DEV__) {
+                setShowConfigModal(true);
+              } else {
+                offlineSyncEngine.checkNetworkStatus();
+              }
             }
           }}
         >
@@ -121,10 +125,16 @@ export default function NetworkStatusBanner({ token }: Props) {
           {!syncState.isBackendConnected && (
             <TouchableOpacity
               style={styles.configBtn}
-              onPress={() => setShowConfigModal(true)}
+              onPress={() => {
+                if (__DEV__) {
+                  setShowConfigModal(true);
+                } else {
+                  offlineSyncEngine.checkNetworkStatus();
+                }
+              }}
               activeOpacity={0.75}
             >
-              <Text style={styles.configBtnText}>Setup IP ⚙️</Text>
+              <Text style={styles.configBtnText}>{__DEV__ ? 'Setup IP ⚙️' : 'Retry 🔄'}</Text>
             </TouchableOpacity>
           )}
 

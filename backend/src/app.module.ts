@@ -5,6 +5,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { UsersModule } from './modules/users/users.module';
@@ -80,7 +82,9 @@ import { DataRetentionModule } from './modules/data-retention/data-retention.mod
     AIScoringModule,
     DataRetentionModule,
   ],
+  controllers: [AppController],
   providers: [
+    AppService,
     {
       provide: APP_GUARD,
       useClass: CustomThrottlerGuard,
@@ -88,3 +92,4 @@ import { DataRetentionModule } from './modules/data-retention/data-retention.mod
   ],
 })
 export class AppModule {}
+
