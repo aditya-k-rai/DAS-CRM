@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Building2, Users, Shield, Zap, DollarSign, Tag, Check, X,
+  Building2, Users, Shield, ShieldAlert, ShieldCheck, Zap, DollarSign, Tag, Check, X,
   Plus, Trash2, Edit2, Key, CheckCircle2, MessageSquare, Mail, RefreshCw, QrCode, CreditCard,
   Ban, Lock, Unlock, TrendingUp, UserX, UserCheck, Eye, ChevronRight, Calendar, Sparkles, Filter, Layers, Clock, PhoneCall, AlertCircle, Bot, SlidersHorizontal, Download, Loader2,
   Copy, MapPin, Phone, ExternalLink, FileText, Smartphone, Globe, Laptop
@@ -293,132 +293,6 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
       requestedValidityDays: 15,
     },
   },
-  {
-    id: 'org_zenith_growth_02',
-    name: 'Zenith Logistics & Supply',
-    domain: 'zenithlogistics.in',
-    adminName: 'Rohan Mehra',
-    adminEmail: 'rohan@zenithlogistics.in',
-    phone: '9810123456',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400001',
-    gstNumber: '27AABCT1234F1Z8',
-    panNumber: 'AABCT1234F',
-    panType: 'BUSINESS',
-    companyType: 'Private Limited',
-    sector: 'Logistics & Supply Chain',
-    accountType: 'BUY_REQUEST',
-    validityDays: 30,
-    registrationKey: 'ZENI-MH-4421',
-    plan: 'GROWTH',
-    seatsAllocated: 6,
-    seatsUsed: 4,
-    totalUsersCount: 4,
-    totalLeads: 124,
-    convertedLeads: 38,
-    conversionRate: 30.6,
-    expiryDate: '2026-10-02',
-    isExpired: false,
-    trialDaysLeft: 4,
-    isActive: true,
-    createdAt: '2026-09-02',
-    registeredAt: '2026-09-02T10:15:00.000Z',
-    verificationStatus: 'APPROVED',
-    emailConfig: { enabled: true, monthlyLimit: 5000, used: 1200 },
-    whatsAppConfig: { enabled: true, monthlyLimit: 10000, used: 3400, status: 'CONNECTED' },
-    aiConfig: {
-      enabled: true,
-      tier: 'BASIC',
-      customSystemPrompt: 'Logistics sales assistant.',
-      monthlyTokenLimit: 100000,
-      tokensUsed: 22000,
-    },
-  },
-  {
-    id: 'org_apex_enterprise_03',
-    name: 'Apex Global Financials',
-    domain: 'apexglobal.com',
-    adminName: 'Pooja Varma',
-    adminEmail: 'pooja.v@apexglobal.com',
-    phone: '9820567890',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560001',
-    gstNumber: '29AAACA9988G1ZQ',
-    panNumber: 'AAACA9988G',
-    panType: 'BUSINESS',
-    companyType: 'Public Limited',
-    sector: 'Financial Services & Fintech',
-    accountType: 'BUY_REQUEST',
-    validityDays: 365,
-    registrationKey: 'APEX-KA-9988',
-    plan: 'ENTERPRISE',
-    seatsAllocated: 60,
-    seatsUsed: 28,
-    totalUsersCount: 28,
-    totalLeads: 850,
-    convertedLeads: 410,
-    conversionRate: 48.2,
-    expiryDate: '2027-03-24',
-    isExpired: false,
-    trialDaysLeft: 177,
-    isActive: true,
-    createdAt: '2026-03-24',
-    registeredAt: '2026-03-24T08:00:00.000Z',
-    verificationStatus: 'APPROVED',
-    emailConfig: { enabled: true, monthlyLimit: 50000, used: 14200 },
-    whatsAppConfig: { enabled: true, monthlyLimit: 100000, used: 41200, status: 'CONNECTED' },
-    aiConfig: {
-      enabled: true,
-      tier: 'ENTERPRISE_CUSTOM',
-      customSystemPrompt: 'Fintech enterprise client advisory bot.',
-      monthlyTokenLimit: 1000000,
-      tokensUsed: 320000,
-    },
-  },
-  {
-    id: 'org_technova_expired_04',
-    name: 'TechNova Cloud Labs',
-    domain: 'technovaclouddot.io',
-    adminName: 'Vikram Sengupta',
-    adminEmail: 'vikram@technovalabs.io',
-    phone: '9871122334',
-    city: 'Hyderabad',
-    state: 'Telangana',
-    pincode: '500081',
-    gstNumber: '36AAACT5544H1Z2',
-    panNumber: 'AAACT5544H',
-    panType: 'BUSINESS',
-    companyType: 'LLP',
-    sector: 'Software & Cloud Services',
-    accountType: 'TRIAL',
-    validityDays: 15,
-    registrationKey: 'TNOV-TS-5544',
-    plan: 'FREE_TRIAL',
-    seatsAllocated: 6,
-    seatsUsed: 5,
-    totalUsersCount: 5,
-    totalLeads: 42,
-    convertedLeads: 8,
-    conversionRate: 19.0,
-    expiryDate: '2026-09-20',
-    isExpired: true,
-    trialDaysLeft: 0,
-    isActive: true,
-    createdAt: '2026-09-05',
-    registeredAt: '2026-09-05T09:30:00.000Z',
-    verificationStatus: 'APPROVED',
-    emailConfig: { enabled: false, monthlyLimit: 5000, used: 5000 },
-    whatsAppConfig: { enabled: false, monthlyLimit: 20000, used: 0, status: 'DISCONNECTED' },
-    aiConfig: {
-      enabled: false,
-      tier: 'PRO',
-      customSystemPrompt: 'Trial assistant.',
-      monthlyTokenLimit: 250000,
-      tokensUsed: 250000,
-    },
-  },
 ];
 
 const MOCK_DEMO_KEYS: KeyRecord[] = [
@@ -432,39 +306,6 @@ const MOCK_DEMO_KEYS: KeyRecord[] = [
     status: 'ACTIVE',
     expiresAt: '2026-10-09T01:40:30.314Z',
     createdAt: '2026-09-24T01:40:30.527Z',
-  },
-  {
-    id: 'key_zenith_growth_01',
-    key: 'ZENI-MH-4421',
-    companyName: 'Zenith Logistics & Supply',
-    planTier: 'GROWTH',
-    memberLimit: 6,
-    validityDays: 30,
-    status: 'ACTIVE',
-    expiresAt: '2026-10-02T10:15:00.000Z',
-    createdAt: '2026-09-02T10:15:00.000Z',
-  },
-  {
-    id: 'key_apex_enterprise_01',
-    key: 'APEX-KA-9988',
-    companyName: 'Apex Global Financials',
-    planTier: 'ENTERPRISE',
-    memberLimit: 60,
-    validityDays: 365,
-    status: 'ACTIVE',
-    expiresAt: '2027-03-24T08:00:00.000Z',
-    createdAt: '2026-03-24T08:00:00.000Z',
-  },
-  {
-    id: 'key_technova_expired_01',
-    key: 'TNOV-TS-5544',
-    companyName: 'TechNova Cloud Labs',
-    planTier: 'FREE_TRIAL',
-    memberLimit: 6,
-    validityDays: 15,
-    status: 'EXPIRED',
-    expiresAt: '2026-09-20T09:30:00.000Z',
-    createdAt: '2026-09-05T09:30:00.000Z',
   },
 ];
 
@@ -541,96 +382,6 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       lastPlatform: 'WEB',
       createdAt: '2026-09-28T08:01:04.094Z',
       keyUsed: 'ADOR-EC-7187',
-    },
-  ],
-  org_zenith_growth_02: [
-    {
-      id: 'usr_zenith_admin',
-      name: 'Rohan Mehra',
-      email: 'rohan@zenithlogistics.in',
-      role: 'ADMIN',
-      isActive: true,
-      lastLoginAt: '2026-09-28T07:30:00.000Z',
-      lastActiveAt: '2026-09-28T08:00:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-09-02T10:15:00.000Z',
-      keyUsed: 'ZENI-MH-4421',
-    },
-    {
-      id: 'usr_zenith_tl',
-      name: 'Kavita Chawla',
-      email: 'kavita@zenithlogistics.in',
-      role: 'TEAM_LEADER',
-      isActive: true,
-      lastLoginAt: '2026-09-28T06:45:00.000Z',
-      lastActiveAt: '2026-09-28T07:50:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-09-03T11:00:00.000Z',
-      keyUsed: 'ZENI-MH-4421',
-    },
-    {
-      id: 'usr_zenith_sales1',
-      name: 'Amit Shukla',
-      email: 'amit@zenithlogistics.in',
-      role: 'SALES_EXEC',
-      isActive: true,
-      lastLoginAt: '2026-09-28T05:15:00.000Z',
-      lastActiveAt: '2026-09-28T07:30:00.000Z',
-      lastPlatform: 'ANDROID',
-      createdAt: '2026-09-04T09:00:00.000Z',
-      keyUsed: 'ZENI-MH-4421',
-    },
-    {
-      id: 'usr_zenith_sales2',
-      name: 'Deepak Verma',
-      email: 'deepak@zenithlogistics.in',
-      role: 'SALES_EXEC',
-      isActive: true,
-      lastLoginAt: '2026-09-27T08:00:00.000Z',
-      lastActiveAt: '2026-09-27T10:00:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-09-04T09:15:00.000Z',
-      keyUsed: 'ZENI-MH-4421',
-    },
-  ],
-  org_apex_enterprise_03: [
-    {
-      id: 'usr_apex_admin',
-      name: 'Pooja Varma',
-      email: 'pooja.v@apexglobal.com',
-      role: 'ADMIN',
-      isActive: true,
-      lastLoginAt: '2026-09-28T08:00:00.000Z',
-      lastActiveAt: '2026-09-28T08:15:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-03-24T08:00:00.000Z',
-      keyUsed: 'APEX-KA-9988',
-    },
-    {
-      id: 'usr_apex_mgr',
-      name: 'Rajesh Iyer',
-      email: 'rajesh.i@apexglobal.com',
-      role: 'MANAGER',
-      isActive: true,
-      lastLoginAt: '2026-09-28T07:15:00.000Z',
-      lastActiveAt: '2026-09-28T08:05:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-03-25T09:00:00.000Z',
-      keyUsed: 'APEX-KA-9988',
-    },
-  ],
-  org_technova_expired_04: [
-    {
-      id: 'usr_technova_admin',
-      name: 'Vikram Sengupta',
-      email: 'vikram@technovalabs.io',
-      role: 'ADMIN',
-      isActive: true,
-      lastLoginAt: '2026-09-20T10:00:00.000Z',
-      lastActiveAt: '2026-09-20T11:00:00.000Z',
-      lastPlatform: 'WEB',
-      createdAt: '2026-09-05T09:30:00.000Z',
-      keyUsed: 'TNOV-TS-5544',
     },
   ],
 };
@@ -4088,7 +3839,7 @@ export function SuperAdminDashboard() {
                     <tr className="bg-gradient-to-r from-muted/90 via-muted/70 to-muted/90 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
                       <th className="p-4">Staff Member</th>
                       <th className="p-4">Email Address</th>
-                      <th className="p-4">Assigned Role &amp; Quick Action</th>
+                      <th className="p-4">Assigned Role (Org Admin Managed)</th>
                       <th className="p-4">Registration Key</th>
                       <th className="p-4">Account Status</th>
                       <th className="p-4 text-right">Last Active (App / Web)</th>
@@ -4167,38 +3918,31 @@ export function SuperAdminDashboard() {
                               </button>
                             </td>
 
-                            {/* Assigned Role & Interactive Quick Selector */}
+                            {/* Assigned Role (Strictly Governed by Org / Tenant Admin) */}
                             <td className="p-4">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black border uppercase tracking-wider ${style.badgeCls}`}>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black border uppercase tracking-wider shadow-sm ${style.badgeCls}`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${style.dotCls}`} />
                                   {style.label}
                                 </span>
 
-                                <div className="relative">
-                                  <select
-                                    value={isUnassigned ? '' : (emp.role || 'SALES_EXEC')}
-                                    onChange={(e) => {
-                                      if (e.target.value) {
-                                        handleSuperAdminAssignRole(emp, e.target.value);
-                                      }
-                                    }}
-                                    disabled={assigningRoleId === emp.id}
-                                    className={`crm-input text-[11px] h-7 pl-2 pr-6 rounded-lg font-bold transition-all cursor-pointer ${
-                                      isUnassigned
-                                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
-                                        : 'bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border'
-                                    }`}
-                                    title={isUnassigned ? "⚡ Verify & assign permanent role" : "Change staff role"}
+                                {isUnassigned ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md"
+                                    title="Role assignment is restricted to Tenant Admin in Admin Control Center"
                                   >
-                                    {isUnassigned && <option value="" disabled>⚡ Quick Assign...</option>}
-                                    <option value="SALES_EXEC">Sales Exec</option>
-                                    <option value="TEAM_LEADER">Team Leader</option>
-                                    <option value="MANAGER">Manager</option>
-                                    <option value="HR">HR</option>
-                                    <option value="ADMIN">Admin</option>
-                                  </select>
-                                </div>
+                                    <ShieldAlert size={11} className="text-amber-500 shrink-0" />
+                                    Pending Org Admin Assign
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-bold text-muted-foreground/80 bg-muted/60 border border-border/60 px-1.5 py-0.5 rounded-md"
+                                    title="Role managed by Organization Admin in Admin Control Center"
+                                  >
+                                    <ShieldCheck size={10} className="text-emerald-500 shrink-0" />
+                                    Org Admin Managed
+                                  </span>
+                                )}
                               </div>
                             </td>
 
