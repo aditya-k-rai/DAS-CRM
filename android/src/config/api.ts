@@ -47,7 +47,10 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
-export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://dascrm-backend.onrender.com/api/v1';
+export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
+export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
+export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
+export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL || CURRENT_LAN_API_URL;
 
 /**
  * Returns prioritized list of production & enterprise backend URLs to probe
@@ -65,16 +68,23 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
-  // 3. Dynamic host IP from Expo Metro bundler (only in active development)
-  if (__DEV__) {
-    const expoIp = getExpoHostIp();
-    if (expoIp) {
-      candidates.push(`http://${expoIp}:3001/api/v1`);
-    }
+  // 3. Dynamic host IP from Expo Metro bundler
+  const expoIp = getExpoHostIp();
+  if (expoIp) {
+    candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Default Production Cloud Endpoint
-  candidates.push(normalizeApiUrl(PROD_CLOUD_API_URL));
+  // 4. Current host machine Wi-Fi LAN IP (for physical devices over Wi-Fi)
+  candidates.push(CURRENT_LAN_API_URL);
+
+  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  if (Platform.OS === 'android') {
+    candidates.push(EMULATOR_API_URL);
+  }
+
+  // 6. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
+  candidates.push(LOCALHOST_API_URL);
+  candidates.push('http://127.0.0.1:3001/api/v1');
 
   // Deduplicate preserving priority order
   return Array.from(new Set(candidates.filter(Boolean)));
@@ -84,13 +94,14 @@ export const getApiBaseUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
   }
-  if (__DEV__) {
-    const expoIp = getExpoHostIp();
-    if (expoIp) {
-      return `http://${expoIp}:3001/api/v1`;
-    }
+  const expoIp = getExpoHostIp();
+  if (expoIp) {
+    return `http://${expoIp}:3001/api/v1`;
   }
-  return PROD_CLOUD_API_URL;
+  if (Platform.OS === 'android') {
+    return CURRENT_LAN_API_URL;
+  }
+  return LOCALHOST_API_URL;
 };
 
 export let API_BASE: string = getApiBaseUrl();
