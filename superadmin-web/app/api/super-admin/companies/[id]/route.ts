@@ -102,6 +102,16 @@ const LIVE_DETAILS: Record<string, any> = {
         createdAt: '2026-09-26T01:15:00.000Z',
         keyUsed: 'ADOR-EC-7187',
       },
+      {
+        id: 'usr_sachin_puri_01',
+        name: 'Sachin Puri',
+        email: 'sachinpuri938@gmail.com',
+        role: 'TEAM_LEADER',
+        isActive: true,
+        lastLoginAt: '2026-09-27T10:20:00.000Z',
+        createdAt: '2026-09-27T01:00:00.000Z',
+        keyUsed: 'ADOR-EC-7187',
+      },
     ],
   },
 };

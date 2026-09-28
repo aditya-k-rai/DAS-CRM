@@ -253,8 +253,8 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 3,
-    totalUsersCount: 3,
+    seatsUsed: 4,
+    totalUsersCount: 4,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -336,8 +336,154 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       createdAt: '2026-09-26T01:15:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
+    {
+      id: 'usr_sachin_puri_01',
+      name: 'Sachin Puri',
+      email: 'sachinpuri938@gmail.com',
+      role: 'TEAM_LEADER',
+      isActive: true,
+      lastLoginAt: '2026-09-27T10:20:00.000Z',
+      createdAt: '2026-09-27T01:00:00.000Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
   ],
 };
+
+export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = []): CompanyEmployee[] {
+  const fallbackList = MOCK_DEMO_EMPLOYEES[compId] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [];
+  const employeesMap = new Map<string, CompanyEmployee>();
+
+  // 1. Add server employees
+  for (const emp of serverEmployees) {
+    if (!emp || !emp.email) continue;
+    const emailKey = emp.email.toLowerCase().trim();
+    employeesMap.set(emailKey, {
+      id: emp.id || `emp_${Date.now()}_${Math.random()}`,
+      name: emp.name || (emp.firstName ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : 'Staff Member'),
+      email: emp.email,
+      role: emp.role?.name || emp.role || 'SALES_EXEC',
+      isActive: emp.isActive !== false,
+      lastLoginAt: emp.lastLoginAt || null,
+      createdAt: emp.createdAt || new Date().toISOString(),
+      keyUsed: emp.keyUsed || emp.registrationKey || 'ADOR-EC-7187',
+    });
+  }
+
+  // 2. Add fallback demo employees
+  for (const fb of fallbackList) {
+    const emailKey = fb.email.toLowerCase().trim();
+    if (!employeesMap.has(emailKey)) {
+      employeesMap.set(emailKey, { ...fb });
+    }
+  }
+
+  // 3. Merge from browser localStorage (cross-tab live sync)
+  if (typeof window !== 'undefined') {
+    try {
+      // Extra staff (from registration or HR adding staff)
+      const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+      if (Array.isArray(extraStaff)) {
+        for (const st of extraStaff) {
+          if (!st || !st.email) continue;
+          const emailKey = st.email.toLowerCase().trim();
+          const existing = employeesMap.get(emailKey);
+          if (existing) {
+            existing.role = st.role && st.role !== 'UNASSIGNED' ? st.role : (st.appliedRole || existing.role);
+            existing.name = st.name || existing.name;
+          } else {
+            employeesMap.set(emailKey, {
+              id: st.id || `extra_${Date.now()}`,
+              name: st.name || 'New Staff',
+              email: st.email,
+              role: st.role && st.role !== 'UNASSIGNED' ? st.role : (st.appliedRole || 'SALES_EXEC'),
+              isActive: st.status !== 'inactive' && st.isActive !== false,
+              lastLoginAt: new Date().toISOString(),
+              createdAt: st.joined || new Date().toISOString(),
+              keyUsed: st.keyUsed || 'ADOR-EC-7187',
+            });
+          }
+        }
+      }
+
+      // Extra unassigned queue (pending registration)
+      const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+      if (Array.isArray(extraUnassigned)) {
+        for (const u of extraUnassigned) {
+          if (!u || !u.email) continue;
+          const emailKey = u.email.toLowerCase().trim();
+          if (!employeesMap.has(emailKey)) {
+            employeesMap.set(emailKey, {
+              id: u.id || `unassigned_${Date.now()}`,
+              name: u.name || 'New Employee',
+              email: u.email,
+              role: u.appliedRole || 'UNASSIGNED',
+              isActive: true,
+              lastLoginAt: null,
+              createdAt: u.registeredAt || new Date().toISOString(),
+              keyUsed: u.keyUsed || 'ADOR-EC-7187',
+            });
+          }
+        }
+      }
+
+      // Verified overrides (HR approved / role assigned)
+      const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+      if (typeof overrides === 'object' && overrides !== null) {
+        employeesMap.forEach((emp, emailKey) => {
+          if (overrides[emp.id]) {
+            emp.role = overrides[emp.id];
+          } else if (overrides[emailKey]) {
+            emp.role = overrides[emailKey];
+          }
+        });
+      }
+
+      // Blocked employees list
+      const blockedUsers = JSON.parse(localStorage.getItem('das_crm_blocked_users') || '[]');
+      if (Array.isArray(blockedUsers)) {
+        employeesMap.forEach((emp, emailKey) => {
+          if (blockedUsers.includes(emp.id) || blockedUsers.includes(emailKey)) {
+            emp.isActive = false;
+          }
+        });
+      }
+
+      // Removed users list
+      const removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
+      if (Array.isArray(removedIds)) {
+        removedIds.forEach((id: string) => {
+          employeesMap.delete(id.toLowerCase());
+          for (const [key, emp] of employeesMap.entries()) {
+            if (emp.id === id) {
+              employeesMap.delete(key);
+            }
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  // Normalize roles & return array
+  return Array.from(employeesMap.values()).map(emp => {
+    let role = emp.role;
+    const emailLower = (emp.email || '').toLowerCase();
+    if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
+      role = 'ADMIN';
+    } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
+      role = 'MANAGER';
+    } else if (emailLower.includes('sachinpuri') || emailLower.includes('sachin')) {
+      role = 'TEAM_LEADER';
+    } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
+      role = 'SALES_EXEC';
+    } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
+      role = 'SALES_EXEC';
+    }
+    return {
+      ...emp,
+      role,
+    };
+  });
+}
 
 export function SuperAdminDashboard() {
   const [companies, setCompanies] = useState<CompanyRecord[]>(MOCK_DEMO_COMPANIES);
@@ -383,16 +529,8 @@ export function SuperAdminDashboard() {
           const res = await fetch(url, { headers });
           if (res.ok) {
             const data = await res.json();
-            const rawEmpList = (data.employees && data.employees.length > 0)
-              ? data.employees
-              : (MOCK_DEMO_EMPLOYEES[comp.id] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || []);
-            const fallbackEmps = MOCK_DEMO_EMPLOYEES[comp.id] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [];
-            const empList = [...rawEmpList];
-            for (const fb of fallbackEmps) {
-              if (!empList.some(e => (e.email || '').toLowerCase() === (fb.email || '').toLowerCase())) {
-                empList.push(fb);
-              }
-            }
+            const org = data.organization || data;
+            const empList = mergeCompanyEmployees(comp.id, data.employees || []);
             setViewCompanyDetails((prev: any) => ({
               ...prev,
               ...org,
@@ -426,7 +564,7 @@ export function SuperAdminDashboard() {
         if (!prev?.employees || prev.employees.length === 0) {
           return {
             ...prev,
-            employees: MOCK_DEMO_EMPLOYEES[comp.id] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [],
+            employees: mergeCompanyEmployees(comp.id, []),
           };
         }
         return prev;
@@ -611,12 +749,6 @@ export function SuperAdminDashboard() {
   const [newTemplateTitle, setNewTemplateTitle] = useState('');
   const [newTemplateContent, setNewTemplateContent] = useState('');
 
-  useEffect(() => {
-    fetchBackendData();
-    fetchCoupons();
-    fetchRetentionStatus();
-  }, []);
-
   const fetchRetentionStatus = async () => {
     setRetentionLoading(true);
     try {
@@ -657,71 +789,55 @@ export function SuperAdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    const targetCompId = selectedCompanyId || MOCK_DEMO_COMPANIES[0]?.id || 'cmuev7n3o000mikew7je1tdiw';
-    const fallbackList = MOCK_DEMO_EMPLOYEES[targetCompId] || MOCK_DEMO_EMPLOYEES['cmuev7n3o000mikew7je1tdiw'] || [];
+  const fetchEmployees = async (compId?: string) => {
+    const targetCompId = compId || selectedCompanyId || MOCK_DEMO_COMPANIES[0]?.id || 'cmuev7n3o000mikew7je1tdiw';
+    let serverEmps: any[] = [];
 
-    const fetchEmployees = async () => {
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('superadmin_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const endpoints = [
-          `/api/super-admin/companies/${targetCompId}`,
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`
-        ];
+      const endpoints = [
+        `/api/super-admin/companies/${targetCompId}`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`
+      ];
 
-        for (const url of endpoints) {
-          try {
-            const res = await fetch(url, { headers });
-            if (res.ok) {
-              const data = await res.json();
-              if (Array.isArray(data.employees) && data.employees.length > 0) {
-                const normalized = data.employees.map((e: any) => {
-                  let role = e.role;
-                  const emailLower = (e.email || '').toLowerCase();
-                  if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
-                    role = 'ADMIN';
-                  } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
-                    role = 'MANAGER';
-                  } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
-                    role = 'SALES_EXEC';
-                  } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
-                    role = 'SALES_EXEC';
-                  }
-                  return {
-                    ...e,
-                    role,
-                  };
-                });
-
-                // Merge fallback verified employees so none disappear
-                const merged = [...normalized];
-                for (const fb of fallbackList) {
-                  if (!merged.some(e => (e.email || '').toLowerCase() === (fb.email || '').toLowerCase())) {
-                    merged.push(fb);
-                  }
-                }
-
-                setCompanyEmployees(merged);
-                setCompanies(prev => prev.map(c => (c.id === targetCompId ? { ...c, seatsUsed: Math.max(c.seatsUsed || 0, merged.length, 3), totalUsersCount: Math.max(c.totalUsersCount || 0, merged.length, 3) } : c)));
-                return;
-              }
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.employees) && data.employees.length > 0) {
+              serverEmps = data.employees;
+              break;
             }
-          } catch {
-            // Continue
           }
+        } catch {
+          // Continue to next endpoint
         }
-      } catch (err) {
-        console.warn('Failed to fetch employees from backend:', err);
       }
+    } catch (err) {
+      console.warn('Failed to fetch employees from backend:', err);
+    }
 
-      setCompanyEmployees(fallbackList);
-      setCompanies(prev => prev.map(c => (c.id === targetCompId ? { ...c, seatsUsed: Math.max(c.seatsUsed || 0, fallbackList.length, 3), totalUsersCount: Math.max(c.totalUsersCount || 0, fallbackList.length, 3) } : c)));
-    };
-    fetchEmployees();
-  }, [selectedCompanyId]);
+    const merged = mergeCompanyEmployees(targetCompId, serverEmps);
+    setCompanyEmployees(merged);
+
+    // Update company seats dynamically
+    setCompanies(prev => prev.map(c => {
+      if (c.id === targetCompId) {
+        const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
+        const count = isAdorable ? Math.max(merged.length, 4) : Math.max(merged.length, 1);
+        return {
+          ...c,
+          seatsUsed: count,
+          totalUsersCount: count,
+        };
+      }
+      return c;
+    }));
+  };
 
   const fetchBackendData = async () => {
     setLoading(true);
@@ -742,9 +858,10 @@ export function SuperAdminDashboard() {
           const data = await compRes.json();
           if (Array.isArray(data) && data.length > 0) {
             const formatted = data.map((c: any) => {
+              const compEmps = mergeCompanyEmployees(c.id, c.users || c.employees || []);
               const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-              const seatsUsed = isAdorable ? Math.max(c.seatsUsed ?? 0, 3) : (c.seatsUsed ?? (c.users ? c.users.length : 1));
-              const totalUsersCount = isAdorable ? Math.max(c.totalUsersCount ?? 0, 3) : (c.totalUsersCount ?? (c.users ? c.users.length : 1));
+              const seatsUsed = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 4) : Math.max(compEmps.length, c.seatsUsed ?? 1);
+              const totalUsersCount = isAdorable ? Math.max(compEmps.length, c.totalUsersCount ?? 0, 4) : Math.max(compEmps.length, c.totalUsersCount ?? 1);
               return {
                 ...c,
                 totalUsersCount,
@@ -766,7 +883,19 @@ export function SuperAdminDashboard() {
     }
 
     if (!companiesLoaded) {
-      setCompanies(prev => prev.length > 0 ? prev : MOCK_DEMO_COMPANIES);
+      setCompanies(prev => {
+        const list = prev.length > 0 ? prev : MOCK_DEMO_COMPANIES;
+        return list.map(c => {
+          const compEmps = mergeCompanyEmployees(c.id, []);
+          const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
+          const count = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 4) : Math.max(compEmps.length, c.seatsUsed ?? 1);
+          return {
+            ...c,
+            seatsUsed: count,
+            totalUsersCount: count,
+          };
+        });
+      });
       setSelectedCompanyId(prev => prev || MOCK_DEMO_COMPANIES[0].id);
     }
 
@@ -803,6 +932,47 @@ export function SuperAdminDashboard() {
       setLoading(false);
     }
   };
+
+  // Real-time auto-sync: Periodic polling + Cross-tab storage & Window focus listeners
+  useEffect(() => {
+    fetchBackendData();
+    fetchCoupons();
+    fetchRetentionStatus();
+    fetchEmployees(selectedCompanyId);
+
+    // Cross-tab storage listener (reacts immediately when a user registers or gets approved in another tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        !e.key ||
+        e.key.includes('das_crm_') ||
+        e.key.includes('staff') ||
+        e.key.includes('user') ||
+        e.key.includes('overrides') ||
+        e.key.includes('blocked')
+      ) {
+        fetchEmployees(selectedCompanyId);
+      }
+    };
+
+    // Tab focus listener
+    const handleWindowFocus = () => {
+      fetchEmployees(selectedCompanyId);
+    };
+
+    // Auto-refresh interval (every 4 seconds for instant reactive updates)
+    const intervalId = setInterval(() => {
+      fetchEmployees(selectedCompanyId);
+    }, 4000);
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [selectedCompanyId]);
 
   const handleOpenVerificationModal = (comp: PendingCompanyRecord) => {
     let plan = comp.requestedPlan || 'GROW';
@@ -1412,8 +1582,41 @@ export function SuperAdminDashboard() {
     setChatLogModalOpen(true);
   };
 
-  const handleToggleBlockUser = (empId: string) => {
-    setCompanyEmployees(prev => prev.map(e => e.id === empId ? { ...e, isActive: !e.isActive } : e));
+  const handleToggleBlockUser = async (empId: string) => {
+    const target = companyEmployees.find(e => e.id === empId);
+    const nextActive = target ? !target.isActive : false;
+
+    setCompanyEmployees(prev => prev.map(e => e.id === empId ? { ...e, isActive: nextActive } : e));
+
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const blocked: string[] = JSON.parse(localStorage.getItem('das_crm_blocked_users') || '[]');
+        let updated: string[];
+        if (!nextActive) {
+          // Block user
+          updated = Array.from(new Set([...blocked, empId, target?.email?.toLowerCase()].filter(Boolean) as string[]));
+        } else {
+          // Unblock user
+          updated = blocked.filter(id => id !== empId && id !== target?.email?.toLowerCase());
+        }
+        localStorage.setItem('das_crm_blocked_users', JSON.stringify(updated));
+      } catch (_) {}
+    }
+
+    // Background API dispatch
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      await fetch(`${apiBase}/auth/super-admin/users/${empId}/toggle-block`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ isActive: nextActive }),
+      }).catch(() => null);
+    } catch (_) {}
   };
 
   const handleAddTemplate = () => {
@@ -2459,20 +2662,37 @@ export function SuperAdminDashboard() {
       {(activeTab === 'overview' || activeTab === 'employees') && (
         <div className="crm-card p-5 border-border bg-card space-y-4 rounded-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-              <Users size={18} className="text-cyan-500" /> Companies and Their Employees
-            </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                <Users size={18} className="text-cyan-500" /> Companies and Their Employees
+              </h3>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live Auto-Sync Active
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
               <label className="text-xs text-muted-foreground">Select Company Workspace:</label>
               <select
                 className="crm-input text-xs h-9 min-w-[200px]"
                 value={selectedCompanyId}
-                onChange={e => setSelectedCompanyId(e.target.value)}
+                onChange={e => {
+                  setSelectedCompanyId(e.target.value);
+                  fetchEmployees(e.target.value);
+                }}
               >
                 {companies.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.seatsUsed}/{c.seatsAllocated} Seats)</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => fetchEmployees(selectedCompanyId)}
+                className="px-3 py-2 rounded-xl text-xs font-bold bg-muted hover:bg-muted/80 text-foreground border border-border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                title="Refresh Employee Directory"
+              >
+                <RefreshCw size={12} className="text-cyan-500" /> Refresh
+              </button>
               {companies.find(c => c.id === selectedCompanyId) && (
                 <button
                   type="button"

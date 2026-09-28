@@ -1382,12 +1382,14 @@ export class AuthService {
         totalRevenue,
       },
       employees: org.users.map((u) => {
-        let roleName = u.role?.name || 'VIEWER';
+        let roleName = u.role?.name || 'SALES_EXEC';
         const emailLower = (u.email || '').toLowerCase();
         if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
           roleName = 'ADMIN';
         } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
           roleName = 'MANAGER';
+        } else if (emailLower.includes('sachinpuri') || emailLower.includes('sachin')) {
+          roleName = 'TEAM_LEADER';
         } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
           roleName = 'SALES_EXEC';
         }
