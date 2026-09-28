@@ -289,6 +289,12 @@ export default function EmployeesScreen() {
             if (raw) roleOverrides = JSON.parse(raw);
           } catch (_) {}
 
+          let storedPhones: Record<string, string> = {};
+          try {
+            const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
+            if (rawPhones) storedPhones = JSON.parse(rawPhones);
+          } catch (_) {}
+
           // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
           if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
             roleOverrides['rai992522@gmail.com'] = 'MANAGER';
@@ -319,14 +325,14 @@ export default function EmployeesScreen() {
                 u.roleNotAssigned ||
                 u.hasAssignedRole === false);
 
+            const customPhone = storedPhones[uId] || storedPhones[userEmail];
             const displayPhone =
-              u.phone && u.phone !== '+91 9717355779' && u.phone !== '9717355779'
-                ? u.phone
-                : userEmail === 'rai992522@gmail.com'
-                ? '+91 99252 20000'
-                : userEmail === 'rastoginandini92@gmail.com'
-                ? '+91 98765 43210'
-                : u.phone || '—';
+              customPhone ||
+              (u.phone && u.phone !== '+91 9717355779' && u.phone !== '9717355779' ? u.phone : null) ||
+              (userEmail === 'rai992522@gmail.com' ? '+91 99252 20000' : null) ||
+              (userEmail === 'rastoginandini92@gmail.com' ? '+91 98765 43210' : null) ||
+              u.phone ||
+              '—';
 
             if (isUnassigned) {
               unassigned.push({
@@ -370,7 +376,11 @@ export default function EmployeesScreen() {
               const extra: UnassignedUser[] = JSON.parse(raw);
               extra.forEach(item => {
                 if (!removedIds.includes(item.id) && !unassigned.some(u => u.id === item.id || u.email === item.email)) {
-                  unassigned.unshift(item);
+                  const itemPhone = storedPhones[item.id] || storedPhones[item.email?.toLowerCase()] || item.phone || '—';
+                  unassigned.unshift({
+                    ...item,
+                    phone: itemPhone,
+                  });
                 }
               });
             }
@@ -403,6 +413,12 @@ export default function EmployeesScreen() {
       if (raw) roleOverrides = JSON.parse(raw);
     } catch (_) {}
 
+    let storedPhones: Record<string, string> = {};
+    try {
+      const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
+      if (rawPhones) storedPhones = JSON.parse(rawPhones);
+    } catch (_) {}
+
     // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
     if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
       roleOverrides['rai992522@gmail.com'] = 'MANAGER';
@@ -433,7 +449,7 @@ export default function EmployeesScreen() {
         id: currentUser.id || 'cmuev7ni70016ikew8an7tdw8',
         name: currentUser.name || 'Anurag Sharma',
         email: currentUser.email || 'adorabletrading08@gmail.com',
-        phone: (currentUser as any)?.phone || '+91 9717355779',
+        phone: storedPhones[currentUser.id] || storedPhones[currentUser.email?.toLowerCase()] || (currentUser as any)?.phone || '+91 9717355779',
         role,
         assignedManager: 'Admin',
         status: 'ONLINE',
@@ -450,12 +466,13 @@ export default function EmployeesScreen() {
     const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
     if (!removedIds.includes(nandiniId)) {
       const nandiniAssigned = roleOverrides[nandiniId] || roleOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
+      const nandiniPhone = storedPhones[nandiniId] || storedPhones['rastoginandini92@gmail.com'] || '+91 98765 43210';
       if (nandiniAssigned === 'UNASSIGNED') {
         fallbackUnassigned.push({
           id: nandiniId,
           name: 'Nandini Rastogi',
           email: 'rastoginandini92@gmail.com',
-          phone: '+91 98765 43210',
+          phone: nandiniPhone,
           registeredAt: 'Sep 26, 2026',
           deviceInfo: 'App/Web Registration',
         });
@@ -466,7 +483,7 @@ export default function EmployeesScreen() {
           id: nandiniId,
           name: 'Nandini Rastogi',
           email: 'rastoginandini92@gmail.com',
-          phone: '+91 98765 43210',
+          phone: nandiniPhone,
           role: finalRole,
           assignedManager: 'Admin',
           status: 'ONLINE',
@@ -484,12 +501,13 @@ export default function EmployeesScreen() {
     const adityaId = 'usr_aditya_rai_01';
     if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
       const adityaAssigned = roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'] || 'MANAGER';
+      const adityaPhone = storedPhones[adityaId] || storedPhones['rai992522@gmail.com'] || '+91 99252 20000';
       if (adityaAssigned === 'UNASSIGNED') {
         fallbackUnassigned.push({
           id: adityaId,
           name: 'Aditya Kumar Rai',
           email: 'rai992522@gmail.com',
-          phone: '+91 99252 20000',
+          phone: adityaPhone,
           registeredAt: 'Sep 27, 2026',
           deviceInfo: 'App/Web Registration',
         });
@@ -500,7 +518,7 @@ export default function EmployeesScreen() {
           id: adityaId,
           name: 'Aditya Kumar Rai',
           email: 'rai992522@gmail.com',
-          phone: '+91 99252 20000',
+          phone: adityaPhone,
           role: finalRole,
           assignedManager: 'Admin',
           status: 'ONLINE',

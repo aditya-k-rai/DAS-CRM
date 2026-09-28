@@ -694,6 +694,8 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const [firstName, ...rest] = dto.name.trim().split(' ');
 
+    const cleanPhone = (dto.phone || '').trim();
+
     // Non-admin user self-registration directly goes to UNASSIGNED (roleId: null)
     // The Company Admin will verify and assign their role from the Employees Dashboard.
     const user = await this.prisma.user.create({
@@ -704,6 +706,18 @@ export class AuthService {
         firstName,
         lastName: rest.join(' ') || '',
         roleId: null, // Strictly UNASSIGNED until Admin approves & verifies
+        ...(cleanPhone
+          ? {
+              employeeProfile: {
+                create: {
+                  organizationId: orgId,
+                  employeeCode: `EMP${Date.now().toString().slice(-4)}`,
+                  dateOfJoining: new Date(),
+                  emergencyContact: { phone: cleanPhone, mobile: cleanPhone },
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -715,7 +729,7 @@ export class AuthService {
           userId: user.id,
           type: 'ROLE_TRANSITION',
           title: 'New Staff Registration — Pending Role Verification',
-          body: `${user.firstName} ${user.lastName} (${user.email}) registered using Company Key and is pending your role assignment.`,
+          body: `${user.firstName} ${user.lastName} (${user.email}${cleanPhone ? `, ${cleanPhone}` : ''}) registered using Company Key and is pending your role assignment.`,
         },
       });
     } catch (_) {}
@@ -730,6 +744,7 @@ export class AuthService {
         role: null,
         hasAssignedRole: false,
         roleNotAssigned: true,
+        phone: cleanPhone || '',
         message: 'Your role is not assigned. Contact Admin or Manager.',
       },
       ...tokens,

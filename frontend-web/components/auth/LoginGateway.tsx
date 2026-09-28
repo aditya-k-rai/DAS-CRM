@@ -9,6 +9,7 @@ import {
   Eye, EyeOff
 } from 'lucide-react';
 import { useAuth, UserRole, DEMO_USERS, normalizeRoleStr, inferRoleFromEmail, validateEmailRoleMatch, CompanySubscription } from '@/context/AuthContext';
+import { invalidateUserDirectoryCache } from '@/lib/userDirectoryCache';
 
 interface PublicCompany {
   id: string;
@@ -166,6 +167,7 @@ export function LoginGateway() {
   // Staff Key State
   const [userKey, setUserKey] = useState('');
   const [staffName, setStaffName] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
   const [staffRole, setStaffRole] = useState<UserRole>('SALES_EXEC');
@@ -591,6 +593,7 @@ export function LoginGateway() {
     // Use the company resolved from key validation — never hardcoded
     const resolvedCompanyId = keyInfo?.organizationId || '';
     const resolvedCompanyName = keyInfo?.organizationName || 'Your Company';
+    const cleanStaffPhone = staffPhone.trim();
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/staff-register`, {
@@ -601,6 +604,7 @@ export function LoginGateway() {
           name: staffName,
           email: staffEmail,
           password: staffPassword,
+          phone: cleanStaffPhone,
           role: assignedRole, // passed for company key registrations
         }),
       });
@@ -621,14 +625,21 @@ export function LoginGateway() {
           avatar: staffName.slice(0, 2).toUpperCase(),
           companyId: resolvedCompanyId,
           companyName: resolvedCompanyName,
-          phone: data.user?.phone || '',
+          phone: cleanStaffPhone || data.user?.phone || '',
           hasAssignedRole: false,
           roleNotAssigned: true,
           unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
         };
 
-        // Cache in local queues so Admin immediately sees them in Unassigned Users tab
+        // Cache in local queues and phone map so Admin immediately sees their phone in Employees tab
         try {
+          if (cleanStaffPhone) {
+            const phoneMap = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
+            phoneMap[staffEmail.toLowerCase()] = cleanStaffPhone;
+            phoneMap[unassignedUser.id] = cleanStaffPhone;
+            localStorage.setItem('das_crm_user_phones', JSON.stringify(phoneMap));
+          }
+
           const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
           const newProfile = {
             id: unassignedUser.id,
@@ -636,7 +647,7 @@ export function LoginGateway() {
             code: `EMP${String(extraStaff.length + 3).padStart(3, '0')}`,
             dept: 'Pending Department',
             email: staffEmail,
-            phone: data.user?.phone || '—',
+            phone: cleanStaffPhone || data.user?.phone || '—',
             role: 'UNASSIGNED',
             isVerified: false,
             verificationStatus: 'PENDING',
@@ -663,7 +674,7 @@ export function LoginGateway() {
               id: unassignedUser.id,
               name: staffName,
               email: staffEmail,
-              phone: data.user?.phone || '—',
+              phone: cleanStaffPhone || data.user?.phone || '—',
               appliedRole: assignedRole,
               registeredAt: new Date().toISOString(),
             });
@@ -671,6 +682,7 @@ export function LoginGateway() {
           }
         } catch (_) {}
 
+        invalidateUserDirectoryCache();
         setAuthSession(unassignedUser, data.accessToken);
         setLoading(false);
         router.push('/dashboard');
@@ -1258,15 +1270,28 @@ export function LoginGateway() {
                     </p>
                   </div>
                 )}
-                <div>
-                  <label className="text-xs text-muted block mb-1">Your Full Name *</label>
-                  <input
-                    className="crm-input text-sm h-10 w-full"
-                    placeholder="Full Name"
-                    value={staffName}
-                    onChange={e => setStaffName(e.target.value)}
-                    disabled={!keyInfo?.valid}
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Your Full Name *</label>
+                    <input
+                      className="crm-input text-sm h-10 w-full"
+                      placeholder="Full Name"
+                      value={staffName}
+                      onChange={e => setStaffName(e.target.value)}
+                      disabled={!keyInfo?.valid}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted block mb-1">Employee Phone Number *</label>
+                    <input
+                      type="tel"
+                      className="crm-input text-sm h-10 w-full"
+                      placeholder="e.g. +91 98765 43210"
+                      value={staffPhone}
+                      onChange={e => setStaffPhone(e.target.value)}
+                      disabled={!keyInfo?.valid}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">

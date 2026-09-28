@@ -121,9 +121,13 @@ export function getCleanStoredOverrides(): Record<string, string> {
 export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
   const storedOverrides = getCleanStoredOverrides();
   let removedIds: string[] = [];
+  let storedPhones: Record<string, string> = {};
   if (typeof window !== 'undefined') {
     try {
       removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
+    } catch (_) {}
+    try {
+      storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
     } catch (_) {}
   }
 
@@ -148,7 +152,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     code: 'EMP001',
     dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
     email: currentUser?.email || 'adorabletrading08@gmail.com',
-    phone: formatPhone(currentUser?.phone || '9717355779'),
+    phone: formatPhone(currentUser?.phone || storedPhones['adorabletrading08@gmail.com'] || storedPhones[currentUser?.id] || storedPhones[currentUser?.email?.toLowerCase()] || '9717355779'),
     role,
     isVerified: true,
     verificationStatus: 'VERIFIED',
@@ -196,7 +200,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
           : 'Sales & Growth'
         : 'Pending Department',
       email: 'rastoginandini92@gmail.com',
-      phone: '+91 98765 43210',
+      phone: formatPhone(storedPhones[nandiniId] || storedPhones['rastoginandini92@gmail.com'] || '+91 98765 43210'),
       role: nandiniRole,
       isVerified: isNandiniVerified,
       verificationStatus: isNandiniVerified ? 'VERIFIED' : 'PENDING',
@@ -247,7 +251,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
           : 'Sales & Growth'
         : 'Pending Department',
       email: 'rai992522@gmail.com',
-      phone: '+91 99252 20000',
+      phone: formatPhone(storedPhones[adityaId] || storedPhones['rai992522@gmail.com'] || '+91 99252 20000'),
       role: adityaRole,
       isVerified: isAdityaVerified,
       verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
@@ -286,7 +290,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       if (Array.isArray(extraStaff)) {
         extraStaff.forEach((st: any) => {
           if (!list.some(e => e.id === st.id || e.email?.toLowerCase() === st.email?.toLowerCase())) {
-            list.push(st);
+            const raw = storedPhones[st.id] || storedPhones[st.email?.toLowerCase()] || st.phone;
+            list.push({
+              ...st,
+              phone: formatPhone(raw),
+            });
           }
         });
       }
@@ -375,8 +383,12 @@ export async function getUserDirectory(
         if (Array.isArray(data) && data.length > 0) {
           const storedOverrides = getCleanStoredOverrides();
           let removedIds: string[] = [];
+          let storedPhones: Record<string, string> = {};
           try {
             removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
+          } catch (_) {}
+          try {
+            storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
           } catch (_) {}
 
           const filteredData = data.filter((u: any) => !removedIds.includes(String(u.id)));
@@ -408,7 +420,7 @@ export async function getUserDirectory(
               role = 'SALES_EXEC';
             }
 
-            let rawPhone = u.phone || u.phoneNumber || u.mobile;
+            let rawPhone = u.phone || u.phoneNumber || u.mobile || storedPhones[String(u.id)] || storedPhones[u.email?.toLowerCase()];
             if (!rawPhone && (u.email === currentUser?.email || u.id === currentUser?.id)) {
               rawPhone = currentUser?.phone;
             }

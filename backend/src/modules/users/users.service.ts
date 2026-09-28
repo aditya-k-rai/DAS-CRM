@@ -31,6 +31,11 @@ export class UsersService {
           avatarUrl: true,
           isActive: true,
           createdAt: true,
+          employeeProfile: {
+            select: {
+              emergencyContact: true,
+            },
+          },
           organization: {
             select: {
               id: true,
@@ -51,6 +56,13 @@ export class UsersService {
     return users.map((u) => {
       const isUnassigned = !u.roleId || !u.role || u.role.name === 'UNASSIGNED';
       const roleName = isUnassigned ? 'UNASSIGNED' : (u.role?.name || 'UNASSIGNED');
+      const empContact = u.employeeProfile?.emergencyContact as any;
+      const profilePhone = empContact?.phone || empContact?.mobile || (typeof empContact === 'string' ? empContact : null);
+      const phone =
+        profilePhone ||
+        (u.email === u.organization?.adminEmail ? u.organization?.phone : null) ||
+        '';
+
       return {
         id: u.id,
         email: u.email,
@@ -66,9 +78,7 @@ export class UsersService {
         isActive: u.isActive,
         createdAt: u.createdAt,
         companyKey: activeCompanyKey,
-        phone:
-          (u.email === u.organization?.adminEmail ? u.organization?.phone : null) ||
-          '',
+        phone,
       };
     });
   }
@@ -260,6 +270,18 @@ export class UsersService {
         lastName,
         roleId,
         isActive: true,
+        ...(dto.phone
+          ? {
+              employeeProfile: {
+                create: {
+                  organizationId,
+                  employeeCode: `EMP${Date.now().toString().slice(-4)}`,
+                  dateOfJoining: new Date(),
+                  emergencyContact: { phone: dto.phone.trim(), mobile: dto.phone.trim() },
+                },
+              },
+            }
+          : {}),
       },
       include: {
         role: true,
@@ -715,7 +737,24 @@ export class UsersService {
 
   async updatePhone(organizationId: string, userId: string, phone: string) {
     if (!organizationId) return null;
-    const cleanPhone = phone.replace(/[^\d+]/g, '');
+    const cleanPhone = phone.trim();
+    if (userId) {
+      await this.prisma.employeeProfile
+        .upsert({
+          where: { userId },
+          create: {
+            organizationId,
+            userId,
+            employeeCode: `EMP${Date.now().toString().slice(-4)}`,
+            dateOfJoining: new Date(),
+            emergencyContact: { phone: cleanPhone, mobile: cleanPhone },
+          },
+          update: {
+            emergencyContact: { phone: cleanPhone, mobile: cleanPhone },
+          },
+        })
+        .catch(() => null);
+    }
     await this.prisma.organization
       .update({
         where: { id: organizationId },

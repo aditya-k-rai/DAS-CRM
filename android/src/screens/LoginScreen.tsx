@@ -119,6 +119,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   // Segmented mode: Workspace Login vs Staff Self-Register
   const [authMode, setAuthMode] = useState<'LOGIN' | 'STAFF_REGISTER'>('LOGIN');
   const [staffName, setStaffName] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
   const [staffRole, setStaffRole] = useState<UserRole>('SALES_EXEC');
@@ -625,6 +626,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     const assignedRole = normalizeRoleStr(staffRole);
     const orgId = validatedOrgId || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
     const orgName = validatedOrgName || selectedCompanyName || 'Company Workspace';
+    const cleanStaffPhone = staffPhone.trim();
 
     try {
       let networkResponse: Response | null = null;
@@ -639,6 +641,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             name: staffName.trim(),
             email: staffEmail.trim(),
             password: staffPassword,
+            phone: cleanStaffPhone,
             role: assignedRole,
           }),
         });
@@ -661,10 +664,22 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         avatar: staffName.trim().slice(0, 2).toUpperCase(),
         companyId: orgId,
         companyName: orgName,
+        phone: cleanStaffPhone || data?.user?.phone || '',
         hasAssignedRole: false,
         roleNotAssigned: true,
         unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
       };
+
+      // Add to AsyncStorage user phones map
+      try {
+        if (cleanStaffPhone) {
+          const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
+          const phoneMap = rawPhones ? JSON.parse(rawPhones) : {};
+          phoneMap[staffEmail.trim().toLowerCase()] = cleanStaffPhone;
+          phoneMap[unassignedUser.id] = cleanStaffPhone;
+          await AsyncStorage.setItem('@das_crm_user_phones', JSON.stringify(phoneMap));
+        }
+      } catch (_) {}
 
       // Add to AsyncStorage extra unassigned queue
       try {
@@ -675,7 +690,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             id: unassignedUser.id,
             name: staffName.trim(),
             email: staffEmail.trim(),
-            phone: '—',
+            phone: cleanStaffPhone || '—',
             appliedRole: assignedRole,
             registeredAt: new Date().toLocaleDateString(),
             deviceInfo: 'Android App Registration',
@@ -1143,9 +1158,26 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   </View>
                 </View>
 
-                {/* STEP 4 — WORK EMAIL */}
+                {/* STEP 4 — PHONE NUMBER */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>4. Work Email *</Text>
+                  <Text style={styles.label}>4. Employee Phone Number *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>📞</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon]}
+                      placeholder="e.g. +91 98765 43210"
+                      placeholderTextColor="#64748b"
+                      value={staffPhone}
+                      onChangeText={setStaffPhone}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </View>
+
+                {/* STEP 5 — WORK EMAIL */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>5. Work Email *</Text>
                   <View style={{ position: 'relative', justifyContent: 'center' }}>
                     <Text style={styles.inputIcon}>✉️</Text>
                     <TextInput
@@ -1161,9 +1193,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   </View>
                 </View>
 
-                {/* STEP 5 — PASSWORD */}
+                {/* STEP 6 — PASSWORD */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>5. Create Password *</Text>
+                  <Text style={styles.label}>6. Create Password *</Text>
                   <View style={{ position: 'relative', justifyContent: 'center' }}>
                     <Text style={styles.inputIcon}>🔒</Text>
                     <TextInput
