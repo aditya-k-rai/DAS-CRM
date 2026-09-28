@@ -877,7 +877,7 @@ export function LoginGateway() {
                 </div>
                 <div>
                   <p className="font-bold text-xs text-foreground">Staff User Key Registration</p>
-                  <p className="text-[10px] text-muted-foreground">Redeem Staff Invite Key (e.g. DAS-RX-4312)</p>
+                  <p className="text-[10px] text-muted-foreground">Join with Company Key (Format: ABCD-EF-1234)</p>
                 </div>
               </div>
             </div>
@@ -1026,7 +1026,7 @@ export function LoginGateway() {
               {/* STEP 3 — COMPANY KEY VERIFICATION */}
               <div>
                 <label className="text-xs text-muted block mb-1">
-                  3. Enter Company Key (e.g. ADOR-EC-7187) *
+                  3. Enter Company Key (Format: ABCD-EF-1234) *
                   <span className="ml-2 text-[10px] text-indigo-400 font-normal">Must belong to selected company &amp; active plan</span>
                 </label>
                 <div className="relative flex items-center">
@@ -1034,7 +1034,7 @@ export function LoginGateway() {
                   <input
                     disabled={loading}
                     className="crm-input pl-9 font-mono text-xs font-bold uppercase tracking-wider h-10 w-full disabled:opacity-60 disabled:cursor-not-allowed"
-                    placeholder="e.g. ADOR-EC-7187"
+                    placeholder="e.g. ABCD-EF-1234"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -1182,11 +1182,11 @@ export function LoginGateway() {
             <div className="space-y-3">
               {/* Key Input + Validate */}
               <div>
-                <label className="text-xs text-muted block mb-1">Company Key (e.g. ADOR-EC-7187) *</label>
+                <label className="text-xs text-muted block mb-1">Company Key (Format: ABCD-EF-1234) *</label>
                 <div className="flex gap-2">
                   <input
                     className="crm-input text-sm font-mono h-10 flex-1 uppercase tracking-wider pl-4"
-                    placeholder="ADOR-EC-7187"
+                    placeholder="e.g. ABCD-EF-1234"
                     maxLength={12}
                     autoCapitalize="characters"
                     autoCorrect="off"

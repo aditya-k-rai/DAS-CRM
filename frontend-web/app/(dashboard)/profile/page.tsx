@@ -335,7 +335,7 @@ export default function UserProfilePage() {
                 className="crm-input text-sm h-10 w-full font-medium"
                 value={editableName}
                 onChange={e => setEditableName(e.target.value)}
-                placeholder="e.g. Adorable Trading"
+                placeholder="e.g. Acme Corporation"
               />
             </div>
 

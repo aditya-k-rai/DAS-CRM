@@ -1134,7 +1134,7 @@ export function EmployeeListWidget({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. ADOR-EC-7187"
+                  placeholder="e.g. ABCD-EF-1234"
                   value={roleChangeKeyInput}
                   onChange={(e) => {
                     setRoleChangeKeyInput(e.target.value);

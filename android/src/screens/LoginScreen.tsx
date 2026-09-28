@@ -929,7 +929,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {/* STEP 3 — COMPANY KEY VERIFICATION */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>
-                    3. Enter Company Key (e.g. ADOR-EC-7187) *
+                    3. Enter Company Key (Format: ABCD-EF-1234) *
                   </Text>
                   <View style={{ position: 'relative', justifyContent: 'center' }}>
                     <Text style={styles.inputIcon}>🔑</Text>
@@ -941,7 +941,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         styles.monoInput,
                         loading && { opacity: 0.5 },
                       ]}
-                      placeholder="ADOR-EC-7187"
+                      placeholder="e.g. ABCD-EF-1234"
                       placeholderTextColor="#64748b"
                       value={companyKeyInput}
                       maxLength={12}
@@ -1082,7 +1082,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       <TextInput
                         editable={!loading && !keyValidating}
                         style={[styles.input, styles.inputWithIcon, styles.monoInput]}
-                        placeholder="ADOR-EC-7187"
+                        placeholder="e.g. ABCD-EF-1234"
                         placeholderTextColor="#64748b"
                         value={companyKeyInput}
                         maxLength={12}

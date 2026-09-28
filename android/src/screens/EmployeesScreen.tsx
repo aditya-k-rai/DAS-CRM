@@ -1228,7 +1228,7 @@ export default function EmployeesScreen() {
                 <Text style={[styles.modalInputLabel, { color: colors.textMuted }]}>CONFIRM COMPANY KEY *</Text>
                 <TextInput
                   style={[styles.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', letterSpacing: 1 }]}
-                  placeholder="e.g. ADOR-EC-7187"
+                  placeholder="e.g. ABCD-EF-1234"
                   placeholderTextColor={colors.textMuted}
                   autoCapitalize="characters"
                   value={roleChangeKeyInput}

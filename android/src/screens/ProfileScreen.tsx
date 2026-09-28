@@ -604,7 +604,7 @@ export default function ProfileScreen({ onLogout, onOpenUpdate, onClose, isModal
                   style={styles.textInput}
                   value={companyNameInput}
                   onChangeText={setCompanyNameInput}
-                  placeholder="e.g. Adorable Trading"
+                  placeholder="e.g. Acme Corporation"
                   placeholderTextColor="#64748b"
                 />
               </View>
