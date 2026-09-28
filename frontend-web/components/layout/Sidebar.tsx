@@ -52,6 +52,31 @@ const adminNavigation: NavItem[] = [
   { label: 'About & Developer', href: '/about', icon: Info, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
 ];
 
+const HREF_TO_MODULE_KEY: Record<string, string> = {
+  '/leads': 'LEADS',
+  '/pipeline': 'PIPELINE',
+  '/hr/employees': 'EMPLOYEES',
+  '/products': 'PRODUCTS',
+  '/quotes': 'QUOTES',
+  '/comms': 'COMMUNICATIONS',
+  '/whatsapp-templates': 'WA_TEMPLATES',
+  '/emails': 'EXTRA_EMAIL',
+  '/admin/ai': 'AI_CONTROL',
+  '/pdf-catalogue': 'PDF_CATALOG',
+  '/reports': 'REPORTS',
+  '/automations': 'AUTOMATIONS',
+  '/database': 'DATABASE',
+  '/attendance': 'ATTENDANCE',
+  '/deals': 'DEALS',
+  '/goals': 'GOALS',
+  '/hr/interviews': 'INTERVIEWS',
+  '/communicate': 'UPCOMING_COMMS',
+  '/settings': 'SETTINGS',
+  '/profile': 'PROFILE',
+  '/help': 'SUPPORT',
+  '/about': 'SUPPORT',
+};
+
 import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 
 export function Sidebar() {
@@ -61,9 +86,19 @@ export function Sidebar() {
   const { mobileOpen, closeMobile, collapsed, toggleCollapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [policies, setPolicies] = useState<Record<string, any>>({});
 
   useEffect(() => {
     setMounted(true);
+    const loadPolicies = () => {
+      try {
+        const raw = localStorage.getItem('@das_crm_module_policies_v1');
+        if (raw) setPolicies(JSON.parse(raw));
+      } catch (_) {}
+    };
+    loadPolicies();
+    window.addEventListener('storage', loadPolicies);
+    return () => window.removeEventListener('storage', loadPolicies);
   }, []);
 
   const handleConfirmLogout = () => {
@@ -78,15 +113,32 @@ export function Sidebar() {
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(currentNormalizedRole);
   const profileHref = isAdmin ? '/profile' : '/settings/profile';
 
-  // Strict role-based navigation item filtering
+  // Strict role-based + Admin Control Center policy navigation item filtering
   const filteredNav: NavItem[] = currentNormalizedRole === 'UNASSIGNED'
     ? [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['UNASSIGNED' as any] }]
     : adminNavigation.filter(item => {
-        if (!item.roles) return true;
-        const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
-        if (isAdmin && (normalizedItemRoles.includes('ADMIN') || normalizedItemRoles.includes('SUPER_ADMIN'))) {
+        // Admin Control Center is strictly for Administrator / Super Admin only
+        if (item.href === '/admin/control-center') {
+          return isAdmin;
+        }
+
+        // Admin always has unrestricted full access to every module
+        if (isAdmin) {
           return true;
         }
+
+        // Check if there is an explicit policy override for this user & module
+        const modKey = HREF_TO_MODULE_KEY[item.href];
+        if (modKey && currentUser?.id) {
+          const userPolicyKey = `${currentUser.id}:${modKey}`;
+          if (policies[userPolicyKey]) {
+            return Boolean(policies[userPolicyKey].active);
+          }
+        }
+
+        // Default role-based visibility check
+        if (!item.roles) return true;
+        const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
         return normalizedItemRoles.includes(currentNormalizedRole);
       });
 
