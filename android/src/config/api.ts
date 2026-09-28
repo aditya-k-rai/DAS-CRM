@@ -49,6 +49,9 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
+export const PROD_CLOUD_API_URL = 'https://dascrm-backend.onrender.com/api/v1';
+export const ALT_PROD_CLOUD_API_URL = 'https://nexcrm-backend.onrender.com/api/v1';
+
 /**
  * Returns prioritized list of candidate backend URLs to test
  */
@@ -65,22 +68,26 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
-  // 3. Dynamic host IP from Expo bundler (auto-detected when running via Expo Metro)
+  // 3. Live Cloud Production Endpoints (works everywhere: LTE, 4G, 5G, Wi-Fi)
+  candidates.push(PROD_CLOUD_API_URL);
+  candidates.push(ALT_PROD_CLOUD_API_URL);
+
+  // 4. Dynamic host IP from Expo bundler (auto-detected when running via Expo Metro)
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Active local LAN IP for physical device on Wi-Fi (Current Dev Host: 192.168.1.38)
+  // 5. Active local LAN IP for physical device on Wi-Fi (Developer PC)
   candidates.push('http://192.168.1.38:3001/api/v1');
   candidates.push('http://192.168.29.26:3001/api/v1');
 
-  // 5. Android emulator loopback (10.0.2.2)
+  // 6. Android emulator loopback (10.0.2.2)
   if (Platform.OS === 'android') {
     candidates.push('http://10.0.2.2:3001/api/v1');
   }
 
-  // 6. Localhost fallback
+  // 7. Localhost fallback
   candidates.push('http://localhost:3001/api/v1');
   candidates.push('http://127.0.0.1:3001/api/v1');
 
@@ -92,16 +99,13 @@ export const getApiBaseUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
   }
+  // In production standalone builds, default to the live cloud production server
+  if (!__DEV__) {
+    return PROD_CLOUD_API_URL;
+  }
   const expoIp = getExpoHostIp();
   if (expoIp) {
     return `http://${expoIp}:3001/api/v1`;
-  }
-  // For physical Android devices, use active local LAN IP
-  if (Platform.OS === 'android' && !__DEV__) {
-    return 'http://192.168.1.38:3001/api/v1';
-  }
-  if (__DEV__ && Platform.OS === 'android') {
-    return 'http://192.168.1.38:3001/api/v1';
   }
   return 'http://192.168.1.38:3001/api/v1';
 };

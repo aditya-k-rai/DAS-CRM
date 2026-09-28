@@ -222,15 +222,17 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                       {c.url}
                     </Text>
                     <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                      {c.url.includes('192.168.1.38')
-                        ? 'Wi-Fi Local Host (Developer PC - Active)'
+                      {c.url.includes('onrender.com') || c.url.includes('dascrm') || c.url.startsWith('https://')
+                        ? '🚀 Cloud Production Server (Live HTTPS)'
+                        : c.url.includes('192.168.1.38')
+                        ? '💻 Wi-Fi Local Host (Developer PC - Active)'
                         : c.url.includes('192.168.29.26')
-                        ? 'Wi-Fi Local Host (Secondary / Alternate LAN)'
+                        ? '💻 Wi-Fi Local Host (Secondary / Alternate LAN)'
                         : c.url.includes('10.0.2.2')
-                        ? 'Android Studio Emulator'
+                        ? '📱 Android Studio Emulator'
                         : c.url.includes('localhost')
                         ? 'Local loopback'
-                        : 'Custom / Expo host'}
+                        : 'Custom / Remote Endpoint'}
                     </Text>
                   </View>
                   {c.status === 'testing' && <ActivityIndicator size="small" color="#6366f1" />}
@@ -245,7 +247,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
             {/* Device Help Tip */}
             <View style={[styles.tipBox, { borderColor }]}>
               <Text style={[styles.tipText, { color: subTextColor }]}>
-                💡 <Text style={{ fontWeight: '700', color: textColor }}>Physical Device Tip:</Text> Ensure your Android phone and computer are on the same Wi-Fi network. If on Mobile Data (LTE), use an ngrok or public cloud URL.
+                🌐 <Text style={{ fontWeight: '700', color: textColor }}>Production Cloud Sync:</Text> Connects seamlessly to the Cloud Production Server across any network (LTE, 5G, Wi-Fi). When running a local development server, select your local Wi-Fi IP.
               </Text>
             </View>
           </ScrollView>
