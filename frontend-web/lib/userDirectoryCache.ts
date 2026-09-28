@@ -434,6 +434,41 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
         });
       }
     } catch (_) {}
+
+    // Merge extra unassigned staff awaiting verification
+    try {
+      const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+      if (Array.isArray(extraUnassigned)) {
+        extraUnassigned.forEach((u: any) => {
+          const emailLower = u.email?.toLowerCase();
+          if (!list.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
+            const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
+            const isVer = rawRole !== 'UNASSIGNED';
+            list.push({
+              id: u.id || `unassigned_${Date.now()}`,
+              name: u.name || u.email || 'Unassigned Staff',
+              code: 'UNASSIGNED',
+              dept: isVer ? 'Sales & Growth' : 'Pending Department',
+              email: u.email || '',
+              phone: formatPhone(u.phone || ''),
+              role: rawRole,
+              isVerified: isVer,
+              verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
+              assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
+              baseSalary: isVer ? '₹45,000' : '₹0',
+              joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
+              canSelfCheckIn: false,
+              status: 'active',
+              documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
+              bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
+              attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+              leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+              subordinates: [],
+            });
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   return list;
@@ -648,6 +683,41 @@ export async function getUserDirectory(
             }
           } catch (_) {}
 
+          // Merge extra unassigned
+          try {
+            const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+            if (Array.isArray(extraUnassigned)) {
+              extraUnassigned.forEach((u: any) => {
+                const emailLower = u.email?.toLowerCase();
+                if (!mapped.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
+                  const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
+                  const isVer = rawRole !== 'UNASSIGNED';
+                  mapped.push({
+                    id: u.id || `unassigned_${Date.now()}`,
+                    name: u.name || u.email || 'Unassigned Staff',
+                    code: 'UNASSIGNED',
+                    dept: isVer ? 'Sales & Growth' : 'Pending Department',
+                    email: u.email || '',
+                    phone: formatPhone(u.phone || ''),
+                    role: rawRole,
+                    isVerified: isVer,
+                    verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
+                    assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
+                    baseSalary: isVer ? '₹45,000' : '₹0',
+                    joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
+                    canSelfCheckIn: false,
+                    status: 'active',
+                    documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
+                    bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
+                    attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+                    leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+                    subordinates: [],
+                  });
+                }
+              });
+            }
+          } catch (_) {}
+
           // Update caches
           memoryCache.data = mapped;
           memoryCache.timestamp = Date.now();
@@ -700,7 +770,7 @@ export function getActiveSeatsCountSync(currentUser?: any): number {
 }
 
 /**
- * Invalidate user directory cache (call when user is verified, edited, or removed).
+ * Invalidate user directory cache and broadcast update across all views & tabs.
  */
 export function invalidateUserDirectoryCache() {
   memoryCache.data = null;
@@ -711,5 +781,60 @@ export function invalidateUserDirectoryCache() {
       sessionStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem(STORAGE_TIME_KEY);
     } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
+      window.dispatchEvent(new CustomEvent('user-directory-updated'));
+      window.dispatchEvent(new Event('storage'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('das_crm_sync');
+        bc.postMessage({ type: 'USER_DIRECTORY_INVALIDATED', timestamp: Date.now() });
+        bc.close();
+      }
+    } catch (_) {}
   }
+}
+
+/**
+ * Subscribe to user directory updates across tabs, windows, and components.
+ */
+export function subscribeUserDirectory(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleUpdate = () => {
+    invalidateUserDirectoryCache();
+    callback();
+  };
+
+  window.addEventListener('storage', handleUpdate);
+  window.addEventListener('das-crm-staff-updated', handleUpdate);
+  window.addEventListener('user-directory-updated', handleUpdate);
+  window.addEventListener('crm-role-updated', handleUpdate);
+
+  let bc: BroadcastChannel | null = null;
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      bc = new BroadcastChannel('das_crm_sync');
+      bc.onmessage = () => handleUpdate();
+    } catch (_) {}
+  }
+
+  const handleVisibility = () => {
+    if (typeof document !== 'undefined' && !document.hidden) {
+      handleUpdate();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibility);
+
+  return () => {
+    window.removeEventListener('storage', handleUpdate);
+    window.removeEventListener('das-crm-staff-updated', handleUpdate);
+    window.removeEventListener('user-directory-updated', handleUpdate);
+    window.removeEventListener('crm-role-updated', handleUpdate);
+    document.removeEventListener('visibilitychange', handleVisibility);
+    if (bc) {
+      try {
+        bc.close();
+      } catch (_) {}
+    }
+  };
 }

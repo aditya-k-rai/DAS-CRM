@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import Link from 'next/link';
+import { subscribeUserDirectory, invalidateUserDirectoryCache } from '@/lib/userDirectoryCache';
 
 export interface ModulePermission {
   active: boolean;   // Has access to this module at all
@@ -295,26 +296,61 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
     // 3. Merge locally created extra staff (if any)
     try {
+      let storedOverrides: Record<string, string> = {};
+      try { storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}'); } catch (_) {}
+      let removedIds: string[] = [];
+      try { removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]'); } catch (_) {}
+
       const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
       if (Array.isArray(extraStaff)) {
         extraStaff.forEach((st: any) => {
+          const uId = String(st.id);
+          const emailLower = st.email?.toLowerCase();
           const rawRole = (st.role || '').toUpperCase();
           const isAdm = rawRole.includes('ADMIN') || rawRole.includes('OWNER');
-          const isSelf = (currentUser?.id && String(st.id) === String(currentUser.id)) ||
-                         (currentUser?.email && st.email?.toLowerCase() === currentUser.email?.toLowerCase());
+          const isSelf = (currentUser?.id && uId === String(currentUser.id)) ||
+                         (currentUser?.email && emailLower === currentUser.email?.toLowerCase());
 
-          if (!isAdm && !isSelf && !realUsers.some(u => u.id === String(st.id) || u.email.toLowerCase() === st.email?.toLowerCase())) {
+          if (!isAdm && !isSelf && !removedIds.includes(uId) && !removedIds.includes(emailLower) && !realUsers.some(u => u.id === uId || (emailLower && u.email.toLowerCase() === emailLower))) {
+            const overrideRole = storedOverrides[uId] || (emailLower && storedOverrides[emailLower]);
+            const finalRole = overrideRole || st.role || 'SALES_EXEC';
             const fullName = st.name || st.email || 'Team Member';
             const initials = fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'TM';
             realUsers.push({
-              id: String(st.id),
+              id: uId,
               name: fullName,
               email: st.email || '',
-              role: st.role || 'SALES_EXEC',
+              role: finalRole,
               avatarInitials: initials,
-              department: st.dept || (st.role === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth'),
+              department: st.dept || (finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'HR' ? 'Human Resources' : 'Sales & Growth'),
               phone: st.phone || '',
-              isVerified: true,
+              isVerified: finalRole !== 'UNASSIGNED',
+            });
+          }
+        });
+      }
+
+      // Merge unassigned staff registrations awaiting verification
+      const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+      if (Array.isArray(extraUnassigned)) {
+        extraUnassigned.forEach((st: any) => {
+          const uId = String(st.id);
+          const emailLower = st.email?.toLowerCase();
+          if (!removedIds.includes(uId) && !removedIds.includes(emailLower) && !realUsers.some(u => u.id === uId || (emailLower && u.email.toLowerCase() === emailLower))) {
+            const overrideRole = storedOverrides[uId] || (emailLower && storedOverrides[emailLower]);
+            const finalRole = overrideRole || st.appliedRole || 'UNASSIGNED';
+            const isVer = finalRole !== 'UNASSIGNED';
+            const fullName = st.name || st.email || 'Unassigned Staff';
+            const initials = fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'US';
+            realUsers.push({
+              id: uId,
+              name: fullName,
+              email: st.email || '',
+              role: finalRole,
+              avatarInitials: initials,
+              department: isVer ? (finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'HR' ? 'Human Resources' : 'Sales & Growth') : 'Pending Assignment',
+              phone: st.phone || '',
+              isVerified: isVer,
             });
           }
         });
@@ -403,9 +439,86 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setLoadingUsers(false);
   }, [currentUser?.companyId, currentUser?.id, currentUser?.email]);
 
+  // Real-time synchronization subscription + periodic background poll
   useEffect(() => {
     loadWorkspaceUsers();
+    const unsub = subscribeUserDirectory(() => {
+      loadWorkspaceUsers();
+    });
+    const interval = setInterval(() => {
+      loadWorkspaceUsers();
+    }, 8000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
   }, [loadWorkspaceUsers]);
+
+  // Quick Role Assignment & Verification Handler
+  const handleVerifyOrChangeRole = async (targetUser: ManagedWorkspaceUser, newRole: string) => {
+    try {
+      const uId = targetUser.id;
+      const emailLower = targetUser.email.toLowerCase();
+
+      // 1. Update stored overrides
+      let storedOverrides: Record<string, string> = {};
+      try {
+        storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+      } catch (_) {}
+      storedOverrides[uId] = newRole;
+      if (emailLower) storedOverrides[emailLower] = newRole;
+      localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides));
+
+      // 2. Update extra staff
+      try {
+        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+        const updated = extraStaff.map((st: any) => {
+          if (st.id === uId || (st.email && st.email.toLowerCase() === emailLower)) {
+            return {
+              ...st,
+              role: newRole,
+              isVerified: newRole !== 'UNASSIGNED',
+              verificationStatus: newRole === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
+              dept: newRole === 'MANAGER' ? 'Executive & Management' : newRole === 'HR' ? 'Human Resources' : newRole === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth',
+            };
+          }
+          return st;
+        });
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(updated));
+      } catch (_) {}
+
+      // 3. If assigned away from UNASSIGNED, clean up from extra unassigned
+      if (newRole !== 'UNASSIGNED') {
+        try {
+          const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+          const filtered = extraUnassigned.filter((u: any) => u.id !== uId && (u.email ? u.email.toLowerCase() !== emailLower : true));
+          localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(filtered));
+        } catch (_) {}
+      }
+
+      // 4. Backend sync
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+
+      fetch(`${apiBase}/users/${uId}/verify-role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': compId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ assignedRole: newRole, organizationId: compId }),
+      }).catch(() => null);
+
+      // 5. Invalidate & broadcast
+      invalidateUserDirectoryCache();
+      await loadWorkspaceUsers();
+      showToast(`✓ Updated role to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
+    } catch (err) {
+      console.error('Role update error:', err);
+    }
+  };
 
   // Copy Key Handler
   const handleCopyKey = () => {
@@ -815,11 +928,29 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-black text-white">{selectedUser.name}</h3>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                        {selectedUser.role.replace('_', ' ')}
-                      </span>
+                      <select
+                        value={selectedUser.role}
+                        onChange={(e) => handleVerifyOrChangeRole(selectedUser, e.target.value)}
+                        className="bg-indigo-950/70 border border-indigo-500/40 text-indigo-300 text-[10px] font-extrabold rounded-lg px-2 py-0.5 outline-none cursor-pointer hover:border-indigo-400 transition-all"
+                        title="Change staff role"
+                      >
+                        <option value="SALES_EXEC">SALES EXEC</option>
+                        <option value="TEAM_LEADER">TEAM LEADER</option>
+                        <option value="MANAGER">MANAGER</option>
+                        <option value="HR">HR</option>
+                        <option value="UNASSIGNED">UNASSIGNED</option>
+                      </select>
+                      {selectedUser.isVerified ? (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 size={10} /> Verified Staff
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                          <AlertTriangle size={10} /> Unassigned
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400">{selectedUser.email} • {selectedUser.department}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{selectedUser.email} • {selectedUser.department}</p>
                   </div>
                 </div>
 
@@ -859,6 +990,51 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   </button>
                 </div>
               </div>
+
+              {/* Unassigned Quick Verification Bar */}
+              {(selectedUser.role === 'UNASSIGNED' || !selectedUser.isVerified) && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-amber-300">⚡ Unassigned Staff Member</h4>
+                      <p className="text-[11px] text-slate-400">Select role below to approve, verify &amp; grant workspace access</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'SALES_EXEC')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
+                    >
+                      ✓ Verify Sales Exec
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'TEAM_LEADER')}
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
+                    >
+                      ✓ Verify Team Leader
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'MANAGER')}
+                      className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
+                    >
+                      ✓ Verify Manager
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'HR')}
+                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
+                    >
+                      ✓ Verify HR
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Category Filter Tabs */}
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 flex-wrap">

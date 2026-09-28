@@ -980,6 +980,14 @@ export function SuperAdminDashboard() {
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('crm-role-updated', { detail: { empId: emp.id, email: emailLower, role: targetRole } }));
         window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
+        window.dispatchEvent(new CustomEvent('user-directory-updated'));
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const bc = new BroadcastChannel('das_crm_sync');
+            bc.postMessage({ type: 'STAFF_ROLE_UPDATED', empId: emp.id, email: emailLower, role: targetRole });
+            bc.close();
+          } catch (_) {}
+        }
       }
 
       // 3. Sync to backend endpoints in background

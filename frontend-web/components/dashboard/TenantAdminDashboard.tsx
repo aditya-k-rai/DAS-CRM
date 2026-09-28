@@ -74,18 +74,28 @@ interface DatewiseLeadsAnalytics {
   whatsAppDirect: number;
 }
 
-import { getUserDirectory, getActiveSeatsCountSync } from '@/lib/userDirectoryCache';
+import { getUserDirectory, getActiveSeatsCountSync, subscribeUserDirectory } from '@/lib/userDirectoryCache';
 
 export function TenantAdminDashboard() {
   const { currentUser, subscription } = useAuth();
   const [dynamicActiveSeats, setDynamicActiveSeats] = useState<number>(() => getActiveSeatsCountSync(currentUser));
 
-  useEffect(() => {
-    getUserDirectory(currentUser, false).then(res => {
+  const refreshDirectorySeats = () => {
+    getUserDirectory(currentUser, true).then(res => {
       if (res && typeof res.activeCount === 'number') {
         setDynamicActiveSeats(res.activeCount);
       }
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshDirectorySeats();
+    const unsub = subscribeUserDirectory(refreshDirectorySeats);
+    const interval = setInterval(refreshDirectorySeats, 10000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
   }, [currentUser]);
 
   // Admin Control Center Modal State

@@ -115,6 +115,7 @@ import {
   getUserDirectory,
   invalidateUserDirectoryCache,
   getDefaultDirectory,
+  subscribeUserDirectory,
 } from '@/lib/userDirectoryCache';
 
 const INITIAL_EMPLOYEES: EmployeeProfileWeb[] = [];
@@ -552,17 +553,32 @@ export function EmployeeListWidget({
 
   useEffect(() => {
     let isMounted = true;
-    getUserDirectory(currentUser, refreshTrigger > 0).then(res => {
-      if (isMounted && res && res.employees) {
-        setEmployees(res.employees);
-        if (res.companyKey) setCompanyKey(res.companyKey);
-      }
-    }).catch(() => {
-      if (isMounted) {
-        setEmployees(getDefaultDirectory(currentUser));
-      }
+    const loadDir = () => {
+      getUserDirectory(currentUser, true).then(res => {
+        if (isMounted && res && res.employees) {
+          setEmployees(res.employees);
+          if (res.companyKey) setCompanyKey(res.companyKey);
+        }
+      }).catch(() => {
+        if (isMounted) {
+          setEmployees(getDefaultDirectory(currentUser));
+        }
+      });
+    };
+
+    loadDir();
+    const unsub = subscribeUserDirectory(() => {
+      if (isMounted) loadDir();
     });
-    return () => { isMounted = false; };
+    const interval = setInterval(() => {
+      if (isMounted) loadDir();
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      unsub();
+      clearInterval(interval);
+    };
   }, [currentUser, refreshTrigger]);
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
