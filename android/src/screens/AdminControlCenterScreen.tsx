@@ -168,6 +168,21 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
     };
 
     let fetchedUsers: ManagedUser[] = [];
+    let roleOverrides: Record<string, string> = {};
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
+      if (raw) roleOverrides = JSON.parse(raw);
+    } catch (_) {}
+
+    if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+      roleOverrides['rai992522@gmail.com'] = 'MANAGER';
+      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+    }
+    if (roleOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+      roleOverrides['usr_aditya_rai_01'] = 'MANAGER';
+      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+    }
+
     try {
       const res = await fetch(`${getApiBase()}/users?organizationId=${compId}`, { headers, signal });
       if (res.ok) {
@@ -181,7 +196,13 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
             return !isAdm && !isSelf;
           })
           .map((u: any) => {
-            const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase();
+            const uId = String(u.id);
+            const userEmail = (u.email || '').toLowerCase();
+            const override =
+              roleOverrides[uId] ||
+              roleOverrides[userEmail] ||
+              (userEmail === 'rai992522@gmail.com' ? 'MANAGER' : null);
+            const rawRole = ((override || u.role?.name || u.role || '') as string).toUpperCase();
             let role: UserRole = 'SALES_EXEC';
             if (rawRole.includes('MANAGER')) role = 'MANAGER';
             else if (rawRole.includes('LEADER') || rawRole.includes('TL')) role = 'TEAM_LEADER';
@@ -189,7 +210,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
             else if (!rawRole || rawRole === 'UNASSIGNED') role = 'UNASSIGNED';
             const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email;
             return {
-              id: String(u.id),
+              id: uId,
               name,
               email: u.email,
               role,
@@ -217,18 +238,25 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
             } catch (_) {}
             const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
             if (!removedIds.includes(nandiniId)) {
-              let roleOverrides: Record<string, string> = {};
-              try {
-                const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
-                if (raw) roleOverrides = JSON.parse(raw);
-              } catch (_) {}
-              const nandiniRole = (roleOverrides[nandiniId] as UserRole) || 'SALES_EXEC';
+              const nandiniRole = (roleOverrides[nandiniId] || roleOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as UserRole;
               fetchedUsers.push({
                 id: nandiniId,
                 name: 'Nandini Rastogi',
                 email: 'rastoginandini92@gmail.com',
                 role: nandiniRole,
                 avatarInitials: 'NR',
+              });
+            }
+
+            const adityaId = 'usr_aditya_rai_01';
+            if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
+              const adityaRole = (roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'] || 'MANAGER') as UserRole;
+              fetchedUsers.push({
+                id: adityaId,
+                name: 'Aditya Kumar Rai',
+                email: 'rai992522@gmail.com',
+                role: adityaRole,
+                avatarInitials: 'AR',
               });
             }
           }

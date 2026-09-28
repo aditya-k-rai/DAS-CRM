@@ -220,6 +220,15 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
           } catch (_) {}
 
+          if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+            storedOverrides['rai992522@gmail.com'] = 'MANAGER';
+            try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+          }
+          if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+            storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
+            try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+          }
+
           let removedIds: string[] = [];
           try {
             removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
@@ -240,7 +249,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             })
             .map((u: any) => {
               const uId = String(u.id);
-              const overrideRole = storedOverrides[uId];
+              const overrideRole = storedOverrides[uId] || storedOverrides[u.email?.toLowerCase()] || (u.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : undefined);
               const rawRole = (u.role?.name || u.role || '').toUpperCase();
 
               let finalRole = 'SALES_EXEC';
@@ -273,7 +282,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                 email: u.email || 'user@organization.com',
                 role: finalRole,
                 avatarInitials: initials,
-                department: u.department || (finalRole === 'HR' ? 'Human Resources' : finalRole === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth'),
+                department: u.department || (finalRole === 'HR' ? 'Human Resources' : finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth'),
                 phone: u.phone || u.phoneNumber || '',
                 isVerified: u.isVerified ?? (finalRole !== 'UNASSIGNED'),
               };
@@ -303,7 +312,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
               email: st.email || '',
               role: st.role || 'SALES_EXEC',
               avatarInitials: initials,
-              department: st.dept || 'Sales & Growth',
+              department: st.dept || (st.role === 'MANAGER' ? 'Executive & Management' : 'Sales & Growth'),
               phone: st.phone || '',
               isVerified: true,
             });
@@ -312,7 +321,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       }
     } catch (_) {}
 
-    // 4. Fallback check for real registered unassigned staff in workspace (Nandini Rastogi) if network failed
+    // 4. Fallback check for real registered staff in workspace if network failed
     if (realUsers.length === 0) {
       let storedOverrides: Record<string, string> = {};
       try {
@@ -326,7 +335,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
       const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
       if (!removedIds.includes(nandiniId)) {
-        const assignedRole = storedOverrides[nandiniId] || 'UNASSIGNED';
+        const assignedRole = storedOverrides[nandiniId] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
         realUsers.push({
           id: nandiniId,
           name: 'Nandini Rastogi',
@@ -336,6 +345,21 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           department: assignedRole === 'HR' ? 'Human Resources' : assignedRole === 'MANAGER' ? 'Executive & Management' : assignedRole === 'TEAM_LEADER' ? 'Sales Leadership' : assignedRole === 'SALES_EXEC' ? 'Sales & Growth' : 'Pending Department',
           phone: '+91 98765 43210',
           isVerified: assignedRole !== 'UNASSIGNED',
+        });
+      }
+
+      const adityaId = 'usr_aditya_rai_01';
+      if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
+        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'] || 'MANAGER';
+        realUsers.push({
+          id: adityaId,
+          name: 'Aditya Kumar Rai',
+          email: 'rai992522@gmail.com',
+          role: adityaAssigned,
+          avatarInitials: 'AR',
+          department: adityaAssigned === 'MANAGER' ? 'Executive & Management' : adityaAssigned === 'HR' ? 'Human Resources' : 'Sales & Growth',
+          phone: '+91 99252 20000',
+          isVerified: adityaAssigned !== 'UNASSIGNED',
         });
       }
     }

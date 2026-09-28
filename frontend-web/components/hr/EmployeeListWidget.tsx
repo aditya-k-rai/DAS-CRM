@@ -221,8 +221,17 @@ export function EmployeeListWidget({
   };
 
   // ── 1. APPROVE & VERIFY UNASSIGNED USER (PERMANENT ROLE) ─────────────
-  const handleVerifyAndAssignRole = async (empId: string) => {
-    const rawSelected = selectedVerifyRoles[empId] || 'SALES_EXEC';
+  const handleVerifyAndAssignRole = async (empId: string, explicitRole?: string) => {
+    const targetEmp = employees.find(e => e.id === empId || e.email?.toLowerCase() === empId.toLowerCase());
+    const isAditya = targetEmp?.email?.toLowerCase() === 'rai992522@gmail.com' || empId === 'usr_aditya_rai_01';
+    const defaultRole = isAditya ? 'MANAGER' : 'SALES_EXEC';
+
+    const rawSelected =
+      explicitRole ||
+      selectedVerifyRoles[empId] ||
+      (targetEmp as any)?.appliedRole ||
+      defaultRole;
+
     // Strictly clamp to the 4 operational roles: HR, Manager, Team Leader, Sales Representative
     const assignedRole: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' =
       rawSelected === 'HR'
@@ -239,7 +248,7 @@ export function EmployeeListWidget({
     // 1. Optimistically update local state immediately
     setEmployees(prev =>
       prev.map(e => {
-        if (e.id === empId) {
+        if (e.id === empId || e.email?.toLowerCase() === targetEmp?.email?.toLowerCase()) {
           return {
             ...e,
             role: assignedRole,
@@ -250,8 +259,11 @@ export function EmployeeListWidget({
                 ? 'Human Resources'
                 : assignedRole === 'MANAGER'
                 ? 'Executive & Management'
+                : assignedRole === 'TEAM_LEADER'
+                ? 'Lead & Operations'
                 : 'Sales & Growth',
             assignedManager: 'Admin',
+            baseSalary: assignedRole === 'MANAGER' ? '₹75,000' : assignedRole === 'HR' ? '₹55,000' : '₹45,000',
           };
         }
         return e;
@@ -262,7 +274,6 @@ export function EmployeeListWidget({
     try {
       const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
       overrides[empId] = assignedRole;
-      const targetEmp = employees.find(e => e.id === empId);
       if (targetEmp?.email) {
         overrides[targetEmp.email.toLowerCase()] = assignedRole;
       }
@@ -277,6 +288,15 @@ export function EmployeeListWidget({
             role: assignedRole,
             isVerified: true,
             verificationStatus: 'VERIFIED',
+            dept:
+              assignedRole === 'HR'
+                ? 'Human Resources'
+                : assignedRole === 'MANAGER'
+                ? 'Executive & Management'
+                : assignedRole === 'TEAM_LEADER'
+                ? 'Lead & Operations'
+                : 'Sales & Growth',
+            baseSalary: assignedRole === 'MANAGER' ? '₹75,000' : '₹45,000',
           };
         }
         return st;
@@ -576,6 +596,16 @@ export function EmployeeListWidget({
               storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
             } catch (_) {}
 
+            // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
+            if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+              storedOverrides['rai992522@gmail.com'] = 'MANAGER';
+              try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+            }
+            if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+              storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
+              try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+            }
+
             let removedIds: string[] = [];
             try {
               removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
@@ -587,15 +617,15 @@ export function EmployeeListWidget({
               const rawRole = (u.role || '').toUpperCase();
               let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED' = 'UNASSIGNED';
 
-              if (storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()]) {
-                role = (storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()]) as any;
+              const override = storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()];
+              if (override) {
+                role = override as any;
               } else if (
                 u.roleId === null ||
                 rawRole === 'UNASSIGNED' ||
                 !u.role ||
                 u.roleNotAssigned ||
-                u.hasAssignedRole === false ||
-                (u.email?.toLowerCase() === 'rai992522@gmail.com' && !storedOverrides['rai992522@gmail.com'])
+                u.hasAssignedRole === false
               ) {
                 role = 'UNASSIGNED';
               } else if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) {
@@ -617,6 +647,12 @@ export function EmployeeListWidget({
               if (!rawPhone && (u.email === 'adorabletrading08@gmail.com' || u.name?.toLowerCase().includes('anurag'))) {
                 rawPhone = '9717355779';
               }
+              if (!rawPhone && u.email === 'rai992522@gmail.com') {
+                rawPhone = '+91 99252 20000';
+              }
+              if (!rawPhone && u.email === 'rastoginandini92@gmail.com') {
+                rawPhone = '+91 98765 43210';
+              }
               const displayPhone = formatPhone(rawPhone);
 
               return {
@@ -630,6 +666,8 @@ export function EmployeeListWidget({
                     ? 'Human Resources'
                     : role === 'MANAGER'
                     ? 'Executive & Management'
+                    : role === 'TEAM_LEADER'
+                    ? 'Lead & Operations'
                     : role === 'UNASSIGNED'
                     ? 'Pending Department'
                     : 'Sales & Growth',
@@ -639,7 +677,7 @@ export function EmployeeListWidget({
                 isVerified: u.isVerified ?? (role !== 'UNASSIGNED'),
                 verificationStatus: role === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
                 assignedManager: 'Admin',
-                baseSalary: role === 'ADMIN' ? '₹95,000' : '₹45,000',
+                baseSalary: role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000',
                 joined: u.createdAt
                   ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : 'Recently',
@@ -751,6 +789,16 @@ export function EmployeeListWidget({
         storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
       } catch (_) {}
 
+      // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
+      if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+        storedOverrides['rai992522@gmail.com'] = 'MANAGER';
+        try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+      }
+      if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+        storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
+        try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
+      }
+
       let removedIds: string[] = [];
       try {
         removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
@@ -758,7 +806,7 @@ export function EmployeeListWidget({
 
       const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
       if (!removedIds.includes(nandiniId)) {
-        const nandiniAssignedRole = storedOverrides[nandiniId] || 'SALES_EXEC';
+        const nandiniAssignedRole = storedOverrides[nandiniId] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
         const isNandiniVerified = Boolean(nandiniAssignedRole && nandiniAssignedRole !== 'UNASSIGNED');
 
         fallbackList.push({
@@ -805,10 +853,10 @@ export function EmployeeListWidget({
         });
       }
 
-      // 3. Registered Staff Member with Company Key (Aditya Kumar Rai - Pending Admin Assignment)
+      // 3. Registered Staff Member with Company Key (Aditya Kumar Rai - Default/Verified Manager)
       const adityaId = 'usr_aditya_rai_01';
       if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'];
+        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'] || 'MANAGER';
         const isAdityaVerified = Boolean(adityaAssigned && adityaAssigned !== 'UNASSIGNED');
         const role = isAdityaVerified ? (adityaAssigned as any) : 'UNASSIGNED';
 
@@ -831,7 +879,7 @@ export function EmployeeListWidget({
           isVerified: isAdityaVerified,
           verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
           assignedManager: isAdityaVerified ? 'Admin' : 'Pending Admin Assignment',
-          baseSalary: isAdityaVerified ? (role === 'MANAGER' ? '₹75,000' : '₹45,000') : '₹45,000',
+          baseSalary: isAdityaVerified ? (role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000') : '₹75,000',
           joined: 'Sep 27, 2026',
           canSelfCheckIn: false,
           status: 'active',
@@ -1186,7 +1234,7 @@ export function EmployeeListWidget({
 
                         <div className="flex gap-2 pt-1">
                           <button
-                            onClick={() => handleVerifyAndAssignRole(emp.id)}
+                            onClick={() => handleVerifyAndAssignRole(emp.id, currentSelectedRole)}
                             disabled={isVerifying || removingId === emp.id}
                             className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
                           >

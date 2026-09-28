@@ -68,7 +68,6 @@ export class UsersService {
         companyKey: activeCompanyKey,
         phone:
           (u.email === u.organization?.adminEmail ? u.organization?.phone : null) ||
-          u.organization?.phone ||
           '',
       };
     });

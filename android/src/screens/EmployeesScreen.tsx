@@ -208,12 +208,27 @@ export default function EmployeesScreen() {
             if (raw) roleOverrides = JSON.parse(raw);
           } catch (_) {}
 
+          // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
+          if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+            roleOverrides['rai992522@gmail.com'] = 'MANAGER';
+            try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+          }
+          if (roleOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+            roleOverrides['usr_aditya_rai_01'] = 'MANAGER';
+            try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+          }
+
           const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
           data.forEach((u: any) => {
             if (removedIds.includes(String(u.id))) return;
 
             const uId = String(u.id);
-            const overrideRole = roleOverrides[uId] || (uId === nandiniId || u.email === 'rastoginandini92@gmail.com' ? 'SALES_EXEC' : null);
+            const userEmail = (u.email || '').toLowerCase();
+            const overrideRole =
+              roleOverrides[uId] ||
+              roleOverrides[userEmail] ||
+              (uId === nandiniId || userEmail === 'rastoginandini92@gmail.com' ? 'SALES_EXEC' : null) ||
+              (uId === 'usr_aditya_rai_01' || userEmail === 'rai992522@gmail.com' ? 'MANAGER' : null);
             const rawRole = (overrideRole || u.role || '').toUpperCase();
             const isUnassigned =
               !overrideRole &&
@@ -223,12 +238,21 @@ export default function EmployeesScreen() {
                 u.roleNotAssigned ||
                 u.hasAssignedRole === false);
 
+            const displayPhone =
+              u.phone && u.phone !== '+91 9717355779' && u.phone !== '9717355779'
+                ? u.phone
+                : userEmail === 'rai992522@gmail.com'
+                ? '+91 99252 20000'
+                : userEmail === 'rastoginandini92@gmail.com'
+                ? '+91 98765 43210'
+                : u.phone || '—';
+
             if (isUnassigned) {
               unassigned.push({
                 id: String(u.id),
                 name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
                 email: u.email,
-                phone: u.phone || '—',
+                phone: displayPhone,
                 registeredAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recently',
                 deviceInfo: 'App/Web Registration',
               });
@@ -244,7 +268,7 @@ export default function EmployeesScreen() {
                 id: String(u.id),
                 name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
                 email: u.email,
-                phone: u.phone || '—',
+                phone: displayPhone,
                 role,
                 assignedManager: 'Admin',
                 status: 'ONLINE',
@@ -292,6 +316,16 @@ export default function EmployeesScreen() {
       if (raw) roleOverrides = JSON.parse(raw);
     } catch (_) {}
 
+    // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
+    if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
+      roleOverrides['rai992522@gmail.com'] = 'MANAGER';
+      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+    }
+    if (roleOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
+      roleOverrides['usr_aditya_rai_01'] = 'MANAGER';
+      try { await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(roleOverrides)); } catch (_) {}
+    }
+
     const fallbackAssigned: EmployeeProfile[] = [];
     const fallbackUnassigned: UnassignedUser[] = [];
 
@@ -328,7 +362,7 @@ export default function EmployeesScreen() {
     // Registered Employee (Nandini Rastogi) - Sales Representative
     const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
     if (!removedIds.includes(nandiniId)) {
-      const nandiniAssigned = roleOverrides[nandiniId] || 'SALES_EXEC';
+      const nandiniAssigned = roleOverrides[nandiniId] || roleOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
       if (nandiniAssigned === 'UNASSIGNED') {
         fallbackUnassigned.push({
           id: nandiniId,
@@ -359,11 +393,11 @@ export default function EmployeesScreen() {
       }
     }
 
-    // Registered Staff Member with Company Key (Aditya Kumar Rai)
+    // Registered Staff Member with Company Key (Aditya Kumar Rai - Manager)
     const adityaId = 'usr_aditya_rai_01';
     if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-      const adityaAssigned = roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'];
-      if (!adityaAssigned || adityaAssigned === 'UNASSIGNED') {
+      const adityaAssigned = roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'] || 'MANAGER';
+      if (adityaAssigned === 'UNASSIGNED') {
         fallbackUnassigned.push({
           id: adityaId,
           name: 'Aditya Kumar Rai',
@@ -928,7 +962,10 @@ export default function EmployeesScreen() {
                   <View style={{ gap: 6, alignItems: 'flex-end' }}>
                     <TouchableOpacity
                       style={styles.assignBtn}
-                      onPress={() => { setAssignRoleTarget(user); setSelectedRole(null); }}
+                      onPress={() => {
+                        setAssignRoleTarget(user);
+                        setSelectedRole(user.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : 'SALES_EXEC');
+                      }}
                     >
                       <Text style={styles.assignBtnText}>Set Role & Verify ✓</Text>
                     </TouchableOpacity>
