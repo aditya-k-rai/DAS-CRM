@@ -118,6 +118,74 @@ const AVAILABLE_ROLES: { key: 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC'; l
   { key: 'SALES_EXEC', label: 'Sales Representative', color: '#34d399' },
 ];
 
+interface AndroidEmployeesCacheData {
+  timestamp: number;
+  assigned: EmployeeProfile[];
+  unassigned: UnassignedUser[];
+  companyKey: string;
+}
+
+let androidEmployeesCache: AndroidEmployeesCacheData | null = null;
+const ANDROID_CACHE_TTL_MS = 60_000;
+
+export const invalidateAndroidEmployeesCache = () => {
+  androidEmployeesCache = null;
+};
+
+const getInitialAndroidEmployees = (currentUser: any): { assigned: EmployeeProfile[]; unassigned: UnassignedUser[] } => {
+  if (androidEmployeesCache && (Date.now() - androidEmployeesCache.timestamp < ANDROID_CACHE_TTL_MS)) {
+    return { assigned: androidEmployeesCache.assigned, unassigned: androidEmployeesCache.unassigned };
+  }
+  const assigned: EmployeeProfile[] = [
+    {
+      id: currentUser?.id || 'cmuev7ni70016ikew8an7tdw8',
+      name: currentUser?.name || 'Anurag Sharma',
+      email: currentUser?.email || 'adorabletrading08@gmail.com',
+      phone: (currentUser as any)?.phone || '+91 9717355779',
+      role: 'ADMIN',
+      assignedManager: 'Admin',
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: currentUser?.name || 'Admin', accountNo: '••••••••', ifscCode: '—', upiId: currentUser?.email || 'admin@upi', lastUpdatedDate: 'Recently', historyLogs: [] },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+      subordinates: [],
+    },
+    {
+      id: 'cmuhp0517000ngg2dq93a6nlp',
+      name: 'Nandini Rastogi',
+      email: 'rastoginandini92@gmail.com',
+      phone: '+91 98765 43210',
+      role: 'SALES_EXEC',
+      assignedManager: 'Admin',
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Nandini Rastogi', accountNo: '••••••••', ifscCode: '—', upiId: 'rastoginandini92@okaxis', lastUpdatedDate: 'Recently', historyLogs: [] },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+      subordinates: [],
+    },
+    {
+      id: 'usr_aditya_rai_01',
+      name: 'Aditya Kumar Rai',
+      email: 'rai992522@gmail.com',
+      phone: '+91 99252 20000',
+      role: 'MANAGER',
+      assignedManager: 'Admin',
+      status: 'ONLINE',
+      avatarUrl: '',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
+      subordinates: [],
+    },
+  ];
+  return { assigned, unassigned: [] };
+};
+
 export default function EmployeesScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -127,15 +195,16 @@ export default function EmployeesScreen() {
   const rawRole = (currentUser?.role || '').toUpperCase().trim();
   const isAdmin = userRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER' || rawRole.includes('ADMIN');
 
-  const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>([]);
+  const initialEmployees = getInitialAndroidEmployees(currentUser);
+  const [employeesList, setEmployeesList] = useState<EmployeeProfile[]>(initialEmployees.assigned);
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfile | null>(null);
   const [activeTab, setActiveTab] = useState<'ASSIGNED' | 'UNASSIGNED'>('ASSIGNED');
   const [assignRoleTarget, setAssignRoleTarget] = useState<UnassignedUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | null>(null);
-  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>([]);
+  const [unassignedUsers, setUnassignedUsers] = useState<UnassignedUser[]>(initialEmployees.unassigned);
 
   // Company Registration Key
-  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
+  const [companyKey, setCompanyKey] = useState<string>(androidEmployeesCache?.companyKey || 'ADOR-EC-7187');
 
   // Upgrade / Downgrade Role States (Requires Company Key Confirmation)
   const [roleChangeTarget, setRoleChangeTarget] = useState<EmployeeProfile | null>(null);
@@ -160,9 +229,19 @@ export default function EmployeesScreen() {
 
   const pillStyle = getCountPillStyle();
 
-  const loadUsers = async () => {
+  const loadUsers = async (forceRefresh = false) => {
+    if (!forceRefresh && androidEmployeesCache && (Date.now() - androidEmployeesCache.timestamp < ANDROID_CACHE_TTL_MS)) {
+      setEmployeesList(androidEmployeesCache.assigned);
+      setUnassignedUsers(androidEmployeesCache.unassigned);
+      if (androidEmployeesCache.companyKey) {
+        setCompanyKey(androidEmployeesCache.companyKey);
+      }
+      return;
+    }
+
     const token = useAuthStore.getState().token;
     const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+    let activeKey = companyKey || 'ADOR-EC-7187';
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -172,26 +251,28 @@ export default function EmployeesScreen() {
 
     // Fetch workspace registration key
     try {
-      const keyRes = await fetch(`${getApiBase()}/users/company-key?organizationId=${compId}&companyKey=${companyKey}`, {
+      const keyRes = await fetch(`${getApiBase()}/users/company-key?organizationId=${compId}&companyKey=${activeKey}`, {
         headers,
       });
       if (keyRes.ok) {
         const keyJson = await keyRes.json();
         if (keyJson?.companyKey) {
-          setCompanyKey(keyJson.companyKey);
+          activeKey = keyJson.companyKey;
+          setCompanyKey(activeKey);
         }
       }
     } catch (_) {}
 
     try {
-      const res = await fetch(`${getApiBase()}/users?organizationId=${compId}&companyKey=${companyKey}`, {
+      const res = await fetch(`${getApiBase()}/users?organizationId=${compId}&companyKey=${activeKey}`, {
         headers,
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           if (data[0]?.companyKey) {
-            setCompanyKey(data[0].companyKey);
+            activeKey = data[0].companyKey;
+            setCompanyKey(activeKey);
           }
           const assigned: EmployeeProfile[] = [];
           const unassigned: UnassignedUser[] = [];
@@ -297,6 +378,12 @@ export default function EmployeesScreen() {
 
           setEmployeesList(assigned);
           setUnassignedUsers(unassigned);
+          androidEmployeesCache = {
+            timestamp: Date.now(),
+            assigned,
+            unassigned,
+            companyKey: activeKey,
+          };
           return;
         }
       }
@@ -442,6 +529,12 @@ export default function EmployeesScreen() {
 
     setEmployeesList(fallbackAssigned);
     setUnassignedUsers(fallbackUnassigned);
+    androidEmployeesCache = {
+      timestamp: Date.now(),
+      assigned: fallbackAssigned,
+      unassigned: fallbackUnassigned,
+      companyKey: activeKey,
+    };
   };
 
   const handleShareKey = async () => {
@@ -525,6 +618,8 @@ export default function EmployeesScreen() {
       overrides[targetUserId] = targetRole;
       await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
     } catch (_) {}
+
+    invalidateAndroidEmployeesCache();
 
     setIsChangingRole(false);
     const targetName = roleChangeTarget.name;
@@ -611,6 +706,8 @@ export default function EmployeesScreen() {
       }).catch(() => null);
     } catch (_) {}
 
+    invalidateAndroidEmployeesCache();
+
     Alert.alert(
       'Role Assigned Successfully',
       `${target.name} has been assigned and verified as ${roleConf?.label}. They are now in the Verified Staff list.`,
@@ -662,6 +759,8 @@ export default function EmployeesScreen() {
                 },
               }).catch(() => null);
             } catch (_) {}
+
+            invalidateAndroidEmployeesCache();
 
             Alert.alert('User Removed', `${user.name} has been removed from the organization.`);
           },

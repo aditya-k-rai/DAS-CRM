@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import {
@@ -74,8 +74,19 @@ interface DatewiseLeadsAnalytics {
   whatsAppDirect: number;
 }
 
+import { getUserDirectory, getActiveSeatsCountSync } from '@/lib/userDirectoryCache';
+
 export function TenantAdminDashboard() {
   const { currentUser, subscription } = useAuth();
+  const [dynamicActiveSeats, setDynamicActiveSeats] = useState<number>(() => getActiveSeatsCountSync(currentUser));
+
+  useEffect(() => {
+    getUserDirectory(currentUser, false).then(res => {
+      if (res && typeof res.activeCount === 'number') {
+        setDynamicActiveSeats(res.activeCount);
+      }
+    }).catch(() => {});
+  }, [currentUser]);
 
   // Admin Control Center Modal State
   const [controlCenterModalOpen, setControlCenterModalOpen] = useState(false);
@@ -522,7 +533,7 @@ export function TenantAdminDashboard() {
   const planTier = subscription?.planType || 'BUSINESS';
   const isTrial = planTier === 'FREE_TRIAL';
   const allocatedSeats = subscription?.userSeatsAllocated || getPlanSeatQuota(planTier);
-  const assignedSeats = Math.max(1, subscription?.userSeatsUsed || 1);
+  const assignedSeats = Math.max(1, dynamicActiveSeats || subscription?.userSeatsUsed || 1);
   const seatsAvailable = Math.max(0, allocatedSeats - assignedSeats);
 
   return (

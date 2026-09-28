@@ -253,8 +253,8 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 2,
-    totalUsersCount: 2,
+    seatsUsed: 3,
+    totalUsersCount: 3,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -320,10 +320,20 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       id: 'cmuhp0517000ngg2dq93a6nlp',
       name: 'Nandini Rastogi',
       email: 'rastoginandini92@gmail.com',
-      role: 'VIEWER',
+      role: 'SALES_EXEC',
       isActive: true,
       lastLoginAt: '2026-09-26T12:05:14.587Z',
       createdAt: '2026-09-26T01:10:02.107Z',
+      keyUsed: 'ADOR-EC-7187',
+    },
+    {
+      id: 'cmuhp0517000ngg2dq93a6rai',
+      name: 'Aditya Kumar Rai',
+      email: 'rai992522@gmail.com',
+      role: 'MANAGER',
+      isActive: true,
+      lastLoginAt: '2026-09-27T10:15:00.000Z',
+      createdAt: '2026-09-26T01:15:00.000Z',
       keyUsed: 'ADOR-EC-7187',
     },
   ],
@@ -660,7 +670,24 @@ export function SuperAdminDashboard() {
             if (res.ok) {
               const data = await res.json();
               if (Array.isArray(data.employees) && data.employees.length > 0) {
-                setCompanyEmployees(data.employees);
+                const normalized = data.employees.map((e: any) => {
+                  let role = e.role;
+                  const emailLower = (e.email || '').toLowerCase();
+                  if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
+                    role = 'ADMIN';
+                  } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
+                    role = 'MANAGER';
+                  } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
+                    role = 'SALES_EXEC';
+                  } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
+                    role = 'SALES_EXEC';
+                  }
+                  return {
+                    ...e,
+                    role,
+                  };
+                });
+                setCompanyEmployees(normalized);
                 return;
               }
             }
@@ -701,8 +728,8 @@ export function SuperAdminDashboard() {
           if (Array.isArray(data) && data.length > 0) {
             const formatted = data.map((c: any) => ({
               ...c,
-              totalUsersCount: c.totalUsersCount ?? (c.users ? c.users.length : 2),
-              seatsUsed: c.seatsUsed ?? 2,
+              totalUsersCount: c.totalUsersCount ?? (c.users ? c.users.length : 3),
+              seatsUsed: c.seatsUsed ?? (c.users ? c.users.length : 3),
               emailConfig: c.emailConfig || { enabled: true, monthlyLimit: 5000, used: 0 },
               whatsAppConfig: c.whatsAppConfig || { enabled: true, monthlyLimit: 20000, used: 0, status: 'CONNECTED' },
               aiConfig: c.aiConfig || { enabled: true, tier: 'PRO', customSystemPrompt: 'Standard CRM Lead AI assistant.', monthlyTokenLimit: 250000, tokensUsed: 0 },

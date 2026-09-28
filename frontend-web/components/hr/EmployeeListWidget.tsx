@@ -111,6 +111,12 @@ export interface EmployeeProfileWeb {
   };
 }
 
+import {
+  getUserDirectory,
+  invalidateUserDirectoryCache,
+  getDefaultDirectory,
+} from '@/lib/userDirectoryCache';
+
 const INITIAL_EMPLOYEES: EmployeeProfileWeb[] = [];
 
 export function EmployeeListWidget({
@@ -123,7 +129,7 @@ export function EmployeeListWidget({
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isAdmin = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
 
-  const [employees, setEmployees] = useState<EmployeeProfileWeb[]>([]);
+  const [employees, setEmployees] = useState<EmployeeProfileWeb[]>(() => getDefaultDirectory(currentUser));
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
   const [vaultEmp, setVaultEmp] = useState<EmployeeProfileWeb | null>(null);
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
@@ -216,6 +222,7 @@ export function EmployeeListWidget({
       console.warn('Backend phone sync error:', e);
     }
 
+    invalidateUserDirectoryCache();
     setSavingPhone(false);
     setEditingPhoneId(null);
   };
@@ -325,6 +332,7 @@ export function EmployeeListWidget({
       }).catch(() => null);
     } catch (_) {}
 
+    invalidateUserDirectoryCache();
     setActionFeedback({
       text: `Successfully approved & verified user with permanent role: ${assignedRole.replace('_', ' ')}! They can now access their dashboard and data.`,
       type: 'success',
@@ -416,6 +424,9 @@ export function EmployeeListWidget({
       localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
     } catch (_) {}
 
+    // Invalidate client SWR cache
+    invalidateUserDirectoryCache();
+
     setActionFeedback({
       text: `Successfully updated ${roleChangeTarget.name}'s permanent role to ${targetRole.replace('_', ' ')} with Company Key verification!`,
       type: 'success',
@@ -470,6 +481,8 @@ export function EmployeeListWidget({
         },
       }).catch(() => null);
     } catch (_) {}
+
+    invalidateUserDirectoryCache();
 
     setActionFeedback({
       text: `Removed ${emp.name} from workspace successfully.`,
@@ -537,391 +550,19 @@ export function EmployeeListWidget({
     window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
   };
 
-
-
   useEffect(() => {
-    const fetchUsers = async () => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-
-      const requestHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-organization-id': compId,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      // 1. Fetch Company Registration Key
-      try {
-        let keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}&companyKey=${companyKey}`, {
-          headers: requestHeaders,
-        }).catch(() => null);
-
-        if (!keyRes || !keyRes.ok) {
-          keyRes = await fetch(`/api/v1/users/company-key?organizationId=${compId}&companyKey=${companyKey}`, {
-            headers: requestHeaders,
-          }).catch(() => null);
-        }
-
-        if (keyRes && keyRes.ok) {
-          const keyJson = await keyRes.json();
-          if (keyJson?.companyKey) {
-            setCompanyKey(keyJson.companyKey);
-          }
-        }
-      } catch (_) {}
-
-      // 2. Fetch Users Directory from Backend
-      try {
-        let res = await fetch(`${apiBase}/users?organizationId=${compId}&companyKey=${companyKey}`, {
-          headers: requestHeaders,
-        }).catch(() => null);
-
-        if (!res || !res.ok) {
-          res = await fetch(`/api/v1/users?organizationId=${compId}&companyKey=${companyKey}`, {
-            headers: requestHeaders,
-          }).catch(() => null);
-        }
-
-        if (res && res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            if (data[0]?.companyKey) {
-              setCompanyKey(data[0].companyKey);
-            }
-
-            // Check if any local overrides exist for unassigned users
-            let storedOverrides: Record<string, string> = {};
-            try {
-              storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-            } catch (_) {}
-
-            // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
-            if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
-              storedOverrides['rai992522@gmail.com'] = 'MANAGER';
-              try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
-            }
-            if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
-              storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
-              try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
-            }
-
-            let removedIds: string[] = [];
-            try {
-              removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
-            } catch (_) {}
-
-            const filteredData = data.filter((u: any) => !removedIds.includes(String(u.id)));
-
-            const mapped: EmployeeProfileWeb[] = filteredData.map((u: any, idx: number) => {
-              const rawRole = (u.role || '').toUpperCase();
-              let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED' = 'UNASSIGNED';
-
-              const override = storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()];
-              if (override) {
-                role = override as any;
-              } else if (
-                u.roleId === null ||
-                rawRole === 'UNASSIGNED' ||
-                !u.role ||
-                u.roleNotAssigned ||
-                u.hasAssignedRole === false
-              ) {
-                role = 'UNASSIGNED';
-              } else if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) {
-                role = 'ADMIN';
-              } else if (rawRole.includes('MANAGER')) {
-                role = 'MANAGER';
-              } else if (rawRole.includes('LEADER') || rawRole.includes('TL')) {
-                role = 'TEAM_LEADER';
-              } else if (rawRole.includes('HR')) {
-                role = 'HR';
-              } else {
-                role = 'SALES_EXEC';
-              }
-
-              let rawPhone = u.phone || u.phoneNumber || u.mobile;
-              if (!rawPhone && (u.email === currentUser?.email || u.id === currentUser?.id)) {
-                rawPhone = getCurrentUserPhone();
-              }
-              if (!rawPhone && (u.email === 'adorabletrading08@gmail.com' || u.name?.toLowerCase().includes('anurag'))) {
-                rawPhone = '9717355779';
-              }
-              if (!rawPhone && u.email === 'rai992522@gmail.com') {
-                rawPhone = '+91 99252 20000';
-              }
-              if (!rawPhone && u.email === 'rastoginandini92@gmail.com') {
-                rawPhone = '+91 98765 43210';
-              }
-              const displayPhone = formatPhone(rawPhone);
-
-              return {
-                id: String(u.id),
-                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-                code: `EMP${String(idx + 1).padStart(3, '0')}`,
-                dept:
-                  role === 'ADMIN'
-                    ? 'Executive & Administration'
-                    : role === 'HR'
-                    ? 'Human Resources'
-                    : role === 'MANAGER'
-                    ? 'Executive & Management'
-                    : role === 'TEAM_LEADER'
-                    ? 'Lead & Operations'
-                    : role === 'UNASSIGNED'
-                    ? 'Pending Department'
-                    : 'Sales & Growth',
-                email: u.email,
-                phone: displayPhone,
-                role,
-                isVerified: u.isVerified ?? (role !== 'UNASSIGNED'),
-                verificationStatus: role === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
-                assignedManager: 'Admin',
-                baseSalary: role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000',
-                joined: u.createdAt
-                  ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : 'Recently',
-                canSelfCheckIn: true,
-                status: u.isActive !== false ? 'active' : 'inactive',
-                documents: {
-                  pan: 'VERIFIED',
-                  aadhaar: 'AADHAAR_VERIFIED.pdf',
-                  eduCert: 'DEGREE_VERIFIED.pdf',
-                  offerLetter: 'OFFER_LETTER.pdf',
-                  lastUpdatedDate: 'Recently',
-                  historyLogs: [],
-                },
-                bankDetails: {
-                  bankName: 'Direct Deposit',
-                  accountHolder: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-                  accountNo: '••••••••',
-                  ifscCode: '—',
-                  upiId: u.email,
-                  lastUpdatedDate: 'Recently',
-                  historyLogs: [],
-                },
-                attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-                subordinates: [],
-              };
-            });
-
-            // Merge with local extra staff
-            try {
-              const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-              if (Array.isArray(extraStaff)) {
-                extraStaff.forEach((st: EmployeeProfileWeb) => {
-                  if (!mapped.some(e => e.id === st.id || e.email.toLowerCase() === st.email.toLowerCase())) {
-                    mapped.unshift(st);
-                  }
-                });
-              }
-            } catch (_) {}
-
-            setEmployees(mapped);
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('Could not fetch real users from backend:', e);
+    let isMounted = true;
+    getUserDirectory(currentUser, refreshTrigger > 0).then(res => {
+      if (isMounted && res && res.employees) {
+        setEmployees(res.employees);
+        if (res.companyKey) setCompanyKey(res.companyKey);
       }
-
-      // ── Complete Resilient Fallback Directory
-      // Combines logged-in Admin + real registered unassigned user (Nandini Rastogi)
-      // + any locally created or verified staff
-      const fallbackList: EmployeeProfileWeb[] = [];
-
-      // 1. Current Logged-in Admin User
-      if (currentUser) {
-        const rawPhone = getCurrentUserPhone() || (currentUser.email === 'adorabletrading08@gmail.com' ? '9717355779' : '');
-        const displayPhone = formatPhone(rawPhone);
-        const userRole = (currentUser.role || '').toUpperCase();
-        const isOwnerOrAdmin = userRole.includes('ADMIN') || userRole.includes('OWNER') || userRole.includes('SUPER_ADMIN');
-        const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
-          ? 'ADMIN'
-          : userRole.includes('HR')
-          ? 'HR'
-          : userRole.includes('MANAGER')
-          ? 'MANAGER'
-          : userRole.includes('LEADER') || userRole.includes('TL')
-          ? 'TEAM_LEADER'
-          : 'SALES_EXEC';
-
-        fallbackList.push({
-          id: currentUser.id || 'cmuev7ni70016ikew8an7tdw8',
-          name: currentUser.name || 'Anurag Sharma',
-          code: 'EMP001',
-          dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
-          email: currentUser.email || 'adorabletrading08@gmail.com',
-          phone: displayPhone,
-          role,
-          assignedManager: 'Admin',
-          baseSalary: '₹95,000',
-          joined: 'Sep 24, 2026',
-          canSelfCheckIn: true,
-          status: 'active',
-          documents: {
-            pan: 'VERIFIED',
-            aadhaar: 'AADHAAR_VERIFIED.pdf',
-            eduCert: 'DEGREE_VERIFIED.pdf',
-            offerLetter: 'OFFER_LETTER_ADMIN.pdf',
-            lastUpdatedDate: 'Recently',
-            historyLogs: [],
-          },
-          bankDetails: {
-            bankName: 'Direct Deposit',
-            accountHolder: currentUser.name || 'Anurag Sharma',
-            accountNo: '••••••••',
-            ifscCode: '—',
-            upiId: currentUser.email || 'adorabletrading08@gmail.com',
-            lastUpdatedDate: 'Recently',
-            historyLogs: [],
-          },
-          attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          subordinates: [],
-        });
+    }).catch(() => {
+      if (isMounted) {
+        setEmployees(getDefaultDirectory(currentUser));
       }
-
-      // 2. Real Registered Unassigned User from Company Workspace (Nandini Rastogi)
-      let storedOverrides: Record<string, string> = {};
-      try {
-        storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-      } catch (_) {}
-
-      // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
-      if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
-        storedOverrides['rai992522@gmail.com'] = 'MANAGER';
-        try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
-      }
-      if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
-        storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
-        try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
-      }
-
-      let removedIds: string[] = [];
-      try {
-        removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
-      } catch (_) {}
-
-      const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
-      if (!removedIds.includes(nandiniId)) {
-        const nandiniAssignedRole = storedOverrides[nandiniId] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
-        const isNandiniVerified = Boolean(nandiniAssignedRole && nandiniAssignedRole !== 'UNASSIGNED');
-
-        fallbackList.push({
-          id: nandiniId,
-          name: 'Nandini Rastogi',
-          code: 'EMP002',
-          dept: isNandiniVerified
-            ? nandiniAssignedRole === 'HR'
-              ? 'Human Resources'
-              : nandiniAssignedRole === 'MANAGER'
-              ? 'Executive & Management'
-              : 'Sales & Growth'
-            : 'Pending Department',
-          email: 'rastoginandini92@gmail.com',
-          phone: '+91 98765 43210',
-          role: (nandiniAssignedRole || 'SALES_EXEC') as any,
-          isVerified: isNandiniVerified,
-          verificationStatus: isNandiniVerified ? 'VERIFIED' : 'PENDING',
-          assignedManager: isNandiniVerified ? 'Admin' : 'Pending Admin Assignment',
-          baseSalary: '₹40,000',
-          joined: 'Sep 26, 2026',
-          canSelfCheckIn: false,
-          status: 'active',
-          documents: {
-            pan: 'VERIFIED',
-            aadhaar: 'AADHAAR_SUBMITTED.pdf',
-            eduCert: 'DEGREE_SUBMITTED.pdf',
-            offerLetter: 'PENDING_OFFER.pdf',
-            lastUpdatedDate: 'Sep 26, 2026',
-            historyLogs: [],
-          },
-          bankDetails: {
-            bankName: 'Direct Deposit',
-            accountHolder: 'Nandini Rastogi',
-            accountNo: '••••••••',
-            ifscCode: '—',
-            upiId: 'rastoginandini92@okaxis',
-            lastUpdatedDate: 'Sep 26, 2026',
-            historyLogs: [],
-          },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          subordinates: [],
-        });
-      }
-
-      // 3. Registered Staff Member with Company Key (Aditya Kumar Rai - Default/Verified Manager)
-      const adityaId = 'usr_aditya_rai_01';
-      if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'] || 'MANAGER';
-        const isAdityaVerified = Boolean(adityaAssigned && adityaAssigned !== 'UNASSIGNED');
-        const role = isAdityaVerified ? (adityaAssigned as any) : 'UNASSIGNED';
-
-        fallbackList.push({
-          id: adityaId,
-          name: 'Aditya Kumar Rai',
-          code: 'EMP003',
-          dept: isAdityaVerified
-            ? role === 'HR'
-              ? 'Human Resources'
-              : role === 'MANAGER'
-              ? 'Executive & Management'
-              : role === 'TEAM_LEADER'
-              ? 'Lead & Operations'
-              : 'Sales & Growth'
-            : 'Pending Department',
-          email: 'rai992522@gmail.com',
-          phone: '+91 99252 20000',
-          role: role,
-          isVerified: isAdityaVerified,
-          verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
-          assignedManager: isAdityaVerified ? 'Admin' : 'Pending Admin Assignment',
-          baseSalary: isAdityaVerified ? (role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000') : '₹75,000',
-          joined: 'Sep 27, 2026',
-          canSelfCheckIn: false,
-          status: 'active',
-          documents: {
-            pan: 'VERIFIED',
-            aadhaar: 'AADHAAR_SUBMITTED.pdf',
-            eduCert: 'DEGREE_SUBMITTED.pdf',
-            offerLetter: 'PENDING_OFFER.pdf',
-            lastUpdatedDate: 'Sep 27, 2026',
-            historyLogs: [],
-          },
-          bankDetails: {
-            bankName: 'Direct Deposit',
-            accountHolder: 'Aditya Kumar Rai',
-            accountNo: '••••••••',
-            ifscCode: '—',
-            upiId: 'rai992522@okaxis',
-            lastUpdatedDate: 'Sep 27, 2026',
-            historyLogs: [],
-          },
-          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-          subordinates: [],
-        });
-      }
-
-      // 4. Any additional locally created staff & unassigned from local queue
-      try {
-        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-        if (Array.isArray(extraStaff)) {
-          extraStaff.forEach((st: EmployeeProfileWeb) => {
-            if (!removedIds.includes(st.id) && !fallbackList.some(e => e.id === st.id || e.email.toLowerCase() === st.email.toLowerCase())) {
-              fallbackList.unshift(st);
-            }
-          });
-        }
-      } catch (_) {}
-
-      setEmployees(fallbackList);
-    };
-
-    fetchUsers();
+    });
+    return () => { isMounted = false; };
   }, [currentUser, refreshTrigger]);
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
@@ -992,7 +633,10 @@ export function EmployeeListWidget({
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setRefreshTrigger(prev => prev + 1)}
+            onClick={() => {
+              invalidateUserDirectoryCache();
+              setRefreshTrigger(prev => prev + 1);
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-all cursor-pointer"
             title="Refresh Directory"
           >

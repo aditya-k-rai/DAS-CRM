@@ -182,7 +182,7 @@ export const MOCK_COMPANY_SUB: CompanySubscription = {
   trialDaysLeft: 30,
   isExpired: false,
   userSeatsAllocated: 18, // Business Plan standard quota
-  userSeatsUsed: 1, // 1 Admin role active
+  userSeatsUsed: 3, // 3 verified active seats (Admin, Sales Exec, Manager)
   hasTeamLeaders: true,
   features: {
     whatsApp: true,
