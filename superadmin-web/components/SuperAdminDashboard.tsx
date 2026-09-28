@@ -1361,13 +1361,11 @@ export function SuperAdminDashboard() {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const endpoints = [
       `/api/super-admin/companies/${targetCompId}`,
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${targetCompId}`,
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/users?organizationId=${targetCompId}`,
-      `http://localhost:3001/api/v1/auth/super-admin/companies/${targetCompId}`,
-      `http://localhost:3001/api/v1/users?organizationId=${targetCompId}`,
-      `http://localhost:3000/api/crm-sync?organizationId=${targetCompId}`,
+      `${apiBase}/auth/super-admin/companies/${targetCompId}`,
+      `${apiBase}/users?organizationId=${targetCompId}`,
     ];
 
     try {

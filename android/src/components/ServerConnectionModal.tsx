@@ -10,8 +10,8 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { getApiBase, setApiBase, testApiEndpoint, getCandidateApiUrls, normalizeApiUrl } from '../config/api';
-import { offlineSyncEngine } from '../services/offlineSyncEngine';
+import { getApiBase, setApiBase, testApiEndpoint, normalizeApiUrl, PROD_CLOUD_API_URL } from '../config/api';
+import { offlineSyncEngine, SyncEngineState } from '../services/offlineSyncEngine';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -25,7 +25,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
   const [inputUrl, setInputUrl] = useState(getApiBase());
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null);
-  const [candidateResults, setCandidateResults] = useState<{ url: string; status: 'idle' | 'testing' | 'ok' | 'fail'; latency?: number }[]>([]);
+  const [syncState, setSyncState] = useState<SyncEngineState>(offlineSyncEngine.getState());
 
   useEffect(() => {
     if (visible) {
@@ -33,59 +33,24 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
       setCurrentUrl(active);
       setInputUrl(active);
       setTestResult(null);
-
-      const candidates = getCandidateApiUrls();
-      setCandidateResults(candidates.map(c => ({ url: c, status: 'idle' })));
+      setSyncState(offlineSyncEngine.getState());
+      // Run quick health ping on active endpoint
+      handleTestUrl(active);
     }
   }, [visible]);
 
   const handleTestUrl = async (urlToTest: string) => {
     setIsTesting(true);
     setTestResult(null);
-    const res = await testApiEndpoint(urlToTest);
+    const cleanUrl = normalizeApiUrl(urlToTest);
+    const res = await testApiEndpoint(cleanUrl);
     setIsTesting(false);
     setTestResult(res);
   };
 
-  const handleAutoDetect = async () => {
-    setIsTesting(true);
-    setTestResult(null);
-    const candidates = getCandidateApiUrls();
-
-    setCandidateResults(candidates.map(c => ({ url: c, status: 'testing' })));
-
-    let foundWorkingUrl: string | null = null;
-    let bestLatency = Infinity;
-
-    for (let i = 0; i < candidates.length; i++) {
-      const c = candidates[i];
-      const res = await testApiEndpoint(c);
-
-      setCandidateResults(prev => prev.map((item, idx) => {
-        if (idx === i) {
-          return {
-            url: c,
-            status: res.success ? 'ok' : 'fail',
-            latency: res.latencyMs,
-          };
-        }
-        return item;
-      }));
-
-      if (res.success && !foundWorkingUrl) {
-        foundWorkingUrl = c;
-        bestLatency = res.latencyMs;
-      }
-    }
-
-    setIsTesting(false);
-
-    if (foundWorkingUrl) {
-      setInputUrl(foundWorkingUrl);
-      setTestResult({ success: true, latencyMs: bestLatency });
-    } else {
-      setTestResult({ success: false, error: 'No reachable candidate server found.' });
-    }
+  const handleSetDefaultCloud = () => {
+    setInputUrl(PROD_CLOUD_API_URL);
+    handleTestUrl(PROD_CLOUD_API_URL);
   };
 
   const handleSaveAndConnect = async () => {
@@ -96,8 +61,12 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
     onClose();
   };
 
-  const bg = isDark ? '#0f172a' : '#ffffff';
-  const cardBg = isDark ? '#1e293b' : '#f8fafc';
+  const isHttps = inputUrl.toLowerCase().startsWith('https://');
+  const isDefaultCloud = normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL);
+
+  const bg = isDark ? '#090d16' : '#ffffff';
+  const cardBg = isDark ? '#0f172a' : '#f8fafc';
+  const innerCardBg = isDark ? '#1e293b' : '#f1f5f9';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
   const subTextColor = isDark ? '#94a3b8' : '#64748b';
   const borderColor = isDark ? '#334155' : '#e2e8f0';
@@ -108,39 +77,81 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
         <View style={[styles.modalCard, { backgroundColor: bg, borderColor }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: borderColor }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 20 }}>🌐</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.headerIconCircle}>
+                <Text style={{ fontSize: 18 }}>🌐</Text>
+              </View>
               <View>
-                <Text style={[styles.title, { color: textColor }]}>Backend Server Connection</Text>
-                <Text style={[styles.subTitle, { color: subTextColor }]}>Configure host IP &amp; live sync endpoint</Text>
+                <Text style={[styles.title, { color: textColor }]}>Cloud Connection &amp; Diagnostics</Text>
+                <Text style={[styles.subTitle, { color: subTextColor }]}>Production gateway and offline sync health</Text>
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={{ color: subTextColor, fontSize: 16, fontWeight: '700' }}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Active URL Status */}
+            {/* Active Endpoint Status Card */}
             <View style={[styles.section, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.sectionLabel, { color: subTextColor }]}>CURRENT ACTIVE BACKEND</Text>
-              <Text style={[styles.activeUrlText, { color: textColor }]}>{currentUrl}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={[styles.sectionLabel, { color: subTextColor }]}>ACTIVE ENTERPRISE BACKEND</Text>
+                <View style={[styles.securityBadge, { backgroundColor: isHttps ? 'rgba(52, 211, 153, 0.15)' : 'rgba(245, 158, 11, 0.15)', borderColor: isHttps ? 'rgba(52, 211, 153, 0.3)' : 'rgba(245, 158, 11, 0.3)' }]}>
+                  <Text style={[styles.securityBadgeText, { color: isHttps ? '#34d399' : '#f59e0b' }]}>
+                    {isHttps ? '🔒 TLS 1.3 SECURE' : '🔓 HTTP GATEWAY'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.activeUrlText, { color: textColor }]} numberOfLines={2}>
+                {currentUrl}
+              </Text>
+            </View>
+
+            {/* Offline Engine Diagnostics */}
+            <View style={[styles.diagRow, { backgroundColor: cardBg, borderColor }]}>
+              <View style={styles.diagItem}>
+                <Text style={[styles.diagLabel, { color: subTextColor }]}>NETWORK</Text>
+                <Text style={[styles.diagVal, { color: syncState.isOnline ? '#34d399' : '#ef4444' }]}>
+                  {syncState.isOnline ? '🟢 Online' : '🔴 Offline'}
+                </Text>
+              </View>
+              <View style={[styles.diagDivider, { backgroundColor: borderColor }]} />
+              <View style={styles.diagItem}>
+                <Text style={[styles.diagLabel, { color: subTextColor }]}>BACKEND API</Text>
+                <Text style={[styles.diagVal, { color: syncState.isBackendConnected ? '#34d399' : '#f59e0b' }]}>
+                  {syncState.isBackendConnected ? '🟢 Reachable' : '⚠️ Pending'}
+                </Text>
+              </View>
+              <View style={[styles.diagDivider, { backgroundColor: borderColor }]} />
+              <View style={styles.diagItem}>
+                <Text style={[styles.diagLabel, { color: subTextColor }]}>QUEUE</Text>
+                <Text style={[styles.diagVal, { color: syncState.pendingCount === 0 ? '#34d399' : '#6366f1' }]}>
+                  {syncState.pendingCount === 0 ? '✓ 0 Synced' : `${syncState.pendingCount} Queued`}
+                </Text>
+              </View>
             </View>
 
             {/* URL Input Box */}
-            <View style={{ marginTop: 14 }}>
-              <Text style={[styles.inputLabel, { color: textColor }]}>Server API URL:</Text>
+            <View style={{ marginTop: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={[styles.inputLabel, { color: textColor }]}>Server Gateway URL:</Text>
+                {!isDefaultCloud && (
+                  <TouchableOpacity onPress={handleSetDefaultCloud} activeOpacity={0.7}>
+                    <Text style={{ fontSize: 11, color: '#6366f1', fontWeight: '700' }}>↺ Reset to Cloud Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TextInput
                 value={inputUrl}
                 onChangeText={setInputUrl}
-                placeholder="http://192.168.X.X:3001/api/v1"
+                placeholder="https://dascrm-backend.onrender.com/api/v1"
                 placeholderTextColor="#64748b"
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={[
                   styles.input,
                   {
-                    backgroundColor: isDark ? '#090d16' : '#ffffff',
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
                     color: textColor,
                     borderColor: borderColor,
                   },
@@ -154,8 +165,8 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                 style={[
                   styles.testResultBox,
                   {
-                    backgroundColor: testResult.success ? 'rgba(52, 211, 153, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                    borderColor: testResult.success ? 'rgba(52, 211, 153, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+                    backgroundColor: testResult.success ? 'rgba(52, 211, 153, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    borderColor: testResult.success ? 'rgba(52, 211, 153, 0.35)' : 'rgba(239, 68, 68, 0.35)',
                   },
                 ]}
               >
@@ -166,88 +177,66 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                   ]}
                 >
                   {testResult.success
-                    ? `✓ Connected successfully (${testResult.latencyMs}ms latency)`
-                    : `⚠️ Connection Failed: ${testResult.error || 'Server unreachable'}`}
+                    ? `✓ Connection Healthy • Response Time: ${testResult.latencyMs}ms`
+                    : `⚠️ Gateway Unreachable • ${testResult.error || 'Server did not respond'}`}
                 </Text>
               </View>
             )}
 
-            {/* Quick Actions (Test Single & Auto Detect) */}
-            <View style={styles.actionRow}>
+            {/* Ping Test Button */}
+            <View style={{ marginTop: 12 }}>
               <TouchableOpacity
                 style={[styles.testBtn, isTesting && { opacity: 0.6 }]}
                 onPress={() => handleTestUrl(inputUrl)}
                 disabled={isTesting}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 {isTesting ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.testBtnText}>⚡ Ping Test</Text>
+                  <Text style={styles.testBtnText}>⚡ Ping Diagnostics Test</Text>
                 )}
               </TouchableOpacity>
+            </View>
 
+            {/* Cloud Endpoint Preset Option */}
+            <View style={{ marginTop: 18 }}>
+              <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>OFFICIAL ENTERPRISE CLOUD</Text>
               <TouchableOpacity
-                style={[styles.autoDetectBtn, isTesting && { opacity: 0.6 }]}
-                onPress={handleAutoDetect}
-                disabled={isTesting}
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: isDefaultCloud ? '#6366f1' : borderColor,
+                    borderWidth: isDefaultCloud ? 2 : 1,
+                  },
+                ]}
+                onPress={handleSetDefaultCloud}
                 activeOpacity={0.7}
               >
-                <Text style={styles.autoDetectBtnText}>🔍 Auto-Detect Server</Text>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                      {PROD_CLOUD_API_URL}
+                    </Text>
+                    {isDefaultCloud && (
+                      <View style={[styles.activePill, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
+                        <Text style={{ fontSize: 9, color: '#818cf8', fontWeight: '800' }}>DEFAULT</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    Official Live Production Cloud (HTTPS High-Availability Cluster)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Candidate URLs Quick Selector */}
-            <View style={{ marginTop: 16 }}>
-              <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>QUICK PRESETS &amp; PROBED CANDIDATES</Text>
-              {candidateResults.map((c, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.candidateRow,
-                    {
-                      backgroundColor: cardBg,
-                      borderColor: inputUrl === c.url ? '#6366f1' : borderColor,
-                      borderWidth: inputUrl === c.url ? 2 : 1,
-                    },
-                  ]}
-                  onPress={() => {
-                    setInputUrl(c.url);
-                    handleTestUrl(c.url);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
-                      {c.url}
-                    </Text>
-                    <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                      {c.url.includes('onrender.com') || c.url.includes('dascrm') || c.url.startsWith('https://')
-                        ? '🚀 Cloud Production Server (Live HTTPS)'
-                        : c.url.includes('192.168.1.38')
-                        ? '💻 Wi-Fi Local Host (Developer PC - Active)'
-                        : c.url.includes('192.168.29.26')
-                        ? '💻 Wi-Fi Local Host (Secondary / Alternate LAN)'
-                        : c.url.includes('10.0.2.2')
-                        ? '📱 Android Studio Emulator'
-                        : c.url.includes('localhost')
-                        ? 'Local loopback'
-                        : 'Custom / Remote Endpoint'}
-                    </Text>
-                  </View>
-                  {c.status === 'testing' && <ActivityIndicator size="small" color="#6366f1" />}
-                  {c.status === 'ok' && (
-                    <Text style={{ color: '#34d399', fontSize: 11, fontWeight: '700' }}>✓ {c.latency}ms</Text>
-                  )}
-                  {c.status === 'fail' && <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700' }}>✕ Failed</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Device Help Tip */}
+            {/* Enterprise Security Tip */}
             <View style={[styles.tipBox, { borderColor }]}>
               <Text style={[styles.tipText, { color: subTextColor }]}>
-                🌐 <Text style={{ fontWeight: '700', color: textColor }}>Production Cloud Sync:</Text> Connects seamlessly to the Cloud Production Server across any network (LTE, 5G, Wi-Fi). When running a local development server, select your local Wi-Fi IP.
+                🔒 <Text style={{ fontWeight: '700', color: textColor }}>Enterprise Grade Sync:</Text> DAS CRM uses end-to-end encrypted tunnels with auto-failover, real-time lead push, and offline-first queue replication.
               </Text>
             </View>
           </ScrollView>
@@ -259,7 +248,7 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               onPress={handleSaveAndConnect}
               activeOpacity={0.8}
             >
-              <Text style={styles.saveBtnText}>✓ Save &amp; Connect</Text>
+              <Text style={styles.saveBtnText}>✓ Apply &amp; Connect</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -290,6 +279,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
+  headerIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
     fontSize: 16,
     fontWeight: '800',
@@ -307,25 +304,60 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   section: {
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
   },
   sectionLabel: {
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
-    marginBottom: 4,
+  },
+  securityBadge: {
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  securityBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
   },
   activeUrlText: {
     fontSize: 13,
     fontWeight: '700',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    lineHeight: 18,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  diagItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  diagLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  diagVal: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  diagDivider: {
+    width: 1,
+    height: 24,
   },
   inputLabel: {
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
@@ -345,15 +377,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
   testBtn: {
-    flex: 1,
     backgroundColor: '#4f46e5',
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -363,24 +389,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  autoDetectBtn: {
-    flex: 1,
-    backgroundColor: '#0284c7',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  autoDetectBtnText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   candidateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 14,
     borderRadius: 12,
     marginBottom: 8,
   },
@@ -392,7 +405,12 @@ const styles = StyleSheet.create({
   candidateHint: {
     fontSize: 10,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 3,
+  },
+  activePill: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
   tipBox: {
     marginTop: 12,

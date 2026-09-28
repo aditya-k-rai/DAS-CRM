@@ -354,10 +354,10 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
           )}
         </TouchableOpacity>
 
-        {/* 🌐 BACKEND SERVER CONNECTION */}
+        {/* 🌐 CLOUD CONNECTION & DIAGNOSTICS */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { color: titleColor }]}>🌐 Backend Server Connection</Text>
-          <Text style={[styles.sectionSub, { color: subColor }]}>Configure Host IP, auto-discovery &amp; connection diagnostics</Text>
+          <Text style={[styles.sectionTitle, { color: titleColor }]}>🌐 Cloud Connection &amp; Diagnostics</Text>
+          <Text style={[styles.sectionSub, { color: subColor }]}>Enterprise gateway status, latency ping &amp; offline queue</Text>
         </View>
 
         <TouchableOpacity
@@ -371,14 +371,14 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
                 <Text style={{ fontSize: 16 }}>📡</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.aboutAppName, { color: titleColor, fontSize: 14 }]}>Server API Endpoint</Text>
+                <Text style={[styles.aboutAppName, { color: titleColor, fontSize: 14 }]}>Production Cloud Gateway</Text>
                 <Text style={[styles.aboutBuildMeta, { color: subColor, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11 }]} numberOfLines={1}>
                   {getApiBase()}
                 </Text>
               </View>
             </View>
             <View style={{ backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>Setup IP ⚙️</Text>
+              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>Diagnostics ⚡</Text>
             </View>
           </View>
         </TouchableOpacity>
