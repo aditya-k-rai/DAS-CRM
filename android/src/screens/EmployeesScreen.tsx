@@ -208,12 +208,15 @@ export default function EmployeesScreen() {
             if (raw) roleOverrides = JSON.parse(raw);
           } catch (_) {}
 
+          const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
           data.forEach((u: any) => {
             if (removedIds.includes(String(u.id))) return;
 
-            const rawRole = (roleOverrides[String(u.id)] || u.role || '').toUpperCase();
+            const uId = String(u.id);
+            const overrideRole = roleOverrides[uId] || (uId === nandiniId || u.email === 'rastoginandini92@gmail.com' ? 'SALES_EXEC' : null);
+            const rawRole = (overrideRole || u.role || '').toUpperCase();
             const isUnassigned =
-              !roleOverrides[String(u.id)] &&
+              !overrideRole &&
               (!u.roleId ||
                 rawRole === 'UNASSIGNED' ||
                 !u.role ||
@@ -276,7 +279,7 @@ export default function EmployeesScreen() {
     } catch (_) {}
 
     // Complete Resilient Fallback Directory:
-    // Admin (Anurag Sharma) + Registered Unassigned User (Nandini Rastogi) + AsyncStorage extra
+    // Admin (Anurag Sharma) + Assigned Employee (Nandini Rastogi - Sales) + AsyncStorage extra
     let removedIds: string[] = [];
     try {
       const raw = await AsyncStorage.getItem('@das_crm_removed_user_ids');
@@ -322,17 +325,28 @@ export default function EmployeesScreen() {
       });
     }
 
-    // Registered Unassigned User (Nandini Rastogi)
+    // Registered Employee (Nandini Rastogi) - Sales Representative
     const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
     if (!removedIds.includes(nandiniId)) {
-      const nandiniAssigned = roleOverrides[nandiniId];
-      if (nandiniAssigned && nandiniAssigned !== 'UNASSIGNED') {
+      const nandiniAssigned = roleOverrides[nandiniId] || 'SALES_EXEC';
+      if (nandiniAssigned === 'UNASSIGNED') {
+        fallbackUnassigned.push({
+          id: nandiniId,
+          name: 'Nandini Rastogi',
+          email: 'rastoginandini92@gmail.com',
+          phone: '+91 98765 43210',
+          registeredAt: 'Sep 26, 2026',
+          deviceInfo: 'App/Web Registration',
+        });
+      } else {
+        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
+          (nandiniAssigned as any) || 'SALES_EXEC';
         fallbackAssigned.push({
           id: nandiniId,
           name: 'Nandini Rastogi',
           email: 'rastoginandini92@gmail.com',
           phone: '+91 98765 43210',
-          role: (nandiniAssigned as any) || 'SALES_EXEC',
+          role: finalRole,
           assignedManager: 'Admin',
           status: 'ONLINE',
           avatarUrl: '',
@@ -341,15 +355,6 @@ export default function EmployeesScreen() {
           leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
           attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '' },
           subordinates: [],
-        });
-      } else {
-        fallbackUnassigned.push({
-          id: nandiniId,
-          name: 'Nandini Rastogi',
-          email: 'rastoginandini92@gmail.com',
-          phone: '+91 98765 43210',
-          registeredAt: 'Sep 26, 2026',
-          deviceInfo: 'App/Web Registration',
         });
       }
     }

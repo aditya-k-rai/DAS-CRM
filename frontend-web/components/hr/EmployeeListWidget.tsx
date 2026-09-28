@@ -727,7 +727,7 @@ export function EmployeeListWidget({
 
       const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
       if (!removedIds.includes(nandiniId)) {
-        const nandiniAssignedRole = storedOverrides[nandiniId];
+        const nandiniAssignedRole = storedOverrides[nandiniId] || 'SALES_EXEC';
         const isNandiniVerified = Boolean(nandiniAssignedRole && nandiniAssignedRole !== 'UNASSIGNED');
 
         fallbackList.push({
@@ -743,7 +743,7 @@ export function EmployeeListWidget({
             : 'Pending Department',
           email: 'rastoginandini92@gmail.com',
           phone: '+91 98765 43210',
-          role: (nandiniAssignedRole || 'UNASSIGNED') as any,
+          role: (nandiniAssignedRole || 'SALES_EXEC') as any,
           isVerified: isNandiniVerified,
           verificationStatus: isNandiniVerified ? 'VERIFIED' : 'PENDING',
           assignedManager: isNandiniVerified ? 'Admin' : 'Pending Admin Assignment',
@@ -752,7 +752,7 @@ export function EmployeeListWidget({
           canSelfCheckIn: false,
           status: 'active',
           documents: {
-            pan: 'PENDING',
+            pan: 'VERIFIED',
             aadhaar: 'AADHAAR_SUBMITTED.pdf',
             eduCert: 'DEGREE_SUBMITTED.pdf',
             offerLetter: 'PENDING_OFFER.pdf',
