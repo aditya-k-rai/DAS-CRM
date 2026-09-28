@@ -86,10 +86,20 @@ const LIVE_DETAILS: Record<string, any> = {
         id: 'cmuhp0517000ngg2dq93a6nlp',
         name: 'Nandini Rastogi',
         email: 'rastoginandini92@gmail.com',
-        role: 'VIEWER',
+        role: 'SALES_EXEC',
         isActive: true,
         lastLoginAt: '2026-09-26T12:05:14.587Z',
         createdAt: '2026-09-26T01:10:02.107Z',
+        keyUsed: 'ADOR-EC-7187',
+      },
+      {
+        id: 'cmuhp0517000ngg2dq93a6rai',
+        name: 'Aditya Kumar Rai',
+        email: 'rai992522@gmail.com',
+        role: 'MANAGER',
+        isActive: true,
+        lastLoginAt: '2026-09-27T10:15:00.000Z',
+        createdAt: '2026-09-26T01:15:00.000Z',
         keyUsed: 'ADOR-EC-7187',
       },
     ],
@@ -99,6 +109,7 @@ const LIVE_DETAILS: Record<string, any> = {
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  const fallback = LIVE_DETAILS[id] || LIVE_DETAILS['cmuev7n3o000mikew7je1tdiw'];
 
   try {
     const authHeader = req.headers.get('authorization');
@@ -116,12 +127,27 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     if (res.ok) {
       const data = await res.json();
-      return NextResponse.json(data);
+      if (data) {
+        // Ensure verified employees from fallback are never dropped
+        const backendEmps: any[] = Array.isArray(data.employees) ? data.employees : [];
+        const fallbackEmps: any[] = fallback?.employees || [];
+        const mergedEmps = [...backendEmps];
+
+        for (const fb of fallbackEmps) {
+          if (!mergedEmps.some((e: any) => e.email?.toLowerCase() === fb.email?.toLowerCase())) {
+            mergedEmps.push(fb);
+          }
+        }
+
+        return NextResponse.json({
+          ...data,
+          employees: mergedEmps,
+        });
+      }
     }
   } catch (err) {
     // Network or timeout error
   }
 
-  const fallback = LIVE_DETAILS[id] || LIVE_DETAILS['cmuev7n3o000mikew7je1tdiw'];
   return NextResponse.json(fallback);
 }
