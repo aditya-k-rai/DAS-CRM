@@ -12,7 +12,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
-import { getApiBase } from '../config/api';
+import { getApiBase, probeAndSetWorkingApiBase } from '../config/api';
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 export const QUEUE_STORAGE_KEY = '@das_crm_offline_mutation_queue';
@@ -149,7 +149,7 @@ class OfflineSyncEngine {
     let isBackendLive = false;
     let isNetLive = false;
 
-    // 1. Try Backend Health Ping
+    // 1. Try Backend Health Ping on current API_BASE
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -166,7 +166,18 @@ class OfflineSyncEngine {
       }
     } catch (_) {}
 
-    // 2. Fallback Internet Check if backend didn't respond
+    // 2. If current API_BASE failed, auto-probe candidate URLs (LAN IP, Expo Host, etc.)
+    if (!isBackendLive) {
+      try {
+        const workingUrl = await probeAndSetWorkingApiBase();
+        if (workingUrl) {
+          isBackendLive = true;
+          isNetLive = true;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback Internet Check if backend didn't respond
     if (!isBackendLive) {
       try {
         const controller = new AbortController();

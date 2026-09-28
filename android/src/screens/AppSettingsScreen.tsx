@@ -9,11 +9,14 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, Theme } from '../context/ThemeContext';
 import { useLanguage, AppLanguage } from '../context/LanguageContext';
+import { getApiBase } from '../config/api';
+import ServerConnectionModal from '../components/ServerConnectionModal';
 
 const PREF_PUSH_KEY = '@das_crm_pref_push_alerts';
 const PREF_BIOMETRIC_KEY = '@das_crm_pref_biometric_lock';
@@ -38,6 +41,7 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showServerModal, setShowServerModal] = useState(false);
 
   // Load preferences on mount
   useEffect(() => {
@@ -350,6 +354,35 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
           )}
         </TouchableOpacity>
 
+        {/* 🌐 BACKEND SERVER CONNECTION */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { color: titleColor }]}>🌐 Backend Server Connection</Text>
+          <Text style={[styles.sectionSub, { color: subColor }]}>Configure Host IP, auto-discovery &amp; connection diagnostics</Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.aboutCard, { backgroundColor: cardBg, borderColor, padding: 14 }]}
+          onPress={() => setShowServerModal(true)}
+          activeOpacity={0.75}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              <View style={[styles.appLogoCircle, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+                <Text style={{ fontSize: 16 }}>📡</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.aboutAppName, { color: titleColor, fontSize: 14 }]}>Server API Endpoint</Text>
+                <Text style={[styles.aboutBuildMeta, { color: subColor, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 11 }]} numberOfLines={1}>
+                  {getApiBase()}
+                </Text>
+              </View>
+            </View>
+            <View style={{ backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>Setup IP ⚙️</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {/* ℹ️ ABOUT & DEVELOPER SECTION */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { color: titleColor }]}>ℹ️ About DAS CRM &amp; Engineering</Text>
@@ -405,6 +438,11 @@ export const AppSettingsScreen: React.FC<AppSettingsScreenProps> = ({ onClose })
           </View>
         </View>
       </ScrollView>
+
+      <ServerConnectionModal
+        visible={showServerModal}
+        onClose={() => setShowServerModal(false)}
+      />
     </View>
   );
 };

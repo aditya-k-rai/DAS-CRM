@@ -15,6 +15,7 @@ import {
   Easing,
 } from 'react-native';
 import { offlineSyncEngine, SyncEngineState } from '../services/offlineSyncEngine';
+import ServerConnectionModal from './ServerConnectionModal';
 
 interface Props {
   token?: string | null;
@@ -86,6 +87,8 @@ export default function NetworkStatusBanner({ token }: Props) {
     }
   }, [syncState.isOnline, syncState.syncStatus]);
 
+  const [showConfigModal, setShowConfigModal] = useState(false);
+
   const handleManualSync = () => {
     if (syncState.isBackendConnected && syncState.pendingCount > 0) {
       offlineSyncEngine.flushQueue();
@@ -95,23 +98,49 @@ export default function NetworkStatusBanner({ token }: Props) {
   const { dotColor, label, subLabel } = getBannerContent(syncState);
 
   return (
-    <Animated.View
-      style={[styles.banner, { transform: [{ translateY: slideY }] }]}
-      pointerEvents={syncState.pendingCount > 0 && syncState.isBackendConnected ? 'box-none' : 'none'}
-    >
-      <View style={styles.inner}>
-        <Animated.View style={[styles.dot, { backgroundColor: dotColor, opacity: dotOpacity }]} />
-        <View style={styles.textBlock}>
-          <Text style={styles.label}>{label}</Text>
-          {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
-        </View>
-        {syncState.pendingCount > 0 && syncState.isBackendConnected ? (
-          <TouchableOpacity style={styles.syncBtn} onPress={handleManualSync} activeOpacity={0.75}>
-            <Text style={styles.syncBtnText}>Sync Now</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </Animated.View>
+    <>
+      <Animated.View
+        style={[styles.banner, { transform: [{ translateY: slideY }] }]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity
+          style={styles.inner}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (!syncState.isBackendConnected) {
+              setShowConfigModal(true);
+            }
+          }}
+        >
+          <Animated.View style={[styles.dot, { backgroundColor: dotColor, opacity: dotOpacity }]} />
+          <View style={styles.textBlock}>
+            <Text style={styles.label}>{label}</Text>
+            {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
+          </View>
+
+          {!syncState.isBackendConnected && (
+            <TouchableOpacity
+              style={styles.configBtn}
+              onPress={() => setShowConfigModal(true)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.configBtnText}>Setup IP ⚙️</Text>
+            </TouchableOpacity>
+          )}
+
+          {syncState.pendingCount > 0 && syncState.isBackendConnected ? (
+            <TouchableOpacity style={styles.syncBtn} onPress={handleManualSync} activeOpacity={0.75}>
+              <Text style={styles.syncBtnText}>Sync Now</Text>
+            </TouchableOpacity>
+          ) : null}
+        </TouchableOpacity>
+      </Animated.View>
+
+      <ServerConnectionModal
+        visible={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+      />
+    </>
   );
 }
 
@@ -209,6 +238,19 @@ const styles = StyleSheet.create({
   },
   syncBtnText: {
     color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  configBtn: {
+    backgroundColor: '#334155',
+    borderColor: '#64748b',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  configBtnText: {
+    color: '#f8fafc',
     fontSize: 11,
     fontWeight: '700',
   },

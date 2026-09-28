@@ -1,12 +1,13 @@
 /**
  * api.ts — Dynamic Multi-Tier API Endpoint Config for Android, iOS & Physical Devices
  * 
- * Auto-resolves:
- * 1. Explicit EXPO_PUBLIC_API_URL environment variable
- * 2. Dynamic host IP from Expo Metro bundler connection (Constants.expoConfig.hostUri)
- * 3. Developer machine LAN IP (192.168.29.26:3001) for physical test devices
- * 4. Android emulator loopback (10.0.2.2:3001)
- * 5. Localhost / 127.0.0.1 for Web and iOS simulators
+ * Auto-resolves and probes:
+ * 1. Previously saved working API base from AsyncStorage (persisted across restarts)
+ * 2. Explicit EXPO_PUBLIC_API_URL environment variable
+ * 3. Dynamic host IP from Expo Metro bundler connection (Constants.expoConfig.hostUri)
+ * 4. Active local LAN IP (192.168.29.26:3001) for physical test devices on Wi-Fi
+ * 5. Android emulator loopback (10.0.2.2:3001)
+ * 6. Localhost / 127.0.0.1 for Web and iOS simulators
  */
 
 import { Platform } from 'react-native';
@@ -17,8 +18,6 @@ export const STORAGE_KEY_API_BASE = '@das_crm_active_api_base';
 
 /**
  * Extract host IP from Expo Metro debugger/bundler connection.
- * On physical devices connected via Expo Go or dev builds, Constants.expoConfig?.hostUri
- * or debuggerHost contains "<DEVELOPER_LAN_IP>:<METRO_PORT>" (e.g. "192.168.29.26:8081").
  */
 export function getExpoHostIp(): string | null {
   try {
@@ -61,8 +60,8 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL));
   }
 
-  // 2. Previously saved working API base from AsyncStorage (ignoring legacy LAN IPs)
-  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http') && !API_BASE.includes('192.168.29.26')) {
+  // 2. Previously saved working API base from AsyncStorage
+  if (API_BASE && typeof API_BASE === 'string' && API_BASE.startsWith('http')) {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
@@ -72,12 +71,15 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Android emulator loopback (10.0.2.2)
+  // 4. Local LAN IP for physical device on Wi-Fi
+  candidates.push('http://192.168.29.26:3001/api/v1');
+
+  // 5. Android emulator loopback (10.0.2.2)
   if (Platform.OS === 'android') {
     candidates.push('http://10.0.2.2:3001/api/v1');
   }
 
-  // 5. Localhost fallback
+  // 6. Localhost fallback
   candidates.push('http://localhost:3001/api/v1');
   candidates.push('http://127.0.0.1:3001/api/v1');
 
@@ -93,10 +95,14 @@ export const getApiBaseUrl = (): string => {
   if (expoIp) {
     return `http://${expoIp}:3001/api/v1`;
   }
+  // For physical Android devices, try local LAN IP first
+  if (Platform.OS === 'android' && !__DEV__) {
+    return 'http://192.168.29.26:3001/api/v1';
+  }
   if (__DEV__ && Platform.OS === 'android') {
     return 'http://10.0.2.2:3001/api/v1';
   }
-  return 'http://localhost:3001/api/v1';
+  return 'http://192.168.29.26:3001/api/v1';
 };
 
 export let API_BASE: string = getApiBaseUrl();
@@ -113,16 +119,64 @@ export function getApiBase(): string {
   return API_BASE;
 }
 
-// Hydrate saved working API_BASE on app startup & purge stale legacy private IPs
+/**
+ * Ping an endpoint to check reachability and measure latency in milliseconds
+ */
+export async function testApiEndpoint(url: string): Promise<{ success: boolean; latencyMs: number; error?: string }> {
+  const normalized = normalizeApiUrl(url);
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    // Try /api/v1/health or /health
+    let res = await fetch(`${normalized}/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    }).catch(() => null);
+
+    if (!res || !res.ok) {
+      const rootUrl = normalized.replace(/\/api\/v1$/, '');
+      res = await fetch(`${rootUrl}/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      }).catch(() => null);
+    }
+
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const latencyMs = Date.now() - start;
+      return { success: true, latencyMs };
+    }
+    return { success: false, latencyMs: Date.now() - start, error: `HTTP ${res?.status || 'No Response'}` };
+  } catch (err: any) {
+    return { success: false, latencyMs: Date.now() - start, error: err?.message || 'Connection Timed Out' };
+  }
+}
+
+/**
+ * Automatically probe all candidate URLs and select the first working one
+ */
+export async function probeAndSetWorkingApiBase(): Promise<string | null> {
+  const candidates = getCandidateApiUrls();
+  for (const candidate of candidates) {
+    const test = await testApiEndpoint(candidate);
+    if (test.success) {
+      setApiBase(candidate);
+      return candidate;
+    }
+  }
+  return null;
+}
+
+// Hydrate saved working API_BASE on app startup
 try {
   AsyncStorage.getItem(STORAGE_KEY_API_BASE).then((saved) => {
     if (saved && typeof saved === 'string' && saved.startsWith('http')) {
-      if (saved.includes('192.168.29.26')) {
-        // Clear stale local developer IP from device storage
-        AsyncStorage.removeItem(STORAGE_KEY_API_BASE).catch(() => {});
-      } else {
-        API_BASE = normalizeApiUrl(saved);
-      }
+      API_BASE = normalizeApiUrl(saved);
     }
   }).catch(() => {});
 } catch (_) {}
