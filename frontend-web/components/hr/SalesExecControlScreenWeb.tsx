@@ -4,11 +4,12 @@ import EmployeeDriveVaultModal from './EmployeeDriveVaultModal';
 
 interface Props {
   employee: EmployeeProfile;
+  allEmployees?: EmployeeProfile[];
   onBack: () => void;
   onUpdateEmployee: (updated: EmployeeProfile) => void;
 }
 
-export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEmployee }: Props) {
+export default function SalesExecControlScreenWeb({ employee, allEmployees = [], onBack, onUpdateEmployee }: Props) {
   const [upgradeRoleModalOpen, setUpgradeRoleModalOpen] = useState(false);
   const [changeSupervisorModalOpen, setChangeSupervisorModalOpen] = useState(false);
 
@@ -29,24 +30,63 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
   const [driveVaultOpen, setDriveVaultOpen] = useState(false);
 
-  const SUPERVISORS = [
-    'Admin',
-    'Department Manager',
-    'Team Leader',
-  ];
+  // Build Senior Users above Sales Executive (Admin, Managers, Team Leaders)
+  const computeSeniorUsers = () => {
+    const list: Array<{ id: string; name: string; role: string; email: string; label: string }> = [];
 
-  const MOCK_LEADS: any[] = [];
+    // Filter real employees from directory
+    if (allEmployees && allEmployees.length > 0) {
+      allEmployees.forEach(emp => {
+        if (emp.id === employee.id || emp.email?.toLowerCase() === employee.email?.toLowerCase()) return;
+        if (emp.role === 'ADMIN' || emp.role === 'MANAGER' || emp.role === 'TEAM_LEADER') {
+          const roleTitle = emp.role === 'ADMIN' ? 'Admin' : emp.role === 'MANAGER' ? 'Manager' : 'Team Leader';
+          list.push({
+            id: emp.id,
+            name: emp.name,
+            role: roleTitle,
+            email: emp.email,
+            label: `${emp.name} (${roleTitle})`,
+          });
+        }
+      });
+    }
+
+    // Fallback senior defaults if list is empty
+    if (list.length === 0) {
+      list.push(
+        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)' },
+        { id: 'mgr-default', name: 'Aditya Kumar Rai', role: 'Manager', email: 'rai992522@gmail.com', label: 'Aditya Kumar Rai (Manager)' },
+        { id: 'tl-default', name: 'Sachin Puri', role: 'Team Leader', email: 'sachinpuri938@gmail.com', label: 'Sachin Puri (Team Leader)' }
+      );
+    }
+
+    return list;
+  };
+
+  const seniorUsers = computeSeniorUsers();
+
+  const MOCK_LEADS: Array<{ id: string; name: string; company: string; phone: string; value: string; status: string; date: string }> = [];
 
   const handleRoleUpgrade = (newRole: EmployeeProfile['role']) => {
     onUpdateEmployee({ ...employee, role: newRole });
     setUpgradeRoleModalOpen(false);
-    alert(`⚡ Role Upgraded: ${employee.name} upgraded to ${newRole.replace('_', ' ')}.`);
   };
 
-  const handleSupervisorChange = (sup: string) => {
-    onUpdateEmployee({ ...employee, assignedManager: sup });
+  const handleSupervisorChange = (selectedLabel: string) => {
+    // Persist to localStorage for reactive sync across tabs
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+        stored[employee.id] = selectedLabel;
+        if (employee.email) {
+          stored[employee.email.toLowerCase()] = selectedLabel;
+        }
+        localStorage.setItem('das_crm_assigned_managers', JSON.stringify(stored));
+      } catch (_) {}
+    }
+
+    onUpdateEmployee({ ...employee, assignedManager: selectedLabel });
     setChangeSupervisorModalOpen(false);
-    alert(`✏️ Supervisor Updated: ${employee.name} assigned under ${sup}.`);
   };
 
   const handleToggleLock = () => {
@@ -407,29 +447,81 @@ export default function SalesExecControlScreenWeb({ employee, onBack, onUpdateEm
       {/* ── MODAL: CHANGE SUPERVISOR ──────────────────────────────────────── */}
       {changeSupervisorModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-sm font-black text-white mb-3">✏️ Assign Under for {employee.name}</h3>
-            <div className="space-y-2 mb-4">
-              {SUPERVISORS.map(sup => (
-                <button
-                  key={sup}
-                  onClick={() => handleSupervisorChange(sup)}
-                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-left transition border ${
-                    employee.assignedManager === sup
-                      ? 'bg-indigo-600/30 border-indigo-500 text-indigo-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-200 hover:border-indigo-500/50'
-                  }`}
-                >
-                  👤 {sup}
-                </button>
-              ))}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>✏️ Assign Under for {employee.name}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Select a senior manager or team leader to oversee this executive:
+                </p>
+              </div>
+              <button
+                onClick={() => setChangeSupervisorModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              onClick={() => setChangeSupervisorModalOpen(false)}
-              className="w-full py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl"
-            >
-              Cancel
-            </button>
+
+            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+              {seniorUsers.map(senior => {
+                const isSelected =
+                  employee.assignedManager === senior.label ||
+                  employee.assignedManager === senior.name ||
+                  (senior.role === 'Admin' && (employee.assignedManager === 'Admin' || employee.assignedManager === 'Organization Admin'));
+
+                const badgeBg =
+                  senior.role === 'Admin'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : senior.role === 'Manager'
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+
+                return (
+                  <button
+                    key={senior.id}
+                    onClick={() => handleSupervisorChange(senior.label)}
+                    className={`w-full p-3.5 rounded-2xl text-left transition-all border flex items-center justify-between gap-3 cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/40 shadow-lg'
+                        : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black border ${badgeBg}`}>
+                        {senior.name.slice(0, 1)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-white">{senior.name}</span>
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${badgeBg}`}>
+                            {senior.role}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{senior.email}</span>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-bold">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                onClick={() => setChangeSupervisorModalOpen(false)}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

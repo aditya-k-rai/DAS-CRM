@@ -29,17 +29,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EmployeeProfile } from './EmployeesScreen';
 import ToastBanner, { ToastConfig } from '../components/ToastBanner';
 import { useAuthStore } from '../store/authStore';
 
 interface Props {
   employee: EmployeeProfile;
+  allEmployees?: EmployeeProfile[];
   onBack: () => void;
   onUpdateEmployee: (updated: EmployeeProfile) => void;
 }
 
-export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: Props) {
+export default function HrControlScreen({ employee, allEmployees, onBack, onUpdateEmployee }: Props) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuthStore();
@@ -74,10 +76,52 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [bankDetailsModalOpen, setBankDetailsModalOpen] = useState(false);
 
-  const SUPERVISORS = [
-    `Admin (${currentUser?.name || 'Administrator'})`,
-    'Executive Administration',
-  ];
+  // Dynamically compute actual senior users from allEmployees list
+  const computeSeniorUsers = () => {
+    const list: Array<{ id: string; name: string; role: string; roleKey: string; email: string; label: string; badgeColor: string }> = [];
+
+    if (allEmployees && allEmployees.length > 0) {
+      allEmployees.forEach(emp => {
+        // Exclude current employee
+        if (emp.id === employee.id || (emp.email && emp.email.toLowerCase() === employee.email.toLowerCase())) return;
+
+        const roleStr = (emp.role || '').toUpperCase();
+        if (roleStr === 'ADMIN' || roleStr === 'SUPER_ADMIN' || roleStr === 'OWNER') {
+          list.push({
+            id: emp.id,
+            name: emp.name || 'Admin',
+            role: 'Admin',
+            roleKey: 'ADMIN',
+            email: emp.email || '',
+            label: `${emp.name || 'Admin'} (Admin)`,
+            badgeColor: '#f43f5e',
+          });
+        } else if (roleStr === 'MANAGER') {
+          list.push({
+            id: emp.id,
+            name: emp.name || 'Manager',
+            role: 'Manager',
+            roleKey: 'MANAGER',
+            email: emp.email || '',
+            label: `${emp.name || 'Manager'} (Manager)`,
+            badgeColor: '#c084fc',
+          });
+        }
+      });
+    }
+
+    // Fallback senior defaults if list is empty
+    if (list.length === 0) {
+      list.push(
+        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', roleKey: 'ADMIN', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)', badgeColor: '#f43f5e' },
+        { id: 'mgr-default', name: 'Aditya Kumar Rai', role: 'Manager', roleKey: 'MANAGER', email: 'rai992522@gmail.com', label: 'Aditya Kumar Rai (Manager)', badgeColor: '#c084fc' }
+      );
+    }
+
+    return list;
+  };
+
+  const seniorUsers = computeSeniorUsers();
 
   const [hiredEmployeesList, setHiredEmployeesList] = useState<{ id: string; name: string; role: string; date: string; interviewNotes: string }[]>([]);
 
@@ -96,13 +140,23 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
     });
   };
 
-  const handleSupervisorChange = (sup: string) => {
-    onUpdateEmployee({ ...employee, assignedManager: sup });
+  const handleSupervisorChange = async (selectedLabel: string) => {
+    try {
+      const raw = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      const map = raw ? JSON.parse(raw) : {};
+      map[employee.id] = selectedLabel;
+      if (employee.email) {
+        map[employee.email.toLowerCase()] = selectedLabel;
+      }
+      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(map));
+    } catch (_) {}
+
+    onUpdateEmployee({ ...employee, assignedManager: selectedLabel });
     setChangeSupervisorModalOpen(false);
     setToastConfig({
       id: `toast_${Date.now()}`,
       title: '✏️ Supervisor Updated',
-      message: `${employee.name} assigned under ${sup}.`,
+      message: `${employee.name} assigned under ${selectedLabel}.`,
       type: 'SUCCESS',
     });
   };
@@ -607,17 +661,65 @@ export default function HrControlScreen({ employee, onBack, onUpdateEmployee }: 
       </Modal>
 
       {/* ── MODAL: CHANGE SUPERVISOR ──────────────────────────────────────── */}
-      <Modal visible={changeSupervisorModalOpen} transparent animationType="slide">
+      <Modal visible={changeSupervisorModalOpen} transparent animationType="slide" onRequestClose={() => setChangeSupervisorModalOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>✏️ Change Assigned Supervisor</Text>
-            {SUPERVISORS.map((sup, i) => (
-              <TouchableOpacity key={i} style={styles.modalItemBtn} onPress={() => handleSupervisorChange(sup)}>
-                <Text style={styles.modalItemBtnText}>{sup}</Text>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>✏️ Assign Under Senior User</Text>
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                  Assigning senior supervisor for {employee.name}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setChangeSupervisorModalOpen(false)}>
+                <Text style={styles.modalCloseBtnText}>✕</Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity onPress={() => setChangeSupervisorModalOpen(false)}>
-              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 10, fontWeight: '800' }}>Cancel</Text>
+            </View>
+
+            <ScrollView style={{ maxHeight: 340, marginVertical: 6 }}>
+              {seniorUsers.map((sen) => {
+                const isCurrent =
+                  employee.assignedManager === sen.label ||
+                  employee.assignedManager === sen.name ||
+                  employee.assignedManager?.includes(sen.name);
+
+                return (
+                  <TouchableOpacity
+                    key={sen.id}
+                    style={[
+                      styles.seniorOptionCard,
+                      isCurrent && styles.seniorOptionCardActive,
+                    ]}
+                    onPress={() => handleSupervisorChange(sen.label)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.seniorOptionName, isCurrent && { color: '#38bdf8' }]}>
+                          {sen.name}
+                        </Text>
+                        <View style={[styles.roleBadgeMini, { backgroundColor: `${sen.badgeColor}22`, borderColor: sen.badgeColor }]}>
+                          <Text style={[styles.roleBadgeMiniText, { color: sen.badgeColor }]}>{sen.role}</Text>
+                        </View>
+                      </View>
+                      {sen.email ? (
+                        <Text style={styles.seniorOptionEmail}>{sen.email}</Text>
+                      ) : null}
+                    </View>
+                    {isCurrent ? (
+                      <View style={styles.activeCheckmark}>
+                        <Text style={{ color: '#38bdf8', fontSize: 13, fontWeight: '900' }}>✓</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: '#1e293b', marginTop: 10 }]}
+              onPress={() => setChangeSupervisorModalOpen(false)}
+            >
+              <Text style={styles.modalBtnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -765,4 +867,11 @@ const styles = StyleSheet.create({
   roleSelectChip: { flex: 1, backgroundColor: '#020617', paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#334155' },
   roleSelectChipActive: { backgroundColor: '#4f46e5', borderColor: '#818cf8' },
   roleSelectChipText: { fontSize: 10, color: '#94a3b8', fontWeight: '800' },
+  seniorOptionCard: { backgroundColor: '#020617', borderRadius: 14, borderWidth: 1.5, borderColor: '#1e293b', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  seniorOptionCardActive: { borderColor: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.08)' },
+  seniorOptionName: { fontSize: 13, fontWeight: '900', color: '#ffffff' },
+  seniorOptionEmail: { fontSize: 10, color: '#94a3b8', marginTop: 2, fontWeight: '500' },
+  roleBadgeMini: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
+  roleBadgeMiniText: { fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
+  activeCheckmark: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(56, 189, 248, 0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#38bdf8' },
 });

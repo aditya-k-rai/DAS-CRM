@@ -122,12 +122,16 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
   const storedOverrides = getCleanStoredOverrides();
   let removedIds: string[] = [];
   let storedPhones: Record<string, string> = {};
+  let storedManagers: Record<string, string> = {};
   if (typeof window !== 'undefined') {
     try {
       removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
     } catch (_) {}
     try {
       storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
+    } catch (_) {}
+    try {
+      storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
     } catch (_) {}
   }
 
@@ -204,7 +208,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: nandiniRole,
       isVerified: isNandiniVerified,
       verificationStatus: isNandiniVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: isNandiniVerified ? 'Admin' : 'Pending Admin Assignment',
+      assignedManager: storedManagers[nandiniId] || storedManagers['rastoginandini92@gmail.com'] || (isNandiniVerified ? 'Admin' : 'Pending Admin Assignment'),
       baseSalary: '₹40,000',
       joined: 'Sep 26, 2026',
       canSelfCheckIn: false,
@@ -255,7 +259,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: adityaRole,
       isVerified: isAdityaVerified,
       verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: isAdityaVerified ? 'Admin' : 'Pending Admin Assignment',
+      assignedManager: storedManagers[adityaId] || storedManagers['rai992522@gmail.com'] || (isAdityaVerified ? 'Admin' : 'Pending Admin Assignment'),
       baseSalary: isAdityaVerified ? (adityaRole === 'MANAGER' ? '₹75,000' : adityaRole === 'HR' ? '₹55,000' : '₹45,000') : '₹75,000',
       joined: 'Sep 27, 2026',
       canSelfCheckIn: false,
@@ -283,6 +287,49 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     });
   }
 
+  // 4. Sachin Puri (Team Leader)
+  const sachinId = 'usr_sachin_puri_01';
+  if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
+    const sachinRole = (storedOverrides[sachinId] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER') as any;
+    const isSachinVerified = sachinRole !== 'UNASSIGNED';
+    list.push({
+      id: sachinId,
+      name: 'Sachin Puri',
+      code: 'EMP004',
+      dept: isSachinVerified ? 'Lead & Operations' : 'Pending Department',
+      email: 'sachinpuri938@gmail.com',
+      phone: formatPhone(storedPhones[sachinId] || storedPhones['sachinpuri938@gmail.com'] || '+91 93102 03982'),
+      role: sachinRole,
+      isVerified: isSachinVerified,
+      verificationStatus: isSachinVerified ? 'VERIFIED' : 'PENDING',
+      assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || (isSachinVerified ? 'Admin' : 'Pending Admin Assignment'),
+      baseSalary: '₹55,000',
+      joined: 'Sep 27, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: {
+        pan: 'VERIFIED',
+        aadhaar: 'AADHAAR_SUBMITTED.pdf',
+        eduCert: 'DEGREE_SUBMITTED.pdf',
+        offerLetter: 'OFFER_LETTER.pdf',
+        lastUpdatedDate: 'Sep 27, 2026',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'Direct Deposit',
+        accountHolder: 'Sachin Puri',
+        accountNo: '••••••••',
+        ifscCode: '—',
+        upiId: 'sachinpuri938@okaxis',
+        lastUpdatedDate: 'Sep 27, 2026',
+        historyLogs: [],
+      },
+      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    });
+  }
+
   // Merge extra staff
   if (typeof window !== 'undefined') {
     try {
@@ -291,9 +338,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
         extraStaff.forEach((st: any) => {
           if (!list.some(e => e.id === st.id || e.email?.toLowerCase() === st.email?.toLowerCase())) {
             const raw = storedPhones[st.id] || storedPhones[st.email?.toLowerCase()] || st.phone;
+            const mgr = storedManagers[st.id] || storedManagers[st.email?.toLowerCase()] || st.assignedManager || 'Admin';
             list.push({
               ...st,
               phone: formatPhone(raw),
+              assignedManager: mgr,
             });
           }
         });
@@ -384,11 +433,15 @@ export async function getUserDirectory(
           const storedOverrides = getCleanStoredOverrides();
           let removedIds: string[] = [];
           let storedPhones: Record<string, string> = {};
+          let storedManagers: Record<string, string> = {};
           try {
             removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
           } catch (_) {}
           try {
             storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
+          } catch (_) {}
+          try {
+            storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
           } catch (_) {}
 
           const filteredData = data.filter((u: any) => !removedIds.includes(String(u.id)));
@@ -433,7 +486,15 @@ export async function getUserDirectory(
             if (!rawPhone && u.email === 'rastoginandini92@gmail.com') {
               rawPhone = '+91 98765 43210';
             }
+            if (!rawPhone && u.email === 'sachinpuri938@gmail.com') {
+              rawPhone = '+91 93102 03982';
+            }
             const displayPhone = formatPhone(rawPhone);
+
+            const assignedMgr =
+              storedManagers[String(u.id)] ||
+              storedManagers[u.email?.toLowerCase()] ||
+              (role === 'ADMIN' ? 'Organization Admin' : 'Admin');
 
             return {
               id: String(u.id),
@@ -456,7 +517,7 @@ export async function getUserDirectory(
               role,
               isVerified: u.isVerified ?? (role !== 'UNASSIGNED'),
               verificationStatus: role === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
-              assignedManager: 'Admin',
+              assignedManager: assignedMgr,
               baseSalary: role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000',
               joined: u.createdAt
                 ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

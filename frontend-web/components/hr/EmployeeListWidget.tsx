@@ -573,6 +573,18 @@ export function EmployeeListWidget({
   const handleUpdateEmployee = (updated: EmployeeProfileWeb) => {
     setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
     setInspectingEmp(updated);
+
+    if (typeof window !== 'undefined' && updated.assignedManager) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+        stored[updated.id] = updated.assignedManager;
+        if (updated.email) {
+          stored[updated.email.toLowerCase()] = updated.assignedManager;
+        }
+        localStorage.setItem('das_crm_assigned_managers', JSON.stringify(stored));
+      } catch (_) {}
+    }
+    invalidateUserDirectoryCache();
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -580,16 +592,16 @@ export function EmployeeListWidget({
   // ─────────────────────────────────────────────────────────────────────────────
   if (inspectingEmp !== null) {
     if (inspectingEmp.role === 'ADMIN' || inspectingEmp.role === 'MANAGER') {
-      return <ManagerControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <ManagerControlScreenWeb employee={inspectingEmp} allEmployees={employees} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'SALES_EXEC') {
-      return <SalesExecControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <SalesExecControlScreenWeb employee={inspectingEmp} allEmployees={employees} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'TEAM_LEADER') {
-      return <TeamLeaderControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <TeamLeaderControlScreenWeb employee={inspectingEmp} allEmployees={employees} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'HR') {
-      return <HrControlScreenWeb employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <HrControlScreenWeb employee={inspectingEmp} allEmployees={employees} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
   }
 

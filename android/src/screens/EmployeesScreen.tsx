@@ -295,6 +295,12 @@ export default function EmployeesScreen() {
             if (rawPhones) storedPhones = JSON.parse(rawPhones);
           } catch (_) {}
 
+          let storedManagers: Record<string, string> = {};
+          try {
+            const rawManagers = await AsyncStorage.getItem('@das_crm_assigned_managers');
+            if (rawManagers) storedManagers = JSON.parse(rawManagers);
+          } catch (_) {}
+
           // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
           if (roleOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
             roleOverrides['rai992522@gmail.com'] = 'MANAGER';
@@ -331,8 +337,14 @@ export default function EmployeesScreen() {
               (u.phone && u.phone !== '+91 9717355779' && u.phone !== '9717355779' ? u.phone : null) ||
               (userEmail === 'rai992522@gmail.com' ? '+91 99252 20000' : null) ||
               (userEmail === 'rastoginandini92@gmail.com' ? '+91 98765 43210' : null) ||
+              (userEmail === 'sachinpuri938@gmail.com' ? '+91 93102 03982' : null) ||
               u.phone ||
               '—';
+
+            const assignedMgr =
+              storedManagers[uId] ||
+              storedManagers[userEmail] ||
+              (rawRole.includes('ADMIN') ? 'Organization Admin' : 'Admin');
 
             if (isUnassigned) {
               unassigned.push({
@@ -357,7 +369,7 @@ export default function EmployeesScreen() {
                 email: u.email,
                 phone: displayPhone,
                 role,
-                assignedManager: 'Admin',
+                assignedManager: assignedMgr,
                 status: 'ONLINE',
                 avatarUrl: u.avatarUrl || '',
                 documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
@@ -400,7 +412,7 @@ export default function EmployeesScreen() {
     } catch (_) {}
 
     // Complete Resilient Fallback Directory:
-    // Admin (Anurag Sharma) + Assigned Employee (Nandini Rastogi - Sales) + AsyncStorage extra
+    // Admin (Anurag Sharma) + Nandini (Sales) + Aditya (Manager) + Sachin (TL)
     let removedIds: string[] = [];
     try {
       const raw = await AsyncStorage.getItem('@das_crm_removed_user_ids');
@@ -417,6 +429,12 @@ export default function EmployeesScreen() {
     try {
       const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
       if (rawPhones) storedPhones = JSON.parse(rawPhones);
+    } catch (_) {}
+
+    let storedManagers: Record<string, string> = {};
+    try {
+      const rawManagers = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      if (rawManagers) storedManagers = JSON.parse(rawManagers);
     } catch (_) {}
 
     // Auto-correct Aditya to MANAGER if previously misassigned or stored as SALES_EXEC
@@ -451,7 +469,7 @@ export default function EmployeesScreen() {
         email: currentUser.email || 'adorabletrading08@gmail.com',
         phone: storedPhones[currentUser.id] || storedPhones[currentUser.email?.toLowerCase()] || (currentUser as any)?.phone || '+91 9717355779',
         role,
-        assignedManager: 'Admin',
+        assignedManager: storedManagers[currentUser.id] || storedManagers[currentUser.email?.toLowerCase()] || (role === 'ADMIN' ? 'Organization Admin' : 'Admin'),
         status: 'ONLINE',
         avatarUrl: '',
         documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
@@ -485,7 +503,7 @@ export default function EmployeesScreen() {
           email: 'rastoginandini92@gmail.com',
           phone: nandiniPhone,
           role: finalRole,
-          assignedManager: 'Admin',
+          assignedManager: storedManagers[nandiniId] || storedManagers['rastoginandini92@gmail.com'] || 'Admin',
           status: 'ONLINE',
           avatarUrl: '',
           documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
@@ -520,11 +538,46 @@ export default function EmployeesScreen() {
           email: 'rai992522@gmail.com',
           phone: adityaPhone,
           role: finalRole,
-          assignedManager: 'Admin',
+          assignedManager: storedManagers[adityaId] || storedManagers['rai992522@gmail.com'] || 'Admin',
           status: 'ONLINE',
           avatarUrl: '',
           documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
           bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
+          subordinates: [],
+        });
+      }
+    }
+
+    // Team Leader (Sachin Puri)
+    const sachinId = 'usr_sachin_puri_01';
+    if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
+      const sachinAssigned = roleOverrides[sachinId] || roleOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER';
+      const sachinPhone = storedPhones[sachinId] || storedPhones['sachinpuri938@gmail.com'] || '+91 93102 03982';
+      if (sachinAssigned === 'UNASSIGNED') {
+        fallbackUnassigned.push({
+          id: sachinId,
+          name: 'Sachin Puri',
+          email: 'sachinpuri938@gmail.com',
+          phone: sachinPhone,
+          registeredAt: 'Sep 27, 2026',
+          deviceInfo: 'App/Web Registration',
+        });
+      } else {
+        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
+          (sachinAssigned as any) || 'TEAM_LEADER';
+        fallbackAssigned.push({
+          id: sachinId,
+          name: 'Sachin Puri',
+          email: 'sachinpuri938@gmail.com',
+          phone: sachinPhone,
+          role: finalRole,
+          assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Admin',
+          status: 'ONLINE',
+          avatarUrl: '',
+          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sachin Puri', accountNo: '••••••••', ifscCode: '—', upiId: 'sachinpuri938@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
           leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
           attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
           subordinates: [],
@@ -816,9 +869,21 @@ export default function EmployeesScreen() {
     }
   };
 
-  const handleUpdateEmployee = (updated: EmployeeProfile) => {
+  const handleUpdateEmployee = async (updated: EmployeeProfile) => {
     setEmployeesList(prev => prev.map(e => e.id === updated.id ? updated : e));
     setInspectingEmp(updated);
+    if (updated.assignedManager) {
+      try {
+        const raw = await AsyncStorage.getItem('@das_crm_assigned_managers');
+        const map = raw ? JSON.parse(raw) : {};
+        map[updated.id] = updated.assignedManager;
+        if (updated.email) {
+          map[updated.email.toLowerCase()] = updated.assignedManager;
+        }
+        await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(map));
+      } catch (_) {}
+    }
+    invalidateAndroidEmployeesCache();
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -826,16 +891,16 @@ export default function EmployeesScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   if (inspectingEmp !== null) {
     if (inspectingEmp.role === 'ADMIN' || inspectingEmp.role === 'MANAGER') {
-      return <ManagerControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <ManagerControlScreen employee={inspectingEmp} allEmployees={employeesList} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'SALES_EXEC') {
-      return <SalesExecControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <SalesExecControlScreen employee={inspectingEmp} allEmployees={employeesList} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'TEAM_LEADER') {
-      return <TeamLeaderControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <TeamLeaderControlScreen employee={inspectingEmp} allEmployees={employeesList} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
     if (inspectingEmp.role === 'HR') {
-      return <HrControlScreen employee={inspectingEmp} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
+      return <HrControlScreen employee={inspectingEmp} allEmployees={employeesList} onBack={() => setInspectingEmp(null)} onUpdateEmployee={handleUpdateEmployee} />;
     }
   }
 
