@@ -612,21 +612,68 @@ export function LoginGateway() {
         return;
       }
       if (res.ok && data.accessToken) {
-        setAuthSession(
-          {
-            id: data.user.id,
+        // Staff self-registration with Company Key strictly starts in UNASSIGNED pending verification state!
+        const unassignedUser = {
+          id: data.user?.id || `usr_unassigned_${Date.now()}`,
+          name: staffName,
+          email: staffEmail,
+          role: 'UNASSIGNED' as UserRole,
+          avatar: staffName.slice(0, 2).toUpperCase(),
+          companyId: resolvedCompanyId,
+          companyName: resolvedCompanyName,
+          phone: data.user?.phone || '',
+          hasAssignedRole: false,
+          roleNotAssigned: true,
+          unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
+        };
+
+        // Cache in local queues so Admin immediately sees them in Unassigned Users tab
+        try {
+          const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+          const newProfile = {
+            id: unassignedUser.id,
             name: staffName,
+            code: `EMP${String(extraStaff.length + 3).padStart(3, '0')}`,
+            dept: 'Pending Department',
             email: staffEmail,
-            role: assignedRole,
-            avatar: staffName.slice(0, 2).toUpperCase(),
-            companyId: resolvedCompanyId,
-            companyName: resolvedCompanyName,
-            phone: data.user?.phone || '',
-          },
-          data.accessToken
-        );
+            phone: data.user?.phone || '—',
+            role: 'UNASSIGNED',
+            isVerified: false,
+            verificationStatus: 'PENDING',
+            assignedManager: 'Pending Admin Assignment',
+            baseSalary: '₹40,000',
+            joined: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            canSelfCheckIn: false,
+            status: 'active',
+            appliedRole: assignedRole,
+            documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'PENDING_OFFER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+            bankDetails: { bankName: 'Direct Deposit', accountHolder: staffName, accountNo: '••••••••', ifscCode: '—', upiId: staffEmail, lastUpdatedDate: 'Recently', historyLogs: [] },
+            attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+            leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+            subordinates: [],
+          };
+          if (!extraStaff.some((e: any) => e.email.toLowerCase() === staffEmail.toLowerCase())) {
+            extraStaff.unshift(newProfile);
+            localStorage.setItem('das_crm_extra_staff', JSON.stringify(extraStaff));
+          }
+
+          const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+          if (!extraUnassigned.some((u: any) => u.email?.toLowerCase() === staffEmail.toLowerCase())) {
+            extraUnassigned.unshift({
+              id: unassignedUser.id,
+              name: staffName,
+              email: staffEmail,
+              phone: data.user?.phone || '—',
+              appliedRole: assignedRole,
+              registeredAt: new Date().toISOString(),
+            });
+            localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(extraUnassigned));
+          }
+        } catch (_) {}
+
+        setAuthSession(unassignedUser, data.accessToken);
         setLoading(false);
-        router.push(getPostLoginRedirectRoute(assignedRole));
+        router.push('/dashboard');
         return;
       }
     } catch (err) {
@@ -1186,7 +1233,10 @@ export function LoginGateway() {
                 {/* Role Selector — always shown once key is validated */}
                 {keyInfo?.valid && (
                   <div>
-                    <label className="text-xs text-muted block mb-1">Your Role in the Company *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-muted block">Applied / Requested Role *</label>
+                      <span className="text-[10px] text-amber-400 font-semibold">⏳ Requires Admin Verification</span>
+                    </div>
                     <div className="flex gap-1.5 flex-wrap">
                       {(['SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR'] as UserRole[]).map(r => (
                         <button
@@ -1195,14 +1245,17 @@ export function LoginGateway() {
                           onClick={() => setStaffRole(r)}
                           className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
                             staffRole === r
-                              ? 'bg-indigo-500 border-indigo-400 text-white'
+                              ? 'bg-indigo-500 border-indigo-400 text-white shadow-md'
                               : 'bg-secondary/50 border-border text-muted-foreground hover:border-indigo-400 hover:text-white'
                           }`}
                         >
-                          {r.replace('_', ' ')}
+                          {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'MANAGER' ? 'Manager' : 'HR'}
                         </button>
                       ))}
                     </div>
+                    <p className="text-[10px] text-muted mt-1">
+                      Your requested role will be reviewed and assigned by your Organization Administrator before full dashboard access is granted.
+                    </p>
                   </div>
                 )}
                 <div>
@@ -1267,12 +1320,12 @@ export function LoginGateway() {
             <button
               onClick={handleStaffKeyRegister}
               disabled={loading || !keyInfo?.valid}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2 transition-all"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               {loading
-                ? 'Creating Account...'
+                ? 'Submitting Registration...'
                 : keyInfo?.valid
-                ? `Join ${keyInfo.organizationName || 'Company'} as ${staffRole.replace('_', ' ')}`
+                ? `Register as ${staffRole.replace('_', ' ')} (Pending Admin Approval)`
                 : 'Validate Key First'}
               {!loading && <ArrowRight size={15} />}
             </button>

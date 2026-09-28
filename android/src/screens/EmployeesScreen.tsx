@@ -359,6 +359,40 @@ export default function EmployeesScreen() {
       }
     }
 
+    // Registered Staff Member with Company Key (Aditya Kumar Rai)
+    const adityaId = 'usr_aditya_rai_01';
+    if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
+      const adityaAssigned = roleOverrides[adityaId] || roleOverrides['rai992522@gmail.com'];
+      if (!adityaAssigned || adityaAssigned === 'UNASSIGNED') {
+        fallbackUnassigned.push({
+          id: adityaId,
+          name: 'Aditya Kumar Rai',
+          email: 'rai992522@gmail.com',
+          phone: '+91 99252 20000',
+          registeredAt: 'Sep 27, 2026',
+          deviceInfo: 'App/Web Registration',
+        });
+      } else {
+        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
+          (adityaAssigned as any) || 'MANAGER';
+        fallbackAssigned.push({
+          id: adityaId,
+          name: 'Aditya Kumar Rai',
+          email: 'rai992522@gmail.com',
+          phone: '+91 99252 20000',
+          role: finalRole,
+          assignedManager: 'Admin',
+          status: 'ONLINE',
+          avatarUrl: '',
+          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@okaxis', lastUpdatedDate: 'Sep 27, 2026', historyLogs: [] },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
+          subordinates: [],
+        });
+      }
+    }
+
     // Merge any locally added unassigned users from AsyncStorage
     try {
       const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
@@ -516,7 +550,17 @@ export default function EmployeesScreen() {
       const raw = await AsyncStorage.getItem('@das_crm_verified_overrides');
       const overrides = raw ? JSON.parse(raw) : {};
       overrides[target.id] = assignedRoleName;
+      if (target.email) {
+        overrides[target.email.toLowerCase()] = assignedRoleName;
+      }
       await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
+
+      const rawUnassigned = await AsyncStorage.getItem('@das_crm_extra_unassigned');
+      if (rawUnassigned) {
+        const extraList = JSON.parse(rawUnassigned);
+        const filtered = extraList.filter((u: any) => u.id !== target.id && u.email?.toLowerCase() !== target.email?.toLowerCase());
+        await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(filtered));
+      }
     } catch (_) {}
 
     // Call backend

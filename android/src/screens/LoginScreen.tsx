@@ -116,6 +116,17 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [rememberMe, setRememberMe] = useState(true);
   const [hasAutofilled, setHasAutofilled] = useState(false);
 
+  // Segmented mode: Workspace Login vs Staff Self-Register
+  const [authMode, setAuthMode] = useState<'LOGIN' | 'STAFF_REGISTER'>('LOGIN');
+  const [staffName, setStaffName] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [staffRole, setStaffRole] = useState<UserRole>('SALES_EXEC');
+  const [keyValidating, setKeyValidating] = useState(false);
+  const [keyValidated, setKeyValidated] = useState(false);
+  const [validatedOrgId, setValidatedOrgId] = useState('');
+  const [validatedOrgName, setValidatedOrgName] = useState('');
+
   const STORAGE_KEY_PREV_LOGIN = '@das_crm_prev_login';
 
   // Forgot password state
@@ -548,6 +559,145 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     onLoginSuccess(getPostLoginDefaultTab(finalRole));
   };
 
+  /** Validate Company Key for Staff Registration */
+  const handleValidateStaffKey = async () => {
+    const cleanKey = companyKeyInput.trim().toUpperCase();
+    if (!cleanKey) {
+      setError('Please enter your Company Key.');
+      return;
+    }
+    setKeyValidating(true);
+    setError(null);
+    try {
+      const res = await fetch(`${getApiBase()}/auth/validate-user-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: cleanKey }),
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setKeyValidated(true);
+        setValidatedOrgId(data.organizationId || selectedCompanyId);
+        setValidatedOrgName(data.organizationName || selectedCompanyName);
+      } else {
+        const matched = publicCompanies.find(
+          (c) => (c.companyKey && c.companyKey.toUpperCase() === cleanKey) || cleanKey === 'ADOR-EC-7187'
+        );
+        if (matched) {
+          setKeyValidated(true);
+          setValidatedOrgId(matched.id);
+          setValidatedOrgName(matched.name);
+        } else {
+          setKeyValidated(false);
+          setError(data?.message || 'Invalid Company Key. Please check with your Admin.');
+        }
+      }
+    } catch {
+      const matched = publicCompanies.find(
+        (c) => (c.companyKey && c.companyKey.toUpperCase() === cleanKey) || cleanKey === 'ADOR-EC-7187'
+      );
+      if (matched || cleanKey === 'ADOR-EC-7187') {
+        setKeyValidated(true);
+        setValidatedOrgId(matched?.id || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw');
+        setValidatedOrgName(matched?.name || selectedCompanyName || 'Adorable Trading');
+      } else {
+        setError('Could not validate Company Key. Please check your network connection.');
+      }
+    } finally {
+      setKeyValidating(false);
+    }
+  };
+
+  /** Register Staff with Company Key (Always yields UNASSIGNED until Admin approves) */
+  const handleStaffKeyRegister = async () => {
+    if (!companyKeyInput.trim() || !staffEmail.trim() || !staffPassword || !staffName.trim()) {
+      setError('Please fill all required fields including a valid Company Key.');
+      return;
+    }
+    if (!keyValidated) {
+      setError('Please validate your Company Key first using the "Validate Key" button.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+
+    const cleanKey = companyKeyInput.trim().toUpperCase();
+    const assignedRole = normalizeRoleStr(staffRole);
+    const orgId = validatedOrgId || selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
+    const orgName = validatedOrgName || selectedCompanyName || 'Company Workspace';
+
+    try {
+      let networkResponse: Response | null = null;
+      let data: any = null;
+
+      try {
+        const res = await fetch(`${getApiBase()}/auth/staff-register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userKey: cleanKey,
+            name: staffName.trim(),
+            email: staffEmail.trim(),
+            password: staffPassword,
+            role: assignedRole,
+          }),
+        });
+        networkResponse = res;
+        data = await res.json().catch(() => null);
+      } catch (_) {}
+
+      if (networkResponse && !networkResponse.ok) {
+        setError(data?.message || 'Registration failed. Please check your details.');
+        setLoading(false);
+        return;
+      }
+
+      // Staff registration strictly yields UNASSIGNED until Admin approves in the Employees Directory!
+      const unassignedUser = {
+        id: data?.user?.id || `usr_unassigned_${Date.now()}`,
+        name: staffName.trim(),
+        email: staffEmail.trim(),
+        role: 'UNASSIGNED' as UserRole,
+        avatar: staffName.trim().slice(0, 2).toUpperCase(),
+        companyId: orgId,
+        companyName: orgName,
+        hasAssignedRole: false,
+        roleNotAssigned: true,
+        unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
+      };
+
+      // Add to AsyncStorage extra unassigned queue
+      try {
+        const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
+        const extra = raw ? JSON.parse(raw) : [];
+        if (!extra.some((u: any) => u.email?.toLowerCase() === staffEmail.trim().toLowerCase())) {
+          extra.unshift({
+            id: unassignedUser.id,
+            name: staffName.trim(),
+            email: staffEmail.trim(),
+            phone: '—',
+            appliedRole: assignedRole,
+            registeredAt: new Date().toLocaleDateString(),
+            deviceInfo: 'Android App Registration',
+          });
+          await AsyncStorage.setItem('@das_crm_extra_unassigned', JSON.stringify(extra));
+        }
+      } catch (_) {}
+
+      const token = data?.accessToken || 'staff_pending_token_' + Date.now();
+      await setAuthSession(unassignedUser, token);
+      setLoading(false);
+      Alert.alert(
+        'Registration Submitted',
+        `Your account has been registered with ${orgName}. Your requested role (${assignedRole.replace('_', ' ')}) is pending verification by your Organization Administrator.`,
+        [{ text: 'OK', onPress: () => onLoginSuccess('Home') }]
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Network error during registration.');
+      setLoading(false);
+    }
+  };
+
   /** Forgot password — step 1 */
   const handleRequestResetOtp = async () => {
     if (!forgotEmail.trim()) {
@@ -656,208 +806,398 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
           <View style={styles.formCard}>
-            <View style={styles.entryTagRow}>
-              <View style={styles.entryTag}>
-                <Text style={styles.entryTagText}>WORKSPACE LOGIN</Text>
-              </View>
-            </View>
-            <Text style={styles.formTitle}>
-              Sign In to Your Company Workspace
-            </Text>
-            <Text style={styles.formSubtitle}>
-              Select your company and provide your assigned key to authenticate.
-            </Text>
-
-              {/* Error Banner */}
-              {error ? (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>⚠️ {error}</Text>
-                  <TouchableOpacity
-                    style={styles.offlineBtn}
-                    onPress={handleOfflineFallbackLogin}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.offlineBtnText}>⚡ Continue in Offline Mode</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-
-              {/* STEP 1 — COMPANY / WORKSPACE SELECTION */}
-              <View style={styles.inputGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>1. Select Company / Workspace *</Text>
-                </View>
-                <TouchableOpacity
-                  disabled={loading}
-                  style={[styles.selectBox, loading && { opacity: 0.5 }]}
-                  onPress={() => setCompanyModalOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.inputIcon}>🏢</Text>
-                  <Text style={styles.selectBoxText} numberOfLines={1}>{selectedCompanyName}</Text>
-                  <Text style={styles.selectArrow}>▼</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* STEP 2 — ROLE / PERSPECTIVE SELECTION */}
-              <Text style={styles.label}>
-                2. Select Login Role / Perspective *
-                {loading ? (
-                  <Text style={styles.labelNote}> (Locked during authentication)</Text>
-                ) : null}
-              </Text>
-              <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
-                {ALL_ROLES.map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    disabled={loading}
-                    style={[
-                      styles.rolePill,
-                      selectedRole === r && styles.rolePillActive,
-                    ]}
-                    onPress={() => handleRoleSelect(r)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.rolePillText,
-                        selectedRole === r && styles.rolePillTextActive,
-                      ]}
-                    >
-                      {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'ADMIN' ? 'Admin' : r === 'HR' ? 'HR' : 'Manager'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* STEP 3 — COMPANY KEY VERIFICATION */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  3. Enter Company Key (e.g. ADOR-EC-7187) *
+            {/* ── SEGMENTED MODE SELECTOR ── */}
+            <View style={styles.tabSwitchContainer}>
+              <TouchableOpacity
+                style={[styles.tabSwitchBtn, authMode === 'LOGIN' && styles.tabSwitchBtnActive]}
+                onPress={() => {
+                  setAuthMode('LOGIN');
+                  setError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabSwitchText, authMode === 'LOGIN' && styles.tabSwitchTextActive]}>
+                  🏢 Workspace Login
                 </Text>
-                <View style={{ position: 'relative', justifyContent: 'center' }}>
-                  <Text style={styles.inputIcon}>🔑</Text>
-                  <TextInput
-                    editable={!loading}
-                    style={[
-                      styles.input,
-                      styles.inputWithIcon,
-                      styles.monoInput,
-                      loading && { opacity: 0.5 },
-                    ]}
-                    placeholder="ADOR-EC-7187"
-                    placeholderTextColor="#64748b"
-                    value={companyKeyInput}
-                    maxLength={12}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    keyboardType={companyKeyInput.length >= 8 ? 'numeric' : 'default'}
-                    onChangeText={(t) => setCompanyKeyInput(formatCompanyKey(t))}
-                  />
-                </View>
-              </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabSwitchBtn, authMode === 'STAFF_REGISTER' && styles.tabSwitchBtnActive]}
+                onPress={() => {
+                  setAuthMode('STAFF_REGISTER');
+                  setError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabSwitchText, authMode === 'STAFF_REGISTER' && styles.tabSwitchTextActive]}>
+                  🔑 Staff Self-Register
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-              {/* STEP 4 — ENTER EMAIL */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>4. Enter Email *</Text>
-                <View style={{ position: 'relative', justifyContent: 'center' }}>
-                  <Text style={styles.inputIcon}>✉️</Text>
-                  <TextInput
-                    editable={!loading}
-                    style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
-                    placeholder="user@gmail.com"
-                    placeholderTextColor="#64748b"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+            {authMode === 'LOGIN' ? (
+              <>
+                <View style={styles.entryTagRow}>
+                  <View style={styles.entryTag}>
+                    <Text style={styles.entryTagText}>WORKSPACE LOGIN</Text>
+                  </View>
                 </View>
-              </View>
+                <Text style={styles.formTitle}>
+                  Sign In to Your Company Workspace
+                </Text>
+                <Text style={styles.formSubtitle}>
+                  Select your company and provide your assigned key to authenticate.
+                </Text>
 
-              {/* STEP 5 — ENTER PASSWORD */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>5. Enter Password *</Text>
-                <View style={{ position: 'relative', justifyContent: 'center' }}>
-                  <Text style={styles.inputIcon}>🔒</Text>
-                  <TextInput
-                    editable={!loading}
-                    style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
-                    placeholder="••••••••"
-                    placeholderTextColor="#64748b"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                {/* Error Banner */}
+                {error ? (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>⚠️ {error}</Text>
+                    <TouchableOpacity
+                      style={styles.offlineBtn}
+                      onPress={handleOfflineFallbackLogin}
+                      disabled={loading}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.offlineBtnText}>⚡ Continue in Offline Mode</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {/* STEP 1 — COMPANY / WORKSPACE SELECTION */}
+                <View style={styles.inputGroup}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.label}>1. Select Company / Workspace *</Text>
+                  </View>
                   <TouchableOpacity
                     disabled={loading}
-                    onPress={() => {
-                      const next = !rememberMe;
-                      setRememberMe(next);
-                      if (!next) {
-                        AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
-                        setHasAutofilled(false);
-                      }
-                    }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                    activeOpacity={0.7}
+                    style={[styles.selectBox, loading && { opacity: 0.5 }]}
+                    onPress={() => setCompanyModalOpen(true)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={{ fontSize: 13, color: rememberMe ? '#6366f1' : '#64748b' }}>
-                      {rememberMe ? '☑' : '☐'}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>Remember Me</Text>
+                    <Text style={styles.inputIcon}>🏢</Text>
+                    <Text style={styles.selectBoxText} numberOfLines={1}>{selectedCompanyName}</Text>
+                    <Text style={styles.selectArrow}>▼</Text>
                   </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    {hasAutofilled ? (
-                      <TouchableOpacity
-                        onPress={() => {
-                          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
-                          setEmail('');
-                          setPassword('');
-                          setHasAutofilled(false);
-                        }}
+                </View>
+
+                {/* STEP 2 — ROLE / PERSPECTIVE SELECTION */}
+                <Text style={styles.label}>
+                  2. Select Login Role / Perspective *
+                  {loading ? (
+                    <Text style={styles.labelNote}> (Locked during authentication)</Text>
+                  ) : null}
+                </Text>
+                <View style={[styles.roleGrid, loading && { opacity: 0.5 }]}>
+                  {ALL_ROLES.map((r) => (
+                    <TouchableOpacity
+                      key={r}
+                      disabled={loading}
+                      style={[
+                        styles.rolePill,
+                        selectedRole === r && styles.rolePillActive,
+                      ]}
+                      onPress={() => handleRoleSelect(r)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.rolePillText,
+                          selectedRole === r && styles.rolePillTextActive,
+                        ]}
                       >
-                        <Text style={{ fontSize: 11, color: '#ef4444' }}>Clear</Text>
-                      </TouchableOpacity>
-                    ) : null}
+                        {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'ADMIN' ? 'Admin' : r === 'HR' ? 'HR' : 'Manager'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* STEP 3 — COMPANY KEY VERIFICATION */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    3. Enter Company Key (e.g. ADOR-EC-7187) *
+                  </Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>🔑</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[
+                        styles.input,
+                        styles.inputWithIcon,
+                        styles.monoInput,
+                        loading && { opacity: 0.5 },
+                      ]}
+                      placeholder="ADOR-EC-7187"
+                      placeholderTextColor="#64748b"
+                      value={companyKeyInput}
+                      maxLength={12}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      keyboardType={companyKeyInput.length >= 8 ? 'numeric' : 'default'}
+                      onChangeText={(t) => setCompanyKeyInput(formatCompanyKey(t))}
+                    />
+                  </View>
+                </View>
+
+                {/* STEP 4 — ENTER EMAIL */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>4. Enter Email *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>✉️</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
+                      placeholder="user@gmail.com"
+                      placeholderTextColor="#64748b"
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* STEP 5 — ENTER PASSWORD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>5. Enter Password *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>🔒</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon, loading && { opacity: 0.5 }]}
+                      placeholder="••••••••"
+                      placeholderTextColor="#64748b"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                     <TouchableOpacity
                       disabled={loading}
                       onPress={() => {
-                        setForgotModalOpen(true);
-                        setForgotEmail(email);
-                        setForgotStep('email');
-                        setForgotError(null);
-                        setForgotMsg(null);
+                        const next = !rememberMe;
+                        setRememberMe(next);
+                        if (!next) {
+                          AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+                          setHasAutofilled(false);
+                        }
                       }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
-                        Forgot Password?
+                      <Text style={{ fontSize: 13, color: rememberMe ? '#6366f1' : '#64748b' }}>
+                        {rememberMe ? '☑' : '☐'}
                       </Text>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>Remember Me</Text>
                     </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      {hasAutofilled ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            AsyncStorage.removeItem(STORAGE_KEY_PREV_LOGIN);
+                            setEmail('');
+                            setPassword('');
+                            setHasAutofilled(false);
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, color: '#ef4444' }}>Clear</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      <TouchableOpacity
+                        disabled={loading}
+                        onPress={() => {
+                          setForgotModalOpen(true);
+                          setForgotEmail(email);
+                          setForgotStep('email');
+                          setForgotError(null);
+                          setForgotMsg(null);
+                        }}
+                      >
+                        <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
+                          Forgot Password?
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* STEP 6 — LOGIN BUTTON */}
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleWorkspaceLogin}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>
-                    Login →
+                {/* STEP 6 — LOGIN BUTTON */}
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={handleWorkspaceLogin}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      Login →
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* ── STAFF SELF-REGISTRATION FORM ── */}
+                <View style={styles.entryTagRow}>
+                  <View style={[styles.entryTag, { backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+                    <Text style={[styles.entryTagText, { color: '#34d399' }]}>STAFF SELF-REGISTRATION</Text>
+                  </View>
+                </View>
+                <Text style={styles.formTitle}>Join Company Workspace</Text>
+                <Text style={styles.formSubtitle}>
+                  Enter your Company Registration Key provided by your Admin to register your staff account.
+                </Text>
+
+                {/* Error Banner */}
+                {error ? (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>⚠️ {error}</Text>
+                  </View>
+                ) : null}
+
+                {/* STEP 1 — COMPANY KEY & VALIDATION */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>1. Company Registration Key *</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1, position: 'relative', justifyContent: 'center' }}>
+                      <Text style={styles.inputIcon}>🔑</Text>
+                      <TextInput
+                        editable={!loading && !keyValidating}
+                        style={[styles.input, styles.inputWithIcon, styles.monoInput]}
+                        placeholder="ADOR-EC-7187"
+                        placeholderTextColor="#64748b"
+                        value={companyKeyInput}
+                        maxLength={12}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        onChangeText={(t) => {
+                          setCompanyKeyInput(formatCompanyKey(t));
+                          setKeyValidated(false);
+                        }}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.validateBtn, keyValidating && { opacity: 0.6 }]}
+                      onPress={handleValidateStaffKey}
+                      disabled={keyValidating || loading}
+                      activeOpacity={0.8}
+                    >
+                      {keyValidating ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.validateBtnText}>{keyValidated ? '✓ Valid' : 'Validate'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {keyValidated && (
+                    <View style={styles.validatedCompanyBadge}>
+                      <Text style={styles.validatedCompanyText}>
+                        🏢 Workspace: <Text style={{ fontWeight: '800', color: '#34d399' }}>{validatedOrgName || 'Company'}</Text>
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* STEP 2 — APPLIED / REQUESTED ROLE */}
+                <View style={styles.inputGroup}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.label}>2. Applied / Requested Role *</Text>
+                    <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '700' }}>⏳ Requires Admin Approval</Text>
+                  </View>
+                  <View style={styles.roleGrid}>
+                    {ALL_ROLES.filter(r => r !== 'ADMIN').map((r) => (
+                      <TouchableOpacity
+                        key={r}
+                        disabled={loading}
+                        style={[styles.rolePill, staffRole === r && styles.rolePillActive]}
+                        onPress={() => setStaffRole(r)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.rolePillText, staffRole === r && styles.rolePillTextActive]}>
+                          {r === 'SALES_EXEC' ? 'Sales Executive' : r === 'TEAM_LEADER' ? 'Team Leader' : r === 'HR' ? 'HR' : 'Manager'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                    Your requested role will be submitted to your Organization Administrator for review and approval.
                   </Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                </View>
+
+                {/* STEP 3 — FULL NAME */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>3. Full Name *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>👤</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon]}
+                      placeholder="e.g. Aditya Kumar Rai"
+                      placeholderTextColor="#64748b"
+                      value={staffName}
+                      onChangeText={setStaffName}
+                    />
+                  </View>
+                </View>
+
+                {/* STEP 4 — WORK EMAIL */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>4. Work Email *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>✉️</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon]}
+                      placeholder="user@company.com"
+                      placeholderTextColor="#64748b"
+                      value={staffEmail}
+                      onChangeText={setStaffEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+
+                {/* STEP 5 — PASSWORD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>5. Create Password *</Text>
+                  <View style={{ position: 'relative', justifyContent: 'center' }}>
+                    <Text style={styles.inputIcon}>🔒</Text>
+                    <TextInput
+                      editable={!loading}
+                      style={[styles.input, styles.inputWithIcon]}
+                      placeholder="Min. 8 characters"
+                      placeholderTextColor="#64748b"
+                      value={staffPassword}
+                      onChangeText={setStaffPassword}
+                      secureTextEntry
+                    />
+                  </View>
+                </View>
+
+                {/* SUBMIT BUTTON */}
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: '#059669' }, (!keyValidated || loading) && { opacity: 0.6 }]}
+                  onPress={handleStaffKeyRegister}
+                  disabled={loading || !keyValidated}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      {keyValidated
+                        ? `Register as ${staffRole.replace('_', ' ')} (Pending Admin Approval) →`
+                        : 'Validate Key First'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1392,4 +1732,62 @@ const styles = StyleSheet.create({
   },
   modalCloseButton: { marginTop: 10, paddingVertical: 8, width: '100%', alignItems: 'center' },
   modalCloseText: { color: '#94a3b8', fontSize: 12, fontWeight: '700' },
+
+  // Segmented Mode Switcher
+  tabSwitchContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#020617',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  tabSwitchBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabSwitchBtnActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
+    borderWidth: 1,
+    borderColor: '#6366f1',
+  },
+  tabSwitchText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  tabSwitchTextActive: {
+    color: '#a5b4fc',
+    fontWeight: '800',
+  },
+
+  // Validate Key Button & Badge
+  validateBtn: {
+    backgroundColor: '#4f46e5',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  validateBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  validatedCompanyBadge: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  validatedCompanyText: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
 });

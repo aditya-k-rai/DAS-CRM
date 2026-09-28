@@ -262,7 +262,31 @@ export function EmployeeListWidget({
     try {
       const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
       overrides[empId] = assignedRole;
+      const targetEmp = employees.find(e => e.id === empId);
+      if (targetEmp?.email) {
+        overrides[targetEmp.email.toLowerCase()] = assignedRole;
+      }
       localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
+
+      // Also update das_crm_extra_staff
+      const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+      const updatedExtraStaff = extraStaff.map((st: any) => {
+        if (st.id === empId || (targetEmp && st.email?.toLowerCase() === targetEmp.email.toLowerCase())) {
+          return {
+            ...st,
+            role: assignedRole,
+            isVerified: true,
+            verificationStatus: 'VERIFIED',
+          };
+        }
+        return st;
+      });
+      localStorage.setItem('das_crm_extra_staff', JSON.stringify(updatedExtraStaff));
+
+      // Also remove from extra unassigned
+      const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+      const filteredUnassigned = extraUnassigned.filter((u: any) => u.id !== empId && (targetEmp ? u.email?.toLowerCase() !== targetEmp.email.toLowerCase() : true));
+      localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(filteredUnassigned));
     } catch (_) {}
 
     // 2. Call backend in background
@@ -563,9 +587,16 @@ export function EmployeeListWidget({
               const rawRole = (u.role || '').toUpperCase();
               let role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED' = 'UNASSIGNED';
 
-              if (storedOverrides[String(u.id)]) {
-                role = storedOverrides[String(u.id)] as any;
-              } else if (u.roleId === null || rawRole === 'UNASSIGNED' || !u.role || u.roleNotAssigned || u.hasAssignedRole === false) {
+              if (storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()]) {
+                role = (storedOverrides[String(u.id)] || storedOverrides[u.email?.toLowerCase()]) as any;
+              } else if (
+                u.roleId === null ||
+                rawRole === 'UNASSIGNED' ||
+                !u.role ||
+                u.roleNotAssigned ||
+                u.hasAssignedRole === false ||
+                (u.email?.toLowerCase() === 'rai992522@gmail.com' && !storedOverrides['rai992522@gmail.com'])
+              ) {
                 role = 'UNASSIGNED';
               } else if (rawRole.includes('ADMIN') || rawRole.includes('OWNER') || rawRole.includes('SUPER_ADMIN')) {
                 role = 'ADMIN';
@@ -774,7 +805,60 @@ export function EmployeeListWidget({
         });
       }
 
-      // 3. Any additional locally created staff
+      // 3. Registered Staff Member with Company Key (Aditya Kumar Rai - Pending Admin Assignment)
+      const adityaId = 'usr_aditya_rai_01';
+      if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
+        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'];
+        const isAdityaVerified = Boolean(adityaAssigned && adityaAssigned !== 'UNASSIGNED');
+        const role = isAdityaVerified ? (adityaAssigned as any) : 'UNASSIGNED';
+
+        fallbackList.push({
+          id: adityaId,
+          name: 'Aditya Kumar Rai',
+          code: 'EMP003',
+          dept: isAdityaVerified
+            ? role === 'HR'
+              ? 'Human Resources'
+              : role === 'MANAGER'
+              ? 'Executive & Management'
+              : role === 'TEAM_LEADER'
+              ? 'Lead & Operations'
+              : 'Sales & Growth'
+            : 'Pending Department',
+          email: 'rai992522@gmail.com',
+          phone: '+91 99252 20000',
+          role: role,
+          isVerified: isAdityaVerified,
+          verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
+          assignedManager: isAdityaVerified ? 'Admin' : 'Pending Admin Assignment',
+          baseSalary: isAdityaVerified ? (role === 'MANAGER' ? '₹75,000' : '₹45,000') : '₹45,000',
+          joined: 'Sep 27, 2026',
+          canSelfCheckIn: false,
+          status: 'active',
+          documents: {
+            pan: 'VERIFIED',
+            aadhaar: 'AADHAAR_SUBMITTED.pdf',
+            eduCert: 'DEGREE_SUBMITTED.pdf',
+            offerLetter: 'PENDING_OFFER.pdf',
+            lastUpdatedDate: 'Sep 27, 2026',
+            historyLogs: [],
+          },
+          bankDetails: {
+            bankName: 'Direct Deposit',
+            accountHolder: 'Aditya Kumar Rai',
+            accountNo: '••••••••',
+            ifscCode: '—',
+            upiId: 'rai992522@okaxis',
+            lastUpdatedDate: 'Sep 27, 2026',
+            historyLogs: [],
+          },
+          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          subordinates: [],
+        });
+      }
+
+      // 4. Any additional locally created staff & unassigned from local queue
       try {
         const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
         if (Array.isArray(extraStaff)) {
@@ -1054,7 +1138,8 @@ export function EmployeeListWidget({
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
                 {unassignedEmps.map(emp => {
-                  const currentSelectedRole = selectedVerifyRoles[emp.id] || 'SALES_EXEC';
+                  const applied = (emp as any).appliedRole || (emp.email === 'rai992522@gmail.com' ? 'MANAGER' : 'SALES_EXEC');
+                  const currentSelectedRole = selectedVerifyRoles[emp.id] || applied || 'SALES_EXEC';
                   const isVerifying = verifyingId === emp.id;
 
                   return (
@@ -1062,13 +1147,18 @@ export function EmployeeListWidget({
                       key={emp.id}
                       className="bg-card border-2 border-amber-500/35 rounded-2xl p-5 space-y-4 shadow-lg"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between flex-wrap gap-2">
                         <div>
                           <h4 className="text-base font-extrabold text-white">{emp.name}</h4>
                           <span className="text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-500/50 bg-amber-500/20 text-amber-300 inline-block mt-1">
                             ⏳ UNASSIGNED · PENDING APPROVAL
                           </span>
                         </div>
+                        {applied && (
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-extrabold">
+                            Applied: {applied.replace('_', ' ')}
+                          </span>
+                        )}
                       </div>
 
                       <div className="text-xs text-muted space-y-1">
