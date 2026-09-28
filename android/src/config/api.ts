@@ -71,7 +71,8 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Local LAN IP for physical device on Wi-Fi
+  // 4. Active local LAN IP for physical device on Wi-Fi (Current Dev Host: 192.168.1.38)
+  candidates.push('http://192.168.1.38:3001/api/v1');
   candidates.push('http://192.168.29.26:3001/api/v1');
 
   // 5. Android emulator loopback (10.0.2.2)
@@ -95,14 +96,14 @@ export const getApiBaseUrl = (): string => {
   if (expoIp) {
     return `http://${expoIp}:3001/api/v1`;
   }
-  // For physical Android devices, try local LAN IP first
+  // For physical Android devices, use active local LAN IP
   if (Platform.OS === 'android' && !__DEV__) {
-    return 'http://192.168.29.26:3001/api/v1';
+    return 'http://192.168.1.38:3001/api/v1';
   }
   if (__DEV__ && Platform.OS === 'android') {
-    return 'http://10.0.2.2:3001/api/v1';
+    return 'http://192.168.1.38:3001/api/v1';
   }
-  return 'http://192.168.29.26:3001/api/v1';
+  return 'http://192.168.1.38:3001/api/v1';
 };
 
 export let API_BASE: string = getApiBaseUrl();

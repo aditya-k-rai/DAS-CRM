@@ -222,8 +222,10 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                       {c.url}
                     </Text>
                     <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                      {c.url.includes('192.168.29.26')
-                        ? 'Wi-Fi Local Host (Developer PC)'
+                      {c.url.includes('192.168.1.38')
+                        ? 'Wi-Fi Local Host (Developer PC - Active)'
+                        : c.url.includes('192.168.29.26')
+                        ? 'Wi-Fi Local Host (Secondary / Alternate LAN)'
                         : c.url.includes('10.0.2.2')
                         ? 'Android Studio Emulator'
                         : c.url.includes('localhost')

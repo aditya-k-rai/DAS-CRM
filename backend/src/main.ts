@@ -2,9 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
-import compression from 'compression';
 import { AppModule } from './app.module';
+const helmet = require('helmet');
+const compression = require('compression');
 
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -15,9 +15,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3001);
 
-  // Security
-  app.use(helmet());
-  app.use(compression());
+  // Security & Optimization
+  if (typeof helmet === 'function') {
+    app.use(helmet());
+  }
+  if (typeof compression === 'function') {
+    app.use(compression());
+  }
   // Dynamic CORS configuration supporting local dev, Vercel, Render, and custom domains
   const allowedOriginsRaw = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
   const allowedList = allowedOriginsRaw.split(',').map((s) => s.trim()).filter(Boolean);
@@ -77,12 +81,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  const server = await app.listen(port);
+  const server = await app.listen(port, '0.0.0.0');
   if (server && 'keepAliveTimeout' in server) {
     (server as any).keepAliveTimeout = 65000;
     (server as any).headersTimeout = 66000;
   }
-  Logger.log(`🚀 CRM Backend running on http://localhost:${port}`, 'Bootstrap');
+  Logger.log(`🚀 CRM Backend running on http://0.0.0.0:${port} (Port ${port})`, 'Bootstrap');
   Logger.log(
     `📚 Swagger docs at http://localhost:${port}/api/docs`,
     'Bootstrap',
