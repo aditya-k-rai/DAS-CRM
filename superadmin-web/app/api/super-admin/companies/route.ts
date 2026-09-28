@@ -22,8 +22,8 @@ const LIVE_COMPANIES = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 7,
-    totalUsersCount: 7,
+    seatsUsed: 6,
+    totalUsersCount: 6,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -80,9 +80,8 @@ export async function GET(req: Request) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const mapped = data.map((c: any) => {
-          const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-          const seatsUsed = isAdorable ? Math.max(c.seatsUsed ?? 0, 5) : (c.seatsUsed ?? 1);
-          const totalUsersCount = isAdorable ? Math.max(c.totalUsersCount ?? 0, 5) : (c.totalUsersCount ?? 1);
+          const seatsUsed = Math.max(c.seatsUsed ?? 0, 1);
+          const totalUsersCount = Math.max(c.totalUsersCount ?? 0, 1);
           return {
             ...c,
             seatsUsed,

@@ -255,8 +255,8 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
     registrationKey: 'ADOR-EC-7187',
     plan: 'BUSINESS',
     seatsAllocated: 18,
-    seatsUsed: 7,
-    totalUsersCount: 7,
+    seatsUsed: 6,
+    totalUsersCount: 6,
     totalLeads: 0,
     convertedLeads: 0,
     conversionRate: 0,
@@ -357,7 +357,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       keyUsed: 'ADOR-EC-7187',
     },
     {
-      id: 'usr_sulekha_tomar_01',
+      id: 'cmukwwdv9000ng42dghtw6t3z',
       name: 'Sulekha Tomar',
       email: 'sulekhatmr@gmail.com',
       role: 'SALES_EXEC',
@@ -365,31 +365,19 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       lastLoginAt: '2026-09-28T06:30:00.000Z',
       lastActiveAt: '2026-09-28T07:40:00.000Z',
       lastPlatform: 'ANDROID',
-      createdAt: '2026-09-28T01:00:00.000Z',
+      createdAt: '2026-09-28T07:14:22.389Z',
       keyUsed: 'ADOR-EC-7187',
     },
     {
-      id: 'usr_rohit_verma_01',
-      name: 'Rohit Verma',
-      email: 'rohitverma88@gmail.com',
+      id: 'cmukykfoe000nht2d0ylnsd3t',
+      name: 'Sadhana',
+      email: 'sadhnadikshit98@gmail.com',
       role: 'UNASSIGNED',
       isActive: true,
-      lastLoginAt: '2026-09-28T04:15:00.000Z',
-      lastActiveAt: '2026-09-28T06:20:00.000Z',
+      lastLoginAt: null,
+      lastActiveAt: null,
       lastPlatform: 'WEB',
-      createdAt: '2026-09-28T03:30:00.000Z',
-      keyUsed: 'ADOR-EC-7187',
-    },
-    {
-      id: 'usr_pooja_sharma_01',
-      name: 'Pooja Sharma',
-      email: 'poojasharma94@gmail.com',
-      role: 'UNASSIGNED',
-      isActive: true,
-      lastLoginAt: '2026-09-27T16:40:00.000Z',
-      lastActiveAt: '2026-09-27T18:10:00.000Z',
-      lastPlatform: 'ANDROID',
-      createdAt: '2026-09-27T15:00:00.000Z',
+      createdAt: '2026-09-28T08:01:04.094Z',
       keyUsed: 'ADOR-EC-7187',
     },
   ],
@@ -471,7 +459,17 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
   for (const emp of serverEmployees) {
     if (!emp || !emp.email) continue;
     const emailKey = emp.email.toLowerCase().trim();
-    const rawRole = emp.role?.name || emp.role || 'SALES_EXEC';
+    let rawRole = 'UNASSIGNED';
+    if (typeof emp.role === 'string' && emp.role.trim() !== '') {
+      rawRole = emp.role.trim();
+    } else if (emp.role?.name) {
+      rawRole = emp.role.name;
+    } else if (emp.appliedRole) {
+      rawRole = emp.appliedRole;
+    } else if (emp.roleId === null || emp.hasAssignedRole === false || !emp.role) {
+      rawRole = 'UNASSIGNED';
+    }
+
     employeesMap.set(emailKey, {
       id: emp.id || `emp_${Date.now()}_${Math.random()}`,
       name: emp.name || (emp.firstName ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : 'Staff Member'),
@@ -480,17 +478,19 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
       isActive: emp.isActive !== false,
       lastLoginAt: emp.lastLoginAt || null,
       lastActiveAt: emp.lastActiveAt || emp.lastLoginAt || null,
-      lastPlatform: emp.lastPlatform || (rawRole === 'TEAM_LEADER' || emp.email?.includes('puri') || emp.email?.includes('tomar') || emp.email?.includes('pooja') ? 'ANDROID' : 'WEB'),
+      lastPlatform: emp.lastPlatform || (rawRole === 'TEAM_LEADER' || emp.email?.includes('puri') || emp.email?.includes('tomar') ? 'ANDROID' : 'WEB'),
       createdAt: emp.createdAt || new Date().toISOString(),
-      keyUsed: emp.keyUsed || emp.registrationKey || 'ADOR-EC-7187',
+      keyUsed: emp.keyUsed || emp.registrationKey || emp.companyKey || 'ADOR-EC-7187',
     });
   }
 
-  // 2. Add fallback demo employees
-  for (const fb of fallbackList) {
-    const emailKey = fb.email.toLowerCase().trim();
-    if (!employeesMap.has(emailKey)) {
-      employeesMap.set(emailKey, { ...fb });
+  // 2. Only add fallback demo employees if server returned 0 records
+  if (employeesMap.size === 0) {
+    for (const fb of fallbackList) {
+      const emailKey = fb.email.toLowerCase().trim();
+      if (!employeesMap.has(emailKey)) {
+        employeesMap.set(emailKey, { ...fb });
+      }
     }
   }
 
@@ -595,7 +595,7 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
   return Array.from(employeesMap.values()).map(emp => {
     let role = emp.role;
     const emailLower = (emp.email || '').toLowerCase();
-    if (role === 'UNASSIGNED' || (emp.role && emp.role.toUpperCase().includes('UNASSIGNED'))) {
+    if (!role || role === 'UNASSIGNED' || (typeof emp.role === 'string' && emp.role.toUpperCase().includes('UNASSIGNED'))) {
       role = 'UNASSIGNED';
     } else if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
       role = 'ADMIN';
@@ -607,13 +607,13 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
       role = 'SALES_EXEC';
     } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
       role = 'SALES_EXEC';
-    } else if (emailLower.includes('rohit') || emailLower.includes('pooja')) {
+    } else if (emailLower.includes('sadhnadikshit') || emailLower.includes('sadhana')) {
       role = 'UNASSIGNED';
-    } else if (!role || role === 'VIEWER' || role === 'MEMBER') {
+    } else if (role === 'VIEWER' || role === 'MEMBER') {
       role = 'SALES_EXEC';
     }
 
-    const defaultPlatform = (role === 'TEAM_LEADER' || emailLower.includes('puri') || emailLower.includes('tomar') || emailLower.includes('pooja')) ? 'ANDROID' : 'WEB';
+    const defaultPlatform = (role === 'TEAM_LEADER' || emailLower.includes('puri') || emailLower.includes('tomar')) ? 'ANDROID' : 'WEB';
     return {
       ...emp,
       role,
@@ -1058,9 +1058,8 @@ export function SuperAdminDashboard() {
           if (Array.isArray(data) && data.length > 0) {
             const formatted = data.map((c: any) => {
               const compEmps = mergeCompanyEmployees(c.id, c.users || c.employees || []);
-              const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-              const seatsUsed = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 5) : Math.max(compEmps.length, c.seatsUsed ?? 1);
-              const totalUsersCount = isAdorable ? Math.max(compEmps.length, c.totalUsersCount ?? 0, 5) : Math.max(compEmps.length, c.totalUsersCount ?? 1);
+              const seatsUsed = Math.max(compEmps.length, c.seatsUsed ?? 0, 1);
+              const totalUsersCount = Math.max(compEmps.length, c.totalUsersCount ?? 0, 1);
               return {
                 ...c,
                 totalUsersCount,
@@ -1086,8 +1085,7 @@ export function SuperAdminDashboard() {
         const list = prev.length > 0 ? prev : MOCK_DEMO_COMPANIES;
         return list.map(c => {
           const compEmps = mergeCompanyEmployees(c.id, []);
-          const isAdorable = c.id === 'cmuev7n3o000mikew7je1tdiw' || (c.name || '').toLowerCase().includes('adorable');
-          const count = isAdorable ? Math.max(compEmps.length, c.seatsUsed ?? 0, 5) : Math.max(compEmps.length, c.seatsUsed ?? 1);
+          const count = Math.max(compEmps.length, c.seatsUsed ?? 0, 1);
           return {
             ...c,
             seatsUsed: count,
@@ -3118,7 +3116,10 @@ export function SuperAdminDashboard() {
         const seatPercent = Math.min(100, Math.round((usedSeats / allocatedSeats) * 100));
 
         const roleCounts = companyEmployees.reduce((acc: Record<string, number>, e) => {
-          const r = (e.role || 'SALES_EXEC').toUpperCase();
+          let r = (e.role || 'UNASSIGNED').toUpperCase();
+          if (r.includes('UNASSIGNED') || r.includes('PENDING') || r.includes('AWAITING')) {
+            r = 'UNASSIGNED';
+          }
           acc[r] = (acc[r] || 0) + 1;
           return acc;
         }, {});

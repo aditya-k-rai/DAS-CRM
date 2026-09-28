@@ -36,12 +36,13 @@ import { DataRetentionModule } from './modules/data-retention/data-retention.mod
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([
-      { name: 'auth_otp', ttl: 3600000, limit: 15 },
-      { name: 'bulk_import', ttl: 3600000, limit: 40 },
-      { name: 'general_crud', ttl: 3600000, limit: 1000 },
-      { name: 'free_tier', ttl: 3600000, limit: 500 },
-      { name: 'growth_tier', ttl: 3600000, limit: 2000 },
-      { name: 'pro_max_tier', ttl: 3600000, limit: 5000 },
+      { name: 'default', ttl: 60000, limit: 1000 },
+      { name: 'auth_otp', ttl: 3600000, limit: 100 },
+      { name: 'bulk_import', ttl: 3600000, limit: 200 },
+      { name: 'general_crud', ttl: 60000, limit: 2000 },
+      { name: 'free_tier', ttl: 3600000, limit: 5000 },
+      { name: 'growth_tier', ttl: 3600000, limit: 20000 },
+      { name: 'pro_max_tier', ttl: 3600000, limit: 50000 },
     ]),
     BullModule.forRootAsync({
       useFactory: () => ({

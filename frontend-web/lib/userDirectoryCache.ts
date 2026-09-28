@@ -331,7 +331,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
   }
 
   // 5. Sulekha Tomar (Sales Exec)
-  const sulekhaId = 'usr_sulekha_tomar_01';
+  const sulekhaId = 'cmukwwdv9000ng42dghtw6t3z';
   if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
     const sulekhaRole = (storedOverrides[sulekhaId] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any;
     const isSulekhaVerified = sulekhaRole !== 'UNASSIGNED';
@@ -364,6 +364,49 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
         accountNo: '••••••••',
         ifscCode: '—',
         upiId: 'sulekhatmr@okaxis',
+        lastUpdatedDate: 'Sep 28, 2026',
+        historyLogs: [],
+      },
+      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    });
+  }
+
+  // 6. Sadhana (Unassigned)
+  const sadhanaId = 'cmukykfoe000nht2d0ylnsd3t';
+  if (!removedIds.includes(sadhanaId) && !removedIds.includes('sadhnadikshit98@gmail.com')) {
+    const sadhanaRole = (storedOverrides[sadhanaId] || storedOverrides['sadhnadikshit98@gmail.com'] || 'UNASSIGNED') as any;
+    const isSadhanaVerified = sadhanaRole !== 'UNASSIGNED';
+    list.push({
+      id: sadhanaId,
+      name: 'Sadhana',
+      code: 'EMP006',
+      dept: isSadhanaVerified ? 'Sales & Growth' : 'Pending Department',
+      email: 'sadhnadikshit98@gmail.com',
+      phone: formatPhone(storedPhones[sadhanaId] || storedPhones['sadhnadikshit98@gmail.com'] || ''),
+      role: sadhanaRole,
+      isVerified: isSadhanaVerified,
+      verificationStatus: isSadhanaVerified ? 'VERIFIED' : 'PENDING',
+      assignedManager: storedManagers[sadhanaId] || storedManagers['sadhnadikshit98@gmail.com'] || 'Awaiting Admin Assignment',
+      baseSalary: '₹35,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: false,
+      status: 'active',
+      documents: {
+        pan: 'PENDING',
+        aadhaar: 'AADHAAR_SUBMITTED.pdf',
+        eduCert: 'DEGREE_SUBMITTED.pdf',
+        offerLetter: 'PENDING_OFFER.pdf',
+        lastUpdatedDate: 'Sep 28, 2026',
+        historyLogs: [],
+      },
+      bankDetails: {
+        bankName: 'Direct Deposit',
+        accountHolder: 'Sadhana',
+        accountNo: '••••••••',
+        ifscCode: '—',
+        upiId: 'sadhnadikshit98@okaxis',
         lastUpdatedDate: 'Sep 28, 2026',
         historyLogs: [],
       },

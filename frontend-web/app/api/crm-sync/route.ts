@@ -66,7 +66,7 @@ export async function GET(req: Request) {
       createdAt: '2026-09-27T01:00:00.000Z',
     },
     {
-      id: 'usr_sulekha_tomar_01',
+      id: 'cmukwwdv9000ng42dghtw6t3z',
       name: 'Sulekha Tomar',
       email: 'sulekhatmr@gmail.com',
       role: 'SALES_EXEC',
@@ -74,7 +74,18 @@ export async function GET(req: Request) {
       phone: '+91 93661 03735',
       assignedManager: 'Sachin Puri (Team Leader)',
       keyUsed: 'ADOR-EC-7187',
-      createdAt: '2026-09-28T01:00:00.000Z',
+      createdAt: '2026-09-28T07:14:22.389Z',
+    },
+    {
+      id: 'cmukykfoe000nht2d0ylnsd3t',
+      name: 'Sadhana',
+      email: 'sadhnadikshit98@gmail.com',
+      role: 'UNASSIGNED',
+      isActive: true,
+      phone: '',
+      assignedManager: 'Awaiting Role Assignment',
+      keyUsed: 'ADOR-EC-7187',
+      createdAt: '2026-09-28T08:01:04.094Z',
     },
   ];
 

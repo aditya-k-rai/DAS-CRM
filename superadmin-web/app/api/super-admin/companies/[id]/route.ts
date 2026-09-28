@@ -121,7 +121,7 @@ const LIVE_DETAILS: Record<string, any> = {
         keyUsed: 'ADOR-EC-7187',
       },
       {
-        id: 'usr_sulekha_tomar_01',
+        id: 'cmukwwdv9000ng42dghtw6t3z',
         name: 'Sulekha Tomar',
         email: 'sulekhatmr@gmail.com',
         role: 'SALES_EXEC',
@@ -129,31 +129,19 @@ const LIVE_DETAILS: Record<string, any> = {
         lastLoginAt: '2026-09-28T06:30:00.000Z',
         lastActiveAt: '2026-09-28T07:40:00.000Z',
         lastPlatform: 'ANDROID',
-        createdAt: '2026-09-28T01:00:00.000Z',
+        createdAt: '2026-09-28T07:14:22.389Z',
         keyUsed: 'ADOR-EC-7187',
       },
       {
-        id: 'usr_rohit_verma_01',
-        name: 'Rohit Verma',
-        email: 'rohitverma88@gmail.com',
+        id: 'cmukykfoe000nht2d0ylnsd3t',
+        name: 'Sadhana',
+        email: 'sadhnadikshit98@gmail.com',
         role: 'UNASSIGNED',
         isActive: true,
-        lastLoginAt: '2026-09-28T04:15:00.000Z',
-        lastActiveAt: '2026-09-28T06:20:00.000Z',
+        lastLoginAt: null,
+        lastActiveAt: null,
         lastPlatform: 'WEB',
-        createdAt: '2026-09-28T03:30:00.000Z',
-        keyUsed: 'ADOR-EC-7187',
-      },
-      {
-        id: 'usr_pooja_sharma_01',
-        name: 'Pooja Sharma',
-        email: 'poojasharma94@gmail.com',
-        role: 'UNASSIGNED',
-        isActive: true,
-        lastLoginAt: '2026-09-27T16:40:00.000Z',
-        lastActiveAt: '2026-09-27T18:10:00.000Z',
-        lastPlatform: 'ANDROID',
-        createdAt: '2026-09-27T15:00:00.000Z',
+        createdAt: '2026-09-28T08:01:04.094Z',
         keyUsed: 'ADOR-EC-7187',
       },
     ],
@@ -237,11 +225,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         }
       }
 
-      // 3. Fallback employees
-      const fallbackEmps: any[] = fallback?.employees || [];
-      for (const fb of fallbackEmps) {
-        if (fb?.email && !combinedEmpsMap.has(fb.email.toLowerCase().trim())) {
-          combinedEmpsMap.set(fb.email.toLowerCase().trim(), fb);
+      // 3. Only fall back if no employees retrieved
+      if (combinedEmpsMap.size === 0) {
+        const fallbackEmps: any[] = fallback?.employees || [];
+        for (const fb of fallbackEmps) {
+          if (fb?.email && !combinedEmpsMap.has(fb.email.toLowerCase().trim())) {
+            combinedEmpsMap.set(fb.email.toLowerCase().trim(), fb);
+          }
         }
       }
 
