@@ -98,6 +98,9 @@ export interface CompanyRecord {
   whatsAppConfig: WhatsAppCompanyConfig;
   aiConfig: AICompanyConfig;
   settings?: any;
+  subscription?: any;
+  requestedPlan?: PlanType;
+  seatsRequested?: number;
 }
 
 export interface CompanyEmployee {
@@ -290,6 +293,132 @@ const MOCK_DEMO_COMPANIES: CompanyRecord[] = [
       requestedValidityDays: 15,
     },
   },
+  {
+    id: 'org_zenith_growth_02',
+    name: 'Zenith Logistics & Supply',
+    domain: 'zenithlogistics.in',
+    adminName: 'Rohan Mehra',
+    adminEmail: 'rohan@zenithlogistics.in',
+    phone: '9810123456',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400001',
+    gstNumber: '27AABCT1234F1Z8',
+    panNumber: 'AABCT1234F',
+    panType: 'BUSINESS',
+    companyType: 'Private Limited',
+    sector: 'Logistics & Supply Chain',
+    accountType: 'BUY_REQUEST',
+    validityDays: 30,
+    registrationKey: 'ZENI-MH-4421',
+    plan: 'GROWTH',
+    seatsAllocated: 6,
+    seatsUsed: 4,
+    totalUsersCount: 4,
+    totalLeads: 124,
+    convertedLeads: 38,
+    conversionRate: 30.6,
+    expiryDate: '2026-10-02',
+    isExpired: false,
+    trialDaysLeft: 4,
+    isActive: true,
+    createdAt: '2026-09-02',
+    registeredAt: '2026-09-02T10:15:00.000Z',
+    verificationStatus: 'APPROVED',
+    emailConfig: { enabled: true, monthlyLimit: 5000, used: 1200 },
+    whatsAppConfig: { enabled: true, monthlyLimit: 10000, used: 3400, status: 'CONNECTED' },
+    aiConfig: {
+      enabled: true,
+      tier: 'BASIC',
+      customSystemPrompt: 'Logistics sales assistant.',
+      monthlyTokenLimit: 100000,
+      tokensUsed: 22000,
+    },
+  },
+  {
+    id: 'org_apex_enterprise_03',
+    name: 'Apex Global Financials',
+    domain: 'apexglobal.com',
+    adminName: 'Pooja Varma',
+    adminEmail: 'pooja.v@apexglobal.com',
+    phone: '9820567890',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    pincode: '560001',
+    gstNumber: '29AAACA9988G1ZQ',
+    panNumber: 'AAACA9988G',
+    panType: 'BUSINESS',
+    companyType: 'Public Limited',
+    sector: 'Financial Services & Fintech',
+    accountType: 'BUY_REQUEST',
+    validityDays: 365,
+    registrationKey: 'APEX-KA-9988',
+    plan: 'ENTERPRISE',
+    seatsAllocated: 60,
+    seatsUsed: 28,
+    totalUsersCount: 28,
+    totalLeads: 850,
+    convertedLeads: 410,
+    conversionRate: 48.2,
+    expiryDate: '2027-03-24',
+    isExpired: false,
+    trialDaysLeft: 177,
+    isActive: true,
+    createdAt: '2026-03-24',
+    registeredAt: '2026-03-24T08:00:00.000Z',
+    verificationStatus: 'APPROVED',
+    emailConfig: { enabled: true, monthlyLimit: 50000, used: 14200 },
+    whatsAppConfig: { enabled: true, monthlyLimit: 100000, used: 41200, status: 'CONNECTED' },
+    aiConfig: {
+      enabled: true,
+      tier: 'ENTERPRISE_CUSTOM',
+      customSystemPrompt: 'Fintech enterprise client advisory bot.',
+      monthlyTokenLimit: 1000000,
+      tokensUsed: 320000,
+    },
+  },
+  {
+    id: 'org_technova_expired_04',
+    name: 'TechNova Cloud Labs',
+    domain: 'technovaclouddot.io',
+    adminName: 'Vikram Sengupta',
+    adminEmail: 'vikram@technovalabs.io',
+    phone: '9871122334',
+    city: 'Hyderabad',
+    state: 'Telangana',
+    pincode: '500081',
+    gstNumber: '36AAACT5544H1Z2',
+    panNumber: 'AAACT5544H',
+    panType: 'BUSINESS',
+    companyType: 'LLP',
+    sector: 'Software & Cloud Services',
+    accountType: 'TRIAL',
+    validityDays: 15,
+    registrationKey: 'TNOV-TS-5544',
+    plan: 'FREE_TRIAL',
+    seatsAllocated: 6,
+    seatsUsed: 5,
+    totalUsersCount: 5,
+    totalLeads: 42,
+    convertedLeads: 8,
+    conversionRate: 19.0,
+    expiryDate: '2026-09-20',
+    isExpired: true,
+    trialDaysLeft: 0,
+    isActive: true,
+    createdAt: '2026-09-05',
+    registeredAt: '2026-09-05T09:30:00.000Z',
+    verificationStatus: 'APPROVED',
+    emailConfig: { enabled: false, monthlyLimit: 5000, used: 5000 },
+    whatsAppConfig: { enabled: false, monthlyLimit: 20000, used: 0, status: 'DISCONNECTED' },
+    aiConfig: {
+      enabled: false,
+      tier: 'PRO',
+      customSystemPrompt: 'Trial assistant.',
+      monthlyTokenLimit: 250000,
+      tokensUsed: 250000,
+    },
+  },
 ];
 
 const MOCK_DEMO_KEYS: KeyRecord[] = [
@@ -303,6 +432,39 @@ const MOCK_DEMO_KEYS: KeyRecord[] = [
     status: 'ACTIVE',
     expiresAt: '2026-10-09T01:40:30.314Z',
     createdAt: '2026-09-24T01:40:30.527Z',
+  },
+  {
+    id: 'key_zenith_growth_01',
+    key: 'ZENI-MH-4421',
+    companyName: 'Zenith Logistics & Supply',
+    planTier: 'GROWTH',
+    memberLimit: 6,
+    validityDays: 30,
+    status: 'ACTIVE',
+    expiresAt: '2026-10-02T10:15:00.000Z',
+    createdAt: '2026-09-02T10:15:00.000Z',
+  },
+  {
+    id: 'key_apex_enterprise_01',
+    key: 'APEX-KA-9988',
+    companyName: 'Apex Global Financials',
+    planTier: 'ENTERPRISE',
+    memberLimit: 60,
+    validityDays: 365,
+    status: 'ACTIVE',
+    expiresAt: '2027-03-24T08:00:00.000Z',
+    createdAt: '2026-03-24T08:00:00.000Z',
+  },
+  {
+    id: 'key_technova_expired_01',
+    key: 'TNOV-TS-5544',
+    companyName: 'TechNova Cloud Labs',
+    planTier: 'FREE_TRIAL',
+    memberLimit: 6,
+    validityDays: 15,
+    status: 'EXPIRED',
+    expiresAt: '2026-09-20T09:30:00.000Z',
+    createdAt: '2026-09-05T09:30:00.000Z',
   },
 ];
 
@@ -379,6 +541,96 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       lastPlatform: 'WEB',
       createdAt: '2026-09-28T08:01:04.094Z',
       keyUsed: 'ADOR-EC-7187',
+    },
+  ],
+  org_zenith_growth_02: [
+    {
+      id: 'usr_zenith_admin',
+      name: 'Rohan Mehra',
+      email: 'rohan@zenithlogistics.in',
+      role: 'ADMIN',
+      isActive: true,
+      lastLoginAt: '2026-09-28T07:30:00.000Z',
+      lastActiveAt: '2026-09-28T08:00:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-09-02T10:15:00.000Z',
+      keyUsed: 'ZENI-MH-4421',
+    },
+    {
+      id: 'usr_zenith_tl',
+      name: 'Kavita Chawla',
+      email: 'kavita@zenithlogistics.in',
+      role: 'TEAM_LEADER',
+      isActive: true,
+      lastLoginAt: '2026-09-28T06:45:00.000Z',
+      lastActiveAt: '2026-09-28T07:50:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-09-03T11:00:00.000Z',
+      keyUsed: 'ZENI-MH-4421',
+    },
+    {
+      id: 'usr_zenith_sales1',
+      name: 'Amit Shukla',
+      email: 'amit@zenithlogistics.in',
+      role: 'SALES_EXEC',
+      isActive: true,
+      lastLoginAt: '2026-09-28T05:15:00.000Z',
+      lastActiveAt: '2026-09-28T07:30:00.000Z',
+      lastPlatform: 'ANDROID',
+      createdAt: '2026-09-04T09:00:00.000Z',
+      keyUsed: 'ZENI-MH-4421',
+    },
+    {
+      id: 'usr_zenith_sales2',
+      name: 'Deepak Verma',
+      email: 'deepak@zenithlogistics.in',
+      role: 'SALES_EXEC',
+      isActive: true,
+      lastLoginAt: '2026-09-27T08:00:00.000Z',
+      lastActiveAt: '2026-09-27T10:00:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-09-04T09:15:00.000Z',
+      keyUsed: 'ZENI-MH-4421',
+    },
+  ],
+  org_apex_enterprise_03: [
+    {
+      id: 'usr_apex_admin',
+      name: 'Pooja Varma',
+      email: 'pooja.v@apexglobal.com',
+      role: 'ADMIN',
+      isActive: true,
+      lastLoginAt: '2026-09-28T08:00:00.000Z',
+      lastActiveAt: '2026-09-28T08:15:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-03-24T08:00:00.000Z',
+      keyUsed: 'APEX-KA-9988',
+    },
+    {
+      id: 'usr_apex_mgr',
+      name: 'Rajesh Iyer',
+      email: 'rajesh.i@apexglobal.com',
+      role: 'MANAGER',
+      isActive: true,
+      lastLoginAt: '2026-09-28T07:15:00.000Z',
+      lastActiveAt: '2026-09-28T08:05:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-03-25T09:00:00.000Z',
+      keyUsed: 'APEX-KA-9988',
+    },
+  ],
+  org_technova_expired_04: [
+    {
+      id: 'usr_technova_admin',
+      name: 'Vikram Sengupta',
+      email: 'vikram@technovalabs.io',
+      role: 'ADMIN',
+      isActive: true,
+      lastLoginAt: '2026-09-20T10:00:00.000Z',
+      lastActiveAt: '2026-09-20T11:00:00.000Z',
+      lastPlatform: 'WEB',
+      createdAt: '2026-09-05T09:30:00.000Z',
+      keyUsed: 'TNOV-TS-5544',
     },
   ],
 };
@@ -562,6 +814,8 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
             emp.role = overrides[emp.id];
           } else if (overrides[emailKey]) {
             emp.role = overrides[emailKey];
+          } else if (emp.email && overrides[emp.email.toLowerCase().trim()]) {
+            emp.role = overrides[emp.email.toLowerCase().trim()];
           }
         });
       }
@@ -591,26 +845,49 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
     } catch (_) {}
   }
 
-  // Normalize roles & return array
+  // Normalize roles & return array with verified precedence
   return Array.from(employeesMap.values()).map(emp => {
     let role = emp.role;
-    const emailLower = (emp.email || '').toLowerCase();
-    if (!role || role === 'UNASSIGNED' || (typeof emp.role === 'string' && emp.role.toUpperCase().includes('UNASSIGNED'))) {
-      role = 'UNASSIGNED';
-    } else if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
-      role = 'ADMIN';
-    } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
-      role = 'MANAGER';
-    } else if (emailLower.includes('sachinpuri') || emailLower.includes('sachin')) {
-      role = 'TEAM_LEADER';
-    } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
-      role = 'SALES_EXEC';
-    } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
-      role = 'SALES_EXEC';
-    } else if (emailLower.includes('sadhnadikshit') || emailLower.includes('sadhana')) {
-      role = 'UNASSIGNED';
-    } else if (role === 'VIEWER' || role === 'MEMBER') {
-      role = 'SALES_EXEC';
+    const emailLower = (emp.email || '').toLowerCase().trim();
+
+    // Check localStorage overrides once more for absolute live reactivity
+    if (typeof window !== 'undefined') {
+      try {
+        const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+        if (overrides[emp.id]) {
+          role = overrides[emp.id];
+        } else if (overrides[emailLower]) {
+          role = overrides[emailLower];
+        }
+      } catch (_) {}
+    }
+
+    // Role resolution rules:
+    // 1. If role is explicitly set and not unassigned, normalize any aliases
+    if (role && role !== 'UNASSIGNED') {
+      const upper = String(role).toUpperCase().trim();
+      if (upper === 'VIEWER' || upper === 'MEMBER' || upper === 'SALES' || upper === 'TELECALLER' || upper === 'SUPPORT') {
+        role = 'SALES_EXEC';
+      } else if (upper === 'TL' || upper === 'LEADER') {
+        role = 'TEAM_LEADER';
+      } else if (['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC', 'HR', 'SUPER_ADMIN'].includes(upper)) {
+        role = upper;
+      }
+    } else {
+      // 2. Fallback only for initial seeded demo emails if not verified yet
+      if (emailLower.includes('adorabletrading08') || emailLower.includes('admin')) {
+        role = 'ADMIN';
+      } else if (emailLower.includes('rai992522') || emailLower.includes('aditya')) {
+        role = 'MANAGER';
+      } else if (emailLower.includes('sachinpuri') || emailLower.includes('sachin')) {
+        role = 'TEAM_LEADER';
+      } else if (emailLower.includes('rastoginandini') || emailLower.includes('nandini')) {
+        role = 'SALES_EXEC';
+      } else if (emailLower.includes('sulekhatmr') || emailLower.includes('sulekha')) {
+        role = 'SALES_EXEC';
+      } else {
+        role = 'UNASSIGNED';
+      }
     }
 
     const defaultPlatform = (role === 'TEAM_LEADER' || emailLower.includes('puri') || emailLower.includes('tomar')) ? 'ANDROID' : 'WEB';
@@ -640,6 +917,10 @@ export function SuperAdminDashboard() {
   const [employeeRoleFilter, setEmployeeRoleFilter] = useState<string>('ALL');
   const [pendingSearch, setPendingSearch] = useState('');
 
+  // Role verification & Quick Action state
+  const [assigningRoleId, setAssigningRoleId] = useState<string | null>(null);
+  const [roleActionToast, setRoleActionToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   // PDF Action State & Notification
   const [sendingPdfCompanyId, setSendingPdfCompanyId] = useState<string | null>(null);
   const [pdfNotification, setPdfNotification] = useState<{ type: 'success' | 'error'; message: string; previewUrl?: string } | null>(null);
@@ -655,6 +936,97 @@ export function SuperAdminDashboard() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedEmpText, setCopiedEmpText] = useState<string | null>(null);
+
+  const handleSuperAdminAssignRole = async (emp: CompanyEmployee, targetRole: string) => {
+    setAssigningRoleId(emp.id);
+    const emailLower = (emp.email || '').toLowerCase().trim();
+
+    try {
+      // 1. Update companyEmployees optimistically
+      setCompanyEmployees(prev =>
+        prev.map(e => {
+          if (e.id === emp.id || (e.email && e.email.toLowerCase().trim() === emailLower)) {
+            return { ...e, role: targetRole };
+          }
+          return e;
+        })
+      );
+
+      // 2. Persist to localStorage across all workspace caches
+      if (typeof window !== 'undefined') {
+        const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
+        overrides[emp.id] = targetRole;
+        if (emailLower) overrides[emailLower] = targetRole;
+        localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
+
+        // Update extra staff
+        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+        const updatedExtraStaff = extraStaff.map((st: any) => {
+          if (st.id === emp.id || (st.email && st.email.toLowerCase().trim() === emailLower)) {
+            return { ...st, role: targetRole, isVerified: true, verificationStatus: 'VERIFIED' };
+          }
+          return st;
+        });
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(updatedExtraStaff));
+
+        // Remove from unassigned queue
+        const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+        const filteredUnassigned = extraUnassigned.filter(
+          (u: any) => u.id !== emp.id && (u.email ? u.email.toLowerCase().trim() !== emailLower : true)
+        );
+        localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(filteredUnassigned));
+
+        // Dispatch cross-tab & global events
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('crm-role-updated', { detail: { empId: emp.id, email: emailLower, role: targetRole } }));
+        window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
+      }
+
+      // 3. Sync to backend endpoints in background
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const targetCompId = selectedCompanyId || 'cmuev7n3o000mikew7je1tdiw';
+
+      // Call verify-role on backend
+      fetch(`${apiBase}/users/${emp.id}/verify-role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': targetCompId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ assignedRole: targetRole, organizationId: targetCompId }),
+      }).catch(() => null);
+
+      // Call crm-sync POST
+      fetch('/api/crm-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: emp.id,
+          name: emp.name,
+          email: emp.email,
+          role: targetRole,
+          organizationId: targetCompId,
+          keyUsed: emp.keyUsed || 'ADOR-EC-7187',
+        }),
+      }).catch(() => null);
+
+      setRoleActionToast({
+        type: 'success',
+        message: `Verified and assigned role ${targetRole.replace('_', ' ')} to ${emp.name || emp.email}!`,
+      });
+      setTimeout(() => setRoleActionToast(null), 3500);
+    } catch (err: any) {
+      setRoleActionToast({
+        type: 'error',
+        message: `Role assignment failed: ${err?.message || 'Unknown error'}`,
+      });
+      setTimeout(() => setRoleActionToast(null), 3500);
+    } finally {
+      setAssigningRoleId(null);
+    }
+  };
 
   const handleCopyEmpText = (text: string) => {
     if (typeof navigator !== 'undefined') {
@@ -1151,6 +1523,11 @@ export function SuperAdminDashboard() {
       }
     };
 
+    // Custom CRM role/staff updated event listener (fires when roles or users are updated in-tab or cross-tab)
+    const handleCrmRoleUpdate = () => {
+      fetchEmployees(selectedCompanyId);
+    };
+
     // Tab focus listener
     const handleWindowFocus = () => {
       fetchEmployees(selectedCompanyId);
@@ -1163,11 +1540,15 @@ export function SuperAdminDashboard() {
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('crm-role-updated', handleCrmRoleUpdate);
+    window.addEventListener('das-crm-staff-updated', handleCrmRoleUpdate);
 
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('crm-role-updated', handleCrmRoleUpdate);
+      window.removeEventListener('das-crm-staff-updated', handleCrmRoleUpdate);
     };
   }, [selectedCompanyId]);
 
@@ -1640,16 +2021,142 @@ export function SuperAdminDashboard() {
     setEditExpiryDate(expiry);
   };
 
-  const calculateDaysFromToday = (dStr: string) => {
-    if (!dStr) return 0;
+  const getDaysRemaining = (dStr?: string, fallbackDays?: number): number => {
+    if (!dStr) return fallbackDays !== undefined ? fallbackDays : 0;
     try {
-      const target = new Date(dStr + 'T23:59:59').getTime();
+      const datePart = dStr.includes('T') ? dStr : `${dStr}T23:59:59`;
+      const target = new Date(datePart).getTime();
+      if (isNaN(target)) return fallbackDays !== undefined ? fallbackDays : 0;
       const now = Date.now();
-      const diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-      return diff > 0 ? diff : 0;
+      return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
     } catch {
-      return 0;
+      return fallbackDays !== undefined ? fallbackDays : 0;
     }
+  };
+
+  const calculateDaysFromToday = (dStr: string): number => {
+    if (!dStr) return 0;
+    const diff = getDaysRemaining(dStr);
+    return diff > 0 ? diff : 0;
+  };
+
+  const getCompanySubscriptionStatus = (comp: CompanyRecord) => {
+    if (!comp.isActive) {
+      return {
+        key: 'BLOCKED',
+        label: 'Account Blocked',
+        badgeCls: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',
+        dotCls: 'bg-rose-500',
+        isExp: true,
+      };
+    }
+    if (comp.verificationStatus === 'PENDING' || comp.verificationStatus === 'AWAITING') {
+      return {
+        key: 'PENDING_APPROVAL',
+        label: 'Pending Approval',
+        badgeCls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+        dotCls: 'bg-amber-400 animate-pulse',
+        isExp: false,
+      };
+    }
+    const days = getDaysRemaining(comp.expiryDate, comp.trialDaysLeft);
+    const isExplicitExpired = comp.isExpired || (comp.expiryDate && new Date(comp.expiryDate.includes('T') ? comp.expiryDate : `${comp.expiryDate}T23:59:59`) < new Date());
+
+    if (isExplicitExpired || days < 0) {
+      return {
+        key: 'EXPIRED',
+        label: 'Plan Expired',
+        badgeCls: 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40',
+        dotCls: 'bg-rose-500 animate-ping',
+        isExp: true,
+      };
+    }
+    if (days === 0) {
+      return {
+        key: 'EXPIRES_TODAY',
+        label: 'Expires Today',
+        badgeCls: 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40',
+        dotCls: 'bg-amber-400 animate-pulse',
+        isExp: false,
+      };
+    }
+    if (days <= 3) {
+      return {
+        key: 'EXPIRING_SOON',
+        label: `Expiring Soon (${days}d left)`,
+        badgeCls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
+        dotCls: 'bg-amber-400 animate-pulse',
+        isExp: false,
+      };
+    }
+    if (comp.accountType === 'TRIAL' || comp.plan === 'FREE_TRIAL' || comp.subscription?.isTrialActive) {
+      return {
+        key: 'TRIAL_ACTIVE',
+        label: 'Trial Active',
+        badgeCls: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30',
+        dotCls: 'bg-cyan-400',
+        isExp: false,
+      };
+    }
+    return {
+      key: 'ACTIVE',
+      label: 'Active Plan',
+      badgeCls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
+      dotCls: 'bg-emerald-400',
+      isExp: false,
+    };
+  };
+
+  const getPlanMeta = (plan?: string) => {
+    const p = (plan || 'BUSINESS').toUpperCase();
+    if (p === 'FREE_TRIAL' || p === 'TRIAL') {
+      return {
+        name: 'Free Trial',
+        tag: 'TRIAL',
+        icon: '✨',
+        badgeCls: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
+        cardBorder: 'border-amber-500/30',
+        gradient: 'from-amber-500/20 to-orange-500/10',
+      };
+    }
+    if (p === 'STARTER') {
+      return {
+        name: 'Starter Plan',
+        tag: 'STARTER',
+        icon: '⚡',
+        badgeCls: 'bg-sky-500/15 text-sky-600 dark:text-sky-300 border-sky-500/30',
+        cardBorder: 'border-sky-500/30',
+        gradient: 'from-sky-500/20 to-blue-500/10',
+      };
+    }
+    if (p === 'GROWTH' || p === 'GROW') {
+      return {
+        name: 'Growth Plan',
+        tag: 'GROWTH',
+        icon: '🚀',
+        badgeCls: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+        cardBorder: 'border-indigo-500/30',
+        gradient: 'from-indigo-500/20 to-purple-500/10',
+      };
+    }
+    if (p === 'ENTERPRISE' || p === 'PRO_MAX' || p === 'MAX') {
+      return {
+        name: 'Enterprise Plan',
+        tag: 'ENTERPRISE',
+        icon: '👑',
+        badgeCls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
+        cardBorder: 'border-emerald-500/30',
+        gradient: 'from-emerald-500/20 to-teal-500/10',
+      };
+    }
+    return {
+      name: 'Business Plan',
+      tag: 'BUSINESS',
+      icon: '💼',
+      badgeCls: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30',
+      cardBorder: 'border-cyan-500/30',
+      gradient: 'from-cyan-500/20 to-indigo-500/10',
+    };
   };
 
   const formatFullDate = (dStr: string) => {
@@ -2846,17 +3353,19 @@ export function SuperAdminDashboard() {
 
                             {/* Plan Tier Badge */}
                             <td className="p-3.5">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${
-                                isCompExpired
-                                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-600 dark:text-rose-300'
-                                  : c.plan === 'FREE_TRIAL'
-                                  ? 'bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-300'
-                                  : c.plan === 'ENTERPRISE'
-                                  ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                                  : 'bg-indigo-500/20 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'
-                              }`}>
-                                {c.plan}
-                              </span>
+                              {(() => {
+                                const planMeta = getPlanMeta(c.plan);
+                                return (
+                                  <div className="space-y-1">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider flex items-center gap-1 w-max ${planMeta.badgeCls}`}>
+                                      <span>{planMeta.icon}</span> {planMeta.name}
+                                    </span>
+                                    <span className="text-[9px] text-muted-foreground font-mono block">
+                                      {c.accountType === 'BUY_REQUEST' ? '🛒 Paid Plan' : '⚡ Trial Tier'}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Feature Pills */}
@@ -2874,11 +3383,36 @@ export function SuperAdminDashboard() {
                               </div>
                             </td>
 
-                            {/* Expiry Date */}
+                            {/* Expiry Date & Days Left Status */}
                             <td className="p-3.5 font-mono text-xs">
-                              <span className={isCompExpired ? 'text-rose-500 font-bold' : 'text-muted-foreground'}>
-                                {c.expiryDate}
-                              </span>
+                              {(() => {
+                                const subStatus = getCompanySubscriptionStatus(c);
+                                const daysLeft = getDaysRemaining(c.expiryDate, c.trialDaysLeft);
+                                const isExp = subStatus.key === 'EXPIRED' || daysLeft < 0;
+
+                                return (
+                                  <div className="space-y-1">
+                                    <span className={`font-black ${isExp ? 'text-rose-500' : 'text-foreground'}`}>
+                                      {c.expiryDate || 'N/A'}
+                                    </span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md border font-mono ${
+                                        isExp
+                                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40'
+                                          : daysLeft <= 3
+                                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 animate-pulse'
+                                          : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                                      }`}>
+                                        {isExp ? 'Expired' : daysLeft === 0 ? 'Today' : `${daysLeft}d left`}
+                                      </span>
+                                      <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded-md border ${subStatus.badgeCls}`}>
+                                        <span className={`w-1 h-1 rounded-full ${subStatus.dotCls}`} />
+                                        {subStatus.label}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Seats Progress */}
@@ -3222,18 +3756,24 @@ export function SuperAdminDashboard() {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <div className="relative">
                   <select
-                    className="crm-input text-xs h-10 pl-3 pr-8 rounded-xl font-bold bg-muted/90 border-border hover:border-cyan-500/50 focus:border-cyan-500 transition-all min-w-[240px] cursor-pointer shadow-sm"
+                    className="crm-input text-xs h-10 pl-3 pr-8 rounded-xl font-bold bg-muted/90 border-border hover:border-cyan-500/50 focus:border-cyan-500 transition-all min-w-[280px] cursor-pointer shadow-sm"
                     value={selectedCompanyId}
                     onChange={e => {
                       setSelectedCompanyId(e.target.value);
                       fetchEmployees(e.target.value);
                     }}
                   >
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.seatsUsed || 0}/{c.seatsAllocated || 18} Seats)
-                      </option>
-                    ))}
+                    {companies.map(c => {
+                      const days = getDaysRemaining(c.expiryDate, c.trialDaysLeft);
+                      const sub = getCompanySubscriptionStatus(c);
+                      const daysText = sub.key === 'EXPIRED' ? 'Expired' : days === 0 ? 'Expires Today' : `${days}d left`;
+                      const planName = (c.plan || 'BUSINESS').toUpperCase();
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name} • [{planName}] • {daysText} • ({c.seatsUsed || 0}/{c.seatsAllocated || 18} Seats)
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -3261,47 +3801,202 @@ export function SuperAdminDashboard() {
               </div>
             </div>
 
-            {/* Active Company Status & Seat Allocation Bar */}
-            {activeComp && (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 border border-border/70 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-cyan-600/20">
-                    {(activeComp.name || 'C').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-extrabold text-foreground">{activeComp.name}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 uppercase tracking-wider">
-                        {activeComp.plan || 'BUSINESS'}
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Live Auto-Sync
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 font-mono">
-                      <span>Key: <strong className="text-foreground">{activeComp.registrationKey || 'ADOR-EC-7187'}</strong></span>
-                      <span>•</span>
-                      <span>Admin: <strong className="text-foreground">{activeComp.adminEmail || 'admin'}</strong></span>
-                    </div>
-                  </div>
-                </div>
+            {/* Active Company Status, Plan Details & Expiry Information Bar */}
+            {activeComp && (() => {
+              const planMeta = getPlanMeta(activeComp.plan);
+              const subStatus = getCompanySubscriptionStatus(activeComp);
+              const daysLeft = getDaysRemaining(activeComp.expiryDate, activeComp.trialDaysLeft);
+              const isExp = subStatus.key === 'EXPIRED' || daysLeft < 0;
 
-                {/* Seat Quota Metric Bar */}
-                <div className="min-w-[240px] space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-muted-foreground">Workspace Seat Capacity:</span>
-                    <span className="font-black text-foreground font-mono">
-                      <strong className="text-cyan-500">{usedSeats}</strong> / {allocatedSeats} ({seatPercent}%)
-                    </span>
+              return (
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-card via-muted/40 to-card border border-border/80 shadow-md space-y-4">
+                  {/* Top Row: Company Info, Plan Badges & Quick Action Buttons */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* Company Identity */}
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-cyan-600/20 shrink-0">
+                        {(activeComp.name || 'C').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-black text-foreground tracking-tight">{activeComp.name}</span>
+                          {/* Plan Badge */}
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${planMeta.badgeCls}`}>
+                            <span>{planMeta.icon}</span> {planMeta.name}
+                          </span>
+                          {/* Subscription Status Badge */}
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${subStatus.badgeCls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${subStatus.dotCls}`} />
+                            {subStatus.label}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Auto-Sync
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono flex-wrap">
+                          <span className="flex items-center gap-1">
+                            Key: <strong className="text-foreground">{activeComp.registrationKey || 'ADOR-EC-7187'}</strong>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyEmpText(activeComp.registrationKey)}
+                              className="text-cyan-500 hover:text-cyan-400 ml-0.5 cursor-pointer"
+                              title="Copy registration key"
+                            >
+                              {copiedEmpText === activeComp.registrationKey ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            </button>
+                          </span>
+                          <span>•</span>
+                          <span>Admin: <strong className="text-foreground">{activeComp.adminEmail || 'admin'}</strong></span>
+                          {activeComp.phone && (
+                            <>
+                              <span>•</span>
+                              <span>Ph: <strong className="text-foreground">+91 {activeComp.phone}</strong></span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Modal Actions */}
+                    <div className="flex items-center gap-2 self-start lg:self-center flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenExtendModal(activeComp)}
+                        className="h-9 px-3.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                        title="Extend validity or change expiration date"
+                      >
+                        <Clock size={13} className="text-amber-500" /> Extend Plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(activeComp)}
+                        className="h-9 px-3.5 rounded-xl text-xs font-bold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                        title="Edit company seats and plan configuration"
+                      >
+                        <Edit2 size={13} className="text-indigo-500" /> Edit Plan
+                      </button>
+                    </div>
                   </div>
-                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden border border-border">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(8, seatPercent)}%` }}
-                    />
+
+                  {/* Dynamic 3-Column Plan & Quota Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1 border-t border-border/60">
+                    {/* Card 1: Active Plan Taken */}
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 flex items-center justify-between gap-3 shadow-sm">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block">
+                          Plan Subscribed
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-extrabold text-foreground">{planMeta.name}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                            {activeComp.accountType === 'BUY_REQUEST' ? 'PAID' : 'TRIAL'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block font-mono">
+                          Max Quota: <strong className="text-foreground">{allocatedSeats} Seats</strong>
+                        </span>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 font-bold shrink-0 shadow-inner">
+                        <CreditCard size={18} />
+                      </div>
+                    </div>
+
+                    {/* Card 2: Plan Expiry & Days Left */}
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 flex items-center justify-between gap-3 shadow-sm">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block">
+                          Plan Expiry &amp; Validity
+                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-black font-mono ${isExp ? 'text-rose-500' : 'text-foreground'}`}>
+                            {activeComp.expiryDate || 'N/A'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border font-mono ${
+                            isExp
+                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40'
+                              : daysLeft <= 3
+                              ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 animate-pulse'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {isExp
+                              ? 'Expired'
+                              : daysLeft === 0
+                              ? 'Expires Today'
+                              : `${daysLeft}d left`}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {isExp
+                            ? '⚠️ Needs extension to reactivate'
+                            : `${daysLeft} days remaining until renewal`}
+                        </span>
+                      </div>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 border shadow-inner ${
+                        isExp
+                          ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                          : daysLeft <= 3
+                          ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                      }`}>
+                        <Calendar size={18} />
+                      </div>
+                    </div>
+
+                    {/* Card 3: Seat Occupancy Bar */}
+                    <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 space-y-2 sm:col-span-2 lg:col-span-1 shadow-sm">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                          Seat Occupancy
+                        </span>
+                        <span className="font-mono font-bold text-xs text-foreground">
+                          <strong className="text-cyan-500">{usedSeats}</strong> / {allocatedSeats} ({seatPercent}%)
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden border border-border">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            seatPercent >= 90
+                              ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                              : 'bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-500'
+                          }`}
+                          style={{ width: `${Math.max(8, seatPercent)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                        <span>{Math.max(0, allocatedSeats - usedSeats)} seats available</span>
+                        <span>{usedSeats} active staff</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              );
+            })()}
+
+            {/* Floating Role Action Feedback Toast */}
+            {roleActionToast && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs font-extrabold flex items-center justify-between gap-3 shadow-md transition-all duration-300 animate-fade-in ${
+                  roleActionToast.type === 'success'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 shadow-emerald-500/10'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/40 shadow-rose-500/10'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {roleActionToast.type === 'success' ? (
+                    <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                  ) : (
+                    <AlertCircle size={16} className="text-rose-500 shrink-0" />
+                  )}
+                  <span>{roleActionToast.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRoleActionToast(null)}
+                  className="text-muted-foreground hover:text-foreground text-xs font-bold px-2 py-0.5 rounded-lg hover:bg-muted/60 transition-colors cursor-pointer"
+                >
+                  ✕ Dismiss
+                </button>
               </div>
             )}
 
@@ -3387,7 +4082,7 @@ export function SuperAdminDashboard() {
                     <tr className="bg-gradient-to-r from-muted/90 via-muted/70 to-muted/90 text-muted-foreground uppercase text-[10px] font-black tracking-wider border-b border-border">
                       <th className="p-4">Staff Member</th>
                       <th className="p-4">Email Address</th>
-                      <th className="p-4">Assigned Role</th>
+                      <th className="p-4">Assigned Role &amp; Quick Action</th>
                       <th className="p-4">Registration Key</th>
                       <th className="p-4">Account Status</th>
                       <th className="p-4 text-right">Last Active (App / Web)</th>
@@ -3437,7 +4132,7 @@ export function SuperAdminDashboard() {
                                   <div className="font-extrabold text-foreground text-xs tracking-tight group-hover:text-cyan-500 transition-colors flex items-center gap-1.5">
                                     <span>{emp.name}</span>
                                     {isUnassigned && (
-                                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                      <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse">
                                         Pending Role
                                       </span>
                                     )}
@@ -3466,12 +4161,39 @@ export function SuperAdminDashboard() {
                               </button>
                             </td>
 
-                            {/* Assigned Role */}
+                            {/* Assigned Role & Interactive Quick Selector */}
                             <td className="p-4">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black border uppercase tracking-wider ${style.badgeCls}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${style.dotCls}`} />
-                                {style.label}
-                              </span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black border uppercase tracking-wider ${style.badgeCls}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${style.dotCls}`} />
+                                  {style.label}
+                                </span>
+
+                                <div className="relative">
+                                  <select
+                                    value={isUnassigned ? '' : (emp.role || 'SALES_EXEC')}
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleSuperAdminAssignRole(emp, e.target.value);
+                                      }
+                                    }}
+                                    disabled={assigningRoleId === emp.id}
+                                    className={`crm-input text-[11px] h-7 pl-2 pr-6 rounded-lg font-bold transition-all cursor-pointer ${
+                                      isUnassigned
+                                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                                        : 'bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border'
+                                    }`}
+                                    title={isUnassigned ? "⚡ Verify & assign permanent role" : "Change staff role"}
+                                  >
+                                    {isUnassigned && <option value="" disabled>⚡ Quick Assign...</option>}
+                                    <option value="SALES_EXEC">Sales Exec</option>
+                                    <option value="TEAM_LEADER">Team Leader</option>
+                                    <option value="MANAGER">Manager</option>
+                                    <option value="HR">HR</option>
+                                    <option value="ADMIN">Admin</option>
+                                  </select>
+                                </div>
+                              </div>
                             </td>
 
                             {/* Registration Key */}
@@ -5542,40 +6264,66 @@ export function SuperAdminDashboard() {
                 <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <CreditCard size={14} className="text-emerald-500" /> Plan, Quotas & Terms
                 </h4>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Plan Tier</span>
-                    <span className="font-black px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 text-xs inline-block">
-                      {viewCompanyDetails.plan || viewCompanyDetails.requestedPlan || 'FREE_TRIAL'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Registration Account Type</span>
-                    <span className="font-bold text-foreground">
-                      {viewCompanyDetails.accountType === 'BUY_REQUEST' ? '🛒 Buy Request (Paid 30 Days)' : '⚡ Free Trial (15 Days)'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">User Seats Ratio</span>
-                    <span className="font-mono font-bold text-emerald-400">
-                      {viewCompanyDetails.seatsUsed ?? 0} Used / {viewCompanyDetails.seatsAllocated ?? viewCompanyDetails.seatsRequested ?? 6} Allocated
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block uppercase font-bold">Subscription Expiry</span>
-                    <span className="font-mono font-bold text-foreground">
-                      {viewCompanyDetails.expiryDate || 'N/A'}
-                    </span>
-                  </div>
-                  {viewCompanyDetails.couponCode && (
-                    <div className="col-span-2">
-                      <span className="text-[10px] text-muted-foreground block uppercase font-bold">Promo Coupon Applied</span>
-                      <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                        🏷️ {viewCompanyDetails.couponCode}
-                      </span>
+                {(() => {
+                  const planMeta = getPlanMeta(viewCompanyDetails.plan || viewCompanyDetails.requestedPlan);
+                  const subStatus = getCompanySubscriptionStatus(viewCompanyDetails);
+                  const daysLeft = getDaysRemaining(viewCompanyDetails.expiryDate, viewCompanyDetails.validityDays);
+                  const isExp = subStatus.key === 'EXPIRED' || daysLeft < 0;
+
+                  return (
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block uppercase font-bold">Plan Subscribed</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className={`font-black px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1 border ${planMeta.badgeCls}`}>
+                            <span>{planMeta.icon}</span> {planMeta.name}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${subStatus.badgeCls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${subStatus.dotCls}`} />
+                            {subStatus.label}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block uppercase font-bold">Registration Account Type</span>
+                        <span className="font-bold text-foreground">
+                          {viewCompanyDetails.accountType === 'BUY_REQUEST' ? '🛒 Buy Request (Paid)' : '⚡ Free Trial'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block uppercase font-bold">User Seats Ratio</span>
+                        <span className="font-mono font-bold text-emerald-400">
+                          {viewCompanyDetails.seatsUsed ?? 0} Used / {viewCompanyDetails.seatsAllocated ?? viewCompanyDetails.seatsRequested ?? 6} Allocated
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block uppercase font-bold">Subscription Expiry & Days</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className={`font-mono font-bold ${isExp ? 'text-rose-500' : 'text-foreground'}`}>
+                            {viewCompanyDetails.expiryDate || 'N/A'}
+                          </span>
+                          <span className={`px-2 py-0.2 rounded-full text-[10px] font-black border font-mono ${
+                            isExp
+                              ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40'
+                              : daysLeft <= 3
+                              ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 animate-pulse'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {isExp ? 'Expired' : daysLeft === 0 ? 'Expires Today' : `${daysLeft}d left`}
+                          </span>
+                        </div>
+                      </div>
+                      {viewCompanyDetails.couponCode && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Promo Coupon Applied</span>
+                          <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                            🏷️ {viewCompanyDetails.couponCode}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             </div>
 

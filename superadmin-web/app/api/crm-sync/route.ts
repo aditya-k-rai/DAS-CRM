@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PATCH, DELETE',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-organization-id',
 };
+
+// Runtime dynamic extra staff & role overrides in superadmin-web
+const dynamicExtraStaff: any[] = [];
+const dynamicRoleOverrides: Record<string, string> = {};
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -29,7 +33,7 @@ export async function GET(req: Request) {
   } catch (_) {}
 
   // Fallback synced list
-  const employees = [
+  const baseEmployees = [
     {
       id: 'cmuev7ni70016ikew8an7tdw8',
       name: 'Anurag Sharma',
@@ -104,10 +108,10 @@ export async function GET(req: Request) {
       id: 'cmukykfoe000nht2d0ylnsd3t',
       name: 'Sadhana',
       email: 'sadhnadikshit98@gmail.com',
-      role: 'UNASSIGNED',
+      role: dynamicRoleOverrides['sadhnadikshit98@gmail.com'] || dynamicRoleOverrides['cmukykfoe000nht2d0ylnsd3t'] || 'UNASSIGNED',
       isActive: true,
       phone: '',
-      assignedManager: 'Awaiting Role Assignment',
+      assignedManager: dynamicRoleOverrides['sadhnadikshit98@gmail.com'] ? 'Admin' : 'Awaiting Role Assignment',
       keyUsed: 'ADOR-EC-7187',
       lastLoginAt: null,
       lastActiveAt: null,
@@ -116,18 +120,86 @@ export async function GET(req: Request) {
     },
   ];
 
+  // Merge runtime dynamic extra staff and apply dynamic overrides
+  const staffMap = new Map<string, any>();
+  baseEmployees.forEach(e => {
+    const override = dynamicRoleOverrides[e.id] || dynamicRoleOverrides[e.email.toLowerCase().trim()];
+    staffMap.set(e.email.toLowerCase().trim(), override ? { ...e, role: override } : e);
+  });
+
+  dynamicExtraStaff.forEach(e => {
+    if (e?.email) {
+      const key = e.email.toLowerCase().trim();
+      const existing = staffMap.get(key) || {};
+      const override = dynamicRoleOverrides[e.id] || dynamicRoleOverrides[key];
+      staffMap.set(key, { ...existing, ...e, role: override || e.role || existing.role || 'SALES_EXEC' });
+    }
+  });
+
+  const finalEmployees = Array.from(staffMap.values());
+
   return NextResponse.json(
     {
       organizationId: orgId,
       companyName: 'Adorable Trading',
       companyKey: 'ADOR-EC-7187',
       seatsAllocated: 18,
-      seatsUsed: 6,
-      employees,
-      totalCount: 6,
+      seatsUsed: finalEmployees.length,
+      employees: finalEmployees,
+      totalCount: finalEmployees.length,
     },
     {
       headers: CORS_HEADERS,
     }
   );
 }
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    // Proxy to frontend-web if active
+    fetch('http://localhost:3000/api/crm-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => null);
+
+    if (body?.email) {
+      const email = body.email.toLowerCase().trim();
+      const role = body.role || body.assignedRole || 'SALES_EXEC';
+      const existingIdx = dynamicExtraStaff.findIndex(e => e.email?.toLowerCase().trim() === email);
+      const newStaff = {
+        id: body.id || `usr_synced_${Date.now()}`,
+        name: body.name || 'Staff Member',
+        email,
+        role,
+        phone: body.phone || '',
+        assignedManager: body.assignedManager || 'Admin',
+        isActive: body.isActive !== false,
+        keyUsed: body.keyUsed || body.companyKey || 'ADOR-EC-7187',
+        createdAt: body.createdAt || new Date().toISOString(),
+      };
+
+      dynamicRoleOverrides[email] = role;
+      if (body.id) dynamicRoleOverrides[body.id] = role;
+
+      if (existingIdx >= 0) {
+        dynamicExtraStaff[existingIdx] = { ...dynamicExtraStaff[existingIdx], ...newStaff };
+      } else {
+        dynamicExtraStaff.push(newStaff);
+      }
+    }
+
+    return NextResponse.json(
+      { success: true, message: 'Sync registered successfully' },
+      { headers: CORS_HEADERS }
+    );
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err?.message || 'Sync failed' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+}
+
