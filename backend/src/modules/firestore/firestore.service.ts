@@ -14,9 +14,9 @@ export class FirestoreService implements OnModuleInit {
   private storageBucketInstance: any = null;
   private isConnected = false;
   private authType: 'SERVICE_ACCOUNT' | 'FIREBASE_ENV' | 'EMULATOR' | 'LOCAL_CACHE' = 'LOCAL_CACHE';
-  private projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_PROJECT_ID || 'das-crm-506400';
+  private projectId = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_PROJECT_ID || 'das-crm0';
   private clientEmail = process.env.FIREBASE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
-  private bucketName = process.env.FIREBASE_STORAGE_BUCKET || `${this.projectId}.appspot.com`;
+  private bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'das-crm0.firebasestorage.app';
 
   onModuleInit() {
     this.initFirebase();

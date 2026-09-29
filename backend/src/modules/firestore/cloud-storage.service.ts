@@ -35,7 +35,7 @@ export class CloudStorageService {
 
   getBucketName(): string {
     const bucket = this.getBucket();
-    return bucket ? bucket.name : 'das-crm-506400.appspot.com';
+    return bucket ? bucket.name : 'das-crm0.firebasestorage.app';
   }
 
   /**
