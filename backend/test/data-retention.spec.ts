@@ -1,10 +1,15 @@
 import { DriveService, StoredFileInfo } from '../src/modules/drive/drive.service';
+import { FirestoreService } from '../src/modules/firestore/firestore.service';
+import { FirestoreStorageService } from '../src/modules/firestore/firestore-storage.service';
 
 describe('DataRetention & Employee Documents Exemption Tests', () => {
   let driveService: DriveService;
+  let firestoreStorageService: FirestoreStorageService;
 
   beforeEach(() => {
-    driveService = new DriveService();
+    const firestoreService = new FirestoreService();
+    firestoreStorageService = new FirestoreStorageService(firestoreService);
+    driveService = new DriveService(firestoreService, firestoreStorageService);
   });
 
   it('should identify all employee verified document variations as protected', () => {
@@ -22,7 +27,7 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
         folderPath: 'Google Drive > Acme Sales Solutions > Employees > Amit Shah > Documents',
         driveViewUrl: 'http://example.com/view1',
         driveDownloadUrl: 'http://example.com/dl1',
-        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), // 200 days ago
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
       {
         fileId: 'f2',
@@ -31,68 +36,95 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
         sizeBytes: 2048,
         companyName: 'Acme Sales Solutions',
         category: 'EMPLOYEES',
-        employeeName: 'Priya Sharma',
+        employeeName: 'Rahul Verma',
         subCategory: 'Documents',
-        folderHierarchy: ['Acme Sales Solutions', 'Employees', 'Priya Sharma', 'Documents'],
-        folderPath: 'Google Drive > Acme Sales Solutions > Employees > Priya Sharma > Documents',
+        folderHierarchy: ['Acme Sales Solutions', 'Employees', 'Rahul Verma', 'Documents'],
+        folderPath: 'Google Drive > Acme Sales Solutions > Employees > Rahul Verma > Documents',
         driveViewUrl: 'http://example.com/view2',
         driveDownloadUrl: 'http://example.com/dl2',
-        uploadedAt: new Date(Date.now() - 250 * 24 * 60 * 60 * 1000).toISOString(), // 250 days ago
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
       {
         fileId: 'f3',
-        fileName: 'EMPLOYEE_PROFILE_PHOTO.png',
-        mimeType: 'image/png',
+        fileName: 'PROFILE_PHOTO.jpg',
+        mimeType: 'image/jpeg',
         sizeBytes: 512,
         companyName: 'Acme Sales Solutions',
         category: 'PROFILES',
-        employeeName: 'Amit Shah',
+        employeeName: 'Sneha Patel',
         subCategory: 'DP',
-        folderHierarchy: ['Acme Sales Solutions', 'Employees', 'Amit Shah', 'DP'],
-        folderPath: 'Google Drive > Acme Sales Solutions > Employees > Amit Shah > DP',
+        folderHierarchy: ['Acme Sales Solutions', 'Employees', 'Sneha Patel', 'DP'],
+        folderPath: 'Google Drive > Acme Sales Solutions > Employees > Sneha Patel > DP',
         driveViewUrl: 'http://example.com/view3',
         driveDownloadUrl: 'http://example.com/dl3',
-        uploadedAt: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(),
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
-    ];
-
-    for (const doc of employeeDocs) {
-      expect(driveService.isEmployeeDocument(doc)).toBe(true);
-    }
-  });
-
-  it('should classify non-employee company files as NOT exempt (eligible for purge if > 180 days)', () => {
-    const nonEmployeeFiles: StoredFileInfo[] = [
       {
         fileId: 'f4',
-        fileName: 'LEAD_IMPORT_OCTOBER_2025.csv',
-        mimeType: 'text/csv',
+        fileName: 'EMPLOYMENT_AGREEMENT.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         sizeBytes: 4096,
         companyName: 'Acme Sales Solutions',
-        category: 'LEADS',
-        subCategory: 'Spreadsheets',
-        folderHierarchy: ['Acme Sales Solutions', 'Leads'],
-        folderPath: 'Google Drive > Acme Sales Solutions > Leads',
+        category: 'DOCUMENTS',
+        employeeName: 'Karan Mehra',
+        subCategory: 'Details',
+        folderHierarchy: ['Acme Sales Solutions', 'Employees', 'Karan Mehra', 'Details'],
+        folderPath: 'Google Drive > Acme Sales Solutions > Employees > Karan Mehra > Details',
         driveViewUrl: 'http://example.com/view4',
         driveDownloadUrl: 'http://example.com/dl4',
         uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
+    ];
+
+    for (const file of employeeDocs) {
+      expect(driveService.isEmployeeDocument(file)).toBe(true);
+    }
+  });
+
+  it('should identify general non-employee company files as eligible for retention purge', () => {
+    const generalCompanyFiles: StoredFileInfo[] = [
       {
-        fileId: 'f5',
-        fileName: 'EXPIRED_QUOTATION_Q982.pdf',
+        fileId: 'g1',
+        fileName: 'LEADS_IMPORT_JAN.csv',
+        mimeType: 'text/csv',
+        sizeBytes: 1024,
+        companyName: 'Acme Sales Solutions',
+        category: 'LEADS',
+        folderHierarchy: ['Acme Sales Solutions', 'Leads'],
+        folderPath: 'Google Drive > Acme Sales Solutions > Leads',
+        driveViewUrl: 'http://example.com/g1',
+        driveDownloadUrl: 'http://example.com/g1_dl',
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        fileId: 'g2',
+        fileName: 'QUOTATION_Q101.pdf',
         mimeType: 'application/pdf',
-        sizeBytes: 8192,
+        sizeBytes: 2048,
         companyName: 'Acme Sales Solutions',
         category: 'QUOTATIONS',
         folderHierarchy: ['Acme Sales Solutions', 'Quotations'],
         folderPath: 'Google Drive > Acme Sales Solutions > Quotations',
-        driveViewUrl: 'http://example.com/view5',
-        driveDownloadUrl: 'http://example.com/dl5',
-        uploadedAt: new Date(Date.now() - 210 * 24 * 60 * 60 * 1000).toISOString(),
+        driveViewUrl: 'http://example.com/g2',
+        driveDownloadUrl: 'http://example.com/g2_dl',
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      {
+        fileId: 'g3',
+        fileName: 'PRODUCT_BROCHURE.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 5120,
+        companyName: 'Acme Sales Solutions',
+        category: 'PRODUCTS',
+        folderHierarchy: ['Acme Sales Solutions', 'Products'],
+        folderPath: 'Google Drive > Acme Sales Solutions > Products',
+        driveViewUrl: 'http://example.com/g3',
+        driveDownloadUrl: 'http://example.com/g3_dl',
+        uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
     ];
 
-    for (const file of nonEmployeeFiles) {
+    for (const file of generalCompanyFiles) {
       expect(driveService.isEmployeeDocument(file)).toBe(false);
     }
   });
@@ -101,7 +133,6 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
     const cutoffDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
 
     const mixedFiles: StoredFileInfo[] = [
-      // Expired company file (200 days old) -> Should be PURGED
       {
         fileId: 'lead_csv_old',
         fileName: 'OLD_LEADS_BATCH.csv',
@@ -114,7 +145,6 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
         driveDownloadUrl: 'http://example.com/lead_dl',
         uploadedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
       },
-      // Expired verified employee document (220 days old) -> MUST BE PRESERVED
       {
         fileId: 'emp_pan_doc',
         fileName: 'EMPLOYEE_PAN_CARD.pdf',
@@ -130,7 +160,6 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
         driveDownloadUrl: 'http://example.com/emp_pan_dl',
         uploadedAt: new Date(Date.now() - 220 * 24 * 60 * 60 * 1000).toISOString(),
       },
-      // Expired verified employee KYC document (300 days old) -> MUST BE PRESERVED
       {
         fileId: 'emp_aadhaar_doc',
         fileName: 'AADHAAR_CARD.pdf',
@@ -148,22 +177,22 @@ describe('DataRetention & Employee Documents Exemption Tests', () => {
       },
     ];
 
-    // Seed registry
-    (driveService as any).storedFilesRegistry = mixedFiles;
+    for (const f of mixedFiles) {
+      await firestoreStorageService.saveFileRecord(
+        firestoreStorageService.convertLegacyFileToFirestoreDoc(f),
+      );
+    }
 
     const result = await driveService.purgeExpiredCompanyFiles(cutoffDate, 'Test Org');
 
-    // Exactly 1 company file purged
     expect(result.purgedCount).toBe(1);
     expect(result.purgedFiles).toContain('OLD_LEADS_BATCH.csv');
-
-    // Both employee documents strictly preserved
     expect(result.protectedEmployeeDocCount).toBe(2);
 
-    const remaining = (driveService as any).storedFilesRegistry;
+    const remaining = await firestoreStorageService.listFileRecords({ companyName: 'Test Org' });
     expect(remaining.length).toBe(2);
-    expect(remaining.some((f: StoredFileInfo) => f.fileName === 'EMPLOYEE_PAN_CARD.pdf')).toBe(true);
-    expect(remaining.some((f: StoredFileInfo) => f.fileName === 'AADHAAR_CARD.pdf')).toBe(true);
-    expect(remaining.some((f: StoredFileInfo) => f.fileName === 'OLD_LEADS_BATCH.csv')).toBe(false);
+    expect(remaining.some((f) => f.fileName === 'EMPLOYEE_PAN_CARD.pdf')).toBe(true);
+    expect(remaining.some((f) => f.fileName === 'AADHAAR_CARD.pdf')).toBe(true);
+    expect(remaining.some((f) => f.fileName === 'OLD_LEADS_BATCH.csv')).toBe(false);
   });
 });

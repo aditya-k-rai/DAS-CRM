@@ -34,7 +34,7 @@ export class DriveController {
     @Body('category') category?: any,
     @Body('customFileName') customFileName?: string,
     @Body('employeeName') employeeName?: string,
-    @Body('subCategory') subCategory?: string
+    @Body('subCategory') subCategory?: string,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded in form-data');
@@ -49,11 +49,11 @@ export class DriveController {
       category || (employeeName ? 'EMPLOYEES' : 'LEADS'),
       customFileName,
       employeeName,
-      subCategory
+      subCategory,
     );
     return {
       success: true,
-      message: `File stored in Google Drive folder: ${result.folderPath}`,
+      message: `File stored in Firestore & Google Drive folder: ${result.folderPath}`,
       data: result,
     };
   }
@@ -65,7 +65,7 @@ export class DriveController {
     @Body('employeeName') employeeName: string,
     @Body('subCategory') subCategory: string = 'Documents',
     @Body('companyName') companyName?: string,
-    @Body('customFileName') customFileName?: string
+    @Body('customFileName') customFileName?: string,
   ) {
     if (!file) {
       throw new BadRequestException('File is required in form-data');
@@ -83,11 +83,11 @@ export class DriveController {
       'EMPLOYEES',
       customFileName,
       employeeName,
-      subCategory || 'Documents'
+      subCategory || 'Documents',
     );
     return {
       success: true,
-      message: `Employee file stored in Google Drive: ${result.folderPath}`,
+      message: `Employee file stored in Firestore & Google Drive: ${result.folderPath}`,
       data: result,
     };
   }
@@ -101,13 +101,13 @@ export class DriveController {
   }
 
   @Get('list')
-  listFiles(
+  async listFiles(
     @Query('companyName') companyName?: string,
     @Query('category') category?: any,
     @Query('employeeName') employeeName?: string,
-    @Query('subCategory') subCategory?: string
+    @Query('subCategory') subCategory?: string,
   ) {
-    const files = this.driveService.listFiles(companyName, category, employeeName, subCategory);
+    const files = await this.driveService.listFiles(companyName, category, employeeName, subCategory);
     return {
       success: true,
       count: files.length,
@@ -119,7 +119,7 @@ export class DriveController {
   async getFile(
     @Param('id') id: string,
     @Query('raw') raw: string,
-    @Res() res: any
+    @Res() res: any,
   ) {
     if (raw === 'true') {
       const { buffer, mimeType, fileName } = await this.driveService.getFileBuffer(id);
@@ -127,7 +127,7 @@ export class DriveController {
       res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
       return res.send(buffer);
     }
-    const meta = this.driveService.getFileMetadata(id);
+    const meta = await this.driveService.getFileMetadata(id);
     return res.json({
       success: true,
       data: meta,
@@ -147,7 +147,7 @@ export class DriveController {
     const deleted = await this.driveService.deleteFile(id);
     return {
       success: deleted,
-      message: deleted ? `File ${id} removed from Google Drive vault` : `File ${id} not found`,
+      message: deleted ? `File ${id} removed from Firestore and Google Drive` : `File ${id} not found`,
     };
   }
 
@@ -156,7 +156,7 @@ export class DriveController {
   async releaseApp(
     @UploadedFile() file: any,
     @Body('version') version: string,
-    @Body('platform') platform: 'ANDROID_APK' | 'MAC_DMG'
+    @Body('platform') platform: 'ANDROID_APK' | 'MAC_DMG',
   ) {
     if (!file) {
       throw new BadRequestException('Binary file (.apk or .dmg) is required');
@@ -165,11 +165,11 @@ export class DriveController {
       file.buffer,
       file.originalname,
       version || 'v1.4.2',
-      platform || 'ANDROID_APK'
+      platform || 'ANDROID_APK',
     );
     return {
       success: true,
-      message: 'New app installer release stored in Google Drive',
+      message: 'New app installer release registered in Firestore and stored in Google Drive',
       data: release,
     };
   }

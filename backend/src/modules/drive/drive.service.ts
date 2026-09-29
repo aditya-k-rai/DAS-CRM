@@ -3,12 +3,22 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 import * as path from 'path';
 import * as fs from 'fs';
+import { FirestoreService } from '../firestore/firestore.service';
+import { FirestoreStorageService } from '../firestore/firestore-storage.service';
+import {
+  FirestoreFileDocument,
+  StorageCategory,
+  AppReleaseInfo,
+  FolderMailRequestDto,
+  FolderMailRequestRecord,
+} from '../firestore/firestore.interface';
 
-export type StorageCategory = 'EMPLOYEES' | 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' | 'PROFILES' | 'DOCUMENTS';
+export { StorageCategory, AppReleaseInfo, FolderMailRequestDto, FolderMailRequestRecord };
 
 export interface FileUploadProgress {
   fileId: string;
   driveFileId?: string;
+  firestoreDocId?: string;
   fileName: string;
   bytesUploaded: number;
   totalBytes: number;
@@ -23,59 +33,29 @@ export interface FileUploadProgress {
   folderPath?: string;
   driveViewUrl?: string;
   driveDownloadUrl?: string;
+  gcsDownloadUrl?: string;
   error?: string;
-}
-
-export interface AppReleaseInfo {
-  version: string;
-  platform: 'ANDROID_APK' | 'MAC_DMG';
-  fileName: string;
-  fileSize: string;
-  driveDownloadUrl: string;
-  uploadedAt: string;
-}
-
-export interface FolderMailRequestDto {
-  folderPath: string;
-  recipientEmail: string;
-  companyName?: string;
-  category?: StorageCategory;
-  employeeName?: string;
-  subCategory?: string;
-  format?: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
-  notes?: string;
-}
-
-export interface FolderMailRequestRecord {
-  requestId: string;
-  folderPath: string;
-  recipientEmail: string;
-  companyName: string;
-  category?: StorageCategory;
-  employeeName?: string;
-  format: 'ZIP' | 'CSV_MANIFEST' | 'SECURE_LINK';
-  fileCount: number;
-  totalSizeMb: string;
-  status: 'QUEUED' | 'SENT' | 'DELIVERED';
-  requestedAt: string;
-  downloadUrl?: string;
 }
 
 export interface StoredFileInfo {
   fileId: string;
   driveFileId?: string;
+  firestoreDocId?: string;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  sizeFormatted?: string;
   companyName: string;
   category: StorageCategory;
   employeeName?: string;
   subCategory?: string;
   folderHierarchy?: string[];
   folderPath: string;
-  driveViewUrl: string;
-  driveDownloadUrl: string;
+  driveViewUrl?: string;
+  driveDownloadUrl?: string;
+  gcsDownloadUrl?: string;
   localPath?: string;
+  isProtectedKyc?: boolean;
   uploadedAt: string;
 }
 
@@ -85,6 +65,8 @@ export interface DriveConnectionStatus {
   serviceAccountEmail?: string;
   projectId?: string;
   folderId?: string;
+  firestoreConnected: boolean;
+  firestoreAuthType: string;
   activeCategories: StorageCategory[];
   totalFilesStored: number;
   message: string;
@@ -100,56 +82,21 @@ export class DriveService {
   private folderId: string = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
   private progressStore: Map<string, FileUploadProgress> = new Map();
   private folderCache: Map<string, string> = new Map();
-  private storedFilesRegistry: StoredFileInfo[] = [];
   private vaultBasePath: string = '';
 
-  private appReleases: AppReleaseInfo[] = [
-    {
-      version: 'v1.4.2',
-      platform: 'ANDROID_APK',
-      fileName: 'DAS_CRM_Android_v1.4.2.apk',
-      fileSize: '48.2 MB',
-      driveDownloadUrl: 'https://drive.google.com/uc?export=download&id=demo_apk_id',
-      uploadedAt: 'Aug 22, 2026',
-    },
-    {
-      version: 'v1.4.2',
-      platform: 'MAC_DMG',
-      fileName: 'DAS_CRM_Mac_v1.4.2.dmg',
-      fileSize: '82.6 MB',
-      driveDownloadUrl: 'https://drive.google.com/uc?export=download&id=demo_dmg_id',
-      uploadedAt: 'Aug 22, 2026',
-    },
-  ];
-
-  constructor() {
+  constructor(
+    private readonly firestoreService: FirestoreService,
+    private readonly firestoreStorageService: FirestoreStorageService,
+  ) {
     this.vaultBasePath = path.resolve(process.cwd(), 'storage', 'drive_vault');
-    this.initVault();
-    this.initGoogleDrive();
-  }
-
-  private initVault() {
-    try {
-      if (!fs.existsSync(this.vaultBasePath)) {
+    if (!fs.existsSync(this.vaultBasePath)) {
+      try {
         fs.mkdirSync(this.vaultBasePath, { recursive: true });
+      } catch {
+        // directory already handled
       }
-      const regPath = path.join(this.vaultBasePath, 'registry.json');
-      if (fs.existsSync(regPath)) {
-        const raw = fs.readFileSync(regPath, 'utf8');
-        this.storedFilesRegistry = JSON.parse(raw);
-      }
-    } catch (e) {
-      this.logger.warn('Could not initialize local storage vault registry:', e);
     }
-  }
-
-  private saveRegistry() {
-    try {
-      const regPath = path.join(this.vaultBasePath, 'registry.json');
-      fs.writeFileSync(regPath, JSON.stringify(this.storedFilesRegistry, null, 2), 'utf8');
-    } catch (e) {
-      this.logger.warn('Failed to persist vault registry to disk:', e);
-    }
+    this.initGoogleDrive();
   }
 
   private initGoogleDrive() {
@@ -177,8 +124,8 @@ export class DriveService {
       }
 
       // 2. Try Service Account Email & Private Key in Environment Variables
-      const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-      const privateKey = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+      const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+      const privateKey = (process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
       if (clientEmail && privateKey) {
         const auth = new google.auth.JWT({
           email: clientEmail,
@@ -191,7 +138,7 @@ export class DriveService {
         this.drive = google.drive({ version: 'v3', auth });
         this.authType = 'SERVICE_ACCOUNT';
         this.authenticatedEmail = clientEmail;
-        this.projectId = process.env.GOOGLE_PROJECT_ID || this.projectId;
+        this.projectId = process.env.GOOGLE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || this.projectId;
         this.logger.log(`✅ Google Drive API Authenticated via Service Account Env (${clientEmail})`);
         return;
       }
@@ -212,7 +159,7 @@ export class DriveService {
         const oauth2Client = new google.auth.OAuth2(
           clientId,
           clientSecret,
-          'https://developers.google.com/oauthplayground'
+          'https://developers.google.com/oauthplayground',
         );
         this.drive = google.drive({ version: 'v3', auth: oauth2Client });
         this.authType = 'OAUTH2';
@@ -221,7 +168,7 @@ export class DriveService {
       }
 
       this.authType = 'LOCAL_VAULT';
-      this.logger.warn('⚠️ Google Drive running in Local Vault Mode. Files are cached securely with zero DB load.');
+      this.logger.warn('⚠️ Google Drive operating in Local High-Speed Vault Mode with Firestore metadata registry.');
     } catch (err) {
       this.authType = 'LOCAL_VAULT';
       this.logger.error('Google Drive Auth Error:', err);
@@ -229,18 +176,24 @@ export class DriveService {
   }
 
   getStatus(): DriveConnectionStatus {
-    const isConnected = !!this.drive && this.authType !== 'LOCAL_VAULT';
+    const isDriveConnected = !!this.drive && this.authType !== 'LOCAL_VAULT';
+    const firestoreStatus = this.firestoreService.getStatus();
+
     return {
-      connected: isConnected,
+      connected: isDriveConnected,
       authType: this.authType,
-      serviceAccountEmail: this.authenticatedEmail || (this.authType === 'SERVICE_ACCOUNT' ? 'das-crm-drive@das-crm-506400.iam.gserviceaccount.com' : undefined),
+      serviceAccountEmail:
+        this.authenticatedEmail ||
+        (this.authType === 'SERVICE_ACCOUNT'
+          ? 'das-crm-drive@das-crm-506400.iam.gserviceaccount.com'
+          : undefined),
       projectId: this.projectId,
-      folderId: this.folderId || 'Root / Service Drive Space',
+      folderId: this.folderId || 'Root / Google Drive Workspace',
+      firestoreConnected: firestoreStatus.connected,
+      firestoreAuthType: firestoreStatus.authType,
       activeCategories: ['EMPLOYEES', 'LEADS', 'QUOTATIONS', 'PRODUCTS', 'PROFILES', 'DOCUMENTS'],
-      totalFilesStored: this.storedFilesRegistry.length,
-      message: isConnected
-        ? `Connected to Google Drive using ${this.authType} (${this.authenticatedEmail || this.projectId}). Files are stored hierarchically without database load.`
-        : 'Google Drive operating in High-Speed Storage Vault Mode. Files are organized by company and employee folders without database load.',
+      totalFilesStored: 0,
+      message: `Google Drive (${this.authType}) + Google Cloud Firestore (${firestoreStatus.authType}) dual storage engine active.`,
     };
   }
 
@@ -263,18 +216,11 @@ export class DriveService {
     }
   }
 
-  /**
-   * Resolves the hierarchical folder chain for a file:
-   * For Employees:
-   *   [Company Name] / Employees / [Employee Name] / [DP | Documents | Details]
-   * For Other Categories:
-   *   [Company Name] / [Category Folder] / [Optional Subcategory]
-   */
   getFolderHierarchy(
     companyName: string = 'Acme Sales Solutions',
     category: StorageCategory = 'LEADS',
     employeeName?: string,
-    subCategory?: string
+    subCategory?: string,
   ): { hierarchy: string[]; folderPath: string } {
     const cleanCompany = companyName?.trim() || 'Acme Sales Solutions';
 
@@ -354,10 +300,6 @@ export class DriveService {
     }
   }
 
-  /**
-   * Recursively resolves or creates nested folders in Google Drive:
-   * e.g. ['Acme Sales Solutions', 'Employees', 'Amit Shah', 'Documents']
-   */
   async resolveFolderChain(folderNames: string[], rootParentId?: string): Promise<string> {
     let currentParentId = rootParentId || this.folderId || undefined;
 
@@ -378,14 +320,14 @@ export class DriveService {
     category: StorageCategory = 'LEADS',
     customFileName?: string,
     employeeName?: string,
-    subCategory?: string
+    subCategory?: string,
   ): Promise<FileUploadProgress> {
     const totalBytes = fileBuffer.length;
     const startTime = Date.now();
 
     // 1. Format timestamped filename: {FileName}_{YYYY-MM-DD_HH-mm}.{ext}
     const extMatch = rawFileName.match(/\.([a-zA-Z0-9]+)$/);
-    const ext = extMatch ? extMatch[1] : 'dat';
+    const ext = extMatch ? extMatch[1].toLowerCase() : 'dat';
     const baseRaw = customFileName ? customFileName.trim() : rawFileName.replace(/\.[^/.]+$/, '');
     const cleanBase = baseRaw.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -394,20 +336,21 @@ export class DriveService {
     const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
     const targetFileName = `${cleanBase}_${dateStr}.${ext}`;
 
-    // 2. Resolve hierarchical folder path:
-    // e.g. Company > Employees > [Employee Name] > [DP | Documents | Details]
+    // 2. Resolve hierarchical folder path
     const effectiveCategory: StorageCategory = employeeName ? 'EMPLOYEES' : category;
     const { hierarchy, folderPath } = this.getFolderHierarchy(
       companyName,
       effectiveCategory,
       employeeName,
-      subCategory
+      subCategory,
     );
 
-    // 3. Always mirror to high-speed disk vault cache in identical directory structure
+    // 3. Local disk vault backup
     const localTargetDir = path.join(this.vaultBasePath, ...hierarchy);
     if (!fs.existsSync(localTargetDir)) {
-      fs.mkdirSync(localTargetDir, { recursive: true });
+      try {
+        fs.mkdirSync(localTargetDir, { recursive: true });
+      } catch {}
     }
     const localFilePath = path.join(localTargetDir, `${trackingId}_${targetFileName}`);
     try {
@@ -433,7 +376,7 @@ export class DriveService {
     };
     this.progressStore.set(trackingId, initialProgress);
 
-    // 4. Simulated progress ticks for smooth UI feedback
+    // 4. Smooth upload progress simulation
     const chunkSize = Math.max(64 * 1024, Math.floor(totalBytes / 12));
     let bytesUploaded = 0;
 
@@ -450,10 +393,10 @@ export class DriveService {
         speedMbps: Math.max(1.5, speedMbps),
       });
 
-      await new Promise(r => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 20));
     }
 
-    // 5. Remote Google Drive upload (creates exact hierarchical folder tree)
+    // 5. Remote Google Drive upload (hierarchical folder mirroring)
     let driveFileId = '';
     let driveViewUrl = `https://drive.google.com/file/d/drive_${trackingId}/view`;
     let driveDownloadUrl = `https://drive.google.com/uc?export=download&id=drive_${trackingId}`;
@@ -478,9 +421,10 @@ export class DriveService {
         if (res.data?.id) {
           driveFileId = res.data.id;
           driveViewUrl = res.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`;
-          driveDownloadUrl = res.data.webContentLink || `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+          driveDownloadUrl =
+            res.data.webContentLink ||
+            `https://drive.google.com/uc?export=download&id=${driveFileId}`;
 
-          // Set public read permission so links work instantly for client apps without auth friction
           try {
             await this.drive.permissions.create({
               fileId: driveFileId,
@@ -489,7 +433,7 @@ export class DriveService {
                 type: 'anyone',
               },
             });
-            this.logger.log(`✅ Set public read permissions on Google Drive file: ${driveFileId}`);
+            this.logger.log(`✅ Set public read permission on Google Drive file: ${driveFileId}`);
           } catch (permErr) {
             this.logger.warn(`Could not set public permission on Drive file ${driveFileId}:`, permErr);
           }
@@ -499,12 +443,75 @@ export class DriveService {
       }
     }
 
+    // 6. Optional Google Cloud Storage / Firebase Storage Bucket upload
+    let gcsPath: string | undefined;
+    let gcsDownloadUrl: string | undefined;
+    const storageBucket = this.firestoreService.getStorageBucket();
+    if (storageBucket) {
+      try {
+        const remoteGcsPath = `vault/${hierarchy.join('/')}/${trackingId}_${targetFileName}`;
+        const blob = storageBucket.file(remoteGcsPath);
+        await blob.save(fileBuffer, {
+          contentType: mimeType || 'application/octet-stream',
+          resumable: false,
+        });
+        gcsPath = `gs://${storageBucket.name}/${remoteGcsPath}`;
+        gcsDownloadUrl = `https://storage.googleapis.com/${storageBucket.name}/${remoteGcsPath}`;
+        this.logger.log(`☁️ Stored file in Cloud Storage Bucket: ${gcsPath}`);
+      } catch (gcsErr) {
+        this.logger.warn('Could not stream to Cloud Storage bucket:', gcsErr);
+      }
+    }
+
+    // 7. Persist to Google Cloud Firestore (The central document registry)
+    const isProtected =
+      effectiveCategory === 'EMPLOYEES' ||
+      effectiveCategory === 'PROFILES' ||
+      (subCategory && subCategory.toLowerCase() === 'documents') ||
+      !!(employeeName && employeeName.trim().length > 0);
+
+    const firestoreDoc: FirestoreFileDocument = {
+      fileId: trackingId,
+      organizationId: 'org_default',
+      companyName,
+      fileName: targetFileName,
+      originalName: rawFileName,
+      mimeType,
+      fileExtension: ext,
+      sizeBytes: totalBytes,
+      sizeFormatted: this.firestoreStorageService.formatBytes(totalBytes),
+      category: effectiveCategory,
+      subCategory,
+      employeeName,
+      folderHierarchy: hierarchy,
+      folderPath,
+      storageEngines: {
+        firestore: true,
+        googleCloudStorage: !!gcsPath,
+        googleDrive: !!driveFileId,
+        localVault: true,
+      },
+      gcsPath,
+      gcsDownloadUrl,
+      driveFileId,
+      driveViewUrl,
+      driveDownloadUrl,
+      localPath: localFilePath,
+      isProtectedKyc: isProtected,
+      uploadedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isDeleted: false,
+    };
+
+    await this.firestoreStorageService.saveFileRecord(firestoreDoc);
+
     const elapsedTotalSec = (Date.now() - startTime) / 1000 || 0.1;
     const finalSpeed = Number(((totalBytes / (1024 * 1024)) / elapsedTotalSec).toFixed(2));
 
     const finalProgress: FileUploadProgress = {
       fileId: trackingId,
       driveFileId,
+      firestoreDocId: trackingId,
       fileName: targetFileName,
       bytesUploaded: totalBytes,
       totalBytes,
@@ -519,31 +526,10 @@ export class DriveService {
       folderPath,
       driveViewUrl,
       driveDownloadUrl,
+      gcsDownloadUrl,
     };
 
     this.progressStore.set(trackingId, finalProgress);
-
-    // 6. Add to stored files registry
-    const storedRecord: StoredFileInfo = {
-      fileId: trackingId,
-      driveFileId,
-      fileName: targetFileName,
-      mimeType,
-      sizeBytes: totalBytes,
-      companyName,
-      category: effectiveCategory,
-      employeeName,
-      subCategory,
-      folderHierarchy: hierarchy,
-      folderPath,
-      driveViewUrl,
-      driveDownloadUrl,
-      localPath: localFilePath,
-      uploadedAt: new Date().toISOString(),
-    };
-    this.storedFilesRegistry.unshift(storedRecord);
-    this.saveRegistry();
-
     return finalProgress;
   }
 
@@ -561,39 +547,70 @@ export class DriveService {
     );
   }
 
-  listFiles(
+  async listFiles(
     companyName?: string,
     category?: StorageCategory,
     employeeName?: string,
-    subCategory?: string
-  ): StoredFileInfo[] {
-    return this.storedFilesRegistry.filter((f) => {
-      if (companyName && f.companyName.toLowerCase() !== companyName.toLowerCase()) {
-        return false;
-      }
-      if (category && f.category !== category) {
-        return false;
-      }
-      if (employeeName && f.employeeName && f.employeeName.toLowerCase() !== employeeName.toLowerCase()) {
-        return false;
-      }
-      if (subCategory && f.subCategory && f.subCategory.toLowerCase() !== subCategory.toLowerCase()) {
-        return false;
-      }
-      return true;
+    subCategory?: string,
+  ): Promise<StoredFileInfo[]> {
+    const docs = await this.firestoreStorageService.listFileRecords({
+      companyName,
+      category,
+      employeeName,
+      subCategory,
+      includeDeleted: false,
     });
+
+    return docs.map((doc) => ({
+      fileId: doc.fileId,
+      driveFileId: doc.driveFileId,
+      firestoreDocId: doc.fileId,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType,
+      sizeBytes: doc.sizeBytes,
+      sizeFormatted: doc.sizeFormatted,
+      companyName: doc.companyName,
+      category: doc.category,
+      employeeName: doc.employeeName,
+      subCategory: doc.subCategory,
+      folderHierarchy: doc.folderHierarchy,
+      folderPath: doc.folderPath,
+      driveViewUrl: doc.driveViewUrl,
+      driveDownloadUrl: doc.driveDownloadUrl,
+      gcsDownloadUrl: doc.gcsDownloadUrl,
+      localPath: doc.localPath,
+      isProtectedKyc: doc.isProtectedKyc,
+      uploadedAt: doc.uploadedAt,
+    }));
   }
 
-  getFileMetadata(fileId: string): StoredFileInfo {
-    const file = this.storedFilesRegistry.find(f => f.fileId === fileId || f.driveFileId === fileId);
-    if (!file) {
-      throw new NotFoundException(`File ${fileId} not found in Drive vault`);
-    }
-    return file;
+  async getFileMetadata(fileId: string): Promise<StoredFileInfo> {
+    const doc = await this.firestoreStorageService.getFileRecord(fileId);
+    return {
+      fileId: doc.fileId,
+      driveFileId: doc.driveFileId,
+      firestoreDocId: doc.fileId,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType,
+      sizeBytes: doc.sizeBytes,
+      sizeFormatted: doc.sizeFormatted,
+      companyName: doc.companyName,
+      category: doc.category,
+      employeeName: doc.employeeName,
+      subCategory: doc.subCategory,
+      folderHierarchy: doc.folderHierarchy,
+      folderPath: doc.folderPath,
+      driveViewUrl: doc.driveViewUrl,
+      driveDownloadUrl: doc.driveDownloadUrl,
+      gcsDownloadUrl: doc.gcsDownloadUrl,
+      localPath: doc.localPath,
+      isProtectedKyc: doc.isProtectedKyc,
+      uploadedAt: doc.uploadedAt,
+    };
   }
 
   async getFileBuffer(fileId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
-    const file = this.getFileMetadata(fileId);
+    const file = await this.getFileMetadata(fileId);
 
     // 1. Serve from fast local disk vault if present
     if (file.localPath && fs.existsSync(file.localPath)) {
@@ -603,54 +620,66 @@ export class DriveService {
 
     // 2. Fetch from Google Drive if local is missing
     if (this.drive && file.driveFileId) {
-      const res = await this.drive.files.get(
-        { fileId: file.driveFileId, alt: 'media' },
-        { responseType: 'arraybuffer' }
-      );
-      const buffer = Buffer.from(res.data);
-      return { buffer, mimeType: file.mimeType, fileName: file.fileName };
+      try {
+        const res = await this.drive.files.get(
+          { fileId: file.driveFileId, alt: 'media' },
+          { responseType: 'arraybuffer' },
+        );
+        const buffer = Buffer.from(res.data);
+        return { buffer, mimeType: file.mimeType, fileName: file.fileName };
+      } catch (e) {
+        this.logger.warn(`Could not download from Google Drive: ${file.driveFileId}`, e);
+      }
     }
 
     throw new NotFoundException(`File content for ${fileId} not available`);
   }
 
   async deleteFile(fileId: string): Promise<boolean> {
-    const idx = this.storedFilesRegistry.findIndex(f => f.fileId === fileId || f.driveFileId === fileId);
-    if (idx === -1) return false;
+    try {
+      const file = await this.getFileMetadata(fileId);
 
-    const file = this.storedFilesRegistry[idx];
-
-    // Remove from Google Drive
-    if (this.drive && file.driveFileId) {
-      try {
-        await this.drive.files.delete({ fileId: file.driveFileId });
-      } catch (err) {
-        this.logger.warn(`Could not delete file ${file.driveFileId} from Google Drive:`, err);
+      // Remove from Google Drive
+      if (this.drive && file.driveFileId) {
+        try {
+          await this.drive.files.delete({ fileId: file.driveFileId });
+        } catch (err) {
+          this.logger.warn(`Could not delete file ${file.driveFileId} from Google Drive:`, err);
+        }
       }
-    }
 
-    // Remove from local vault
-    if (file.localPath && fs.existsSync(file.localPath)) {
-      try {
-        fs.unlinkSync(file.localPath);
-      } catch (err) {
-        this.logger.warn(`Could not delete file from disk vault:`, err);
+      // Remove from local disk vault
+      if (file.localPath && fs.existsSync(file.localPath)) {
+        try {
+          fs.unlinkSync(file.localPath);
+        } catch (err) {
+          this.logger.warn(`Could not delete file from disk vault:`, err);
+        }
       }
-    }
 
-    this.storedFilesRegistry.splice(idx, 1);
-    this.saveRegistry();
-    return true;
+      // Remove from Firestore
+      await this.firestoreStorageService.deleteFileRecord(file.fileId, true);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async releaseSuperAdminApp(
     fileBuffer: Buffer,
     fileName: string,
     version: string,
-    platform: 'ANDROID_APK' | 'MAC_DMG'
+    platform: 'ANDROID_APK' | 'MAC_DMG',
   ): Promise<AppReleaseInfo> {
     const trackingId = `rel_${Date.now()}`;
-    const result = await this.uploadFileWithProgress(fileBuffer, fileName, 'application/octet-stream', trackingId, 'Super Admin', 'DOCUMENTS');
+    const result = await this.uploadFileWithProgress(
+      fileBuffer,
+      fileName,
+      'application/octet-stream',
+      trackingId,
+      'Super Admin',
+      'DOCUMENTS',
+    );
 
     const sizeMb = (fileBuffer.length / (1024 * 1024)).toFixed(1) + ' MB';
     const release: AppReleaseInfo = {
@@ -659,14 +688,17 @@ export class DriveService {
       fileName,
       fileSize: sizeMb,
       driveDownloadUrl: result.driveDownloadUrl || '',
-      uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      firestoreDocId: trackingId,
+      uploadedAt: new Date().toLocaleDateString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+      }),
     };
 
-    this.appReleases.unshift(release);
+    await this.firestoreStorageService.saveAppRelease(release);
     return release;
   }
-
-  private mailRequestsRegistry: FolderMailRequestRecord[] = [];
 
   async requestFolderMail(dto: FolderMailRequestDto): Promise<FolderMailRequestRecord> {
     const {
@@ -677,11 +709,9 @@ export class DriveService {
       employeeName,
       subCategory,
       format = 'ZIP',
-      notes,
     } = dto;
 
-    // 1. Determine files belonging to the requested folder
-    const matchingFiles = this.listFiles(companyName, category, employeeName, subCategory);
+    const matchingFiles = await this.listFiles(companyName, category, employeeName, subCategory);
     const totalBytes = matchingFiles.reduce((acc, f) => acc + (f.sizeBytes || 0), 0);
     const totalMb = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
 
@@ -701,30 +731,23 @@ export class DriveService {
       downloadUrl: `https://drive.google.com/drive/folders/${this.folderId || 'das-crm-vault-export'}?authuser=${encodeURIComponent(recipientEmail)}`,
     };
 
-    this.mailRequestsRegistry.unshift(record);
+    await this.firestoreStorageService.saveMailRequest(record);
     this.logger.log(
-      `📧 Folder Data Export Dispatched to ${recipientEmail} for [${record.folderPath}] (${record.fileCount} files, format: ${format})`
+      `📧 Folder Data Export Dispatched to ${recipientEmail} for [${record.folderPath}] (${record.fileCount} files, format: ${format})`,
     );
 
     return record;
   }
 
   getMailRequests(companyName?: string): FolderMailRequestRecord[] {
-    if (!companyName) return this.mailRequestsRegistry;
-    return this.mailRequestsRegistry.filter(
-      r => !r.companyName || r.companyName.toLowerCase() === companyName.toLowerCase()
-    );
+    return this.firestoreStorageService.getMailRequests(companyName);
   }
 
   getAppReleases(): AppReleaseInfo[] {
-    return this.appReleases;
+    return this.firestoreStorageService.getAppReleases();
   }
 
-  /**
-   * Helper to check if a stored file is an Employee Verified Document or KYC record
-   * that is permanently protected from company history purges.
-   */
-  isEmployeeDocument(file: StoredFileInfo): boolean {
+  isEmployeeDocument(file: StoredFileInfo | FirestoreFileDocument): boolean {
     if (file.category === 'EMPLOYEES' || file.category === 'PROFILES') {
       return true;
     }
@@ -741,13 +764,9 @@ export class DriveService {
     if (file.folderPath && file.folderPath.toLowerCase().includes('employees')) {
       return true;
     }
-    return false;
+    return !!file.isProtectedKyc;
   }
 
-  /**
-   * Data Retention Purge: Automatically purges company files older than cutoffDate (6 months / 180 days)
-   * while STRICTLY PRESERVING all Verified Employee Documents and KYC records.
-   */
   async purgeExpiredCompanyFiles(
     cutoffDate: Date,
     companyName?: string,
@@ -757,31 +776,26 @@ export class DriveService {
     purgedFiles: string[];
     retainedFilesCount: number;
   }> {
+    const allFiles = await this.firestoreStorageService.listFileRecords({
+      companyName,
+      includeDeleted: false,
+    });
     const purgedFiles: string[] = [];
     let protectedEmployeeDocCount = 0;
-    const remainingFiles: StoredFileInfo[] = [];
 
-    for (const file of this.storedFilesRegistry) {
-      if (companyName && file.companyName.toLowerCase() !== companyName.toLowerCase()) {
-        remainingFiles.push(file);
-        continue;
-      }
-
+    for (const file of allFiles) {
       const uploadDate = file.uploadedAt ? new Date(file.uploadedAt) : new Date(0);
       const isExpired = uploadDate < cutoffDate;
 
       if (isExpired) {
-        // STRICT EXEMPTION: Never delete Employee Verified Documents or employee vault items
         if (this.isEmployeeDocument(file)) {
           protectedEmployeeDocCount++;
-          remainingFiles.push(file);
           this.logger.log(
             `🔒 Data Retention: Preserved verified employee document: ${file.fileName} (${file.employeeName || 'Staff'})`,
           );
           continue;
         }
 
-        // Expired company non-employee file: purge from disk and Google Drive
         try {
           if (this.drive && file.driveFileId) {
             await this.drive.files.delete({ fileId: file.driveFileId }).catch(() => null);
@@ -789,10 +803,9 @@ export class DriveService {
           if (file.localPath && fs.existsSync(file.localPath)) {
             fs.unlinkSync(file.localPath);
           }
+          await this.firestoreStorageService.deleteFileRecord(file.fileId, true);
           purgedFiles.push(file.fileName);
-          this.logger.log(
-            `🗑️ Data Retention: Purged expired company file: ${file.fileName} (uploaded: ${file.uploadedAt})`,
-          );
+          this.logger.log(`🗑️ Data Retention: Purged expired company file: ${file.fileName}`);
         } catch (e) {
           this.logger.warn(`Data Retention: Error deleting file ${file.fileId}:`, e);
         }
@@ -800,36 +813,38 @@ export class DriveService {
         if (this.isEmployeeDocument(file)) {
           protectedEmployeeDocCount++;
         }
-        remainingFiles.push(file);
       }
     }
 
-    this.storedFilesRegistry = remainingFiles;
-    this.saveRegistry();
+    const remaining = await this.firestoreStorageService.listFileRecords({
+      companyName,
+      includeDeleted: false,
+    });
 
     return {
       purgedCount: purgedFiles.length,
       protectedEmployeeDocCount,
       purgedFiles,
-      retainedFilesCount: this.storedFilesRegistry.length,
+      retainedFilesCount: remaining.length,
     };
   }
 
-  getStorageRetentionStats(
+  async getStorageRetentionStats(
     cutoffDate: Date,
     companyName?: string,
-  ): {
+  ): Promise<{
     totalFiles: number;
     expiredCompanyFilesCount: number;
     protectedEmployeeDocCount: number;
-  } {
+  }> {
+    const allFiles = await this.firestoreStorageService.listFileRecords({
+      companyName,
+      includeDeleted: false,
+    });
     let expiredCompanyFilesCount = 0;
     let protectedEmployeeDocCount = 0;
 
-    for (const file of this.storedFilesRegistry) {
-      if (companyName && file.companyName.toLowerCase() !== companyName.toLowerCase()) {
-        continue;
-      }
+    for (const file of allFiles) {
       const isEmp = this.isEmployeeDocument(file);
       if (isEmp) {
         protectedEmployeeDocCount++;
@@ -841,7 +856,7 @@ export class DriveService {
     }
 
     return {
-      totalFiles: this.storedFilesRegistry.length,
+      totalFiles: allFiles.length,
       expiredCompanyFilesCount,
       protectedEmployeeDocCount,
     };

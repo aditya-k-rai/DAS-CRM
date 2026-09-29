@@ -16,6 +16,7 @@ export type StorageCategory = 'EMPLOYEES' | 'LEADS' | 'QUOTATIONS' | 'PRODUCTS' 
 export interface GoogleDriveUploadProgress {
   fileId: string;
   driveFileId?: string;
+  firestoreDocId?: string;
   fileName: string;
   bytesUploaded: number;
   totalBytes: number;
@@ -30,6 +31,7 @@ export interface GoogleDriveUploadProgress {
   folderPath: string;
   driveViewUrl?: string;
   driveDownloadUrl?: string;
+  gcsDownloadUrl?: string;
   error?: string;
 }
 
@@ -50,6 +52,8 @@ export interface GoogleDriveConnectionStatus {
   serviceAccountEmail?: string;
   projectId?: string;
   folderId?: string;
+  firestoreConnected?: boolean;
+  firestoreAuthType?: string;
   activeCategories: StorageCategory[];
   totalFilesStored: number;
   message: string;
@@ -58,6 +62,7 @@ export interface GoogleDriveConnectionStatus {
 export interface GoogleDriveStoredFile {
   fileId: string;
   driveFileId?: string;
+  firestoreDocId?: string;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -69,6 +74,8 @@ export interface GoogleDriveStoredFile {
   folderPath: string;
   driveViewUrl: string;
   driveDownloadUrl: string;
+  gcsDownloadUrl?: string;
+  isProtectedKyc?: boolean;
   uploadedAt: string;
 }
 

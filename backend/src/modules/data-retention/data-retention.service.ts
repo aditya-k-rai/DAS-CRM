@@ -360,7 +360,7 @@ export class DataRetentionService implements OnApplicationBootstrap, OnModuleDes
       this.prisma.employeeProfile.count({ where: orgFilter }),
     ]);
 
-    const driveStats = this.driveService.getStorageRetentionStats(cutoffDate);
+    const driveStats = await this.driveService.getStorageRetentionStats(cutoffDate);
 
     const totalProtectedDocs = protectedEmployeeProfiles + driveStats.protectedEmployeeDocCount;
     const totalPendingPurge =
