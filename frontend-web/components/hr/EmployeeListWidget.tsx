@@ -567,16 +567,18 @@ export function EmployeeListWidget({
     const unsub = subscribeUserDirectory(() => {
       if (isMounted) loadDir();
     });
+    
+    // Use a longer polling interval (30 seconds) to save CPU and RAM
     const interval = setInterval(() => {
       if (isMounted) loadDir();
-    }, 10000);
+    }, 30000);
 
     return () => {
       isMounted = false;
       unsub();
       clearInterval(interval);
     };
-  }, [currentUser, refreshTrigger]);
+  }, [currentUser?.id, refreshTrigger]); // Depend on ID to prevent infinite loops from context updates
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const unassignedEmps = employees.filter(e => e.role === 'UNASSIGNED');

@@ -813,7 +813,7 @@ export class UsersService {
     });
     if (!target) throw new NotFoundException('User not found in organization.');
 
-    let finalManagerId = null;
+    let finalManagerId: string | null = null;
     if (managerLabel && managerLabel !== 'Admin' && managerLabel !== 'Organization Admin' && managerLabel !== 'null') {
       const allUsers = await this.prisma.user.findMany({
         where: { organizationId },

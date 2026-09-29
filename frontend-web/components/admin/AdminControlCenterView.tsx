@@ -312,7 +312,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   useEffect(() => {
     loadWorkspaceUsers();
     const unsub = subscribeUserDirectory(() => loadWorkspaceUsers());
-    const interval = setInterval(() => loadWorkspaceUsers(), 8000);
+    const interval = setInterval(() => loadWorkspaceUsers(), 30000); // Increased polling to 30s to reduce CPU load
     return () => { unsub(); clearInterval(interval); };
   }, [loadWorkspaceUsers]);
 
