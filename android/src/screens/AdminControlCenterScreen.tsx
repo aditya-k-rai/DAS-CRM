@@ -39,13 +39,14 @@ interface ModuleDef {
   icon: string;
   label: string;
   category: 'SALES' | 'OPERATIONS' | 'ADMIN' | 'COMMUNICATION' | 'AI';
+  hasEditControl?: boolean; // Only PRODUCTS and QUOTES have Edit toggle
 }
 
 const ALL_MODULES: ModuleDef[] = [
   // Sales
-  { key: 'PRODUCTS',       icon: '📦', label: 'Product Catalogue',          category: 'SALES' },
+  { key: 'PRODUCTS',       icon: '📦', label: 'Product Catalogue',          category: 'SALES',         hasEditControl: true },
   { key: 'PDF_CATALOG',    icon: '📄', label: 'PDF Catalogue',               category: 'SALES' },
-  { key: 'QUOTES',         icon: '📝', label: 'Quotations & Invoices',       category: 'SALES' },
+  { key: 'QUOTES',         icon: '📝', label: 'Quotations & Invoices',       category: 'SALES',         hasEditControl: true },
   { key: 'DEALS',          icon: '💼', label: 'Deals Pipeline',              category: 'SALES' },
   { key: 'GOALS',          icon: '📈', label: 'Goals & Targets',             category: 'SALES' },
   // Communication
@@ -68,6 +69,18 @@ const ALL_MODULES: ModuleDef[] = [
   { key: 'SETTINGS',       icon: '⚙️', label: 'App Settings',              category: 'ADMIN' },
   { key: 'SUPPORT',        icon: '❓', label: 'Support & Help',              category: 'ADMIN' },
 ];
+
+// Default modules per role — cannot be toggled Off by admin
+const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE'],
+  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS'],
+  UNASSIGNED:  [],
+};
+
+const isDefaultModule = (role: string, key: string): boolean =>
+  (DEFAULT_MODULE_KEYS_BY_ROLE[role] || []).includes(key);
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   SALES:         { bg: 'rgba(52,211,153,0.12)', text: '#34d399',  border: 'rgba(52,211,153,0.35)' },
@@ -302,7 +315,15 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
 
     const policyKey = `${user.id}:${mod.key}`;
     setSaving(policyKey + ':' + field);
-    await store.setPermission(user.id, mod.key, { [field]: value });
+
+    // Sync related permission fields for On/Off visibility toggle
+    let patchedFields: Partial<ModulePermission> = { [field]: value };
+    if (field === 'active' && !value) {
+      patchedFields = { active: false, canView: false, canShare: false, canEdit: false };
+    } else if (field === 'active' && value) {
+      patchedFields = { active: true, canView: true, canShare: true };
+    }
+    await store.setPermission(user.id, mod.key, patchedFields);
 
     await appendAudit({
       id: `${Date.now()}`,
@@ -310,7 +331,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
       adminName: currentUser?.name || 'Admin',
       targetName: user.name,
       moduleLabel: mod.label,
-      action: `${field} → ${value ? 'ON' : 'OFF'}`,
+      action: field === 'active' ? `Visibility → ${value ? 'ON' : 'OFF'}` : `Edit → ${value ? 'ON' : 'OFF'}`,
     });
     await loadAudit();
     setSaving(null);
@@ -395,60 +416,109 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
           ))}
         </ScrollView>
 
-        {/* Legend row */}
+        {/* Legend */}
         <View style={[styles.legendRow, { borderBottomColor: colors.border }]}>
           <Text style={[styles.legendLabel, { color: colors.textMuted, flex: 1 }]}>Module</Text>
-          {(['active', 'canView', 'canShare', 'canEdit'] as (keyof ModulePermission)[]).map((f) => (
-            <Text key={f} style={[styles.legendLabel, { color: colors.textMuted, width: 48, textAlign: 'center' }]}>
-              {f === 'active' ? 'Active' : f === 'canView' ? 'View' : f === 'canShare' ? 'Share' : 'Edit'}
-            </Text>
-          ))}
+          <Text style={[styles.legendLabel, { color: colors.textMuted, width: 56, textAlign: 'center' }]}>Visible</Text>
+          <Text style={[styles.legendLabel, { color: colors.textMuted, width: 48, textAlign: 'center' }]}>Edit</Text>
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 24) + 80 }} showsVerticalScrollIndicator={false}>
           {/* Reset button */}
           <TouchableOpacity style={[styles.resetBtn, { borderColor: '#ef4444' }]} onPress={() => handleResetUser(user)} activeOpacity={0.8}>
-            <Text style={styles.resetBtnText}>🔄 Reset {user.name.split(' ')[0]}'s Permissions to Role Defaults</Text>
+            <Text style={styles.resetBtnText}>🔄 Reset {user.name.split(' ')[0]}'s Module Visibility to Role Defaults</Text>
           </TouchableOpacity>
 
-          {filteredModules.map((mod) => {
-            const perm = store.getPermission(user.id, user.role, mod.key);
-            const catColors = CATEGORY_COLORS[mod.category];
-            const isSaving = saving?.startsWith(`${user.id}:${mod.key}`);
-
-            return (
-              <View key={mod.key} style={[styles.moduleRow, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-                {/* Module identity */}
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={[styles.modIconBox, { backgroundColor: catColors.bg, borderColor: catColors.border }]}>
-                    <Text style={{ fontSize: 14 }}>{mod.icon}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.modLabel, { color: colors.text }]} numberOfLines={1}>{mod.label}</Text>
-                    <Text style={[styles.modCat, { color: catColors.text }]}>{mod.category}</Text>
-                  </View>
-                </View>
-
-                {/* Toggle columns */}
-                {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.primary} style={{ marginHorizontal: 8 }} />
-                ) : (
-                  (['active', 'canView', 'canShare', 'canEdit'] as (keyof ModulePermission)[]).map((field) => (
-                    <View key={field} style={styles.toggleCell}>
-                      <Switch
-                        value={!!perm[field]}
-                        onValueChange={(val) => handleToggle(user, mod, field, val)}
-                        trackColor={{ false: isDark ? '#1e293b' : '#e2e8f0', true: colors.primary + 'aa' }}
-                        thumbColor={perm[field] ? colors.primary : (isDark ? '#475569' : '#94a3b8')}
-                        ios_backgroundColor={isDark ? '#1e293b' : '#e2e8f0'}
-                        style={{ transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }] }}
-                      />
-                    </View>
-                  ))
-                )}
+          {/* ── Default / Protected Modules ─────────────────────────── */}
+          {filteredModules.filter(m => isDefaultModule(user.role, m.key)).length > 0 && (
+            <View style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: 0.6 }}>🔒 Default Modules — Always Visible</Text>
               </View>
-            );
-          })}
+              {filteredModules.filter(m => isDefaultModule(user.role, m.key)).map((mod) => {
+                const catColors = CATEGORY_COLORS[mod.category];
+                return (
+                  <View key={mod.key} style={[styles.moduleRow, { backgroundColor: 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.2)' }]}>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={[styles.modIconBox, { backgroundColor: catColors.bg, borderColor: catColors.border }]}>
+                        <Text style={{ fontSize: 14 }}>{mod.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.modLabel, { color: colors.text }]} numberOfLines={1}>{mod.label}</Text>
+                        <Text style={[styles.modCat, { color: '#fbbf24' }]}>DEFAULT • {mod.category}</Text>
+                      </View>
+                    </View>
+                    {/* Always On — no toggle */}
+                    <View style={[styles.defaultBadge, { width: 56 }]}>
+                      <Text style={styles.defaultBadgeText}>Always On</Text>
+                    </View>
+                    <View style={{ width: 48 }} />
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* ── Configurable Modules ─────────────────────────────────── */}
+          {filteredModules.filter(m => !isDefaultModule(user.role, m.key)).length > 0 && (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: colors.primary, textTransform: 'uppercase', letterSpacing: 0.6 }}>⚙️ Admin Controlled</Text>
+              </View>
+              {filteredModules.filter(m => !isDefaultModule(user.role, m.key)).map((mod) => {
+                const perm = store.getPermission(user.id, user.role, mod.key);
+                const catColors = CATEGORY_COLORS[mod.category];
+                const isSaving = saving?.startsWith(`${user.id}:${mod.key}`);
+                const isOn = perm.active;
+
+                return (
+                  <View key={mod.key} style={[styles.moduleRow, { backgroundColor: isOn ? colors.cardBg : colors.cardBg + '88', borderColor: isOn ? colors.border : colors.border + '66' }]}>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={[styles.modIconBox, { backgroundColor: isOn ? catColors.bg : 'rgba(30,41,59,0.5)', borderColor: isOn ? catColors.border : 'rgba(30,41,59,0.3)' }]}>
+                        <Text style={{ fontSize: 14, opacity: isOn ? 1 : 0.5 }}>{mod.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.modLabel, { color: isOn ? colors.text : colors.textMuted }]} numberOfLines={1}>{mod.label}</Text>
+                        <Text style={[styles.modCat, { color: isOn ? catColors.text : colors.textMuted }]}>{mod.category}</Text>
+                      </View>
+                    </View>
+
+                    {/* On/Off Toggle */}
+                    {isSaving ? (
+                      <ActivityIndicator size="small" color={colors.primary} style={{ width: 56 }} />
+                    ) : (
+                      <View style={[styles.toggleCell, { width: 56 }]}>
+                        <Switch
+                          value={isOn}
+                          onValueChange={(val) => handleToggle(user, mod, 'active', val)}
+                          trackColor={{ false: isDark ? '#1e293b' : '#e2e8f0', true: '#22c55e99' }}
+                          thumbColor={isOn ? '#22c55e' : (isDark ? '#475569' : '#94a3b8')}
+                          ios_backgroundColor={isDark ? '#1e293b' : '#e2e8f0'}
+                          style={{ transform: [{ scaleX: 0.82 }, { scaleY: 0.82 }] }}
+                        />
+                      </View>
+                    )}
+
+                    {/* Edit Toggle — only for PRODUCTS and QUOTES */}
+                    <View style={[styles.toggleCell, { width: 48 }]}>
+                      {mod.hasEditControl && isOn ? (
+                        <Switch
+                          value={!!perm.canEdit}
+                          onValueChange={(val) => handleToggle(user, mod, 'canEdit', val)}
+                          trackColor={{ false: isDark ? '#1e293b' : '#e2e8f0', true: '#a855f799' }}
+                          thumbColor={perm.canEdit ? '#a855f7' : (isDark ? '#475569' : '#94a3b8')}
+                          ios_backgroundColor={isDark ? '#1e293b' : '#e2e8f0'}
+                          style={{ transform: [{ scaleX: 0.78 }, { scaleY: 0.78 }] }}
+                        />
+                      ) : (
+                        <Text style={{ fontSize: 10, color: colors.textMuted, textAlign: 'center' }}>—</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </ScrollView>
       </View>
     );
@@ -792,6 +862,16 @@ const styles = StyleSheet.create({
   modLabel: { fontSize: 12, fontWeight: '700' },
   modCat: { fontSize: 9, fontWeight: '700', marginTop: 1 },
   toggleCell: { width: 48, alignItems: 'center' },
+  defaultBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(251,191,36,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.3)',
+    alignItems: 'center',
+  },
+  defaultBadgeText: { fontSize: 8, fontWeight: '800', color: '#fbbf24', textAlign: 'center' },
 
   resetBtn: {
     borderWidth: 1,

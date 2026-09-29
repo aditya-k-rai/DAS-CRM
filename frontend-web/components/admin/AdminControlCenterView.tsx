@@ -2,22 +2,25 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Shield, Lock, Unlock, Check, X, Search, Users, Settings, Sparkles,
-  RotateCcw, Eye, Share2, Edit3, AlertTriangle, Layers, Zap, ChevronRight,
-  ChevronDown, CheckCircle2, History, UserCheck, Package, Receipt,
+  Shield, Lock, Check, X, Search, Users, Settings, Sparkles,
+  RotateCcw, AlertTriangle, Layers, Zap, ChevronRight,
+  CheckCircle2, History, UserCheck, Package, Receipt,
   MessageSquare, MessageCircle, Mail, FileText, BarChart3, Database,
   Calendar, Briefcase, TrendingUp, Radio, Building2, HelpCircle, Info,
-  Sliders, ArrowRight, RefreshCw, Filter, UserX, Copy, Send
+  ArrowRight, RefreshCw, Copy, Send, ToggleLeft, ToggleRight, Edit3,
+  Eye, EyeOff
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import Link from 'next/link';
 import { subscribeUserDirectory, invalidateUserDirectoryCache } from '@/lib/userDirectoryCache';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface ModulePermission {
-  active: boolean;   // Has access to this module at all
-  canView: boolean;  // Can open/view the module
-  canShare: boolean; // Can share content from the module (PDFs, leads, etc.)
-  canEdit: boolean;  // Can create / edit / delete within the module
+  active: boolean;   // On = Visible in sidebar/dashboard | Off = Hidden entirely
+  canView: boolean;  // Legacy — kept for backward compat; always synced with active
+  canShare: boolean; // Legacy — kept for backward compat
+  canEdit: boolean;  // Can create / edit / delete (only for QUOTES & PRODUCTS)
 }
 
 export interface ManagedWorkspaceUser {
@@ -38,59 +41,60 @@ export interface ModuleDefinition {
   description: string;
   category: 'SALES' | 'COMMUNICATION' | 'AI' | 'OPERATIONS' | 'ADMIN';
   href: string;
+  hasEditControl?: boolean; // Only Quotations & Products have an additional Edit toggle
 }
+
+// ─── Module Registry ──────────────────────────────────────────────────────────
 
 export const ALL_WEB_MODULES: ModuleDefinition[] = [
   // Sales & Revenue
-  { key: 'LEADS', icon: Users, label: 'Leads Directory', description: 'Lead generation, records, and contact directory', category: 'SALES', href: '/leads' },
-  { key: 'PIPELINE', icon: Zap, label: 'Lead Pipeline & Stages', description: 'Kanban boards, ingestion rules, and stage movement', category: 'SALES', href: '/pipeline' },
-  { key: 'PRODUCTS', icon: Package, label: 'Product Catalogue', description: 'Inventory, SKU management, pricing, and variants', category: 'SALES', href: '/products' },
-  { key: 'PDF_CATALOG', icon: FileText, label: 'PDF Catalogue Generator', description: 'Interactive product brochures and marketing collateral', category: 'SALES', href: '/pdf-catalogue' },
-  { key: 'QUOTES', icon: Receipt, label: 'Quotations & Invoices', description: 'GST invoices, billing estimation, and proposals', category: 'SALES', href: '/quotes' },
-  { key: 'DEALS', icon: Briefcase, label: 'Deals Management', description: 'Closed deals tracking, contracts, and revenue share', category: 'SALES', href: '/deals' },
-  { key: 'GOALS', icon: TrendingUp, label: 'Goals & Targets', description: 'Sales targets, employee quotas, and performance', category: 'SALES', href: '/goals' },
-
+  { key: 'LEADS',        icon: Users,         label: 'Leads Directory',           description: 'Lead generation, records, and contact directory',                          category: 'SALES',         href: '/leads' },
+  { key: 'PIPELINE',     icon: Zap,           label: 'Lead Pipeline & Stages',    description: 'Kanban boards, ingestion rules, and stage movement',                      category: 'SALES',         href: '/pipeline' },
+  { key: 'PRODUCTS',     icon: Package,       label: 'Product Catalogue',         description: 'Inventory, SKU management, pricing, and variants',                        category: 'SALES',         href: '/products',        hasEditControl: true },
+  { key: 'PDF_CATALOG',  icon: FileText,      label: 'PDF Catalogue Generator',   description: 'Interactive product brochures and marketing collateral',                  category: 'SALES',         href: '/pdf-catalogue' },
+  { key: 'QUOTES',       icon: Receipt,       label: 'Quotations & Invoices',     description: 'GST invoices, billing estimation, and proposals',                         category: 'SALES',         href: '/quotes',          hasEditControl: true },
+  { key: 'DEALS',        icon: Briefcase,     label: 'Deals Management',          description: 'Closed deals tracking, contracts, and revenue share',                     category: 'SALES',         href: '/deals' },
+  { key: 'GOALS',        icon: TrendingUp,    label: 'Goals & Targets',           description: 'Sales targets, employee quotas, and performance',                         category: 'SALES',         href: '/goals' },
   // Communication & Marketing
-  { key: 'COMMUNICATIONS', icon: MessageSquare, label: 'WhatsApp Cloud API', description: 'Cloud API broadcasts, customer chat inbox', category: 'COMMUNICATION', href: '/comms' },
-  { key: 'WA_TEMPLATES', icon: MessageCircle, label: 'WhatsApp Direct Templates', description: 'Meta approved rich message templates and quick replies', category: 'COMMUNICATION', href: '/whatsapp-templates' },
-  { key: 'EXTRA_EMAIL', icon: Mail, label: 'Email Marketing', description: 'Campaign builder, newsletters, and email tracking', category: 'COMMUNICATION', href: '/emails' },
-  { key: 'UPCOMING_COMMS', icon: Radio, label: 'The Notice Board', description: 'Company broadcast alerts, announcements, and bulletins', category: 'COMMUNICATION', href: '/communicate' },
-
+  { key: 'COMMUNICATIONS',  icon: MessageSquare,  label: 'WhatsApp Cloud API',        description: 'Cloud API broadcasts, customer chat inbox',                         category: 'COMMUNICATION', href: '/comms' },
+  { key: 'WA_TEMPLATES',    icon: MessageCircle,  label: 'WhatsApp Direct Templates', description: 'Meta approved rich message templates and quick replies',             category: 'COMMUNICATION', href: '/whatsapp-templates' },
+  { key: 'EXTRA_EMAIL',     icon: Mail,           label: 'Email Marketing',           description: 'Campaign builder, newsletters, and email tracking',                  category: 'COMMUNICATION', href: '/emails' },
+  { key: 'UPCOMING_COMMS',  icon: Radio,          label: 'The Notice Board',          description: 'Company broadcast alerts, announcements, and bulletins',             category: 'COMMUNICATION', href: '/communicate' },
   // AI & Intelligence
-  { key: 'AI_CONTROL', icon: Sparkles, label: 'AI Customization', description: 'Lead scoring parameters, bot responses, prompts', category: 'AI', href: '/admin/ai' },
-  { key: 'AUTOMATIONS', icon: Zap, label: 'Workflow Automations', description: 'Trigger-action bot rules and auto-assignment', category: 'OPERATIONS', href: '/automations' },
-
+  { key: 'AI_CONTROL',   icon: Sparkles,      label: 'AI Customization',          description: 'Lead scoring parameters, bot responses, prompts',                        category: 'AI',            href: '/admin/ai' },
+  { key: 'AUTOMATIONS',  icon: Zap,           label: 'Workflow Automations',       description: 'Trigger-action bot rules and auto-assignment',                           category: 'OPERATIONS',    href: '/automations' },
   // Operations & HR
-  { key: 'EMPLOYEES', icon: UserCheck, label: 'Employees & Hierarchy', description: 'Staff directory, team leaders, and hierarchy builder', category: 'OPERATIONS', href: '/hr/employees' },
-  { key: 'ATTENDANCE', icon: Calendar, label: 'Attendance & Clock-In', description: 'Daily employee check-in, leave requests, timesheets', category: 'OPERATIONS', href: '/attendance' },
-  { key: 'INTERVIEWS', icon: Users, label: 'Interview & Hiring', description: 'Candidate screening, interview scheduling, hiring pipeline', category: 'OPERATIONS', href: '/hr/interviews' },
-  { key: 'REPORTS', icon: BarChart3, label: 'Reports & Analytics', description: 'Executive revenue charts, conversion analytics, telemetry', category: 'OPERATIONS', href: '/reports' },
-  { key: 'DATABASE', icon: Database, label: 'Database & Storage', description: 'Cloud data backups, raw database export, logs', category: 'OPERATIONS', href: '/database' },
-
+  { key: 'EMPLOYEES',    icon: UserCheck,     label: 'Employees & Hierarchy',     description: 'Staff directory, team leaders, and hierarchy builder',                    category: 'OPERATIONS',    href: '/hr/employees' },
+  { key: 'ATTENDANCE',   icon: Calendar,      label: 'Attendance & Clock-In',     description: 'Daily employee check-in, leave requests, timesheets',                    category: 'OPERATIONS',    href: '/attendance' },
+  { key: 'INTERVIEWS',   icon: Users,         label: 'Interview & Hiring',         description: 'Candidate screening, interview scheduling, hiring pipeline',             category: 'OPERATIONS',    href: '/hr/interviews' },
+  { key: 'REPORTS',      icon: BarChart3,     label: 'Reports & Analytics',        description: 'Executive revenue charts, conversion analytics, telemetry',             category: 'OPERATIONS',    href: '/reports' },
+  { key: 'DATABASE',     icon: Database,      label: 'Database & Storage',         description: 'Cloud data backups, raw database export, logs',                         category: 'OPERATIONS',    href: '/database' },
   // Administration
-  { key: 'PROFILE', icon: Building2, label: 'Company Profile Settings', description: 'Branding, company legal info, GSTIN, workspace configuration', category: 'ADMIN', href: '/profile' },
-  { key: 'SETTINGS', icon: Settings, label: 'System Settings', description: 'Global app security, themes, and notification preferences', category: 'ADMIN', href: '/settings' },
-  { key: 'SUPPORT', icon: HelpCircle, label: 'Support & Help Desk', description: 'Technical documentation, developer tickets, user guides', category: 'ADMIN', href: '/help' },
+  { key: 'PROFILE',      icon: Building2,     label: 'Company Profile Settings',  description: 'Branding, company legal info, GSTIN, workspace configuration',           category: 'ADMIN',         href: '/profile' },
+  { key: 'SETTINGS',     icon: Settings,      label: 'System Settings',           description: 'Global app security, themes, and notification preferences',              category: 'ADMIN',         href: '/settings' },
+  { key: 'SUPPORT',      icon: HelpCircle,    label: 'Support & Help Desk',       description: 'Technical documentation, developer tickets, user guides',                category: 'ADMIN',         href: '/help' },
 ];
 
+// ─── Default Modules per Role (cannot be toggled Off by admin) ────────────────
+// Dashboard is always a default for every role (rendered separately via route)
+export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
+  ADMIN:       [], // Admin has full access always — no defaults needed here
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE'],
+  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS'],
+  UNASSIGNED:  [],
+};
+
 export const CATEGORY_STYLES: Record<string, { label: string; badgeBg: string; badgeText: string; borderColor: string }> = {
-  SALES:         { label: 'Sales & Revenue', badgeBg: 'bg-emerald-500/15', badgeText: 'text-emerald-400', borderColor: 'border-emerald-500/30' },
-  COMMUNICATION: { label: 'Communication & Outreach', badgeBg: 'bg-sky-500/15', badgeText: 'text-sky-400', borderColor: 'border-sky-500/30' },
-  AI:            { label: 'AI Intelligence', badgeBg: 'bg-purple-500/15', badgeText: 'text-purple-400', borderColor: 'border-purple-500/30' },
-  OPERATIONS:    { label: 'Operations & HR', badgeBg: 'bg-amber-500/15', badgeText: 'text-amber-400', borderColor: 'border-amber-500/30' },
-  ADMIN:         { label: 'Administration & System', badgeBg: 'bg-rose-500/15', badgeText: 'text-rose-400', borderColor: 'border-rose-500/30' },
+  SALES:         { label: 'Sales & Revenue',          badgeBg: 'bg-emerald-500/15', badgeText: 'text-emerald-400', borderColor: 'border-emerald-500/30' },
+  COMMUNICATION: { label: 'Communication & Outreach', badgeBg: 'bg-sky-500/15',     badgeText: 'text-sky-400',     borderColor: 'border-sky-500/30' },
+  AI:            { label: 'AI Intelligence',          badgeBg: 'bg-purple-500/15',  badgeText: 'text-purple-400',  borderColor: 'border-purple-500/30' },
+  OPERATIONS:    { label: 'Operations & HR',          badgeBg: 'bg-amber-500/15',   badgeText: 'text-amber-400',   borderColor: 'border-amber-500/30' },
+  ADMIN:         { label: 'Administration & System',  badgeBg: 'bg-rose-500/15',    badgeText: 'text-rose-400',    borderColor: 'border-rose-500/30' },
 };
 
-export const ROLE_DEFAULT_PERMISSIONS: Record<string, ModulePermission> = {
-  SUPER_ADMIN: { active: true, canView: true, canShare: true, canEdit: true },
-  ADMIN:       { active: true, canView: true, canShare: true, canEdit: true },
-  MANAGER:     { active: true, canView: true, canShare: true, canEdit: true },
-  TEAM_LEADER: { active: true, canView: true, canShare: true, canEdit: false },
-  HR:          { active: true, canView: true, canShare: false, canEdit: false },
-  SALES_EXEC:  { active: true, canView: true, canShare: true, canEdit: false },
-  UNASSIGNED:  { active: false, canView: false, canShare: false, canEdit: false },
-};
-
+// Role-based modules that are OFF by default (restricted unless admin explicitly turns On)
 const RESTRICTED_BY_DEFAULT_ROLE: Record<string, string[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
@@ -119,6 +123,8 @@ export interface AdminControlCenterViewProps {
   isModal?: boolean;
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function AdminControlCenterView({ onClose, isModal = false }: AdminControlCenterViewProps) {
   const { currentUser } = useAuth();
 
@@ -140,161 +146,103 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setTimeout(() => setToastMessage(null), 3200);
   };
 
-  // Load Policies & Audit logs from localStorage (and clean up any accidental admin policies)
+  // Load Policies & Audit logs
   useEffect(() => {
     try {
       const rawPol = localStorage.getItem(STORAGE_KEY);
       if (rawPol) {
         const parsed = JSON.parse(rawPol);
         if (currentUser?.id) {
-          // Remove any policy key associated with current admin to guarantee permanent full access
           Object.keys(parsed).forEach(k => {
-            if (k.startsWith(`${currentUser.id}:`)) {
-              delete parsed[k];
-            }
+            if (k.startsWith(`${currentUser.id}:`)) delete parsed[k];
           });
           localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
         }
         setPolicies(parsed);
       }
-
       const rawAud = localStorage.getItem(AUDIT_STORAGE_KEY);
       if (rawAud) setAuditLogs(JSON.parse(rawAud));
     } catch (_) {}
   }, [currentUser?.id]);
 
-  // ── Sync Real Workspace Subordinate Employees (Strictly Zero Demo Data) ─────
+  // ── Load Workspace Users ──────────────────────────────────────────────────
+
   const loadWorkspaceUsers = useCallback(async () => {
     setLoadingUsers(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
     const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-organization-id': compId,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    // 1. Fetch Company Registration Key
     try {
-      let keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}`, {
-        headers: requestHeaders,
-      }).catch(() => null);
-
-      if (!keyRes || !keyRes.ok) {
-        keyRes = await fetch(`/api/v1/users/company-key?organizationId=${compId}`, {
-          headers: requestHeaders,
-        }).catch(() => null);
-      }
-
-      if (keyRes && keyRes.ok) {
+      let keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
+      if (!keyRes?.ok) keyRes = await fetch(`/api/v1/users/company-key?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
+      if (keyRes?.ok) {
         const keyJson = await keyRes.json();
-        if (keyJson?.companyKey) {
-          setCompanyKey(keyJson.companyKey);
-        }
+        if (keyJson?.companyKey) setCompanyKey(keyJson.companyKey);
       }
     } catch (_) {}
 
-    // 2. Fetch Users Directory from Backend
     let realUsers: ManagedWorkspaceUser[] = [];
 
     try {
-      let res = await fetch(`${apiBase}/users?organizationId=${compId}`, {
-        headers: requestHeaders,
-      }).catch(() => null);
+      let res = await fetch(`${apiBase}/users?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
+      if (!res?.ok) res = await fetch(`/api/v1/users?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
 
-      if (!res || !res.ok) {
-        res = await fetch(`/api/v1/users?organizationId=${compId}`, {
-          headers: requestHeaders,
-        }).catch(() => null);
-      }
-
-      if (res && res.ok) {
+      if (res?.ok) {
         const data = await res.json();
         const items = Array.isArray(data) ? data : (data.items || data.users || []);
 
         if (Array.isArray(items) && items.length > 0) {
-          // Read local overrides & removed IDs
           let storedOverrides: Record<string, string> = {};
-          try {
-            storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-          } catch (_) {}
+          try { storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}'); } catch (_) {}
 
           if (storedOverrides['rai992522@gmail.com'] === 'SALES_EXEC') {
             storedOverrides['rai992522@gmail.com'] = 'MANAGER';
             try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
           }
-          if (storedOverrides['usr_aditya_rai_01'] === 'SALES_EXEC') {
-            storedOverrides['usr_aditya_rai_01'] = 'MANAGER';
-            try { localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides)); } catch (_) {}
-          }
 
           let removedIds: string[] = [];
-          try {
-            removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
-          } catch (_) {}
+          try { removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]'); } catch (_) {}
 
           realUsers = items
             .filter((u: any) => {
               const uId = String(u.id);
               if (removedIds.includes(uId)) return false;
-
               const rawRole = ((u.role?.name || u.role || '') as string).toUpperCase().trim();
               const isAdm = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER' || rawRole === 'TENANT_ADMIN' || rawRole.includes('ADMIN');
-              const isSelf = (currentUser?.id && uId === String(currentUser.id)) ||
-                             (currentUser?.email && u.email?.toLowerCase() === currentUser.email?.toLowerCase());
-
-              // Strictly exclude Organization Head / Admin from configurable list
+              const isSelf = (currentUser?.id && uId === String(currentUser.id)) || (currentUser?.email && u.email?.toLowerCase() === currentUser.email?.toLowerCase());
               return !isAdm && !isSelf;
             })
             .map((u: any) => {
               const uId = String(u.id);
               const overrideRole = storedOverrides[uId] || storedOverrides[u.email?.toLowerCase()] || (u.email?.toLowerCase() === 'rai992522@gmail.com' ? 'MANAGER' : undefined);
               const rawRole = (u.role?.name || u.role || '').toUpperCase();
-
               let finalRole = 'SALES_EXEC';
-              if (overrideRole) {
-                finalRole = overrideRole;
-              } else if (rawRole.includes('MANAGER')) {
-                finalRole = 'MANAGER';
-              } else if (rawRole.includes('LEADER') || rawRole.includes('TL')) {
-                finalRole = 'TEAM_LEADER';
-              } else if (rawRole.includes('HR')) {
-                finalRole = 'HR';
-              } else if (u.roleId === null || rawRole === 'UNASSIGNED' || !rawRole || u.roleNotAssigned) {
-                finalRole = 'UNASSIGNED';
-              } else {
-                finalRole = 'SALES_EXEC';
-              }
+              if (overrideRole) finalRole = overrideRole;
+              else if (rawRole.includes('MANAGER')) finalRole = 'MANAGER';
+              else if (rawRole.includes('LEADER') || rawRole.includes('TL')) finalRole = 'TEAM_LEADER';
+              else if (rawRole.includes('HR')) finalRole = 'HR';
+              else if (u.roleId === null || rawRole === 'UNASSIGNED' || !rawRole) finalRole = 'UNASSIGNED';
 
               const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email || 'Workspace Member';
-              const initials = fullName
-                .split(' ')
-                .filter(Boolean)
-                .map((n: string) => n[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase() || 'WM';
-
+              const initials = fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'WM';
               return {
-                id: uId,
-                name: fullName,
-                email: u.email || 'user@organization.com',
-                role: finalRole,
-                avatarInitials: initials,
+                id: uId, name: fullName, email: u.email || '',
+                role: finalRole, avatarInitials: initials,
                 department: u.department || (finalRole === 'HR' ? 'Human Resources' : finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth'),
-                phone: u.phone || u.phoneNumber || '',
-                isVerified: u.isVerified ?? (finalRole !== 'UNASSIGNED'),
+                phone: u.phone || '', isVerified: u.isVerified ?? (finalRole !== 'UNASSIGNED'),
               };
             });
         }
       }
-    } catch (e) {
-      console.warn('Real users fetch error:', e);
-    }
+    } catch (e) { console.warn('Users fetch error:', e); }
 
-    // 3. Merge locally created extra staff (if any)
+    // Merge extra staff from localStorage
     try {
       let storedOverrides: Record<string, string> = {};
       try { storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}'); } catch (_) {}
@@ -308,126 +256,53 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           const emailLower = st.email?.toLowerCase();
           const rawRole = (st.role || '').toUpperCase();
           const isAdm = rawRole.includes('ADMIN') || rawRole.includes('OWNER');
-          const isSelf = (currentUser?.id && uId === String(currentUser.id)) ||
-                         (currentUser?.email && emailLower === currentUser.email?.toLowerCase());
-
-          if (!isAdm && !isSelf && !removedIds.includes(uId) && !removedIds.includes(emailLower) && !realUsers.some(u => u.id === uId || (emailLower && u.email.toLowerCase() === emailLower))) {
+          const isSelf = (currentUser?.id && uId === String(currentUser.id)) || (currentUser?.email && emailLower === currentUser.email?.toLowerCase());
+          if (!isAdm && !isSelf && !removedIds.includes(uId) && !realUsers.some(u => u.id === uId)) {
             const overrideRole = storedOverrides[uId] || (emailLower && storedOverrides[emailLower]);
             const finalRole = overrideRole || st.role || 'SALES_EXEC';
             const fullName = st.name || st.email || 'Team Member';
             const initials = fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'TM';
-            realUsers.push({
-              id: uId,
-              name: fullName,
-              email: st.email || '',
-              role: finalRole,
-              avatarInitials: initials,
-              department: st.dept || (finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'HR' ? 'Human Resources' : 'Sales & Growth'),
-              phone: st.phone || '',
-              isVerified: finalRole !== 'UNASSIGNED',
-            });
+            realUsers.push({ id: uId, name: fullName, email: st.email || '', role: finalRole, avatarInitials: initials, department: finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'HR' ? 'Human Resources' : 'Sales & Growth', phone: st.phone || '', isVerified: finalRole !== 'UNASSIGNED' });
           }
         });
       }
 
-      // Merge unassigned staff registrations awaiting verification
+      // Merge unassigned staff
       const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
       if (Array.isArray(extraUnassigned)) {
         extraUnassigned.forEach((st: any) => {
           const uId = String(st.id);
           const emailLower = st.email?.toLowerCase();
-          if (!removedIds.includes(uId) && !removedIds.includes(emailLower) && !realUsers.some(u => u.id === uId || (emailLower && u.email.toLowerCase() === emailLower))) {
+          if (!removedIds.includes(uId) && !realUsers.some(u => u.id === uId)) {
             const overrideRole = storedOverrides[uId] || (emailLower && storedOverrides[emailLower]);
             const finalRole = overrideRole || st.appliedRole || 'UNASSIGNED';
-            const isVer = finalRole !== 'UNASSIGNED';
             const fullName = st.name || st.email || 'Unassigned Staff';
             const initials = fullName.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'US';
-            realUsers.push({
-              id: uId,
-              name: fullName,
-              email: st.email || '',
-              role: finalRole,
-              avatarInitials: initials,
-              department: isVer ? (finalRole === 'MANAGER' ? 'Executive & Management' : finalRole === 'HR' ? 'Human Resources' : 'Sales & Growth') : 'Pending Assignment',
-              phone: st.phone || '',
-              isVerified: isVer,
-            });
+            realUsers.push({ id: uId, name: fullName, email: st.email || '', role: finalRole, avatarInitials: initials, department: finalRole !== 'UNASSIGNED' ? 'Sales & Growth' : 'Pending Assignment', phone: '', isVerified: finalRole !== 'UNASSIGNED' });
           }
         });
       }
     } catch (_) {}
 
-    // 4. Fallback check for real registered staff in workspace if network failed
+    // Fallback with known workspace members
     if (realUsers.length === 0) {
       let storedOverrides: Record<string, string> = {};
-      try {
-        storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-      } catch (_) {}
-
+      try { storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}'); } catch (_) {}
       let removedIds: string[] = [];
-      try {
-        removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
-      } catch (_) {}
+      try { removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]'); } catch (_) {}
 
-      const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
-      if (!removedIds.includes(nandiniId)) {
-        const assignedRole = storedOverrides[nandiniId] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC';
-        realUsers.push({
-          id: nandiniId,
-          name: 'Nandini Rastogi',
-          email: 'rastoginandini92@gmail.com',
-          role: assignedRole,
-          avatarInitials: 'NR',
-          department: assignedRole === 'HR' ? 'Human Resources' : assignedRole === 'MANAGER' ? 'Executive & Management' : assignedRole === 'TEAM_LEADER' ? 'Sales Leadership' : assignedRole === 'SALES_EXEC' ? 'Sales & Growth' : 'Pending Department',
-          phone: '+91 98765 43210',
-          isVerified: assignedRole !== 'UNASSIGNED',
-        });
-      }
-
-      const adityaId = 'usr_aditya_rai_01';
-      if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-        const adityaAssigned = storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'] || 'MANAGER';
-        realUsers.push({
-          id: adityaId,
-          name: 'Aditya Kumar Rai',
-          email: 'rai992522@gmail.com',
-          role: adityaAssigned,
-          avatarInitials: 'AR',
-          department: adityaAssigned === 'MANAGER' ? 'Executive & Management' : adityaAssigned === 'HR' ? 'Human Resources' : 'Sales & Growth',
-          phone: '+91 99252 20000',
-          isVerified: adityaAssigned !== 'UNASSIGNED',
-        });
-      }
-
-      const sachinId = 'usr_sachin_puri_01';
-      if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
-        const sachinAssigned = storedOverrides[sachinId] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER';
-        realUsers.push({
-          id: sachinId,
-          name: 'Sachin Puri',
-          email: 'sachinpuri938@gmail.com',
-          role: sachinAssigned,
-          avatarInitials: 'SP',
-          department: sachinAssigned === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth',
-          phone: '+91 93102 03982',
-          isVerified: sachinAssigned !== 'UNASSIGNED',
-        });
-      }
-
-      const sulekhaId = 'usr_sulekha_tomar_01';
-      if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
-        const sulekhaAssigned = storedOverrides[sulekhaId] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC';
-        realUsers.push({
-          id: sulekhaId,
-          name: 'Sulekha Tomar',
-          email: 'sulekhatmr@gmail.com',
-          role: sulekhaAssigned,
-          avatarInitials: 'ST',
-          department: 'Sales & Growth',
-          phone: '+91 93661 03735',
-          isVerified: sulekhaAssigned !== 'UNASSIGNED',
-        });
-      }
+      const fallbacks = [
+        { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi',  email: 'rastoginandini92@gmail.com', defaultRole: 'SALES_EXEC', initials: 'NR', phone: '+91 98765 43210', dept: 'Sales & Growth' },
+        { id: 'usr_aditya_rai_01',          name: 'Aditya Kumar Rai', email: 'rai992522@gmail.com',         defaultRole: 'MANAGER',    initials: 'AR', phone: '+91 99252 20000', dept: 'Executive & Management' },
+        { id: 'usr_sachin_puri_01',          name: 'Sachin Puri',      email: 'sachinpuri938@gmail.com',    defaultRole: 'TEAM_LEADER',initials: 'SP', phone: '+91 93102 03982', dept: 'Lead & Operations' },
+        { id: 'usr_sulekha_tomar_01',        name: 'Sulekha Tomar',    email: 'sulekhatmr@gmail.com',       defaultRole: 'SALES_EXEC', initials: 'ST', phone: '+91 93661 03735', dept: 'Sales & Growth' },
+      ];
+      fallbacks.forEach(fb => {
+        if (!removedIds.includes(fb.id) && !removedIds.includes(fb.email)) {
+          const assignedRole = storedOverrides[fb.id] || storedOverrides[fb.email] || fb.defaultRole;
+          realUsers.push({ id: fb.id, name: fb.name, email: fb.email, role: assignedRole, avatarInitials: fb.initials, department: fb.dept, phone: fb.phone, isVerified: assignedRole !== 'UNASSIGNED' });
+        }
+      });
     }
 
     setManagedUsers(realUsers);
@@ -439,106 +314,67 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setLoadingUsers(false);
   }, [currentUser?.companyId, currentUser?.id, currentUser?.email]);
 
-  // Real-time synchronization subscription + periodic background poll
   useEffect(() => {
     loadWorkspaceUsers();
-    const unsub = subscribeUserDirectory(() => {
-      loadWorkspaceUsers();
-    });
-    const interval = setInterval(() => {
-      loadWorkspaceUsers();
-    }, 8000);
-    return () => {
-      unsub();
-      clearInterval(interval);
-    };
+    const unsub = subscribeUserDirectory(() => loadWorkspaceUsers());
+    const interval = setInterval(() => loadWorkspaceUsers(), 8000);
+    return () => { unsub(); clearInterval(interval); };
   }, [loadWorkspaceUsers]);
 
-  // Quick Role Assignment & Verification Handler
+  // ── Role Change Handler ───────────────────────────────────────────────────
+
   const handleVerifyOrChangeRole = async (targetUser: ManagedWorkspaceUser, newRole: string) => {
     try {
       const uId = targetUser.id;
       const emailLower = targetUser.email.toLowerCase();
-
-      // 1. Update stored overrides
       let storedOverrides: Record<string, string> = {};
-      try {
-        storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
-      } catch (_) {}
+      try { storedOverrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}'); } catch (_) {}
       storedOverrides[uId] = newRole;
       if (emailLower) storedOverrides[emailLower] = newRole;
       localStorage.setItem('das_crm_verified_overrides', JSON.stringify(storedOverrides));
 
-      // 2. Update extra staff
       try {
         const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-        const updated = extraStaff.map((st: any) => {
-          if (st.id === uId || (st.email && st.email.toLowerCase() === emailLower)) {
-            return {
-              ...st,
-              role: newRole,
-              isVerified: newRole !== 'UNASSIGNED',
-              verificationStatus: newRole === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
-              dept: newRole === 'MANAGER' ? 'Executive & Management' : newRole === 'HR' ? 'Human Resources' : newRole === 'TEAM_LEADER' ? 'Lead & Operations' : 'Sales & Growth',
-            };
-          }
-          return st;
-        });
-        localStorage.setItem('das_crm_extra_staff', JSON.stringify(updated));
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(extraStaff.map((st: any) => (st.id === uId || st.email?.toLowerCase() === emailLower ? { ...st, role: newRole, isVerified: newRole !== 'UNASSIGNED' } : st))));
       } catch (_) {}
 
-      // 3. If assigned away from UNASSIGNED, clean up from extra unassigned
       if (newRole !== 'UNASSIGNED') {
         try {
           const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
-          const filtered = extraUnassigned.filter((u: any) => u.id !== uId && (u.email ? u.email.toLowerCase() !== emailLower : true));
-          localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(filtered));
+          localStorage.setItem('das_crm_extra_unassigned', JSON.stringify(extraUnassigned.filter((u: any) => u.id !== uId)));
         } catch (_) {}
       }
 
-      // 4. Backend sync
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
-
       fetch(`${apiBase}/users/${uId}/verify-role`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-organization-id': compId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', 'x-organization-id': compId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ assignedRole: newRole, organizationId: compId }),
       }).catch(() => null);
 
-      // 5. Invalidate & broadcast
       invalidateUserDirectoryCache();
       await loadWorkspaceUsers();
-      showToast(`✓ Updated role to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
-    } catch (err) {
-      console.error('Role update error:', err);
-    }
+      showToast(`✓ Role updated to ${newRole.replace('_', ' ')} for ${targetUser.name}`);
+    } catch (err) { console.error('Role update error:', err); }
   };
 
-  // Copy Key Handler
   const handleCopyKey = () => {
     if (typeof navigator !== 'undefined') {
       navigator.clipboard.writeText(companyKey);
       setCopiedKey(true);
-      showToast('✓ Company Registration Key copied to clipboard!');
+      showToast('✓ Company Registration Key copied!');
       setTimeout(() => setCopiedKey(false), 2500);
     }
   };
 
-  // Filtered User List
+  // ── Computed Values ───────────────────────────────────────────────────────
+
   const filteredUsers = useMemo(() => {
     return managedUsers.filter(u => {
       const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q ||
-                            u.name.toLowerCase().includes(q) ||
-                            u.email.toLowerCase().includes(q) ||
-                            u.role.toLowerCase().includes(q) ||
-                            (u.department && u.department.toLowerCase().includes(q));
+      const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
       const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
       return matchesSearch && matchesRole;
     });
@@ -548,76 +384,61 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     return managedUsers.find(u => u.id === selectedUserId) || (managedUsers.length > 0 ? managedUsers[0] : null);
   }, [managedUsers, selectedUserId]);
 
-  // Compute Permission for a user and module
-  const getUserModulePermission = (userId: string, userRole: string, moduleKey: string): ModulePermission => {
+  // Get the effective On/Off status of a module for a user
+  const isModuleOn = (userId: string, userRole: string, moduleKey: string): boolean => {
     const normalizedRole = (userRole || '').toUpperCase();
-    // Admin / Super Admin / Owner / Head always has permanent 100% full root access
-    if (
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'OWNER' ||
-      normalizedRole === 'TENANT_ADMIN' ||
-      normalizedRole.includes('ADMIN') ||
-      (currentUser?.id && userId === currentUser.id)
-    ) {
-      return { active: true, canView: true, canShare: true, canEdit: true };
-    }
-
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'OWNER' || normalizedRole === 'TENANT_ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && userId === currentUser.id)) return true;
     const key = `${userId}:${moduleKey}`;
-    if (policies[key]) return policies[key];
-
-    // Check defaults
+    if (policies[key]) return Boolean(policies[key].active);
     const isRestrictedByDefault = (RESTRICTED_BY_DEFAULT_ROLE[normalizedRole] || []).includes(moduleKey);
-    const base = ROLE_DEFAULT_PERMISSIONS[normalizedRole] || ROLE_DEFAULT_PERMISSIONS.SALES_EXEC;
-
-    if (isRestrictedByDefault) {
-      return { active: false, canView: false, canShare: false, canEdit: false };
-    }
-    return { ...base };
+    return !isRestrictedByDefault;
   };
 
-  // Update a single permission toggle
-  const handleTogglePermission = (
-    userId: string,
-    moduleKey: string,
-    field: keyof ModulePermission,
-    currentPerm: ModulePermission,
-    moduleLabel: string
-  ) => {
+  // Get the edit permission for a module
+  const canEditModule = (userId: string, userRole: string, moduleKey: string): boolean => {
+    const normalizedRole = (userRole || '').toUpperCase();
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole.includes('ADMIN')) return true;
+    const key = `${userId}:${moduleKey}`;
+    if (policies[key]) return Boolean(policies[key].canEdit);
+    // Default edit rights by role
+    const editableRoles: Record<string, string[]> = {
+      MANAGER:     ['QUOTES', 'PRODUCTS', 'LEADS', 'PIPELINE', 'DEALS', 'GOALS'],
+      TEAM_LEADER: ['LEADS', 'PIPELINE'],
+      HR:          [],
+      SALES_EXEC:  [],
+    };
+    return (editableRoles[normalizedRole] || []).includes(moduleKey);
+  };
+
+  // Is this module a default (non-toggleable) for this user's role?
+  const isDefaultModule = (userRole: string, moduleKey: string): boolean => {
+    return (DEFAULT_MODULE_KEYS_BY_ROLE[userRole] || []).includes(moduleKey);
+  };
+
+  // Toggle On/Off visibility for a module
+  const handleToggleVisibility = (userId: string, moduleKey: string, moduleLabel: string, currentlyOn: boolean) => {
     if (!selectedUser) return;
     const normalizedRole = (selectedUser.role || '').toUpperCase();
-    if (
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'OWNER' ||
-      normalizedRole === 'TENANT_ADMIN' ||
-      normalizedRole.includes('ADMIN') ||
-      (currentUser?.id && userId === currentUser.id)
-    ) {
-      showToast('⚠️ Organization Head / Admin has permanent root authority and cannot be modified.');
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && userId === currentUser.id)) {
+      showToast('⚠️ Admin has permanent full access — cannot restrict.');
+      return;
+    }
+    if (isDefaultModule(selectedUser.role, moduleKey)) {
+      showToast(`⚠️ "${moduleLabel}" is a default module for ${selectedUser.role.replace('_', ' ')} and cannot be hidden.`);
       return;
     }
 
     const key = `${userId}:${moduleKey}`;
-    const nextVal = !currentPerm[field];
-
-    let updatedPerm: ModulePermission;
-    if (field === 'active' && !nextVal) {
-      // If deactivating, turn off all sub-permissions
-      updatedPerm = { active: false, canView: false, canShare: false, canEdit: false };
-    } else if (field !== 'active' && nextVal && !currentPerm.active) {
-      // If enabling view/share/edit, make sure active is true
-      updatedPerm = { ...currentPerm, active: true, [field]: true };
-    } else {
-      updatedPerm = { ...currentPerm, [field]: nextVal };
-    }
+    const nextOn = !currentlyOn;
+    const updatedPerm: ModulePermission = nextOn
+      ? { active: true, canView: true, canShare: true, canEdit: canEditModule(userId, selectedUser.role, moduleKey) }
+      : { active: false, canView: false, canShare: false, canEdit: false };
 
     const nextPolicies = { ...policies, [key]: updatedPerm };
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
     window.dispatchEvent(new Event('storage'));
 
-    // Append to audit log
     const auditEntry: AuditLogEntry = {
       id: `audit-${Date.now()}-${Math.random()}`,
       ts: new Date().toLocaleString(),
@@ -625,41 +446,52 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       targetName: selectedUser.name,
       targetRole: selectedUser.role,
       moduleLabel,
-      action: `${field.toUpperCase()} toggled to ${nextVal ? 'ALLOWED' : 'RESTRICTED'}`,
+      action: `Visibility → ${nextOn ? 'ON (Visible)' : 'OFF (Hidden)'}`,
     };
-
     const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
-
-    showToast(`✓ Updated ${moduleLabel} (${field.toUpperCase()}) for ${selectedUser.name}`);
+    showToast(`✓ ${moduleLabel} is now ${nextOn ? '🟢 Visible' : '🔴 Hidden'} for ${selectedUser.name}`);
   };
 
-  // Bulk Quick Presets for Selected User
-  const handleApplyPreset = (preset: 'FULL_ACCESS' | 'READ_ONLY' | 'REVOKE_ALL' | 'RESET_DEFAULTS') => {
+  // Toggle Edit permission (only for QUOTES and PRODUCTS)
+  const handleToggleEdit = (userId: string, moduleKey: string, moduleLabel: string, currentEdit: boolean) => {
+    if (!selectedUser) return;
+    const key = `${userId}:${moduleKey}`;
+    const currentOn = isModuleOn(userId, selectedUser.role, moduleKey);
+    const updatedPerm: ModulePermission = { active: currentOn, canView: currentOn, canShare: currentOn, canEdit: !currentEdit };
+    const nextPolicies = { ...policies, [key]: updatedPerm };
+    setPolicies(nextPolicies);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
+    window.dispatchEvent(new Event('storage'));
+    const auditEntry: AuditLogEntry = {
+      id: `audit-${Date.now()}`, ts: new Date().toLocaleString(),
+      adminName: currentUser?.name || 'Admin', targetName: selectedUser.name, targetRole: selectedUser.role,
+      moduleLabel, action: `Edit permission → ${!currentEdit ? 'ALLOWED' : 'REMOVED'}`,
+    };
+    const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
+    setAuditLogs(nextAudit);
+    localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
+    showToast(`✓ Edit for ${moduleLabel} ${!currentEdit ? 'enabled' : 'disabled'} for ${selectedUser.name}`);
+  };
+
+  // Bulk Presets
+  const handleApplyPreset = (preset: 'SHOW_ALL' | 'HIDE_ALL' | 'RESET_DEFAULTS') => {
     if (!selectedUser) return;
     const normalizedRole = (selectedUser.role || '').toUpperCase();
-    if (
-      normalizedRole === 'ADMIN' ||
-      normalizedRole === 'SUPER_ADMIN' ||
-      normalizedRole === 'OWNER' ||
-      normalizedRole === 'TENANT_ADMIN' ||
-      normalizedRole.includes('ADMIN') ||
-      (currentUser?.id && selectedUser.id === currentUser.id)
-    ) {
-      showToast('⚠️ Organization Head / Admin has permanent root authority and cannot be modified.');
+    if (normalizedRole === 'ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && selectedUser.id === currentUser.id)) {
+      showToast('⚠️ Admin has permanent root authority — cannot be modified.');
       return;
     }
 
     const nextPolicies = { ...policies };
-
     ALL_WEB_MODULES.forEach(mod => {
       const key = `${selectedUser.id}:${mod.key}`;
-      if (preset === 'FULL_ACCESS') {
-        nextPolicies[key] = { active: true, canView: true, canShare: true, canEdit: true };
-      } else if (preset === 'READ_ONLY') {
-        nextPolicies[key] = { active: true, canView: true, canShare: false, canEdit: false };
-      } else if (preset === 'REVOKE_ALL') {
+      const isDefault = isDefaultModule(selectedUser.role, mod.key);
+      if (isDefault) return; // Never touch default modules
+      if (preset === 'SHOW_ALL') {
+        nextPolicies[key] = { active: true, canView: true, canShare: true, canEdit: mod.hasEditControl ? true : canEditModule(selectedUser.id, selectedUser.role, mod.key) };
+      } else if (preset === 'HIDE_ALL') {
         nextPolicies[key] = { active: false, canView: false, canShare: false, canEdit: false };
       } else if (preset === 'RESET_DEFAULTS') {
         delete nextPolicies[key];
@@ -671,36 +503,37 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     window.dispatchEvent(new Event('storage'));
 
     const auditEntry: AuditLogEntry = {
-      id: `audit-${Date.now()}`,
-      ts: new Date().toLocaleString(),
-      adminName: currentUser?.name || 'Admin',
-      targetName: selectedUser.name,
-      targetRole: selectedUser.role,
-      moduleLabel: 'All 20 Modules',
-      action: `Preset applied: ${preset.replace('_', ' ')}`,
+      id: `audit-${Date.now()}`, ts: new Date().toLocaleString(),
+      adminName: currentUser?.name || 'Admin', targetName: selectedUser.name, targetRole: selectedUser.role,
+      moduleLabel: 'All Non-Default Modules', action: `Bulk preset: ${preset.replace('_', ' ')}`,
     };
     const nextAudit = [auditEntry, ...auditLogs.slice(0, 49)];
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
-
-    showToast(`✓ Applied ${preset.replace('_', ' ')} preset to ${selectedUser.name}`);
+    showToast(`✓ Applied "${preset.replace('_', ' ')}" to ${selectedUser.name}`);
   };
 
-  // Filtered Module list based on category
   const filteredModules = useMemo(() => {
     return ALL_WEB_MODULES.filter(m => categoryFilter === 'ALL' || m.category === categoryFilter);
   }, [categoryFilter]);
 
+  // Split into default and configurable
+  const { defaultModules, configurableModules } = useMemo(() => {
+    if (!selectedUser) return { defaultModules: [], configurableModules: filteredModules };
+    const defaults = filteredModules.filter(m => isDefaultModule(selectedUser.role, m.key));
+    const configurable = filteredModules.filter(m => !isDefaultModule(selectedUser.role, m.key));
+    return { defaultModules: defaults, configurableModules: configurable };
+  }, [filteredModules, selectedUser]);
+
   const activeOverridesCount = useMemo(() => {
-    return Object.keys(policies).filter(k => {
-      if (currentUser?.id && k.startsWith(`${currentUser.id}:`)) return false;
-      return true;
-    }).length;
+    return Object.keys(policies).filter(k => !(currentUser?.id && k.startsWith(`${currentUser.id}:`))).length;
   }, [policies, currentUser?.id]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={`space-y-6 ${isModal ? 'p-2' : ''}`}>
-      {/* Toast Notification Banner */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-[200] px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
           <CheckCircle2 size={16} className="text-emerald-300" />
@@ -708,112 +541,82 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
         </div>
       )}
 
-      {/* Header Banner */}
+      {/* ── Header Banner ─────────────────────────────────────────────── */}
       <div className="crm-card p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-2xl relative overflow-hidden shadow-2xl space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center font-black shadow-lg shadow-indigo-500/10">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center font-black shadow-lg">
               <Shield size={24} />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-black text-white tracking-tight">🛡️ Admin Control Center</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                  Granular Access &amp; Permissions Hub
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <Zap size={12} /> Real-Time Policy Guard
+                  Module Visibility Command
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium mt-1">
-                Configure module-level visibility (Active), Read permissions (View), Share/Export permissions, and Write/Edit permissions per workspace employee.
+                Control which modules are <strong className="text-white">visible (On)</strong> or <strong className="text-slate-300">hidden (Off)</strong> in each employee's sidebar. Default modules cannot be hidden.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              onClick={() => loadWorkspaceUsers()}
-              disabled={loadingUsers}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              title="Refresh Workspace Staff Directory"
-            >
+            <button onClick={() => loadWorkspaceUsers()} disabled={loadingUsers} className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50">
               <RefreshCw size={14} className={`text-indigo-400 ${loadingUsers ? 'animate-spin' : ''}`} />
               <span>Sync Directory</span>
             </button>
-
-            <button
-              onClick={() => setShowAuditModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-            >
+            <button onClick={() => setShowAuditModal(true)} className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
               <History size={14} className="text-cyan-400" />
               <span>Audit Trail ({auditLogs.length})</span>
             </button>
-
             {isModal && onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer"
-                title="Close Control Center"
-              >
-                <X size={18} />
-              </button>
+              <button onClick={onClose} className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer"><X size={18} /></button>
             )}
           </div>
         </div>
 
-        {/* 👑 Head / Administrator Protected Status Notice */}
+        {/* Admin Protection Notice */}
         <div className="flex items-center gap-3 p-3 bg-indigo-950/60 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-sm flex-shrink-0">
-            👑
-          </div>
+          <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-sm flex-shrink-0">👑</div>
           <div className="flex-1 min-w-0">
             <span className="font-extrabold text-white">Organization Head Protected: </span>
             <span className="text-slate-300">
-              Admin account (<strong>{currentUser?.name || currentUser?.email || 'Admin'}</strong>) possesses permanent root access to all modules and cannot be restricted. Only subordinate workspace employees are configured below.
+              Admin account (<strong>{currentUser?.name || currentUser?.email || 'Admin'}</strong>) has permanent root access to all modules. Only subordinate workspace employees are configured below.
             </span>
           </div>
         </div>
 
-        {/* Live Metrics Telemetry Bar */}
+        {/* Live Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-slate-800/80">
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Managed Employees</span>
-            <span className="text-lg font-black text-white mt-0.5 block">{managedUsers.length} Staff</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Protected Modules</span>
-            <span className="text-lg font-black text-indigo-400 mt-0.5 block">{ALL_WEB_MODULES.length} Registered</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Policy Overrides</span>
-            <span className="text-lg font-black text-emerald-400 mt-0.5 block">{activeOverridesCount} Rules</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Admin Authority</span>
-            <span className="text-xs font-black text-amber-400 mt-1 flex items-center gap-1">
-              <Lock size={12} /> Permanent Full Root Access
-            </span>
-          </div>
+          {[
+            { label: 'Managed Employees', value: `${managedUsers.length} Staff`, color: 'text-white' },
+            { label: 'Configurable Modules', value: `${ALL_WEB_MODULES.length} Modules`, color: 'text-indigo-400' },
+            { label: 'Active Overrides', value: `${activeOverridesCount} Rules`, color: 'text-emerald-400' },
+            { label: 'Admin Authority', value: '🔒 Full Root Access', color: 'text-amber-400 text-xs' },
+          ].map(item => (
+            <div key={item.label} className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{item.label}</span>
+              <span className={`text-lg font-black mt-0.5 block ${item.color}`}>{item.value}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Main 2-Column Split: User Selector on Left, Granular Module Matrix on Right */}
+      {/* ── Main 2-Column Layout ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* ── Left Column: User List & Filters (4 Cols) ─────────────────── */}
+        {/* ── Left: User Selector ────────────────────────────────────── */}
         <div className="lg:col-span-4 space-y-3">
           <div className="crm-card p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
               <h3 className="text-xs font-black text-white flex items-center gap-1.5">
                 <Users size={14} className="text-indigo-400" /> Workspace Team Members
               </h3>
-              <span className="text-[10px] font-bold text-slate-400">
-                {filteredUsers.length} of {managedUsers.length}
-              </span>
+              <span className="text-[10px] font-bold text-slate-400">{filteredUsers.length} of {managedUsers.length}</span>
             </div>
 
-            {/* Search Box */}
+            {/* Search */}
             <div className="relative">
               <Search size={14} className="absolute left-3 top-2.5 text-slate-500" />
               <input
@@ -825,88 +628,64 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
               />
             </div>
 
-            {/* Role Filter Chips */}
+            {/* Role Filter */}
             <div className="flex gap-1.5 flex-wrap">
               {['ALL', 'SALES_EXEC', 'TEAM_LEADER', 'MANAGER', 'HR', 'UNASSIGNED'].map(r => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRoleFilter(r)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all cursor-pointer ${
-                    roleFilter === r
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
+                <button key={r} type="button" onClick={() => setRoleFilter(r)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all cursor-pointer ${roleFilter === r ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}`}>
                   {r === 'ALL' ? 'All Roles' : r.replace('_', ' ')}
                 </button>
               ))}
             </div>
 
-            {/* Scrollable User List */}
+            {/* User List */}
             <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
-              {filteredUsers.map(user => {
+              {loadingUsers ? (
+                <div className="py-8 text-center text-slate-400 text-xs font-bold">Loading workspace members...</div>
+              ) : filteredUsers.map(user => {
                 const isSelected = selectedUser?.id === user.id;
-                const isTL = user.role.includes('LEADER') || user.role === 'TEAM_LEADER';
-                const isSales = user.role.includes('SALES') || user.role === 'SALES_EXEC';
-                const isMgr = user.role.includes('MANAGER');
-                const isHR = user.role === 'HR';
-                const isUnassigned = user.role === 'UNASSIGNED';
+                const roleColors: Record<string, string> = {
+                  TEAM_LEADER: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                  SALES_EXEC:  'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                  MANAGER:     'bg-purple-500/20 text-purple-300 border-purple-500/30',
+                  HR:          'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                  UNASSIGNED:  'bg-slate-700/40 text-slate-300 border-slate-600',
+                };
+                const badgeColor = roleColors[user.role] || 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
 
-                const badgeColor = isTL ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
-                                   isSales ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
-                                   isMgr ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
-                                   isHR ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' :
-                                   isUnassigned ? 'bg-slate-700/40 text-slate-300 border-slate-600' :
-                                   'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
+                // Count hidden modules for this user
+                const hiddenCount = ALL_WEB_MODULES.filter(m => !isModuleOn(user.id, user.role, m.key)).length;
 
                 return (
-                  <div
-                    key={user.id}
-                    onClick={() => setSelectedUserId(user.id)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
-                      isSelected
-                        ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-600/10'
-                        : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                        isSelected ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 border border-slate-700'
-                      }`}>
-                        {user.avatarInitials}
+                  <div key={user.id} onClick={() => setSelectedUserId(user.id)}
+                    className={`p-3 rounded-xl border transition-all cursor-pointer ${isSelected ? 'bg-indigo-600/20 border-indigo-500 shadow-md' : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950'}`}>
+                    <div className="flex items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black flex-shrink-0 ${isSelected ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
+                          {user.avatarInitials}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className={`text-xs font-black truncate ${isSelected ? 'text-indigo-200' : 'text-white'}`}>{user.name}</h4>
+                          <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className={`text-xs font-black truncate ${isSelected ? 'text-indigo-200' : 'text-white'}`}>
-                          {user.name}
-                        </h4>
-                        <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase ${badgeColor}`}>{user.role.replace('_', ' ')}</span>
+                        {hiddenCount > 0 && <span className="text-[9px] text-rose-400 font-bold">{hiddenCount} hidden</span>}
                       </div>
                     </div>
-
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase flex-shrink-0 ${badgeColor}`}>
-                      {user.role.replace('_', ' ')}
-                    </span>
                   </div>
                 );
               })}
-
-              {filteredUsers.length === 0 && managedUsers.length > 0 && (
-                <div className="p-6 text-center text-slate-500 text-xs font-bold">
-                  No workspace members match filter: &ldquo;{searchQuery || roleFilter}&rdquo;.
-                </div>
+              {filteredUsers.length === 0 && !loadingUsers && managedUsers.length > 0 && (
+                <div className="p-6 text-center text-slate-500 text-xs font-bold">No members match the current filter.</div>
               )}
-
               {managedUsers.length === 0 && !loadingUsers && (
                 <div className="p-6 text-center bg-slate-950/40 border border-slate-800/60 rounded-xl space-y-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                    <Users size={18} />
-                  </div>
+                  <Users size={20} className="mx-auto text-slate-500" />
                   <div>
                     <h4 className="text-xs font-bold text-white">No Subordinate Staff Yet</h4>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Share your Company Key so team members can register to this workspace.
-                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">Share your Company Key so team members can register.</p>
                   </div>
                 </div>
               )}
@@ -914,12 +693,12 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
           </div>
         </div>
 
-        {/* ── Right Column: Granular Module Matrix & Quick Presets (8 Cols) ── */}
+        {/* ── Right: Module Visibility Matrix ──────────────────────── */}
         <div className="lg:col-span-8 space-y-4">
           {selectedUser ? (
             <div className="crm-card p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4 shadow-xl">
 
-              {/* Selected User Header & Quick Preset Buttons */}
+              {/* Selected User Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-950 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white font-black flex items-center justify-center text-sm shadow-md">
@@ -954,215 +733,182 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   </div>
                 </div>
 
-                {/* Quick Presets */}
+                {/* Bulk Presets */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('FULL_ACCESS')}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-black transition-all cursor-pointer"
-                    title="Enable Active, View, Share and Edit on all 20 modules"
-                  >
-                    ⚡ Full Access
+                  <button type="button" onClick={() => handleApplyPreset('SHOW_ALL')}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-black transition-all cursor-pointer flex items-center gap-1"
+                    title="Make all non-default modules visible">
+                    <Eye size={10} /> Show All
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('READ_ONLY')}
-                    className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-[10px] font-black transition-all cursor-pointer"
-                    title="Enable Active and View only (Disable Share & Edit)"
-                  >
-                    👁️ Read-Only
+                  <button type="button" onClick={() => handleApplyPreset('HIDE_ALL')}
+                    className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-black transition-all cursor-pointer flex items-center gap-1"
+                    title="Hide all non-default modules">
+                    <EyeOff size={10} /> Hide All
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('RESET_DEFAULTS')}
+                  <button type="button" onClick={() => handleApplyPreset('RESET_DEFAULTS')}
                     className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-[10px] font-black transition-all cursor-pointer flex items-center gap-1"
-                    title="Reset to recommended default permissions for this role"
-                  >
+                    title="Reset to role default visibility">
                     <RotateCcw size={10} /> Reset Defaults
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset('REVOKE_ALL')}
-                    className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-black transition-all cursor-pointer"
-                    title="Disable access to all modules"
-                  >
-                    🔒 Revoke All
                   </button>
                 </div>
               </div>
 
-              {/* Unassigned Quick Verification Bar */}
+              {/* Unassigned Quick Verification */}
               {(selectedUser.role === 'UNASSIGNED' || !selectedUser.isVerified) && (
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle size={16} />
-                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0"><AlertTriangle size={16} /></div>
                     <div>
                       <h4 className="text-xs font-black text-amber-300">⚡ Unassigned Staff Member</h4>
-                      <p className="text-[11px] text-slate-400">Select role below to approve, verify &amp; grant workspace access</p>
+                      <p className="text-[11px] text-slate-400">Select role below to approve and grant workspace access</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'SALES_EXEC')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
-                    >
-                      ✓ Verify Sales Exec
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'TEAM_LEADER')}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
-                    >
-                      ✓ Verify Team Leader
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'MANAGER')}
-                      className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
-                    >
-                      ✓ Verify Manager
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleVerifyOrChangeRole(selectedUser, 'HR')}
-                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-black cursor-pointer shadow-sm transition-all flex items-center gap-1"
-                    >
-                      ✓ Verify HR
-                    </button>
+                    {[['SALES_EXEC', 'bg-emerald-600 hover:bg-emerald-500', 'Verify Sales Exec'], ['TEAM_LEADER', 'bg-amber-600 hover:bg-amber-500', 'Verify TL'], ['MANAGER', 'bg-purple-600 hover:bg-purple-500', 'Verify Manager'], ['HR', 'bg-sky-600 hover:bg-sky-500', 'Verify HR']].map(([role, cls, label]) => (
+                      <button key={role} type="button" onClick={() => handleVerifyOrChangeRole(selectedUser, role)}
+                        className={`px-3 py-1.5 rounded-lg ${cls} text-white text-[11px] font-black cursor-pointer shadow-sm transition-all`}>
+                        ✓ {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Category Filter Tabs */}
+              {/* Category Filter */}
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 flex-wrap">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Module Category Filter:
-                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Module Category:</span>
                 <div className="flex gap-1.5 flex-wrap">
                   {['ALL', 'SALES', 'COMMUNICATION', 'AI', 'OPERATIONS', 'ADMIN'].map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border transition-all cursor-pointer ${
-                        categoryFilter === cat
-                          ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      {cat === 'ALL' ? 'All 20 Modules' : CATEGORY_STYLES[cat]?.label || cat}
+                    <button key={cat} type="button" onClick={() => setCategoryFilter(cat)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border transition-all cursor-pointer ${categoryFilter === cat ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'}`}>
+                      {cat === 'ALL' ? 'All Modules' : CATEGORY_STYLES[cat]?.label || cat}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Module Matrix List */}
-              <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
-                {filteredModules.map(mod => {
-                  const perm = getUserModulePermission(selectedUser.id, selectedUser.role, mod.key);
-                  const Icon = mod.icon;
-                  const catStyle = CATEGORY_STYLES[mod.category] || CATEGORY_STYLES.SALES;
+              {/* ── Module Sections ─────────────────────────────────────── */}
+              <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">
 
-                  return (
-                    <div
-                      key={mod.key}
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        perm.active
-                          ? 'bg-slate-950/90 border-slate-800 hover:border-slate-700'
-                          : 'bg-slate-950/40 border-slate-900 opacity-60'
-                      }`}
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        {/* Module Info */}
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <div className={`p-2 rounded-xl bg-slate-900 border border-slate-800 text-indigo-400 flex-shrink-0 mt-0.5`}>
-                            <Icon size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="text-xs font-black text-white">{mod.label}</h4>
-                              <span className={`px-2 py-0.2 text-[9px] font-black rounded border ${catStyle.badgeBg} ${catStyle.badgeText} ${catStyle.borderColor}`}>
-                                {catStyle.label}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{mod.description}</p>
-                          </div>
-                        </div>
-
-                        {/* Granular Permission Toggles */}
-                        <div className="flex items-center gap-1.5 flex-wrap self-start md:self-center">
-
-                          {/* 1. ACTIVE TOGGLE */}
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePermission(selectedUser.id, mod.key, 'active', perm, mod.label)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer flex items-center gap-1 ${
-                              perm.active
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                                : 'bg-slate-900 text-slate-500 border-slate-800'
-                            }`}
-                            title="Toggle module access on or off"
-                          >
-                            <span className={`w-2 h-2 rounded-full ${perm.active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-                            {perm.active ? 'Active' : 'Disabled'}
-                          </button>
-
-                          {/* 2. VIEW TOGGLE */}
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePermission(selectedUser.id, mod.key, 'canView', perm, mod.label)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                              perm.canView
-                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                                : 'bg-slate-900 text-slate-500 border-slate-800'
-                            }`}
-                            title="Can View / Read"
-                          >
-                            <Eye size={11} className={perm.canView ? 'text-cyan-400' : 'text-slate-500'} />
-                            View
-                          </button>
-
-                          {/* 3. SHARE TOGGLE */}
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePermission(selectedUser.id, mod.key, 'canShare', perm, mod.label)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                              perm.canShare
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                : 'bg-slate-900 text-slate-500 border-slate-800'
-                            }`}
-                            title="Can Share / Export"
-                          >
-                            <Share2 size={11} className={perm.canShare ? 'text-amber-400' : 'text-slate-500'} />
-                            Share
-                          </button>
-
-                          {/* 4. EDIT TOGGLE */}
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePermission(selectedUser.id, mod.key, 'canEdit', perm, mod.label)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                              perm.canEdit
-                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                                : 'bg-slate-900 text-slate-500 border-slate-800'
-                            }`}
-                            title="Can Edit / Create / Delete"
-                          >
-                            <Edit3 size={11} className={perm.canEdit ? 'text-purple-400' : 'text-slate-500'} />
-                            Edit
-                          </button>
-                        </div>
-                      </div>
+                {/* Default Modules (Protected / Cannot be hidden) */}
+                {defaultModules.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Lock size={12} className="text-amber-400 flex-shrink-0" />
+                      <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider">Default Modules — Protected (Always Visible)</span>
+                      <div className="flex-1 h-px bg-amber-500/20" />
+                      <span className="text-[9px] text-slate-500 font-bold">Cannot be hidden</span>
                     </div>
-                  );
-                })}
-              </div>
+                    {defaultModules.map(mod => {
+                      const Icon = mod.icon;
+                      const catStyle = CATEGORY_STYLES[mod.category] || CATEGORY_STYLES.SALES;
+                      return (
+                        <div key={mod.key} className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex flex-col md:flex-row md:items-center justify-between gap-3 opacity-75">
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            <div className="p-2 rounded-xl bg-slate-900 border border-amber-500/25 text-amber-400 flex-shrink-0 mt-0.5"><Icon size={16} /></div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xs font-black text-white">{mod.label}</h4>
+                                <span className={`px-2 py-0.5 text-[9px] font-black rounded border ${catStyle.badgeBg} ${catStyle.badgeText} ${catStyle.borderColor}`}>{catStyle.label}</span>
+                                <span className="px-2 py-0.5 text-[9px] font-black rounded border bg-amber-500/15 text-amber-400 border-amber-500/30 flex items-center gap-1">
+                                  <Lock size={8} /> DEFAULT
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{mod.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 self-start md:self-center">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                              Always On
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
+                {/* Configurable Modules (Admin can toggle On/Off) */}
+                {configurableModules.length > 0 && (
+                  <div className="space-y-2">
+                    {defaultModules.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Layers size={12} className="text-indigo-400 flex-shrink-0" />
+                        <span className="text-[11px] font-black text-indigo-400 uppercase tracking-wider">Configurable Modules — Admin Controlled</span>
+                        <div className="flex-1 h-px bg-indigo-500/20" />
+                      </div>
+                    )}
+                    {configurableModules.map(mod => {
+                      const Icon = mod.icon;
+                      const catStyle = CATEGORY_STYLES[mod.category] || CATEGORY_STYLES.SALES;
+                      const isOn = isModuleOn(selectedUser.id, selectedUser.role, mod.key);
+                      const editAllowed = mod.hasEditControl ? canEditModule(selectedUser.id, selectedUser.role, mod.key) : null;
+
+                      return (
+                        <div key={mod.key} className={`p-3.5 rounded-xl border transition-all ${isOn ? 'bg-slate-950/90 border-slate-800 hover:border-slate-700' : 'bg-slate-950/40 border-slate-900 opacity-60'}`}>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            {/* Module Info */}
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className={`p-2 rounded-xl border flex-shrink-0 mt-0.5 ${isOn ? 'bg-slate-900 border-slate-800 text-indigo-400' : 'bg-slate-950 border-slate-900 text-slate-600'}`}>
+                                <Icon size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className={`text-xs font-black ${isOn ? 'text-white' : 'text-slate-500'}`}>{mod.label}</h4>
+                                  <span className={`px-2 py-0.5 text-[9px] font-black rounded border ${catStyle.badgeBg} ${catStyle.badgeText} ${catStyle.borderColor}`}>{catStyle.label}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5">{mod.description}</p>
+                              </div>
+                            </div>
+
+                            {/* Controls */}
+                            <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
+                              {/* On/Off Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleVisibility(selectedUser.id, mod.key, mod.label, isOn)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all cursor-pointer ${
+                                  isOn
+                                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25 shadow-sm'
+                                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
+                                }`}
+                                title={isOn ? 'Click to hide this module from user\'s sidebar' : 'Click to show this module in user\'s sidebar'}
+                              >
+                                {isOn ? (
+                                  <><ToggleRight size={14} className="text-emerald-400" /> On</>
+                                ) : (
+                                  <><ToggleLeft size={14} className="text-slate-500" /> Off</>
+                                )}
+                              </button>
+
+                              {/* Edit toggle — only for QUOTES and PRODUCTS */}
+                              {mod.hasEditControl && isOn && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleEdit(selectedUser.id, mod.key, mod.label, editAllowed ?? false)}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all cursor-pointer ${
+                                    editAllowed
+                                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/30 hover:bg-purple-500/25'
+                                      : 'bg-slate-800 text-slate-500 border-slate-700 hover:border-slate-600'
+                                  }`}
+                                  title={editAllowed ? 'Remove edit/create/delete permission' : 'Grant edit/create/delete permission'}
+                                >
+                                  <Edit3 size={12} className={editAllowed ? 'text-purple-400' : 'text-slate-500'} />
+                                  Edit {editAllowed ? 'On' : 'Off'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
+            /* No user selected / No staff */
             <div className="crm-card p-10 bg-slate-900 border border-slate-800 rounded-2xl space-y-6 shadow-xl text-center">
               <div className="w-16 h-16 rounded-3xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 mx-auto flex items-center justify-center shadow-inner">
                 <Shield size={32} />
@@ -1173,8 +919,6 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   As Organization Head, you retain 100% full root access across all modules. To manage permissions for staff, share your workspace registration key so employees can register.
                 </p>
               </div>
-
-              {/* Onboarding Box with Company Key */}
               <div className="p-4 bg-slate-950 border border-indigo-500/30 rounded-2xl max-w-md mx-auto text-left space-y-3 shadow-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Workspace Company Key</span>
@@ -1182,60 +926,39 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                 </div>
                 <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-900 rounded-xl border border-slate-800 font-mono text-sm font-black text-indigo-300">
                   <span>{companyKey}</span>
-                  <button
-                    onClick={handleCopyKey}
-                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
-                  >
+                  <button onClick={handleCopyKey} className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all">
                     <Copy size={12} /> {copiedKey ? 'Copied!' : 'Copy Key'}
                   </button>
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <Link
-                    href="/hr/employees"
-                    className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                  >
-                    <span>Manage Staff Directory</span>
-                    <ArrowRight size={12} />
+                  <Link href="/hr/employees" className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                    <span>Manage Staff Directory</span><ArrowRight size={12} />
                   </Link>
-                  <a
-                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Join our organization workspace on DAS CRM!\n\n1. Open DAS CRM\n2. Enter Company Registration Key: *${companyKey}*\n3. Complete registration to join our workspace.`)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
-                  >
-                    <Send size={12} />
-                    <span>Invite on WhatsApp</span>
+                  <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Join our workspace on DAS CRM!\n\nCompany Key: *${companyKey}*`)}`}
+                    target="_blank" rel="noreferrer" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+                    <Send size={12} /><span>Invite via WhatsApp</span>
                   </a>
                 </div>
               </div>
             </div>
           )}
         </div>
-
       </div>
 
-      {/* Audit Trail Modal */}
+      {/* ── Audit Trail Modal ─────────────────────────────────────────── */}
       {showAuditModal && (
         <div className="fixed inset-0 z-[150] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="crm-card max-w-2xl w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                  <History size={18} />
-                </div>
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"><History size={18} /></div>
                 <div>
                   <h3 className="text-sm font-black text-white">📜 Admin Control Center Audit Trail</h3>
-                  <p className="text-xs text-slate-400">Chronological history of all module permission overrides.</p>
+                  <p className="text-xs text-slate-400">Chronological history of all module visibility overrides.</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
-              >
-                <X size={16} />
-              </button>
+              <button onClick={() => setShowAuditModal(false)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X size={16} /></button>
             </div>
-
             <div className="overflow-y-auto flex-1 space-y-2 pr-1">
               {auditLogs.map(log => (
                 <div key={log.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs space-y-1">
@@ -1249,21 +972,12 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   <p className="text-emerald-400 font-mono text-[11px]">{log.action}</p>
                 </div>
               ))}
-
               {auditLogs.length === 0 && (
-                <div className="p-8 text-center text-slate-500 text-xs font-bold">
-                  No permission overrides recorded yet.
-                </div>
+                <div className="p-8 text-center text-slate-500 text-xs font-bold">No visibility overrides recorded yet.</div>
               )}
             </div>
-
             <div className="flex justify-end pt-2 border-t border-slate-800">
-              <button
-                onClick={() => setShowAuditModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer"
-              >
-                Close Audit Trail
-              </button>
+              <button onClick={() => setShowAuditModal(false)} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer">Close Audit Trail</button>
             </div>
           </div>
         </div>
