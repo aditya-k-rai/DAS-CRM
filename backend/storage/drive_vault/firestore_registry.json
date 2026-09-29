@@ -28,8 +28,8 @@
     "driveViewUrl": "http://example.com/emp_pan",
     "driveDownloadUrl": "http://example.com/emp_pan_dl",
     "isProtectedKyc": true,
-    "uploadedAt": "2026-02-21T20:47:45.923Z",
-    "updatedAt": "2026-09-29T20:47:45.924Z",
+    "uploadedAt": "2026-02-21T21:23:47.940Z",
+    "updatedAt": "2026-09-29T21:23:47.941Z",
     "isDeleted": false
   },
   {
@@ -61,8 +61,8 @@
     "driveViewUrl": "http://example.com/emp_aadhaar",
     "driveDownloadUrl": "http://example.com/emp_aadhaar_dl",
     "isProtectedKyc": true,
-    "uploadedAt": "2025-12-03T20:47:45.923Z",
-    "updatedAt": "2026-09-29T20:47:45.925Z",
+    "uploadedAt": "2025-12-03T21:23:47.940Z",
+    "updatedAt": "2026-09-29T21:23:47.942Z",
     "isDeleted": false
   },
   {
@@ -243,6 +243,66 @@
     "isProtectedKyc": false,
     "uploadedAt": "2026-09-29T20:47:30.614Z",
     "updatedAt": "2026-09-29T20:47:30.617Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790716463100",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T21:14:23.100Z",
+    "updatedAt": "2026-09-29T21:14:23.104Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790717025845",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T21:23:45.845Z",
+    "updatedAt": "2026-09-29T21:23:45.845Z",
     "isDeleted": false
   }
 ]
