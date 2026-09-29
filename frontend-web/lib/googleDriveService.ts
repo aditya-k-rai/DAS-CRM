@@ -569,3 +569,44 @@ export async function getFolderMailRequests(
   }
 }
 
+export interface UnifiedStorageTelemetry {
+  firestore: {
+    connected: boolean;
+    authType: string;
+    projectId: string;
+    storageBucket?: string;
+  };
+  cloudStorage: {
+    connected: boolean;
+    bucketName: string;
+    authType: string;
+  };
+  googleDrive: {
+    connected: boolean;
+    authType: string;
+    serviceAccountEmail?: string;
+  };
+  totalFilesIndexed: number;
+  totalStorageBytes: number;
+  totalStorageFormatted: string;
+  message: string;
+}
+
+/**
+ * Retrieve full unified telemetry across Google Cloud Firestore, Cloud Storage bucket, and Google Drive
+ */
+export async function getUnifiedStorageTelemetry(): Promise<UnifiedStorageTelemetry | null> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  try {
+    const res = await fetch(`${apiBase}/drive/unified-status`);
+    if (res.ok) {
+      const json = await res.json();
+      return json.data;
+    }
+  } catch (err) {
+    console.warn('Could not fetch unified storage telemetry:', err);
+  }
+  return null;
+}
+
+

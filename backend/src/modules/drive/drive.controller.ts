@@ -12,7 +12,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { DriveService } from './drive.service';
+import {
+  DriveService,
+  SignedUploadUrlRequestDto,
+  ConfirmSignedUploadDto,
+} from './drive.service';
 
 @Controller('drive')
 export class DriveController {
@@ -23,6 +27,14 @@ export class DriveController {
     return {
       success: true,
       data: this.driveService.getStatus(),
+    };
+  }
+
+  @Get('unified-status')
+  async getUnifiedStatus() {
+    return {
+      success: true,
+      data: await this.driveService.getUnifiedStatus(),
     };
   }
 
@@ -92,6 +104,45 @@ export class DriveController {
     };
   }
 
+  @Post('signed-url/upload')
+  async getSignedUploadUrl(@Body() dto: SignedUploadUrlRequestDto) {
+    if (!dto?.fileName) {
+      throw new BadRequestException('fileName is required');
+    }
+    const result = await this.driveService.generateSignedUploadUrl(dto);
+    return {
+      success: true,
+      message: 'Presigned upload URL generated',
+      data: result,
+    };
+  }
+
+  @Post('signed-url/confirm')
+  async confirmSignedUpload(@Body() dto: ConfirmSignedUploadDto) {
+    if (!dto?.fileId || !dto?.fileName) {
+      throw new BadRequestException('fileId and fileName are required');
+    }
+    const doc = await this.driveService.confirmSignedUpload(dto);
+    return {
+      success: true,
+      message: 'Upload confirmed and indexed in Firestore',
+      data: doc,
+    };
+  }
+
+  @Get('signed-url/download/:id')
+  async getSignedDownloadUrl(
+    @Param('id') id: string,
+    @Query('expiresInMinutes') expiresIn?: string,
+  ) {
+    const minutes = expiresIn ? parseInt(expiresIn, 10) : 60;
+    const downloadUrl = await this.driveService.generateSignedDownloadUrl(id, minutes);
+    return {
+      success: true,
+      data: { downloadUrl },
+    };
+  }
+
   @Get('progress/:id')
   getUploadProgress(@Param('id') id: string) {
     return {
@@ -156,10 +207,10 @@ export class DriveController {
   async releaseApp(
     @UploadedFile() file: any,
     @Body('version') version: string,
-    @Body('platform') platform: 'ANDROID_APK' | 'MAC_DMG',
+    @Body('platform') platform: 'ANDROID_APK' | 'MAC_DMG' | 'WINDOWS_EXE',
   ) {
     if (!file) {
-      throw new BadRequestException('Binary file (.apk or .dmg) is required');
+      throw new BadRequestException('Binary file (.apk, .dmg, or .exe) is required');
     }
     const release = await this.driveService.releaseSuperAdminApp(
       file.buffer,
@@ -169,7 +220,7 @@ export class DriveController {
     );
     return {
       success: true,
-      message: 'New app installer release registered in Firestore and stored in Google Drive',
+      message: 'New app installer release registered in Firestore and stored in Google Drive / GCS',
       data: release,
     };
   }

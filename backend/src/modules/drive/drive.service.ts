@@ -1,19 +1,33 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import * as path from 'path';
 import * as fs from 'fs';
 import { FirestoreService } from '../firestore/firestore.service';
 import { FirestoreStorageService } from '../firestore/firestore-storage.service';
+import { CloudStorageService } from '../firestore/cloud-storage.service';
 import {
   FirestoreFileDocument,
   StorageCategory,
   AppReleaseInfo,
   FolderMailRequestDto,
   FolderMailRequestRecord,
+  SignedUploadUrlRequestDto,
+  SignedUploadUrlResponseDto,
+  ConfirmSignedUploadDto,
+  UnifiedStorageStatus,
 } from '../firestore/firestore.interface';
 
-export { StorageCategory, AppReleaseInfo, FolderMailRequestDto, FolderMailRequestRecord };
+export {
+  StorageCategory,
+  AppReleaseInfo,
+  FolderMailRequestDto,
+  FolderMailRequestRecord,
+  SignedUploadUrlRequestDto,
+  SignedUploadUrlResponseDto,
+  ConfirmSignedUploadDto,
+  UnifiedStorageStatus,
+};
 
 export interface FileUploadProgress {
   fileId: string;
@@ -87,6 +101,7 @@ export class DriveService {
   constructor(
     private readonly firestoreService: FirestoreService,
     private readonly firestoreStorageService: FirestoreStorageService,
+    private readonly cloudStorageService: CloudStorageService = new CloudStorageService(firestoreService),
   ) {
     this.vaultBasePath = path.resolve(process.cwd(), 'storage', 'drive_vault');
     if (!fs.existsSync(this.vaultBasePath)) {
@@ -194,6 +209,29 @@ export class DriveService {
       activeCategories: ['EMPLOYEES', 'LEADS', 'QUOTATIONS', 'PRODUCTS', 'PROFILES', 'DOCUMENTS'],
       totalFilesStored: 0,
       message: `Google Drive (${this.authType}) + Google Cloud Firestore (${firestoreStatus.authType}) dual storage engine active.`,
+    };
+  }
+
+  async getUnifiedStatus(): Promise<UnifiedStorageStatus> {
+    const firestoreStatus = this.firestoreService.getStatus();
+    const stats = await this.firestoreStorageService.getStorageUsageSummary();
+
+    return {
+      firestore: firestoreStatus,
+      cloudStorage: {
+        connected: this.cloudStorageService.isStorageConnected(),
+        bucketName: this.cloudStorageService.getBucketName(),
+        authType: firestoreStatus.authType,
+      },
+      googleDrive: {
+        connected: !!this.drive && this.authType !== 'LOCAL_VAULT',
+        authType: this.authType,
+        serviceAccountEmail: this.authenticatedEmail || 'das-crm-drive@das-crm-506400.iam.gserviceaccount.com',
+      },
+      totalFilesIndexed: stats.totalFiles,
+      totalStorageBytes: stats.totalBytes,
+      totalStorageFormatted: stats.totalSizeFormatted,
+      message: `Unified Cloud Engine Online: Google Cloud Storage (${this.cloudStorageService.getBucketName()}) + Firestore Metadata + Drive Mirroring.`,
     };
   }
 
@@ -325,7 +363,7 @@ export class DriveService {
     const totalBytes = fileBuffer.length;
     const startTime = Date.now();
 
-    // 1. Format timestamped filename: {FileName}_{YYYY-MM-DD_HH-mm}.{ext}
+    // 1. Format timestamped filename: {FileName}_{YYYY-MM-DD_HH-mm-ss}.{ext}
     const extMatch = rawFileName.match(/\.([a-zA-Z0-9]+)$/);
     const ext = extMatch ? extMatch[1].toLowerCase() : 'dat';
     const baseRaw = customFileName ? customFileName.trim() : rawFileName.replace(/\.[^/.]+$/, '');
@@ -443,27 +481,15 @@ export class DriveService {
       }
     }
 
-    // 6. Optional Google Cloud Storage / Firebase Storage Bucket upload
-    let gcsPath: string | undefined;
-    let gcsDownloadUrl: string | undefined;
-    const storageBucket = this.firestoreService.getStorageBucket();
-    if (storageBucket) {
-      try {
-        const remoteGcsPath = `vault/${hierarchy.join('/')}/${trackingId}_${targetFileName}`;
-        const blob = storageBucket.file(remoteGcsPath);
-        await blob.save(fileBuffer, {
-          contentType: mimeType || 'application/octet-stream',
-          resumable: false,
-        });
-        gcsPath = `gs://${storageBucket.name}/${remoteGcsPath}`;
-        gcsDownloadUrl = `https://storage.googleapis.com/${storageBucket.name}/${remoteGcsPath}`;
-        this.logger.log(`☁️ Stored file in Cloud Storage Bucket: ${gcsPath}`);
-      } catch (gcsErr) {
-        this.logger.warn('Could not stream to Cloud Storage bucket:', gcsErr);
-      }
-    }
+    // 6. Direct Google Cloud Storage / Firebase Storage Bucket upload
+    const gcsObjectPath = `vault/${hierarchy.join('/')}/${trackingId}_${targetFileName}`;
+    const { gcsPath, gcsDownloadUrl } = await this.cloudStorageService.uploadBuffer(
+      fileBuffer,
+      gcsObjectPath,
+      mimeType,
+    );
 
-    // 7. Persist to Google Cloud Firestore (The central document registry)
+    // 7. Persist to Google Cloud Firestore (Central Metadata Registry)
     const isProtected =
       effectiveCategory === 'EMPLOYEES' ||
       effectiveCategory === 'PROFILES' ||
@@ -531,6 +557,119 @@ export class DriveService {
 
     this.progressStore.set(trackingId, finalProgress);
     return finalProgress;
+  }
+
+  /**
+   * Request a Signed Upload URL for direct client-to-GCS upload.
+   */
+  async generateSignedUploadUrl(dto: SignedUploadUrlRequestDto): Promise<SignedUploadUrlResponseDto> {
+    const fileId = `up_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const effectiveCategory = dto.employeeName ? 'EMPLOYEES' : dto.category;
+    const { hierarchy, folderPath } = this.getFolderHierarchy(
+      dto.companyName || 'Acme Sales Solutions',
+      effectiveCategory,
+      dto.employeeName,
+      dto.subCategory,
+    );
+
+    const extMatch = dto.fileName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? extMatch[1].toLowerCase() : 'dat';
+    const cleanBase = dto.fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const targetFileName = `${cleanBase}_${Date.now()}.${ext}`;
+
+    const objectPath = `vault/${hierarchy.join('/')}/${fileId}_${targetFileName}`;
+    const signed = await this.cloudStorageService.generateSignedUploadUrl(
+      objectPath,
+      dto.mimeType,
+      dto.expiresInMinutes || 15,
+    );
+
+    return {
+      fileId,
+      uploadUrl: signed.uploadUrl,
+      gcsPath: signed.gcsPath,
+      objectPath: signed.objectPath,
+      expiresAt: signed.expiresAt,
+      category: effectiveCategory,
+      folderPath,
+    };
+  }
+
+  /**
+   * Confirm direct client upload and register in Firestore & Drive.
+   */
+  async confirmSignedUpload(dto: ConfirmSignedUploadDto): Promise<FirestoreFileDocument> {
+    const effectiveCategory = dto.employeeName ? 'EMPLOYEES' : dto.category;
+    const { hierarchy, folderPath } = this.getFolderHierarchy(
+      dto.companyName || 'Acme Sales Solutions',
+      effectiveCategory,
+      dto.employeeName,
+      dto.subCategory,
+    );
+
+    const extMatch = dto.fileName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? extMatch[1].toLowerCase() : 'dat';
+
+    const isProtected =
+      effectiveCategory === 'EMPLOYEES' ||
+      effectiveCategory === 'PROFILES' ||
+      (dto.subCategory && dto.subCategory.toLowerCase() === 'documents') ||
+      !!(dto.employeeName && dto.employeeName.trim().length > 0);
+
+    const objectPath = `vault/${hierarchy.join('/')}/${dto.fileId}_${dto.fileName}`;
+    const bucketName = this.cloudStorageService.getBucketName();
+    const gcsPath = `gs://${bucketName}/${objectPath}`;
+    const gcsDownloadUrl = `https://storage.googleapis.com/${bucketName}/${objectPath}`;
+
+    const doc: FirestoreFileDocument = {
+      fileId: dto.fileId,
+      organizationId: 'org_default',
+      companyName: dto.companyName || 'Acme Sales Solutions',
+      fileName: dto.fileName,
+      originalName: dto.originalName || dto.fileName,
+      mimeType: dto.mimeType || 'application/octet-stream',
+      fileExtension: ext,
+      sizeBytes: dto.sizeBytes || 0,
+      sizeFormatted: this.firestoreStorageService.formatBytes(dto.sizeBytes || 0),
+      checksumSha256: dto.checksumSha256,
+      category: effectiveCategory,
+      subCategory: dto.subCategory,
+      employeeName: dto.employeeName,
+      folderHierarchy: hierarchy,
+      folderPath,
+      storageEngines: {
+        firestore: true,
+        googleCloudStorage: true,
+        googleDrive: false,
+        localVault: false,
+      },
+      gcsPath,
+      gcsDownloadUrl,
+      isProtectedKyc: isProtected,
+      uploadedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isDeleted: false,
+    };
+
+    return this.firestoreStorageService.saveFileRecord(doc);
+  }
+
+  /**
+   * Generate a secure, time-limited presigned download URL for a file.
+   */
+  async generateSignedDownloadUrl(fileId: string, expiresInMinutes: number = 60): Promise<string> {
+    const file = await this.getFileMetadata(fileId);
+    if (file.gcsDownloadUrl && file.gcsDownloadUrl.startsWith('gs://')) {
+      return this.cloudStorageService.generateSignedDownloadUrl(
+        file.gcsDownloadUrl,
+        file.fileName,
+        expiresInMinutes,
+      );
+    }
+    if (file.driveDownloadUrl) {
+      return file.driveDownloadUrl;
+    }
+    return `/api/v1/storage/download/${fileId}`;
   }
 
   getProgress(trackingId: string): FileUploadProgress {
@@ -618,7 +757,19 @@ export class DriveService {
       return { buffer, mimeType: file.mimeType, fileName: file.fileName };
     }
 
-    // 2. Fetch from Google Drive if local is missing
+    // 2. Fetch from Google Cloud Storage stream
+    if (file.gcsDownloadUrl || file.fileId) {
+      const stream = await this.cloudStorageService.getReadStream(file.gcsDownloadUrl || file.fileId);
+      if (stream) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+        }
+        return { buffer: Buffer.concat(chunks), mimeType: file.mimeType, fileName: file.fileName };
+      }
+    }
+
+    // 3. Fetch from Google Drive if local/GCS is missing
     if (this.drive && file.driveFileId) {
       try {
         const res = await this.drive.files.get(
@@ -648,6 +799,11 @@ export class DriveService {
         }
       }
 
+      // Remove from Google Cloud Storage
+      if (file.gcsDownloadUrl) {
+        await this.cloudStorageService.deleteObject(file.gcsDownloadUrl);
+      }
+
       // Remove from local disk vault
       if (file.localPath && fs.existsSync(file.localPath)) {
         try {
@@ -669,7 +825,7 @@ export class DriveService {
     fileBuffer: Buffer,
     fileName: string,
     version: string,
-    platform: 'ANDROID_APK' | 'MAC_DMG',
+    platform: 'ANDROID_APK' | 'MAC_DMG' | 'WINDOWS_EXE',
   ): Promise<AppReleaseInfo> {
     const trackingId = `rel_${Date.now()}`;
     const result = await this.uploadFileWithProgress(
@@ -688,12 +844,14 @@ export class DriveService {
       fileName,
       fileSize: sizeMb,
       driveDownloadUrl: result.driveDownloadUrl || '',
+      gcsDownloadUrl: result.gcsDownloadUrl,
       firestoreDocId: trackingId,
       uploadedAt: new Date().toLocaleDateString('en-US', {
         month: 'short',
         day: '2-digit',
         year: 'numeric',
       }),
+      isLatest: true,
     };
 
     await this.firestoreStorageService.saveAppRelease(release);
@@ -752,7 +910,7 @@ export class DriveService {
       return true;
     }
     const sub = file.subCategory?.toLowerCase();
-    if (sub === 'documents' || sub === 'dp' || sub === 'details') {
+    if (sub === 'documents' || sub === 'dp' || sub === 'details' || sub === 'kyc') {
       return true;
     }
     if (file.employeeName && file.employeeName.trim().length > 0) {
@@ -799,6 +957,9 @@ export class DriveService {
         try {
           if (this.drive && file.driveFileId) {
             await this.drive.files.delete({ fileId: file.driveFileId }).catch(() => null);
+          }
+          if (file.gcsPath) {
+            await this.cloudStorageService.deleteObject(file.gcsPath);
           }
           if (file.localPath && fs.existsSync(file.localPath)) {
             fs.unlinkSync(file.localPath);

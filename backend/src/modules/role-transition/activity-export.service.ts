@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { FirestoreStorageService } from '../firestore/firestore-storage.service';
+import { CloudStorageService } from '../firestore/cloud-storage.service';
 
 const PDFDocument = require('pdfkit') as typeof import('pdfkit');
 import * as fs from 'fs';
@@ -8,11 +10,17 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class ActivityExportService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ActivityExportService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly firestoreStorageService: FirestoreStorageService,
+    private readonly cloudStorageService: CloudStorageService,
+  ) {}
 
   /**
    * Generate a PDF of the user's activity log for their old role period,
-   * save to local storage (or Supabase Storage if configured),
+   * save to Google Cloud Storage + Firestore metadata registry,
    * and store the record in ActivityExportLog.
    */
   async exportUserActivityPdf(
@@ -36,28 +44,68 @@ export class ActivityExportService {
       activities,
     );
 
-    // 3. Save to /tmp folder (in production, upload to Supabase Storage)
-    const fileName = `activity_export_${userId}_${Date.now()}.pdf`;
-    const exportDir = path.join(process.cwd(), 'exports');
-    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+    const trackingId = `exp_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const fileName = `activity_export_${userName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.pdf`;
+    const objectPath = `vault/Exports/Activity_Logs/${trackingId}_${fileName}`;
 
-    const filePath = path.join(exportDir, fileName);
-    fs.writeFileSync(filePath, pdfBuffer);
+    // 3. Save to Google Cloud Storage / Local Vault
+    const { gcsPath, gcsDownloadUrl } = await this.cloudStorageService.uploadBuffer(
+      pdfBuffer,
+      objectPath,
+      'application/pdf',
+    );
 
-    // 4. Build a 7-day download expiry URL
-    //    In production: upload to Supabase Storage + generate presigned URL
-    //    For now: use a signed local download token
-    const downloadToken = crypto.randomBytes(32).toString('hex');
+    // 4. Generate 7-day signed download URL
     const downloadExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const downloadUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/api/v1/role-transition/export/${downloadToken}`;
+    let downloadUrl: string;
+    try {
+      downloadUrl = await this.cloudStorageService.generateSignedDownloadUrl(
+        objectPath,
+        fileName,
+        7 * 24 * 60, // 7 days in minutes
+      );
+    } catch {
+      downloadUrl = gcsDownloadUrl || `/api/v1/storage/download/${trackingId}`;
+    }
 
-    // 5. Store in DB
+    // 5. Index in Google Cloud Firestore
+    await this.firestoreStorageService.saveFileRecord({
+      fileId: trackingId,
+      organizationId,
+      companyName: 'Acme Sales Solutions',
+      fileName,
+      originalName: fileName,
+      mimeType: 'application/pdf',
+      fileExtension: 'pdf',
+      sizeBytes: pdfBuffer.length,
+      sizeFormatted: this.firestoreStorageService.formatBytes(pdfBuffer.length),
+      category: 'DOCUMENTS',
+      subCategory: 'Activity Export',
+      employeeName: userName,
+      folderHierarchy: ['Acme Sales Solutions', 'Documents', 'Activity Exports'],
+      folderPath: 'Google Drive > Acme Sales Solutions > Documents > Activity Exports',
+      storageEngines: {
+        firestore: true,
+        googleCloudStorage: true,
+        googleDrive: false,
+        localVault: true,
+      },
+      gcsPath,
+      gcsDownloadUrl: downloadUrl,
+      isProtectedKyc: false,
+      uploadedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      expiresAt: downloadExpiresAt.toISOString(),
+      isDeleted: false,
+    });
+
+    // 6. Store in Prisma DB
     const exportLog = await this.prisma.activityExportLog.create({
       data: {
         roleTransitionId,
         userId,
         organizationId,
-        storagePath: filePath,
+        storagePath: gcsPath || objectPath,
         downloadUrl,
         downloadExpiresAt,
         activitiesCount: activities.length,
@@ -66,6 +114,7 @@ export class ActivityExportService {
       },
     });
 
+    this.logger.log(`📄 Activity Export PDF archived in Cloud Storage & Firestore for ${userName} (${pdfBuffer.length} bytes)`);
     return exportLog;
   }
 
@@ -78,7 +127,7 @@ export class ActivityExportService {
       const chunks: Buffer[] = [];
       const doc = new PDFDocument({ margin: 40, size: 'A4' });
 
-      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('data', (chunk: any) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 

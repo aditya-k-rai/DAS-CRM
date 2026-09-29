@@ -53,6 +53,7 @@ export interface FirestoreFileDocument {
   isProtectedKyc: boolean;
   uploadedByUserId?: string;
   uploadedByRole?: string;
+  accessControl?: 'PUBLIC' | 'ORG_INTERNAL' | 'HR_CONFIDENTIAL' | 'ADMIN_RESTRICTED';
 
   // Timestamps & Lifecycle
   uploadedAt: string;
@@ -99,14 +100,69 @@ export interface FirestoreConnectionStatus {
   message: string;
 }
 
+export interface UnifiedStorageStatus {
+  firestore: FirestoreConnectionStatus;
+  cloudStorage: {
+    connected: boolean;
+    bucketName: string;
+    authType: string;
+  };
+  googleDrive: {
+    connected: boolean;
+    authType: string;
+    serviceAccountEmail?: string;
+  };
+  totalFilesIndexed: number;
+  totalStorageBytes: number;
+  totalStorageFormatted: string;
+  message: string;
+}
+
+export interface SignedUploadUrlRequestDto {
+  fileName: string;
+  mimeType: string;
+  sizeBytes?: number;
+  category: StorageCategory;
+  companyName?: string;
+  employeeName?: string;
+  subCategory?: string;
+  expiresInMinutes?: number;
+}
+
+export interface SignedUploadUrlResponseDto {
+  fileId: string;
+  uploadUrl: string;
+  gcsPath: string;
+  objectPath: string;
+  expiresAt: string;
+  category: StorageCategory;
+  folderPath: string;
+}
+
+export interface ConfirmSignedUploadDto {
+  fileId: string;
+  fileName: string;
+  originalName?: string;
+  mimeType: string;
+  sizeBytes: number;
+  category: StorageCategory;
+  companyName?: string;
+  employeeName?: string;
+  subCategory?: string;
+  checksumSha256?: string;
+}
+
 export interface AppReleaseInfo {
   version: string;
-  platform: 'ANDROID_APK' | 'MAC_DMG';
+  platform: 'ANDROID_APK' | 'MAC_DMG' | 'WINDOWS_EXE';
   fileName: string;
   fileSize: string;
   driveDownloadUrl: string;
+  gcsDownloadUrl?: string;
   firestoreDocId?: string;
   uploadedAt: string;
+  releaseNotes?: string;
+  isLatest?: boolean;
 }
 
 export interface FolderMailRequestDto {
