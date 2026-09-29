@@ -473,7 +473,7 @@ function RootAppContent() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { t, language } = useLanguage();
-  const { token, currentUser, logout, hydrate, isHydrated } = useAuthStore();
+  const { token, currentUser, logout, hydrate, isHydrated, isOfflineSession } = useAuthStore();
   const navigationRef = useNavigationContainerRef();
 
   // 🚀 Hydrate persisted session on mount with timeout safeguard
@@ -495,6 +495,15 @@ function RootAppContent() {
   useEffect(() => {
     hydrateModuleAccess();
   }, []);
+
+  /**
+   * Forces the user back to the LoginScreen by clearing the persisted
+   * offline/fake token from the store and AsyncStorage.
+   * Called when the user taps "Re-Login" on the Offline Session banner.
+   */
+  const handleReLoginForOfflineSession = () => {
+    logout();
+  };
 
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -665,7 +674,11 @@ function RootAppContent() {
     <View style={{ flex: 1, backgroundColor: colors?.bg || '#090d16' }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* 📶 Global Network & Offline Sync Status Banner — auto-slides in when needed */}
-      <NetworkStatusBanner token={token} />
+      <NetworkStatusBanner
+        token={token}
+        isOfflineSession={isOfflineSession}
+        onRequestReLogin={isOfflineSession ? handleReLoginForOfflineSession : undefined}
+      />
       <NavigationContainer ref={navigationRef}>
         {!token ? (
           <LoginScreen onLoginSuccess={() => {}} />

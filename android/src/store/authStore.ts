@@ -399,12 +399,34 @@ const STORAGE_KEYS = {
   role: 'das_crm_active_role',
 } as const;
 
+/**
+ * Detects tokens that were synthetically generated offline and never validated
+ * by the backend. These are NOT valid JWTs and must not be treated as real auth.
+ */
+export function isFakeOfflineToken(token: string | null | undefined): boolean {
+  if (!token) return false;
+  return (
+    token.startsWith('offline_session_') ||
+    token === 'demo_active_token' ||
+    token.startsWith('staff_pending_token_') ||
+    token.startsWith('google_oauth_pending_') ||
+    token === 'demo_token' ||
+    token === 'offline'
+  );
+}
+
 // ─── Auth Store ───────────────────────────────────────────────────────────────
 
 interface AuthState {
   currentUser: UserProfile;
   subscription: CompanySubscription;
   token: string | null;
+  /**
+   * True when the session token was generated locally (offline_session_*, demo_active_token, etc.)
+   * and has never been verified by the backend. In this state, the user can use cached data
+   * but is shown a persistent "Offline Session" banner and is prompted to re-authenticate.
+   */
+  isOfflineSession: boolean;
   roleTransitionLock: RoleTransitionLock | null;
   isLocked: boolean;
   isHydrated: boolean;
@@ -433,6 +455,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   currentUser: DEMO_USERS.ADMIN,
   subscription: MOCK_COMPANY_SUB,
   token: null,
+  isOfflineSession: false,
   roleTransitionLock: null,
   isLocked: false,
   isHydrated: false,
@@ -481,9 +504,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         user = DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
       }
 
+      const restoredToken = tokenStr || null;
+
+      // ── Security gate: reject fake/offline tokens on cold start ──────────────
+      // A fake token (offline_session_*, demo_active_token, etc.) means the user
+      // was never verified by the backend. Since login now requires server auth,
+      // we cannot honor a session that was never authorized. Clear it and send
+      // the user to LoginScreen so they log in properly.
+      if (isFakeOfflineToken(restoredToken)) {
+        await Promise.all([
+          AsyncStorage.removeItem(STORAGE_KEYS.user),
+          AsyncStorage.removeItem(STORAGE_KEYS.token),
+          AsyncStorage.removeItem(STORAGE_KEYS.role),
+        ]).catch(() => {});
+        set({ token: null, isOfflineSession: false, isHydrated: true });
+        return;
+      }
+
       set({
         currentUser: user,
-        token: tokenStr || null,
+        token: restoredToken,
+        isOfflineSession: false, // Real JWT: session is verified, not an offline session
         isHydrated: true,
       });
     } catch {
@@ -494,11 +535,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   switchRole: async (role: UserRole) => {
     const normRole = normalizeRoleStr(role);
     const targetUser = DEMO_USERS[normRole] || DEMO_USERS.ADMIN;
-    set({ currentUser: targetUser, token: 'demo_active_token' });
+    // Reuse the current real token — do NOT overwrite it with a fake demo token.
+    // switchRole is only for role-switcher UI within an already-authenticated session.
+    const currentToken = get().token;
+    set({ currentUser: targetUser });
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.role, normRole),
       AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(targetUser)),
-      AsyncStorage.setItem(STORAGE_KEYS.token, 'demo_active_token'),
+      // Preserve the existing token; only write if we actually have one already
+      ...(currentToken ? [AsyncStorage.setItem(STORAGE_KEYS.token, currentToken)] : []),
     ]);
   },
 
@@ -542,9 +587,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           userSeatsAllocated: allocatedSeats,
         };
 
+    const isOffline = isFakeOfflineToken(token);
+
     set({
       currentUser: normalizedUser,
       token,
+      isOfflineSession: isOffline,
       subscription: resolvedSub,
     });
     await Promise.all([
@@ -557,6 +605,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logout: async () => {
     set({
       token: null,
+      isOfflineSession: false,
       currentUser: DEMO_USERS.ADMIN,
       roleTransitionLock: null,
       isLocked: false,

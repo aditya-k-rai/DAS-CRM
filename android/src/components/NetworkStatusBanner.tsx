@@ -19,9 +19,11 @@ import ServerConnectionModal from './ServerConnectionModal';
 
 interface Props {
   token?: string | null;
+  isOfflineSession?: boolean;
+  onRequestReLogin?: () => void;
 }
 
-export default function NetworkStatusBanner({ token }: Props) {
+export default function NetworkStatusBanner({ token, isOfflineSession, onRequestReLogin }: Props) {
   const [syncState, setSyncState] = useState<SyncEngineState>(offlineSyncEngine.getState());
   const slideY = useRef(new Animated.Value(-52)).current;
   const dotOpacity = useRef(new Animated.Value(1)).current;
@@ -44,6 +46,7 @@ export default function NetworkStatusBanner({ token }: Props) {
   // Drive banner slide in/out based on current state
   useEffect(() => {
     const shouldShow =
+      isOfflineSession ||
       !syncState.isOnline ||
       !syncState.isBackendConnected ||
       syncState.syncStatus === 'SYNCING' ||
@@ -95,7 +98,7 @@ export default function NetworkStatusBanner({ token }: Props) {
     }
   };
 
-  const { dotColor, label, subLabel } = getBannerContent(syncState);
+  const { dotColor, label, subLabel } = getBannerContent(syncState, isOfflineSession);
 
   return (
     <>
@@ -118,7 +121,17 @@ export default function NetworkStatusBanner({ token }: Props) {
             {subLabel ? <Text style={styles.subLabel}>{subLabel}</Text> : null}
           </View>
 
-          {!syncState.isBackendConnected && (
+          {isOfflineSession && onRequestReLogin && (
+            <TouchableOpacity
+              style={styles.syncBtn}
+              onPress={onRequestReLogin}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.syncBtnText}>Re-Login 🔑</Text>
+            </TouchableOpacity>
+          )}
+
+          {!isOfflineSession && !syncState.isBackendConnected && (
             <TouchableOpacity
               style={styles.configBtn}
               onPress={() => {
@@ -130,7 +143,7 @@ export default function NetworkStatusBanner({ token }: Props) {
             </TouchableOpacity>
           )}
 
-          {syncState.pendingCount > 0 && syncState.isBackendConnected ? (
+          {!isOfflineSession && syncState.pendingCount > 0 && syncState.isBackendConnected ? (
             <TouchableOpacity style={styles.syncBtn} onPress={handleManualSync} activeOpacity={0.75}>
               <Text style={styles.syncBtnText}>Sync Now</Text>
             </TouchableOpacity>
@@ -146,11 +159,22 @@ export default function NetworkStatusBanner({ token }: Props) {
   );
 }
 
-function getBannerContent(state: SyncEngineState): {
+function getBannerContent(
+  state: SyncEngineState,
+  isOfflineSession?: boolean,
+): {
   dotColor: string;
   label: string;
   subLabel?: string;
 } {
+  // Highest priority: user is in an unverified offline session
+  if (isOfflineSession) {
+    return {
+      dotColor: '#f59e0b',
+      label: '⚠️ Offline Session — Not Authenticated',
+      subLabel: 'Your identity has not been verified by the server. Tap "Re-Login" to authenticate.',
+    };
+  }
   if (!state.isOnline) {
     return {
       dotColor: '#ef4444',
@@ -257,3 +281,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

@@ -285,58 +285,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     });
   };
 
-  /** Resilient offline / demo fallback login when backend server is unreachable */
-  const handleOfflineFallbackLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const emailTrimmed = email.trim().toLowerCase();
-      const finalRole: UserRole = normalizeRoleStr(selectedRole);
-      const demoProfile = DEMO_USERS[finalRole] || DEMO_USERS.ADMIN;
-      const compName = selectedCompanyName || 'Adorable Trading';
-      const compId = selectedCompanyId || DEFAULT_ACTIVE_COMPANY.id;
 
-      const isAdminAccount =
-        emailTrimmed === 'adorabletrading08@gmail.com' ||
-        emailTrimmed.includes('adorable') ||
-        finalRole === 'ADMIN';
-
-      const userSession = {
-        id: isAdminAccount ? 'cmuev7ni70016ikew8an7tdw8' : demoProfile.id,
-        name: isAdminAccount ? 'Anurag Sharma' : demoProfile.name,
-        email: email.trim() || 'adorabletrading08@gmail.com',
-        role: finalRole,
-        avatar: (isAdminAccount ? 'Anurag Sharma' : demoProfile.name).slice(0, 2).toUpperCase(),
-        companyId: compId,
-        companyName: compName,
-        hasAssignedRole: true,
-        roleNotAssigned: false,
-      };
-
-      const offlineToken = 'offline_session_' + Date.now();
-      if (rememberMe) {
-        const credsStr = JSON.stringify({
-          email: email.trim(),
-          password,
-          companyKey: companyKeyInput.trim() || 'ADOR-EC-7187',
-          companyId: compId,
-          role: finalRole,
-          savedAt: new Date().toISOString(),
-        });
-        await AsyncStorage.setItem(STORAGE_KEY_PREV_LOGIN, credsStr);
-        await AsyncStorage.setItem(`${STORAGE_KEY_PREV_LOGIN}_${finalRole}`, credsStr);
-      }
-
-      await setAuthSession(userSession, offlineToken);
-      setLoading(false);
-      onLoginSuccess(getPostLoginDefaultTab(finalRole));
-    } catch (offlineErr: any) {
-      setError('Offline login failed: ' + (offlineErr?.message || 'Unknown error'));
-      setLoading(false);
-    }
-  };
-
-  /** Mirrors LoginGateway.tsx handleWorkspaceLogin with multi-candidate network retry & offline fallback */
+  /**
+   * Workspace Login — ALWAYS requires a live backend response.
+   * Offline mode is only available for users who already have a valid
+   * JWT token from a prior successful login (persisted in AsyncStorage).
+   * If the backend cannot be reached during login, we show an error — never
+   * grant a session without server verification.
+   */
   const handleWorkspaceLogin = async () => {
     if (!companyKeyInput.trim()) {
       setError('Please enter your Company Key.');
@@ -386,6 +342,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           }
         } catch (_) {}
       }
+
+      // ── Handle backend response ──────────────────────────────────────────────
 
       if (networkResponse && networkResponse.ok && data?.accessToken) {
         // STEP 6: User registered but role not assigned yet
@@ -465,27 +423,40 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
 
-      // If backend was unreachable or returned an error, check if this is an offline/local workspace account
-      const emailTrimmed = email.trim().toLowerCase();
-      const isAdminAccount =
-        emailTrimmed === 'adorabletrading08@gmail.com' ||
-        emailTrimmed.includes('adorable') ||
-        selectedRole === 'ADMIN';
-
-      if (isAdminAccount || emailTrimmed.includes('demo') || (!networkResponse && emailTrimmed.length > 3)) {
-        await handleOfflineFallbackLogin();
-        return;
-      }
-
+      // ── Backend was reachable but rejected the credentials ─────────────────────
+      // Surface the server's error directly — never bypass authentication.
       if (networkResponse && !networkResponse.ok) {
-        setError(data?.message || 'Login failed. Please check your credentials and Company Key.');
+        const errMsg =
+          data?.message ||
+          `Login failed (HTTP ${networkResponse.status}). Please check your credentials and Company Key.`;
+        setError(errMsg);
         setLoading(false);
         return;
       }
 
-      await handleOfflineFallbackLogin();
-    } catch (_) {
-      await handleOfflineFallbackLogin();
+      // ── Backend was unreachable (all candidate URLs timed out / refused) ─────
+      // Login requires server verification. Show a clear error so the user knows
+      // to check their network. Offline mode only works for already-logged-in sessions.
+      if (!networkResponse) {
+        setError(
+          'Cannot connect to the server.\n\nPlease check your network connection and try again. If you were previously logged in, your offline data is safe and will sync when the server is reachable.',
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Should not reach here — safety guard
+      setError('Unexpected authentication error. Please try again.');
+      setLoading(false);
+    } catch (err: any) {
+      // Only JavaScript runtime errors reach here (e.g. JSON parse failure).
+      // Never grant a session — show an actionable error.
+      console.error('[LoginScreen] handleWorkspaceLogin unexpected error:', err);
+      setError(
+        'A connection error occurred. Please check your network and try again.\n\n' +
+        (err?.message || 'Unknown error'),
+      );
+      setLoading(false);
     }
   };
 
@@ -541,6 +512,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         onLoginSuccess(getPostLoginDefaultTab(finalRole));
         return;
       } else {
+        // Backend reachable but OAuth failed — show actual error
         setError(
           data.message ||
             'Google OAuth authentication failed. Please use a valid Gmail ID.',
@@ -549,15 +521,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
     } catch {
-      // Demo fallback
+      // Backend genuinely unreachable — inform user, do NOT grant demo access
+      setError(
+        'Could not reach the authentication server. Please check your network connection and try again.',
+      );
+      setLoading(false);
+      return;
     }
-
-    const finalRole = normalizeRoleStr(
-      inferRoleFromEmail(email) || selectedRole,
-    );
-    await switchRole(finalRole);
-    setLoading(false);
-    onLoginSuccess(getPostLoginDefaultTab(finalRole));
   };
 
   /** Validate Company Key for Staff Registration */
@@ -655,6 +625,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         return;
       }
 
+      // Require a real backend-issued accessToken.
+      // Do NOT create a fake local session if the backend was unreachable.
+      const savedToken = data?.accessToken;
+      if (!savedToken) {
+        setLoading(false);
+        Alert.alert(
+          'Registration Queued',
+          `Your account request for ${orgName} has been saved locally. Please connect to the network and re-submit to complete registration.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       // Staff registration strictly yields UNASSIGNED until Admin approves in the Employees Directory!
       const unassignedUser = {
         id: data?.user?.id || `usr_unassigned_${Date.now()}`,
@@ -670,7 +653,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         unassignedMessage: 'Your registration is pending Admin verification. Contact your Organization Administrator to allocate your role.',
       };
 
-      // Add to AsyncStorage user phones map
+      // Persist phone map for reference across other screens
       try {
         if (cleanStaffPhone) {
           const rawPhones = await AsyncStorage.getItem('@das_crm_user_phones');
@@ -681,7 +664,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }
       } catch (_) {}
 
-      // Add to AsyncStorage extra unassigned queue
+      // Queue in the local unassigned directory so Admin Control Center shows the pending user
       try {
         const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
         const extra = raw ? JSON.parse(raw) : [];
@@ -699,8 +682,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         }
       } catch (_) {}
 
-      const token = data?.accessToken || 'staff_pending_token_' + Date.now();
-      await setAuthSession(unassignedUser, token);
+      await setAuthSession(unassignedUser, savedToken);
       setLoading(false);
       Alert.alert(
         'Registration Submitted',
@@ -867,14 +849,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
-                    <TouchableOpacity
-                      style={styles.offlineBtn}
-                      onPress={handleOfflineFallbackLogin}
-                      disabled={loading}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.offlineBtnText}>⚡ Continue in Offline Mode</Text>
-                    </TouchableOpacity>
                   </View>
                 ) : null}
 
