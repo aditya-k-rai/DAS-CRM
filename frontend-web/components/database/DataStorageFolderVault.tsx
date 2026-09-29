@@ -181,7 +181,7 @@ export const DataStorageFolderVault: React.FC = () => {
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="font-black text-xl text-foreground tracking-tight">
-                  Google Drive Multi-Tenant Vault
+                  Firebase Storage &amp; Cloud Vault
                 </h2>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400 border border-emerald-500/30 shadow-sm">
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -345,7 +345,7 @@ export const DataStorageFolderVault: React.FC = () => {
                     {currentUser?.companyName || 'DAS Organization'} (Company Root)
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Google Drive &amp; Local Vault Multi-Tenant Sync
+                    Firebase Storage &amp; Cloud Vault Sync
                   </p>
                 </div>
               </div>
@@ -479,7 +479,7 @@ export const DataStorageFolderVault: React.FC = () => {
                     <Folder className="h-4 w-4 text-amber-400" />
                     <span className="text-foreground font-bold">{selectedEmployee || 'Employees'}/</span>
                     <span className="text-muted-foreground/80 font-mono text-[11px]">
-                      Path: Google Drive &gt; Employees &gt; {selectedEmployee || 'Current'}
+                      Path: Firebase Storage &gt; Employees &gt; {selectedEmployee || 'Current'}
                     </span>
                   </div>
 
@@ -572,7 +572,7 @@ export const DataStorageFolderVault: React.FC = () => {
                   <Folder className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
                   <p className="text-xs font-medium">No files stored in this folder yet.</p>
                   <p className="text-[11px] text-muted-foreground/70 mt-0.5 max-w-md mx-auto">
-                    Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations, Products) are automatically fetched and stored here in Google Drive.
+                    Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations, Products) are automatically fetched and stored here in Firebase Storage.
                   </p>
                 </div>
               ) : (

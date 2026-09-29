@@ -60,7 +60,7 @@ export default function SuperAdminAppReleaseWidget() {
         };
 
         setReleases([newRelease, ...releases]);
-        alert(`✅ App Release (${platform}) stored in Google Drive folder! Speed: ${speed} MB/s`);
+        alert(`✅ App Release (${platform}) stored in Firebase Storage folder! Speed: ${speed} MB/s`);
         setSelectedFile(null);
       } else {
         setUploadPercent(current);
@@ -74,10 +74,10 @@ export default function SuperAdminAppReleaseWidget() {
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Upload className="w-5 h-5 text-indigo-400" />
-            SuperAdmin Google Drive App Releases Manager
+            SuperAdmin Firebase Storage App Releases Manager
           </h2>
           <p className="text-xs text-slate-400">
-            Upload Android (.apk) and Mac (.dmg) installer packages directly to Google Drive.
+            Upload Android (.apk) and Mac (.dmg) installer packages directly to Firebase Storage.
           </p>
         </div>
         <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-black rounded-lg">
@@ -125,7 +125,7 @@ export default function SuperAdminAppReleaseWidget() {
         {isUploading && (
           <div className="bg-slate-900 p-3 rounded-lg border border-indigo-500/30 space-y-2">
             <div className="flex justify-between text-xs font-bold">
-              <span className="text-indigo-400">Uploading to Google Drive Folder... {uploadPercent}%</span>
+              <span className="text-indigo-400">Uploading to Firebase Storage Folder... {uploadPercent}%</span>
               <span className="text-emerald-400">Transfer Speed: {speedMbps} MB/s</span>
             </div>
             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -140,14 +140,14 @@ export default function SuperAdminAppReleaseWidget() {
           className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition"
         >
           <Upload className="w-4 h-4" />
-          Upload Package to Google Drive &amp; Publish Release →
+          Upload Package to Firebase Storage &amp; Publish Release →
         </button>
       </form>
 
       {/* Published Releases */}
       <div className="space-y-3">
         <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-          Published App Releases in Google Drive
+          Published App Releases in Firebase Storage
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

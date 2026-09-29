@@ -1122,7 +1122,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     const ext = (detectedFormat || 'xlsx').toLowerCase();
     const timestampedFileName = formatTimestampedFileName(fileName.trim() || 'Leads_Import', ext);
 
-    // ☁️ Automatically archive the imported Excel spreadsheet to Google Drive with Date & Time in filename
+    // ☁️ Automatically archive the imported Excel spreadsheet to Firebase Storage with Date & Time in filename
     (async () => {
       try {
         let uploadBlob: Blob | File = selectedFileBlob!;
@@ -1145,9 +1145,9 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             if (p.status === 'COMPLETED') setIsDriveUploaded(true);
           }
         );
-        console.log('✅ Stored imported Excel to Google Drive:', driveResult.folderPath, driveResult.fileName);
+        console.log('✅ Stored imported Excel to Firebase Storage:', driveResult.folderPath, driveResult.fileName);
       } catch (err) {
-        console.warn('Auto-storage of imported Excel to Google Drive:', err);
+        console.warn('Auto-storage of imported Excel to Firebase Storage:', err);
       }
     })();
 
@@ -1163,7 +1163,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     setIsAllocationModalOpen(true);
   };
 
-  // Google Drive Upload Handler with Real-time Progress & Speed
+  // Firebase Storage Upload Handler with Real-time Progress & Speed
   const handleUploadToGoogleDrive = async () => {
     if (!selectedFileBlob && sheets.length === 0) {
       alert('Please select a spreadsheet file first.');
@@ -1196,7 +1196,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       setIsDriveUploaded(true);
       setDriveProgress(result);
     } catch (err) {
-      alert('Upload to Google Drive failed: ' + (err as Error).message);
+      alert('Upload to Firebase Storage failed: ' + (err as Error).message);
     } finally {
       setIsUploadingDrive(false);
     }
@@ -1345,12 +1345,12 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
               )}
               {isReadyToInject && !isDriveUploaded && !isUploadingDrive && (
                 <span className="text-sky-300 font-bold flex items-center gap-1">
-                  <CloudUpload size={13} /> Ready — click &apos;Upload to Google Drive&apos; ({fileSize || '0%'}) to archive &amp; ingest.
+                  <CloudUpload size={13} /> Ready — click &apos;Upload to Firebase&apos; ({fileSize || '0%'}) to archive &amp; ingest.
                 </span>
               )}
               {isUploadingDrive && (
                 <span className="text-amber-300 font-bold flex items-center gap-1 animate-pulse">
-                  <RefreshCw size={13} className="animate-spin" /> Archiving to Google Drive cold vault... {driveProgress?.progressPercent || 0}% ({fileSize})
+                  <RefreshCw size={13} className="animate-spin" /> Archiving to Firebase Storage cold vault... {driveProgress?.progressPercent || 0}% ({fileSize})
                 </span>
               )}
               {isDriveUploaded && (
@@ -1427,7 +1427,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   type="button"
                   onClick={handleUploadToGoogleDrive}
                   disabled={!isReadyToInject || isUploadingDrive || (!duplicatesResolved && duplicateRecords.length > 0)}
-                  title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : !isReadyToInject ? 'Select Source Platform to unlock upload' : 'Upload and archive file to Google Drive'}
+                  title={!duplicatesResolved && duplicateRecords.length > 0 ? `Action Required: Resolve ${duplicateRecords.length} duplicate leads first` : !isReadyToInject ? 'Select Source Platform to unlock upload' : 'Upload and archive file to Firebase Storage'}
                   className={`px-5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all active:scale-95 shadow-indigo-600/25 cursor-pointer ${
                     !duplicatesResolved && duplicateRecords.length > 0
                       ? 'bg-slate-800 border border-rose-500/40 text-rose-300 opacity-50 cursor-not-allowed shadow-none'
@@ -1439,7 +1439,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                   ) : !duplicatesResolved && duplicateRecords.length > 0 ? (
                     <><Ban size={14} className="text-rose-400" /><span>Resolve {duplicateRecords.length} Duplicates First</span></>
                   ) : (
-                    <><CloudUpload size={15} /><span>Upload to Google Drive {!isReadyToInject ? '(Locked: Select Platform)' : ''}</span></>
+                    <><CloudUpload size={15} /><span>Upload to Firebase {!isReadyToInject ? '(Locked: Select Platform)' : ''}</span></>
                   )}
                 </button>
               ) : (
@@ -1579,13 +1579,13 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           )}
         </div>
 
-        {/* FOOTER — Google Drive cold vault status (action buttons are in the top metadata bar) */}
+        {/* FOOTER — Firebase Storage cold vault status (action buttons are in the top metadata bar) */}
         <div className="px-5 py-2.5 bg-slate-900 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
           <span className="flex items-center gap-1.5 text-slate-500 flex-wrap">
             <Cloud size={13} className="text-indigo-400 shrink-0" />
             <span className="font-bold text-slate-400">Cold Vault:</span>
             <span className="font-mono text-slate-400 truncate max-w-xs sm:max-w-md">
-              Google Drive › {currentUser?.companyName || 'DAS Organization'} › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
+              Firebase Storage › {currentUser?.companyName || 'DAS Organization'} › Leads › {formatTimestampedFileName(fileName || 'Leads', (detectedFormat || 'xlsx').toLowerCase())}
             </span>
             {fileSize && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-[10px] font-bold border border-slate-700">

@@ -133,7 +133,7 @@ export function resolveFolderPath(
     const hierarchy = [cleanCompany, 'Employees', empFolder, subCatFolder];
     return {
       hierarchy,
-      folderPath: `Google Drive > ${hierarchy.join(' > ')}`,
+      folderPath: `Firebase Storage > ${hierarchy.join(' > ')}`,
     };
   }
 
@@ -144,7 +144,7 @@ export function resolveFolderPath(
 
   return {
     hierarchy,
-    folderPath: `Google Drive > ${hierarchy.join(' > ')}`,
+    folderPath: `Firebase Storage > ${hierarchy.join(' > ')}`,
   };
 }
 

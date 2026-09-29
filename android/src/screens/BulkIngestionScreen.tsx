@@ -179,10 +179,10 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
       setDriveProgress(progress);
       Alert.alert(
         '☁️ Archived in Backup Vault',
-        `File: ${progress.fileName}\nFolder: ${progress.folderPath}\nSpeed: ${progress.speedMbps} MB/s\n\nNote: Active CRM retains 3 months of data. This file is permanently backed up in Google Drive and queued for the Month-End Admin Email Report.\n\nNext: Tap "Confirm & Ingest Leads" to import into CRM pipeline.`
+        `File: ${progress.fileName}\nFolder: ${progress.folderPath}\nSpeed: ${progress.speedMbps} MB/s\n\nNote: Active CRM retains 3 months of data. This file is permanently backed up in Firebase Storage and queued for the Month-End Admin Email Report.\n\nNext: Tap "Confirm & Ingest Leads" to import into CRM pipeline.`
       );
     } catch (err: any) {
-      Alert.alert('Upload Failed', err?.message || 'Could not upload to Google Drive.');
+      Alert.alert('Upload Failed', err?.message || 'Could not upload to Firebase Storage.');
     } finally {
       setIsUploadingDrive(false);
     }
@@ -448,7 +448,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
         <View style={S.card}>
           <View style={S.cardHeaderRow}>
             <View style={[S.sectionDot, { backgroundColor: '#0284c7' }]} />
-            <Text style={S.cardTitle}>Google Drive Backup Vault (Cold Storage)</Text>
+            <Text style={S.cardTitle}>Firebase Storage Backup Vault (Cold Storage)</Text>
             {isDriveUploaded && (
               <View style={[S.statusBadge, { backgroundColor: 'rgba(34,197,94,0.15)' }]}>
                 <Text style={[S.statusBadgeText, { color: '#34d399' }]}>✓ Archived in Vault</Text>
@@ -459,7 +459,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
 
           <View style={S.drivePathBadge}>
             <Text style={S.drivePathText} numberOfLines={1}>
-              📁 Google Drive &gt; {currentUser?.companyName || 'DAS Organization'} &gt; Leads &gt; {formatTimestampedFileName(selectedFileName)}
+              📁 Firebase Storage &gt; {currentUser?.companyName || 'DAS Organization'} &gt; Leads &gt; {formatTimestampedFileName(selectedFileName)}
             </Text>
           </View>
 
@@ -469,7 +469,7 @@ export const BulkIngestionScreen: React.FC<BulkIngestionScreenProps> = ({ onClos
               onPress={handleUploadToGoogleDrive}
               activeOpacity={0.8}
             >
-              <Text style={S.driveCloudBtnText}>☁️ Backup to Google Drive Vault</Text>
+              <Text style={S.driveCloudBtnText}>☁️ Backup to Firebase Storage Vault</Text>
             </TouchableOpacity>
           )}
 

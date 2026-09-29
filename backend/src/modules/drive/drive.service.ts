@@ -271,7 +271,7 @@ export class DriveService {
       const hierarchy = [cleanCompany, 'Employees', empFolder, subCatFolder];
       return {
         hierarchy,
-        folderPath: `Google Drive > ${hierarchy.join(' > ')}`,
+        folderPath: `Firebase Storage > ${hierarchy.join(' > ')}`,
       };
     }
 
@@ -282,7 +282,7 @@ export class DriveService {
 
     return {
       hierarchy,
-      folderPath: `Google Drive > ${hierarchy.join(' > ')}`,
+      folderPath: `Firebase Storage > ${hierarchy.join(' > ')}`,
     };
   }
 

@@ -65,7 +65,7 @@ export const DatabaseHubView: React.FC<DatabaseHubViewProps> = ({ initialTab = '
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-                Centralized hub for bulk lead ingestion pipelines, sync history, multi-tenant Google Drive vaults, and folder-wise email export requests.
+                Centralized hub for bulk lead ingestion pipelines, sync history, multi-tenant Firebase Storage vaults, and folder-wise email export requests.
               </p>
             </div>
           </div>

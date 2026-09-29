@@ -77,14 +77,14 @@ export default function EmployeeDriveVaultModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black text-foreground">
-                  {employee.name}&apos;s Google Drive Vault
+                  {employee.name}&apos;s Firebase Storage Vault
                 </h3>
                 <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
                   {employee.code}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Path: <span className="font-mono text-indigo-400">Google Drive &gt; {companyName} &gt; Employees &gt; {employee.name}</span>
+                Path: <span className="font-mono text-indigo-400">Firebase Storage &gt; {companyName} &gt; Employees &gt; {employee.name}</span>
               </p>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function EmployeeDriveVaultModal({
           </button>
         </div>
 
-        {/* Drive Storage Policy & Path Header */}
+        {/* Firebase Storage Policy & Path Header */}
         <div className="rounded-2xl border border-border/80 bg-accent/20 p-4 space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export default function EmployeeDriveVaultModal({
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Staff DP, official KYC documents, and banking credentials uploaded in the Employee Profile &amp; HR screens are automatically archived here in Google Drive.
+            Staff DP, official KYC documents, and banking credentials uploaded in the Employee Profile &amp; HR screens are automatically archived here in Firebase Storage.
           </p>
         </div>
 
@@ -175,7 +175,7 @@ export default function EmployeeDriveVaultModal({
             {filteredSubFiles.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
                 <HardDrive className="h-5 w-5 mx-auto text-muted-foreground/40 mb-1" />
-                No files archived in this employee vault yet. Upload profile pictures and KYC docs in the Employee Profile screen to archive them to Google Drive.
+                No files archived in this employee vault yet. Upload profile pictures and KYC docs in the Employee Profile screen to archive them to Firebase Storage.
               </div>
             ) : (
               filteredSubFiles.map((file) => (

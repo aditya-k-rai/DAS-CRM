@@ -136,7 +136,7 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
         clearInterval(interval);
         setUploadProgress({ percent: 100, speedMbps: speed, status: 'COMPLETED' });
         setIsUploadingDrive(false);
-        Alert.alert('✅ Google Drive Upload Complete', `File stored in Google Drive folder! Speed: ${speed} MB/s`);
+        Alert.alert('✅ Firebase Storage Upload Complete', `File stored in Firebase Storage folder! Speed: ${speed} MB/s`);
       } else {
         setUploadProgress({ percent: currentPercent, speedMbps: speed, status: 'UPLOADING' });
       }
@@ -221,11 +221,11 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
           </TouchableOpacity>
         </View>
 
-        {/* ── 3. GOOGLE DRIVE TELEMETRY & APK / DMG DOWNLOADS ─────────────────── */}
+        {/* ── 3. FIREBASE STORAGE TELEMETRY & APK / DMG DOWNLOADS ─────────────────── */}
         <View style={styles.cardBox}>
-          <Text style={styles.cardTitle}>📁 Google Drive Storage &amp; App Releases</Text>
+          <Text style={styles.cardTitle}>📁 Firebase Storage &amp; App Releases</Text>
           <Text style={{ fontSize: 10, color: '#94a3b8', marginBottom: 8 }}>
-            Upload files directly to allocated Google Drive folder with live transfer speed (% Done &amp; MB/s).
+            Upload files directly to allocated Firebase Storage folder with live transfer speed (% Done &amp; MB/s).
           </Text>
 
           {uploadProgress && (
@@ -241,7 +241,7 @@ export default function EmailMarketingScreen({ onClose }: EmailMarketingScreenPr
           )}
 
           <TouchableOpacity style={styles.uploadDriveBtn} onPress={handleSimulateDriveUpload} disabled={isUploadingDrive}>
-            <Text style={styles.uploadDriveBtnText}>📤 Upload Campaign Assets to Google Drive →</Text>
+            <Text style={styles.uploadDriveBtnText}>📤 Upload Campaign Assets to Firebase Storage →</Text>
           </TouchableOpacity>
         </View>
 

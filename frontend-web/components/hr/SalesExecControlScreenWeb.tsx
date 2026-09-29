@@ -283,7 +283,7 @@ export default function SalesExecControlScreenWeb({ employee, allEmployees = [],
       </div>
 
       {/* Compliance Buttons */}
-      <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">📄 Documents, Bank &amp; Google Drive Vault Telemetry</h3>
+      <h3 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4">📄 Documents, Bank &amp; Firebase Storage Vault Telemetry</h3>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button
           onClick={() => setDocumentsModalOpen(true)}
@@ -301,7 +301,7 @@ export default function SalesExecControlScreenWeb({ employee, allEmployees = [],
           onClick={() => setDriveVaultOpen(true)}
           className="py-3 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold rounded-xl border border-indigo-500/40 transition text-center flex items-center justify-center gap-1.5"
         >
-          ☁️ Google Drive Vault →
+          ☁️ Firebase Storage Vault →
         </button>
       </div>
 

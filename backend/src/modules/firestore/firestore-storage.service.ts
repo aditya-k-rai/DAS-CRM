@@ -84,7 +84,7 @@ export class FirestoreStorageService {
       subCategory: legacy.subCategory,
       employeeName: legacy.employeeName,
       folderHierarchy: legacy.folderHierarchy || [legacy.companyName || 'Acme Sales Solutions', 'Documents'],
-      folderPath: legacy.folderPath || `Google Drive > ${legacy.companyName || 'Acme Sales Solutions'} > Documents`,
+      folderPath: legacy.folderPath || `Firebase Storage > ${legacy.companyName || 'Acme Sales Solutions'} > Documents`,
       storageEngines: {
         firestore: true,
         googleCloudStorage: !!legacy.gcsPath,

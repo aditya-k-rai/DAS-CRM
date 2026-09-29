@@ -1,0 +1,248 @@
+[
+  {
+    "fileId": "emp_pan_doc",
+    "organizationId": "org_default",
+    "companyName": "Test Org",
+    "fileName": "EMPLOYEE_PAN_CARD.pdf",
+    "originalName": "EMPLOYEE_PAN_CARD.pdf",
+    "mimeType": "application/pdf",
+    "fileExtension": "pdf",
+    "sizeBytes": 3000,
+    "sizeFormatted": "2.93 KB",
+    "category": "EMPLOYEES",
+    "subCategory": "Documents",
+    "employeeName": "Rahul Verma",
+    "folderHierarchy": [
+      "Test Org",
+      "Employees",
+      "Rahul Verma",
+      "Documents"
+    ],
+    "folderPath": "Google Drive > Test Org > Employees > Rahul Verma > Documents",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": false,
+      "localVault": false
+    },
+    "driveViewUrl": "http://example.com/emp_pan",
+    "driveDownloadUrl": "http://example.com/emp_pan_dl",
+    "isProtectedKyc": true,
+    "uploadedAt": "2026-02-21T20:47:45.923Z",
+    "updatedAt": "2026-09-29T20:47:45.924Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "emp_aadhaar_doc",
+    "organizationId": "org_default",
+    "companyName": "Test Org",
+    "fileName": "AADHAAR_CARD.pdf",
+    "originalName": "AADHAAR_CARD.pdf",
+    "mimeType": "application/pdf",
+    "fileExtension": "pdf",
+    "sizeBytes": 2500,
+    "sizeFormatted": "2.44 KB",
+    "category": "EMPLOYEES",
+    "subCategory": "Documents",
+    "employeeName": "Rahul Verma",
+    "folderHierarchy": [
+      "Test Org",
+      "Employees",
+      "Rahul Verma",
+      "Documents"
+    ],
+    "folderPath": "Google Drive > Test Org > Employees > Rahul Verma > Documents",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": false,
+      "localVault": false
+    },
+    "driveViewUrl": "http://example.com/emp_aadhaar",
+    "driveDownloadUrl": "http://example.com/emp_aadhaar_dl",
+    "isProtectedKyc": true,
+    "uploadedAt": "2025-12-03T20:47:45.923Z",
+    "updatedAt": "2026-09-29T20:47:45.925Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790678515740",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T10:41:55.740Z",
+    "updatedAt": "2026-09-29T10:41:55.741Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790678547745",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T10:42:27.745Z",
+    "updatedAt": "2026-09-29T10:42:27.750Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790678632162",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T10:43:52.162Z",
+    "updatedAt": "2026-09-29T10:43:52.162Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790695388014",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T15:23:08.014Z",
+    "updatedAt": "2026-09-29T15:23:08.015Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790705295321",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T18:08:15.321Z",
+    "updatedAt": "2026-09-29T18:08:15.324Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "test_1790714850614",
+    "organizationId": "org_test_1",
+    "companyName": "Acme Test Corp",
+    "fileName": "test_report_2026.xlsx",
+    "originalName": "test_report.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 1048576,
+    "sizeFormatted": "1 MB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Acme Test Corp",
+      "Leads"
+    ],
+    "folderPath": "Google Drive > Acme Test Corp > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": false,
+      "googleDrive": true,
+      "localVault": true
+    },
+    "driveFileId": "drive_test_123",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_test_123/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_test_123",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-29T20:47:30.614Z",
+    "updatedAt": "2026-09-29T20:47:30.617Z",
+    "isDeleted": false
+  }
+]

@@ -77,7 +77,7 @@ export const GoogleDriveStatusWidget: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
-                Google Drive Multi-Tenant Vault
+                Firebase Storage &amp; Cloud Vault
               </h3>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-500 border border-emerald-500/30">
                 <CheckCircle2 className="h-3 w-3" />
@@ -172,7 +172,7 @@ export const GoogleDriveStatusWidget: React.FC = () => {
                 <span className="text-xs font-bold text-foreground">{currentUser?.companyName || 'DAS Organization'} (Company Root)</span>
               </div>
               <span className="text-[11px] font-mono text-muted-foreground bg-accent/60 px-2 py-0.5 rounded">
-                Google Drive &amp; Local Vault Sync
+                Firebase Storage &amp; Cloud Vault Sync
               </span>
             </div>
 
@@ -219,7 +219,7 @@ export const GoogleDriveStatusWidget: React.FC = () => {
                       📁 {selectedEmployee || 'Employees'}/
                     </span>
                     <span className="text-[11px] text-muted-foreground font-mono">
-                      Path: Google Drive &gt; Employees &gt; {selectedEmployee || 'Current'}
+                      Path: Firebase Storage &gt; Employees &gt; {selectedEmployee || 'Current'}
                     </span>
                   </div>
 

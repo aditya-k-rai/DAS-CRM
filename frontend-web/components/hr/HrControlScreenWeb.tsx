@@ -219,7 +219,7 @@ export default function HrControlScreenWeb({ employee, allEmployees = [], onBack
           📜 Share HR Governance & Policy Sheet →
         </button>
         <button onClick={() => setDriveVaultOpen(true)} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition">
-          ☁️ {employee.name}&apos;s Google Drive Vault (DP, KYC, Docs) →
+          ☁️ {employee.name}&apos;s Firebase Storage Vault (DP, KYC, Docs) →
         </button>
       </div>
 

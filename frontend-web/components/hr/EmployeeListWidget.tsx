@@ -1078,11 +1078,11 @@ export function EmployeeListWidget({
                       </button>
                       <button
                         onClick={() => setVaultEmp(emp)}
-                        title={`Open ${emp.name}'s Google Drive Vault`}
+                        title={`Open ${emp.name}'s Firebase Storage Vault`}
                         className="px-3 py-2.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
                       >
                         <Cloud size={15} />
-                        <span>Drive Vault</span>
+                        <span>Cloud Vault</span>
                       </button>
                     </div>
                   </div>

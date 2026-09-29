@@ -176,7 +176,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>🗄️ Database &amp; Storage</Text>
             <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-              Lead Ingestions &amp; Google Drive Vault
+              Lead Ingestions &amp; Firebase Storage Vault
             </Text>
           </View>
         </View>
@@ -289,7 +289,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
               <View style={{ flex: 1 }}>
                 <View style={styles.vaultTitleBadgeRow}>
                   <Text style={[styles.vaultTitle, { color: colors.text }]}>
-                    Google Drive Multi-Tenant Vault
+                    Firebase Storage &amp; Cloud Vault
                   </Text>
                 </View>
                 <View style={styles.connectedBadge}>
@@ -404,7 +404,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                     📁 {currentUser?.companyName || 'DAS Organization'} (Company Root)
                   </Text>
                   <Text style={[styles.rootSub, { color: colors.textMuted }]}>
-                    Google Drive &amp; Local Vault Sync
+                    Firebase Storage &amp; Cloud Vault Sync
                   </Text>
                 </View>
 
@@ -577,7 +577,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({
                       No files stored in this folder yet.
                     </Text>
                     <Text style={[styles.emptyFilesSubText, { color: colors.textMuted }]}>
-                      Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations) are automatically fetched and stored here in Google Drive.
+                      Files uploaded through CRM modules (Employee Profiles, KYC, Leads, Quotations) are automatically fetched and stored here in Firebase Storage.
                     </Text>
                   </View>
                 ) : (
