@@ -287,7 +287,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function normalizeRoleStr(r?: any): UserRole {
-  if (!r) return 'ADMIN';
+  // SECURITY: Never escalate an unknown/empty role to ADMIN.
+  // If the role is missing or unrecognized, it must be UNASSIGNED (lowest privilege).
+  if (!r) return 'UNASSIGNED';
   let str = '';
   if (typeof r === 'string') {
     str = r;
@@ -298,7 +300,7 @@ export function normalizeRoleStr(r?: any): UserRole {
   }
 
   const norm = str.trim().toUpperCase();
-  if (norm === 'UNASSIGNED' || norm === 'NONE' || norm === 'NO_ROLE' || norm === 'PENDING') return 'UNASSIGNED';
+  if (norm === 'UNASSIGNED' || norm === 'NONE' || norm === 'NO_ROLE' || norm === 'PENDING' || norm === '') return 'UNASSIGNED';
   if (norm === 'SUPER_ADMIN' || norm === 'SYSTEM_ADMIN' || norm === 'SUPERADMIN') return 'SUPER_ADMIN';
   if (norm === 'ADMIN' || norm === 'TENANT_ADMIN' || norm === 'OWNER' || norm === 'COMPANY_ADMIN') return 'ADMIN';
   if (norm === 'HR' || norm === 'HR_MANAGER' || norm === 'HUMAN_RESOURCES' || norm === 'HR_ADMIN' || norm === 'HR_EXEC') return 'HR';
@@ -306,7 +308,8 @@ export function normalizeRoleStr(r?: any): UserRole {
   if (norm === 'TEAM_LEADER' || norm === 'TL' || norm === 'LEAD') return 'TEAM_LEADER';
   if (norm === 'SALES_EXEC' || norm === 'EMPLOYEE' || norm === 'STAFF' || norm === 'REP' || norm === 'EXECUTIVE' || norm === 'SALES_REP' || norm === 'SALES' || norm === 'USER' || norm === 'VIEWER') return 'SALES_EXEC';
 
-  return 'ADMIN';
+  // SECURITY: Any unrecognized role string → UNASSIGNED (least privilege), never ADMIN.
+  return 'UNASSIGNED';
 }
 
 export function inferRoleFromEmail(email?: string | null): UserRole | null {
@@ -334,58 +337,56 @@ export function validateEmailRoleMatch(email?: string | null, selectedRole?: Use
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     if (typeof window !== 'undefined') {
+      // SECURITY: Restore session ONLY when BOTH a token AND a stored user profile exist.
+      // Never restore from role alone — that has no proof of real authentication.
+      const storedToken = localStorage.getItem('das_crm_token');
       const stored = localStorage.getItem('das_crm_user');
-      if (stored) {
+
+      if (storedToken && stored) {
         try {
           const parsed = JSON.parse(stored);
-          if (parsed && (parsed.role || parsed.email)) {
-            parsed.role = normalizeRoleStr(parsed.role || inferRoleFromEmail(parsed.email));
-            if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
-              parsed.role = 'ADMIN';
-            }
-            if (!parsed.companyName || parsed.companyName === 'DAS Organization') {
-              const lastReg = localStorage.getItem('last_registered_company');
-              if (lastReg) {
+          if (parsed && parsed.email && parsed.id) {
+            // Validate it is not the demo sentinel — demo accounts have no real token
+            const isDemoSentinel =
+              parsed.id === 'usr_admin' ||
+              parsed.id === 'usr_hr' ||
+              parsed.id === 'usr_mgr' ||
+              parsed.id === 'usr_tl' ||
+              parsed.id === 'usr_rep' ||
+              parsed.id === 'usr_unassigned' ||
+              parsed.id === 'usr_super';
+
+            if (!isDemoSentinel) {
+              parsed.role = normalizeRoleStr(parsed.role || inferRoleFromEmail(parsed.email));
+              // Prevent SUPER_ADMIN escalation for non-super-admin emails
+              if (parsed.role === 'SUPER_ADMIN' && parsed.email?.toLowerCase() !== 'adtyamighty@gmail.com') {
+                parsed.role = 'ADMIN';
+              }
+              // Patch company name from last registered company if needed
+              if (!parsed.companyName || parsed.companyName === 'DAS Organization') {
                 try {
-                  const regData = JSON.parse(lastReg);
-                  if (regData?.name) parsed.companyName = regData.name;
+                  const lastReg = JSON.parse(localStorage.getItem('last_registered_company') || '{}');
+                  if (lastReg?.name) parsed.companyName = lastReg.name;
                 } catch (_) {}
               }
+              // Patch phone if missing
+              if (!parsed.phone) {
+                try {
+                  const lastReg = JSON.parse(localStorage.getItem('last_registered_company') || '{}');
+                  if (lastReg?.phone) parsed.phone = lastReg.phone;
+                } catch (_) {}
+              }
+              return parsed;
             }
-            if (!parsed.phone) {
-              try {
-                const lastReg = JSON.parse(localStorage.getItem('last_registered_company') || '{}');
-                if (lastReg?.phone) parsed.phone = lastReg.phone;
-              } catch (_) {}
-            }
-            if (!parsed.phone && (parsed.email === 'adorabletrading08@gmail.com' || parsed.name?.toLowerCase().includes('anurag'))) {
-              parsed.phone = '9717355779';
-            }
-            return parsed;
           }
-        } catch (e) {}
+        } catch (_) {}
       }
-      const roleStr = localStorage.getItem('das_crm_active_role');
-      if (roleStr) {
-        const safeRole = normalizeRoleStr(roleStr);
-        const baseUser = DEMO_USERS[safeRole] || DEMO_USERS.ADMIN;
-        const lastReg = localStorage.getItem('last_registered_company');
-        let compName = baseUser.companyName;
-        let phoneNum = baseUser.phone;
-        if (lastReg) {
-          try {
-            const regData = JSON.parse(lastReg);
-            if (regData?.name) compName = regData.name;
-            if (regData?.phone) phoneNum = regData.phone;
-          } catch (_) {}
-        }
-        if (!phoneNum && (baseUser.email === 'adorabletrading08@gmail.com' || baseUser.name?.toLowerCase().includes('anurag'))) {
-          phoneNum = '9717355779';
-        }
-        return { ...baseUser, companyName: compName, phone: phoneNum };
-      }
+
+      // SECURITY: No valid token+user pair found. Do NOT fall back to any DEMO user.
+      // The AuthGuard in (dashboard)/layout.tsx will redirect to /login.
+      // Return the minimum-privilege sentinel so nothing is rendered.
     }
-    return DEMO_USERS.ADMIN;
+    return DEMO_USERS.UNASSIGNED;
   });
 
   const [subscription, setSubscription] = useState<CompanySubscription>(() => {
@@ -540,17 +541,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (lastReg?.phone) userPhone = lastReg.phone;
       } catch (_) {}
     }
-    if (!userPhone && (user.email === 'adorabletrading08@gmail.com' || user.name?.toLowerCase().includes('anurag'))) {
-      userPhone = '9717355779';
-    }
-
     const normalizedUser = {
       ...user,
       role: normalizeRoleStr(user.role || inferRoleFromEmail(user.email)),
       phone: userPhone,
     };
-    const compName = user.companyName || sub?.companyName || 'Adorable Trading';
-    const effectivePlan: PlanType = sub?.planType || (compName.includes('Adorable') ? 'BUSINESS' : subscription.planType || 'BUSINESS');
+    const compName = user.companyName || sub?.companyName || 'Organization Workspace';
+    const effectivePlan: PlanType = sub?.planType || subscription.planType || 'BUSINESS';
     const allocatedSeats = sub?.userSeatsAllocated || getPlanSeatQuota(effectivePlan);
 
     const effectiveSub: CompanySubscription = sub ? {
@@ -593,15 +590,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+
   const logout = () => {
     setToken(null);
-    setCurrentUser(DEMO_USERS.ADMIN);
+    setCurrentUser(DEMO_USERS.UNASSIGNED); // SECURITY: Never restore to ADMIN on logout
     setRoleTransitionLock(null);
+
+    // Clear all session storage keys
     localStorage.removeItem('das_crm_user');
     localStorage.removeItem('das_crm_token');
     localStorage.removeItem('das_crm_active_role');
     localStorage.removeItem('das_crm_subscription');
+
+    // Clear saved login credentials so they don't auto-fill on the next visit
+    localStorage.removeItem('das_crm_login_v2');
+    (['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC', 'UNASSIGNED'] as const).forEach(r => {
+      localStorage.removeItem(`das_crm_login_v2_${r}`);
+    });
+
+    // Expire the login cookies too
+    const expiry = 'Thu, 01 Jan 1970 00:00:00 UTC';
+    document.cookie = `das_crm_login_v2=; expires=${expiry}; path=/; SameSite=Lax`;
+    (['ADMIN', 'HR', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC', 'UNASSIGNED'] as const).forEach(r => {
+      document.cookie = `das_crm_login_v2_${r}=; expires=${expiry}; path=/; SameSite=Lax`;
+    });
   };
+
+
 
   const setRoleLockState = (lock: RoleTransitionLock | null) => {
     setRoleTransitionLock(lock);
@@ -636,18 +651,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
+    // SECURITY: When AuthContext is not available (SSR or missing provider),
+    // return a completely locked-down state. NEVER grant ADMIN or any privileged
+    // access as a fallback — this would be a privilege escalation by default.
     return {
-      currentUser: DEMO_USERS.ADMIN,
+      currentUser: DEMO_USERS.UNASSIGNED, // Lowest-privilege sentinel
       subscription: MOCK_COMPANY_SUB,
       token: null,
       roleTransitionLock: null,
-      isLocked: false,
+      isLocked: true, // Lock everything
       switchRole: () => {},
       updateSubscription: () => {},
       toggleScenario: () => {},
-      canEdit: () => true,
-      canAccessFeature: () => true,
-      canAccessAIFeature: () => true,
+      canEdit: () => false, // No edit access when unauthenticated
+      canAccessFeature: () => false, // No feature access when unauthenticated
+      canAccessAIFeature: () => false, // No AI access when unauthenticated
       isSeatExceeded: false,
       setAuthSession: () => {},
       updateUserProfile: () => {},

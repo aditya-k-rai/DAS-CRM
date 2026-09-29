@@ -14,12 +14,12 @@ export function OrganizationSettingsView() {
   const [mounted, setMounted] = useState(false);
 
   // Dynamic Company Details
-  const companyName = currentUser?.companyName || subscription?.companyName || 'Adorable Trading';
-  const adminEmail = currentUser?.email || 'adorabletrading08@gmail.com';
+  const companyName = currentUser?.companyName || subscription?.companyName || 'Organization Workspace';
+  const adminEmail = currentUser?.email || '';
   const companyId = currentUser?.companyId || subscription?.id || '';
 
   // Retrieve registration key from stored metadata
-  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
+  const [companyKey, setCompanyKey] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState(false);
 
   // Form Fields
@@ -69,7 +69,8 @@ export function OrganizationSettingsView() {
   };
 
   const handleSendPdfEmail = async () => {
-    const targetCompId = companyId || companyKey || 'cmuev7n3o000mikew7je1tdiw';
+    const targetCompId = companyId || companyKey || '';
+    if (!targetCompId) return;
     setSendingPdf(true);
     setPdfNotice(null);
 
@@ -111,7 +112,8 @@ export function OrganizationSettingsView() {
   };
 
   const handleDownloadPdf = () => {
-    const targetCompId = companyId || companyKey || 'cmuev7n3o000mikew7je1tdiw';
+    const targetCompId = companyId || companyKey || '';
+    if (!targetCompId) return;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     window.open(`${apiUrl}/auth/super-admin/companies/${targetCompId}/registration-pdf`, '_blank');
   };

@@ -575,7 +575,7 @@ export function TenantAdminDashboard() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                {currentUser?.companyName || subscription?.companyName || 'Adorable Trading'} · Executive Operating System &amp; Admin Control Hub
+                {currentUser?.companyName || subscription?.companyName || 'Organization Workspace'} · Executive Operating System &amp; Admin Control Hub
               </p>
             </div>
           </div>

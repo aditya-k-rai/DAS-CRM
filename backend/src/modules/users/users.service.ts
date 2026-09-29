@@ -88,7 +88,7 @@ export class UsersService {
    */
   async getCompanyKey(organizationId: string) {
     if (!organizationId) {
-      return { companyKey: 'ADOR-EC-7187', memberLimit: 18, planTier: 'BUSINESS', companyName: 'Company Workspace' };
+      return { companyKey: '', memberLimit: 0, planTier: 'FREE', companyName: '' };
     }
 
     const [regKey, org] = await Promise.all([
@@ -114,18 +114,6 @@ export class UsersService {
       (org?.settings as any)?.registrationKey ||
       '';
 
-    if (!key && org?.name?.toLowerCase().includes('adorable')) {
-      key = 'ADOR-EC-7187';
-    }
-
-    if (!key) {
-      const fallbackKey = await this.prisma.companyRegistrationKey.findFirst({
-        where: { status: 'ACTIVE' },
-        select: { key: true, memberLimit: true, planTier: true },
-      });
-      key = fallbackKey?.key || 'ADOR-EC-7187';
-    }
-
     return {
       companyKey: key,
       memberLimit: regKey?.memberLimit || 18,
@@ -138,7 +126,7 @@ export class UsersService {
    * Resolve an organization ID by its Company Registration Key or name.
    */
   async resolveOrgIdByKey(key?: string): Promise<string> {
-    if (!key) return 'cmuev7n3o000mikew7je1tdiw';
+    if (!key) return '';
     const cleanKey = key.trim().toUpperCase();
     const regKey = await this.prisma.companyRegistrationKey.findFirst({
       where: { key: cleanKey },
@@ -155,7 +143,7 @@ export class UsersService {
       },
       select: { id: true },
     });
-    return org?.id || 'cmuev7n3o000mikew7je1tdiw';
+    return org?.id || '';
   }
 
   /**
@@ -438,9 +426,9 @@ export class UsersService {
     const validKey =
       org?.registrationKeyId ||
       settings?.registrationKey ||
-      'ADOR-EC-7187';
+      '';
 
-    let keyMatches = normalizedKey === validKey || normalizedKey === 'ADOR-EC-7187';
+    let keyMatches = validKey ? normalizedKey === validKey : false;
     if (!keyMatches) {
       const dbKey = await this.prisma.companyRegistrationKey.findFirst({
         where: { key: normalizedKey, usedByOrganizationId: organizationId },

@@ -45,11 +45,7 @@ export default function ManagerControlScreenWeb({ employee, allEmployees = [], o
       });
     }
 
-    if (list.length === 0) {
-      list.push(
-        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)' }
-      );
-    }
+
 
     return list;
   };

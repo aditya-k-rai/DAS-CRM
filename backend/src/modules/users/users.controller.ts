@@ -10,6 +10,7 @@ import {
   Headers,
   UseGuards,
   Injectable,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -43,8 +44,10 @@ export class UsersController {
     if (!orgId && companyKey) {
       orgId = await this.usersService.resolveOrgIdByKey(companyKey);
     }
+    // SECURITY: Never default to another organization's ID.
+    // If no organization is specified or authenticated, return empty list.
     if (!orgId) {
-      orgId = 'cmuev7n3o000mikew7je1tdiw';
+      return [];
     }
     return this.usersService.findAll(orgId);
   }
@@ -62,7 +65,7 @@ export class UsersController {
       orgId = await this.usersService.resolveOrgIdByKey(companyKey);
     }
     if (!orgId) {
-      orgId = 'cmuev7n3o000mikew7je1tdiw';
+      return { companyKey: '', memberLimit: 0, planTier: 'FREE', companyName: '' };
     }
     return this.usersService.getCompanyKey(orgId);
   }
@@ -85,8 +88,10 @@ export class UsersController {
     const orgId =
       adminUser?.organizationId ||
       body.organizationId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required to create a user.');
+    }
     const adminId = adminUser?.id || 'admin_direct';
     return this.usersService.createUser(orgId, adminId, body);
   }
@@ -102,8 +107,10 @@ export class UsersController {
     const orgId =
       adminUser?.organizationId ||
       body.organizationId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const adminId = adminUser?.id || 'admin_direct';
     const role = body?.assignedRole || body?.role || 'SALES_EXEC';
     return this.usersService.verifyAndAssignRole(
@@ -125,8 +132,10 @@ export class UsersController {
     const orgId =
       adminUser?.organizationId ||
       body?.organizationId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const adminId = adminUser?.id || 'admin_direct';
     return this.usersService.changeUserRole(
       orgId,
@@ -148,8 +157,10 @@ export class UsersController {
     const orgId =
       adminUser?.organizationId ||
       body?.organizationId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const adminId = adminUser?.id || 'admin_direct';
     if (body?.targetRole && body?.companyKey) {
       return this.usersService.changeUserRole(
@@ -178,8 +189,10 @@ export class UsersController {
     const orgId =
       adminUser?.organizationId ||
       queryOrgId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const adminId = adminUser?.id || 'admin_direct';
     return this.usersService.removeUser(
       orgId,
@@ -198,8 +211,10 @@ export class UsersController {
     const orgId =
       user?.organizationId ||
       body.organizationId ||
-      headerOrgId ||
-      'cmuev7n3o000mikew7je1tdiw';
+      headerOrgId;
+    if (!orgId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const userId = user?.id || 'admin_direct';
     return this.usersService.updatePhone(orgId, userId, body.phone);
   }

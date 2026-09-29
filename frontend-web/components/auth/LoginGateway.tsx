@@ -208,6 +208,8 @@ export function LoginGateway() {
   const urlCompanyName = searchParams?.get('companyName') || '';
   const urlKey = searchParams?.get('key') || '';
   const urlEmail = searchParams?.get('email') || '';
+  // SECURITY: After a forced redirect to /login, return user to their intended destination
+  const returnTo = searchParams?.get('returnTo') || '';
 
   const [fetchingCompanies, setFetchingCompanies] = useState(false);
   const { switchRole, setAuthSession } = useAuth();
@@ -281,64 +283,34 @@ export function LoginGateway() {
 
       let companies: PublicCompany[] = Array.isArray(data) && data.length > 0 ? [...data] : [];
 
-      // Check if there is a company passed via query param or saved in localStorage
+      // Check if there is a company passed via query param
+      const storedCompanyRaw = typeof window !== 'undefined' ? localStorage.getItem('last_registered_company') : null;
       let storedCompany: any = null;
-      if (typeof window !== 'undefined') {
-        try {
-          const raw = localStorage.getItem('last_registered_company');
-          if (raw) storedCompany = JSON.parse(raw);
-        } catch (_) {}
-      }
+      try { if (storedCompanyRaw) storedCompany = JSON.parse(storedCompanyRaw); } catch (_) {}
 
-      // Live Database Fallback: Ensure Adorable Trading is always available if network was unreachable
-      const DEFAULT_ACTIVE_COMPANY: PublicCompany & { phone?: string; adminName?: string; email?: string } = {
-        id: 'cmuev7n3o000mikew7je1tdiw',
-        name: 'Adorable Trading',
-        slug: 'adorable-trading-muev7mo0',
-        isActive: true,
-        status: 'APPROVED',
-        phone: '9717355779',
-        adminName: 'Anurag Sharma',
-        email: 'adorabletrading08@gmail.com',
-        companyKey: 'ADOR-EC-7187',
-      };
-
-      if (companies.length === 0) {
-        companies = [DEFAULT_ACTIVE_COMPANY];
-      }
-
-      const targetCompanyId = urlCompanyId || storedCompany?.id || DEFAULT_ACTIVE_COMPANY.id;
-      const targetCompanyName = urlCompanyName || storedCompany?.name || DEFAULT_ACTIVE_COMPANY.name;
-      const matchedComp = companies.find(c => c.id === targetCompanyId);
-      const targetKey = urlKey || (storedCompany?.key && !storedCompany.key.startsWith('ADO-') ? storedCompany.key : '') || matchedComp?.companyKey || (targetCompanyId === DEFAULT_ACTIVE_COMPANY.id ? 'ADOR-EC-7187' : '');
-      const targetEmail = urlEmail || storedCompany?.email || '';
-
-      // If target company is not in the list, prepend it
-      if (targetCompanyId && targetCompanyName && !companies.some(c => c.id === targetCompanyId)) {
-        companies.unshift({
-          id: targetCompanyId,
-          name: targetCompanyName,
-          slug: targetCompanyName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-          isActive: true,
-          status: 'APPROVED',
-          companyKey: 'ADOR-EC-7187',
-        });
-      }
-
+      // SECURITY: Do NOT inject any hardcoded company as a fallback.
+      // If the API returns no companies, show an empty list and ask the user to enter their key.
+      // A user must only see their own company, determined by the key they enter.
       setPublicCompanies(companies);
 
-      // Select target company or first available
-      if (targetCompanyId && companies.some(c => c.id === targetCompanyId)) {
-        setSelectedCompanyId(targetCompanyId);
-      } else if (companies.length > 0) {
-        setSelectedCompanyId(prev => (prev && companies.some(c => c.id === prev) ? prev : companies[0].id));
+      // Only pre-select a company if it came from the URL param (e.g. invite link) or stored registration
+      if (urlCompanyId && companies.some(c => c.id === urlCompanyId)) {
+        setSelectedCompanyId(urlCompanyId);
+      } else if (storedCompany?.id && companies.some(c => c.id === storedCompany.id)) {
+        setSelectedCompanyId(storedCompany.id);
+      } else if (companies.length === 1) {
+        setSelectedCompanyId(companies[0].id);
       }
 
-      if (targetKey && (!companyKeyInput || companyKeyInput.startsWith('ADO-') || companyKeyInput.startsWith('DAS-'))) {
-        setCompanyKeyInput(targetKey);
+      // Pre-fill company key ONLY from URL param or stored own registration — never from another company
+      if (urlKey) {
+        setCompanyKeyInput(urlKey);
+      } else if (storedCompany?.key && !storedCompany.key.startsWith('ADO-') && !storedCompany.key.startsWith('DAS-')) {
+        setCompanyKeyInput(storedCompany.key);
       }
-      if (targetEmail && !email) {
-        setEmail(targetEmail);
+
+      if (urlEmail && !email) {
+        setEmail(urlEmail);
       }
     } catch (e) {
       // In case of any unexpected exception, ensure Adorable Trading is present
@@ -521,7 +493,9 @@ export function LoginGateway() {
           clearLoginCredentials();
         }
 
-        const redirectUrl = getPostLoginRedirectRoute(finalRole);
+        const redirectUrl = returnTo
+          ? decodeURIComponent(returnTo)
+          : getPostLoginRedirectRoute(finalRole);
 
         setAuthSession(
           {

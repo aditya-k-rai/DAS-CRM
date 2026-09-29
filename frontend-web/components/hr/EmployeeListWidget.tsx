@@ -141,7 +141,7 @@ export function EmployeeListWidget({
   const [activeTab, setActiveTab] = useState<'assigned' | 'unassigned' | 'all'>(initialTab || 'assigned');
 
   // Company Registration Key & Invite
-  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
+  const [companyKey, setCompanyKey] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
@@ -181,9 +181,6 @@ export function EmployeeListWidget({
       } catch (_) {}
       const pendingPhone = localStorage.getItem('pending_company_phone');
       if (pendingPhone) return pendingPhone;
-    }
-    if (currentUser?.email === 'adorabletrading08@gmail.com' || currentUser?.name?.toLowerCase().includes('anurag')) {
-      return '9717355779';
     }
     return '';
   };
@@ -321,7 +318,7 @@ export function EmployeeListWidget({
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      const compId = currentUser?.companyId || '';
       await fetch(`${apiBase}/users/${empId}/verify-role`, {
         method: 'PATCH',
         headers: {
@@ -361,9 +358,9 @@ export function EmployeeListWidget({
       return;
     }
 
-    const currentCompKey = (companyKey || 'ADOR-EC-7187').trim().toUpperCase();
+    const currentCompKey = (companyKey || '').trim().toUpperCase();
     const inputUpper = trimmedInputKey.toUpperCase();
-    const isLocalKeyMatch = inputUpper === currentCompKey || inputUpper === 'ADOR-EC-7187';
+    const isLocalKeyMatch = currentCompKey ? inputUpper === currentCompKey : false;
 
     setIsChangingRole(true);
     setRoleChangeError(null);
@@ -380,7 +377,7 @@ export function EmployeeListWidget({
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      const compId = currentUser?.companyId || '';
 
       const res = await fetch(`${apiBase}/users/${empId}/change-role`, {
         method: 'PATCH',
@@ -472,7 +469,7 @@ export function EmployeeListWidget({
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      const compId = currentUser?.companyId || '';
       await fetch(`${apiBase}/users/${emp.id}?organizationId=${compId}`, {
         method: 'DELETE',
         headers: {

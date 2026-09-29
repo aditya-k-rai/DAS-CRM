@@ -70,7 +70,7 @@ const STORAGE_TIME_KEY = 'das_crm_user_dir_time_v2';
 
 let memoryCache: CacheState = {
   data: null,
-  companyKey: 'ADOR-EC-7187',
+  companyKey: '',
   timestamp: 0,
   fetching: null,
 };
@@ -119,6 +119,16 @@ export function getCleanStoredOverrides(): Record<string, string> {
  * Returns default resilient directory if backend is unreachable or during initial hydration.
  */
 export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
+  const DEMO_SENTINEL_IDS = new Set([
+    'usr_admin',
+    'usr_hr',
+    'usr_mgr',
+    'usr_tl',
+    'usr_rep',
+    'usr_unassigned',
+    'usr_super',
+  ]);
+
   const storedOverrides = getCleanStoredOverrides();
   let removedIds: string[] = [];
   let storedPhones: Record<string, string> = {};
@@ -137,280 +147,59 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
 
   const list: CachedEmployee[] = [];
 
-  // 1. Admin
-  const adminRole = (currentUser?.role || 'ADMIN').toUpperCase();
-  const isOwnerOrAdmin = adminRole.includes('ADMIN') || adminRole.includes('OWNER') || adminRole.includes('SUPER_ADMIN');
-  const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
-    ? 'ADMIN'
-    : adminRole.includes('HR')
-    ? 'HR'
-    : adminRole.includes('MANAGER')
-    ? 'MANAGER'
-    : adminRole.includes('LEADER') || adminRole.includes('TL')
-    ? 'TEAM_LEADER'
-    : 'SALES_EXEC';
+  const isRealUser =
+    currentUser?.id &&
+    !DEMO_SENTINEL_IDS.has(currentUser.id) &&
+    currentUser.email &&
+    !currentUser.email.endsWith('@das.com');
 
-  list.push({
-    id: currentUser?.id || 'cmuev7ni70016ikew8an7tdw8',
-    name: currentUser?.name || 'Anurag Sharma',
-    code: 'EMP001',
-    dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
-    email: currentUser?.email || 'adorabletrading08@gmail.com',
-    phone: formatPhone(currentUser?.phone || storedPhones['adorabletrading08@gmail.com'] || storedPhones[currentUser?.id] || storedPhones[currentUser?.email?.toLowerCase()] || '9717355779'),
-    role,
-    isVerified: true,
-    verificationStatus: 'VERIFIED',
-    assignedManager: 'Admin',
-    baseSalary: '₹95,000',
-    joined: 'Sep 24, 2026',
-    canSelfCheckIn: true,
-    status: 'active',
-    documents: {
-      pan: 'VERIFIED',
-      aadhaar: 'AADHAAR_VERIFIED.pdf',
-      eduCert: 'DEGREE_VERIFIED.pdf',
-      offerLetter: 'OFFER_LETTER_ADMIN.pdf',
-      lastUpdatedDate: 'Recently',
-      historyLogs: [],
-    },
-    bankDetails: {
-      bankName: 'Direct Deposit',
-      accountHolder: currentUser?.name || 'Anurag Sharma',
-      accountNo: '••••••••',
-      ifscCode: '—',
-      upiId: currentUser?.email || 'adorabletrading08@gmail.com',
-      lastUpdatedDate: 'Recently',
-      historyLogs: [],
-    },
-    attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
-    leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-    subordinates: [],
-  });
+  if (isRealUser && !removedIds.includes(currentUser.id)) {
+    const adminRole = (currentUser?.role || 'ADMIN').toUpperCase();
+    const isOwnerOrAdmin =
+      adminRole.includes('ADMIN') || adminRole.includes('OWNER') || adminRole.includes('SUPER_ADMIN');
+    const role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' = isOwnerOrAdmin
+      ? 'ADMIN'
+      : adminRole.includes('HR')
+      ? 'HR'
+      : adminRole.includes('MANAGER')
+      ? 'MANAGER'
+      : adminRole.includes('LEADER') || adminRole.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
 
-  // 2. Nandini Rastogi (Sales Exec)
-  const nandiniId = 'cmuhp0517000ngg2dq93a6nlp';
-  if (!removedIds.includes(nandiniId)) {
-    const nandiniRole = (storedOverrides[nandiniId] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as any;
-    const isNandiniVerified = nandiniRole !== 'UNASSIGNED';
     list.push({
-      id: nandiniId,
-      name: 'Nandini Rastogi',
-      code: 'EMP002',
-      dept: isNandiniVerified
-        ? nandiniRole === 'HR'
-          ? 'Human Resources'
-          : nandiniRole === 'MANAGER'
-          ? 'Executive & Management'
-          : 'Sales & Growth'
-        : 'Pending Department',
-      email: 'rastoginandini92@gmail.com',
-      phone: formatPhone(storedPhones[nandiniId] || storedPhones['rastoginandini92@gmail.com'] || '+91 98765 43210'),
-      role: nandiniRole,
-      isVerified: isNandiniVerified,
-      verificationStatus: isNandiniVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[nandiniId] || storedManagers['rastoginandini92@gmail.com'] || (isNandiniVerified ? 'Admin' : 'Pending Admin Assignment'),
-      baseSalary: '₹40,000',
-      joined: 'Sep 26, 2026',
-      canSelfCheckIn: false,
-      status: 'active',
-      documents: {
-        pan: 'VERIFIED',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
-        offerLetter: 'PENDING_OFFER.pdf',
-        lastUpdatedDate: 'Sep 26, 2026',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: 'Direct Deposit',
-        accountHolder: 'Nandini Rastogi',
-        accountNo: '••••••••',
-        ifscCode: '—',
-        upiId: 'rastoginandini92@okaxis',
-        lastUpdatedDate: 'Sep 26, 2026',
-        historyLogs: [],
-      },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      subordinates: [],
-    });
-  }
-
-  // 3. Aditya Kumar Rai (Manager)
-  const adityaId = 'usr_aditya_rai_01';
-  if (!removedIds.includes(adityaId) && !removedIds.includes('rai992522@gmail.com')) {
-    const adityaRole = (storedOverrides[adityaId] || storedOverrides['rai992522@gmail.com'] || 'MANAGER') as any;
-    const isAdityaVerified = adityaRole !== 'UNASSIGNED';
-    list.push({
-      id: adityaId,
-      name: 'Aditya Kumar Rai',
-      code: 'EMP003',
-      dept: isAdityaVerified
-        ? adityaRole === 'HR'
-          ? 'Human Resources'
-          : adityaRole === 'MANAGER'
-          ? 'Executive & Management'
-          : adityaRole === 'TEAM_LEADER'
-          ? 'Lead & Operations'
-          : 'Sales & Growth'
-        : 'Pending Department',
-      email: 'rai992522@gmail.com',
-      phone: formatPhone(storedPhones[adityaId] || storedPhones['rai992522@gmail.com'] || '+91 99252 20000'),
-      role: adityaRole,
-      isVerified: isAdityaVerified,
-      verificationStatus: isAdityaVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[adityaId] || storedManagers['rai992522@gmail.com'] || (isAdityaVerified ? 'Admin' : 'Pending Admin Assignment'),
-      baseSalary: isAdityaVerified ? (adityaRole === 'MANAGER' ? '₹75,000' : adityaRole === 'HR' ? '₹55,000' : '₹45,000') : '₹75,000',
-      joined: 'Sep 27, 2026',
-      canSelfCheckIn: false,
-      status: 'active',
-      documents: {
-        pan: 'VERIFIED',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
-        offerLetter: 'OFFER_LETTER.pdf',
-        lastUpdatedDate: 'Sep 27, 2026',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: 'Direct Deposit',
-        accountHolder: 'Aditya Kumar Rai',
-        accountNo: '••••••••',
-        ifscCode: '—',
-        upiId: 'rai992522@okaxis',
-        lastUpdatedDate: 'Sep 27, 2026',
-        historyLogs: [],
-      },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      subordinates: [],
-    });
-  }
-
-  // 4. Sachin Puri (Team Leader)
-  const sachinId = 'usr_sachin_puri_01';
-  if (!removedIds.includes(sachinId) && !removedIds.includes('sachinpuri938@gmail.com')) {
-    const sachinRole = (storedOverrides[sachinId] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER') as any;
-    const isSachinVerified = sachinRole !== 'UNASSIGNED';
-    list.push({
-      id: sachinId,
-      name: 'Sachin Puri',
-      code: 'EMP004',
-      dept: isSachinVerified ? 'Lead & Operations' : 'Pending Department',
-      email: 'sachinpuri938@gmail.com',
-      phone: formatPhone(storedPhones[sachinId] || storedPhones['sachinpuri938@gmail.com'] || '+91 93102 03982'),
-      role: sachinRole,
-      isVerified: isSachinVerified,
-      verificationStatus: isSachinVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[sachinId] || storedManagers['sachinpuri938@gmail.com'] || 'Aditya Kumar Rai (Manager)',
-      baseSalary: '₹55,000',
-      joined: 'Sep 27, 2026',
+      id: currentUser.id,
+      name: currentUser.name || currentUser.email.split('@')[0],
+      code: 'EMP001',
+      dept: isOwnerOrAdmin ? 'Executive & Administration' : 'Executive & Management',
+      email: currentUser.email,
+      phone: formatPhone(currentUser.phone || storedPhones[currentUser.id] || storedPhones[currentUser.email.toLowerCase()] || ''),
+      role,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: 'Admin',
+      baseSalary: isOwnerOrAdmin ? '₹95,000' : '₹50,000',
+      joined: 'Recently',
       canSelfCheckIn: true,
       status: 'active',
       documents: {
         pan: 'VERIFIED',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
+        aadhaar: 'AADHAAR_VERIFIED.pdf',
+        eduCert: 'DEGREE_VERIFIED.pdf',
         offerLetter: 'OFFER_LETTER.pdf',
-        lastUpdatedDate: 'Sep 27, 2026',
+        lastUpdatedDate: 'Recently',
         historyLogs: [],
       },
       bankDetails: {
         bankName: 'Direct Deposit',
-        accountHolder: 'Sachin Puri',
+        accountHolder: currentUser.name || 'Staff Member',
         accountNo: '••••••••',
         ifscCode: '—',
-        upiId: 'sachinpuri938@okaxis',
-        lastUpdatedDate: 'Sep 27, 2026',
+        upiId: currentUser.email,
+        lastUpdatedDate: 'Recently',
         historyLogs: [],
       },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      subordinates: [],
-    });
-  }
-
-  // 5. Sulekha Tomar (Sales Exec)
-  const sulekhaId = 'cmukwwdv9000ng42dghtw6t3z';
-  if (!removedIds.includes(sulekhaId) && !removedIds.includes('sulekhatmr@gmail.com')) {
-    const sulekhaRole = (storedOverrides[sulekhaId] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any;
-    const isSulekhaVerified = sulekhaRole !== 'UNASSIGNED';
-    list.push({
-      id: sulekhaId,
-      name: 'Sulekha Tomar',
-      code: 'EMP005',
-      dept: isSulekhaVerified ? 'Sales & Growth' : 'Pending Department',
-      email: 'sulekhatmr@gmail.com',
-      phone: formatPhone(storedPhones[sulekhaId] || storedPhones['sulekhatmr@gmail.com'] || '+91 93661 03735'),
-      role: sulekhaRole,
-      isVerified: isSulekhaVerified,
-      verificationStatus: isSulekhaVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[sulekhaId] || storedManagers['sulekhatmr@gmail.com'] || 'Sachin Puri (Team Leader)',
-      baseSalary: '₹45,000',
-      joined: 'Sep 28, 2026',
-      canSelfCheckIn: false,
-      status: 'active',
-      documents: {
-        pan: 'VERIFIED',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
-        offerLetter: 'OFFER_LETTER.pdf',
-        lastUpdatedDate: 'Sep 28, 2026',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: 'Direct Deposit',
-        accountHolder: 'Sulekha Tomar',
-        accountNo: '••••••••',
-        ifscCode: '—',
-        upiId: 'sulekhatmr@okaxis',
-        lastUpdatedDate: 'Sep 28, 2026',
-        historyLogs: [],
-      },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-      subordinates: [],
-    });
-  }
-
-  // 6. Sadhana (Unassigned)
-  const sadhanaId = 'cmukykfoe000nht2d0ylnsd3t';
-  if (!removedIds.includes(sadhanaId) && !removedIds.includes('sadhnadikshit98@gmail.com')) {
-    const sadhanaRole = (storedOverrides[sadhanaId] || storedOverrides['sadhnadikshit98@gmail.com'] || 'UNASSIGNED') as any;
-    const isSadhanaVerified = sadhanaRole !== 'UNASSIGNED';
-    list.push({
-      id: sadhanaId,
-      name: 'Sadhana',
-      code: 'EMP006',
-      dept: isSadhanaVerified ? 'Sales & Growth' : 'Pending Department',
-      email: 'sadhnadikshit98@gmail.com',
-      phone: formatPhone(storedPhones[sadhanaId] || storedPhones['sadhnadikshit98@gmail.com'] || ''),
-      role: sadhanaRole,
-      isVerified: isSadhanaVerified,
-      verificationStatus: isSadhanaVerified ? 'VERIFIED' : 'PENDING',
-      assignedManager: storedManagers[sadhanaId] || storedManagers['sadhnadikshit98@gmail.com'] || 'Awaiting Admin Assignment',
-      baseSalary: '₹35,000',
-      joined: 'Sep 28, 2026',
-      canSelfCheckIn: false,
-      status: 'active',
-      documents: {
-        pan: 'PENDING',
-        aadhaar: 'AADHAAR_SUBMITTED.pdf',
-        eduCert: 'DEGREE_SUBMITTED.pdf',
-        offerLetter: 'PENDING_OFFER.pdf',
-        lastUpdatedDate: 'Sep 28, 2026',
-        historyLogs: [],
-      },
-      bankDetails: {
-        bankName: 'Direct Deposit',
-        accountHolder: 'Sadhana',
-        accountNo: '••••••••',
-        ifscCode: '—',
-        upiId: 'sadhnadikshit98@okaxis',
-        lastUpdatedDate: 'Sep 28, 2026',
-        historyLogs: [],
-      },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
       leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
       subordinates: [],
     });
@@ -445,7 +234,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
             const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
             const isVer = rawRole !== 'UNASSIGNED';
             list.push({
-              id: u.id || `unassigned_${Date.now()}`,
+              id: u.id || ('unassigned_' + Date.now()),
               name: u.name || u.email || 'Unassigned Staff',
               code: 'UNASSIGNED',
               dept: isVer ? 'Sales & Growth' : 'Pending Department',
@@ -519,7 +308,10 @@ export async function getUserDirectory(
   const fetchPromise = (async () => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+    const compId = currentUser?.companyId;
+    if (!compId || compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      return [];
+    }
 
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -527,7 +319,7 @@ export async function getUserDirectory(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    let companyKey = memoryCache.companyKey || 'ADOR-EC-7187';
+    let companyKey = memoryCache.companyKey || '';
 
     try {
       const keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}&companyKey=${companyKey}`, {
@@ -597,21 +389,6 @@ export async function getUserDirectory(
             let rawPhone = u.phone || u.phoneNumber || u.mobile || storedPhones[String(u.id)] || storedPhones[u.email?.toLowerCase()];
             if (!rawPhone && (u.email === currentUser?.email || u.id === currentUser?.id)) {
               rawPhone = currentUser?.phone;
-            }
-            if (!rawPhone && (u.email === 'adorabletrading08@gmail.com' || u.name?.toLowerCase().includes('anurag'))) {
-              rawPhone = '9717355779';
-            }
-            if (!rawPhone && u.email === 'rai992522@gmail.com') {
-              rawPhone = '+91 99252 20000';
-            }
-            if (!rawPhone && u.email === 'rastoginandini92@gmail.com') {
-              rawPhone = '+91 98765 43210';
-            }
-            if (!rawPhone && u.email === 'sachinpuri938@gmail.com') {
-              rawPhone = '+91 93102 03982';
-            }
-            if (!rawPhone && u.email === 'sulekhatmr@gmail.com') {
-              rawPhone = '+91 93661 03735';
             }
             const displayPhone = formatPhone(rawPhone);
 

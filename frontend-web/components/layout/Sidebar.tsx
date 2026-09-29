@@ -189,7 +189,7 @@ export function Sidebar() {
                 />
                 <div className="sidebar-logo-text min-w-0">
                   <span className="text-foreground font-bold text-base tracking-tight block truncate">DAS CRM</span>
-                  <p className="text-xs text-muted-foreground font-medium truncate">{currentUser?.companyName || subscription?.companyName || 'Adorable Trading'}</p>
+                  <p className="text-xs text-muted-foreground font-medium truncate">{currentUser?.companyName || subscription?.companyName || 'Organization Workspace'}</p>
                 </div>
               </div>
 
@@ -331,7 +331,7 @@ export function Sidebar() {
         userEmail={currentUser?.email}
         userRole={currentUser?.role}
         userAvatar={currentUser?.avatar}
-        companyName={currentUser?.companyName || subscription?.companyName || 'Adorable Trading'}
+        companyName={currentUser?.companyName || subscription?.companyName || 'Organization Workspace'}
       />
     </>
   );

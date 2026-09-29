@@ -45,12 +45,7 @@ export default function HrControlScreenWeb({ employee, allEmployees = [], onBack
       });
     }
 
-    if (list.length === 0) {
-      list.push(
-        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)' },
-        { id: 'mgr-default', name: 'Aditya Kumar Rai', role: 'Manager', email: 'rai992522@gmail.com', label: 'Aditya Kumar Rai (Manager)' }
-      );
-    }
+
 
     return list;
   };

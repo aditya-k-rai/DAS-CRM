@@ -20,15 +20,15 @@ export default function UserProfilePage() {
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
 
   // Company Key & Profile State
-  const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
+  const [companyKey, setCompanyKey] = useState<string>('');
   const [copiedKey, setCopiedKey] = useState(false);
-  const [editableName, setEditableName] = useState(currentUser.companyName || 'Adorable Trading');
-  const [editablePhone, setEditablePhone] = useState('0987654321');
-  const [editableCity, setEditableCity] = useState('Noida');
-  const [editableState, setEditableState] = useState('Uttar Pradesh');
-  const [editableSector, setEditableSector] = useState('Trading & Commerce');
-  const [gstNumber, setGstNumber] = useState('09ECBPS7187H1ZY');
-  const [panNumber, setPanNumber] = useState('ECBPS7187H');
+  const [editableName, setEditableName] = useState(currentUser.companyName || 'Organization Workspace');
+  const [editablePhone, setEditablePhone] = useState(currentUser.phone || '');
+  const [editableCity, setEditableCity] = useState('');
+  const [editableState, setEditableState] = useState('');
+  const [editableSector, setEditableSector] = useState('General');
+  const [gstNumber, setGstNumber] = useState('');
+  const [panNumber, setPanNumber] = useState('');
   const [savingChanges, setSavingChanges] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState(false);
@@ -92,24 +92,28 @@ export default function UserProfilePage() {
   };
 
   const handleDownloadRegistrationPdf = () => {
+    const compId = currentUser?.companyId;
+    if (!compId) return;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    window.open(`${apiUrl}/auth/super-admin/companies/cmuev7n3o000mikew7je1tdiw/registration-pdf`, '_blank');
+    window.open(`${apiUrl}/auth/super-admin/companies/${compId}/registration-pdf`, '_blank');
   };
 
   const handleSendPdfEmail = async () => {
+    const compId = currentUser?.companyId;
+    if (!compId) return;
     setSendingPdf(true);
     setPdfMsg(null);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/cmuev7n3o000mikew7je1tdiw/send-registration-pdf`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'}/auth/super-admin/companies/${compId}/send-registration-pdf`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ recipientEmail: currentUser.email || 'adorabletrading08@gmail.com' }),
+          body: JSON.stringify({ recipientEmail: currentUser.email || '' }),
         }
       );
       if (res.ok) {
@@ -276,7 +280,7 @@ export default function UserProfilePage() {
               <span className="text-xs font-semibold uppercase tracking-wider text-muted">Company Workspace</span>
             </div>
             <p className="text-lg font-bold text-white truncate">{editableName}</p>
-            <p className="text-[11px] text-muted">Active Tenant ID: {currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw'}</p>
+            <p className="text-[11px] text-muted">Active Tenant ID: {currentUser?.companyId || '—'}</p>
           </div>
 
           <div className="crm-card p-5 space-y-2 bg-card rounded-2xl border border-purple-500/30 bg-purple-500/5">
@@ -443,7 +447,7 @@ export default function UserProfilePage() {
         userName={currentUser?.name}
         userEmail={currentUser?.email}
         userRole={currentUser?.role}
-        companyName={currentUser?.companyName || subscription?.companyName || 'Adorable Trading'}
+        companyName={currentUser?.companyName || subscription?.companyName || 'Organization Workspace'}
         userAvatar={currentUser?.avatar}
       />
     </div>

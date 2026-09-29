@@ -111,7 +111,7 @@ export default function ProfileSettingsPage() {
                 <label className="text-xs font-semibold text-muted-foreground block mb-1">Company Workspace</label>
                 <input
                   className="crm-input text-sm w-full bg-secondary/50 text-muted-foreground"
-                  value={currentUser?.companyName || 'Adorable Trading'}
+                  value={currentUser?.companyName || 'Organization Workspace'}
                   disabled
                 />
               </div>

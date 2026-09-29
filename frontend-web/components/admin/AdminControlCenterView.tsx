@@ -171,7 +171,13 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setLoadingUsers(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+    const compId = currentUser?.companyId;
+    if (!compId || compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      setManagedUsers([]);
+      setSelectedUserId('');
+      setLoadingUsers(false);
+      return;
+    }
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-organization-id': compId,
@@ -291,18 +297,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       let removedIds: string[] = [];
       try { removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]'); } catch (_) {}
 
-      const fallbacks = [
-        { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi',  email: 'rastoginandini92@gmail.com', defaultRole: 'SALES_EXEC', initials: 'NR', phone: '+91 98765 43210', dept: 'Sales & Growth' },
-        { id: 'usr_aditya_rai_01',          name: 'Aditya Kumar Rai', email: 'rai992522@gmail.com',         defaultRole: 'MANAGER',    initials: 'AR', phone: '+91 99252 20000', dept: 'Executive & Management' },
-        { id: 'usr_sachin_puri_01',          name: 'Sachin Puri',      email: 'sachinpuri938@gmail.com',    defaultRole: 'TEAM_LEADER',initials: 'SP', phone: '+91 93102 03982', dept: 'Lead & Operations' },
-        { id: 'usr_sulekha_tomar_01',        name: 'Sulekha Tomar',    email: 'sulekhatmr@gmail.com',       defaultRole: 'SALES_EXEC', initials: 'ST', phone: '+91 93661 03735', dept: 'Sales & Growth' },
-      ];
-      fallbacks.forEach(fb => {
-        if (!removedIds.includes(fb.id) && !removedIds.includes(fb.email)) {
-          const assignedRole = storedOverrides[fb.id] || storedOverrides[fb.email] || fb.defaultRole;
-          realUsers.push({ id: fb.id, name: fb.name, email: fb.email, role: assignedRole, avatarInitials: fb.initials, department: fb.dept, phone: fb.phone, isVerified: assignedRole !== 'UNASSIGNED' });
-        }
-      });
+      // If no users returned from backend, do not inject third-party fallbacks
     }
 
     setManagedUsers(realUsers);
@@ -347,7 +342,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+      const compId = currentUser?.companyId || '';
       fetch(`${apiBase}/users/${uId}/verify-role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-organization-id': compId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },

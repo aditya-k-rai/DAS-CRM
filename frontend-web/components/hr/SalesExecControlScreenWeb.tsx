@@ -51,14 +51,7 @@ export default function SalesExecControlScreenWeb({ employee, allEmployees = [],
       });
     }
 
-    // Fallback senior defaults if list is empty
-    if (list.length === 0) {
-      list.push(
-        { id: 'admin-default', name: 'Anurag Sharma', role: 'Admin', email: 'adorabletrading08@gmail.com', label: 'Anurag Sharma (Admin)' },
-        { id: 'mgr-default', name: 'Aditya Kumar Rai', role: 'Manager', email: 'rai992522@gmail.com', label: 'Aditya Kumar Rai (Manager)' },
-        { id: 'tl-default', name: 'Sachin Puri', role: 'Team Leader', email: 'sachinpuri938@gmail.com', label: 'Sachin Puri (Team Leader)' }
-      );
-    }
+
 
     return list;
   };
