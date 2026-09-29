@@ -49,7 +49,7 @@ export class UsersController {
     if (!orgId) {
       return [];
     }
-    return this.usersService.findAll(orgId);
+    return this.usersService.findAll(orgId, user?.id);
   }
 
   @Get('company-key')
@@ -217,5 +217,19 @@ export class UsersController {
     }
     const userId = user?.id || 'admin_direct';
     return this.usersService.updatePhone(orgId, userId, body.phone);
+  }
+
+  @Patch(':id/manager')
+  @ApiOperation({ summary: 'Change the assigned supervisor/manager for a user' })
+  async assignManager(
+    @CurrentUser() adminUser: any,
+    @Headers('x-organization-id') headerOrgId: string,
+    @Param('id') targetUserId: string,
+    @Body() body: { managerId: string; organizationId?: string },
+  ) {
+    const orgId = adminUser?.organizationId || body?.organizationId || headerOrgId;
+    if (!orgId) throw new BadRequestException('Organization ID is required.');
+    const adminId = adminUser?.id || 'admin_direct';
+    return this.usersService.assignManager(orgId, adminId, targetUserId, body.managerId);
   }
 }

@@ -15,12 +15,49 @@ export class UsersService {
   /**
    * List all users/members in an organization, including Unassigned registrations.
    */
-  async findAll(organizationId: string) {
+  async findAll(organizationId: string, userId?: string) {
     if (!organizationId) return [];
+
+    let allowedIds: string[] | null = null;
+    if (userId) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: { select: { name: true } } }
+      });
+      const roleName = currentUser?.role?.name || '';
+      
+      // Admin and HR can see all users
+      if (roleName !== 'ADMIN' && roleName !== 'HR') {
+        const allUsers = await this.prisma.user.findMany({
+          where: { organizationId },
+          select: { id: true, managerId: true }
+        });
+        
+        const subordinateIds = new Set<string>();
+        subordinateIds.add(userId);
+        
+        let added = true;
+        while (added) {
+          added = false;
+          for (const u of allUsers) {
+            if (u.managerId && subordinateIds.has(u.managerId) && !subordinateIds.has(u.id)) {
+              subordinateIds.add(u.id);
+              added = true;
+            }
+          }
+        }
+        allowedIds = Array.from(subordinateIds);
+      }
+    }
+
+    const where: any = { organizationId };
+    if (allowedIds) {
+      where.id = { in: allowedIds };
+    }
 
     const [users, keyData] = await Promise.all([
       this.prisma.user.findMany({
-        where: { organizationId },
+        where,
         select: {
           id: true,
           email: true,
@@ -31,6 +68,8 @@ export class UsersService {
           avatarUrl: true,
           isActive: true,
           createdAt: true,
+          managerId: true,
+          manager: { select: { firstName: true, lastName: true, role: { select: { name: true } } } },
           employeeProfile: {
             select: {
               emergencyContact: true,
@@ -62,6 +101,14 @@ export class UsersService {
         profilePhone ||
         (u.email === u.organization?.adminEmail ? u.organization?.phone : null) ||
         '';
+      
+      let assignedManager = roleName === 'ADMIN' ? 'Organization Admin' : 'Admin';
+      if (u.managerId && u.manager) {
+        const mgrRole = u.manager.role?.name || '';
+        const mgrRoleLabel = mgrRole === 'ADMIN' ? 'Admin' : mgrRole === 'MANAGER' ? 'Manager' : mgrRole === 'TEAM_LEADER' ? 'Team Leader' : mgrRole;
+        const mgrName = `${u.manager.firstName || ''} ${u.manager.lastName || ''}`.trim();
+        assignedManager = mgrRoleLabel ? `${mgrName} (${mgrRoleLabel})` : mgrName;
+      }
 
       return {
         id: u.id,
@@ -79,6 +126,8 @@ export class UsersService {
         createdAt: u.createdAt,
         companyKey: activeCompanyKey,
         phone,
+        managerId: u.managerId,
+        assignedManager,
       };
     });
   }
@@ -751,5 +800,45 @@ export class UsersService {
       .catch(() => null);
 
     return { success: true, phone: cleanPhone };
+  }
+
+  /**
+   * Admin changes the supervisor (assigned Manager) for a user.
+   */
+  async assignManager(organizationId: string, adminId: string, targetUserId: string, managerLabel: string) {
+    await this.assertAdminOrOwner(organizationId, adminId);
+    
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetUserId, organizationId }
+    });
+    if (!target) throw new NotFoundException('User not found in organization.');
+
+    let finalManagerId = null;
+    if (managerLabel && managerLabel !== 'Admin' && managerLabel !== 'Organization Admin' && managerLabel !== 'null') {
+      const allUsers = await this.prisma.user.findMany({
+        where: { organizationId },
+        select: { id: true, firstName: true, lastName: true, role: { select: { name: true } } }
+      });
+      // Try to find the matching manager
+      const manager = allUsers.find(u => {
+        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+        const roleLabel = u.role?.name === 'ADMIN' ? 'Admin' : u.role?.name === 'MANAGER' ? 'Manager' : u.role?.name === 'TEAM_LEADER' ? 'Team Leader' : u.role?.name;
+        const fullLabel = roleLabel ? `${fullName} (${roleLabel})` : fullName;
+        return fullName === managerLabel || fullLabel === managerLabel || u.id === managerLabel;
+      });
+      if (manager) {
+        finalManagerId = manager.id;
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { managerId: finalManagerId },
+      select: {
+        id: true,
+        managerId: true,
+        manager: { select: { firstName: true, lastName: true, role: { select: { name: true } } } }
+      }
+    });
   }
 }

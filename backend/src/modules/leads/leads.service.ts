@@ -16,6 +16,41 @@ export class LeadsService {
     private notificationsService: NotificationsService,
   ) {}
 
+  private async getHierarchyScope(organizationId: string, userId?: string) {
+    if (!userId) return {};
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: { select: { name: true } } }
+    });
+    const roleName = currentUser?.role?.name || '';
+    if (roleName === 'ADMIN' || roleName === 'HR') {
+      return {};
+    }
+    const allUsers = await this.prisma.user.findMany({
+      where: { organizationId },
+      select: { id: true, managerId: true }
+    });
+    const subordinateIds = new Set<string>();
+    subordinateIds.add(userId);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const u of allUsers) {
+        if (u.managerId && subordinateIds.has(u.managerId) && !subordinateIds.has(u.id)) {
+          subordinateIds.add(u.id);
+          added = true;
+        }
+      }
+    }
+    const allowedIds = Array.from(subordinateIds);
+    return {
+      OR: [
+        { ownerId: { in: allowedIds } },
+        { createdById: { in: allowedIds } }
+      ]
+    };
+  }
+
   async findAll(organizationId: string, query: LeadQueryDto, userId?: string) {
     const {
       page = 1,
@@ -29,22 +64,11 @@ export class LeadsService {
     } = query;
     const skip = (page - 1) * limit;
 
-    // STEP 7: User-specific data isolation
-    // A user must only see leads owned by them or created by them
-    const userScope = userId
-      ? [
-          {
-            OR: [
-              { ownerId: userId },
-              { createdById: userId },
-            ],
-          },
-        ]
-      : [];
-
+    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    
     const where: any = {
       organizationId,
-      ...(userScope.length > 0 && { AND: userScope }),
+      ...hierarchyScope,
       ...(statusId && { statusId }),
       ...(ownerId && { ownerId }),
       ...(sourceId && { sourceId }),
@@ -89,18 +113,13 @@ export class LeadsService {
   }
 
   async findOne(organizationId: string, id: string, userId?: string) {
+    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    
     const lead = await this.prisma.lead.findFirst({
       where: {
         id,
         organizationId,
-        ...(userId
-          ? {
-              OR: [
-                { ownerId: userId },
-                { createdById: userId },
-              ],
-            }
-          : {}),
+        ...hierarchyScope,
       },
       include: {
         status: true,
@@ -193,11 +212,13 @@ export class LeadsService {
     id: string,
     dto: UpdateLeadDto,
   ) {
+    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    
     const existing = await this.prisma.lead.findFirst({
       where: {
         id,
         organizationId,
-        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+        ...hierarchyScope,
       },
     });
     if (!existing) throw new NotFoundException('Lead not found or access denied');
@@ -229,11 +250,12 @@ export class LeadsService {
     statusId: string,
     notes?: string,
   ) {
+    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
     const lead = await this.prisma.lead.findFirst({
       where: {
         id,
         organizationId,
-        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+        ...hierarchyScope,
       },
     });
     if (!lead) throw new NotFoundException('Lead not found or access denied');
@@ -415,11 +437,12 @@ export class LeadsService {
   }
 
   async remove(organizationId: string, userId: string, id: string) {
+    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
     const existing = await this.prisma.lead.findFirst({
       where: {
         id,
         organizationId,
-        ...(userId ? { OR: [{ ownerId: userId }, { createdById: userId }] } : {}),
+        ...hierarchyScope,
       },
     });
     if (!existing) throw new NotFoundException('Lead not found or access denied');

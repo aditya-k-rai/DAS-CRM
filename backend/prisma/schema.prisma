@@ -342,6 +342,9 @@ model User {
   notifications   Notification[]
   auditLogs       AuditLog[]
   employeeProfile EmployeeProfile?
+  managerId       String?
+  manager         User?                @relation("UserManager", fields: [managerId], references: [id])
+  subordinates    User[]               @relation("UserManager")
   attendance      EmployeeAttendance[] @relation("AttendanceUser")
   leaveBalances   LeaveBalance[]       @relation("LeaveBalanceUser")
   leaveRequests   LeaveRequest[]       @relation("LeaveRequestUser")

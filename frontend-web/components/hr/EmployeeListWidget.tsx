@@ -583,7 +583,8 @@ export function EmployeeListWidget({
   const assignedEmps = employees.filter(e => e.role !== 'UNASSIGNED');
   const activeCount = assignedEmps.length;
 
-  const handleUpdateEmployee = (updated: EmployeeProfileWeb) => {
+  const handleUpdateEmployee = async (updated: EmployeeProfileWeb) => {
+    const oldEmp = employees.find(e => e.id === updated.id);
     setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e));
     setInspectingEmp(updated);
 
@@ -596,6 +597,26 @@ export function EmployeeListWidget({
         }
         localStorage.setItem('das_crm_assigned_managers', JSON.stringify(stored));
       } catch (_) {}
+
+      // Update backend if manager changed
+      if (oldEmp && oldEmp.assignedManager !== updated.assignedManager) {
+        try {
+          const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+          const token = localStorage.getItem('das_crm_token');
+          const orgId = localStorage.getItem('das_crm_org_id');
+          await fetch(`${apiBase}/users/${updated.id}/manager`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(orgId ? { 'x-organization-id': orgId } : {}),
+            },
+            body: JSON.stringify({ managerId: updated.assignedManager }),
+          });
+        } catch (e) {
+          console.error('Failed to sync manager update', e);
+        }
+      }
     }
     invalidateUserDirectoryCache();
   };
