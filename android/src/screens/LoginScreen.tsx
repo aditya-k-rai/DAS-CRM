@@ -133,6 +133,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   // Forgot password state
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotMode, setForgotMode] = useState<'company_key' | 'email_otp'>('company_key');
+  const [forgotCompanyKey, setForgotCompanyKey] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -774,6 +776,58 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
+  /** Forgot password — reset via Company Key */
+  const handleResetWithCompanyKey = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your registered email address.');
+      return;
+    }
+    if (!forgotCompanyKey.trim()) {
+      setForgotError('Please enter your Company Key.');
+      return;
+    }
+    if (!newPassword.trim()) {
+      setForgotError('Please enter your new password.');
+      return;
+    }
+    if (newPassword.trim().length < 6) {
+      setForgotError('New password must be at least 6 characters.');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError(null);
+    setForgotMsg(null);
+    try {
+      const res = await fetch(`${getApiBase()}/auth/reset-password-with-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          companyKey: forgotCompanyKey.trim().toUpperCase(),
+          newPassword: newPassword.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setForgotMsg('✓ Password Hash Replaced & Verified! You can now log in.');
+        setEmail(forgotEmail.trim());
+        setPassword(newPassword.trim());
+        setCompanyKeyInput(forgotCompanyKey.trim().toUpperCase());
+        setTimeout(() => {
+          setForgotModalOpen(false);
+          setNewPassword('');
+        }, 1600);
+      } else {
+        setForgotError(data.message || 'Failed to reset password. Check credentials.');
+      }
+    } catch {
+      setForgotError('Network error. Check connection or server ping.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1020,9 +1074,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                         onPress={() => {
                           setForgotModalOpen(true);
                           setForgotEmail(email);
+                          setForgotCompanyKey(companyKeyInput);
+                          setForgotMode('company_key');
                           setForgotStep('email');
                           setForgotError(null);
                           setForgotMsg(null);
+                          setNewPassword('');
                         }}
                       >
                         <Text style={[styles.forgotText, loading && { opacity: 0.4 }]}>
@@ -1350,8 +1407,52 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>🔑 Reset Account Password</Text>
             <Text style={styles.modalSubtitle}>
-              Enter your registered email to receive a 6-digit verification code.
+              Reset your password using your Company Key or email OTP verification code.
             </Text>
+
+            {/* Mode Switcher */}
+            <View style={[styles.tabSwitchContainer, { marginBottom: 12 }]}>
+              <TouchableOpacity
+                style={[
+                  styles.tabSwitchBtn,
+                  forgotMode === 'company_key' && styles.tabSwitchBtnActive,
+                ]}
+                onPress={() => {
+                  setForgotMode('company_key');
+                  setForgotError(null);
+                  setForgotMsg(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.tabSwitchText,
+                    forgotMode === 'company_key' && styles.tabSwitchTextActive,
+                  ]}
+                >
+                  🔑 Company Key (Instant)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tabSwitchBtn,
+                  forgotMode === 'email_otp' && styles.tabSwitchBtnActive,
+                ]}
+                onPress={() => {
+                  setForgotMode('email_otp');
+                  setForgotError(null);
+                  setForgotMsg(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.tabSwitchText,
+                    forgotMode === 'email_otp' && styles.tabSwitchTextActive,
+                  ]}
+                >
+                  ✉️ Email OTP
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {forgotError ? (
               <View style={styles.errorBanner}>
@@ -1364,7 +1465,59 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               </View>
             ) : null}
 
-            {forgotStep === 'email' ? (
+            {forgotMode === 'company_key' ? (
+              <View style={{ width: '100%', gap: 10 }}>
+                <Text style={styles.label}>Registered Email Address *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="user@company.com"
+                  placeholderTextColor="#64748b"
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <Text style={styles.label}>Company Key *</Text>
+                <TextInput
+                  style={[styles.input, styles.monoInput]}
+                  placeholder="e.g. ADOR-EC-7187"
+                  placeholderTextColor="#64748b"
+                  value={forgotCompanyKey}
+                  onChangeText={txt => setForgotCompanyKey(txt.toUpperCase())}
+                  autoCapitalize="characters"
+                />
+
+                <Text style={styles.label}>New Secure Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter new password (min. 6 chars)"
+                  placeholderTextColor="#64748b"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                />
+
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: '#4f46e5', marginTop: 4 }]}
+                  onPress={handleResetWithCompanyKey}
+                  disabled={
+                    forgotLoading ||
+                    !forgotEmail.trim() ||
+                    !forgotCompanyKey.trim() ||
+                    !newPassword.trim()
+                  }
+                >
+                  {forgotLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>
+                      Reset Password &amp; Verify Hash ✓
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : forgotStep === 'email' ? (
               <View style={{ width: '100%', gap: 12 }}>
                 <Text style={styles.label}>Registered Email Address *</Text>
                 <TextInput

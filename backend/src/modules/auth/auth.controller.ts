@@ -25,6 +25,7 @@ import { CompanyKeyService } from './company-key.service';
 import { PlanTier, UserRole } from '@prisma/client';
 
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { ResetPasswordWithKeyDto } from './dto/reset-password-with-key.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -71,9 +72,27 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify OTP code and reset password' })
-  resetPassword(@Body() body: { email: string; otp: string; newPassword: string }) {
-    return this.authService.resetPassword(body);
+  @ApiOperation({ summary: 'Verify OTP code or Company Key and reset password' })
+  resetPassword(@Body() body: { email: string; otp?: string; companyKey?: string; newPassword: string }) {
+    if (body.companyKey) {
+      return this.authService.resetPasswordWithCompanyKey({
+        email: body.email,
+        companyKey: body.companyKey,
+        newPassword: body.newPassword,
+      });
+    }
+    return this.authService.resetPassword({
+      email: body.email,
+      otp: body.otp || '',
+      newPassword: body.newPassword,
+    });
+  }
+
+  @Post('reset-password-with-key')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset account password directly using verified Company Key' })
+  resetPasswordWithKey(@Body() dto: ResetPasswordWithKeyDto) {
+    return this.authService.resetPasswordWithCompanyKey(dto);
   }
 
   @Post('refresh')
