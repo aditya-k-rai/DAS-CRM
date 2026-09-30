@@ -205,20 +205,29 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     });
   }
 
+  const adminRole = (currentUser?.role || 'ADMIN').toUpperCase();
+  const isOwnerOrAdmin = adminRole.includes('ADMIN') || adminRole.includes('OWNER') || adminRole.includes('SUPER_ADMIN');
+  const isHR = adminRole.includes('HR');
+  const currentUserRef = (currentUser?.name || '').trim().toLowerCase();
+
   // Merge extra staff
   if (typeof window !== 'undefined') {
     try {
       const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
       if (Array.isArray(extraStaff)) {
         extraStaff.forEach((st: any) => {
-          if (!list.some(e => e.id === st.id || e.email?.toLowerCase() === st.email?.toLowerCase())) {
-            const raw = storedPhones[st.id] || storedPhones[st.email?.toLowerCase()] || st.phone;
-            const mgr = storedManagers[st.id] || storedManagers[st.email?.toLowerCase()] || st.assignedManager || 'Admin';
-            list.push({
-              ...st,
-              phone: formatPhone(raw),
-              assignedManager: mgr,
-            });
+          const raw = storedPhones[st.id] || storedPhones[st.email?.toLowerCase()] || st.phone;
+          const mgr = storedManagers[st.id] || storedManagers[st.email?.toLowerCase()] || st.assignedManager || 'Admin';
+          const isAssignedToMe = mgr.toLowerCase().includes(currentUserRef) || mgr === currentUser?.id;
+          
+          if (isOwnerOrAdmin || isHR || isAssignedToMe) {
+            if (!list.some(e => e.id === st.id || e.email?.toLowerCase() === st.email?.toLowerCase())) {
+              list.push({
+                ...st,
+                phone: formatPhone(raw),
+                assignedManager: mgr,
+              });
+            }
           }
         });
       }
@@ -226,36 +235,38 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
 
     // Merge extra unassigned staff awaiting verification
     try {
-      const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
-      if (Array.isArray(extraUnassigned)) {
-        extraUnassigned.forEach((u: any) => {
-          const emailLower = u.email?.toLowerCase();
-          if (!list.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
-            const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
-            const isVer = rawRole !== 'UNASSIGNED';
-            list.push({
-              id: u.id || ('unassigned_' + Date.now()),
-              name: u.name || u.email || 'Unassigned Staff',
-              code: 'UNASSIGNED',
-              dept: isVer ? 'Sales & Growth' : 'Pending Department',
-              email: u.email || '',
-              phone: formatPhone(u.phone || ''),
-              role: rawRole,
-              isVerified: isVer,
-              verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
-              assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
-              baseSalary: isVer ? '₹45,000' : '₹0',
-              joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
-              canSelfCheckIn: false,
-              status: 'active',
-              documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
-              bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
-              attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-              leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-              subordinates: [],
-            });
-          }
-        });
+      if (isOwnerOrAdmin || isHR) {
+        const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+        if (Array.isArray(extraUnassigned)) {
+          extraUnassigned.forEach((u: any) => {
+            const emailLower = u.email?.toLowerCase();
+            if (!list.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
+              const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
+              const isVer = rawRole !== 'UNASSIGNED';
+              list.push({
+                id: u.id || ('unassigned_' + Date.now()),
+                name: u.name || u.email || 'Unassigned Staff',
+                code: 'UNASSIGNED',
+                dept: isVer ? 'Sales & Growth' : 'Pending Department',
+                email: u.email || '',
+                phone: formatPhone(u.phone || ''),
+                role: rawRole,
+                isVerified: isVer,
+                verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
+                assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
+                baseSalary: isVer ? '₹45,000' : '₹0',
+                joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
+                canSelfCheckIn: false,
+                status: 'active',
+                documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
+                bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
+                attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+                subordinates: [],
+              });
+            }
+          });
+        }
       }
     } catch (_) {}
   }
@@ -448,13 +459,26 @@ export async function getUserDirectory(
             };
           });
 
+          const adminRole = (currentUser?.role || 'ADMIN').toUpperCase();
+          const isOwnerOrAdmin = adminRole.includes('ADMIN') || adminRole.includes('OWNER') || adminRole.includes('SUPER_ADMIN');
+          const isHR = adminRole.includes('HR');
+          const currentUserRef = (currentUser?.name || '').trim().toLowerCase();
+
           // Merge extra staff
           try {
             const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
             if (Array.isArray(extraStaff)) {
               extraStaff.forEach((st: any) => {
-                if (!mapped.some(e => e.id === st.id || e.email.toLowerCase() === st.email.toLowerCase())) {
-                  mapped.unshift(st);
+                const mgr = storedManagers[st.id] || storedManagers[st.email?.toLowerCase()] || st.assignedManager || 'Admin';
+                const isAssignedToMe = mgr.toLowerCase().includes(currentUserRef) || mgr === currentUser?.id;
+                
+                if (isOwnerOrAdmin || isHR || isAssignedToMe) {
+                  if (!mapped.some(e => e.id === st.id || e.email.toLowerCase() === st.email.toLowerCase())) {
+                    mapped.unshift({
+                      ...st,
+                      assignedManager: mgr
+                    });
+                  }
                 }
               });
             }
@@ -462,36 +486,38 @@ export async function getUserDirectory(
 
           // Merge extra unassigned
           try {
-            const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
-            if (Array.isArray(extraUnassigned)) {
-              extraUnassigned.forEach((u: any) => {
-                const emailLower = u.email?.toLowerCase();
-                if (!mapped.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
-                  const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
-                  const isVer = rawRole !== 'UNASSIGNED';
-                  mapped.push({
-                    id: u.id || `unassigned_${Date.now()}`,
-                    name: u.name || u.email || 'Unassigned Staff',
-                    code: 'UNASSIGNED',
-                    dept: isVer ? 'Sales & Growth' : 'Pending Department',
-                    email: u.email || '',
-                    phone: formatPhone(u.phone || ''),
-                    role: rawRole,
-                    isVerified: isVer,
-                    verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
-                    assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
-                    baseSalary: isVer ? '₹45,000' : '₹0',
-                    joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
-                    canSelfCheckIn: false,
-                    status: 'active',
-                    documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
-                    bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
-                    attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-                    leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-                    subordinates: [],
-                  });
-                }
-              });
+            if (isOwnerOrAdmin || isHR) {
+              const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
+              if (Array.isArray(extraUnassigned)) {
+                extraUnassigned.forEach((u: any) => {
+                  const emailLower = u.email?.toLowerCase();
+                  if (!mapped.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
+                    const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
+                    const isVer = rawRole !== 'UNASSIGNED';
+                    mapped.push({
+                      id: u.id || `unassigned_${Date.now()}`,
+                      name: u.name || u.email || 'Unassigned Staff',
+                      code: 'UNASSIGNED',
+                      dept: isVer ? 'Sales & Growth' : 'Pending Department',
+                      email: u.email || '',
+                      phone: formatPhone(u.phone || ''),
+                      role: rawRole,
+                      isVerified: isVer,
+                      verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
+                      assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
+                      baseSalary: isVer ? '₹45,000' : '₹0',
+                      joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
+                      canSelfCheckIn: false,
+                      status: 'active',
+                      documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
+                      bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
+                      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+                      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+                      subordinates: [],
+                    });
+                  }
+                });
+              }
             }
           } catch (_) {}
 
