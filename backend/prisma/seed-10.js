@@ -2,8 +2,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  const orgId = 'comp_das';
-  const repId = 'usr_rep';
+  const orgId = 'cmuev7n3o000mikew7je1tdiw';
+  const repId = 'cmuhp0517000ngg2dq93a6nlp';
 
   // Find org and required sources
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
