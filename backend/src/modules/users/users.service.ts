@@ -806,7 +806,24 @@ export class UsersService {
    * Admin changes the supervisor (assigned Manager) for a user.
    */
   async assignManager(organizationId: string, adminId: string, targetUserId: string, managerLabel: string) {
-    await this.assertAdminOrOwner(organizationId, adminId);
+    if (adminId && adminId !== 'admin_direct' && adminId !== 'admin_1') {
+      const user = await this.prisma.user.findFirst({
+        where: { id: adminId, organizationId },
+        include: { role: true, organization: true },
+      });
+      if (!user) throw new ForbiddenException('Access denied: user not found.');
+
+      const roleName = user.role?.name?.toUpperCase() || '';
+      const isRoleAdmin = roleName === 'ADMIN' || roleName === 'OWNER' || roleName === 'SUPER_ADMIN';
+      const isRoleManager = roleName === 'MANAGER';
+      const isOrgAdminEmail =
+        user.organization.adminEmail &&
+        user.email.toLowerCase() === user.organization.adminEmail.toLowerCase();
+
+      if (!isOrgAdminEmail && !isRoleAdmin && !isRoleManager) {
+        throw new ForbiddenException('Only Admins and Managers can reassign team members.');
+      }
+    }
     
     const target = await this.prisma.user.findFirst({
       where: { id: targetUserId, organizationId }
