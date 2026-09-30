@@ -331,32 +331,38 @@ export function EmployeeRoleDashboard() {
         console.warn('API lead sync fallback to high-fidelity seed data:', err);
       }
 
-      // Sync tasks from local storage
-      if (typeof window !== 'undefined') {
+      // Sync follow-ups from new backend API
+      if (token) {
         try {
-          const savedTasksRaw = localStorage.getItem('@das_crm_tasks_v1');
-          if (savedTasksRaw) {
-            const savedTasks = JSON.parse(savedTasksRaw);
-            if (Array.isArray(savedTasks) && savedTasks.length > 0) {
-              const taskFollowUps = savedTasks
-                .filter((t: any) => t.type === 'FOLLOW_UP' || t.type === 'CALL')
-                .map((t: any, idx: number) => ({
+          const res = await fetch(`${apiBase}/follow-ups/today`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            const allToday = [...(data.dueNow || []), ...(data.missedToday || []), ...(data.upcomingToday || []), ...(data.completedToday || [])];
+            
+            if (allToday.length > 0) {
+              const apiFollowUps = allToday.map((t: any, idx: number) => {
+                const dateObj = new Date(t.dueAt);
+                return {
                   id: t.id,
                   leadId: t.leadId || `lead-${idx}`,
-                  leadName: t.leadName || 'Assigned Lead',
-                  company: t.company || 'Enterprise Account',
-                  phone: t.phone || '+91 98920 11234',
-                  dueTime: t.dueTime || '11:30 AM',
-                  dueDate: t.dueDate || 'Today',
-                  objective: t.title || t.description || 'Follow-up regarding proposal terms',
-                  priority: (t.priority as any) || 'HIGH',
+                  leadName: t.lead?.firstName ? `${t.lead.firstName} ${t.lead.lastName || ''}` : 'Assigned Lead',
+                  company: t.lead?.company?.name || 'Enterprise Account',
+                  phone: t.lead?.phone || '+91 98920 11234',
+                  dueTime: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  dueDate: 'Today',
+                  objective: t.title || t.purpose || 'Follow-up',
+                  priority: t.priority || 'HIGH',
                   isCompleted: !!t.isCompleted,
                   avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
-                }));
-
-              if (taskFollowUps.length > 0) {
-                setFollowUps(taskFollowUps);
-              }
+                };
+              });
+              setFollowUps(apiFollowUps);
+            }
+          }
+        } catch (err) {
+          console.warn('API follow-up sync failed', err);
+        }
+      }
 
               const taskMeetings = savedTasks
                 .filter((t: any) => t.type === 'MEETING')
@@ -632,100 +638,106 @@ export function EmployeeRoleDashboard() {
               <p className="text-xs text-muted-foreground">Scheduled callbacks and commitment touchpoints with your leads</p>
             </div>
           </div>
-          <Link href="/tasks?type=follow-up" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1">
+          <Link href="/follow-ups" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 transition-all hover:bg-amber-500/20">
             Follow-up Hub <ArrowRight size={11} />
           </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-          {followUps.map((item) => (
-            <div
-              key={item.id}
-              className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 group relative ${
-                item.isCompleted
-                  ? 'bg-slate-900/30 border-slate-800/50 opacity-60'
-                  : 'bg-slate-900/60 hover:bg-slate-900/90 border-amber-500/20 hover:border-amber-500/40'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  {/* Lead Name Focused Avatar */}
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/20`}>
-                    {getInitials(item.leadName)}
-                  </div>
-                  <div>
-                    {/* Hero Lead Name */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className={`text-sm font-black transition-colors ${item.isCompleted ? 'line-through text-slate-400' : 'text-white hover:text-amber-400'}`}>
-                        {item.leadName}
-                      </h4>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
-                        item.priority === 'HIGH'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}>
-                        {item.priority}
-                      </span>
-                    </div>
-                    {/* Organization */}
-                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
-                      <Building2 size={11} className="text-amber-400/70" />
-                      {item.company}
-                    </p>
-                  </div>
-                </div>
-                {/* Time Badge */}
-                <div className="text-right flex-shrink-0">
-                  <span className="text-xs font-black text-amber-400 flex items-center gap-1 justify-end">
-                    <Clock size={11} /> {item.dueTime}
-                  </span>
-                  <p className="text-[9px] text-muted-foreground">{item.dueDate}</p>
-                </div>
-              </div>
-
-              {/* Follow-up Objective Note */}
-              <div className="p-2 rounded-lg bg-amber-500/8 border border-amber-500/15 text-[11px] text-amber-200/90">
-                <span className="font-semibold text-amber-300">Goal: </span>
-                {item.objective}
-              </div>
-
-              {/* Action Buttons Focused on Lead */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                <button
-                  onClick={() => toggleFollowUp(item.id, item.leadName)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
-                    item.isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                  }`}
-                >
-                  <CheckCircle2 size={12} className={item.isCompleted ? 'text-emerald-400' : 'text-slate-400'} />
-                  {item.isCompleted ? 'Completed' : 'Mark Done'}
-                </button>
-
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`tel:${item.phone}`}
-                    onClick={() => handleDirectCall(item.leadName, item.phone)}
-                    title={`Call ${item.leadName}`}
-                    className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <Phone size={12} /> Call
-                  </a>
-                  <a
-                    href={`https://wa.me/${item.phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => handleWhatsApp(item.leadName)}
-                    title={`WhatsApp ${item.leadName}`}
-                    className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <MessageCircle size={12} /> WA
-                  </a>
-                </div>
-              </div>
+          {followUps.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-sm text-slate-500 border border-dashed border-slate-700 rounded-xl">
+              No follow-ups due today. You're all caught up!
             </div>
-          ))}
+          ) : (
+            followUps.map((item) => (
+              <div
+                key={item.id}
+                className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 group relative shadow-sm ${
+                  item.isCompleted
+                    ? 'bg-slate-900/30 border-slate-800/50 opacity-60'
+                    : 'bg-slate-900/80 hover:bg-slate-900 border-amber-500/30 hover:border-amber-500/50 hover:shadow-amber-500/5'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {/* Lead Name Focused Avatar */}
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform ring-2 ring-amber-500/20 ring-offset-2 ring-offset-slate-900`}>
+                      {getInitials(item.leadName)}
+                    </div>
+                    <div>
+                      {/* Hero Lead Name */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className={`text-sm font-black transition-colors ${item.isCompleted ? 'line-through text-slate-400' : 'text-white hover:text-amber-400'}`}>
+                          {item.leadName}
+                        </h4>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                          item.priority === 'HIGH'
+                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          {item.priority}
+                        </span>
+                      </div>
+                      {/* Organization */}
+                      <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-1">
+                        <Building2 size={11} className="text-amber-400/70" />
+                        {item.company}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Time Badge */}
+                  <div className="text-right flex-shrink-0 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
+                    <span className="text-xs font-black text-amber-400 flex items-center gap-1 justify-end">
+                      <Clock size={11} /> {item.dueTime}
+                    </span>
+                    <p className="text-[9px] text-amber-400/70 mt-0.5 uppercase font-bold tracking-wider">{item.dueDate}</p>
+                  </div>
+                </div>
+
+                {/* Follow-up Objective Note */}
+                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 leading-relaxed font-medium">
+                  <span className="font-bold text-amber-400 block mb-0.5">Focus Objective:</span>
+                  {item.objective}
+                </div>
+
+                {/* Action Buttons Focused on Lead */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 gap-2 mt-auto">
+                  <button
+                    onClick={() => toggleFollowUp(item.id, item.leadName)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all w-full justify-center md:w-auto ${
+                      item.isCompleted
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                        : 'bg-amber-500 text-slate-900 border border-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                    }`}
+                  >
+                    <CheckCircle2 size={14} className={item.isCompleted ? 'text-emerald-400' : 'text-slate-900'} />
+                    {item.isCompleted ? 'Completed' : 'Complete Now'}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${item.phone}`}
+                      onClick={() => handleDirectCall(item.leadName, item.phone)}
+                      title={`Call ${item.leadName}`}
+                      className="w-8 h-8 rounded-full bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 flex items-center justify-center transition-all hover:scale-110"
+                    >
+                      <Phone size={14} />
+                    </a>
+                    <a
+                      href={`https://wa.me/${item.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => handleWhatsApp(item.leadName)}
+                      title={`WhatsApp ${item.leadName}`}
+                      className="w-8 h-8 rounded-full bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 flex items-center justify-center transition-all hover:scale-110"
+                    >
+                      <MessageCircle size={14} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
