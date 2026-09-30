@@ -11,6 +11,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -206,6 +207,10 @@ export class LeadsController {
     @CurrentUser() user: any,
     @Body() dto: { spreadsheetUrl: string; sheetName: string; startRow: string; cellMapping: any; leads: any[] },
   ) {
+    const roleName = (user?.role?.name || (typeof user?.role === 'string' ? user.role : '')).toUpperCase();
+    if (roleName.includes('SALES') || roleName.includes('EXEC') || roleName.includes('LEADER') || roleName.includes('TL')) {
+      throw new ForbiddenException('Access Denied: Sales Executives and Team Leaders cannot perform bulk spreadsheet sync. Leads must be registered individually.');
+    }
     return this.leadsService.syncGoogleSheets(user.organizationId, user.id, dto);
   }
 
@@ -226,6 +231,10 @@ export class LeadsController {
     @CurrentUser() user: any,
     @Body() dto: { fileName: string; fileSize?: string; leads: any[] },
   ) {
+    const roleName = (user?.role?.name || (typeof user?.role === 'string' ? user.role : '')).toUpperCase();
+    if (roleName.includes('SALES') || roleName.includes('EXEC') || roleName.includes('LEADER') || roleName.includes('TL')) {
+      throw new ForbiddenException('Access Denied: Sales Executives and Team Leaders cannot perform bulk file imports. Leads must be registered individually.');
+    }
     return this.leadsService.importFileLeads(user.organizationId, user.id, dto);
   }
 

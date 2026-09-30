@@ -81,6 +81,8 @@ export default function LeadsScreen() {
   const { colors, isDark } = useTheme();
   const { t } = useLanguage();
   const { token, currentUser } = useAuthStore();
+  const roleName = (currentUser?.role || '').toString().toUpperCase();
+  const canBulkImport = !roleName.includes('SALES') && !roleName.includes('EXEC') && !roleName.includes('LEADER') && !roleName.includes('TL');
 
   const [auditLogs, setAuditLogs] = useState<IngestionAuditRecord[]>(INITIAL_INGESTION_AUDITS);
   const [auditFilter, setAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
@@ -782,6 +784,7 @@ export default function LeadsScreen() {
             onCustomColumnPress={() => { setEditingColKey(null); setEditingColTitle(''); setColOrderModalOpen(true); }}
             onAdjustColumnsPress={() => setColOrderModalOpen(true)}
             columnCount={columnOrder.length}
+            canBulkImport={canBulkImport}
           />
 
           {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}

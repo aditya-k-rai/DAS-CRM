@@ -80,7 +80,8 @@ export default function LeadPipelinePage() {
   const { currentUser } = useAuth();
 
   const rawRole = (currentUser?.role || '').toString().toUpperCase();
-  const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER' || !currentUser;
+  const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER';
+  const canBulkImport = isAdminOrManager;
 
   // Ingestion Modal States
   const [insertLeadModalOpen, setInsertLeadModalOpen] = useState(false);
@@ -488,12 +489,14 @@ export default function LeadPipelinePage() {
               >
                 <Plus size={14} /> + Insert Lead
               </button>
-              <button
-                onClick={() => setImportCsvModalOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
-              >
-                <Upload size={14} className="text-indigo-400" /> Import CSV / Excel
-              </button>
+              {canBulkImport && (
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <Upload size={14} className="text-indigo-400" /> Import CSV / Excel
+                </button>
+              )}
               <button
                 onClick={() => openAddColumn()}
                 className="px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold text-xs flex items-center gap-1.5 transition-all"
@@ -869,12 +872,14 @@ export default function LeadPipelinePage() {
                           >
                             + Insert Lead
                           </button>
-                          <button
-                            onClick={() => setImportCsvModalOpen(true)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
-                          >
-                            <Upload size={13} /> Import CSV
-                          </button>
+                          {canBulkImport && (
+                            <button
+                              onClick={() => setImportCsvModalOpen(true)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                            >
+                              <Upload size={13} /> Import CSV
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -22,6 +22,7 @@ interface LeadDataWeb {
   owner: string;
   value: string;
   created: string;
+  rawCreatedAt?: string;
   tags: string[];
   city: string;
   budget: string;
@@ -63,6 +64,8 @@ export function LeadsTable() {
   const [filterPerson, setFilterPerson] = useState<string>('ALL');
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState<string>('ALL');
+  const [customDateFrom, setCustomDateFrom] = useState<string>('');
+  const [customDateTo, setCustomDateTo] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [tableToast, setTableToast] = useState<string | null>(null);
@@ -106,6 +109,7 @@ export function LeadsTable() {
               owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
               value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
               created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
+              rawCreatedAt: l.createdAt || l.created || undefined,
               tags: l.tags || [],
               city: l.city || '—',
               budget: l.budget || '—',
@@ -265,6 +269,7 @@ export function LeadsTable() {
   const userName = currentUser?.name || 'Mighty Rai';
   const isSalesExec = userRole.includes('SALES') || userRole.includes('EXEC') || (!userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL') && !userRole.includes('HR'));
   const canFilterByTeam = userRole.includes('ADMIN') || userRole.includes('MANAGER') || userRole.includes('LEADER') || userRole.includes('TL');
+  const canBulkImport = !userRole.includes('SALES') && !userRole.includes('EXEC') && !userRole.includes('LEADER') && !userRole.includes('TL');
   const isRep = isSalesExec;
 
   const filtered = leadsList.filter((l) => {
@@ -310,12 +315,52 @@ export function LeadsTable() {
       }
     }
 
-    // 📅 Date-Wise Filtering
+    // 📅 Date-Wise Filtering (Today, Yesterday, This Month, Custom Range From-To)
     if (filterDate !== 'ALL') {
-      const createdStr = l.created.toLowerCase();
-      if (filterDate === 'TODAY' && (!createdStr.includes('today') && !createdStr.includes('aug 9'))) return false;
-      if (filterDate === 'YESTERDAY' && (!createdStr.includes('yesterday') && !createdStr.includes('aug 8'))) return false;
-      if (filterDate === 'THIS_MONTH' && !createdStr.includes('aug')) return false;
+      const leadDate = l.rawCreatedAt ? new Date(l.rawCreatedAt) : (l.created && l.created !== '—' ? new Date(l.created) : null);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const todayEnd = todayStart + 86400000;
+      const yesterdayStart = todayStart - 86400000;
+
+      if (filterDate === 'TODAY') {
+        if (leadDate && !isNaN(leadDate.getTime())) {
+          const t = leadDate.getTime();
+          if (t < todayStart || t >= todayEnd) return false;
+        } else {
+          const createdStr = (l.created || '').toLowerCase();
+          if (!createdStr.includes('today') && !createdStr.includes('aug 9')) return false;
+        }
+      } else if (filterDate === 'YESTERDAY') {
+        if (leadDate && !isNaN(leadDate.getTime())) {
+          const t = leadDate.getTime();
+          if (t < yesterdayStart || t >= todayStart) return false;
+        } else {
+          const createdStr = (l.created || '').toLowerCase();
+          if (!createdStr.includes('yesterday') && !createdStr.includes('aug 8')) return false;
+        }
+      } else if (filterDate === 'THIS_MONTH') {
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        if (leadDate && !isNaN(leadDate.getTime())) {
+          if (leadDate.getTime() < thisMonthStart) return false;
+        } else {
+          const monthShort = now.toLocaleString('en-US', { month: 'short' }).toLowerCase();
+          if (!(l.created || '').toLowerCase().includes(monthShort)) return false;
+        }
+      } else if (filterDate === 'CUSTOM') {
+        if (customDateFrom || customDateTo) {
+          if (!leadDate || isNaN(leadDate.getTime())) return false;
+          const leadTime = leadDate.getTime();
+          if (customDateFrom) {
+            const fromStart = new Date(customDateFrom).setHours(0, 0, 0, 0);
+            if (leadTime < fromStart) return false;
+          }
+          if (customDateTo) {
+            const toEnd = new Date(customDateTo).setHours(23, 59, 59, 999);
+            if (leadTime > toEnd) return false;
+          }
+        }
+      }
     }
 
     // 📌 Status/Stage Filtering (Tabs or Modal)
@@ -360,6 +405,8 @@ export function LeadsTable() {
     setFilterPerson('ALL');
     setFilterRole('ALL');
     setFilterDate('ALL');
+    setCustomDateFrom('');
+    setCustomDateTo('');
     setFilterStatus('ALL');
     setActiveStatus('All');
   };
@@ -430,8 +477,28 @@ export function LeadsTable() {
               ))}
             </div>
 
-            {/* Right Action Tools: Multi-Filter Trigger & Data Grid Toggle */}
-            <div className="flex items-center gap-2">
+            {/* Right Action Tools: Multi-Filter Trigger, Active Date Chip & Data Grid Toggle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Active Date Filter Chip with Quick Clear */}
+              {filterDate !== 'ALL' && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 animate-in fade-in">
+                  <Calendar size={13} />
+                  <span>
+                    {filterDate === 'TODAY' && 'Today'}
+                    {filterDate === 'YESTERDAY' && 'Yesterday'}
+                    {filterDate === 'THIS_MONTH' && 'This Month'}
+                    {filterDate === 'CUSTOM' && (customDateFrom || customDateTo ? `${customDateFrom || 'Start'} → ${customDateTo || 'End'}` : 'Custom Date')}
+                  </span>
+                  <button
+                    onClick={() => { setFilterDate('ALL'); setCustomDateFrom(''); setCustomDateTo(''); }}
+                    className="ml-1 hover:text-amber-700 dark:hover:text-amber-200 text-xs font-bold leading-none p-0.5 rounded hover:bg-amber-500/20"
+                    title="Clear Date Filter"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={() => setIsFilterModalOpen(true)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
@@ -636,7 +703,9 @@ export function LeadsTable() {
                     <p className="text-xs text-slate-400 max-w-sm">
                       {search
                         ? `No results for "${search}" across all fields.`
-                        : 'Your organization pipeline is clean and ready. Start adding leads manually or import your existing spreadsheet datasets.'}
+                        : canBulkImport
+                        ? 'Your organization pipeline is clean and ready. Start adding leads manually or import your existing spreadsheet datasets.'
+                        : 'Your pipeline is clean and ready. Start adding leads manually using the single lead entry form.'}
                     </p>
                     {search ? (
                       <button
@@ -653,12 +722,14 @@ export function LeadsTable() {
                         >
                           + Insert First Lead
                         </Link>
-                        <Link
-                          href="/imports"
-                          className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl transition-all"
-                        >
-                          Import CSV / Excel
-                        </Link>
+                        {canBulkImport && (
+                          <Link
+                            href="/imports"
+                            className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl transition-all"
+                          >
+                            Import CSV / Excel
+                          </Link>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1015,7 +1086,7 @@ export function LeadsTable() {
                 </>
               )}
 
-              {/* 3. Date Range Filter */}
+              {/* 3. Date Range Filter with Custom From & To Date Pickers */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                   <Calendar size={14} className="text-amber-600 dark:text-amber-400" />
@@ -1027,11 +1098,14 @@ export function LeadsTable() {
                     { id: 'TODAY', label: '⚡ Today' },
                     { id: 'YESTERDAY', label: '🕒 Yesterday' },
                     { id: 'THIS_MONTH', label: '📅 This Month' },
+                    { id: 'CUSTOM', label: '🎯 Custom Range (From - To)' },
                   ].map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setFilterDate(item.id)}
                       className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                        item.id === 'CUSTOM' ? 'col-span-2' : ''
+                      } ${
                         filterDate === item.id
                           ? 'filter-pill-selected bg-amber-600 border-amber-600 shadow-md shadow-amber-600/30'
                           : 'filter-pill-unselected'
@@ -1042,6 +1116,50 @@ export function LeadsTable() {
                     </button>
                   ))}
                 </div>
+
+                {/* Custom Date Range Pickers (From & To) */}
+                {filterDate === 'CUSTOM' && (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 animate-in fade-in duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          From Date
+                        </label>
+                        <input
+                          type="date"
+                          value={customDateFrom}
+                          onChange={(e) => setCustomDateFrom(e.target.value)}
+                          className="crm-input h-9 text-xs w-full cursor-pointer bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          To Date
+                        </label>
+                        <input
+                          type="date"
+                          value={customDateTo}
+                          onChange={(e) => setCustomDateTo(e.target.value)}
+                          className="crm-input h-9 text-xs w-full cursor-pointer bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5"
+                        />
+                      </div>
+                    </div>
+                    {(customDateFrom || customDateTo) && (
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-amber-500/20">
+                        <span className="text-slate-600 dark:text-slate-400">
+                          Active: <strong>{customDateFrom || 'Beginning'}</strong> → <strong>{customDateTo || 'Latest'}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setCustomDateFrom(''); setCustomDateTo(''); }}
+                          className="text-amber-600 dark:text-amber-400 font-bold hover:underline"
+                        >
+                          Clear Dates
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 4. Status Filter */}

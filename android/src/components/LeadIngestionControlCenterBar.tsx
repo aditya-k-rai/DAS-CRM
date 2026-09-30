@@ -20,6 +20,7 @@ interface LeadIngestionControlCenterBarProps {
   onCustomColumnPress?: () => void;
   onAdjustColumnsPress?: () => void;
   columnCount?: number;
+  canBulkImport?: boolean;
 }
 
 export function LeadIngestionControlCenterBar({
@@ -29,6 +30,7 @@ export function LeadIngestionControlCenterBar({
   onCustomColumnPress,
   onAdjustColumnsPress,
   columnCount = 11,
+  canBulkImport = true,
 }: LeadIngestionControlCenterBarProps) {
   const { colors, isDark } = useTheme();
 
@@ -68,21 +70,25 @@ export function LeadIngestionControlCenterBar({
             <Text style={styles.btnInsertLeadText}>👤 + Insert Lead</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.btnImportCsv, !isDark && { backgroundColor: 'rgba(147, 51, 234, 0.12)', borderColor: 'rgba(147, 51, 234, 0.3)' }]}
-            onPress={onImportCsvPress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.btnImportCsvText, !isDark && { color: '#7c3aed' }]}>📥 Import CSV / Excel</Text>
-          </TouchableOpacity>
+          {canBulkImport && (
+            <TouchableOpacity
+              style={[styles.btnImportCsv, !isDark && { backgroundColor: 'rgba(147, 51, 234, 0.12)', borderColor: 'rgba(147, 51, 234, 0.3)' }]}
+              onPress={onImportCsvPress}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.btnImportCsvText, !isDark && { color: '#7c3aed' }]}>📥 Import CSV / Excel</Text>
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            style={[styles.btnSheetsSync, !isDark && { backgroundColor: 'rgba(5, 150, 105, 0.12)', borderColor: 'rgba(5, 150, 105, 0.3)' }]}
-            onPress={onGoogleSheetsPress}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.btnSheetsSyncText, !isDark && { color: '#059669' }]}>📊 Google Sheets Sync</Text>
-          </TouchableOpacity>
+          {canBulkImport && (
+            <TouchableOpacity
+              style={[styles.btnSheetsSync, !isDark && { backgroundColor: 'rgba(5, 150, 105, 0.12)', borderColor: 'rgba(5, 150, 105, 0.3)' }]}
+              onPress={onGoogleSheetsPress}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.btnSheetsSyncText, !isDark && { color: '#059669' }]}>📊 Google Sheets Sync</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Row 2 Actions */}
