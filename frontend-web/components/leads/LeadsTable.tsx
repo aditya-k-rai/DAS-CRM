@@ -263,7 +263,9 @@ export function LeadsTable() {
 
   const userRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userName = currentUser?.name || 'Mighty Rai';
-  const isRep = !userRole.includes('ADMIN');
+  const isSalesExec = userRole.includes('SALES') || userRole.includes('EXEC') || (!userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL') && !userRole.includes('HR'));
+  const canFilterByTeam = userRole.includes('ADMIN') || userRole.includes('MANAGER') || userRole.includes('LEADER') || userRole.includes('TL');
+  const isRep = isSalesExec;
 
   const filtered = leadsList.filter((l) => {
     // 🔒 Role-Based Data Isolation Scoping (Except Admin)
@@ -461,49 +463,51 @@ export function LeadsTable() {
             </div>
           </div>
 
-          {/* Quick Person Filter Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-200 dark:border-slate-800/60 text-xs">
-            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 pr-1">
-              <User size={12} className="text-slate-500" /> Person:
-            </span>
-            {(() => {
-              const ownersInLeads = Array.from(
-                new Set(
-                  leadsList
-                    .map(l => l.owner)
-                    .filter(o => o && o !== 'Unassigned' && o !== '—')
-                )
-              );
-              const filterOptions = [
-                { id: 'ALL', label: 'All Persons' },
-                ...ownersInLeads.map(o => ({ id: o, label: o })),
-                { id: 'UNASSIGNED', label: 'Unassigned Leads' },
-              ];
+          {/* Quick Person Filter Bar — Only visible for supervisory roles (Admin, Manager, Team Leader) */}
+          {canFilterByTeam && (
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-200 dark:border-slate-800/60 text-xs">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 pr-1">
+                <User size={12} className="text-slate-500" /> Person:
+              </span>
+              {(() => {
+                const ownersInLeads = Array.from(
+                  new Set(
+                    leadsList
+                      .map(l => l.owner)
+                      .filter(o => o && o !== 'Unassigned' && o !== '—')
+                  )
+                );
+                const filterOptions = [
+                  { id: 'ALL', label: 'All Persons' },
+                  ...ownersInLeads.map(o => ({ id: o, label: o })),
+                  { id: 'UNASSIGNED', label: 'Unassigned Leads' },
+                ];
 
-              return filterOptions.map((item) => (
+                return filterOptions.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setFilterPerson(item.id)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
+                      filterPerson === item.id
+                        ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                        : 'filter-pill-unselected'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ));
+              })()}
+
+              {activeFilterCount > 0 && (
                 <button
-                  key={item.id}
-                  onClick={() => setFilterPerson(item.id)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
-                    filterPerson === item.id
-                      ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
-                      : 'filter-pill-unselected'
-                  }`}
+                  onClick={resetFilters}
+                  className="ml-auto text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 pl-2"
                 >
-                  {item.label}
+                  <RotateCcw size={11} /> Reset All ({activeFilterCount})
                 </button>
-              ));
-            })()}
-
-            {activeFilterCount > 0 && (
-              <button
-                onClick={resetFilters}
-                className="ml-auto text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 pl-2"
-              >
-                <RotateCcw size={11} /> Reset All ({activeFilterCount})
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
         {/* Search row — full-width, multi-field, works in both Excel & Standard view */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -946,67 +950,70 @@ export function LeadsTable() {
 
             {/* Modal Body */}
             <div className="p-5 space-y-5 overflow-y-auto bg-white dark:bg-slate-900">
-              {/* 1. Person Wise Filter */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <User size={14} className="text-indigo-600 dark:text-indigo-400" />
-                  Assigned Employee / Person
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'ALL', label: '👥 All Persons' },
-                    { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
-                    ...Array.from(new Set(leadsList.map((l: any) => l.owner || l.currentAssignee).filter((o: any) => Boolean(o) && o !== 'Unassigned' && o !== '—'))).map(person => ({
-                      id: person as string,
-                      label: `👤 ${person}`,
-                    })),
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setFilterPerson(item.id)}
-                      className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
-                        filterPerson === item.id
-                          ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30'
-                          : 'filter-pill-unselected'
-                      }`}
-                    >
-                      <span className="font-semibold">{item.label}</span>
-                      {filterPerson === item.id && <Check size={15} className="text-white stroke-[3]" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* 1. Person Wise Filter & 2. Role Scoping Filter (Only for Admin, Manager, Team Leader) */}
+              {canFilterByTeam && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <User size={14} className="text-indigo-600 dark:text-indigo-400" />
+                      Assigned Employee / Person
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'ALL', label: '👥 All Persons' },
+                        { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
+                        ...Array.from(new Set(leadsList.map((l: any) => l.owner || l.currentAssignee).filter((o: any) => Boolean(o) && o !== 'Unassigned' && o !== '—'))).map(person => ({
+                          id: person as string,
+                          label: `👤 ${person}`,
+                        })),
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setFilterPerson(item.id)}
+                          className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                            filterPerson === item.id
+                              ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30'
+                              : 'filter-pill-unselected'
+                          }`}
+                        >
+                          <span className="font-semibold">{item.label}</span>
+                          {filterPerson === item.id && <Check size={15} className="text-white stroke-[3]" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* 2. Person Role Filter */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Shield size={14} className="text-emerald-600 dark:text-emerald-400" />
-                  Assignee Role Scoping
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'ALL', label: '🌐 All Roles' },
-                    { id: 'SALES_EXEC', label: '💼 Sales Executive' },
-                    { id: 'TEAM_LEADER', label: '👑 Team Leader (TL)' },
-                    { id: 'MANAGER', label: '📊 Manager' },
-                    { id: 'ADMIN', label: '⚡ Admin / HQ' },
-                    { id: 'UNASSIGNED', label: '🔓 Unassigned' },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setFilterRole(item.id)}
-                      className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
-                        filterRole === item.id
-                          ? 'filter-pill-selected bg-emerald-600 border-emerald-600 shadow-md shadow-emerald-600/30'
-                          : 'filter-pill-unselected'
-                      }`}
-                    >
-                      <span className="font-semibold">{item.label}</span>
-                      {filterRole === item.id && <Check size={15} className="text-white stroke-[3]" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Shield size={14} className="text-emerald-600 dark:text-emerald-400" />
+                      Assignee Role Scoping
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'ALL', label: '🌐 All Roles' },
+                        { id: 'SALES_EXEC', label: '💼 Sales Executive' },
+                        { id: 'TEAM_LEADER', label: '👑 Team Leader (TL)' },
+                        { id: 'MANAGER', label: '📊 Manager' },
+                        { id: 'ADMIN', label: '⚡ Admin / HQ' },
+                        { id: 'UNASSIGNED', label: '🔓 Unassigned' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setFilterRole(item.id)}
+                          className={`p-2.5 rounded-xl text-xs font-semibold text-left border transition-all flex items-center justify-between ${
+                            filterRole === item.id
+                              ? 'filter-pill-selected bg-emerald-600 border-emerald-600 shadow-md shadow-emerald-600/30'
+                              : 'filter-pill-unselected'
+                          }`}
+                        >
+                          <span className="font-semibold">{item.label}</span>
+                          {filterRole === item.id && <Check size={15} className="text-white stroke-[3]" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* 3. Date Range Filter */}
               <div className="space-y-2">
