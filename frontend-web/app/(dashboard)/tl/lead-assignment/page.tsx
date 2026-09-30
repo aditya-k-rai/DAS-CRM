@@ -236,8 +236,8 @@ export default function TeamLeaderLeadAssignmentPage() {
 
   return (
     <RoleGuard
-      allowedRoles={['TEAM_LEADER', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']}
-      fallbackTitle="Team Leader Distribution Hub is restricted to team leaders and managers."
+      allowedRoles={['TEAM_LEADER']}
+      fallbackTitle="Team Leader Distribution Hub is restricted to Team Leaders only."
     >
       <div className="flex-1 flex flex-col min-h-0 bg-background text-foreground">
         <Topbar

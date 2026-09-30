@@ -86,7 +86,6 @@ const adminNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SUPER_ADMIN' as any, 'MANAGER', 'HR', 'UNASSIGNED' as any] },
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Lead Assignment & Distribution', href: '/tl/lead-assignment', icon: Share2, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Tasks & Follow-ups', href: '/follow-ups', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
