@@ -48,6 +48,33 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+function LiveServerClock() {
+  const [timeStr, setTimeStr] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const now = new Date();
+      setTimeStr(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-3 bg-slate-900/80 px-4 py-2.5 rounded-2xl border border-slate-800">
+      <Clock size={16} className="text-emerald-400 animate-pulse" />
+      <div>
+        <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Live Server Time</span>
+        <span className="font-mono text-sm font-extrabold text-white">
+          {timeStr || '09:15:00 AM'} <span className="text-xs text-emerald-400 font-sans font-semibold">IST</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function AttendanceControlWeb() {
   const { currentUser } = useAuth();
   const normalizedRole = normalizeRoleStr(currentUser?.role || '');
@@ -120,20 +147,7 @@ export function AttendanceControlWeb() {
     [employees, selectedEmployeeId, currentUser]
   );
 
-  // Live Server Time State
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [currentDateStr, setCurrentDateStr] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setCurrentDateStr(now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Live Server Clock extracted to memoized sub-component below to prevent full-page re-renders
 
   // Month & Year State
   const now = new Date();
@@ -369,7 +383,7 @@ export function AttendanceControlWeb() {
 
   const handleConfirmPunch = () => {
     const today = new Date().getDate();
-    const nowTimeStr = currentTime || '09:05 AM';
+    const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const geoStr = `${userCoords.lat.toFixed(6)}, ${userCoords.lng.toFixed(6)} (${OFFICE_GEO.name} • ${geoDistance}m from HQ)`;
 
     if (punchedIn) {
@@ -444,16 +458,8 @@ export function AttendanceControlWeb() {
             </div>
           </div>
 
-          {/* Live Server Clock Display */}
-          <div className="flex items-center gap-3 bg-slate-900/80 px-4 py-2.5 rounded-2xl border border-slate-800">
-            <Clock size={16} className="text-emerald-400 animate-pulse" />
-            <div>
-              <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Live Server Time</span>
-              <span className="font-mono text-sm font-extrabold text-white">
-                {currentTime || '09:15:00 AM'} <span className="text-xs text-emerald-400 font-sans font-semibold">IST</span>
-              </span>
-            </div>
-          </div>
+          {/* Live Server Clock Display (Isolated from full-page re-renders) */}
+          <LiveServerClock />
         </div>
 
         {/* Action Buttons & Tabs */}
@@ -908,7 +914,7 @@ export function AttendanceControlWeb() {
               {/* Anti-Tamper HUD Overlay */}
               <div className="absolute bottom-3 left-3 right-3 p-3 rounded-xl bg-black/70 backdrop-blur-md border border-white/10 text-[11px] font-mono text-white space-y-1">
                 <div className="flex items-center justify-between">
-                  <span>🕒 Time: {currentTime}</span>
+                  <span>🕒 Time: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   <span className="text-emerald-400 font-bold">🟢 GEO VERIFIED</span>
                 </div>
                 <div className="truncate">📍 Coords: {userCoords.lat.toFixed(6)}, {userCoords.lng.toFixed(6)}</div>

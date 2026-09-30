@@ -568,17 +568,19 @@ export function EmployeeListWidget({
       if (isMounted) loadDir();
     });
     
-    // Use a longer polling interval (30 seconds) to save CPU and RAM
+    // Use an optimized polling interval (45 seconds) only when window is active
     const interval = setInterval(() => {
-      if (isMounted) loadDir();
-    }, 30000);
+      if (isMounted && typeof document !== 'undefined' && !document.hidden) {
+        loadDir();
+      }
+    }, 45000);
 
     return () => {
       isMounted = false;
       unsub();
       clearInterval(interval);
     };
-  }, [currentUser?.id, refreshTrigger]); // Depend on ID to prevent infinite loops from context updates
+  }, [currentUser?.id]);
 
   const totalQuota = subscription?.userSeatsAllocated || getPlanSeatQuota(subscription?.planType);
   const unassignedEmps = employees.filter(e => e.role === 'UNASSIGNED');

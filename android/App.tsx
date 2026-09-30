@@ -157,9 +157,9 @@ function UnassignedRoleScreen() {
         shadowRadius: 10,
         elevation: 5,
       }}>
-        <Text style={{ fontSize: 44, marginBottom: 12 }}>🔒</Text>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>⏳</Text>
         <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 8, textAlign: 'center' }}>
-          Restricted Workspace Access
+          Account Pending Role Assignment
         </Text>
         <Text style={{ fontSize: 16, fontWeight: '700', color: '#f59e0b', textAlign: 'center', marginBottom: 12 }}>
           Your role is not assigned. Contact Admin or Manager.
@@ -292,7 +292,13 @@ function MainTabNavigator({
 
       <Tab.Navigator
         tabBar={(props) => {
-          const filteredRoutes = props.state.routes.filter((r) => isUnassigned ? r.name === 'Home' : r.name !== 'WorkflowBuilder');
+          const isSalesExec = (currentUser?.role || '').toUpperCase() === 'SALES_EXEC';
+          const filteredRoutes = props.state.routes.filter((r) => {
+            if (isUnassigned) return r.name === 'Home';
+            if (r.name === 'WorkflowBuilder') return false;
+            if (r.name === 'Employees' && isSalesExec) return false;
+            return true;
+          });
           const currentRoute = props.state.routes[props.state.index];
           const activeIndex = filteredRoutes.findIndex((r) => r.key === currentRoute?.key);
           return (

@@ -239,13 +239,18 @@ export default function LeadPipelinePage() {
     startXRef.current = e.clientX;
     startWidthRef.current = columnWidths[colId] || 140;
 
+    let rafId: number | null = null;
     const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startXRef.current;
-      const newWidth = Math.max(70, startWidthRef.current + deltaX);
-      setColumnWidths(prev => ({ ...prev, [colId]: newWidth }));
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startXRef.current;
+        const newWidth = Math.max(70, startWidthRef.current + deltaX);
+        setColumnWidths(prev => ({ ...prev, [colId]: newWidth }));
+      });
     };
 
     const onMouseUp = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       setResizingColId(null);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);

@@ -561,7 +561,6 @@ export function invalidateUserDirectoryCache() {
     try {
       window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
       window.dispatchEvent(new CustomEvent('user-directory-updated'));
-      window.dispatchEvent(new Event('storage'));
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('das_crm_sync');
         bc.postMessage({ type: 'USER_DIRECTORY_INVALIDATED', timestamp: Date.now() });
@@ -577,12 +576,18 @@ export function invalidateUserDirectoryCache() {
 export function subscribeUserDirectory(callback: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
+  let isHandling = false;
   const handleUpdate = () => {
-    invalidateUserDirectoryCache();
-    callback();
+    if (isHandling) return;
+    isHandling = true;
+    try {
+      callback();
+    } catch (_) {
+    } finally {
+      isHandling = false;
+    }
   };
 
-  window.addEventListener('storage', handleUpdate);
   window.addEventListener('das-crm-staff-updated', handleUpdate);
   window.addEventListener('user-directory-updated', handleUpdate);
   window.addEventListener('crm-role-updated', handleUpdate);
@@ -591,7 +596,11 @@ export function subscribeUserDirectory(callback: () => void): () => void {
   if (typeof BroadcastChannel !== 'undefined') {
     try {
       bc = new BroadcastChannel('das_crm_sync');
-      bc.onmessage = () => handleUpdate();
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'USER_DIRECTORY_INVALIDATED') {
+          handleUpdate();
+        }
+      };
     } catch (_) {}
   }
 
@@ -603,7 +612,6 @@ export function subscribeUserDirectory(callback: () => void): () => void {
   document.addEventListener('visibilitychange', handleVisibility);
 
   return () => {
-    window.removeEventListener('storage', handleUpdate);
     window.removeEventListener('das-crm-staff-updated', handleUpdate);
     window.removeEventListener('user-directory-updated', handleUpdate);
     window.removeEventListener('crm-role-updated', handleUpdate);

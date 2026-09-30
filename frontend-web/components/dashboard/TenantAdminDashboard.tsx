@@ -91,12 +91,16 @@ export function TenantAdminDashboard() {
   useEffect(() => {
     refreshDirectorySeats();
     const unsub = subscribeUserDirectory(refreshDirectorySeats);
-    const interval = setInterval(refreshDirectorySeats, 30000); // Increased polling to save CPU
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        refreshDirectorySeats();
+      }
+    }, 45000);
     return () => {
       unsub();
       clearInterval(interval);
     };
-  }, [currentUser?.id]); // Use ID to prevent infinite re-renders
+  }, [currentUser?.id]);
 
   // Admin Control Center Modal State
   const [controlCenterModalOpen, setControlCenterModalOpen] = useState(false);

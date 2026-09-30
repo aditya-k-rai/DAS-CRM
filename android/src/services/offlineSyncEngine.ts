@@ -102,18 +102,35 @@ class OfflineSyncEngine {
     // Initial check
     this.checkNetworkStatus();
 
-    // Heartbeat every 12 seconds
-    this.checkTimer = setInterval(() => {
-      this.checkNetworkStatus();
-    }, 12000);
+    // Controlled heartbeat (30s interval)
+    this.startHeartbeat();
 
-    // React Native AppState listener (re-check immediately when app comes to foreground)
+    // React Native AppState listener (pause heartbeat when backgrounded, resume when active)
     AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'active') {
+        this.startHeartbeat();
         this.checkNetworkStatus();
+      } else {
+        this.stopHeartbeat();
       }
     });
   }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.checkTimer = setInterval(() => {
+      this.checkNetworkStatus();
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer);
+      this.checkTimer = null;
+    }
+  }
+
+  private lastProbeTime = 0;
 
   /** Set current active authentication token for queue draining */
   public setAuthToken(token: string | null) {
@@ -166,8 +183,9 @@ class OfflineSyncEngine {
       }
     } catch (_) {}
 
-    // 2. If current API_BASE failed, auto-probe candidate URLs (LAN IP, Expo Host, etc.)
-    if (!isBackendLive) {
+    // 2. If current API_BASE failed, auto-probe candidate URLs (LAN IP, Expo Host, etc.) with 60s cooldown
+    if (!isBackendLive && Date.now() - this.lastProbeTime > 60000) {
+      this.lastProbeTime = Date.now();
       try {
         const workingUrl = await probeAndSetWorkingApiBase();
         if (workingUrl) {

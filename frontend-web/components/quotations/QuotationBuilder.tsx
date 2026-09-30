@@ -223,14 +223,21 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
     const handleResize = () => {
-      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-        setZoomScale(calculateFitScale());
-      }
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          setZoomScale(calculateFitScale());
+        }
+      }, 150);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   // Mobile Tab State (BUILDER vs PREVIEW for Smartphone Viewports)

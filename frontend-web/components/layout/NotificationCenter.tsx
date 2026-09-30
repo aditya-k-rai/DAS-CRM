@@ -14,6 +14,7 @@ export function NotificationCenter() {
     const token = localStorage.getItem('das_crm_token');
     if (!token) return;
 
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const res = await fetch(`${apiBase}/notifications?limit=20`, {
@@ -40,7 +41,7 @@ export function NotificationCenter() {
 
   useEffect(() => {
     fetchLiveNotifications();
-    const interval = setInterval(fetchLiveNotifications, 15000);
+    const interval = setInterval(fetchLiveNotifications, 45000);
     window.addEventListener('focus', fetchLiveNotifications);
     return () => {
       clearInterval(interval);

@@ -79,10 +79,10 @@ export const ALL_WEB_MODULES: ModuleDefinition[] = [
 // Dashboard is always a default for every role (rendered separately via route)
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
   ADMIN:       [], // Admin has full access always — no defaults needed here
-  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE'],
-  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS'],
-  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
+  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
   UNASSIGNED:  [],
 };
 
@@ -168,7 +168,10 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   // ── Load Workspace Users ──────────────────────────────────────────────────
 
   const loadWorkspaceUsers = useCallback(async () => {
-    setLoadingUsers(true);
+    setManagedUsers(prev => {
+      if (prev.length === 0) setLoadingUsers(true);
+      return prev;
+    });
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
     const compId = currentUser?.companyId;
@@ -312,7 +315,11 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   useEffect(() => {
     loadWorkspaceUsers();
     const unsub = subscribeUserDirectory(() => loadWorkspaceUsers());
-    const interval = setInterval(() => loadWorkspaceUsers(), 30000); // Increased polling to 30s to reduce CPU load
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadWorkspaceUsers();
+      }
+    }, 45000);
     return () => { unsub(); clearInterval(interval); };
   }, [loadWorkspaceUsers]);
 
@@ -384,9 +391,9 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     const normalizedRole = (userRole || '').toUpperCase();
     if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'OWNER' || normalizedRole === 'TENANT_ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && userId === currentUser.id)) return true;
     const key = `${userId}:${moduleKey}`;
-    if (policies[key]) return Boolean(policies[key].active);
-    const isRestrictedByDefault = (RESTRICTED_BY_DEFAULT_ROLE[normalizedRole] || []).includes(moduleKey);
-    return !isRestrictedByDefault;
+    if (policies[key] !== undefined) return Boolean(policies[key].active);
+    // Fresh user default: only default modules for their assigned role are active/visible
+    return Boolean((DEFAULT_MODULE_KEYS_BY_ROLE[normalizedRole] || []).includes(moduleKey));
   };
 
   // Get the edit permission for a module
@@ -432,7 +439,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     const nextPolicies = { ...policies, [key]: updatedPerm };
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
 
     const auditEntry: AuditLogEntry = {
       id: `audit-${Date.now()}-${Math.random()}`,
@@ -458,7 +465,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     const nextPolicies = { ...policies, [key]: updatedPerm };
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
     const auditEntry: AuditLogEntry = {
       id: `audit-${Date.now()}`, ts: new Date().toLocaleString(),
       adminName: currentUser?.name || 'Admin', targetName: selectedUser.name, targetRole: selectedUser.role,
@@ -495,7 +502,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
 
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
 
     const auditEntry: AuditLogEntry = {
       id: `audit-${Date.now()}`, ts: new Date().toLocaleString(),
@@ -588,7 +595,7 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
             { label: 'Managed Employees', value: `${managedUsers.length} Staff`, color: 'text-white' },
             { label: 'Configurable Modules', value: `${ALL_WEB_MODULES.length} Modules`, color: 'text-indigo-400' },
             { label: 'Active Overrides', value: `${activeOverridesCount} Rules`, color: 'text-emerald-400' },
-            { label: 'Admin Authority', value: '🔒 Full Root Access', color: 'text-amber-400 text-xs' },
+            { label: 'Admin Authority', value: '🛡️ Full Root Access', color: 'text-amber-400 text-xs' },
           ].map(item => (
             <div key={item.label} className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{item.label}</span>
@@ -702,18 +709,9 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-black text-white">{selectedUser.name}</h3>
-                      <select
-                        value={selectedUser.role}
-                        onChange={(e) => handleVerifyOrChangeRole(selectedUser, e.target.value)}
-                        className="bg-indigo-950/70 border border-indigo-500/40 text-indigo-300 text-[10px] font-extrabold rounded-lg px-2 py-0.5 outline-none cursor-pointer hover:border-indigo-400 transition-all"
-                        title="Change staff role"
-                      >
-                        <option value="SALES_EXEC">SALES EXEC</option>
-                        <option value="TEAM_LEADER">TEAM LEADER</option>
-                        <option value="MANAGER">MANAGER</option>
-                        <option value="HR">HR</option>
-                        <option value="UNASSIGNED">UNASSIGNED</option>
-                      </select>
+                      <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                        {selectedUser.role.replace('_', ' ')}
+                      </span>
                       {selectedUser.isVerified ? (
                         <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                           <CheckCircle2 size={10} /> Verified Staff

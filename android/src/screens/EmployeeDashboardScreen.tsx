@@ -1,11 +1,14 @@
 /**
  * EmployeeDashboardScreen.tsx — DAS CRM Android (Sales Executive Workspace)
- * Features:
- * 1. Personal assigned leads, KPIs (Assigned Leads, Closed Deals Value, Best Rate)
- * 2. Attendance status with quick-punch navigation
- * 3. Priority Dialing Queue with instant call + post-call outcome logging
- * 4. 📦 Products Quick-Browse — company product catalogue embedded in the dashboard
- * 5. 📄 PDF Catalogue — shareable sales collateral with one-tap WhatsApp/Email sharing
+ * Built to spec with default Sales Rep sections:
+ * 1. 🎯 Dashboard Header & Role Welcome Banner
+ * 2. 📊 My Total Leads & New Leads Overview
+ * 3. ⏰ Follow-ups Due Today & Overdue Follow-ups
+ * 4. 💼 Active Opportunities & Revenue
+ * 5. 🌟 My Performance & Conversion Rate
+ * 6. ⏱️ Attendance Status & Quick Punch Action
+ * 7. 📌 The Notice Board (Company Bulletins)
+ * 8. 📦 Products & PDF Catalogue (Only rendered when Admin toggles ON; zero lock banners)
  */
 
 import React, { useState, useCallback } from 'react';
@@ -48,7 +51,7 @@ interface PdfItem {
   emoji: string;
 }
 
-// ─── Seed data (would come from apiService in production) ─────────────────────
+// ─── Seed data ────────────────────────────────────────────────────────────────
 
 const DEMO_PRODUCTS: ProductItem[] = [
   { id: 'p1', name: 'Premium Solar Panel 400W',   sku: 'SOL-400W',  price: '₹12,500',  category: 'Solar',    description: 'High-efficiency monocrystalline panel', emoji: '☀️' },
@@ -84,13 +87,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
   const [productDetailOpen, setProductDetailOpen] = useState<ProductItem | null>(null);
   const [pdfShareTarget, setPdfShareTarget] = useState<PdfItem | null>(null);
 
-  // Permission checks
+  // Permission checks (On/Off visibility only)
   const userId = currentUser?.id || '';
-  // Normalize SUPER_ADMIN → ADMIN for module access lookup (both have identical full access)
   const rawRole = (currentUser?.role || 'SALES_EXEC').toUpperCase();
   const userRole = (rawRole === 'SUPER_ADMIN' ? 'ADMIN' : rawRole) as import('../store/moduleAccessStore').UserRole;
   const productsPerm = accessStore.getPermission(userId, userRole, 'PRODUCTS');
   const pdfPerm = accessStore.getPermission(userId, userRole, 'PDF_CATALOG');
+
+  const firstName = currentUser?.name?.split(' ')?.[0] || 'Sales Rep';
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -119,20 +123,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
     }
   }, [currentUser?.name]);
 
-  // ─── Render helpers ────────────────────────────────────────────────────────
-
-  const renderLockedSection = (label: string, icon: string) => (
-    <View style={[styles.lockedBox, { backgroundColor: isDark ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.25)' }]}>
-      <Text style={{ fontSize: 22, marginBottom: 4 }}>{icon}</Text>
-      <Text style={{ fontSize: 12, fontWeight: '800', color: '#f87171' }}>🔒 {label} — Access Restricted</Text>
-      <Text style={{ fontSize: 10, color: isDark ? '#94a3b8' : '#64748b', marginTop: 3, textAlign: 'center' }}>
-        Contact your Admin to enable access to this module.
-      </Text>
-    </View>
-  );
-
-  // ─── JSX ───────────────────────────────────────────────────────────────────
-
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <ScrollView
@@ -143,38 +133,139 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Header ──────────────────────────────────────────────────────────── */}
+        {/* ── 1. Welcome Banner ──────────────────────────────────────────────── */}
         <View style={[styles.headerBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>🎯 Sales Executive Workspace</Text>
-          <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-            {currentUser?.name} · {currentUser?.companyName}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.avatarBox, { backgroundColor: '#4f46e5' }]}>
+                <Text style={styles.avatarText}>{currentUser?.avatar || 'SR'}</Text>
+              </View>
+              <View>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Good morning, {firstName}! 👋</Text>
+                <Text style={[styles.headerSub, { color: colors.textMuted }]}>
+                  {currentUser?.companyName || 'DAS CRM Workspace'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleBadgeText}>SALES REP</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 4 }}>
+            Personal sales dashboard — real-time overview of your assigned leads, follow-ups, and performance.
           </Text>
         </View>
 
-        {/* ── Personal KPI Cards ──────────────────────────────────────────────── */}
+        {/* ── 2. My Total Leads & New Leads ──────────────────────────────────── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>🎯 My Leads Overview</Text>
+          <TouchableOpacity onPress={() => navigation?.navigate('Leads')}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>View All →</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(99,102,241,0.3)' }]}>
-            <Text style={[styles.statVal, { color: colors.text }]}>0 Leads</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>My Assigned Leads</Text>
+            <Text style={[styles.statVal, { color: colors.text }]}>0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>My Total Leads</Text>
+            <Text style={[styles.statSub, { color: '#818cf8' }]}>Scoped to you</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(16,185,129,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#34d399' }]}>₹0</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Closed Deals Value</Text>
+            <Text style={[styles.statVal, { color: '#34d399' }]}>0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>New Leads</Text>
+            <Text style={[styles.statSub, { color: '#34d399' }]}>This week</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(168,85,247,0.3)' }]}>
-            <Text style={[styles.statVal, { color: '#c084fc' }]}>0.0%</Text>
-            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Personal Best Rate</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(56,189,248,0.3)' }]}>
+            <Text style={[styles.statVal, { color: '#38bdf8' }]}>0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Contacted</Text>
+            <Text style={[styles.statSub, { color: '#38bdf8' }]}>Called / messaged</Text>
           </View>
         </View>
 
-        {/* ── Attendance Status ───────────────────────────────────────────────── */}
+        {/* ── 3. Follow-ups Due Today & Overdue ──────────────────────────────── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>⏰ Follow-ups Tracker</Text>
+        </View>
+
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={styles.followupGrid}>
+            <View style={[styles.followupBox, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.06)' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={[styles.statusDot, { backgroundColor: '#fbbf24' }]} />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted }}>Due Today</Text>
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: '#fbbf24', marginTop: 4 }}>0</Text>
+              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 2 }}>Requires call action</Text>
+            </View>
+
+            <View style={[styles.followupBox, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.06)' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={[styles.statusDot, { backgroundColor: '#f87171' }]} />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted }}>Overdue</Text>
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: '#f87171', marginTop: 4 }}>0</Text>
+              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 2 }}>Past deadline</Text>
+            </View>
+
+            <View style={[styles.followupBox, { borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.06)' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={[styles.statusDot, { backgroundColor: '#34d399' }]} />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textMuted }}>Completed</Text>
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: '#34d399', marginTop: 4 }}>0</Text>
+              <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 2 }}>Logged this week</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── 4. Active Opportunities & Revenue ──────────────────────────────── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>💼 Active Opportunities</Text>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(168,85,247,0.3)' }]}>
+            <Text style={[styles.statVal, { color: '#c084fc' }]}>₹0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Pipeline Value</Text>
+            <Text style={[styles.statSub, { color: '#c084fc' }]}>Open negotiations</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.cardBg, borderColor: 'rgba(16,185,129,0.3)' }]}>
+            <Text style={[styles.statVal, { color: '#34d399' }]}>₹0</Text>
+            <Text style={[styles.statLbl, { color: colors.textMuted }]}>Won Revenue</Text>
+            <Text style={[styles.statSub, { color: '#34d399' }]}>This month</Text>
+          </View>
+        </View>
+
+        {/* ── 5. My Performance ──────────────────────────────────────────────── */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>🌟 My Performance</Text>
+        </View>
+
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+            <View>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>Conversion Rate</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>Lead to customer conversion</Text>
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: '#34d399' }}>0.0%</Text>
+          </View>
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+            <View>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: colors.text }}>Daily Call Target</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>Dialing efficiency & outreach</Text>
+            </View>
+            <Text style={{ fontSize: 14, fontWeight: '900', color: colors.text }}>0 / 30 Calls</Text>
+          </View>
+        </View>
+
+        {/* ── 6. Attendance Status ───────────────────────────────────────────── */}
         <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.text }]}>⏱️ Attendance Status</Text>
               <Text style={[styles.cardSub, { color: colors.textMuted }]}>
-                Status:{' '}
-                <Text style={{ color: '#34d399', fontWeight: '800' }}>PUNCHED IN</Text>
+                Daily punch: <Text style={{ color: '#34d399', fontWeight: '800' }}>Active in Workspace</Text>
               </Text>
             </View>
             <TouchableOpacity style={styles.actionBtn} onPress={onNavigateToAttendance} activeOpacity={0.8}>
@@ -183,21 +274,26 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           </View>
         </View>
 
-        {/* ── Priority Dialing Queue ──────────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>My Priority Dialing Queue</Text>
-        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, paddingVertical: 20 }]}>
-          <Text style={{ textAlign: 'center', fontSize: 13, color: colors.textMuted, fontStyle: 'italic' }}>
-            📭 No priority leads in dialing queue
-          </Text>
+        {/* ── 7. Notice Board ────────────────────────────────────────────────── */}
+        <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>📌 The Notice Board</Text>
+            <TouchableOpacity onPress={() => navigation?.navigate('Menu', { initialModule: 'UPCOMING_COMMS' })}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>Open Board →</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+            <Text style={{ fontSize: 11, color: colors.textMuted, fontStyle: 'italic' }}>
+              No urgent announcements posted today.
+            </Text>
+          </View>
         </View>
 
-        {/* ─────────────────────────────────────────────────────────────────────────── */}
-        {/* 📦 PRODUCTS SECTION                                                        */}
-        {/* ─────────────────────────────────────────────────────────────────────────── */}
-        <View style={{ width: '100%', maxWidth: 600 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>📦 Company Products</Text>
-            {productsPerm.active && (
+        {/* ── 8. Products Section (Rendered ONLY when permitted/active) ───────── */}
+        {productsPerm.active && (
+          <View style={{ width: '100%', maxWidth: 600 }}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📦 Company Products</Text>
               <TouchableOpacity
                 onPress={() => {
                   try { navigation?.navigate('Menu', { initialModule: 'PRODUCTS' }); } catch {}
@@ -206,12 +302,8 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Full Catalogue →</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
 
-          {!productsPerm.active ? (
-            renderLockedSection('Product Catalogue', '📦')
-          ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
               {DEMO_PRODUCTS.map((prod) => (
                 <TouchableOpacity
@@ -244,16 +336,14 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* ─────────────────────────────────────────────────────────────────────────── */}
-        {/* 📄 PDF CATALOGUE SECTION                                                   */}
-        {/* ─────────────────────────────────────────────────────────────────────────── */}
-        <View style={{ width: '100%', maxWidth: 600, marginTop: 4 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>📄 PDF Catalogue</Text>
-            {pdfPerm.active && (
+        {/* ── 9. PDF Catalogue (Rendered ONLY when permitted/active) ─────────── */}
+        {pdfPerm.active && (
+          <View style={{ width: '100%', maxWidth: 600, marginTop: 4 }}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📄 PDF Catalogue</Text>
               <TouchableOpacity
                 onPress={() => {
                   try { navigation?.navigate('Menu', { initialModule: 'PDF_CATALOG' }); } catch {}
@@ -262,12 +352,8 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
               >
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>Manage All →</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
 
-          {!pdfPerm.active ? (
-            renderLockedSection('PDF Catalogue', '📄')
-          ) : (
             <View style={[styles.cardBox, { backgroundColor: colors.cardBg, borderColor: colors.border, paddingVertical: 8 }]}>
               {DEMO_PDFS.map((pdf, idx) => {
                 const catColor = CAT_COLOR[pdf.category] ?? '#6366f1';
@@ -279,7 +365,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                       idx < DEMO_PDFS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
                     ]}
                   >
-                    {/* Icon + info */}
                     <View style={[styles.pdfIconBox, { backgroundColor: catColor + '18', borderColor: catColor + '40' }]}>
                       <Text style={{ fontSize: 16 }}>{pdf.emoji}</Text>
                     </View>
@@ -295,8 +380,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                       </View>
                     </View>
 
-                    {/* Share buttons */}
-                    {pdfPerm.canShare ? (
+                    {pdfPerm.canShare && (
                       <TouchableOpacity
                         style={[styles.pdfShareBtn, { backgroundColor: '#25D366' }]}
                         onPress={() => setPdfShareTarget(pdf)}
@@ -304,31 +388,17 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                       >
                         <Text style={{ fontSize: 10, color: '#fff', fontWeight: '800' }}>Share</Text>
                       </TouchableOpacity>
-                    ) : (
-                      <Text style={{ fontSize: 9, color: colors.textMuted }}>🔒</Text>
                     )}
                   </View>
                 );
               })}
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
       </ScrollView>
 
-      {/* ── Post-Call Outcome Modal ──────────────────────────────────────────── */}
-      {activeCallLead && (
-        <PostCallOutcomeModal
-          visible={!!activeCallLead}
-          leadId={activeCallLead.id}
-          leadName={activeCallLead.name}
-          phone={activeCallLead.phone}
-          onClose={() => setActiveCallLead(null)}
-          onSaveOutcome={() => setActiveCallLead(null)}
-        />
-      )}
-
-      {/* ── Product Detail Modal ─────────────────────────────────────────────── */}
+      {/* ── Modals (Product Details & PDF Share) ─────────────────────────────── */}
       <Modal visible={!!productDetailOpen} transparent animationType="slide" onRequestClose={() => setProductDetailOpen(null)}>
         <View style={styles.modalOverlay}>
           {productDetailOpen && (
@@ -353,7 +423,7 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
                     style={[styles.modalActionBtn, { backgroundColor: '#25D366', flex: 1 }]}
                     onPress={() => {
                       setProductDetailOpen(null);
-                      const msg = `Hi! Check out our product: ${productDetailOpen.name} (${productDetailOpen.sku})\nPrice: ${productDetailOpen.price}\n${productDetailOpen.description}\n\nContact us for more details.`;
+                      const msg = `Hi! Check out our product: ${productDetailOpen.name} (${productDetailOpen.sku})\nPrice: ${productDetailOpen.price}\n${productDetailOpen.description}`;
                       Linking.openURL(`whatsapp://send?text=${encodeURIComponent(msg)}`).catch(() =>
                         Alert.alert('WhatsApp', `Sharing ${productDetailOpen.name}...`),
                       );
@@ -383,7 +453,6 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
         </View>
       </Modal>
 
-      {/* ── PDF Share Channel Modal ──────────────────────────────────────────── */}
       <Modal visible={!!pdfShareTarget} transparent animationType="fade" onRequestClose={() => setPdfShareTarget(null)}>
         <View style={styles.modalOverlay}>
           {pdfShareTarget && (
@@ -422,6 +491,18 @@ export default function EmployeeDashboardScreen({ navigation, onNavigateToAttend
           )}
         </View>
       </Modal>
+
+      {activeCallLead && (
+        <PostCallOutcomeModal
+          visible={!!activeCallLead}
+          leadId={activeCallLead.id}
+          leadName={activeCallLead.name}
+          phone={activeCallLead.phone}
+          onClose={() => setActiveCallLead(null)}
+          onSaveOutcome={() => setActiveCallLead(null)}
+        />
+      )}
+
     </View>
   );
 }
@@ -432,33 +513,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, alignItems: 'center' },
 
-  headerBox: { width: '100%', maxWidth: 600, marginBottom: 14, borderRadius: 14, borderWidth: 1, padding: 14 },
-  headerTitle: { fontSize: 20, fontWeight: '800' },
-  headerSub: { fontSize: 11, marginTop: 2 },
+  headerBox: { width: '100%', maxWidth: 600, marginBottom: 14, borderRadius: 16, borderWidth: 1, padding: 14 },
+  avatarBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#ffffff', fontWeight: '900', fontSize: 14 },
+  headerTitle: { fontSize: 17, fontWeight: '900' },
+  headerSub: { fontSize: 11, marginTop: 1 },
+  roleBadge: { backgroundColor: 'rgba(99,102,241,0.15)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.3)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  roleBadgeText: { color: '#818cf8', fontSize: 9, fontWeight: '800' },
+
+  sectionHeaderRow: { width: '100%', maxWidth: 600, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 },
+  sectionTitle: { fontSize: 13, fontWeight: '800' },
 
   statsGrid: { width: '100%', maxWidth: 600, flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard: { flex: 1, borderRadius: 14, borderWidth: 1, padding: 12, alignItems: 'center' },
-  statVal: { fontSize: 16, fontWeight: '900', color: '#818cf8' },
-  statLbl: { fontSize: 9, marginTop: 2, textAlign: 'center' },
+  statVal: { fontSize: 20, fontWeight: '900' },
+  statLbl: { fontSize: 10, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  statSub: { fontSize: 9, fontWeight: '600', marginTop: 2, textAlign: 'center' },
 
-  cardBox: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 16 },
+  cardBox: { width: '100%', maxWidth: 600, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 14 },
   cardTitle: { fontSize: 13, fontWeight: '800' },
   cardSub: { fontSize: 11, marginTop: 2 },
 
-  actionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  followupGrid: { flexDirection: 'row', gap: 8 },
+  followupBox: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 10 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+
+  actionBtn: { backgroundColor: '#4f46e5', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   actionBtnText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
-
-  sectionTitle: { fontSize: 13, fontWeight: '800', marginBottom: 8, width: '100%', maxWidth: 600 },
-
-  lockedBox: {
-    width: '100%',
-    maxWidth: 600,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
 
   // Product cards (horizontal carousel)
   productCard: {

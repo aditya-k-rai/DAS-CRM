@@ -2,12 +2,47 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, normalizeRoleStr, inferRoleFromEmail } from '@/context/AuthContext';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { RoleTransitionBanner } from '@/components/role-transition/RoleTransitionBanner';
 import { RoleTransitionModal } from '@/components/role-transition/RoleTransitionModal';
 import { SidebarProvider, useSidebar } from '@/context/SidebarContext';
 import { useState } from 'react';
+
+const ROUTE_TO_MODULE_KEY: Record<string, string> = {
+  '/leads': 'LEADS',
+  '/pipeline': 'PIPELINE',
+  '/hr/employees': 'EMPLOYEES',
+  '/products': 'PRODUCTS',
+  '/quotes': 'QUOTES',
+  '/comms': 'COMMUNICATIONS',
+  '/whatsapp-templates': 'WA_TEMPLATES',
+  '/emails': 'EXTRA_EMAIL',
+  '/admin/ai': 'AI_CONTROL',
+  '/pdf-catalogue': 'PDF_CATALOG',
+  '/reports': 'REPORTS',
+  '/automations': 'AUTOMATIONS',
+  '/database': 'DATABASE',
+  '/attendance': 'ATTENDANCE',
+  '/deals': 'DEALS',
+  '/goals': 'GOALS',
+  '/hr/interviews': 'INTERVIEWS',
+  '/communicate': 'UPCOMING_COMMS',
+  '/settings': 'SETTINGS',
+  '/profile': 'PROFILE',
+  '/help': 'SUPPORT',
+  '/about': 'SUPPORT',
+};
+
+const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
+  ADMIN:       Object.values(ROUTE_TO_MODULE_KEY),
+  SUPER_ADMIN: Object.values(ROUTE_TO_MODULE_KEY),
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
+  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+  UNASSIGNED:  [],
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECURITY: Route Guard — No unauthenticated access to any dashboard route.
@@ -108,14 +143,69 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { currentUser } = useAuth();
+
+  const rawRole = (currentUser?.role || '').toUpperCase().trim();
+  const normalizedRole = normalizeRoleStr(rawRole || inferRoleFromEmail(currentUser?.email));
+  const isUnassigned = currentUser?.hasAssignedRole === false || normalizedRole === 'UNASSIGNED';
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(normalizedRole);
 
   useEffect(() => {
     setMounted(true);
-    const checkDesktop = () => setIsDesktop(window.innerWidth >= 1024);
-    checkDesktop();
-    window.addEventListener('resize', checkDesktop);
-    return () => window.removeEventListener('resize', checkDesktop);
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    setIsDesktop(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
   }, []);
+
+  // Strict route-level module access guard for non-admin users
+  useEffect(() => {
+    if (isAdmin || !pathname) return;
+
+    // 1. Unassigned users can only stay on /dashboard (role pending screen)
+    if (isUnassigned) {
+      if (!pathname.startsWith('/dashboard')) {
+        router.replace('/dashboard');
+      }
+      return;
+    }
+
+    // 2. Control Center is strictly restricted to Admin / Super Admin
+    if (pathname.startsWith('/admin/control-center')) {
+      router.replace('/dashboard');
+      return;
+    }
+
+    // 3. Find if current route corresponds to a controlled module
+    const matchedPath = Object.keys(ROUTE_TO_MODULE_KEY).find(p => pathname === p || pathname.startsWith(p + '/'));
+    if (matchedPath) {
+      const modKey = ROUTE_TO_MODULE_KEY[matchedPath];
+      let hasAccess = false;
+      try {
+        const rawPolicies = localStorage.getItem('@das_crm_module_policies_v1');
+        const policies = rawPolicies ? JSON.parse(rawPolicies) : {};
+        const policyKey = `${currentUser?.id}:${modKey}`;
+        if (policies[policyKey] !== undefined) {
+          hasAccess = Boolean(policies[policyKey].active);
+        } else {
+          // Fresh user: strictly permitted only to their role defaults
+          const defaults = ROLE_DEFAULT_MODULES[normalizedRole] || [];
+          hasAccess = defaults.includes(modKey);
+        }
+      } catch (_) {
+        const defaults = ROLE_DEFAULT_MODULES[normalizedRole] || [];
+        hasAccess = defaults.includes(modKey);
+      }
+
+      if (!hasAccess) {
+        router.replace('/dashboard');
+      }
+    }
+  }, [pathname, isAdmin, isUnassigned, normalizedRole, currentUser?.id, router]);
 
   return (
     <div className="flex min-h-screen relative overflow-x-hidden">

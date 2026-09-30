@@ -24,9 +24,9 @@ interface NavItem {
 }
 
 // ─── Navigation Items in exact order specified ───
-// Displayed for ADMIN and MANAGER roles
+// Displayed across roles according to Admin Module Visibility Controls
 const adminNavigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SUPER_ADMIN' as any, 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC', 'HR', 'UNASSIGNED' as any] },
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
@@ -122,6 +122,11 @@ export function Sidebar() {
           return isAdmin;
         }
 
+        // Dashboard is home for all roles — permanently visible
+        if (item.label === 'Dashboard') {
+          return true;
+        }
+
         // Admin always has unrestricted full access to every module
         if (isAdmin) {
           return true;
@@ -129,11 +134,26 @@ export function Sidebar() {
 
         // Check if there is an explicit policy override for this user & module
         const modKey = HREF_TO_MODULE_KEY[item.href];
-        if (modKey && currentUser?.id) {
-          const userPolicyKey = `${currentUser.id}:${modKey}`;
-          if (policies[userPolicyKey]) {
-            return Boolean(policies[userPolicyKey].active);
+        if (modKey) {
+          if (currentUser?.id) {
+            const userPolicyKey = `${currentUser.id}:${modKey}`;
+            if (policies[userPolicyKey] !== undefined) {
+              return Boolean(policies[userPolicyKey].active);
+            }
           }
+
+          // Fresh user without explicit override: ONLY default modules for their role are visible!
+          const roleDefaultsMap: Record<string, string[]> = {
+            ADMIN:       Object.values(HREF_TO_MODULE_KEY),
+            SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
+            MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
+            TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
+            SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+            HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+            UNASSIGNED:  [],
+          };
+          const roleDefaults = roleDefaultsMap[currentNormalizedRole] || [];
+          return roleDefaults.includes(modKey);
         }
 
         // Default role-based visibility check

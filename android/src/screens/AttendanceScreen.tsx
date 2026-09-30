@@ -11,7 +11,7 @@
  *    - Full Day >= 8 hrs, Half Day < 5 hrs rules + Admin date override controls.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
   Platform,
   Modal,
   BackHandler,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/authStore';
@@ -198,17 +199,69 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
   };
 
   // ── AUTOMATIC PERMISSIONS & LIVE SERVER TIME CLOCK ON MOUNT ───────────────
+  const serverOffsetRef = useRef<number>(0);
+
+  const syncServerTime = async () => {
+    try {
+      const timeData = await apiService.getServerTime();
+      if (timeData?.timestampMs) {
+        serverOffsetRef.current = timeData.timestampMs - Date.now();
+      }
+      setServerTimeDisplay(timeData.serverTime);
+      setServerFormattedTime(timeData.formattedTime);
+      setServerFormattedDate(timeData.formattedDate);
+    } catch (_) {}
+  };
+
+  const updateClockLocal = () => {
+    const adjustedNow = new Date(Date.now() + serverOffsetRef.current);
+    const timeStr = adjustedNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = adjustedNow.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    setServerTimeDisplay(`${dateStr} ${timeStr} IST (Delhi Live Time)`);
+    setServerFormattedTime(timeStr);
+    setServerFormattedDate(dateStr);
+  };
+
   useEffect(() => {
     if (!isAdmin) {
       requestAllPermissions();
     }
-    fetchServerTime();
+    syncServerTime();
 
-    const clockInterval = setInterval(() => {
-      fetchServerTime();
-    }, 1000);
+    let clockInterval: any = null;
+    let syncInterval: any = null;
 
-    return () => clearInterval(clockInterval);
+    const startTimers = () => {
+      if (!clockInterval) {
+        clockInterval = setInterval(updateClockLocal, 1000);
+      }
+      if (!syncInterval) {
+        syncInterval = setInterval(syncServerTime, 300000); // Re-sync offset every 5 minutes
+      }
+    };
+
+    const stopTimers = () => {
+      if (clockInterval) clearInterval(clockInterval);
+      if (syncInterval) clearInterval(syncInterval);
+      clockInterval = null;
+      syncInterval = null;
+    };
+
+    startTimers();
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        syncServerTime();
+        startTimers();
+      } else {
+        stopTimers();
+      }
+    });
+
+    return () => {
+      stopTimers();
+      appStateSub.remove();
+    };
   }, [isAdmin]);
 
   // ── RECORD GENERATION ──────────────────────────────────────────────────────
@@ -297,12 +350,7 @@ export default function AttendanceScreen({ onClose, navigation }: AttendanceScre
     return { present, absent, halfDay, leave, weekOff };
   }, [recordsMap]);
 
-  const fetchServerTime = async () => {
-    const timeData = await apiService.getServerTime();
-    setServerTimeDisplay(timeData.serverTime);
-    setServerFormattedTime(timeData.formattedTime);
-    setServerFormattedDate(timeData.formattedDate);
-  };
+  const fetchServerTime = syncServerTime;
 
   // ── REAL GPS LOCATION FETCH VIA EXPO LOCATION & PERMISSIONS ─────────────
   const fetchCurrentLocation = async () => {

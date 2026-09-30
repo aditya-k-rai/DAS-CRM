@@ -23,14 +23,14 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<string, ModulePermission> = {
   UNASSIGNED:  { active: false, canView: false, canShare: false, canEdit: false },
 };
 
-export const RESTRICTED_BY_DEFAULT_ROLE: Record<string, string[]> = {
-  SUPER_ADMIN: [],
-  ADMIN:       [],
-  MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE'],
-  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'AI_CONTROL'],
-  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'PRODUCTS', 'PDF_CATALOG'],
-  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL', 'EMPLOYEES', 'INTERVIEWS'],
-  UNASSIGNED:  ['LEADS', 'PIPELINE', 'PRODUCTS', 'PDF_CATALOG', 'QUOTES', 'DEALS', 'GOALS', 'COMMUNICATIONS', 'WA_TEMPLATES', 'EXTRA_EMAIL', 'UPCOMING_COMMS', 'AI_CONTROL', 'AUTOMATIONS', 'EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'REPORTS', 'DATABASE', 'PROFILE', 'SETTINGS', 'SUPPORT'],
+export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
+  ADMIN:       ['LEADS', 'PIPELINE', 'EMPLOYEES', 'PRODUCTS', 'QUOTES', 'COMMUNICATIONS', 'WA_TEMPLATES', 'EXTRA_EMAIL', 'AI_CONTROL', 'PDF_CATALOG', 'REPORTS', 'AUTOMATIONS', 'DATABASE', 'ATTENDANCE', 'DEALS', 'GOALS', 'INTERVIEWS', 'UPCOMING_COMMS', 'SETTINGS', 'PROFILE', 'SUPPORT'],
+  SUPER_ADMIN: ['LEADS', 'PIPELINE', 'EMPLOYEES', 'PRODUCTS', 'QUOTES', 'COMMUNICATIONS', 'WA_TEMPLATES', 'EXTRA_EMAIL', 'AI_CONTROL', 'PDF_CATALOG', 'REPORTS', 'AUTOMATIONS', 'DATABASE', 'ATTENDANCE', 'DEALS', 'GOALS', 'INTERVIEWS', 'UPCOMING_COMMS', 'SETTINGS', 'PROFILE', 'SUPPORT'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
+  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+  UNASSIGNED:  [],
 };
 
 export function useModuleAccess() {
@@ -73,17 +73,19 @@ export function useModuleAccess() {
     const key = `${userId}:${moduleKey}`;
 
     // Check specific policy override
-    if (policies[key]) {
+    if (policies[key] !== undefined) {
       return policies[key];
     }
 
-    // Default policy based on role
-    const isRestrictedByDefault = (RESTRICTED_BY_DEFAULT_ROLE[normalizedRole] || []).includes(moduleKey);
-    const base = ROLE_DEFAULT_PERMISSIONS[normalizedRole] || ROLE_DEFAULT_PERMISSIONS.SALES_EXEC;
+    // Fresh user without explicit override: strictly whitelist role's permanent default modules
+    const roleDefaults = DEFAULT_MODULE_KEYS_BY_ROLE[normalizedRole] || [];
+    const isDefault = roleDefaults.includes(moduleKey);
 
-    if (isRestrictedByDefault) {
+    if (!isDefault) {
       return { active: false, canView: false, canShare: false, canEdit: false };
     }
+
+    const base = ROLE_DEFAULT_PERMISSIONS[normalizedRole] || ROLE_DEFAULT_PERMISSIONS.SALES_EXEC;
     return { ...base };
   }, [isAdmin, currentUser?.id, policies, normalizedRole]);
 

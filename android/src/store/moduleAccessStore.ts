@@ -57,11 +57,25 @@ const RESTRICTED_BY_DEFAULT: Record<UserRole, ModuleKey[]> = {
   SUPER_ADMIN: [],
   ADMIN:       [],
   MANAGER:     ['SETTINGS', 'PROFILE', 'DATABASE'],
-  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS'],
-  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB'],
-  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL'],
+  TEAM_LEADER: ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'AI_CONTROL', 'AI_HUB'],
+  HR:          ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'QUOTES', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'PRODUCTS', 'PDF_CATALOG'],
+  SALES_EXEC:  ['SETTINGS', 'PROFILE', 'DATABASE', 'IMPORT_EXPORT', 'AUTOMATIONS', 'DEALS', 'WA_TEMPLATES', 'AI_CONTROL', 'AI_HUB', 'INTERVIEWS'],
   UNASSIGNED:  [],
 };
+
+// Permanent Default Modules per role — cannot be turned OFF by Admin
+export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<UserRole, ModuleKey[]> = {
+  SUPER_ADMIN: [],
+  ADMIN:       [],
+  MANAGER:     ['PRODUCTS', 'QUOTES', 'REPORTS', 'ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'SUPPORT'],
+  TEAM_LEADER: ['ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'REPORTS', 'SUPPORT'],
+  SALES_EXEC:  ['ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+  HR:          ['ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+  UNASSIGNED:  [],
+};
+
+export const isRoleDefaultModule = (role: UserRole, key: ModuleKey): boolean =>
+  (DEFAULT_MODULE_KEYS_BY_ROLE[role] || []).includes(key);
 
 export const STORAGE_KEY = '@das_crm_module_policies_v1';
 export const USERS_CACHE_KEY = '@das_crm_managed_users_cache_v1';
@@ -119,18 +133,16 @@ export const useModuleAccessStore = create<ModuleAccessState>()((set, get) => ({
 
     const { policies } = get();
     const key: PolicyKey = `${userId}:${moduleKey}`;
-    if (policies[key]) return policies[key];
+    if (policies[key] !== undefined) return policies[key];
 
-    // Derive default from role
-    const base = { ...ROLE_DEFAULTS[role] ?? ROLE_DEFAULTS.SALES_EXEC };
-    const restricted = RESTRICTED_BY_DEFAULT[role] ?? [];
-    if (restricted.includes(moduleKey)) {
-      base.active = false;
-      base.canView = false;
-      base.canShare = false;
-      base.canEdit = false;
-    }
-    return base;
+    // Fresh user without explicit override: ONLY access role's default modules!
+    const isDefault = (DEFAULT_MODULE_KEYS_BY_ROLE[role] ?? []).includes(moduleKey);
+    return {
+      active: isDefault,
+      canView: isDefault,
+      canShare: isDefault,
+      canEdit: isDefault && (role === 'MANAGER' || (role === 'TEAM_LEADER' && (moduleKey === 'DEALS' || moduleKey === 'GOALS'))),
+    };
   },
 
   setPermission: async (userId, moduleKey, patch) => {

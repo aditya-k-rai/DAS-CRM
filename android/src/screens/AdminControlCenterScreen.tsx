@@ -70,12 +70,12 @@ const ALL_MODULES: ModuleDef[] = [
   { key: 'SUPPORT',        icon: '❓', label: 'Support & Help',              category: 'ADMIN' },
 ];
 
-// Default modules per role — cannot be toggled Off by admin
+// Default modules per role — cannot be toggled Off by admin (Permanent Defaults)
 const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
-  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE'],
-  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS'],
-  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS'],
+  MANAGER:     ['PRODUCTS', 'QUOTES', 'REPORTS', 'ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'SUPPORT'],
+  TEAM_LEADER: ['ATTENDANCE', 'DEALS', 'GOALS', 'UPCOMING_COMMS', 'REPORTS', 'SUPPORT'],
+  SALES_EXEC:  ['ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
+  HR:          ['ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
   UNASSIGNED:  [],
 };
 
@@ -433,7 +433,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
           {filteredModules.filter(m => isDefaultModule(user.role, m.key)).length > 0 && (
             <View style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: 0.6 }}>🔒 Default Modules — Always Visible</Text>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: 0.6 }}>⭐ Default Modules — Always Visible</Text>
               </View>
               {filteredModules.filter(m => isDefaultModule(user.role, m.key)).map((mod) => {
                 const catColors = CATEGORY_COLORS[mod.category];
@@ -647,7 +647,7 @@ export default function AdminControlCenterScreen({ onClose }: Props) {
                       )}
                       {blockedCount > 0 && (
                         <Text style={{ fontSize: 9, color: '#f87171', fontWeight: '800' }}>
-                          🔒 {blockedCount} blocked
+                          👁️ {blockedCount} hidden
                         </Text>
                       )}
                       {overrideCount === 0 && blockedCount === 0 && (

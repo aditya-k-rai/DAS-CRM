@@ -114,18 +114,12 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
 
   const handleOpenModule = (key: ModuleKey) => {
     if ((key === 'PROFILE' || key === 'SETTINGS') && !isAdmin) {
-      Alert.alert('Access Restricted', 'Company Profile Settings are restricted to Admin dashboard only.');
       return;
     }
-    // Check module access permission for non-admin users
+    // Only open if permitted/active
     if (!isAdmin) {
       const perm = getPermission(userId, userRole, key);
-      if (!perm.active || !perm.canView) {
-        Alert.alert(
-          '🔒 Module Access Restricted',
-          'Your Admin has restricted access to this module. Contact your Admin or Manager to request access.',
-          [{ text: 'OK' }],
-        );
+      if (!perm.active) {
         return;
       }
     }
@@ -341,12 +335,10 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
             if (item.key === 'PROFILE' || item.key === 'SETTINGS') {
               return isAdmin;
             }
-            return true;
+            if (isAdmin) return true;
+            const perm = getPermission(userId, userRole, item.key);
+            return Boolean(perm.active);
           }).map((item) => {
-            // Determine if this module is locked for the current user
-            const perm = isAdmin ? { active: true, canView: true } : getPermission(userId, userRole, item.key);
-            const isLocked = !perm.active || !perm.canView;
-
             return (
               <TouchableOpacity
                 key={item.key}
@@ -354,27 +346,21 @@ export const MoreControlsScreen: React.FC<MoreControlsScreenProps> = ({
                   styles.gridCard,
                   {
                     backgroundColor: colors.cardBg,
-                    borderColor: isLocked ? 'rgba(239,68,68,0.25)' : colors.border,
-                    opacity: isLocked ? 0.72 : 1,
+                    borderColor: colors.border,
                   }
                 ]}
                 onPress={() => handleOpenModule(item.key)}
                 activeOpacity={0.75}
               >
                 <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.cardIcon, isLocked && { opacity: 0.5 }]}>{item.icon}</Text>
+                  <Text style={styles.cardIcon}>{item.icon}</Text>
                   {item.upcoming && (
                     <View style={styles.upcomingTag}>
                       <Text style={styles.upcomingTagText}>UPCOMING</Text>
                     </View>
                   )}
-                  {isLocked && !item.upcoming && (
-                    <View style={styles.lockedTag}>
-                      <Text style={styles.lockedTagText}>🔒</Text>
-                    </View>
-                  )}
                 </View>
-                <Text style={[styles.cardLabel, { color: isLocked ? colors.textMuted : colors.text }]} numberOfLines={2}>
+                <Text style={[styles.cardLabel, { color: colors.text }]} numberOfLines={2}>
                   {getModuleLabel(item.key, item.label)}
                 </Text>
               </TouchableOpacity>
