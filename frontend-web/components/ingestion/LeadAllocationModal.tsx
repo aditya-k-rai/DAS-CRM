@@ -667,25 +667,6 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                if (onPreviewSheet) {
-                  onPreviewSheet();
-                } else {
-                  setIsSheetPreviewMode(!isSheetPreviewMode);
-                }
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
-                isSheetPreviewMode
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white border-slate-600 hover:border-slate-500'
-              }`}
-              title="Return to previous sheet to preview & edit rows and columns"
-            >
-              <Eye size={13} className="text-cyan-400" />
-              Preview &amp; Edit Sheet
-            </button>
-
-            <button
               onClick={() => setShowDeleteConfirm(true)}
               className="px-2.5 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-extrabold flex items-center gap-1 transition-all"
               title="Delete Sheet Allocation record (6-Month retention policy)"

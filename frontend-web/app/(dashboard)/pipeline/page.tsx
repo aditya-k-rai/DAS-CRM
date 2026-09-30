@@ -799,15 +799,6 @@ export default function LeadPipelinePage() {
                           )}
                           <button
                             onClick={() => {
-                              document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
-                            title="Open Sheet Editor to preview and edit row/column contents"
-                          >
-                            <Eye size={12} /> Preview &amp; Edit Sheet
-                          </button>
-                          <button
-                            onClick={() => {
                               if (confirm(`Delete sheet allocation record for "${item.fileName}"?\n\nℹ️ 6-Month Retention Policy: Company operational history automatically purges after 6 months (180 days). Verified Employee Documents are permanently preserved.`)) {
                                 setWebAuditLogs(prev => prev.filter(a => a.id !== item.id));
                               }
