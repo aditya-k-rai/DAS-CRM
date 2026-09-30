@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadFunnelDistribution } from '@/components/leads/LeadFunnelDistribution';
@@ -86,7 +86,13 @@ export default function LeadsPage() {
       />
 
       <main className="flex-1 p-6 overflow-auto">
-        {canAccessFunnel && activeTab === 'funnel' ? <LeadFunnelDistribution /> : <LeadsTable />}
+        {canAccessFunnel && activeTab === 'funnel' ? (
+          <LeadFunnelDistribution />
+        ) : (
+          <Suspense fallback={<div className="p-8 text-center text-muted">Loading leads...</div>}>
+            <LeadsTable />
+          </Suspense>
+        )}
       </main>
 
       {/* New Lead Modal */}

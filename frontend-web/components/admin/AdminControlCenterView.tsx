@@ -8,7 +8,7 @@ import {
   MessageSquare, MessageCircle, Mail, FileText, BarChart3, Database,
   Calendar, Briefcase, TrendingUp, Radio, Building2, HelpCircle, Info,
   ArrowRight, RefreshCw, Copy, Send, ToggleLeft, ToggleRight, Edit3,
-  Eye, EyeOff
+  Eye, EyeOff, Share2, Clock
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import Link from 'next/link';
@@ -48,13 +48,15 @@ export interface ModuleDefinition {
 
 export const ALL_WEB_MODULES: ModuleDefinition[] = [
   // Sales & Revenue
-  { key: 'LEADS',        icon: Users,         label: 'Leads Directory',           description: 'Lead generation, records, and contact directory',                          category: 'SALES',         href: '/leads' },
-  { key: 'PIPELINE',     icon: Zap,           label: 'Lead Pipeline & Stages',    description: 'Kanban boards, ingestion rules, and stage movement',                      category: 'SALES',         href: '/pipeline' },
-  { key: 'PRODUCTS',     icon: Package,       label: 'Product Catalogue',         description: 'Inventory, SKU management, pricing, and variants',                        category: 'SALES',         href: '/products',        hasEditControl: true },
-  { key: 'PDF_CATALOG',  icon: FileText,      label: 'PDF Catalogue Generator',   description: 'Interactive product brochures and marketing collateral',                  category: 'SALES',         href: '/pdf-catalogue' },
-  { key: 'QUOTES',       icon: Receipt,       label: 'Quotations & Invoices',     description: 'GST invoices, billing estimation, and proposals',                         category: 'SALES',         href: '/quotes',          hasEditControl: true },
-  { key: 'DEALS',        icon: Briefcase,     label: 'Deals Management',          description: 'Closed deals tracking, contracts, and revenue share',                     category: 'SALES',         href: '/deals' },
-  { key: 'GOALS',        icon: TrendingUp,    label: 'Goals & Targets',           description: 'Sales targets, employee quotas, and performance',                         category: 'SALES',         href: '/goals' },
+  { key: 'LEADS',            icon: Users,         label: 'Leads Directory',               description: 'Lead generation, records, and contact directory',                          category: 'SALES',         href: '/leads' },
+  { key: 'LEAD_ASSIGNMENT',  icon: Share2,        label: 'Lead Assignment & Distribution', description: 'Team leader & manager lead allocation rules and workload balancing',      category: 'SALES',         href: '/tl/lead-assignment' },
+  { key: 'PIPELINE',         icon: Zap,           label: 'Lead Pipeline & Stages',        description: 'Kanban boards, ingestion rules, and stage movement',                      category: 'SALES',         href: '/pipeline' },
+  { key: 'TASKS',            icon: Clock,         label: 'Follow-ups & Meetings Tracker', description: 'Task calendar, sales rep follow-ups, and meeting schedules',              category: 'SALES',         href: '/tasks' },
+  { key: 'PRODUCTS',         icon: Package,       label: 'Product Catalogue',             description: 'Inventory, SKU management, pricing, and variants',                        category: 'SALES',         href: '/products',        hasEditControl: true },
+  { key: 'PDF_CATALOG',      icon: FileText,      label: 'PDF Catalogue Generator',       description: 'Interactive product brochures and marketing collateral',                  category: 'SALES',         href: '/pdf-catalogue' },
+  { key: 'QUOTES',           icon: Receipt,       label: 'Quotations & Invoices',         description: 'GST invoices, billing estimation, and proposals',                         category: 'SALES',         href: '/quotes',          hasEditControl: true },
+  { key: 'DEALS',            icon: Briefcase,     label: 'Deals Management',              description: 'Closed deals tracking, contracts, and revenue share',                     category: 'SALES',         href: '/deals' },
+  { key: 'GOALS',            icon: TrendingUp,    label: 'Goals & Targets',               description: 'Sales targets, employee quotas, and performance',                         category: 'SALES',         href: '/goals' },
   // Communication & Marketing
   { key: 'COMMUNICATIONS',  icon: MessageSquare,  label: 'WhatsApp Cloud API',        description: 'Cloud API broadcasts, customer chat inbox',                         category: 'COMMUNICATION', href: '/comms' },
   { key: 'WA_TEMPLATES',    icon: MessageCircle,  label: 'WhatsApp Direct Templates', description: 'Meta approved rich message templates and quick replies',             category: 'COMMUNICATION', href: '/whatsapp-templates' },
@@ -79,10 +81,10 @@ export const ALL_WEB_MODULES: ModuleDefinition[] = [
 // Dashboard is always a default for every role (rendered separately via route)
 export const DEFAULT_MODULE_KEYS_BY_ROLE: Record<string, string[]> = {
   ADMIN:       [], // Admin has full access always — no defaults needed here
-  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
-  SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
-  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],
 };
 

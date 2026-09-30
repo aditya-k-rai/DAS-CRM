@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
@@ -74,6 +75,40 @@ export function LeadsTable() {
     setTableToast(msg);
     setTimeout(() => setTableToast(null), 3800);
   };
+
+  const searchParams = useSearchParams();
+
+  // Synchronize state with URL search parameters (e.g. ?status=New, ?filter=unassigned, ?view=all-my-leads)
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const statusParam = searchParams.get('status');
+    const filterParam = searchParams.get('filter');
+    const viewParam = searchParams.get('view');
+
+    if (filterParam === 'unassigned') {
+      setFilterPerson('UNASSIGNED');
+    } else if (filterParam === 'all') {
+      setFilterPerson('ALL');
+    }
+
+    if (viewParam === 'all-my-leads') {
+      setFilterPerson('ALL');
+      setActiveStatus('All');
+      setFilterStatus('ALL');
+    }
+
+    if (statusParam) {
+      const s = statusParam.toLowerCase();
+      if (s.includes('lost') || s.includes('unqual')) {
+        const match = statusTabs.find(tab => tab.toLowerCase().includes('lost') || tab.toLowerCase().includes('unqual'));
+        setActiveStatus(match || 'Lost');
+      } else {
+        const match = statusTabs.find(tab => tab.toLowerCase() === s);
+        setActiveStatus(match || (statusParam.charAt(0).toUpperCase() + statusParam.slice(1)));
+      }
+    }
+  }, [searchParams, statusTabs]);
 
   useEffect(() => {
     const fetchLeadsAndTeam = async () => {

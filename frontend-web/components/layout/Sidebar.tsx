@@ -7,49 +7,109 @@ import {
   MessageCircle, Mail, Sparkles, FileText, GitBranch,
   BarChart3, Zap, Database, Briefcase, TrendingUp,
   UserCheck, Radio, Settings, Building2, HelpCircle, Info,
-  Shield, LogOut, PanelLeftClose, PanelLeft, X, Calendar
+  Shield, LogOut, PanelLeftClose, PanelLeft, X, Calendar,
+  Share2, UserX, Clock, Phone, ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth, normalizeRoleStr, inferRoleFromEmail, UserRole } from '@/context/AuthContext';
 import { useState, useEffect } from 'react';
 import { useSidebar } from '@/context/SidebarContext';
+import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
 
-interface NavItem {
+export interface NavSubItem {
+  label: string;
+  href: string;
+}
+
+export interface NavItem {
   label: string;
   href: string;
   icon: any;
   upcoming?: boolean;
   dividerAfter?: boolean;
   roles?: UserRole[];
+  moduleKey?: string;
+  subItems?: NavSubItem[];
 }
 
-// ─── Navigation Items in exact order specified ───
-// Displayed across roles according to Admin Module Visibility Controls
+// ─── Sales Representative Navigation (Exact Default Order 0 - 12) ─────────────
+const salesRepNavigation: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard/sales', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
+  { label: 'Leads', href: '/leads', icon: Target, moduleKey: 'LEADS' },
+  { label: 'New Leads', href: '/leads?status=New', icon: Sparkles, moduleKey: 'LEADS' },
+  { label: 'Follow-ups', href: '/tasks?type=follow-up', icon: Clock, moduleKey: 'TASKS' },
+  { label: 'Meetings', href: '/tasks?type=meeting', icon: Calendar, moduleKey: 'TASKS' },
+  { label: 'Active Opportunities', href: '/deals', icon: Briefcase, moduleKey: 'DEALS' },
+  { label: 'My Total Leads', href: '/leads?view=all-my-leads', icon: Users, moduleKey: 'LEADS' },
+  { label: 'My Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS', dividerAfter: true },
+  { label: 'Attendance', href: '/attendance', icon: Calendar, moduleKey: 'ATTENDANCE' },
+  { label: 'The Notice Board', href: '/communicate', icon: Radio, moduleKey: 'UPCOMING_COMMS', dividerAfter: true },
+  { label: 'Settings', href: '/settings', icon: Settings, moduleKey: 'SETTINGS' },
+  { label: 'Support', href: '/help', icon: HelpCircle, moduleKey: 'SUPPORT' },
+  { label: 'About & Developer', href: '/about', icon: Info, moduleKey: 'SUPPORT' },
+];
+
+// ─── Team Leader Navigation (Exact Default Order with Leads Tree) ──────────────
+const teamLeaderNavigation: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard/team-leader', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
+  { label: 'My Team', href: '/hr/employees', icon: Users, moduleKey: 'EMPLOYEES' },
+  {
+    label: 'Leads',
+    href: '/leads',
+    icon: Target,
+    moduleKey: 'LEADS',
+    subItems: [
+      { label: 'Team Total Leads', href: '/leads' },
+      { label: 'New Leads', href: '/leads?status=New' },
+      { label: 'Contacted', href: '/leads?status=Contacted' },
+      { label: 'Qualified', href: '/leads?status=Qualified' },
+      { label: 'Unqualified / Lost', href: '/leads?status=Lost' },
+    ],
+  },
+  { label: 'Team Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS' },
+  { label: 'Lead Assignment', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
+  { label: 'Unassigned Leads', href: '/leads?filter=unassigned', icon: UserX, moduleKey: 'LEADS' },
+  { label: 'Team Pipeline', href: '/pipeline', icon: GitBranch, moduleKey: 'PIPELINE' },
+  { label: 'Team Follow-ups', href: '/tasks?filter=follow-ups', icon: Clock, moduleKey: 'TASKS' },
+  { label: 'Team Calls', href: '/reports?tab=calls', icon: Phone, moduleKey: 'REPORTS', dividerAfter: true },
+  { label: 'Team WhatsApp Direct', href: '/whatsapp-templates', icon: MessageCircle, moduleKey: 'WA_TEMPLATES' }, // Not Default (enabled by Admin)
+  { label: 'Team WhatsApp Cloud', href: '/comms', icon: MessageSquare, moduleKey: 'COMMUNICATIONS' },             // Not Default (enabled by Admin)
+  { label: 'Team Performance', href: '/goals', icon: TrendingUp, moduleKey: 'GOALS' },
+  { label: 'Team Attendance', href: '/attendance', icon: Calendar, moduleKey: 'ATTENDANCE' },
+  { label: 'The Notice Board', href: '/communicate', icon: Radio, moduleKey: 'UPCOMING_COMMS', dividerAfter: true },
+  { label: 'Settings', href: '/settings', icon: Settings, moduleKey: 'SETTINGS' },
+  { label: 'Support', href: '/help', icon: HelpCircle, moduleKey: 'SUPPORT' },
+  { label: 'About & Developer', href: '/about', icon: Info, moduleKey: 'SUPPORT' },
+];
+
+// ─── Admin / Manager / General Workspace Navigation ───────────────────────────
 const adminNavigation: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SUPER_ADMIN' as any, 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC', 'HR', 'UNASSIGNED' as any] },
-  { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'SUPER_ADMIN' as any, 'MANAGER', 'HR', 'UNASSIGNED' as any] },
+  { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Lead Assignment & Distribution', href: '/tl/lead-assignment', icon: Share2, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Tasks & Follow-ups', href: '/tasks', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
-  { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
-  { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER'] },
   { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
   { label: 'WhatsApp Direct Template', href: '/whatsapp-templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
   { label: 'AI Customization', href: '/admin/ai', icon: Sparkles, roles: ['ADMIN', 'MANAGER'] },
   { label: 'PDF Catalogue', href: '/pdf-catalogue', icon: FileText, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'Reports & Analytics', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Workflow Automations & Bot Rules', href: '/automations', icon: Zap, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Database', href: '/database', icon: Database, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Attendance', href: '/attendance', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER', 'TEAM_LEADER'] },
+  { label: 'Attendance', href: '/attendance', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'Deals', href: '/deals', icon: Briefcase, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Goals & Targets', href: '/goals', icon: TrendingUp, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Interview for Hiring', href: '/hr/interviews', icon: UserCheck, roles: ['ADMIN', 'MANAGER', 'HR'] },
-  { label: 'The Notice Board', href: '/communicate', icon: Radio, dividerAfter: true, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN'] },
+  { label: 'The Notice Board', href: '/communicate', icon: Radio, dividerAfter: true, roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'Settings', href: '/settings', icon: Settings, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Company Profile Settings', href: '/profile', icon: Building2, roles: ['ADMIN'] },
-  { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
-  { label: 'About & Developer', href: '/about', icon: Info, roles: ['ADMIN', 'MANAGER', 'HR', 'TEAM_LEADER', 'SALES_EXEC'] },
+  { label: 'Support', href: '/help', icon: HelpCircle, roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'About & Developer', href: '/about', icon: Info, roles: ['ADMIN', 'MANAGER', 'HR'] },
 ];
 
 const HREF_TO_MODULE_KEY: Record<string, string> = {
@@ -75,9 +135,19 @@ const HREF_TO_MODULE_KEY: Record<string, string> = {
   '/profile': 'PROFILE',
   '/help': 'SUPPORT',
   '/about': 'SUPPORT',
+  '/tl/lead-assignment': 'LEAD_ASSIGNMENT',
+  '/tasks': 'TASKS',
 };
 
-import { LogoutConfirmModal } from '@/components/common/LogoutConfirmModal';
+const roleDefaultsMap: Record<string, string[]> = {
+  ADMIN:       Object.values(HREF_TO_MODULE_KEY),
+  SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS'],
+  HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
+  UNASSIGNED:  [],
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -87,6 +157,7 @@ export function Sidebar() {
   const [mounted, setMounted] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [policies, setPolicies] = useState<Record<string, any>>({});
+  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({ Leads: true });
 
   useEffect(() => {
     setMounted(true);
@@ -109,60 +180,10 @@ export function Sidebar() {
   };
 
   const currentNormalizedRole = normalizeRoleStr(currentUser?.role || inferRoleFromEmail(currentUser?.email) || 'SALES_EXEC');
-
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(currentNormalizedRole);
   const profileHref = isAdmin ? '/profile' : '/settings/profile';
 
-  // Strict role-based + Admin Control Center policy navigation item filtering
-  const filteredNav: NavItem[] = currentNormalizedRole === 'UNASSIGNED'
-    ? [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['UNASSIGNED' as any] }]
-    : adminNavigation.filter(item => {
-        // Admin Control Center is strictly for Administrator / Super Admin only
-        if (item.href === '/admin/control-center') {
-          return isAdmin;
-        }
-
-        // Dashboard is home for all roles — permanently visible
-        if (item.label === 'Dashboard') {
-          return true;
-        }
-
-        // Admin always has unrestricted full access to every module
-        if (isAdmin) {
-          return true;
-        }
-
-        // Check if there is an explicit policy override for this user & module
-        const modKey = HREF_TO_MODULE_KEY[item.href];
-        if (modKey) {
-          if (currentUser?.id) {
-            const userPolicyKey = `${currentUser.id}:${modKey}`;
-            if (policies[userPolicyKey] !== undefined) {
-              return Boolean(policies[userPolicyKey].active);
-            }
-          }
-
-          // Fresh user without explicit override: ONLY default modules for their role are visible!
-          const roleDefaultsMap: Record<string, string[]> = {
-            ADMIN:       Object.values(HREF_TO_MODULE_KEY),
-            SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
-            MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT'],
-            TEAM_LEADER: ['LEADS', 'PIPELINE', 'ATTENDANCE', 'UPCOMING_COMMS', 'DEALS', 'REPORTS', 'SUPPORT'],
-            SALES_EXEC:  ['LEADS', 'ATTENDANCE', 'UPCOMING_COMMS', 'SUPPORT'],
-            HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT'],
-            UNASSIGNED:  [],
-          };
-          const roleDefaults = roleDefaultsMap[currentNormalizedRole] || [];
-          return roleDefaults.includes(modKey);
-        }
-
-        // Default role-based visibility check
-        if (!item.roles) return true;
-        const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
-        return normalizedItemRoles.includes(currentNormalizedRole);
-      });
-
-  // For Dashboard, route based on role
+  // Role dashboard home resolver
   const getDashboardHref = () => {
     if (currentNormalizedRole === 'UNASSIGNED') return '/dashboard';
     if (currentNormalizedRole === 'HR') return '/hr';
@@ -172,13 +193,98 @@ export function Sidebar() {
     return '/dashboard';
   };
 
-  const isItemActive = (item: NavItem) => {
-    const href = item.label === 'Dashboard' ? getDashboardHref() : item.href;
-    const cleanHref = href.split('?')[0]; // ignore query params for matching
-    if (pathname === cleanHref) return true;
-    if (cleanHref !== '/dashboard' && cleanHref !== '/' && pathname.startsWith(cleanHref)) return true;
-    return false;
+  // Precise active state matcher supporting query parameters
+  const isHrefActive = (href: string) => {
+    const [itemPath, itemQuery] = href.split('?');
+
+    if (itemPath === '/dashboard' || itemPath.startsWith('/dashboard/')) {
+      const dashHref = getDashboardHref();
+      return pathname === dashHref || (dashHref === '/dashboard' && pathname === '/dashboard');
+    }
+
+    if (pathname !== itemPath && !pathname.startsWith(itemPath + '/')) {
+      return false;
+    }
+
+    if (itemQuery) {
+      if (typeof window === 'undefined') return false;
+      const urlParams = new URLSearchParams(itemQuery);
+      const currentParams = new URLSearchParams(window.location.search);
+      for (const [k, v] of urlParams.entries()) {
+        if (currentParams.get(k) !== v) return false;
+      }
+      return true;
+    }
+
+    // When link has no query param, only match if current window URL also has no filter/view/status query params
+    if (typeof window !== 'undefined' && window.location.search) {
+      const currentParams = new URLSearchParams(window.location.search);
+      if (
+        currentParams.get('status') ||
+        currentParams.get('filter') ||
+        currentParams.get('view') ||
+        currentParams.get('type') ||
+        currentParams.get('tab')
+      ) {
+        return false;
+      }
+    }
+
+    return pathname === itemPath;
   };
+
+  const toggleSubMenu = (label: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpenSubMenus(prev => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  };
+
+  // Select base navigation list according to role
+  let baseNavList: NavItem[] = adminNavigation;
+  if (currentNormalizedRole === 'SALES_EXEC') {
+    baseNavList = salesRepNavigation;
+  } else if (currentNormalizedRole === 'TEAM_LEADER') {
+    baseNavList = teamLeaderNavigation;
+  } else if (currentNormalizedRole === 'UNASSIGNED') {
+    baseNavList = [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['UNASSIGNED' as any] }];
+  }
+
+  // Filter based on Admin Control Center user policies and role defaults
+  const filteredNav: NavItem[] = baseNavList.filter(item => {
+    if (item.href === '/admin/control-center') {
+      return isAdmin;
+    }
+    if (item.label === 'Dashboard') {
+      return true;
+    }
+    if (isAdmin) {
+      return true;
+    }
+
+    const basePath = item.href.split('?')[0];
+    const modKey = item.moduleKey || HREF_TO_MODULE_KEY[basePath] || HREF_TO_MODULE_KEY[item.href];
+
+    if (modKey) {
+      // Check explicit policy override for this user
+      if (currentUser?.id) {
+        const userPolicyKey = `${currentUser.id}:${modKey}`;
+        if (policies[userPolicyKey] !== undefined) {
+          return Boolean(policies[userPolicyKey].active);
+        }
+      }
+
+      // Fresh user without override: follow role defaults
+      const roleDefaults = roleDefaultsMap[currentNormalizedRole] || [];
+      return roleDefaults.includes(modKey);
+    }
+
+    if (!item.roles) return true;
+    const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
+    return normalizedItemRoles.includes(currentNormalizedRole);
+  });
 
   return (
     <>
@@ -251,10 +357,12 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-1 pb-4 min-h-0">
+        <nav className="flex-1 overflow-y-auto px-1 pb-4 min-h-0 space-y-0.5">
           {filteredNav.map((item) => {
             const targetHref = item.label === 'Dashboard' ? getDashboardHref() : item.href;
-            const isActive = isItemActive(item);
+            const isActive = isHrefActive(item.href);
+            const hasSub = Boolean(item.subItems && item.subItems.length > 0);
+            const isExpanded = openSubMenus[item.label] ?? (item.href === '/leads' && pathname.startsWith('/leads'));
 
             if (item.upcoming) {
               return (
@@ -276,12 +384,69 @@ export function Sidebar() {
 
             return (
               <div key={item.href + item.label}>
-                <Link href={targetHref} onClick={closeMobile}>
-                  <div className={cn('sidebar-item', isActive && 'active')} title={item.label}>
-                    <item.icon size={17} className="flex-shrink-0" />
-                    <span className="sidebar-label truncate">{item.label}</span>
+                <div className="flex items-center group/item">
+                  <Link
+                    href={targetHref}
+                    onClick={() => {
+                      closeMobile();
+                      if (hasSub) {
+                        setOpenSubMenus(prev => ({ ...prev, [item.label]: true }));
+                      }
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <div className={cn('sidebar-item', isActive && 'active')} title={item.label}>
+                      <item.icon size={17} className="flex-shrink-0" />
+                      <span className="sidebar-label truncate">{item.label}</span>
+                    </div>
+                  </Link>
+
+                  {/* Expand / Collapse toggle for tree menu */}
+                  {hasSub && !collapsed && (
+                    <button
+                      type="button"
+                      onClick={(e) => toggleSubMenu(item.label, e)}
+                      className="p-1.5 mr-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+                      title={isExpanded ? 'Collapse sub-menu' : 'Expand sub-menu'}
+                    >
+                      <ChevronDown
+                        size={14}
+                        className={cn('transition-transform duration-200', isExpanded ? 'rotate-180' : '')}
+                      />
+                    </button>
+                  )}
+                </div>
+
+                {/* Sub-item tree hierarchy (Indented with branch line) */}
+                {hasSub && isExpanded && !collapsed && (
+                  <div className="ml-5 pl-2.5 my-1 border-l-2 border-indigo-500/30 flex flex-col space-y-1">
+                    {item.subItems!.map((sub) => {
+                      const isSubActive = isHrefActive(sub.href);
+                      return (
+                        <Link
+                          key={sub.href + sub.label}
+                          href={sub.href}
+                          onClick={closeMobile}
+                          className={cn(
+                            'flex items-center gap-2 py-1 px-2.5 rounded-lg text-xs font-medium transition-all group/sub',
+                            isSubActive
+                              ? 'bg-indigo-600/25 text-indigo-300 font-semibold shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'w-1.5 h-1.5 rounded-full transition-all flex-shrink-0',
+                              isSubActive ? 'bg-indigo-400 scale-125' : 'bg-slate-600 group-hover/sub:bg-slate-300'
+                            )}
+                          />
+                          <span className="truncate">{sub.label}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
-                </Link>
+                )}
+
                 {item.dividerAfter && <div className="sidebar-divider" />}
               </div>
             );
