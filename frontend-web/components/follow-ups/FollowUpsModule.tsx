@@ -47,7 +47,7 @@ const fetchApi = async (endpoint: string, token: string, options: RequestInit = 
 type TabId = 'ALL' | 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'CALENDAR';
 
 export default function FollowUpsModule() {
-  const { getToken } = useAuth();
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('TODAY');
   
   // Data state
@@ -68,7 +68,6 @@ export default function FollowUpsModule() {
   
   const loadSummary = async () => {
     try {
-      const token = await getToken();
       if (!token) return;
       const data = await fetchApi('/follow-ups/summary', token);
       setSummary(data);
@@ -80,7 +79,7 @@ export default function FollowUpsModule() {
   const loadTodayData = async () => {
     try {
       setLoading(true);
-      const token = await getToken();
+
       if (!token) return;
       const data = await fetchApi('/follow-ups/today', token);
       setTodayData(data);
@@ -94,7 +93,7 @@ export default function FollowUpsModule() {
   const loadAllData = async (statusFilter?: string) => {
     try {
       setLoading(true);
-      const token = await getToken();
+
       if (!token) return;
       
       let endpoint = '/follow-ups?limit=100';
@@ -112,7 +111,7 @@ export default function FollowUpsModule() {
   const loadCalendarData = async () => {
     try {
       setLoading(true);
-      const token = await getToken();
+
       if (!token) return;
       
       const now = new Date();
@@ -132,7 +131,7 @@ export default function FollowUpsModule() {
     if (!query) return;
     try {
       setLoading(true);
-      const token = await getToken();
+
       if (!token) return;
       const data = await fetchApi(`/follow-ups/search?q=${encodeURIComponent(query)}`, token);
       setAllData(data || []);
@@ -174,7 +173,7 @@ export default function FollowUpsModule() {
   
   const handleComplete = async (payload: any) => {
     try {
-      const token = await getToken();
+
       if (!token) return;
       await fetchApi(`/follow-ups/${selectedFollowUp.id}/complete`, token, {
         method: 'PATCH',
@@ -193,7 +192,7 @@ export default function FollowUpsModule() {
 
   const handleReschedule = async (payload: any) => {
     try {
-      const token = await getToken();
+
       if (!token) return;
       await fetchApi(`/follow-ups/${selectedFollowUp.id}/reschedule`, token, {
         method: 'PATCH',
@@ -213,7 +212,7 @@ export default function FollowUpsModule() {
   const handleCancel = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this follow-up?')) return;
     try {
-      const token = await getToken();
+
       if (!token) return;
       await fetchApi(`/follow-ups/${id}/cancel`, token, { method: 'PATCH', body: JSON.stringify({}) });
       setSelectedFollowUp(null);
@@ -395,7 +394,7 @@ export default function FollowUpsModule() {
                 )}
               </div>
             ) : activeTab === 'CALENDAR' ? (
-              <SimpleCalendar data={calendarData} onSelectDate={(date) => {}} onSelectFollowUp={setSelectedFollowUp} />
+              <SimpleCalendar data={calendarData} onSelectDate={(date: Date) => {}} onSelectFollowUp={setSelectedFollowUp} />
             ) : (
               <div className="space-y-2">
                 {allData.length > 0 ? (
@@ -834,7 +833,7 @@ function RescheduleModal({ item, onClose, onSubmit }: any) {
 }
 
 function CreateFollowUpModal({ onClose, onCreated }: any) {
-  const { getToken } = useAuth();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -849,7 +848,7 @@ function CreateFollowUpModal({ onClose, onCreated }: any) {
     e.preventDefault();
     try {
       setLoading(true);
-      const token = await getToken();
+
       if (!token) return;
       await fetchApi('/follow-ups', token, { method: 'POST', body: JSON.stringify(formData) });
       onCreated();
