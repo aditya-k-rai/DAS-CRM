@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckSquare, Clock, Calendar, Plus, Filter, Search, CheckCircle2,
-  AlertCircle, Users, ArrowRight, Trash2, X, Phone, Video, RefreshCw
+  AlertCircle, Users, ArrowRight, Trash2, X, Phone, Video, RefreshCw,
+  User, Building2, CalendarCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -115,6 +116,87 @@ export function TasksHubView() {
   const [newDueDate, setNewDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [newDueTime, setNewDueTime] = useState('11:00 AM');
   const [newDescription, setNewDescription] = useState('');
+
+  // Searchable lead picker state
+  const [leadsList, setLeadsList] = useState<Array<{ id: string; name: string; phone?: string; company?: string; status?: string }>>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [selectedLead, setSelectedLead] = useState<{ id: string; name: string; phone?: string; company?: string; status?: string } | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Fetch available leads for activity scheduling
+  useEffect(() => {
+    let isMounted = true;
+    const loadLeads = async () => {
+      try {
+        setLeadsLoading(true);
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const res = await fetch(`${apiBase}/leads?limit=100`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          const raw = Array.isArray(data) ? data : data?.data || data?.leads || [];
+          const parsed = raw.map((l: any) => ({
+            id: String(l.id),
+            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+            phone: l.phone || l.mobilePhone || '',
+            company: l.company || l.companyName || '',
+            status: l.status?.name || l.status || 'Active',
+          }));
+          setLeadsList(parsed);
+        }
+      } catch (err) {
+        console.warn('Leads fetch notice in TasksHubView:', err);
+      } finally {
+        if (isMounted) setLeadsLoading(false);
+      }
+    };
+    loadLeads();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredLeads = useMemo(() => {
+    if (!leadSearchQuery.trim()) return leadsList.slice(0, 8);
+    const q = leadSearchQuery.toLowerCase().trim();
+    return leadsList
+      .filter(
+        (l) =>
+          l.name.toLowerCase().includes(q) ||
+          (l.phone && l.phone.includes(q)) ||
+          (l.company && l.company.toLowerCase().includes(q))
+      )
+      .slice(0, 10);
+  }, [leadsList, leadSearchQuery]);
+
+  const handleSelectLeadInTask = (lead: { id: string; name: string; phone?: string; company?: string; status?: string }) => {
+    setSelectedLead(lead);
+    setIsDropdownOpen(false);
+    setLeadSearchQuery('');
+    setNewLeadName(lead.name + (lead.company ? ` (${lead.company})` : ''));
+
+    const typePrefix =
+      newType === 'MEETING'
+        ? 'Demo & Meeting with'
+        : newType === 'CALL'
+        ? 'Call with'
+        : 'Follow-up with';
+
+    if (!newTitle || newTitle.startsWith('Call with') || newTitle.startsWith('Demo') || newTitle.startsWith('Meeting') || newTitle.startsWith('Follow-up with')) {
+      setNewTitle(`${typePrefix} ${lead.name}${lead.company ? ` (${lead.company})` : ''}`);
+    }
+  };
+
+  const handleClearLeadInTask = () => {
+    setSelectedLead(null);
+    setNewLeadName('');
+  };
 
   // Sync tab with URL search params (e.g. ?type=follow-up or ?type=meeting or ?filter=follow-ups)
   useEffect(() => {
@@ -576,15 +658,117 @@ export function TasksHubView() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-slate-400 block mb-1">Related Client / Lead</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Rajesh Sharma (NexTech)"
-                  value={newLeadName}
-                  onChange={e => setNewLeadName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                />
+              {/* Searchable Lead Selector */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                    <User size={13} className="text-indigo-400" /> Related Client / Lead
+                  </label>
+                  {selectedLead && (
+                    <button
+                      type="button"
+                      onClick={handleClearLeadInTask}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {selectedLead ? (
+                  <div className="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-300 font-black text-xs flex items-center justify-center border border-indigo-500/30 shrink-0">
+                        {selectedLead.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                          <span className="truncate">{selectedLead.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-bold shrink-0">
+                            {selectedLead.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-2 truncate mt-0.5">
+                          {selectedLead.phone && <span>📞 {selectedLead.phone}</span>}
+                          {selectedLead.company && <span className="truncate">🏢 {selectedLead.company}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearLeadInTask}
+                      className="p-1 rounded text-slate-400 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+                      <input
+                        type="text"
+                        placeholder="Search lead by name, company, or phone..."
+                        value={newLeadName || leadSearchQuery}
+                        onFocus={() => setIsDropdownOpen(true)}
+                        onChange={(e) => {
+                          setNewLeadName(e.target.value);
+                          setLeadSearchQuery(e.target.value);
+                          setIsDropdownOpen(true);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      {(newLeadName || leadSearchQuery) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewLeadName('');
+                            setLeadSearchQuery('');
+                          }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    {isDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
+                        {leadsLoading ? (
+                          <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                            <RefreshCw size={13} className="animate-spin text-indigo-400" />
+                            Loading assigned leads...
+                          </div>
+                        ) : filteredLeads.length === 0 ? (
+                          <div className="p-2.5 text-center text-xs text-slate-400">
+                            {leadSearchQuery ? 'No matching leads. (Custom text will be saved)' : 'No leads found.'}
+                          </div>
+                        ) : (
+                          filteredLeads.map((lead) => (
+                            <div
+                              key={lead.id}
+                              onClick={() => handleSelectLeadInTask(lead)}
+                              className="p-2 hover:bg-slate-900 cursor-pointer flex items-center justify-between transition-colors text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                  {lead.name.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-white truncate">{lead.name}</div>
+                                  <div className="text-[10px] text-slate-400 truncate">
+                                    {lead.company || lead.phone || 'Direct'}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold text-indigo-400 shrink-0 ml-2">Select</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

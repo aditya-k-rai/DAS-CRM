@@ -37,6 +37,11 @@ interface FileUploadHistoryItem {
   fileSize: string;
   uploadedAt: string;
   leadsCount: number;
+  rowsCount?: number;
+  colsCount?: number;
+  sourcePlatform?: string;
+  downloadUrl?: string;
+  rawFileBlob?: Blob | File;
   uploadedBy: string;
   status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
 }
@@ -148,6 +153,67 @@ export default function LeadPipelinePage() {
     };
     fetchUsers();
   }, []);
+
+  // Fetch ingestion history from backend
+  useEffect(() => {
+    const fetchIngestionHistory = async () => {
+      try {
+        const token = localStorage.getItem('das_crm_token') || localStorage.getItem('token');
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/leads/ingestion-history`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.fileUploadHistory && data.fileUploadHistory.length > 0) {
+            setFileUploadHistory(prev => (prev.length === 0 ? data.fileUploadHistory : prev));
+          }
+          if (data.googleSheetsHistory && data.googleSheetsHistory.length > 0) {
+            setGoogleSheetHistory(prev => (prev.length === 0 ? data.googleSheetsHistory : prev));
+          }
+          if (data.datewiseAnalytics && data.datewiseAnalytics.length > 0) {
+            setDatewiseAnalytics(prev => (prev.length === 0 ? data.datewiseAnalytics : prev));
+          }
+        }
+      } catch (_) {}
+    };
+    fetchIngestionHistory();
+  }, []);
+
+  // Secure File Download (Admin and Manager Only)
+  const handleDownloadFile = (item: FileUploadHistoryItem) => {
+    if (!isAdminOrManager) {
+      alert('⛔ Access Denied: Only Admin and Manager roles are permitted to download imported lead files.');
+      return;
+    }
+
+    if (item.rawFileBlob) {
+      const url = URL.createObjectURL(item.rawFileBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.fileName.endsWith('.xlsx') || item.fileName.endsWith('.csv') ? item.fileName : `${item.fileName}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (item.downloadUrl) {
+      window.open(item.downloadUrl, '_blank');
+      return;
+    }
+
+    // Fallback: Generate spreadsheet from current active pipeline leads
+    const wb = XLSX.utils.book_new();
+    const headers = ['Lead Name', 'Email Address', 'Phone Number', 'Company', 'Source Platform', 'Stage', 'Value (INR)', 'Assigned Rep'];
+    const rows = leadDirectory.slice(0, item.leadsCount || 100).map(l => [
+      l.name, l.email, l.phone, l.company, l.source || item.sourcePlatform || 'Spreadsheet Import', l.stage, l.value, l.assignedRep
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Imported Leads');
+    XLSX.writeFile(wb, item.fileName.endsWith('.xlsx') || item.fileName.endsWith('.csv') ? item.fileName : `${item.fileName}.xlsx`);
+  };
 
   // Custom Column Form
   const [newColName, setNewColName] = useState('');
@@ -1178,30 +1244,73 @@ export default function LeadPipelinePage() {
                 <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
                   <tr>
                     <th className="p-3">Uploaded File Name</th>
-                    <th className="p-3">File Size</th>
+                    <th className="p-3">Dimensions (Rows × Cols)</th>
                     <th className="p-3 text-purple-300">Total Leads Ingested</th>
+                    <th className="p-3">File Size</th>
                     <th className="p-3">Upload Timestamp</th>
                     <th className="p-3">Uploaded By User</th>
-                    <th className="p-3 text-right">Status</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {fileUploadHistory.map(item => (
-                    <tr key={item.id} className="hover:bg-slate-900/60">
-                      <td className="p-3 font-extrabold text-white flex items-center gap-1.5">
-                        <FileSpreadsheet size={14} className="text-purple-400" /> {item.fileName}
-                      </td>
-                      <td className="p-3 font-mono text-slate-400">{item.fileSize}</td>
-                      <td className="p-3 font-mono font-extrabold text-purple-300">+{item.leadsCount} Leads</td>
-                      <td className="p-3 font-mono text-muted text-[11px]">{item.uploadedAt}</td>
-                      <td className="p-3 font-semibold text-slate-300">{item.uploadedBy}</td>
-                      <td className="p-3 text-right">
-                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          {item.status}
-                        </span>
+                  {fileUploadHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-6 text-center text-slate-500 font-semibold">
+                        No spreadsheet files uploaded yet. Click &quot;Import CSV / Excel&quot; to ingest leads.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    fileUploadHistory.map(item => (
+                      <tr key={item.id} className="hover:bg-slate-900/60">
+                        <td className="p-3 font-extrabold text-white">
+                          <div className="flex items-center gap-1.5">
+                            <FileSpreadsheet size={14} className="text-purple-400 shrink-0" />
+                            <span>{item.fileName}</span>
+                            {item.sourcePlatform && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                {item.sourcePlatform}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px] font-bold border border-slate-700">
+                            {item.rowsCount || item.leadsCount} Rows × {item.colsCount || 8} Cols
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono font-extrabold text-purple-300">+{item.leadsCount} Leads</td>
+                        <td className="p-3 font-mono text-slate-400">{item.fileSize}</td>
+                        <td className="p-3 font-mono text-muted text-[11px]">{item.uploadedAt}</td>
+                        <td className="p-3 font-semibold text-slate-300">{item.uploadedBy}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {isAdminOrManager ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(item)}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/60 text-indigo-200 hover:text-white border border-indigo-500/40 text-xs font-bold inline-flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
+                              title="Download original spreadsheet file (Admin & Manager Only)"
+                            >
+                              <Download size={13} className="text-indigo-400" />
+                              <span>Download File</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="px-2.5 py-1 rounded-lg bg-slate-800/80 text-slate-500 border border-slate-700/50 text-[11px] font-semibold inline-flex items-center gap-1 cursor-not-allowed"
+                              title="File downloads are restricted to Admin and Manager roles only"
+                            >
+                              <Lock size={12} /> Admin/Manager Only
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1542,6 +1651,11 @@ export default function LeadPipelinePage() {
               fileSize: audit.fileSize || '—',
               uploadedAt: audit.date,
               leadsCount: audit.count,
+              rowsCount: audit.rowsCount || audit.count,
+              colsCount: audit.colsCount || 8,
+              sourcePlatform: audit.platform || 'Spreadsheet Ingestion',
+              rawFileBlob: audit.rawFileBlob,
+              downloadUrl: audit.storageUrl,
               uploadedBy: currentUser?.name ? `${currentUser.name} (${currentUser.role})` : 'Admin',
               status: 'SUCCESS' as const,
             };
@@ -1552,8 +1666,8 @@ export default function LeadPipelinePage() {
               fileName: audit.filename,
               injectedAt: audit.date || new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               leadsCount: audit.count,
-              colsCount: 8,
-              platform: 'Spreadsheet Ingestion',
+              colsCount: audit.colsCount || 8,
+              platform: audit.platform || 'Spreadsheet Ingestion',
               status: 'PENDING_ALLOCATION' as const,
             };
             setWebAuditLogs(prev => [newAuditLogItem, ...prev]);

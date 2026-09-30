@@ -1172,14 +1172,18 @@ export class LeadsService {
             ...(cleanEmails.length > 0 ? [{ email: { in: cleanEmails } }] : []),
           ],
         },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          email: true,
+        include: {
           status: true,
-          createdAt: true,
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          company: { select: { id: true, name: true } },
+          source: { select: { id: true, name: true } },
         },
         take: 1000,
       });
@@ -1193,8 +1197,12 @@ export class LeadsService {
         name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Existing Lead',
         phone: l.phone || '',
         email: l.email || '',
-        status: l.status || 'NEW',
-        createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Previously',
+        company: l.company?.name || 'N/A',
+        status: l.status?.name || 'NEW',
+        statusColor: l.status?.color || '#6366f1',
+        assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+        source: l.source?.name || 'Direct Ingestion',
+        createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Previously Uploaded',
       })),
     };
   }

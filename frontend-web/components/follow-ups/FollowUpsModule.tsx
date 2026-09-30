@@ -1463,6 +1463,15 @@ function RescheduleModal({ item, onClose, onSubmit }: any) {
   );
 }
 
+interface LeadOption {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  company?: string;
+  status?: string;
+}
+
 function CreateFollowUpModal({
   presetType = 'CALL',
   onClose,
@@ -1474,14 +1483,120 @@ function CreateFollowUpModal({
 }) {
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsList, setLeadsList] = useState<LeadOption[]>([]);
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '',
     followUpType: presetType,
+    leadId: undefined as string | undefined,
     scheduledDate: new Date().toISOString().split('T')[0],
     scheduledTime: '11:00',
     priority: 'MEDIUM',
     purpose: '',
   });
+
+  // Fetch available leads for selection
+  useEffect(() => {
+    let isMounted = true;
+    const loadLeads = async () => {
+      try {
+        setLeadsLoading(true);
+        const data = await fetchApi('/leads?limit=100', token);
+        const raw = Array.isArray(data) ? data : data?.data || data?.leads || [];
+        if (isMounted) {
+          const parsed: LeadOption[] = raw.map((l: any) => ({
+            id: String(l.id),
+            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+            phone: l.phone || l.mobilePhone || '',
+            email: l.email || '',
+            company: l.company || l.companyName || '',
+            status: l.status?.name || l.status || 'Active',
+          }));
+          setLeadsList(parsed);
+        }
+      } catch (err) {
+        console.warn('Leads fetch notice:', err);
+      } finally {
+        if (isMounted) setLeadsLoading(false);
+      }
+    };
+    loadLeads();
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
+
+  // Filtered leads based on search query
+  const filteredLeads = useMemo(() => {
+    if (!leadSearchQuery.trim()) return leadsList.slice(0, 8);
+    const q = leadSearchQuery.toLowerCase().trim();
+    return leadsList
+      .filter(
+        (l) =>
+          l.name.toLowerCase().includes(q) ||
+          (l.phone && l.phone.includes(q)) ||
+          (l.company && l.company.toLowerCase().includes(q)) ||
+          (l.email && l.email.toLowerCase().includes(q))
+      )
+      .slice(0, 10);
+  }, [leadsList, leadSearchQuery]);
+
+  const handleSelectLead = (lead: LeadOption) => {
+    setSelectedLead(lead);
+    setIsDropdownOpen(false);
+    setLeadSearchQuery('');
+
+    const typePrefix =
+      formData.followUpType === 'MEETING'
+        ? 'Demo & Meeting with'
+        : formData.followUpType === 'CALL'
+        ? 'Call with'
+        : formData.followUpType === 'WHATSAPP'
+        ? 'WhatsApp Follow-up with'
+        : formData.followUpType === 'EMAIL'
+        ? 'Email Touchpoint with'
+        : 'Follow-up with';
+
+    const suggestedTitle = `${typePrefix} ${lead.name}${lead.company ? ` (${lead.company})` : ''}`;
+
+    setFormData((prev) => ({
+      ...prev,
+      leadId: lead.id,
+      title: prev.title && !prev.title.startsWith('Call with') && !prev.title.startsWith('Meeting with') && !prev.title.startsWith('Demo') && !prev.title.startsWith('Follow-up with') && !prev.title.startsWith('WhatsApp') && !prev.title.startsWith('Email')
+        ? prev.title
+        : suggestedTitle,
+    }));
+  };
+
+  const handleClearSelectedLead = () => {
+    setSelectedLead(null);
+    setFormData((prev) => ({ ...prev, leadId: undefined }));
+  };
+
+  const handleChannelChange = (newType: any) => {
+    const typePrefix =
+      newType === 'MEETING'
+        ? 'Demo & Meeting with'
+        : newType === 'CALL'
+        ? 'Call with'
+        : newType === 'WHATSAPP'
+        ? 'WhatsApp Follow-up with'
+        : newType === 'EMAIL'
+        ? 'Email Touchpoint with'
+        : 'Follow-up with';
+
+    setFormData((prev) => ({
+      ...prev,
+      followUpType: newType,
+      title: selectedLead
+        ? `${typePrefix} ${selectedLead.name}${selectedLead.company ? ` (${selectedLead.company})` : ''}`
+        : prev.title,
+    }));
+  };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -1499,42 +1614,165 @@ function CreateFollowUpModal({
     }
   };
 
+  const modalTitle =
+    formData.followUpType === 'MEETING'
+      ? 'Schedule Product Demo / Meeting'
+      : formData.followUpType === 'CALL'
+      ? 'Schedule Phone Call'
+      : formData.followUpType === 'WHATSAPP'
+      ? 'Schedule WhatsApp Touchpoint'
+      : 'Schedule New Follow-up';
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
           <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-            <Plus className="text-indigo-400" size={18} /> Schedule New Follow-up
+            {formData.followUpType === 'MEETING' ? (
+              <CalendarCheck className="text-amber-400" size={18} />
+            ) : (
+              <Plus className="text-indigo-400" size={18} />
+            )}
+            {modalTitle}
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
             <X size={18} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-3.5">
-          <div>
-            <label className="text-xs font-semibold text-slate-400 mb-1 block">Title / Topic *</label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="e.g. Discuss Q4 software quotation & onboarding"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-            />
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-3.5 max-h-[82vh] overflow-y-auto">
+          {/* ── 1. SEARCH & SELECT LEAD / PROSPECT ───────────────────────────── */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <User size={13} className="text-indigo-400" /> Select Lead / Prospect
+              </label>
+              {selectedLead && (
+                <button
+                  type="button"
+                  onClick={handleClearSelectedLead}
+                  className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold"
+                >
+                  Change Lead
+                </button>
+              )}
+            </div>
+
+            {selectedLead ? (
+              <div className="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600/30 text-indigo-300 font-black text-xs flex items-center justify-center border border-indigo-500/30 shrink-0">
+                    {selectedLead.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                      <span className="truncate">{selectedLead.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-extrabold shrink-0 border border-indigo-500/30">
+                        {selectedLead.status}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-2 truncate mt-0.5">
+                      {selectedLead.phone && <span>📞 {selectedLead.phone}</span>}
+                      {selectedLead.company && <span className="truncate">🏢 {selectedLead.company}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSelectedLead}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0 ml-2"
+                  title="Remove lead association"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Search prospect by name, company, phone, or email..."
+                    value={leadSearchQuery}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onChange={(e) => {
+                      setLeadSearchQuery(e.target.value);
+                      setIsDropdownOpen(true);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                  />
+                  {leadSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setLeadSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown list */}
+                {isDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-52 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
+                    {leadsLoading ? (
+                      <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                        <RefreshCw size={13} className="animate-spin text-indigo-400" />
+                        Loading assigned leads...
+                      </div>
+                    ) : filteredLeads.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-400">
+                        {leadSearchQuery ? 'No matching leads found.' : 'No leads available.'}
+                      </div>
+                    ) : (
+                      filteredLeads.map((lead) => (
+                        <div
+                          key={lead.id}
+                          onClick={() => handleSelectLead(lead)}
+                          className="p-2.5 hover:bg-slate-900 cursor-pointer flex items-center justify-between transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 font-black text-[11px] flex items-center justify-center shrink-0">
+                              {lead.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                                <span className="truncate">{lead.name}</span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-bold shrink-0">
+                                  {lead.status}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex items-center gap-2 truncate mt-0.5">
+                                {lead.phone && <span>📞 {lead.phone}</span>}
+                                {lead.company && <span className="truncate">🏢 {lead.company}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-indigo-400 hover:underline shrink-0 ml-2">
+                            Select
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* ── 2. CHANNEL TYPE & PRIORITY ────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-400 mb-1 block">Channel Type *</label>
               <select
                 value={formData.followUpType}
-                onChange={(e) => setFormData({ ...formData, followUpType: e.target.value as any })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                onChange={(e) => handleChannelChange(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
               >
+                <option value="MEETING">🤝 Demo / Meeting</option>
                 <option value="CALL">📞 Phone Call</option>
                 <option value="WHATSAPP">💬 WhatsApp Message</option>
                 <option value="EMAIL">✉️ Email Touchpoint</option>
-                <option value="MEETING">🤝 Demo / Meeting</option>
                 <option value="GENERAL">⚡ General Follow-up</option>
               </select>
             </div>
@@ -1543,7 +1781,7 @@ function CreateFollowUpModal({
               <select
                 value={formData.priority}
                 onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
               >
                 <option value="HIGH">🔥 High Priority</option>
                 <option value="MEDIUM">⚡ Medium Priority</option>
@@ -1552,6 +1790,20 @@ function CreateFollowUpModal({
             </div>
           </div>
 
+          {/* ── 3. TITLE / TOPIC ──────────────────────────────────────────────── */}
+          <div>
+            <label className="text-xs font-semibold text-slate-400 mb-1 block">Title / Topic *</label>
+            <input
+              type="text"
+              required
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="e.g. Discuss Q4 software quotation & onboarding"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          {/* ── 4. SCHEDULED DATE & TIME ──────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-400 mb-1 block">Date *</label>
@@ -1560,7 +1812,7 @@ function CreateFollowUpModal({
                 required
                 value={formData.scheduledDate}
                 onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white [color-scheme:dark]"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white [color-scheme:dark] focus:border-indigo-500 focus:outline-none"
               />
             </div>
             <div>
@@ -1570,11 +1822,12 @@ function CreateFollowUpModal({
                 required
                 value={formData.scheduledTime}
                 onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white [color-scheme:dark]"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white [color-scheme:dark] focus:border-indigo-500 focus:outline-none"
               />
             </div>
           </div>
 
+          {/* ── 5. AGENDA & NOTES ─────────────────────────────────────────────── */}
           <div>
             <label className="text-xs font-semibold text-slate-400 mb-1 block">Agenda & Key Talking Points</label>
             <textarea
@@ -1582,16 +1835,30 @@ function CreateFollowUpModal({
               onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
               rows={2}
               placeholder="What questions to ask, key objectives, discount limits..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
             />
           </div>
 
+          {/* ── 6. SUBMIT BUTTONS ─────────────────────────────────────────────── */}
           <div className="pt-2 flex justify-end gap-2 border-t border-slate-800/80">
             <button type="button" onClick={onClose} disabled={loading} className="btn-secondary text-xs">
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="btn-primary text-xs">
-              {loading ? 'Scheduling...' : 'Save & Schedule Follow-up'}
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={13} className="animate-spin" />
+                  Scheduling...
+                </>
+              ) : formData.followUpType === 'MEETING' ? (
+                'Save & Schedule Meeting'
+              ) : (
+                'Save & Schedule Follow-up'
+              )}
             </button>
           </div>
         </form>

@@ -8,7 +8,7 @@ import {
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
   Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw,
   AlertTriangle, Target, Filter, Phone, Mail, User, ShieldAlert,
-  Save, FastForward, UserX
+  Save, FastForward, UserX, Database
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
@@ -23,7 +23,20 @@ import {
 export interface FileImportEngineModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportLeads: (leads: any[], fileAuditRecord: { filename: string; fileSize: string; platform: string; count: number; date: string }) => void;
+  onImportLeads: (
+    leads: any[],
+    fileAuditRecord: {
+      filename: string;
+      fileSize: string;
+      platform: string;
+      count: number;
+      date: string;
+      rowsCount: number;
+      colsCount: number;
+      rawFileBlob?: Blob | File;
+      storageUrl?: string;
+    }
+  ) => void;
 }
 
 export interface ParsedSheet {
@@ -46,10 +59,17 @@ export interface DuplicateLeadRecord {
   email: string;
   matchType: 'PHONE' | 'EMAIL' | 'BOTH';
   matchedExistingLead?: {
+    id?: string;
     name: string;
     phone: string;
     email: string;
+    company?: string;
+    status?: string;
+    statusColor?: string;
+    assignedRep?: string;
+    source?: string;
     createdAt?: string;
+    isDatabaseMatch?: boolean;
   };
   resolution: 'UNRESOLVED' | 'RETARGET' | 'FILTER';
 }
@@ -604,10 +624,10 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     }));
   };
 
-  // Deduplication Scanner Function
+  // Deduplication Scanner Function (Cross-checks against Supabase Pre-Uploaded Records & Intra-File Rows)
   const runDeduplicationScan = useCallback((currentSheets: ParsedSheet[]) => {
     const dups: DuplicateLeadRecord[] = [];
-    const seenInFile = new Map<string, { sheetIdx: number; rowIdx: number; name: string }>();
+    const seenInFile = new Map<string, { sheetIdx: number; rowIdx: number; name: string; phone: string; email: string }>();
 
     currentSheets.forEach((sheet, sIdx) => {
       if (sheet.isBlocked) return;
@@ -629,42 +649,64 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         let matchedPrev: any = null;
         let matchType: 'PHONE' | 'EMAIL' | 'BOTH' | null = null;
 
-        // Compare against previous database leads
+        // 1. Compare against pre-uploaded Supabase database leads
         for (const prev of previousLeadsRef.current) {
           const pMatch = phone && isPhoneMatch(phone, prev.phone);
           const eMatch = email && isEmailMatch(email, prev.email);
 
           if (pMatch && eMatch) {
-            matchedPrev = prev;
+            matchedPrev = { ...prev, isDatabaseMatch: true };
             matchType = 'BOTH';
             break;
           } else if (pMatch) {
-            matchedPrev = prev;
+            matchedPrev = { ...prev, isDatabaseMatch: true };
             matchType = 'PHONE';
             break;
           } else if (eMatch) {
-            matchedPrev = prev;
+            matchedPrev = { ...prev, isDatabaseMatch: true };
             matchType = 'EMAIL';
             break;
           }
         }
 
-        // Compare within same file (intra-file duplicates)
+        // 2. Compare within current spreadsheet (intra-file duplicates)
         if (!matchedPrev) {
           const phoneKey = phone ? `phone_${phone.replace(/[^0-9]/g, '').slice(-10)}` : '';
           const emailKey = email ? `email_${email}` : '';
 
           if (phoneKey && seenInFile.has(phoneKey)) {
             const first = seenInFile.get(phoneKey)!;
-            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchedPrev = {
+              name: first.name,
+              phone: first.phone,
+              email: first.email,
+              company: 'Current Spreadsheet File',
+              status: 'UNSAVED_ROW',
+              statusColor: '#f59e0b',
+              assignedRep: 'Unassigned',
+              source: 'Same Upload Batch',
+              createdAt: `Row #${first.rowIdx + 1} in this file`,
+              isDatabaseMatch: false,
+            };
             matchType = 'PHONE';
           } else if (emailKey && seenInFile.has(emailKey)) {
             const first = seenInFile.get(emailKey)!;
-            matchedPrev = { name: first.name, phone, email, createdAt: `Row #${first.rowIdx + 1} in this file` };
+            matchedPrev = {
+              name: first.name,
+              phone: first.phone,
+              email: first.email,
+              company: 'Current Spreadsheet File',
+              status: 'UNSAVED_ROW',
+              statusColor: '#f59e0b',
+              assignedRep: 'Unassigned',
+              source: 'Same Upload Batch',
+              createdAt: `Row #${first.rowIdx + 1} in this file`,
+              isDatabaseMatch: false,
+            };
             matchType = 'EMAIL';
           } else {
-            if (phoneKey) seenInFile.set(phoneKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
-            if (emailKey) seenInFile.set(emailKey, { sheetIdx: sIdx, rowIdx: rIdx, name });
+            if (phoneKey) seenInFile.set(phoneKey, { sheetIdx: sIdx, rowIdx: rIdx, name, phone, email });
+            if (emailKey) seenInFile.set(emailKey, { sheetIdx: sIdx, rowIdx: rIdx, name, phone, email });
           }
         }
 
@@ -687,33 +729,50 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     setDuplicatesResolved(dups.length === 0);
   }, []);
 
-  // Fetch extra existing leads from backend API if online
+  // Fetch pre-uploaded existing leads from Supabase database via backend API
   React.useEffect(() => {
     if (!isOpen) return;
     const fetchExisting = async () => {
       try {
-        const token = localStorage.getItem('token') || '';
-        const res = await fetch('http://localhost:4000/api/leads?limit=500', {
+        const token = localStorage.getItem('token') || localStorage.getItem('das_crm_token') || '';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/leads?limit=1000`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
           const data = await res.json();
-          const items = data.data || data.leads || data || [];
+          const items = data.data || data.leads || (Array.isArray(data) ? data : []);
           if (Array.isArray(items) && items.length > 0) {
             const mapped = items.map((l: any) => ({
               id: l.id,
               name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'CRM Lead',
               phone: l.phone || '',
               email: l.email || '',
-              createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Previously',
+              company: l.company?.name || l.companyName || 'N/A',
+              status: l.status?.name || (typeof l.status === 'string' ? l.status : 'NEW'),
+              statusColor: l.status?.color || '#6366f1',
+              assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned'),
+              source: l.source?.name || l.source || 'Database Lead',
+              createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Previously Uploaded',
+              isDatabaseMatch: true,
             }));
-            previousLeadsRef.current = [...DEFAULT_PREVIOUS_LEADS, ...mapped];
+            previousLeadsRef.current = mapped;
+            if (sheets.length > 0) {
+              runDeduplicationScan(sheets);
+            }
           }
         }
       } catch (_) {}
     };
     fetchExisting();
-  }, [isOpen]);
+  }, [isOpen, sheets, runDeduplicationScan]);
+
+  // Reactive Deduplication Scan upon sheet data or mapping edits
+  React.useEffect(() => {
+    if (sheets.length > 0) {
+      runDeduplicationScan(sheets);
+    }
+  }, [sheets, runDeduplicationScan]);
 
   const handleSetSingleResolution = (sheetIndex: number, rowIndex: number, resolution: 'RETARGET' | 'FILTER') => {
     setDuplicateRecords(prev =>
@@ -1122,20 +1181,26 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
     const ext = (detectedFormat || 'xlsx').toLowerCase();
     const timestampedFileName = formatTimestampedFileName(fileName.trim() || 'Leads_Import', ext);
 
+    const totalDataRows = sheets.reduce((acc, s) => {
+      const rows = s.data.length;
+      return acc + (rows > 0 ? (s.rowMappings[0] === 'header' ? rows - 1 : rows) : 0);
+    }, 0);
+    const totalCols = sheets[0]?.data[0]?.length || 0;
+
+    let uploadBlob: Blob | File = selectedFileBlob!;
+    if (!uploadBlob) {
+      const wb = XLSX.utils.book_new();
+      sheets.forEach(s => {
+        const ws = XLSX.utils.aoa_to_sheet(s.data);
+        XLSX.utils.book_append_sheet(wb, ws, s.name);
+      });
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
     // ☁️ Automatically archive the imported Excel spreadsheet to Firebase Storage with Date & Time in filename
     (async () => {
       try {
-        let uploadBlob: Blob | File = selectedFileBlob!;
-        if (!uploadBlob) {
-          const wb = XLSX.utils.book_new();
-          sheets.forEach(s => {
-            const ws = XLSX.utils.aoa_to_sheet(s.data);
-            XLSX.utils.book_append_sheet(wb, ws, s.name);
-          });
-          const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-          uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        }
-
         const driveResult = await uploadLeadSpreadsheetToDrive(
           uploadBlob,
           `${fileName.trim() || 'Leads_Import'}.${ext}`,
@@ -1156,7 +1221,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       fileSize: fileSize || '—',
       platform: selectedPlatform,
       count: extractedLeads.length,
+      rowsCount: totalDataRows || extractedLeads.length,
+      colsCount: totalCols,
       date: formattedDate,
+      rawFileBlob: uploadBlob,
+      storageUrl: driveProgress?.driveDownloadUrl || driveProgress?.gcsDownloadUrl || '',
     });
 
     setCommittedLeadsCount(extractedLeads.length);
@@ -1708,7 +1777,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
             </div>
 
             {/* Duplicate Leads List */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               {duplicateRecords.map((dup, idx) => {
                 const isRetarget = dup.resolution === 'RETARGET';
                 const isFilter = dup.resolution === 'FILTER';
@@ -1716,62 +1785,133 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                 return (
                   <div
                     key={`${dup.sheetIndex}-${dup.rowIndex}-${idx}`}
-                    className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    className={`p-4 rounded-xl border transition-all flex flex-col gap-3 ${
                       isRetarget
-                        ? 'bg-indigo-950/30 border-indigo-500/50'
+                        ? 'bg-indigo-950/40 border-indigo-500/60 shadow-lg shadow-indigo-950/50'
                         : isFilter
-                        ? 'bg-rose-950/20 border-rose-500/40 opacity-75'
-                        : 'bg-slate-950/80 border-amber-500/40'
+                        ? 'bg-rose-950/30 border-rose-500/50 opacity-80'
+                        : 'bg-slate-950/90 border-amber-500/60 ring-1 ring-amber-500/30'
                     }`}
                   >
-                    {/* Lead Info & Match Details */}
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-400 font-bold">
-                          Row #{dup.rowIndex + 1}
+                    {/* Top Bar */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-md bg-slate-800 text-[11px] font-mono text-cyan-300 font-extrabold border border-slate-700">
+                          Sheet Row #{dup.rowIndex + 1}
                         </span>
-                        <h4 className="text-sm font-black text-white truncate">{dup.leadName}</h4>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Match: {dup.matchType}
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase flex items-center gap-1 border ${
+                          dup.matchType === 'BOTH'
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                            : dup.matchType === 'PHONE'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        }`}>
+                          <AlertTriangle size={12} />
+                          {dup.matchType === 'BOTH' ? 'Exact Match (Phone & Email)' : `${dup.matchType} Match`}
                         </span>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-xs text-slate-300 flex-wrap">
-                        {dup.phone && (
-                          <span className="flex items-center gap-1 font-mono text-emerald-400">
-                            <Phone size={12} /> {dup.phone}
+                        {dup.matchedExistingLead?.isDatabaseMatch ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
+                            <Database size={11} /> Pre-Uploaded in Supabase Database
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                            <FileSpreadsheet size={11} /> Intra-File Duplicate Row
                           </span>
                         )}
-                        {dup.email && (
-                          <span className="flex items-center gap-1 text-slate-300">
-                            <Mail size={12} className="text-amber-400" /> {dup.email}
+                      </div>
+
+                      {/* Status Badge */}
+                      <div>
+                        {isRetarget ? (
+                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1">
+                            🎯 Verified &amp; Marked for Retargeting
+                          </span>
+                        ) : isFilter ? (
+                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                            🗑️ Filtered Out (Will Not Ingest)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse flex items-center gap-1">
+                            ⚠️ Verification Action Required
                           </span>
                         )}
                       </div>
-
-                      {dup.matchedExistingLead && (
-                        <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                          <User size={11} className="text-indigo-400" />
-                          <span>
-                            Previously registered as <strong className="text-white">{dup.matchedExistingLead.name}</strong> ({dup.matchedExistingLead.createdAt || 'Previous Upload'})
-                          </span>
-                        </p>
-                      )}
                     </div>
 
-                    {/* Action Buttons for this Lead */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    {/* Side-by-Side Dual Box: Incoming Row vs Pre-Uploaded Database Lead */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Left: Incoming Spreadsheet Row */}
+                      <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 flex flex-col gap-1.5">
+                        <div className="text-[11px] uppercase tracking-wider font-extrabold text-cyan-400 flex items-center gap-1 mb-1">
+                          <Upload size={12} /> 1. Incoming Row in File
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Lead Name:</span>
+                          <span className="font-extrabold text-white text-right">{dup.leadName || '—'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Phone Number:</span>
+                          <span className="font-mono text-emerald-400 font-bold text-right">{dup.phone || '—'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Email Address:</span>
+                          <span className="text-amber-300 font-medium text-right truncate max-w-[200px]">{dup.email || '—'}</span>
+                        </div>
+                      </div>
+
+                      {/* Right: Existing Lead in Database (Supabase) */}
+                      <div className="p-3 rounded-lg bg-indigo-950/25 border border-indigo-500/30 flex flex-col gap-1.5">
+                        <div className="text-[11px] uppercase tracking-wider font-extrabold text-indigo-300 flex items-center gap-1 mb-1">
+                          <Database size={12} /> 2. Existing Supabase Database Record
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Lead Name:</span>
+                          <span className="font-extrabold text-white text-right">{dup.matchedExistingLead?.name || 'Pre-Uploaded Lead'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Phone Number:</span>
+                          <span className="font-mono text-emerald-400 font-bold text-right">{dup.matchedExistingLead?.phone || '—'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Email Address:</span>
+                          <span className="text-amber-300 font-medium text-right truncate max-w-[200px]">{dup.matchedExistingLead?.email || '—'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Company / Org:</span>
+                          <span className="text-slate-200 font-bold text-right">{dup.matchedExistingLead?.company || 'N/A'}</span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Status / Rep:</span>
+                          <span className="text-slate-300 text-right">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 mr-1">
+                              {dup.matchedExistingLead?.status || 'NEW'}
+                            </span>
+                            {dup.matchedExistingLead?.assignedRep || 'Unassigned'}
+                          </span>
+                        </div>
+                        <div className="text-xs flex items-center justify-between">
+                          <span className="text-slate-400 font-semibold">Uploaded Date:</span>
+                          <span className="text-slate-400 font-mono text-[11px] text-right">{dup.matchedExistingLead?.createdAt || 'Previous Upload'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Bar for Individual Row */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/80">
+                      <span className="text-[11px] font-semibold text-slate-400 mr-auto">
+                        Verify duplicate action:
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleSetSingleResolution(dup.sheetIndex, dup.rowIndex, 'RETARGET')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
                           isRetarget
                             ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
-                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-800'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800'
                         }`}
                       >
                         <Target size={13} />
-                        {isRetarget ? '✓ Retargeting' : 'Retarget'}
+                        {isRetarget ? '✓ Verified (Retarget Lead)' : 'Verify & Retarget (Keep)'}
                       </button>
 
                       <button
@@ -1780,11 +1920,11 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
                         className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border ${
                           isFilter
                             ? 'bg-rose-600 text-white border-rose-400 shadow-md shadow-rose-600/30'
-                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-800'
+                            : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-800'
                         }`}
                       >
                         <Filter size={13} />
-                        {isFilter ? '✓ Filtered (Exclude)' : 'Filter Out'}
+                        {isFilter ? '✓ Excluded (Will Not Ingest)' : 'Verify & Filter Out (Exclude)'}
                       </button>
                     </div>
                   </div>
