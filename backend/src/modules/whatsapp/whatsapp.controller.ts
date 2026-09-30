@@ -10,7 +10,7 @@ import {
 import type { Response } from 'express';
 import { WhatsappService, type WhatsAppMessagePayload } from './whatsapp.service';
 
-@Controller('api/v1/whatsapp')
+@Controller('whatsapp')
 export class WhatsappController {
   constructor(private readonly whatsappService: WhatsappService) {}
 

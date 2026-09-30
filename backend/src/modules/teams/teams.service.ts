@@ -2,6 +2,7 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -10,32 +11,31 @@ export class TeamsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Tenant Admin Exclusive: Create Team Leader (TL)
+   * Tenant Admin Exclusive: Create Team Leader (TL) or Sales Unit
    */
   async createTeamLeader(
     organizationId: string,
     currentUserRole: string,
-    data: { name: string; email: string; managerId: string },
+    data: { name: string; email?: string; managerId?: string },
   ) {
-    if (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
+    if (!['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(currentUserRole)) {
       throw new ForbiddenException(
-        'ONLY Tenant Admin is authorized to create Team Leaders',
+        'ONLY Tenant Admin is authorized to create Team Leaders or Teams',
       );
     }
 
-    // Verify target manager belongs to organization
-    const manager = await this.prisma.user.findFirst({
-      where: { id: data.managerId, organizationId },
-    });
-    if (!manager) {
-      throw new NotFoundException(
-        'Specified Manager not found in tenant company',
-      );
+    if (data.managerId) {
+      const manager = await this.prisma.user.findFirst({
+        where: { id: data.managerId, organizationId },
+      });
+      if (!manager) {
+        throw new NotFoundException('Specified Manager not found in tenant company');
+      }
     }
 
     return this.prisma.team.create({
       data: {
-        name: `${data.name}'s Sales Unit`,
+        name: data.name.includes('Team') ? data.name : `${data.name}'s Sales Unit`,
         organizationId,
       },
     });
@@ -43,15 +43,17 @@ export class TeamsService {
 
   /**
    * Tenant Admin Exclusive: Assign or Move Employee under a Manager or Team Leader
+   * Supports Hybrid Hierarchy (Decision C1):
+   * Employees can report directly to Managers or through TLs.
    */
   async assignEmployeeHierarchy(
     organizationId: string,
     currentUserRole: string,
     dto: { employeeId: string; managerId?: string; teamLeaderId?: string },
   ) {
-    if (currentUserRole !== 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
+    if (!['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(currentUserRole)) {
       throw new ForbiddenException(
-        'ONLY Tenant Admin is authorized to assign or move employees under Managers/TLs',
+        'ONLY Tenant Admin is authorized to assign or modify reporting hierarchy',
       );
     }
 
@@ -62,20 +64,38 @@ export class TeamsService {
       throw new NotFoundException('Employee not found in tenant company');
     }
 
-    // Update hierarchy references
+    const targetManagerId = dto.managerId || dto.teamLeaderId || null;
+
+    if (targetManagerId) {
+      if (targetManagerId === dto.employeeId) {
+        throw new BadRequestException('An employee cannot report to themselves');
+      }
+      const targetManager = await this.prisma.user.findFirst({
+        where: { id: targetManagerId, organizationId },
+      });
+      if (!targetManager) {
+        throw new NotFoundException('Target manager/TL not found in tenant company');
+      }
+    }
+
+    // Persist hierarchy reference to database
+    await this.prisma.user.update({
+      where: { id: dto.employeeId },
+      data: { managerId: targetManagerId },
+    });
+
     return {
       success: true,
-      message: `Employee ${employee.firstName || employee.id} assigned successfully by Tenant Admin`,
+      message: `Employee ${employee.firstName || employee.id} hierarchy updated successfully`,
       hierarchy: {
         employeeId: dto.employeeId,
-        managerId: dto.managerId || null,
-        teamLeaderId: dto.teamLeaderId || null,
+        managerId: targetManagerId,
       },
     };
   }
 
   /**
-   * Get Company Organizational Hierarchy
+   * Get Company Organizational Hierarchy (Decision C1 & C2)
    */
   async getHierarchy(organizationId: string) {
     const users = await this.prisma.user.findMany({
@@ -85,8 +105,11 @@ export class TeamsService {
         firstName: true,
         lastName: true,
         email: true,
+        avatarUrl: true,
         role: true,
+        managerId: true,
       },
+      orderBy: { createdAt: 'asc' },
     });
 
     return {

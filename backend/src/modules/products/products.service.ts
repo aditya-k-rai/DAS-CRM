@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -166,10 +167,11 @@ export class ProductsService {
   }
 
   // ─── GET ALL ACTIVE PRODUCTS ─────────────────────────────────────────────────
-  async getProducts(): Promise<ProductItemDto[]> {
+  async getProducts(organizationId: string): Promise<ProductItemDto[]> {
+    if (!organizationId) return [];
     try {
       const dbProducts = await this.prisma.product.findMany({
-        where: { isActive: true },
+        where: { organizationId, isActive: true },
         orderBy: { createdAt: 'desc' },
       }).catch(() => []);
 
@@ -201,17 +203,19 @@ export class ProductsService {
         }));
       }
     } catch (e) {
-      console.warn('[ProductsService] DB unavailable, using fallback:', e.message);
+      console.warn('[ProductsService] DB query failed:', e.message);
     }
 
-    // Return only active fallback products (exclude DELETED ones)
     return this.fallbackProducts.filter((p) => p.status !== 'DELETED' && p.isActive);
   }
 
   // ─── GET SINGLE PRODUCT BY ID ────────────────────────────────────────────────
-  async getProductById(id: string): Promise<ProductItemDto> {
+  async getProductById(organizationId: string, id: string): Promise<ProductItemDto> {
     try {
-      const dbProduct = await this.prisma.product.findUnique({ where: { id } }).catch(() => null);
+      const dbProduct = await this.prisma.product.findFirst({
+        where: { id, organizationId },
+      }).catch(() => null);
+
       if (dbProduct) {
         if (!dbProduct.isActive) throw new NotFoundException(`Product "${id}" has been deleted or deactivated.`);
         return {
@@ -249,8 +253,11 @@ export class ProductsService {
     return fallback;
   }
 
-  // ─── CREATE PRODUCT (Admin only) ─────────────────────────────────────────────
-  async createProduct(dto: CreateProductDto): Promise<ProductItemDto> {
+  // ─── CREATE PRODUCT (Admin & Manager) ─────────────────────────────────────────
+  async createProduct(organizationId: string, dto: CreateProductDto): Promise<ProductItemDto> {
+    if (!organizationId) {
+      throw new BadRequestException('Organization ID is required.');
+    }
     const price = dto.price ?? dto.minPrice ?? 0;
     const generatedSku = dto.sku?.trim() ? dto.sku.trim() : ('DAS-' + Math.floor(100000 + Math.random() * 900000));
     const finalUnit = dto.unit?.trim() || 'Pieces';
@@ -261,15 +268,18 @@ export class ProductsService {
     try {
       const dbProduct = await this.prisma.product.create({
         data: {
+          organizationId,
           name: dto.name || 'New Product',
           description: dto.description || 'No description provided.',
           price: price,
           unit: finalUnit,
           taxRate: dto.taxRate ?? 18,
           isActive: true,
-          organizationId: 'default-org', // Will be replaced by JWT org context
         },
-      }).catch(() => null);
+      }).catch((e) => {
+        console.warn('[ProductsService] DB product create error:', e.message);
+        return null;
+      });
 
       if (dbProduct) {
         return {
@@ -330,38 +340,36 @@ export class ProductsService {
     return newProduct;
   }
 
-  // ─── UPDATE PRODUCT (Admin only) ─────────────────────────────────────────────
-  async updateProduct(id: string, dto: UpdateProductDto): Promise<ProductItemDto> {
-    try {
-      const dbProduct = await this.prisma.product.update({
-        where: { id },
-        data: {
-          ...(dto.name && { name: dto.name }),
-          ...(dto.description !== undefined && { description: dto.description }),
-          ...(dto.price !== undefined && { price: dto.price }),
-          ...(dto.unit !== undefined && { unit: dto.unit }),
-          ...(dto.taxRate !== undefined && { taxRate: dto.taxRate }),
-          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-        },
-      }).catch(() => null);
+  // ─── UPDATE PRODUCT (Admin & Manager) ─────────────────────────────────────────
+  async updateProduct(organizationId: string, id: string, dto: UpdateProductDto): Promise<ProductItemDto> {
+    const existing = await this.prisma.product.findFirst({
+      where: { id, organizationId },
+    }).catch(() => null);
 
-      if (dbProduct) {
-        return this.getProductById(id);
-      }
-    } catch (e) {
-      console.warn('[ProductsService] DB update failed, using fallback:', e.message);
+    if (!existing) {
+      const idx = this.fallbackProducts.findIndex((p) => p.id === id);
+      if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
+      this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
+      return this.fallbackProducts[idx];
     }
 
-    // Fallback in-memory update
-    const idx = this.fallbackProducts.findIndex((p) => p.id === id);
-    if (idx === -1) throw new NotFoundException(`Product "${id}" not found.`);
-    this.fallbackProducts[idx] = { ...this.fallbackProducts[idx], ...dto };
-    return this.fallbackProducts[idx];
+    await this.prisma.product.update({
+      where: { id },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.unit !== undefined && { unit: dto.unit }),
+        ...(dto.taxRate !== undefined && { taxRate: dto.taxRate }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+
+    return this.getProductById(organizationId, id);
   }
 
   // ─── DELETE PRODUCT — ADMIN ONLY — HARD REMOVES FROM DB + MEMORY ─────────────
-  async deleteProduct(id: string, requestingUser: any): Promise<{ success: boolean; message: string; deletedId: string }> {
-    // ── Role-Based Access Control: Only ADMIN, SUPER_ADMIN, OWNER can delete ──
+  async deleteProduct(organizationId: string, id: string, requestingUser: any): Promise<{ success: boolean; message: string; deletedId: string }> {
     const roleName = typeof requestingUser?.role === 'string'
       ? requestingUser.role
       : requestingUser?.role?.name;
@@ -373,30 +381,25 @@ export class ProductsService {
       );
     }
 
-    // ── Attempt Database Hard Delete ──
-    let productName = id;
-    try {
-      const existingProduct = await this.prisma.product.findUnique({ where: { id } }).catch(() => null);
-      if (existingProduct) {
-        productName = existingProduct.name;
-        await this.prisma.product.delete({ where: { id } });
-        return {
-          success: true,
-          message: `✅ Product "${productName}" (ID: ${id}) has been permanently deleted from the database.`,
-          deletedId: id,
-        };
-      }
-    } catch (e) {
-      console.warn('[ProductsService] DB delete failed, marking as DELETED in fallback:', e.message);
+    const existingProduct = await this.prisma.product.findFirst({
+      where: { id, organizationId },
+    }).catch(() => null);
+
+    if (existingProduct) {
+      const productName = existingProduct.name;
+      await this.prisma.product.delete({ where: { id } });
+      return {
+        success: true,
+        message: `✅ Product "${productName}" (ID: ${id}) has been permanently deleted from the database.`,
+        deletedId: id,
+      };
     }
 
-    // ── Fallback: Mark as DELETED in memory store ──
     const idx = this.fallbackProducts.findIndex((p) => p.id === id);
     if (idx === -1) {
-      throw new NotFoundException(`Product "${id}" not found.`);
+      throw new NotFoundException(`Product "${id}" not found in organization.`);
     }
-    productName = this.fallbackProducts[idx].name;
-    // Hard remove from fallback array (simulates DB delete)
+    const productName = this.fallbackProducts[idx].name;
     this.fallbackProducts.splice(idx, 1);
 
     return {

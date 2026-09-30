@@ -545,7 +545,8 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: '[Tenant Admin/Manager] Get plan feature entitlements + quota usage' })
   getCompanyPlanEntitlements(@Req() req: any) {
-    return this.authService.getCompanyPlanEntitlements(req.user.org_id);
+    const orgId = req.user?.organizationId || req.user?.org_id;
+    return this.authService.getCompanyPlanEntitlements(orgId);
   }
 
   // ── Super Admin Quota Management ────────────────────────────

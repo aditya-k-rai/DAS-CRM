@@ -11,12 +11,13 @@ export class TasksService {
     opts: {
       assignedToMe?: boolean;
       status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
+      taskType?: string;
       dueDate?: Date;
       page?: number;
       limit?: number;
     },
   ) {
-    const { assignedToMe, status, dueDate, page = 1, limit = 30 } = opts;
+    const { assignedToMe, status, taskType, dueDate, page = 1, limit = 30 } = opts;
     const now = new Date();
 
     const where: any = {
@@ -29,6 +30,7 @@ export class TasksService {
           ],
         },
       ],
+      ...(taskType && { taskType: taskType.toUpperCase() }),
       ...(status === 'OVERDUE'
         ? { isCompleted: false, dueAt: { lt: now } }
         : status === 'COMPLETED'
@@ -38,8 +40,8 @@ export class TasksService {
             : {}),
       ...(dueDate && {
         dueAt: {
-          gte: new Date(dueDate.setHours(0, 0, 0)),
-          lte: new Date(dueDate.setHours(23, 59, 59)),
+          gte: new Date(new Date(dueDate).setHours(0, 0, 0)),
+          lte: new Date(new Date(dueDate).setHours(23, 59, 59)),
         },
       }),
     };
@@ -74,22 +76,32 @@ export class TasksService {
     dto: {
       title: string;
       description?: string;
-      dueDate?: Date;
+      dueDate?: Date | string;
       priority?: string;
       taskType?: string;
+      followUpType?: string;
+      purpose?: string;
       assigneeId?: string;
       leadId?: string;
       contactId?: string;
       dealId?: string;
     },
   ) {
+    const taskType = (dto.taskType || 'TODO').toUpperCase();
+    const priority = (dto.priority || 'MEDIUM').toUpperCase();
+    const dueAt = dto.dueDate ? new Date(dto.dueDate) : undefined;
+
     return this.prisma.task.create({
       data: {
         organizationId,
         createdById: creatorId,
         title: dto.title,
         description: dto.description,
-        dueAt: dto.dueDate,
+        dueAt,
+        taskType,
+        priority,
+        followUpType: dto.followUpType,
+        purpose: dto.purpose,
         assigneeId: dto.assigneeId ?? creatorId,
         leadId: dto.leadId,
         contactId: dto.contactId,
@@ -109,7 +121,7 @@ export class TasksService {
     if (!task) throw new NotFoundException('Task not found');
     return this.prisma.task.update({
       where: { id },
-      data: { isCompleted: true, completedAt: new Date() },
+      data: { isCompleted: true, status: 'COMPLETED', completedAt: new Date(), completedById: userId },
     });
   }
 

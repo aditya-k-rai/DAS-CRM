@@ -9,46 +9,47 @@ import {
   Query,
   Headers,
   UseGuards,
-  Injectable,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@Injectable()
-export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
-  handleRequest(err: any, user: any) {
-    // Gracefully return user or null without throwing 401
-    return user || null;
-  }
-}
-
 @ApiTags('Users')
 @ApiBearerAuth()
-@UseGuards(OptionalJwtAuthGuard)
+@UseGuards(AuthGuard('jwt'))
 @Controller('users')
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  private getAuthorizedOrgId(user: any, requestedOrgId?: string): string {
+    if (!user) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    const roleName = typeof user.role === 'string' ? user.role : user.role?.name;
+    const isSuperAdmin = roleName === 'SUPER_ADMIN';
+
+    // Super Admin can act on any organization specified in query/body
+    if (isSuperAdmin && requestedOrgId) {
+      return requestedOrgId;
+    }
+
+    const orgId = user.organizationId || user.org_id;
+    if (!orgId) {
+      throw new BadRequestException('Organization context not found for user');
+    }
+    return orgId;
+  }
 
   @Get()
   @ApiOperation({ summary: 'List all organization users/members (including unassigned)' })
   async findAll(
     @CurrentUser() user: any,
-    @Headers('x-organization-id') headerOrgId?: string,
     @Query('organizationId') queryOrgId?: string,
-    @Query('companyKey') companyKey?: string,
   ) {
-    let orgId = user?.organizationId || queryOrgId || headerOrgId;
-    if (!orgId && companyKey) {
-      orgId = await this.usersService.resolveOrgIdByKey(companyKey);
-    }
-    // SECURITY: Never default to another organization's ID.
-    // If no organization is specified or authenticated, return empty list.
-    if (!orgId) {
-      return [];
-    }
+    const orgId = this.getAuthorizedOrgId(user, queryOrgId);
     return this.usersService.findAll(orgId, user?.id);
   }
 
@@ -56,17 +57,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Get company registration key for inviting unassigned users' })
   async getCompanyKey(
     @CurrentUser() user: any,
-    @Headers('x-organization-id') headerOrgId?: string,
     @Query('organizationId') queryOrgId?: string,
-    @Query('companyKey') companyKey?: string,
   ) {
-    let orgId = user?.organizationId || queryOrgId || headerOrgId;
-    if (!orgId && companyKey) {
-      orgId = await this.usersService.resolveOrgIdByKey(companyKey);
-    }
-    if (!orgId) {
-      return { companyKey: '', memberLimit: 0, planTier: 'FREE', companyName: '' };
-    }
+    const orgId = this.getAuthorizedOrgId(user, queryOrgId);
     return this.usersService.getCompanyKey(orgId);
   }
 
@@ -74,7 +67,6 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin directly adds an employee or unassigned user to the company workspace' })
   async createUser(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Body()
     body: {
       name: string;
@@ -85,37 +77,22 @@ export class UsersController {
       organizationId?: string;
     },
   ) {
-    const orgId =
-      adminUser?.organizationId ||
-      body.organizationId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required to create a user.');
-    }
-    const adminId = adminUser?.id || 'admin_direct';
-    return this.usersService.createUser(orgId, adminId, body);
+    const orgId = this.getAuthorizedOrgId(adminUser, body.organizationId);
+    return this.usersService.createUser(orgId, adminUser.id, body);
   }
 
   @Patch(':id/verify-role')
   @ApiOperation({ summary: 'Admin approves & verifies an unassigned user and sets their initial role' })
   async verifyAndAssignRole(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
     @Body() body: { role?: string; assignedRole?: string; organizationId?: string },
   ) {
-    const orgId =
-      adminUser?.organizationId ||
-      body.organizationId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required.');
-    }
-    const adminId = adminUser?.id || 'admin_direct';
+    const orgId = this.getAuthorizedOrgId(adminUser, body.organizationId);
     const role = body?.assignedRole || body?.role || 'SALES_EXEC';
     return this.usersService.verifyAndAssignRole(
       orgId,
-      adminId,
+      adminUser.id,
       targetUserId,
       role,
     );
@@ -125,21 +102,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin upgrades or downgrades permanent employee role with Company Key confirmation' })
   async changeUserRole(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
     @Body() body: { targetRole: string; companyKey: string; organizationId?: string },
   ) {
-    const orgId =
-      adminUser?.organizationId ||
-      body?.organizationId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required.');
-    }
-    const adminId = adminUser?.id || 'admin_direct';
+    const orgId = this.getAuthorizedOrgId(adminUser, body?.organizationId);
     return this.usersService.changeUserRole(
       orgId,
-      adminId,
+      adminUser.id,
       targetUserId,
       body.targetRole,
       body.companyKey,
@@ -150,22 +119,14 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin upgrades employee role with Company Key confirmation' })
   async upgradeUserRole(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
     @Body() body: { organizationId?: string; targetRole?: string; companyKey?: string },
   ) {
-    const orgId =
-      adminUser?.organizationId ||
-      body?.organizationId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required.');
-    }
-    const adminId = adminUser?.id || 'admin_direct';
+    const orgId = this.getAuthorizedOrgId(adminUser, body?.organizationId);
     if (body?.targetRole && body?.companyKey) {
       return this.usersService.changeUserRole(
         orgId,
-        adminId,
+        adminUser.id,
         targetUserId,
         body.targetRole,
         body.companyKey,
@@ -173,7 +134,7 @@ export class UsersController {
     }
     return this.usersService.upgradeUserRole(
       orgId,
-      adminId,
+      adminUser.id,
       targetUserId,
     );
   }
@@ -182,21 +143,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Admin removes/rejects an unassigned user or employee from the workspace' })
   async removeUser(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
     @Query('organizationId') queryOrgId?: string,
   ) {
-    const orgId =
-      adminUser?.organizationId ||
-      queryOrgId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required.');
-    }
-    const adminId = adminUser?.id || 'admin_direct';
+    const orgId = this.getAuthorizedOrgId(adminUser, queryOrgId);
     return this.usersService.removeUser(
       orgId,
-      adminId,
+      adminUser.id,
       targetUserId,
     );
   }
@@ -205,31 +158,20 @@ export class UsersController {
   @ApiOperation({ summary: 'Update organization/user contact phone' })
   async updatePhone(
     @CurrentUser() user: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Body() body: { phone: string; organizationId?: string },
   ) {
-    const orgId =
-      user?.organizationId ||
-      body.organizationId ||
-      headerOrgId;
-    if (!orgId) {
-      throw new BadRequestException('Organization ID is required.');
-    }
-    const userId = user?.id || 'admin_direct';
-    return this.usersService.updatePhone(orgId, userId, body.phone);
+    const orgId = this.getAuthorizedOrgId(user, body.organizationId);
+    return this.usersService.updatePhone(orgId, user.id, body.phone);
   }
 
   @Patch(':id/manager')
   @ApiOperation({ summary: 'Change the assigned supervisor/manager for a user' })
   async assignManager(
     @CurrentUser() adminUser: any,
-    @Headers('x-organization-id') headerOrgId: string,
     @Param('id') targetUserId: string,
     @Body() body: { managerId: string; organizationId?: string },
   ) {
-    const orgId = adminUser?.organizationId || body?.organizationId || headerOrgId;
-    if (!orgId) throw new BadRequestException('Organization ID is required.');
-    const adminId = adminUser?.id || 'admin_direct';
-    return this.usersService.assignManager(orgId, adminId, targetUserId, body.managerId);
+    const orgId = this.getAuthorizedOrgId(adminUser, body?.organizationId);
+    return this.usersService.assignManager(orgId, adminUser.id, targetUserId, body.managerId);
   }
 }
