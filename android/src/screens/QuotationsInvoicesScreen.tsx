@@ -999,14 +999,36 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     }
   };
 
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingPartyId, setEditingPartyId]     = useState<string | null>(null);
+
   const handleSaveCompanyModal = () => {
     if (!newComp.name?.trim()) { Alert.alert('Required', 'Company Name is required.'); return; }
     if (!newComp.email?.trim()) { Alert.alert('Required', 'Company Email is required.'); return; }
     if (!newComp.phone?.trim()) { Alert.alert('Required', 'Company Phone is required.'); return; }
-    const comp: CompanyDetails = { id:`comp-${Date.now()}`, name:newComp.name.trim(), logoUrl:newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60', address:newComp.address || 'Address', email:newComp.email.trim(), phone:newComp.phone.trim(), gstNo:newComp.gstNo || 'GSTIN', panNo:newComp.panNo || 'PAN', bankName:newComp.bankName || 'Bank', accountNo:newComp.accountNo || 'A/C', ifscCode:newComp.ifscCode || 'IFSC', branch:newComp.branch || 'Branch', upiId:newComp.upiId || 'upi@bank' };
-    setCompanies(prev => [comp, ...prev]);
-    setSelectedCompanyId(comp.id);
+    if (editingCompanyId) {
+      setCompanies(prev => prev.map(c => c.id === editingCompanyId ? {
+        ...c,
+        name: newComp.name!.trim(),
+        logoUrl: newComp.logoUrl || c.logoUrl,
+        address: newComp.address || c.address || 'Address',
+        email: newComp.email!.trim(),
+        phone: newComp.phone!.trim(),
+        gstNo: newComp.gstNo || c.gstNo || 'GSTIN',
+        panNo: newComp.panNo || c.panNo || 'PAN',
+        bankName: newComp.bankName || c.bankName || 'Bank',
+        accountNo: newComp.accountNo || c.accountNo || 'A/C',
+        ifscCode: newComp.ifscCode || c.ifscCode || 'IFSC',
+        branch: newComp.branch || c.branch || 'Branch',
+        upiId: newComp.upiId || c.upiId || 'upi@bank',
+      } : c));
+    } else {
+      const comp: CompanyDetails = { id:`comp-${Date.now()}`, name:newComp.name.trim(), logoUrl:newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60', address:newComp.address || 'Address', email:newComp.email.trim(), phone:newComp.phone.trim(), gstNo:newComp.gstNo || 'GSTIN', panNo:newComp.panNo || 'PAN', bankName:newComp.bankName || 'Bank', accountNo:newComp.accountNo || 'A/C', ifscCode:newComp.ifscCode || 'IFSC', branch:newComp.branch || 'Branch', upiId:newComp.upiId || 'upi@bank' };
+      setCompanies(prev => [comp, ...prev]);
+      setSelectedCompanyId(comp.id);
+    }
     setCompanyModalOpen(false);
+    setEditingCompanyId(null);
     setNewComp({});
   };
 
@@ -1014,10 +1036,25 @@ export const QuotationsInvoicesScreen: React.FC<QuotationsInvoicesScreenProps> =
     if (!newParty.name?.trim()) { Alert.alert('Required', 'Party Name is required.'); return; }
     if (!newParty.email?.trim()) { Alert.alert('Required', 'Party Email is required.'); return; }
     if (!newParty.phone?.trim()) { Alert.alert('Required', 'Party Phone is required.'); return; }
-    const party: PartyDetails = { id:`party-${Date.now()}`, name:newParty.name.trim(), contactPerson:newParty.contactPerson, email:newParty.email.trim(), phone:newParty.phone.trim(), address:newParty.address || 'Address', shippingAddress:newParty.shippingAddress, gstNo:newParty.gstNo || 'GSTIN', panNo:newParty.panNo || 'PAN' };
-    setParties(prev => [party, ...prev]);
-    setSelectedPartyId(party.id);
+    if (editingPartyId) {
+      setParties(prev => prev.map(p => p.id === editingPartyId ? {
+        ...p,
+        name: newParty.name!.trim(),
+        contactPerson: newParty.contactPerson ?? p.contactPerson,
+        email: newParty.email!.trim(),
+        phone: newParty.phone!.trim(),
+        address: newParty.address || p.address || 'Address',
+        shippingAddress: newParty.shippingAddress ?? p.shippingAddress,
+        gstNo: newParty.gstNo || p.gstNo || 'GSTIN',
+        panNo: newParty.panNo || p.panNo || 'PAN',
+      } : p));
+    } else {
+      const party: PartyDetails = { id:`party-${Date.now()}`, name:newParty.name.trim(), contactPerson:newParty.contactPerson, email:newParty.email.trim(), phone:newParty.phone.trim(), address:newParty.address || 'Address', shippingAddress:newParty.shippingAddress, gstNo:newParty.gstNo || 'GSTIN', panNo:newParty.panNo || 'PAN' };
+      setParties(prev => [party, ...prev]);
+      setSelectedPartyId(party.id);
+    }
     setPartyModalOpen(false);
+    setEditingPartyId(null);
     setNewParty({});
   };
 

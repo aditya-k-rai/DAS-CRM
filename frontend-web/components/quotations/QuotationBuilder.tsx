@@ -468,12 +468,14 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [companies, setCompanies] = useState<CompanyDetails[]>(INITIAL_COMPANIES);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(INITIAL_COMPANIES[0].id);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [newComp, setNewComp] = useState<Partial<CompanyDetails>>({});
 
   // Party State
   const [parties, setParties] = useState<PartyDetails[]>(INITIAL_PARTIES);
   const [selectedPartyId, setSelectedPartyId] = useState<string>(INITIAL_PARTIES[0].id);
   const [partyModalOpen, setPartyModalOpen] = useState(false);
+  const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
   const [newParty, setNewParty] = useState<Partial<PartyDetails>>({});
 
   // Line Items
@@ -814,24 +816,49 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       return;
     }
 
-    const comp: CompanyDetails = {
-      id: `comp-${Date.now()}`,
-      name: newComp.name.trim(),
-      logoUrl: newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
-      address: newComp.address || 'Address',
-      email: newComp.email.trim(),
-      phone: newComp.phone.trim(),
-      gstNo: newComp.gstNo || 'GSTIN',
-      panNo: newComp.panNo || 'PAN',
-      bankName: newComp.bankName || 'Bank',
-      accountNo: newComp.accountNo || 'A/C',
-      ifscCode: newComp.ifscCode || 'IFSC',
-      branch: newComp.branch || 'Branch',
-      upiId: newComp.upiId || 'upi@bank',
-    };
-    setCompanies([comp, ...companies]);
-    setSelectedCompanyId(comp.id);
+    if (editingCompanyId) {
+      setCompanies(prev =>
+        prev.map(c =>
+          c.id === editingCompanyId
+            ? {
+                ...c,
+                name: newComp.name!.trim(),
+                logoUrl: newComp.logoUrl || c.logoUrl,
+                address: newComp.address || c.address || 'Address',
+                email: newComp.email!.trim(),
+                phone: newComp.phone!.trim(),
+                gstNo: newComp.gstNo || c.gstNo || 'GSTIN',
+                panNo: newComp.panNo || c.panNo || 'PAN',
+                bankName: newComp.bankName || c.bankName || 'Bank',
+                accountNo: newComp.accountNo || c.accountNo || 'A/C',
+                ifscCode: newComp.ifscCode || c.ifscCode || 'IFSC',
+                branch: newComp.branch || c.branch || 'Branch',
+                upiId: newComp.upiId || c.upiId || 'upi@bank',
+              }
+            : c
+        )
+      );
+    } else {
+      const comp: CompanyDetails = {
+        id: `comp-${Date.now()}`,
+        name: newComp.name.trim(),
+        logoUrl: newComp.logoUrl || 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=200&auto=format&fit=crop&q=60',
+        address: newComp.address || 'Address',
+        email: newComp.email.trim(),
+        phone: newComp.phone.trim(),
+        gstNo: newComp.gstNo || 'GSTIN',
+        panNo: newComp.panNo || 'PAN',
+        bankName: newComp.bankName || 'Bank',
+        accountNo: newComp.accountNo || 'A/C',
+        ifscCode: newComp.ifscCode || 'IFSC',
+        branch: newComp.branch || 'Branch',
+        upiId: newComp.upiId || 'upi@bank',
+      };
+      setCompanies([comp, ...companies]);
+      setSelectedCompanyId(comp.id);
+    }
     setCompanyModalOpen(false);
+    setEditingCompanyId(null);
     setNewComp({});
   };
 
@@ -849,20 +876,41 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
       return;
     }
 
-    const party: PartyDetails = {
-      id: `party-${Date.now()}`,
-      name: newParty.name.trim(),
-      contactPerson: newParty.contactPerson,
-      email: newParty.email.trim(),
-      phone: newParty.phone.trim(),
-      address: newParty.address || 'Address',
-      shippingAddress: newParty.shippingAddress,
-      gstNo: newParty.gstNo || 'GSTIN',
-      panNo: newParty.panNo || 'PAN',
-    };
-    setParties([party, ...parties]);
-    setSelectedPartyId(party.id);
+    if (editingPartyId) {
+      setParties(prev =>
+        prev.map(p =>
+          p.id === editingPartyId
+            ? {
+                ...p,
+                name: newParty.name!.trim(),
+                contactPerson: newParty.contactPerson ?? p.contactPerson,
+                email: newParty.email!.trim(),
+                phone: newParty.phone!.trim(),
+                address: newParty.address || p.address || 'Address',
+                shippingAddress: newParty.shippingAddress ?? p.shippingAddress,
+                gstNo: newParty.gstNo || p.gstNo || 'GSTIN',
+                panNo: newParty.panNo || p.panNo || 'PAN',
+              }
+            : p
+        )
+      );
+    } else {
+      const party: PartyDetails = {
+        id: `party-${Date.now()}`,
+        name: newParty.name.trim(),
+        contactPerson: newParty.contactPerson,
+        email: newParty.email.trim(),
+        phone: newParty.phone.trim(),
+        address: newParty.address || 'Address',
+        shippingAddress: newParty.shippingAddress,
+        gstNo: newParty.gstNo || 'GSTIN',
+        panNo: newParty.panNo || 'PAN',
+      };
+      setParties([party, ...parties]);
+      setSelectedPartyId(party.id);
+    }
     setPartyModalOpen(false);
+    setEditingPartyId(null);
     setNewParty({});
   };
 
@@ -1697,8 +1745,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={(e) => { e.stopPropagation(); setCompanyModalOpen(true); }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeCompany) {
+                        setEditingCompanyId(activeCompany.id);
+                        setNewComp({ ...activeCompany });
+                        setCompanyModalOpen(true);
+                      }
+                    }}
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
+                    title="Edit currently selected company details"
+                  >
+                    <Edit2 size={12} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingCompanyId(null);
+                      setNewComp({});
+                      setCompanyModalOpen(true);
+                    }}
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/30 px-2.5 py-1 rounded-lg hover:bg-sky-500/25 transition-all active:scale-95 shadow-sm shadow-sky-500/10 cursor-pointer"
                   >
                     + Add Company
                   </button>
@@ -1736,32 +1805,47 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   </select>
 
                   {activeCompany && (
-                    <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 flex items-start gap-3">
-                      <div className="relative w-9 h-9 flex-shrink-0">
-                        <img
-                          src={activeCompany.logoUrl}
-                          alt="Logo"
-                          onError={(e) => {
-                            const target = e.target as HTMLElement;
-                            target.style.display = 'none';
-                            if (target.nextElementSibling) {
-                              (target.nextElementSibling as HTMLElement).style.display = 'flex';
-                            }
-                          }}
-                          className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40"
-                        />
-                        <div
-                          style={{ display: 'none' }}
-                          className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-black text-xs items-center justify-center border border-indigo-500/40 uppercase"
-                        >
-                          {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
+                    <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="relative w-9 h-9 flex-shrink-0">
+                          <img
+                            src={activeCompany.logoUrl}
+                            alt="Logo"
+                            onError={(e) => {
+                              const target = e.target as HTMLElement;
+                              target.style.display = 'none';
+                              if (target.nextElementSibling) {
+                                (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                              }
+                            }}
+                            className="w-9 h-9 rounded-lg object-cover border border-indigo-500/40"
+                          />
+                          <div
+                            style={{ display: 'none' }}
+                            className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-black text-xs items-center justify-center border border-indigo-500/40 uppercase"
+                          >
+                            {activeCompany.name ? activeCompany.name.slice(0, 2) : 'CO'}
+                          </div>
+                        </div>
+                        <div className="text-xs space-y-0.5 min-w-0 flex-1">
+                          <p className="font-extrabold text-white truncate">{activeCompany.name}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{activeCompany.address}</p>
+                          <p className="text-[10px] font-bold text-indigo-400 mt-1">GSTIN: {activeCompany.gstNo} • PAN: {activeCompany.panNo}</p>
                         </div>
                       </div>
-                      <div className="text-xs space-y-0.5 min-w-0 flex-1">
-                        <p className="font-extrabold text-white truncate">{activeCompany.name}</p>
-                        <p className="text-[11px] text-slate-400 truncate">{activeCompany.address}</p>
-                        <p className="text-[10px] font-bold text-indigo-400 mt-1">GSTIN: {activeCompany.gstNo} • PAN: {activeCompany.panNo}</p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCompanyId(activeCompany.id);
+                          setNewComp({ ...activeCompany });
+                          setCompanyModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md cursor-pointer flex-shrink-0"
+                        title="Edit selected seller company"
+                      >
+                        <Edit2 size={13} /> Edit Info
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1798,8 +1882,29 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={(e) => { e.stopPropagation(); setPartyModalOpen(true); }}
-                    className="text-[10.5px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeParty) {
+                        setEditingPartyId(activeParty.id);
+                        setNewParty({ ...activeParty });
+                        setPartyModalOpen(true);
+                      }
+                    }}
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/25 transition-all flex items-center gap-1 active:scale-95 shadow-sm shadow-amber-500/10 cursor-pointer"
+                    title="Edit currently selected party details"
+                  >
+                    <Edit2 size={12} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPartyId(null);
+                      setNewParty({});
+                      setPartyModalOpen(true);
+                    }}
+                    className="text-[10.5px] sm:text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 transition-all active:scale-95 shadow-sm shadow-emerald-500/10 cursor-pointer"
                   >
                     + Add Party
                   </button>
@@ -1837,10 +1942,25 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                   </select>
 
                   {activeParty && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 space-y-1">
-                      <p className="font-extrabold text-xs text-white">{activeParty.name}</p>
-                      <p className="text-[11px] text-slate-400">🏢 Billing: {activeParty.address}</p>
-                      <p className="text-[10px] font-bold text-emerald-400">GSTIN: {activeParty.gstNo} • PAN: {activeParty.panNo}</p>
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <p className="font-extrabold text-xs text-white truncate">{activeParty.name}</p>
+                        <p className="text-[11px] text-slate-400 truncate">🏢 Billing: {activeParty.address}</p>
+                        <p className="text-[10px] font-bold text-emerald-400">GSTIN: {activeParty.gstNo} • PAN: {activeParty.panNo}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPartyId(activeParty.id);
+                          setNewParty({ ...activeParty });
+                          setPartyModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-md cursor-pointer flex-shrink-0"
+                        title="Edit selected client party"
+                      >
+                        <Edit2 size={13} /> Edit Info
+                      </button>
                     </div>
                   )}
 
@@ -3025,12 +3145,12 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
         {renderA4SheetDocument()}
       </div>
 
-      {/* ── MODAL: ADD NEW COMPANY ── */}
+      {/* ── MODAL: ADD / EDIT COMPANY ── */}
       {companyModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white">
             <h3 className="text-sm font-black text-indigo-400 flex items-center gap-2">
-              <Building2 size={18} /> Add New Seller Company
+              <Building2 size={18} /> {editingCompanyId ? 'Edit Seller Company' : 'Add New Seller Company'}
             </h3>
             <div className="space-y-2 text-xs">
               <input
@@ -3149,7 +3269,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             </div>
             <div className="flex gap-2 pt-2">
               <button
-                onClick={() => setCompanyModalOpen(false)}
+                onClick={() => { setCompanyModalOpen(false); setEditingCompanyId(null); }}
                 className="flex-1 py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl"
               >
                 Cancel
@@ -3158,19 +3278,19 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 onClick={handleSaveNewCompany}
                 className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl"
               >
-                Save Company
+                {editingCompanyId ? 'Update Company' : 'Save Company'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL: ADD NEW PARTY ── */}
+      {/* ── MODAL: ADD / EDIT PARTY ── */}
       {partyModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 w-full max-w-lg space-y-4 text-white">
             <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2">
-              <UserCheck size={18} /> Add New Client Party
+              <UserCheck size={18} /> {editingPartyId ? 'Edit Client Party' : 'Add New Client Party'}
             </h3>
             <div className="space-y-2 text-xs">
               <input
@@ -3239,7 +3359,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
             </div>
             <div className="flex gap-2 pt-2">
               <button
-                onClick={() => setPartyModalOpen(false)}
+                onClick={() => { setPartyModalOpen(false); setEditingPartyId(null); }}
                 className="flex-1 py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl"
               >
                 Cancel
@@ -3248,7 +3368,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 onClick={handleSaveNewParty}
                 className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl"
               >
-                Save Party
+                {editingPartyId ? 'Update Party' : 'Save Party'}
               </button>
             </div>
           </div>
