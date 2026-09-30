@@ -10,7 +10,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { getApiBase, setApiBase, testApiEndpoint, normalizeApiUrl, PROD_CLOUD_API_URL } from '../config/api';
+import { getApiBase, setApiBase, testApiEndpoint, normalizeApiUrl, PROD_CLOUD_API_URL, CURRENT_LAN_API_URL, EMULATOR_API_URL, DEFAULT_CLOUD_API_URL } from '../config/api';
 import { offlineSyncEngine, SyncEngineState } from '../services/offlineSyncEngine';
 import { useTheme } from '../context/ThemeContext';
 
@@ -51,6 +51,11 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
   const handleSetDefaultCloud = () => {
     setInputUrl(PROD_CLOUD_API_URL);
     handleTestUrl(PROD_CLOUD_API_URL);
+  };
+
+  const handleSelectPreset = (url: string) => {
+    setInputUrl(url);
+    handleTestUrl(url);
   };
 
   const handleSaveAndConnect = async () => {
@@ -199,19 +204,22 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
               </TouchableOpacity>
             </View>
 
-            {/* Cloud Endpoint Preset Option */}
+            {/* Quick Presets */}
             <View style={{ marginTop: 18 }}>
-              <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>OFFICIAL ENTERPRISE CLOUD</Text>
+              <Text style={[styles.sectionLabel, { color: subTextColor, marginBottom: 8 }]}>QUICK PRESETS</Text>
+              
+              {/* Preset 1: Cloud */}
               <TouchableOpacity
                 style={[
                   styles.candidateRow,
                   {
                     backgroundColor: cardBg,
-                    borderColor: isDefaultCloud ? '#6366f1' : borderColor,
-                    borderWidth: isDefaultCloud ? 2 : 1,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(PROD_CLOUD_API_URL) ? 2 : 1,
+                    marginBottom: 8,
                   },
                 ]}
-                onPress={handleSetDefaultCloud}
+                onPress={() => handleSelectPreset(PROD_CLOUD_API_URL)}
                 activeOpacity={0.7}
               >
                 <View style={{ flex: 1, paddingRight: 10 }}>
@@ -226,7 +234,56 @@ export default function ServerConnectionModal({ visible, onClose }: Props) {
                     )}
                   </View>
                   <Text style={[styles.candidateHint, { color: subTextColor }]}>
-                    Official Live Production Cloud (HTTPS High-Availability Cluster)
+                    ☁️ Production Cloud Backend (HTTPS Cluster)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset 2: Wi-Fi LAN */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(CURRENT_LAN_API_URL) ? 2 : 1,
+                    marginBottom: 8,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(CURRENT_LAN_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {CURRENT_LAN_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📶 Host Computer Wi-Fi LAN (Local Machine IP)
+                  </Text>
+                </View>
+                <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>
+              </TouchableOpacity>
+
+              {/* Preset 3: Android Studio Emulator */}
+              <TouchableOpacity
+                style={[
+                  styles.candidateRow,
+                  {
+                    backgroundColor: cardBg,
+                    borderColor: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? '#6366f1' : borderColor,
+                    borderWidth: normalizeApiUrl(inputUrl) === normalizeApiUrl(EMULATOR_API_URL) ? 2 : 1,
+                  },
+                ]}
+                onPress={() => handleSelectPreset(EMULATOR_API_URL)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={[styles.candidateUrl, { color: textColor }]} numberOfLines={1}>
+                    {EMULATOR_API_URL}
+                  </Text>
+                  <Text style={[styles.candidateHint, { color: subTextColor }]}>
+                    📱 Android Studio Emulator Loopback (10.0.2.2)
                   </Text>
                 </View>
                 <Text style={{ color: '#6366f1', fontSize: 12, fontWeight: '800' }}>Select →</Text>

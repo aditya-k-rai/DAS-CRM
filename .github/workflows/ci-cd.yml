@@ -116,7 +116,19 @@ jobs:
       - name: Install Mobile Dependencies
         run: cd android && npm install --legacy-peer-deps
 
+      - name: Prepare Mobile Environment Variables
+        run: |
+          cd android
+          API_URL="${{ secrets.EXPO_PUBLIC_API_URL }}"
+          if [ -z "$API_URL" ]; then
+            API_URL="https://nexcrm-backend.onrender.com/api/v1"
+          fi
+          echo "EXPO_PUBLIC_API_URL=$API_URL" > .env
+          echo "✓ Configured android/.env with EXPO_PUBLIC_API_URL=$API_URL"
+
       - name: Build APK 1/3 — arm64-v8a
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://nexcrm-backend.onrender.com/api/v1' }}
         run: |
           cd android/android
           chmod +x gradlew
@@ -133,6 +145,8 @@ jobs:
           echo "✓ arm64-v8a APK built: $APK_FILE -> ../app-arm64-v8a-release.apk"
 
       - name: Build APK 2/3 — armeabi-v7a
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://nexcrm-backend.onrender.com/api/v1' }}
         run: |
           cd android/android
           chmod +x gradlew
@@ -149,6 +163,8 @@ jobs:
           echo "✓ armeabi-v7a APK built: $APK_FILE -> ../app-armeabi-v7a-release.apk"
 
       - name: Build APK 3/3 — Universal (all architectures)
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://nexcrm-backend.onrender.com/api/v1' }}
         run: |
           cd android/android
           chmod +x gradlew

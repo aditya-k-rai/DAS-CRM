@@ -47,10 +47,11 @@ export function normalizeApiUrl(rawUrl: string): string {
   return url;
 }
 
+export const DEFAULT_CLOUD_API_URL = 'https://nexcrm-backend.onrender.com/api/v1';
 export const CURRENT_LAN_API_URL = 'http://192.168.29.26:3001/api/v1';
 export const EMULATOR_API_URL = 'http://10.0.2.2:3001/api/v1';
 export const LOCALHOST_API_URL = 'http://localhost:3001/api/v1';
-export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL || CURRENT_LAN_API_URL;
+export const PROD_CLOUD_API_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_CLOUD_API_URL;
 
 /**
  * Returns prioritized list of production & enterprise backend URLs to probe
@@ -68,21 +69,25 @@ export function getCandidateApiUrls(): string[] {
     candidates.push(normalizeApiUrl(API_BASE));
   }
 
-  // 3. Dynamic host IP from Expo Metro bundler
+  // 3. Current host machine Wi-Fi LAN IP (for physical devices over Wi-Fi)
+  candidates.push(CURRENT_LAN_API_URL);
+
+  // 4. Default Enterprise Cloud Production Endpoints
+  candidates.push(DEFAULT_CLOUD_API_URL);
+  candidates.push('https://dascrm-backend.onrender.com/api/v1');
+
+  // 5. Dynamic host IP from Expo Metro bundler
   const expoIp = getExpoHostIp();
   if (expoIp) {
     candidates.push(`http://${expoIp}:3001/api/v1`);
   }
 
-  // 4. Current host machine Wi-Fi LAN IP (for physical devices over Wi-Fi)
-  candidates.push(CURRENT_LAN_API_URL);
-
-  // 5. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
+  // 6. Android Emulator loopback IP (10.0.2.2 maps to host 127.0.0.1 on Android virtual devices)
   if (Platform.OS === 'android') {
     candidates.push(EMULATOR_API_URL);
   }
 
-  // 6. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
+  // 7. Localhost & 127.0.0.1 (Web, iOS Simulator, Desktop)
   candidates.push(LOCALHOST_API_URL);
   candidates.push('http://127.0.0.1:3001/api/v1');
 

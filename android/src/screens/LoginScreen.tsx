@@ -34,6 +34,7 @@ import {
 } from '../store/authStore';
 import { apiService, PublicCompany, DEFAULT_ACTIVE_COMPANY } from '../services/apiService';
 import { API_BASE, getApiBase, setApiBase, getCandidateApiUrls } from '../config/api';
+import ServerConnectionModal from '../components/ServerConnectionModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   // Company picker modal
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [serverModalOpen, setServerModalOpen] = useState(false);
 
 
   // General UI state
@@ -799,6 +801,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <Text style={styles.subtitle}>
               Sign In to Your Company Workspace
             </Text>
+
+            {/* Server Connection Badge */}
+            <TouchableOpacity
+              style={styles.serverPill}
+              onPress={() => setServerModalOpen(true)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.serverPillDot} />
+              <Text style={styles.serverPillText} numberOfLines={1}>
+                Server: {getApiBase()}
+              </Text>
+              <Text style={styles.serverPillAction}>⚙️ Change</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ── WORKSPACE ENTRY FORM ──────────────────────────────────── */}
@@ -849,6 +864,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
+                    <TouchableOpacity
+                      style={styles.serverSettingsBtn}
+                      onPress={() => setServerModalOpen(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.serverSettingsBtnText}>🛠️ Change Server URL / Test Ping</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1044,6 +1066,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 {error ? (
                   <View style={styles.errorBanner}>
                     <Text style={styles.errorText}>⚠️ {error}</Text>
+                    <TouchableOpacity
+                      style={styles.serverSettingsBtn}
+                      onPress={() => setServerModalOpen(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.serverSettingsBtnText}>🛠️ Change Server URL / Test Ping</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null}
 
@@ -1411,6 +1440,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           </View>
         </View>
       </Modal>
+
+      {/* ── SERVER CONNECTION & DIAGNOSTICS MODAL ──────────────────────── */}
+      <ServerConnectionModal
+        visible={serverModalOpen}
+        onClose={() => setServerModalOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1491,6 +1526,52 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   errorText: { color: '#fca5a5', fontSize: 12, fontWeight: '600' },
+  serverPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 8,
+    maxWidth: '92%',
+  },
+  serverPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  serverPillText: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  serverPillAction: {
+    fontSize: 10,
+    color: '#818cf8',
+    fontWeight: '800',
+    marginLeft: 2,
+  },
+  serverSettingsBtn: {
+    marginTop: 8,
+    backgroundColor: 'rgba(99, 102, 241, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.5)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  serverSettingsBtnText: {
+    color: '#a5b4fc',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   successBanner: {
     backgroundColor: 'rgba(16,185,129,0.15)',
     borderColor: 'rgba(16,185,129,0.4)',
