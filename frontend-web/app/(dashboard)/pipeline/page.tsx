@@ -31,43 +31,6 @@ interface DashboardLeadRecord {
   createdAt: string;
 }
 
-interface FileUploadHistoryItem {
-  id: string;
-  fileName: string;
-  fileSize: string;
-  uploadedAt: string;
-  leadsCount: number;
-  rowsCount?: number;
-  colsCount?: number;
-  sourcePlatform?: string;
-  downloadUrl?: string;
-  rawFileBlob?: Blob | File;
-  uploadedBy: string;
-  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
-}
-
-interface GoogleSheetHistoryItem {
-  id: string;
-  spreadsheetTitle: string;
-  spreadsheetUrl: string;
-  sheetTab: string;
-  rangeMapped: string;
-  connectedAt: string;
-  lastSyncAt: string;
-  totalSyncsCount: number;
-  totalLeadsIngested: number;
-  status: 'ACTIVE_SYNC' | 'PAUSED';
-}
-
-interface DatewiseLeadsAnalytics {
-  date: string;
-  totalLeads: number;
-  googleSheets: number;
-  fileUploads: number;
-  facebookAds: number;
-  googleAds: number;
-  whatsAppDirect: number;
-}
 
 function sanitizeCellString(input: any, fallback: string = '—'): string {
   if (input === null || input === undefined) return fallback;
@@ -93,15 +56,6 @@ export default function LeadPipelinePage() {
   const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
   const [googleSheetsModalOpen, setGoogleSheetsModalOpen] = useState(false);
   const [customColumnModalOpen, setCustomColumnModalOpen] = useState(false);
-
-  // Lead Incoming History Active Tab State
-  const [historyActiveTab, setHistoryActiveTab] = useState<'DATEWISE' | 'FILE_UPLOADS' | 'GSHEETS_SYNC'>('DATEWISE');
-
-  // History Seed State
-  // History Seed State (Clean for fresh companies)
-  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([]);
-  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([]);
-  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([]);
 
   // Single Insert Form
   const [newLeadName, setNewLeadName] = useState('');
@@ -154,66 +108,6 @@ export default function LeadPipelinePage() {
     fetchUsers();
   }, []);
 
-  // Fetch ingestion history from backend
-  useEffect(() => {
-    const fetchIngestionHistory = async () => {
-      try {
-        const token = localStorage.getItem('das_crm_token') || localStorage.getItem('token');
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/leads/ingestion-history`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.fileUploadHistory && data.fileUploadHistory.length > 0) {
-            setFileUploadHistory(prev => (prev.length === 0 ? data.fileUploadHistory : prev));
-          }
-          if (data.googleSheetsHistory && data.googleSheetsHistory.length > 0) {
-            setGoogleSheetHistory(prev => (prev.length === 0 ? data.googleSheetsHistory : prev));
-          }
-          if (data.datewiseAnalytics && data.datewiseAnalytics.length > 0) {
-            setDatewiseAnalytics(prev => (prev.length === 0 ? data.datewiseAnalytics : prev));
-          }
-        }
-      } catch (_) {}
-    };
-    fetchIngestionHistory();
-  }, []);
-
-  // Secure File Download (Admin and Manager Only)
-  const handleDownloadFile = (item: FileUploadHistoryItem) => {
-    if (!isAdminOrManager) {
-      alert('⛔ Access Denied: Only Admin and Manager roles are permitted to download imported lead files.');
-      return;
-    }
-
-    if (item.rawFileBlob) {
-      const url = URL.createObjectURL(item.rawFileBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = item.fileName.endsWith('.xlsx') || item.fileName.endsWith('.csv') ? item.fileName : `${item.fileName}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return;
-    }
-
-    if (item.downloadUrl) {
-      window.open(item.downloadUrl, '_blank');
-      return;
-    }
-
-    // Fallback: Generate spreadsheet from current active pipeline leads
-    const wb = XLSX.utils.book_new();
-    const headers = ['Lead Name', 'Email Address', 'Phone Number', 'Company', 'Source Platform', 'Stage', 'Value (INR)', 'Assigned Rep'];
-    const rows = leadDirectory.slice(0, item.leadsCount || 100).map(l => [
-      l.name, l.email, l.phone, l.company, l.source || item.sourcePlatform || 'Spreadsheet Import', l.stage, l.value, l.assignedRep
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Imported Leads');
-    XLSX.writeFile(wb, item.fileName.endsWith('.xlsx') || item.fileName.endsWith('.csv') ? item.fileName : `${item.fileName}.xlsx`);
-  };
 
   // Custom Column Form
   const [newColName, setNewColName] = useState('');
@@ -1159,192 +1053,6 @@ export default function LeadPipelinePage() {
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* 📊 LEAD INCOMING HISTORY & DATA SOURCE AUDIT CENTER          */}
-        {/* ============================================================ */}
-        <div className="crm-card p-6 border-purple-500/30 bg-slate-950/80 space-y-4 rounded-2xl shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                AUDIT & INGESTION LOGS
-              </span>
-              <h3 className="font-extrabold text-base text-white mt-1 flex items-center gap-2">
-                <ClipboardList size={18} className="text-purple-400" /> Lead Incoming History & Data Source Audit
-              </h3>
-            </div>
-
-            {/* TAB SELECTOR */}
-            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold flex-wrap">
-              <button
-                onClick={() => setHistoryActiveTab('DATEWISE')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'DATEWISE' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                📅 Date-Wise Total Leads ({datewiseAnalytics.reduce((a, b) => a + b.totalLeads, 0)})
-              </button>
-              <button
-                onClick={() => setHistoryActiveTab('FILE_UPLOADS')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'FILE_UPLOADS' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                📄 File Upload History ({fileUploadHistory.length})
-              </button>
-              <button
-                onClick={() => setHistoryActiveTab('GSHEETS_SYNC')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'GSHEETS_SYNC' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              >
-                🌐 Webhook &amp; Gateway Logs ({googleSheetHistory.length})
-              </button>
-            </div>
-          </div>
-
-          {/* TAB 1: DATEWISE ANALYTICS BREAKDOWN */}
-          {historyActiveTab === 'DATEWISE' && (
-            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
-                  <tr>
-                    <th className="p-3">Date Window</th>
-                    <th className="p-3 text-cyan-300">Total Leads Ingested</th>
-                    <th className="p-3 text-emerald-400">Meta &amp; Google Ads</th>
-                    <th className="p-3 text-purple-300">File Uploads (CSV/Excel)</th>
-                    <th className="p-3 text-blue-400">B2B Portals (IndiaMART/TradeIndia)</th>
-                    <th className="p-3 text-amber-400">Microsoft &amp; LinkedIn Ads</th>
-                    <th className="p-3 text-emerald-300">Website &amp; Custom Webhooks</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {datewiseAnalytics.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-900/60">
-                      <td className="p-3 font-extrabold text-white">{row.date}</td>
-                      <td className="p-3 font-mono font-black text-cyan-300">{row.totalLeads} Leads</td>
-                      <td className="p-3 font-mono text-emerald-400 font-bold">+{row.googleSheets}</td>
-                      <td className="p-3 font-mono text-purple-300 font-bold">+{row.fileUploads}</td>
-                      <td className="p-3 font-mono text-blue-400 font-bold">+{row.facebookAds}</td>
-                      <td className="p-3 font-mono text-red-400 font-bold">+{row.googleAds}</td>
-                      <td className="p-3 font-mono text-emerald-300 font-bold">+{row.whatsAppDirect}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* TAB 2: FILE UPLOAD HISTORY LOG */}
-          {historyActiveTab === 'FILE_UPLOADS' && (
-            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
-                  <tr>
-                    <th className="p-3">Uploaded File Name</th>
-                    <th className="p-3">Dimensions (Rows × Cols)</th>
-                    <th className="p-3 text-purple-300">Total Leads Ingested</th>
-                    <th className="p-3">File Size</th>
-                    <th className="p-3">Upload Timestamp</th>
-                    <th className="p-3">Uploaded By User</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {fileUploadHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-6 text-center text-slate-500 font-semibold">
-                        No spreadsheet files uploaded yet. Click &quot;Import CSV / Excel&quot; to ingest leads.
-                      </td>
-                    </tr>
-                  ) : (
-                    fileUploadHistory.map(item => (
-                      <tr key={item.id} className="hover:bg-slate-900/60">
-                        <td className="p-3 font-extrabold text-white">
-                          <div className="flex items-center gap-1.5">
-                            <FileSpreadsheet size={14} className="text-purple-400 shrink-0" />
-                            <span>{item.fileName}</span>
-                            {item.sourcePlatform && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                {item.sourcePlatform}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px] font-bold border border-slate-700">
-                            {item.rowsCount || item.leadsCount} Rows × {item.colsCount || 8} Cols
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono font-extrabold text-purple-300">+{item.leadsCount} Leads</td>
-                        <td className="p-3 font-mono text-slate-400">{item.fileSize}</td>
-                        <td className="p-3 font-mono text-muted text-[11px]">{item.uploadedAt}</td>
-                        <td className="p-3 font-semibold text-slate-300">{item.uploadedBy}</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          {isAdminOrManager ? (
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadFile(item)}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/60 text-indigo-200 hover:text-white border border-indigo-500/40 text-xs font-bold inline-flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
-                              title="Download original spreadsheet file (Admin & Manager Only)"
-                            >
-                              <Download size={13} className="text-indigo-400" />
-                              <span>Download File</span>
-                            </button>
-                          ) : (
-                            <span
-                              className="px-2.5 py-1 rounded-lg bg-slate-800/80 text-slate-500 border border-slate-700/50 text-[11px] font-semibold inline-flex items-center gap-1 cursor-not-allowed"
-                              title="File downloads are restricted to Admin and Manager roles only"
-                            >
-                              <Lock size={12} /> Admin/Manager Only
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* TAB 3: GOOGLE SHEETS INTEGRATION HISTORY */}
-          {historyActiveTab === 'GSHEETS_SYNC' && (
-            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
-                  <tr>
-                    <th className="p-3">Google Sheet Workbook</th>
-                    <th className="p-3">Connected Tab</th>
-                    <th className="p-3">Cell Range Mapped</th>
-                    <th className="p-3 text-emerald-400">Total Ingested Leads</th>
-                    <th className="p-3">Last Sync Timestamp</th>
-                    <th className="p-3 text-right">Sync Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {googleSheetHistory.map(item => (
-                    <tr key={item.id} className="hover:bg-slate-900/60">
-                      <td className="p-3 font-extrabold text-emerald-300">
-                        <a href={item.spreadsheetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1.5">
-                          <FileSpreadsheet size={14} className="text-emerald-400" /> {item.spreadsheetTitle} ↗
-                        </a>
-                      </td>
-                      <td className="p-3 font-mono text-purple-300 font-bold">{item.sheetTab}</td>
-                      <td className="p-3 font-mono text-cyan-300 font-bold">{item.rangeMapped}</td>
-                      <td className="p-3 font-mono font-black text-emerald-400">{item.totalLeadsIngested.toLocaleString()} Leads</td>
-                      <td className="p-3 font-mono text-muted text-[11px]">{item.lastSyncAt}</td>
-                      <td className="p-3 text-right">
-                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit ml-auto">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
 
         {/* ============================================================ */}
         {/* MASTER SALES PIPELINE & DEALS KANBAN BOARD                   */}
@@ -1636,7 +1344,7 @@ export default function LeadPipelinePage() {
               }));
               return [...newLeads, ...prev];
             });
-            const newAudit: FileUploadHistoryItem = {
+            const newAudit = {
               id: `file_hist_${Date.now()}`,
               fileName: audit.filename,
               fileSize: audit.fileSize || '—',
@@ -1645,12 +1353,16 @@ export default function LeadPipelinePage() {
               rowsCount: audit.rowsCount || audit.count,
               colsCount: audit.colsCount || 8,
               sourcePlatform: audit.platform || 'Spreadsheet Ingestion',
-              rawFileBlob: audit.rawFileBlob,
               downloadUrl: audit.storageUrl,
               uploadedBy: currentUser?.name ? `${currentUser.name} (${currentUser.role})` : 'Admin',
               status: 'SUCCESS' as const,
             };
-            setFileUploadHistory(prev => [newAudit, ...prev]);
+            if (typeof window !== 'undefined') {
+              try {
+                const existing = JSON.parse(localStorage.getItem('das_lead_file_upload_history') || '[]');
+                localStorage.setItem('das_lead_file_upload_history', JSON.stringify([newAudit, ...existing]));
+              } catch (_) {}
+            }
 
             const newAuditLogItem = {
               id: `aud_${Date.now()}`,
