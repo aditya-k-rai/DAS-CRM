@@ -6,9 +6,10 @@ import {
   Target, Sparkles, Clock, Calendar, Briefcase, Phone, Mail,
   MessageCircle, Video, CheckCircle2, AlertTriangle, ArrowRight,
   Plus, Users, Building2, TrendingUp, Trophy, Star, Zap,
-  UserCheck, Radio, Bell, Check, ExternalLink, BarChart3
+  UserCheck, Radio, Bell, Check, ExternalLink, BarChart3, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getCachedData, setCachedData, clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Synced Leads & Activities
@@ -251,12 +252,18 @@ export function EmployeeRoleDashboard() {
   const { currentUser } = useAuth();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Rep';
 
-  // Synced States
-  const [newLeads, setNewLeads] = useState<SyncedLead[]>(DEFAULT_NEW_LEADS);
-  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(DEFAULT_FOLLOW_UPS);
-  const [meetings, setMeetings] = useState<SyncedMeeting[]>(DEFAULT_MEETINGS);
-  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(DEFAULT_OPPORTUNITIES);
+  // Synced States (Initialized from Cache or Defaults)
+  const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || DEFAULT_NEW_LEADS);
+  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || DEFAULT_FOLLOW_UPS);
+  const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData('emp_meetings') || DEFAULT_MEETINGS);
+  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData('emp_opportunities') || DEFAULT_OPPORTUNITIES);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Sync state mutations to Cache automatically
+  useEffect(() => { setCachedData('emp_newLeads', newLeads); }, [newLeads]);
+  useEffect(() => { setCachedData('emp_followUps', followUps); }, [followUps]);
+  useEffect(() => { setCachedData('emp_meetings', meetings); }, [meetings]);
+  useEffect(() => { setCachedData('emp_opportunities', opportunities); }, [opportunities]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -265,6 +272,12 @@ export function EmployeeRoleDashboard() {
 
   // Sync leads from backend and local task store on mount
   useEffect(() => {
+    // Only fetch if data is not already cached
+    const hasCachedLeads = getCachedData('emp_newLeads');
+    if (hasCachedLeads) {
+      return; // Skip fetch, use cache
+    }
+
     const syncData = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
@@ -447,6 +460,16 @@ export function EmployeeRoleDashboard() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                clearAllDashboardCaches();
+                window.location.reload();
+              }}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+              title="Force refresh data from server"
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
             <Link href="/leads" className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all">
               <Target size={13} /> My Leads
             </Link>
@@ -466,9 +489,8 @@ export function EmployeeRoleDashboard() {
             View All <ArrowRight size={11} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'My Total Leads', value: String(totalLeadsCount), sub: 'Scoped to you', icon: Target, color: 'text-indigo-500 dark:text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
             { label: 'New Leads', value: String(newLeadsCount), sub: 'This week', icon: Sparkles, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
             { label: 'Contacted', value: String(contactedCount), sub: 'Called / messaged', icon: Phone, color: 'text-sky-500 dark:text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
             { label: 'Qualified', value: String(qualifiedCount), sub: 'High intent', icon: CheckCircle2, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
