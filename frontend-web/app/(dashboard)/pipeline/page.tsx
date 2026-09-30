@@ -1,33 +1,1791 @@
 'use client';
 
+import { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
 import { DealsKanban } from '@/components/deals/DealsKanban';
-import { Filter, BarChart3, Plus } from 'lucide-react';
+import { FileImportEngineModal } from '@/components/ingestion/FileImportEngineModal';
+import { LeadAllocationModal, isBatchAssignableRole } from '@/components/ingestion/LeadAllocationModal';
+import { isLeadContactedAndLocked } from '@/components/leads/LeadsTable';
+import {
+  Shield, Zap, DollarSign, TrendingUp, Users, Target, Building2, Briefcase,
+  CheckSquare, Layers, Lock, ArrowRight, Plus, Database, ClipboardList,
+  PhoneCall, Play, Download, Clock, CheckCircle2, AlertCircle, Settings,
+  Radio, Sliders, Eye, EyeOff, Bot, MessageSquare, Mail, RefreshCw, Activity,
+  UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X, GitBranch, Trash2, Check
+} from 'lucide-react';
+import { useAuth, UserRole } from '@/context/AuthContext';
 
-export default function PipelinePage() {
+interface DashboardLeadRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  source: string;
+  stage: string;
+  value: number;
+  assignedRep: string;
+  customFields: Record<string, string>;
+  createdAt: string;
+}
+
+interface FileUploadHistoryItem {
+  id: string;
+  fileName: string;
+  fileSize: string;
+  uploadedAt: string;
+  leadsCount: number;
+  uploadedBy: string;
+  status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+}
+
+interface GoogleSheetHistoryItem {
+  id: string;
+  spreadsheetTitle: string;
+  spreadsheetUrl: string;
+  sheetTab: string;
+  rangeMapped: string;
+  connectedAt: string;
+  lastSyncAt: string;
+  totalSyncsCount: number;
+  totalLeadsIngested: number;
+  status: 'ACTIVE_SYNC' | 'PAUSED';
+}
+
+interface DatewiseLeadsAnalytics {
+  date: string;
+  totalLeads: number;
+  googleSheets: number;
+  fileUploads: number;
+  facebookAds: number;
+  googleAds: number;
+  whatsAppDirect: number;
+}
+
+function sanitizeCellString(input: any, fallback: string = '—'): string {
+  if (input === null || input === undefined) return fallback;
+  const str = String(input).trim();
+  if (str === 'Unknown') return 'Unknown';
+  if (!str) return fallback;
+  const cleaned = str.replace(/[^\x20-\x7E\u00C0-\u024F\u0900-\u097F\u4E00-\u9FFF]/g, '').trim();
+  if (!cleaned || (/[^\w\s@\.\+\-\(\),&]/.test(cleaned) && cleaned.length > 20)) {
+    return fallback;
+  }
+  return cleaned;
+}
+
+export default function LeadPipelinePage() {
+  const { currentUser } = useAuth();
+
+  const rawRole = (currentUser?.role || '').toString().toUpperCase();
+  const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER';
+  const canBulkImport = isAdminOrManager;
+
+  // Ingestion Modal States
+  const [insertLeadModalOpen, setInsertLeadModalOpen] = useState(false);
+  const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
+  const [googleSheetsModalOpen, setGoogleSheetsModalOpen] = useState(false);
+  const [customColumnModalOpen, setCustomColumnModalOpen] = useState(false);
+
+  // Lead Incoming History Active Tab State
+  const [historyActiveTab, setHistoryActiveTab] = useState<'DATEWISE' | 'FILE_UPLOADS' | 'GSHEETS_SYNC'>('DATEWISE');
+
+  // History Seed State
+  // History Seed State (Clean for fresh companies)
+  const [fileUploadHistory, setFileUploadHistory] = useState<FileUploadHistoryItem[]>([]);
+  const [googleSheetHistory, setGoogleSheetHistory] = useState<GoogleSheetHistoryItem[]>([]);
+  const [datewiseAnalytics, setDatewiseAnalytics] = useState<DatewiseLeadsAnalytics[]>([]);
+
+  // Single Insert Form
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadCompany, setNewLeadCompany] = useState('');
+  const [newLeadSource, setNewLeadSource] = useState('Website Form');
+  const [newLeadValue, setNewLeadValue] = useState('45000');
+  const [newLeadAssignedRep, setNewLeadAssignedRep] = useState('Unassigned');
+
+  // Tenant-scoped sales representatives & users (Restricted to TL & Sales Exec for lead assignment)
+  const [tenantReps, setTenantReps] = useState<Array<{ id: string; name: string; role: string }>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        if (u && (u.name || u.email)) {
+          return [{ id: u.id || 'usr-1', name: u.name || 'Sales Rep', role: u.role || 'Sales Rep' }];
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const assignableReps = useMemo(() => {
+    return tenantReps.filter(rep => isBatchAssignableRole(rep.role));
+  }, [tenantReps]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('das_crm_token');
+        if (!token) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.items || data.users || []);
+          if (items.length > 0) {
+            setTenantReps(items.map((u: any) => ({
+              id: u.id,
+              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+              role: u.role || 'Sales Rep',
+            })));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchUsers();
+  }, []);
+
+  // Custom Column Form
+  const [newColName, setNewColName] = useState('');
+  const [newColType, setNewColType] = useState<'TEXT' | 'NUMBER' | 'SELECT'>('TEXT');
+  const [newColOptionsStr, setNewColOptionsStr] = useState('Hot Lead, Warm Lead, Cold Lead');
+  const [newColOptionInput, setNewColOptionInput] = useState(''); // single pill input
+  const [editingColId, setEditingColId] = useState<string | null>(null); // null = add mode
+
+  // 📊 Spreadsheet Ingestion & Employee Allocation Audit History State
+  const [webAuditLogs, setWebAuditLogs] = useState<Array<{
+    id: string;
+    fileName: string;
+    injectedAt: string;
+    leadsCount: number;
+    colsCount: number;
+    platform: string;
+    status: 'PENDING_ALLOCATION' | 'ALLOCATED';
+    allocationSummary?: string;
+  }>>([]);
+
+  const [webAuditFilter, setWebAuditFilter] = useState<'ALL' | 'PENDING' | 'ALLOCATED'>('ALL');
+  const [selectedWebAuditDetail, setSelectedWebAuditDetail] = useState<typeof webAuditLogs[0] | null>(null);
+  const [pendingAllocationSheet, setPendingAllocationSheet] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    leadsCount: number;
+    auditId?: string;
+  }>({
+    isOpen: false,
+    fileName: '',
+    leadsCount: 0,
+  });
+
+  // Dynamic Custom Columns & Excel Table Config State
+  const [customColumns, setCustomColumns] = useState<Array<{ id: string; name: string; type: string; options?: string[] }>>([
+    { id: 'col_city', name: 'City', type: 'TEXT' },
+    { id: 'col_budget', name: 'Budget', type: 'TEXT' },
+    { id: 'col_rating', name: 'Lead Rating', type: 'SELECT', options: ['Hot Lead 🔥', 'Warm Lead ⚡', 'Cold Lead ❄️'] },
+    { id: 'col_requirement', name: 'Requirement', type: 'TEXT' },
+  ]);
+
+  interface TableColumnConfig {
+    id: string;
+    label: string;
+    isRestricted?: boolean; // If true, appends '*' and restricts to Admin & Manager only
+    hidden?: boolean;
+  }
+
+  const [tableColumns, setTableColumns] = useState<TableColumnConfig[]>([
+    { id: 'name', label: 'Name' },
+    { id: 'email', label: 'Email' },
+    { id: 'phone', label: 'Phone' },
+    { id: 'company', label: 'Company' },
+    { id: 'source', label: 'Source' },
+    { id: 'stage', label: 'Stage' },
+    { id: 'value', label: 'Value', isRestricted: true },
+    { id: 'assignedRep', label: 'Assigned Rep' },
+    { id: 'col_city', label: 'City' },
+    { id: 'col_budget', label: 'Budget', isRestricted: true },
+    { id: 'col_rating', label: 'Lead Rating' },
+    { id: 'col_requirement', label: 'Requirement' },
+  ]);
+
+  const [columnConfigModalOpen, setColumnConfigModalOpen] = useState(false);
+
+  // Excel Column Resizing (Hold & Drag Divider Line) State
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    name: 180,
+    email: 180,
+    phone: 150,
+    company: 180,
+    source: 130,
+    stage: 130,
+    value: 120,
+    assignedRep: 150,
+    col_city: 130,
+    col_budget: 130,
+    col_rating: 140,
+    col_requirement: 180,
+  });
+
+  const [resizingColId, setResizingColId] = useState<string | null>(null);
+  const startXRef = useRef<number>(0);
+  const startWidthRef = useRef<number>(0);
+
+  const handleMouseDownResize = (e: React.MouseEvent, colId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColId(colId);
+    startXRef.current = e.clientX;
+    startWidthRef.current = columnWidths[colId] || 140;
+
+    let rafId: number | null = null;
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const deltaX = moveEvent.clientX - startXRef.current;
+        const newWidth = Math.max(70, startWidthRef.current + deltaX);
+        setColumnWidths(prev => ({ ...prev, [colId]: newWidth }));
+      });
+    };
+
+    const onMouseUp = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      setResizingColId(null);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Column Reorder Helpers
+  const moveColumnLeft = (index: number) => {
+    if (index <= 0) return;
+    setTableColumns(prev => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[index - 1];
+      copy[index - 1] = temp;
+      return copy;
+    });
+  };
+
+  const moveColumnRight = (index: number) => {
+    if (index >= tableColumns.length - 1) return;
+    setTableColumns(prev => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[index + 1];
+      copy[index + 1] = temp;
+      return copy;
+    });
+  };
+
+  // Excel Row Up / Down Shifting
+  const moveRowUp = (leadId: string) => {
+    const idx = leadDirectory.findIndex(l => l.id === leadId);
+    if (idx <= 0) return;
+    setLeadDirectory(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[idx - 1];
+      copy[idx - 1] = temp;
+      return copy;
+    });
+  };
+
+  const moveRowDown = (leadId: string) => {
+    const idx = leadDirectory.findIndex(l => l.id === leadId);
+    if (idx < 0 || idx >= leadDirectory.length - 1) return;
+    setLeadDirectory(prev => {
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[idx + 1];
+      copy[idx + 1] = temp;
+      return copy;
+    });
+  };
+
+  // Master Lead Directory List (Clean for fresh companies)
+  const [leadDirectory, setLeadDirectory] = useState<DashboardLeadRecord[]>([]);
+
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+
+  // Handle Single Lead Insertion
+  const handleInsertSingleLead = () => {
+    if (!newLeadName.trim() || !newLeadPhone.trim()) {
+      alert('Please enter Lead Name and Phone Number');
+      return;
+    }
+    const created: DashboardLeadRecord = {
+      id: `lead_${Date.now()}`,
+      name: newLeadName.trim(),
+      email: newLeadEmail.trim() || '—',
+      phone: newLeadPhone.trim(),
+      company: newLeadCompany.trim() || 'Individual Lead',
+      source: newLeadSource,
+      stage: 'Prospecting',
+      value: parseFloat(newLeadValue) || 0,
+      assignedRep: newLeadAssignedRep,
+      customFields: {},
+      createdAt: 'Just now',
+    };
+    setLeadDirectory(prev => [created, ...prev]);
+    setInsertLeadModalOpen(false);
+    setNewLeadName(''); setNewLeadEmail(''); setNewLeadPhone(''); setNewLeadCompany('');
+  };
+
+  // Handle Custom Column Addition / Edit
+  const handleSaveColumn = () => {
+    if (!newColName.trim()) return;
+    const colId = editingColId ?? `col_${newColName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
+    const opts = newColType === 'SELECT'
+      ? newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean)
+      : undefined;
+    const colData = {
+      id: colId,
+      name: newColName.trim(),
+      type: newColType,
+      options: opts && opts.length > 0 ? opts : newColType === 'SELECT' ? ['Option 1', 'Option 2', 'Option 3'] : undefined,
+    };
+
+    if (editingColId) {
+      // Edit existing column
+      setCustomColumns(prev => prev.map(c => c.id === editingColId ? colData : c));
+      setTableColumns(prev => prev.map(c => c.id === editingColId ? { ...c, label: colData.name } : c));
+    } else {
+      // Add new column
+      setCustomColumns(prev => [...prev, colData]);
+      setTableColumns(prev => [...prev, { id: colId, label: colData.name, isRestricted: false, hidden: false }]);
+    }
+    closeCustomColumnModal();
+  };
+
+  const handleDeleteColumn = (colId: string) => {
+    setCustomColumns(prev => prev.filter(c => c.id !== colId));
+    setTableColumns(prev => prev.filter(c => c.id !== colId));
+  };
+
+  const openEditColumn = (col: { id: string; name: string; type: string; options?: string[] }) => {
+    setEditingColId(col.id);
+    setNewColName(col.name);
+    setNewColType(col.type as 'TEXT' | 'NUMBER' | 'SELECT');
+    setNewColOptionsStr((col.options || []).join(', '));
+    setNewColOptionInput('');
+    setCustomColumnModalOpen(true);
+  };
+
+  const openAddColumn = () => {
+    setEditingColId(null);
+    setNewColName('');
+    setNewColType('TEXT');
+    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+    setNewColOptionInput('');
+    setCustomColumnModalOpen(true);
+  };
+
+  const closeCustomColumnModal = () => {
+    setCustomColumnModalOpen(false);
+    setEditingColId(null);
+    setNewColName('');
+    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+    setNewColOptionInput('');
+  };
+
+  // Pill option helpers for SELECT type
+  const addOptionPill = () => {
+    const trimmed = newColOptionInput.trim();
+    if (!trimmed) return;
+    const existing = newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean);
+    if (!existing.includes(trimmed)) {
+      setNewColOptionsStr([...existing, trimmed].join(', '));
+    }
+    setNewColOptionInput('');
+  };
+
+  const removeOptionPill = (opt: string) => {
+    const remaining = newColOptionsStr.split(',').map(s => s.trim()).filter(s => s && s !== opt);
+    setNewColOptionsStr(remaining.join(', '));
+  };
+
+  const filteredLeadDirectory = leadDirectory.filter(lead => {
+    if (!leadSearchQuery.trim()) return true;
+    const q = leadSearchQuery.toLowerCase();
+    return lead.name.toLowerCase().includes(q) ||
+      lead.email.toLowerCase().includes(q) ||
+      lead.phone.toLowerCase().includes(q) ||
+      lead.company.toLowerCase().includes(q);
+  });
+
+  // ── Pagination State ────────────────────────────────────────────────────────
+  const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 whenever the search query or lead list changes
+  const totalPages = Math.max(1, Math.ceil(filteredLeadDirectory.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;         // 0-based inclusive
+  const endIdx   = Math.min(startIdx + pageSize, filteredLeadDirectory.length); // exclusive
+  const pagedLeads = filteredLeadDirectory.slice(startIdx, endIdx);
+
+  // Keep safePage in sync (runs synchronously during render — safe because it
+  // only updates when currentPage drifts out of range after filtering)
+  if (currentPage !== safePage) setCurrentPage(safePage);
+
+  /** Page number buttons with ellipsis (up to 7 visible slots) */
+  const buildPageWindows = (cur: number, total: number): (number | '...')[] => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    if (cur <= 4)   return [1, 2, 3, 4, 5, '...', total];
+    if (cur >= total - 3) return [1, '...', total-4, total-3, total-2, total-1, total];
+    return [1, '...', cur - 1, cur, cur + 1, '...', total];
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar
-        title="Opportunities & Pipeline"
+        title="Lead Pipeline & Ingestion Control Center"
         actions={
-          <div className="flex items-center gap-2">
-            <button className="btn-secondary text-sm gap-1.5"><Filter size={14} /> Filter</button>
-            <button className="btn-secondary text-sm gap-1.5"><BarChart3 size={14} /> Forecast</button>
-            <button
-              onClick={() => {
-                const addBtn = document.querySelector('[data-action="add-deal"]') as HTMLElement;
-                if (addBtn) addBtn.click();
-              }}
-              className="btn-primary text-sm gap-1.5"
-            >
-              <Plus size={14} /> New Opportunity
-            </button>
-          </div>
+          <button
+            onClick={() => setInsertLeadModalOpen(true)}
+            className="btn-primary text-xs gap-1.5 px-3 py-2"
+          >
+            <Plus size={14} /> Insert Lead
+          </button>
         }
       />
-      <main className="flex-1 p-6 overflow-auto">
-        <DealsKanban />
+
+      <main className="flex-1 p-4 sm:p-6 overflow-auto space-y-6 animate-fade-in">
+
+        {/* ============================================================ */}
+        {/* ⚡ LEAD INTEGRATION & INGESTION CONTROL CENTER               */}
+        {/* ============================================================ */}
+        <div className="crm-card p-6 border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 space-y-6 rounded-2xl shadow-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  ⚡ INTEGRATION & DATA HUB
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  12 ACTIVE PLATFORM CHANNELS
+                </span>
+              </div>
+              <h2 className="text-xl font-extrabold text-white mt-1 flex items-center gap-2">
+                <Database size={20} className="text-indigo-400" /> Lead Integration &amp; Ingestion Control Center
+              </h2>
+              <p className="text-xs text-muted mt-0.5">
+                Integrate Ad Gateways, B2B Portals, Insert Single Lead, Import CSV/Excel &amp; Manage Custom Columns
+              </p>
+            </div>
+
+            {/* Toolbar Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setInsertLeadModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-brand hover:from-indigo-500 hover:to-brand-400 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
+              >
+                <Plus size={14} /> + Insert Lead
+              </button>
+              {canBulkImport && (
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <Upload size={14} className="text-indigo-400" /> Import CSV / Excel
+                </button>
+              )}
+              <button
+                onClick={() => openAddColumn()}
+                className="px-3.5 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 font-bold text-xs flex items-center gap-1.5 transition-all"
+              >
+                <Sliders size={14} /> + Custom Column
+              </button>
+            </div>
+          </div>
+
+          {/* Connected Ingestion Platform Channel Cards (12 Platforms) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { title: 'Google Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
+              { title: 'Meta Ads (FB & Insta)', count: '0 Ingested', status: 'Channel Active', bg: 'border-blue-500/30 bg-blue-500/5', color: 'text-blue-400' },
+              { title: 'LinkedIn Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-cyan-500/30 bg-cyan-500/5', color: 'text-cyan-400' },
+              { title: 'Microsoft Ads (Bing)', count: '0 Ingested', status: 'Channel Active', bg: 'border-teal-500/30 bg-teal-500/5', color: 'text-teal-400' },
+              { title: 'Pinterest Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-rose-500/30 bg-rose-500/5', color: 'text-rose-400' },
+              { title: 'X (Twitter) Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-sky-500/30 bg-sky-500/5', color: 'text-sky-400' },
+              { title: 'IndiaMART', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'TradeIndia', count: '0 Ingested', status: 'Channel Active', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
+              { title: 'Justdial', count: '0 Ingested', status: 'Channel Active', bg: 'border-orange-500/30 bg-orange-500/5', color: 'text-orange-400' },
+              { title: 'Lotwaala', count: '0 Ingested', status: 'Channel Active', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
+              { title: 'Website Forms', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
+              { title: 'Custom Channel', count: '0 Ingested', status: 'Channel Active', bg: 'border-slate-700 bg-slate-900/60', color: 'text-slate-300' },
+            ].map(ch => (
+              <div key={ch.title} className={`p-3 rounded-xl border ${ch.bg} space-y-1 hover:border-slate-600 transition-all`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-white truncate">{ch.title}</p>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+                <p className={`text-sm font-extrabold ${ch.color}`}>{ch.count}</p>
+                <p className="text-[10px] text-muted truncate">{ch.status}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
+          <div className="crm-card p-5 bg-slate-900/90 border-slate-800 rounded-2xl space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <Database size={16} className="text-indigo-400" />
+                  📊 Spreadsheet Ingestion &amp; Employee Allocation Audit Log
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Real-time audit log of when &amp; what time spreadsheet files were injected, employee allocations, and pending unassigned sheets.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                >
+                  <Upload size={13} /> + Import New Sheet
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 border-b border-slate-800/60 pb-2 overflow-x-auto">
+              {[
+                { id: 'ALL', label: `ALL (${webAuditLogs.length})` },
+                { id: 'PENDING', label: `⏳ UNASSIGNED PENDING (${webAuditLogs.filter(a => a.status === 'PENDING_ALLOCATION').length})` },
+                { id: 'ALLOCATED', label: `✓ COMPLETED ALLOCATIONS (${webAuditLogs.filter(a => a.status === 'ALLOCATED').length})` },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setWebAuditFilter(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${
+                    webAuditFilter === tab.id
+                      ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
+                      : 'filter-pill-unselected'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Audit Log Cards List */}
+            {webAuditLogs.length === 0 ? (
+              <div className="p-8 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-3">
+                <FileSpreadsheet size={36} className="text-slate-600" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-300">No Spreadsheet Ingestion Records Yet</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    Upload an Excel or CSV sheet to begin ingesting leads and allocate them directly to your team members.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setImportCsvModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all mt-1"
+                >
+                  <Upload size={14} /> + Import New Sheet
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {webAuditLogs
+                  .filter(item => {
+                    if (webAuditFilter === 'PENDING') return item.status === 'PENDING_ALLOCATION';
+                    if (webAuditFilter === 'ALLOCATED') return item.status === 'ALLOCATED';
+                    return true;
+                  })
+                .map(item => {
+                  const isPending = item.status === 'PENDING_ALLOCATION';
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-xl border flex flex-col justify-between space-y-3 transition-all ${
+                        isPending
+                          ? 'bg-amber-500/5 border-amber-500/40 shadow-lg shadow-amber-500/5 hover:border-amber-500/60'
+                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                          <button
+                            onClick={() => setSelectedWebAuditDetail(item)}
+                            className="text-xs font-extrabold text-white dark:text-white hover:text-indigo-300 hover:underline flex items-center gap-1.5 transition-all text-left min-w-0 flex-1"
+                            title="Click to view Assigned To Whom allocation breakdown"
+                          >
+                            <FileSpreadsheet size={14} className={isPending ? 'text-amber-400 flex-shrink-0' : 'text-indigo-400 flex-shrink-0'} />
+                            <span className="truncate">{item.fileName}</span>
+                            <span className="text-[9px] text-indigo-300 no-underline font-semibold bg-indigo-500/15 px-1.5 py-0.5 rounded border border-indigo-500/30 whitespace-nowrap flex-shrink-0 hidden sm:inline-block">🔍 Assigned To</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (isPending) {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              } else {
+                                setSelectedWebAuditDetail(item);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-[9px] font-black rounded-lg border uppercase tracking-wider cursor-pointer transition-all shadow-sm flex-shrink-0 whitespace-nowrap ${
+                              isPending
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 animate-pulse'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                            }`}
+                            title={isPending ? 'Click to allocate these pending leads' : 'Click to view allocation breakdown'}
+                          >
+                            {isPending ? '⏳ PENDING • ASSIGN' : '✓ ALLOCATED ℹ️'}
+                          </button>
+                        </div>
+
+                        <div className="space-y-1.5 text-[11px] text-slate-300 py-0.5">
+                          <p className="flex items-center gap-1.5">
+                            <Clock size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Injected At:</span> <span className="text-white font-bold">{item.injectedAt}</span>
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <Zap size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Extracted Size:</span> <span className="text-emerald-400 font-extrabold">{item.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{item.colsCount || 6} Columns</span>
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <Radio size={12} className="text-slate-400 flex-shrink-0" />
+                            <span>Source Platform:</span> <span className="text-sky-300 font-bold">{item.platform}</span>
+                          </p>
+                        </div>
+
+                        {/* Allocation Status & Action Callout Box */}
+                        {isPending ? (
+                          <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1 min-w-0 flex-1 truncate">
+                                <UserX size={13} className="text-amber-400 flex-shrink-0" /> Unassigned: {item.leadsCount} Leads
+                              </span>
+                              <span className="text-[9px] font-bold text-amber-400/90 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 flex-shrink-0 whitespace-nowrap">Action Required</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap"
+                              title="Allocate these pending leads to employees"
+                            >
+                              <UserCheck size={14} /> ⚡ Allocate {item.leadsCount} Leads Now →
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-1.5 text-slate-300 min-w-0 flex-1 truncate">
+                              <UserCheck size={13} className="text-emerald-400 flex-shrink-0" />
+                              <span className="truncate text-[11px] font-medium" title={item.allocationSummary}>
+                                {item.allocationSummary || 'Assigned to sales reps'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 hover:underline flex-shrink-0 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 whitespace-nowrap"
+                              title="Reallocate or adjust distribution rules"
+                            >
+                              Re-allocate
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {isPending && (
+                            <button
+                              onClick={() => {
+                                setPendingAllocationSheet({
+                                  isOpen: true,
+                                  fileName: item.fileName,
+                                  leadsCount: item.leadsCount,
+                                  auditId: item.id,
+                                });
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] flex items-center gap-1 shadow-sm transition-all whitespace-nowrap"
+                              title="Allocate leads in this spreadsheet"
+                            >
+                              <UserCheck size={12} /> Allocate Leads
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              document.getElementById('lead-directory-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
+                            title="Open Sheet Editor to preview and edit row/column contents"
+                          >
+                            <Eye size={12} /> Preview &amp; Edit Sheet
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete sheet allocation record for "${item.fileName}"?\n\nℹ️ 6-Month Retention Policy: Company operational history automatically purges after 6 months (180 days). Verified Employee Documents are permanently preserved.`)) {
+                                setWebAuditLogs(prev => prev.filter(a => a.id !== item.id));
+                              }
+                            }}
+                            className="px-2 py-1 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-extrabold text-[10px] flex items-center gap-1 transition-all whitespace-nowrap"
+                            title="Delete Sheet Allocation record (6-Month retention policy)"
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                        <span className="text-[9px] font-bold text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                          <Clock size={10} /> 6-Month Auto-Purge
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Directory Table with Search, Column Manager & Excel Controls */}
+          <div id="lead-directory-section" className="space-y-3 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Database size={15} className="text-indigo-400" />
+                  Live Adjustable Lead Directory ({filteredLeadDirectory.length} Leads)
+                </h3>
+                <p className="text-[10px] text-muted">
+                  Showing <span className="text-white font-bold">{filteredLeadDirectory.length === 0 ? 0 : startIdx + 1}–{endIdx}</span> of <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span> leads
+                  &nbsp;·&nbsp;Use ▲/▼ to shift rows, ◀/▶ to re-order columns. Columns with <span className="text-amber-400 font-bold">*</span> are restricted to Admin &amp; Managers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setColumnConfigModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                >
+                  <Sliders size={13} /> ⚙️ Column Manager &amp; Visibility (* Admin/Mgr)
+                </button>
+
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    type="text"
+                    value={leadSearchQuery}
+                    onChange={e => setLeadSearchQuery(e.target.value)}
+                    placeholder="Search leads, emails, or phone..."
+                    className="crm-input pl-9 w-full sm:w-64 text-xs h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-border/80 shadow-2xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950 text-muted uppercase font-bold text-[10px] border-b border-border select-none">
+                  <tr>
+                    {/* Excel Row Move Column Header */}
+                    <th className="p-2.5 text-center text-slate-500 w-16">Row Shift</th>
+
+                    {/* Dynamic Table Columns */}
+                    {tableColumns.filter(c => !c.hidden).map((col, cIdx) => (
+                      <th
+                        key={col.id}
+                        style={{
+                          width: columnWidths[col.id] ? `${columnWidths[col.id]}px` : 'auto',
+                          minWidth: `${columnWidths[col.id] || 110}px`,
+                        }}
+                        className="p-3 font-extrabold text-slate-200 border-r border-border/40 last:border-0 hover:bg-slate-900/90 transition-all relative group select-none"
+                      >
+                        <div className="flex items-center justify-between gap-1.5 pr-2">
+                          <span className="truncate flex items-center gap-0.5">
+                            {col.label}
+                            {col.isRestricted && (
+                              <span className="text-amber-400 font-black text-xs ml-0.5" title="Restricted to Admin & Manager only">*</span>
+                            )}
+                          </span>
+
+                          {/* Column Order Left / Right Control Buttons */}
+                          <div className="flex items-center gap-0.5 bg-slate-900/90 p-0.5 rounded border border-slate-800 flex-shrink-0">
+                            <button
+                              onClick={() => moveColumnLeft(cIdx)}
+                              disabled={cIdx === 0}
+                              title="Move Column Left"
+                              className="px-1 py-0.2 rounded hover:bg-indigo-600 hover:text-white text-slate-400 disabled:opacity-20 text-[9px] font-bold"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              onClick={() => moveColumnRight(cIdx)}
+                              disabled={cIdx === tableColumns.filter(c => !c.hidden).length - 1}
+                              title="Move Column Right"
+                              className="px-1 py-0.2 rounded hover:bg-indigo-600 hover:text-white text-slate-400 disabled:opacity-20 text-[9px] font-bold"
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* ↕️ EXCEL HOLD & DRAG COLUMN DIVIDER LINE RESIZER */}
+                        <div
+                          onMouseDown={(e) => handleMouseDownResize(e, col.id)}
+                          title="Hold & Drag Line to Resize Column Width"
+                          className={`absolute right-0 top-0 bottom-0 w-3 cursor-col-resize z-20 hover:bg-cyan-400/80 flex items-center justify-center transition-colors group-hover:bg-cyan-500/30 ${resizingColId === col.id ? 'bg-cyan-400 w-3' : ''}`}
+                        >
+                          <div className="w-[2px] h-full bg-slate-700/80 group-hover:bg-cyan-300" />
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40 bg-slate-900/40">
+                  {pagedLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={tableColumns.filter(c => !c.hidden).length + 1} className="py-12 px-4 text-center text-slate-400">
+                        <Database size={36} className="mx-auto mb-3 text-slate-600 opacity-60" />
+                        <p className="text-sm font-bold text-slate-300">No leads found in directory</p>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          Import a CSV/Excel sheet or insert a lead to view and organize data in this interactive Excel grid.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <button
+                            onClick={() => setInsertLeadModalOpen(true)}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all"
+                          >
+                            + Insert Lead
+                          </button>
+                          {canBulkImport && (
+                            <button
+                              onClick={() => setImportCsvModalOpen(true)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
+                            >
+                              <Upload size={13} /> Import CSV
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedLeads.map((lead, rIdx) => (
+                    <tr key={lead.id} className="hover:bg-slate-800/60 transition-colors group">
+                      {/* Row Shift Controls — disable at absolute boundaries of the full list */}
+                      <td className="p-2 text-center border-r border-border/40">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => moveRowUp(lead.id)}
+                            disabled={startIdx + rIdx === 0}
+                            title="Shift Row Up"
+                            className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            onClick={() => moveRowDown(lead.id)}
+                            disabled={startIdx + rIdx === filteredLeadDirectory.length - 1}
+                            title="Shift Row Down"
+                            className="p-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white disabled:opacity-20 text-[9px] font-bold transition-all"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Dynamic Cell Values based on Column Order & Restrictions */}
+                      {tableColumns.filter(c => !c.hidden).map(col => {
+                        // Check if column is restricted with '*' and user is NOT Admin or Manager
+                        if (col.isRestricted && !isAdminOrManager) {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                *** Restricted (Admin/Mgr Only)
+                              </span>
+                            </td>
+                          );
+                        }
+
+                        // Render Cell Values
+                        if (col.id === 'name') {
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">{lead.name}</td>;
+                        }
+                        if (col.id === 'email') {
+                          return <td key={col.id} className="p-3 text-muted border-r border-border/40 last:border-0">{lead.email}</td>;
+                        }
+                        if (col.id === 'phone') {
+                          return <td key={col.id} className="p-3 text-emerald-400 font-mono font-medium border-r border-border/40 last:border-0">{lead.phone}</td>;
+                        }
+                        if (col.id === 'company') {
+                          return <td key={col.id} className="p-3 text-slate-300 border-r border-border/40 last:border-0">{lead.company}</td>;
+                        }
+                        if (col.id === 'source') {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                {lead.source}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (col.id === 'stage') {
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                {lead.stage}
+                              </span>
+                            </td>
+                          );
+                        }
+                        if (col.id === 'value') {
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{lead.value.toLocaleString('en-IN')}</td>;
+                        }
+                        if (col.id === 'assignedRep') {
+                          const isLocked = isLeadContactedAndLocked({ status: lead.stage, stage: lead.stage });
+                          const isUnassigned = !lead.assignedRep || lead.assignedRep === 'Unassigned' || lead.assignedRep === '—';
+
+                          if (isLocked) {
+                            return (
+                              <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950 border border-slate-800" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
+                                  <Lock size={12} className="text-amber-400" />
+                                  <span className="font-bold text-slate-300 text-xs">{lead.assignedRep}</span>
+                                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20">LOCKED</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
+                              <select
+                                value={lead.assignedRep || 'Unassigned'}
+                                onChange={(e) => {
+                                  const newRep = e.target.value;
+                                  setLeadDirectory(prev => prev.map(item => item.id === lead.id ? { ...item, assignedRep: newRep } : item));
+                                }}
+                                className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
+                                  isUnassigned
+                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
+                                    : 'bg-slate-950 border-slate-700 text-indigo-300 hover:border-indigo-500'
+                                }`}
+                              >
+                                <option value="Unassigned">⚠️ Unassigned</option>
+                                {assignableReps.map(rep => (
+                                  <option key={rep.id} value={rep.name}>
+                                    {rep.name} ({rep.role})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        }
+
+                        // Custom Fields Cell
+                        return (
+                          <td key={col.id} className="p-3 text-indigo-300 font-medium border-r border-border/40 last:border-0">
+                            {lead.customFields[col.id] || '—'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  )))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Pagination Bar ──────────────────────────────────────────────── */}
+            {filteredLeadDirectory.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 px-1">
+
+                {/* Left: page size selector + range info */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-400 font-semibold">Rows per page:</span>
+                    <div className="flex gap-1">
+                      {([10, 20, 50, 100] as const).map(size => (
+                        <button
+                          key={size}
+                          onClick={() => { setPageSize(size); setCurrentPage(1); }}
+                          className={`px-3 py-1 rounded-lg text-xs font-black border transition-all ${
+                            pageSize === size
+                              ? 'bg-indigo-600 text-white border-indigo-400 shadow shadow-indigo-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-indigo-300'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    <span className="text-white font-bold">{startIdx + 1}–{endIdx}</span>
+                    {' '}of{' '}
+                    <span className="text-indigo-300 font-bold">{filteredLeadDirectory.length}</span>
+                    {' '}leads
+                  </span>
+                </div>
+
+                {/* Right: prev / page numbers / next */}
+                <div className="flex items-center gap-1">
+                  {/* Prev */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-30 disabled:pointer-events-none transition-all text-xs font-bold"
+                    title="Previous page"
+                  >
+                    ◀
+                  </button>
+
+                  {/* Page number pills */}
+                  {buildPageWindows(safePage, totalPages).map((pg, i) =>
+                    pg === '...'
+                      ? <span key={`ellipsis-${i}`} className="px-1.5 text-slate-600 text-xs select-none">…</span>
+                      : <button
+                          key={pg}
+                          onClick={() => setCurrentPage(pg as number)}
+                          className={`min-w-[32px] px-2.5 py-1 rounded-lg text-xs font-black border transition-all ${
+                            safePage === pg
+                              ? 'bg-indigo-600 text-white border-indigo-400 shadow shadow-indigo-500/30'
+                              : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-indigo-500 hover:text-white hover:bg-indigo-500/10'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                  )}
+
+                  {/* Next */}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-30 disabled:pointer-events-none transition-all text-xs font-bold"
+                    title="Next page"
+                  >
+                    ▶
+                  </button>
+
+                  {/* Jump to page */}
+                  <span className="ml-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    Page
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={safePage}
+                      onChange={e => {
+                        const v = parseInt(e.target.value);
+                        if (!isNaN(v) && v >= 1 && v <= totalPages) setCurrentPage(v);
+                      }}
+                      className="w-12 bg-slate-900 border border-slate-700 text-white text-xs text-center rounded-lg px-1 py-1 focus:outline-none focus:border-indigo-500"
+                    />
+                    of <span className="text-indigo-300 font-bold">{totalPages}</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* 📊 LEAD INCOMING HISTORY & DATA SOURCE AUDIT CENTER          */}
+        {/* ============================================================ */}
+        <div className="crm-card p-6 border-purple-500/30 bg-slate-950/80 space-y-4 rounded-2xl shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                AUDIT & INGESTION LOGS
+              </span>
+              <h3 className="font-extrabold text-base text-white mt-1 flex items-center gap-2">
+                <ClipboardList size={18} className="text-purple-400" /> Lead Incoming History & Data Source Audit
+              </h3>
+            </div>
+
+            {/* TAB SELECTOR */}
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold flex-wrap">
+              <button
+                onClick={() => setHistoryActiveTab('DATEWISE')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'DATEWISE' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                📅 Date-Wise Total Leads ({datewiseAnalytics.reduce((a, b) => a + b.totalLeads, 0)})
+              </button>
+              <button
+                onClick={() => setHistoryActiveTab('FILE_UPLOADS')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'FILE_UPLOADS' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                📄 File Upload History ({fileUploadHistory.length})
+              </button>
+              <button
+                onClick={() => setHistoryActiveTab('GSHEETS_SYNC')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${historyActiveTab === 'GSHEETS_SYNC' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                🌐 Webhook &amp; Gateway Logs ({googleSheetHistory.length})
+              </button>
+            </div>
+          </div>
+
+          {/* TAB 1: DATEWISE ANALYTICS BREAKDOWN */}
+          {historyActiveTab === 'DATEWISE' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Date Window</th>
+                    <th className="p-3 text-cyan-300">Total Leads Ingested</th>
+                    <th className="p-3 text-emerald-400">Meta &amp; Google Ads</th>
+                    <th className="p-3 text-purple-300">File Uploads (CSV/Excel)</th>
+                    <th className="p-3 text-blue-400">B2B Portals (IndiaMART/TradeIndia)</th>
+                    <th className="p-3 text-amber-400">Microsoft &amp; LinkedIn Ads</th>
+                    <th className="p-3 text-emerald-300">Website &amp; Custom Webhooks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {datewiseAnalytics.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-white">{row.date}</td>
+                      <td className="p-3 font-mono font-black text-cyan-300">{row.totalLeads} Leads</td>
+                      <td className="p-3 font-mono text-emerald-400 font-bold">+{row.googleSheets}</td>
+                      <td className="p-3 font-mono text-purple-300 font-bold">+{row.fileUploads}</td>
+                      <td className="p-3 font-mono text-blue-400 font-bold">+{row.facebookAds}</td>
+                      <td className="p-3 font-mono text-red-400 font-bold">+{row.googleAds}</td>
+                      <td className="p-3 font-mono text-emerald-300 font-bold">+{row.whatsAppDirect}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: FILE UPLOAD HISTORY LOG */}
+          {historyActiveTab === 'FILE_UPLOADS' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Uploaded File Name</th>
+                    <th className="p-3">File Size</th>
+                    <th className="p-3 text-purple-300">Total Leads Ingested</th>
+                    <th className="p-3">Upload Timestamp</th>
+                    <th className="p-3">Uploaded By User</th>
+                    <th className="p-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {fileUploadHistory.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-white flex items-center gap-1.5">
+                        <FileSpreadsheet size={14} className="text-purple-400" /> {item.fileName}
+                      </td>
+                      <td className="p-3 font-mono text-slate-400">{item.fileSize}</td>
+                      <td className="p-3 font-mono font-extrabold text-purple-300">+{item.leadsCount} Leads</td>
+                      <td className="p-3 font-mono text-muted text-[11px]">{item.uploadedAt}</td>
+                      <td className="p-3 font-semibold text-slate-300">{item.uploadedBy}</td>
+                      <td className="p-3 text-right">
+                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 3: GOOGLE SHEETS INTEGRATION HISTORY */}
+          {historyActiveTab === 'GSHEETS_SYNC' && (
+            <div className="overflow-x-auto rounded-xl border border-border bg-slate-900/60">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider border-b border-border">
+                  <tr>
+                    <th className="p-3">Google Sheet Workbook</th>
+                    <th className="p-3">Connected Tab</th>
+                    <th className="p-3">Cell Range Mapped</th>
+                    <th className="p-3 text-emerald-400">Total Ingested Leads</th>
+                    <th className="p-3">Last Sync Timestamp</th>
+                    <th className="p-3 text-right">Sync Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {googleSheetHistory.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-900/60">
+                      <td className="p-3 font-extrabold text-emerald-300">
+                        <a href={item.spreadsheetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1.5">
+                          <FileSpreadsheet size={14} className="text-emerald-400" /> {item.spreadsheetTitle} ↗
+                        </a>
+                      </td>
+                      <td className="p-3 font-mono text-purple-300 font-bold">{item.sheetTab}</td>
+                      <td className="p-3 font-mono text-cyan-300 font-bold">{item.rangeMapped}</td>
+                      <td className="p-3 font-mono font-black text-emerald-400">{item.totalLeadsIngested.toLocaleString()} Leads</td>
+                      <td className="p-3 font-mono text-muted text-[11px]">{item.lastSyncAt}</td>
+                      <td className="p-3 text-right">
+                        <span className="px-2 py-0.5 rounded font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 w-fit ml-auto">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> {item.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ============================================================ */}
+        {/* MASTER SALES PIPELINE & DEALS KANBAN BOARD                   */}
+        {/* ============================================================ */}
+        <div className="crm-card p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <GitBranch size={20} className="text-indigo-400" />
+                Master Sales Pipeline & Deals Kanban
+              </h2>
+              <p className="text-xs text-muted mt-0.5">
+                Drag-and-drop deal cards across prospecting, proposal, negotiation & closed stages.
+              </p>
+            </div>
+          </div>
+
+          <DealsKanban />
+        </div>
+
       </main>
+
+      {/* ============================================================ */}
+      {/* INGESTION MODALS                                             */}
+      {/* ============================================================ */}
+      {/* Single Lead Insert Modal */}
+      {insertLeadModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crm-card max-w-lg w-full p-6 animate-scale-in space-y-4 dark-context">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Plus size={16} className="text-indigo-400" /> Insert Single Lead Record
+              </h3>
+              <button onClick={() => setInsertLeadModalOpen(false)} className="p-1 rounded text-muted hover:text-white"><X size={16} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-muted block mb-1">Full Name *</label>
+                <input value={newLeadName} onChange={e => setNewLeadName(e.target.value)} placeholder="e.g. Lead Full Name" className="crm-input w-full" autoFocus />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-muted block mb-1">Email</label>
+                  <input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} placeholder="client@example.com" className="crm-input w-full" />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1">Phone *</label>
+                  <input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+91 00000 00000" className="crm-input w-full" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-muted block mb-1 font-semibold">Company</label>
+                  <input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} placeholder="Company / Org" className="crm-input w-full" />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-semibold">Value (₹)</label>
+                  <input type="number" value={newLeadValue} onChange={e => setNewLeadValue(e.target.value)} className="crm-input w-full" />
+                </div>
+                <div>
+                  <label className="text-muted block mb-1 font-semibold">Source Platform *</label>
+                  <select value={newLeadSource} onChange={e => setNewLeadSource(e.target.value)} className="crm-input w-full font-bold text-xs">
+                    <option value="Google Ads">Google Ads</option>
+                    <option value="Meta Ads (FB & Insta)">Meta Ads (Facebook & Instagram)</option>
+                    <option value="LinkedIn Ads">LinkedIn Ads</option>
+                    <option value="Microsoft Ads (Bing)">Microsoft Ads (Bing)</option>
+                    <option value="Pinterest Ads">Pinterest Ads</option>
+                    <option value="X (Twitter) Ads">X (Twitter) Ads</option>
+                    <option value="IndiaMART">IndiaMART</option>
+                    <option value="TradeIndia">TradeIndia</option>
+                    <option value="Justdial">Justdial</option>
+                    <option value="Lotwaala">Lotwaala</option>
+                    <option value="Website Forms">Website Forms</option>
+                    <option value="Custom Channel">Custom Channel</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setInsertLeadModalOpen(false)} className="btn-secondary flex-1 py-2 text-xs">Cancel</button>
+                <button onClick={handleInsertSingleLead} className="btn-primary flex-1 py-2 text-xs gap-1.5"><Plus size={13} /> Save Lead</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Column Modal */}
+      {customColumnModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crm-card max-w-lg w-full p-0 animate-scale-in overflow-hidden flex flex-col max-h-[90vh] dark-context">
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-slate-900 shrink-0">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Sliders size={16} className="text-cyan-400" />
+                {editingColId ? '✏️ Edit Custom Column' : '＋ Custom Column Manager'}
+              </h3>
+              <button onClick={closeCustomColumnModal} className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-slate-800 transition-all">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {/* Existing Columns Panel (only shown in add mode) */}
+              {!editingColId && customColumns.length > 0 && (
+                <div className="px-5 py-3 border-b border-border/60 bg-slate-950/60">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Existing Custom Columns</p>
+                  <div className="space-y-1.5">
+                    {customColumns.map(col => (
+                      <div
+                        key={col.id}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700/60 hover:border-indigo-500/40 transition-all group"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${
+                            col.type === 'SELECT' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' :
+                            col.type === 'NUMBER' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                            'bg-slate-700 text-slate-300 border border-slate-600'
+                          }`}>
+                            {col.type === 'SELECT' ? '⬇ Select' : col.type === 'NUMBER' ? '# Num' : 'T Text'}
+                          </span>
+                          <span className="text-xs font-semibold text-white truncate">{col.name}</span>
+                          {col.options && (
+                            <span className="text-[9px] text-slate-500 truncate hidden sm:block">
+                              ({col.options.slice(0, 3).join(', ')}{col.options.length > 3 ? '...' : ''})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => openEditColumn(col)}
+                            title="Edit this column"
+                            className="p-1 rounded text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/15 transition-all text-[10px] font-bold"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteColumn(col.id)}
+                            title="Delete this column"
+                            className="p-1 rounded text-slate-500 hover:text-rose-300 hover:bg-rose-500/15 transition-all text-[10px] font-bold"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add / Edit Form */}
+              <div className="px-5 py-4 space-y-4">
+                {/* Section label */}
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {editingColId ? `Editing: ${customColumns.find(c => c.id === editingColId)?.name}` : 'Add New Column'}
+                </p>
+
+                {/* Column Label */}
+                <div>
+                  <label className="text-slate-300 block mb-1 text-xs font-bold">Column Label *</label>
+                  <input
+                    value={newColName}
+                    onChange={e => setNewColName(e.target.value)}
+                    placeholder="e.g. Lead Rating, GST Number, City"
+                    className="crm-input w-full text-sm"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter' && newColName.trim()) handleSaveColumn(); }}
+                  />
+                </div>
+
+                {/* Data Type */}
+                <div>
+                  <label className="text-slate-300 block mb-1 text-xs font-bold">Data Type</label>
+                  <div className="flex gap-2">
+                    {(['TEXT', 'NUMBER', 'SELECT'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setNewColType(t)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          newColType === t
+                            ? t === 'SELECT' ? 'bg-cyan-600 text-white border-cyan-400 shadow-lg shadow-cyan-500/20'
+                              : t === 'NUMBER' ? 'bg-amber-600 text-white border-amber-400 shadow-lg shadow-amber-500/20'
+                              : 'bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-500/20'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        {t === 'TEXT' ? '📝 Text' : t === 'NUMBER' ? '# Number' : '⬇️ Select'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SELECT Options Builder */}
+                {newColType === 'SELECT' && (
+                  <div className="space-y-3 bg-slate-900/80 p-3.5 rounded-xl border border-cyan-500/30">
+                    <label className="text-cyan-300 font-black text-xs block flex items-center gap-1.5">
+                      <Sliders size={12} /> Dropdown Options
+                    </label>
+
+                    {/* Pill preview */}
+                    <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+                      {newColOptionsStr.split(',').map(s => s.trim()).filter(Boolean).map((opt, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40"
+                        >
+                          {opt}
+                          <button
+                            onClick={() => removeOptionPill(opt)}
+                            className="ml-0.5 text-cyan-400 hover:text-rose-300 font-black leading-none transition-colors"
+                            title={`Remove "${opt}"`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      {newColOptionsStr.split(',').filter(s => s.trim()).length === 0 && (
+                        <span className="text-xs text-slate-500 italic">No options yet — type below to add</span>
+                      )}
+                    </div>
+
+                    {/* Add option input */}
+                    <div className="flex gap-2">
+                      <input
+                        value={newColOptionInput}
+                        onChange={e => setNewColOptionInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOptionPill(); } }}
+                        placeholder="Type option name & press Enter or +"
+                        className="crm-input flex-1 text-xs bg-slate-950 text-white"
+                      />
+                      <button
+                        onClick={addOptionPill}
+                        disabled={!newColOptionInput.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black disabled:opacity-40 transition-all"
+                      >
+                        + Add
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Tip: Press Enter after each option. Click × on a pill to remove it.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex gap-2 px-5 py-4 border-t border-border/60 bg-slate-900/50 shrink-0">
+              {editingColId && (
+                <button
+                  onClick={() => {
+                    setEditingColId(null);
+                    setNewColName('');
+                    setNewColType('TEXT');
+                    setNewColOptionsStr('Hot Lead, Warm Lead, Cold Lead');
+                    setNewColOptionInput('');
+                  }}
+                  className="btn-secondary px-4 py-2 text-xs font-bold"
+                >
+                  ← Back
+                </button>
+              )}
+              <button onClick={closeCustomColumnModal} className="btn-secondary flex-1 py-2 text-xs font-bold">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveColumn}
+                disabled={!newColName.trim() || (newColType === 'SELECT' && newColOptionsStr.split(',').filter(s => s.trim()).length === 0)}
+                className="btn-primary flex-1 py-2 text-xs font-bold gap-1.5 disabled:opacity-40"
+              >
+                {editingColId
+                  ? <><Check size={13} /> Save Changes</>
+                  : <><Plus size={13} /> Add Column</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV / Excel Modal */}
+      {importCsvModalOpen && (
+        <FileImportEngineModal
+          isOpen={importCsvModalOpen}
+          onClose={() => setImportCsvModalOpen(false)}
+          onImportLeads={(leads, audit) => {
+            setLeadDirectory(prev => {
+              const newLeads = leads.map((lead, i) => ({
+                ...lead,
+                id: `lead_${Date.now()}_${i}`,
+              }));
+              return [...newLeads, ...prev];
+            });
+            const newAudit: FileUploadHistoryItem = {
+              id: `file_hist_${Date.now()}`,
+              fileName: audit.filename,
+              fileSize: audit.fileSize || '—',
+              uploadedAt: audit.date,
+              leadsCount: audit.count,
+              uploadedBy: currentUser?.name ? `${currentUser.name} (${currentUser.role})` : 'Admin',
+              status: 'SUCCESS' as const,
+            };
+            setFileUploadHistory(prev => [newAudit, ...prev]);
+
+            const newAuditLogItem = {
+              id: `aud_${Date.now()}`,
+              fileName: audit.filename,
+              injectedAt: audit.date || new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              leadsCount: audit.count,
+              colsCount: 8,
+              platform: 'Spreadsheet Ingestion',
+              status: 'PENDING_ALLOCATION' as const,
+            };
+            setWebAuditLogs(prev => [newAuditLogItem, ...prev]);
+
+            setPendingAllocationSheet({
+              isOpen: true,
+              fileName: audit.filename,
+              leadsCount: audit.count,
+              auditId: newAuditLogItem.id,
+            });
+          }}
+        />
+      )}
+
+      {/* ⚙️ Column & Excel Manager Modal */}
+      {columnConfigModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crm-card max-w-xl w-full p-6 animate-scale-in space-y-4 max-h-[85vh] overflow-y-auto dark-context">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sliders size={16} className="text-indigo-400" /> ⚙️ Lead Directory Column &amp; Visibility Manager
+                </h3>
+                <p className="text-[10px] text-muted mt-0.5">
+                  Re-order columns, toggle visibility &amp; set <span className="text-amber-400 font-bold">* Admin &amp; Manager Only</span> restriction.
+                </p>
+              </div>
+              <button onClick={() => setColumnConfigModalOpen(false)} className="p-1 rounded text-muted hover:text-white"><X size={16} /></button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-extrabold uppercase text-muted px-2 py-1 bg-slate-900 rounded-lg">
+                <span className="col-span-2 text-center">Order</span>
+                <span className="col-span-4">Column Name</span>
+                <span className="col-span-3 text-center">Visibility</span>
+                <span className="col-span-3 text-center">Restricted (*)</span>
+              </div>
+
+              {tableColumns.map((col, idx) => (
+                <div key={col.id} className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-all">
+                  <div className="col-span-2 flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => moveColumnLeft(idx)}
+                      disabled={idx === 0}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[10px] font-bold"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveColumnRight(idx)}
+                      disabled={idx === tableColumns.length - 1}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 disabled:opacity-20 text-[10px] font-bold"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  <div className="col-span-4 font-bold text-white flex items-center gap-1 truncate">
+                    <span>{col.label}</span>
+                    {col.isRestricted && <span className="text-amber-400 font-black text-xs">*</span>}
+                  </div>
+
+                  <div className="col-span-3 flex justify-center">
+                    <button
+                      onClick={() => setTableColumns(prev => prev.map(c => c.id === col.id ? { ...c, hidden: !c.hidden } : c))}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${!col.hidden ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                    >
+                      {!col.hidden ? '👁️ Shown' : '🙈 Hidden'}
+                    </button>
+                  </div>
+
+                  <div className="col-span-3 flex justify-center">
+                    <button
+                      onClick={() => setTableColumns(prev => prev.map(c => c.id === col.id ? { ...c, isRestricted: !c.isRestricted } : c))}
+                      className={`px-2.5 py-1 rounded text-[10px] font-extrabold transition-all ${col.isRestricted ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                    >
+                      {col.isRestricted ? '⭐ Admin/Mgr (*)' : '🌐 Public'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-border flex justify-end">
+              <button onClick={() => setColumnConfigModalOpen(false)} className="btn-primary px-5 py-2 text-xs">Done &amp; Save Table Layout</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Sheet Allocation Modal */}
+      {pendingAllocationSheet.isOpen && (
+        <LeadAllocationModal
+          isOpen={pendingAllocationSheet.isOpen}
+          onClose={() => setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 })}
+          totalLeadsCount={pendingAllocationSheet.leadsCount}
+          fileName={pendingAllocationSheet.fileName}
+          onPreviewSheet={() => {
+            setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
+            setImportCsvModalOpen(true);
+          }}
+          onAllocationComplete={(result) => {
+            // Update webAuditLogs item to ALLOCATED
+            setWebAuditLogs(prev => prev.map(a => {
+              const isMatch = (pendingAllocationSheet.auditId && a.id === pendingAllocationSheet.auditId) ||
+                              (a.fileName === pendingAllocationSheet.fileName);
+              if (isMatch) {
+                let summaryText = 'Allocated to sales reps';
+                if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+                  summaryText = `Assigned directly to ${result.assignedUser.name}`;
+                } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+                  summaryText = result.batchRules.map(r => `${r.assigneeName} [Rows ${r.fromRow}-${r.toRow}]`).join(', ');
+                }
+                return {
+                  ...a,
+                  status: 'ALLOCATED' as const,
+                  allocationSummary: summaryText,
+                };
+              }
+              return a;
+            }));
+
+            // Assign reps to directory leads
+            if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+              setLeadDirectory(prev => prev.map(l => ({ ...l, assignedRep: result.assignedUser!.name })));
+            } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+              setLeadDirectory(prev => prev.map((l, idx) => {
+                const matchedRule = result.batchRules?.find(r => (idx + 1) >= r.fromRow && (idx + 1) <= r.toRow);
+                return matchedRule ? { ...l, assignedRep: matchedRule.assigneeName } : l;
+              }));
+            }
+
+            setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
+          }}
+        />
+      )}
+      {/* Web Sheet Audit Allocation Breakdown Modal */}
+      {selectedWebAuditDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="crm-card bg-slate-900 border border-slate-700 max-w-md w-full p-5 rounded-2xl space-y-4 shadow-2xl dark-context">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <FileSpreadsheet size={16} className="text-indigo-400" />
+                  📄 Sheet Ingestion &amp; Allocation Audit
+                </h3>
+                <p className="text-[11px] text-slate-300">Detailed employee allocation breakdown &amp; dimensions</p>
+              </div>
+              <button
+                onClick={() => setSelectedWebAuditDetail(null)}
+                className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-xs">
+                <p className="font-extrabold text-white text-sm flex items-center gap-1.5">
+                  <FileSpreadsheet size={15} className="text-indigo-400" /> {selectedWebAuditDetail.fileName}
+                </p>
+                <p className="text-slate-400 flex items-center gap-1">
+                  <Clock size={13} className="text-slate-500" />
+                  Date &amp; Time of Lead Import: <span className="text-slate-200 font-bold">{selectedWebAuditDetail.injectedAt}</span>
+                </p>
+                <p className="text-slate-400 flex items-center gap-1">
+                  <Zap size={13} className="text-slate-500" />
+                  No. of Rows &amp; Columns Extracted: <span className="text-emerald-400 font-extrabold">{selectedWebAuditDetail.leadsCount} Rows</span> • <span className="text-indigo-300 font-extrabold">{selectedWebAuditDetail.colsCount || 6} Columns</span>
+                </p>
+                <p className="text-slate-400 flex items-center gap-1">
+                  <Radio size={13} className="text-slate-500" />
+                  Source Platform: <span className="text-sky-300 font-bold">{selectedWebAuditDetail.platform}</span>
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-2">
+                <span className="text-xs font-extrabold text-indigo-300 block">👤 Assigned To Whom (Employee Allocation):</span>
+                {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? (
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-bold text-amber-400">
+                      ⚠️ Unassigned / Pending Allocation. No team members assigned yet.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const detail = selectedWebAuditDetail;
+                        setSelectedWebAuditDetail(null);
+                        setPendingAllocationSheet({
+                          isOpen: true,
+                          fileName: detail.fileName,
+                          leadsCount: detail.leadsCount,
+                          auditId: detail.id,
+                        });
+                      }}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <UserCheck size={14} /> ⚡ Allocate {selectedWebAuditDetail.leadsCount} Leads to Team Now →
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-200 leading-relaxed">
+                    {selectedWebAuditDetail.allocationSummary || 'Assigned to sales reps upon spreadsheet ingestion.'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between gap-2">
+              <button
+                onClick={() => setSelectedWebAuditDetail(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-extrabold text-xs"
+              >
+                Close Breakdown
+              </button>
+              <button
+                onClick={() => {
+                  const detail = selectedWebAuditDetail;
+                  setSelectedWebAuditDetail(null);
+                  setPendingAllocationSheet({
+                    isOpen: true,
+                    fileName: detail.fileName,
+                    leadsCount: detail.leadsCount,
+                    auditId: detail.id,
+                  });
+                }}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserCheck size={14} /> ⚡ {selectedWebAuditDetail.status === 'PENDING_ALLOCATION' ? 'Allocate Leads Now' : 'Re-Allocate Leads'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
