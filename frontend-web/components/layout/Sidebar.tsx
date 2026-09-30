@@ -37,7 +37,7 @@ const salesRepNavigation: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard/sales', icon: LayoutDashboard, moduleKey: 'DASHBOARD' },
   { label: 'Leads', href: '/leads', icon: Target, moduleKey: 'LEADS' },
   { label: 'New Leads', href: '/leads?status=New', icon: Sparkles, moduleKey: 'LEADS' },
-  { label: 'Follow-ups', href: '/tasks?type=follow-up', icon: Clock, moduleKey: 'TASKS' },
+  { label: 'Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
   { label: 'Meetings', href: '/tasks?type=meeting', icon: Calendar, moduleKey: 'TASKS' },
   { label: 'Active Opportunities', href: '/deals', icon: Briefcase, moduleKey: 'DEALS' },
   { label: 'My Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS', dividerAfter: true },
@@ -69,7 +69,7 @@ const teamLeaderNavigation: NavItem[] = [
   { label: 'Lead Assignment', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
   { label: 'Unassigned Leads', href: '/leads?filter=unassigned', icon: UserX, moduleKey: 'LEADS' },
   { label: 'Team Pipeline', href: '/pipeline', icon: GitBranch, moduleKey: 'PIPELINE' },
-  { label: 'Team Follow-ups', href: '/tasks?filter=follow-ups', icon: Clock, moduleKey: 'TASKS' },
+  { label: 'Team Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
   { label: 'Team Calls', href: '/reports?tab=calls', icon: Phone, moduleKey: 'REPORTS', dividerAfter: true },
   { label: 'Team WhatsApp Direct', href: '/whatsapp-templates', icon: MessageCircle, moduleKey: 'WA_TEMPLATES' }, // Not Default (enabled by Admin)
   { label: 'Team WhatsApp Cloud', href: '/comms', icon: MessageSquare, moduleKey: 'COMMUNICATIONS' },             // Not Default (enabled by Admin)
@@ -87,7 +87,7 @@ const adminNavigation: NavItem[] = [
   { label: 'Leads', href: '/leads', icon: Target, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Lead Pipeline', href: '/pipeline', icon: GitBranch, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Lead Assignment & Distribution', href: '/tl/lead-assignment', icon: Share2, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'Tasks & Follow-ups', href: '/tasks', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'Tasks & Follow-ups', href: '/follow-ups', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
   { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
@@ -136,14 +136,15 @@ const HREF_TO_MODULE_KEY: Record<string, string> = {
   '/about': 'SUPPORT',
   '/tl/lead-assignment': 'LEAD_ASSIGNMENT',
   '/tasks': 'TASKS',
+  '/follow-ups': 'FOLLOW_UPS',
 };
 
 const roleDefaultsMap: Record<string, string[]> = {
   ADMIN:       Object.values(HREF_TO_MODULE_KEY),
   SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
-  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS'],
-  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS'],
+  MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS', 'FOLLOW_UPS'],
+  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
+  SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
   HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],
 };

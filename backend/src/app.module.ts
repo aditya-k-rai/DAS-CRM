@@ -34,6 +34,7 @@ import { FirestoreModule } from './modules/firestore/firestore.module';
 import { EmailModule } from './modules/email/email.module';
 import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
 import { DataRetentionModule } from './modules/data-retention/data-retention.module';
+import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { DataRetentionModule } from './modules/data-retention/data-retention.mod
     EmailModule,
     AIScoringModule,
     DataRetentionModule,
+    FollowUpsModule,
   ],
   controllers: [AppController],
   providers: [
