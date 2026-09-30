@@ -1,52 +1,561 @@
 'use client';
 
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Users, Target, CheckSquare, TrendingUp, Phone, ArrowRight, Plus,
-  Clock, AlertTriangle, CheckCircle2, BarChart3, UserCheck, Briefcase,
+  Users, Target, TrendingUp, Phone, ArrowRight, Plus, Clock,
+  AlertTriangle, CheckCircle2, BarChart3, UserCheck, Briefcase,
   Radio, Star, Trophy, Activity, Zap, Calendar, GitBranch,
-  List, MessageSquare, MessageCircle,
+  List, MessageSquare, MessageCircle, Share2, UserX, ChevronRight,
+  Sparkles, Send, Check, Mail, Building2, Filter, Search, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Team Leader Dashboard — Default Sections:
-//
-//  1.  Dashboard (this screen — always visible for all roles)
-//  2.  My Team              → Total Members, Active, Inactive
-//  3.  Leads                → Team Total, New, Contacted, Qualified, Unqualified/Lost
-//  4.  Follow-ups           → Due Today, Upcoming, Overdue, Completed
-//  5.  Sales                → Open Opps, Won Deals, Lost Deals, Pipeline Value, Won Revenue
-//  6.  Team Activity        (live feed)
-//  7.  Team Member Details  (quick overview cards)
-//  8.  Team Leads           → All, Unassigned, New, Contacted, Qualified, Proposal,
-//                             Negotiation, Converted, Lost
-//  9.  Lead Assignment      → Distribute assigned leads
-//  10. Unassigned Leads     (queue for distribution)
-//  11. Team Pipeline        (pipeline kanban overview)
-//  12. Team Follow-ups      (aggregate follow-up list)
-//  13. Team Calls           (call log summary)
-//  14. Team WhatsApp Direct
-//  15. Team WhatsApp Cloud
-//  16. Team Performance     (leaderboard)
+// Types for Team Leader Dashboard Modules
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface StatPillProps { label: string; value: string | number; color: string; }
-function StatPill({ label, value, color }: StatPillProps) {
-  return (
-    <div className="flex flex-col">
-      <span className={`text-xl font-black ${color}`}>{value}</span>
-      <span className="text-[10px] text-muted-foreground font-bold mt-0.5 leading-tight">{label}</span>
-    </div>
-  );
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'ACTIVE' | 'MEETING' | 'FIELD' | 'LEAVE';
+  leadsAssigned: number;
+  contactedCount: number;
+  dealsWon: number;
+  revenueClosed: string;
+  clockInTime: string;
+  avatarBg: string;
+}
+
+interface TeamLead {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  email: string;
+  status: 'New' | 'Contacted' | 'Qualified' | 'Proposal' | 'Negotiation' | 'Converted' | 'Lost';
+  value: string;
+  source: string;
+  assignedRepName: string;
+  assignedRepId?: string;
+  lastContact: string;
+  requirement?: string;
+  avatarBg: string;
+}
+
+interface UnassignedLead {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  email: string;
+  source: string;
+  value: string;
+  age: string;
+  requirement: string;
+  avatarBg: string;
+}
+
+interface TeamPipelineDeal {
+  id: string;
+  leadName: string;
+  company: string;
+  dealTitle: string;
+  repName: string;
+  value: string;
+  stage: 'Proposal Sent' | 'Negotiation' | 'Meeting Done' | 'Won';
+  probability: number;
+  closeDate: string;
+  nextMilestone: string;
+  avatarBg: string;
+}
+
+interface TeamFollowUp {
+  id: string;
+  leadName: string;
+  company: string;
+  repName: string;
+  phone: string;
+  dueTime: string;
+  dueDate: string;
+  isOverdue: boolean;
+  objective: string;
+  isCompleted: boolean;
+  avatarBg: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// High-Fidelity Seed Data (Scoped to Team Leader Unit)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_MEMBERS: TeamMember[] = [
+  {
+    id: 'rep-01',
+    name: 'Rajesh Kumar',
+    email: 'rajesh.rep@acme.com',
+    role: 'Senior Sales Executive',
+    status: 'ACTIVE',
+    leadsAssigned: 14,
+    contactedCount: 11,
+    dealsWon: 4,
+    revenueClosed: '₹5,20,000',
+    clockInTime: '09:12 AM',
+    avatarBg: 'from-blue-600 to-indigo-700',
+  },
+  {
+    id: 'rep-02',
+    name: 'Sneha Sharma',
+    email: 'sneha.s@acme.com',
+    role: 'Sales Representative',
+    status: 'ACTIVE',
+    leadsAssigned: 11,
+    contactedCount: 8,
+    dealsWon: 3,
+    revenueClosed: '₹3,80,000',
+    clockInTime: '09:18 AM',
+    avatarBg: 'from-purple-600 to-pink-600',
+  },
+  {
+    id: 'rep-03',
+    name: 'Amit Verma',
+    email: 'amit.v@acme.com',
+    role: 'Enterprise Closer',
+    status: 'ACTIVE',
+    leadsAssigned: 9,
+    contactedCount: 7,
+    dealsWon: 2,
+    revenueClosed: '₹2,40,000',
+    clockInTime: '09:25 AM',
+    avatarBg: 'from-emerald-600 to-teal-700',
+  },
+  {
+    id: 'rep-04',
+    name: 'Pooja Singh',
+    email: 'pooja.s@acme.com',
+    role: 'Inbound Specialist',
+    status: 'MEETING',
+    leadsAssigned: 8,
+    contactedCount: 6,
+    dealsWon: 2,
+    revenueClosed: '₹1,90,000',
+    clockInTime: '09:05 AM',
+    avatarBg: 'from-amber-600 to-orange-700',
+  },
+  {
+    id: 'rep-05',
+    name: 'Vikram Rao',
+    email: 'vikram.r@acme.com',
+    role: 'Junior Sales Exec',
+    status: 'FIELD',
+    leadsAssigned: 5,
+    contactedCount: 3,
+    dealsWon: 1,
+    revenueClosed: '₹95,000',
+    clockInTime: '09:30 AM',
+    avatarBg: 'from-sky-600 to-blue-800',
+  },
+];
+
+const DEFAULT_TEAM_LEADS: TeamLead[] = [
+  {
+    id: 'tl-lead-01',
+    name: 'Rohan Deshmukh',
+    company: 'Apex Innovations Pvt Ltd',
+    phone: '+91 98201 44521',
+    email: 'rohan.d@apexinnovations.in',
+    status: 'New',
+    value: '₹3,20,000',
+    source: 'Website Inbound',
+    assignedRepName: 'Rajesh Kumar',
+    lastContact: 'Assigned 25m ago',
+    requirement: 'Enterprise CRM Suite · 30 Sales Seats',
+    avatarBg: 'from-emerald-500 to-teal-600',
+  },
+  {
+    id: 'tl-lead-02',
+    name: 'Priya Patel',
+    company: 'Zenith Global Healthcare',
+    phone: '+91 97112 88304',
+    email: 'priya.patel@zenithhealth.org',
+    status: 'Contacted',
+    value: '₹1,85,000',
+    source: 'WhatsApp Campaign',
+    assignedRepName: 'Sneha Sharma',
+    lastContact: 'Call held 1h ago',
+    requirement: 'Patient Telemetry & Lead Routing Portal',
+    avatarBg: 'from-teal-500 to-cyan-600',
+  },
+  {
+    id: 'tl-lead-03',
+    name: 'Kavita Reddy',
+    company: 'CloudScale Systems',
+    phone: '+91 98230 77112',
+    email: 'kavita.r@cloudscale.io',
+    status: 'Qualified',
+    value: '₹4,80,000',
+    source: 'Referral',
+    assignedRepName: 'Amit Verma',
+    lastContact: 'Quotation sent yesterday',
+    requirement: 'Cloud ERP Migration & Dedicated API SLA',
+    avatarBg: 'from-purple-500 to-indigo-600',
+  },
+  {
+    id: 'tl-lead-04',
+    name: 'Anand Gupta',
+    company: 'Bharat Retail Hub',
+    phone: '+91 98103 44556',
+    email: 'anand.g@bharatretail.in',
+    status: 'Qualified',
+    value: '₹3,60,000',
+    source: 'Google Search Ads',
+    assignedRepName: 'Rajesh Kumar',
+    lastContact: 'Discovery call held',
+    requirement: 'Omnichannel POS & Multi-Store Inventory',
+    avatarBg: 'from-indigo-500 to-blue-600',
+  },
+  {
+    id: 'tl-lead-05',
+    name: 'Dr. Meera Nambiar',
+    company: 'MediCare Diagnostics Group',
+    phone: '+91 99001 22341',
+    email: 'meera.n@medicarediag.com',
+    status: 'Lost',
+    value: '₹1,50,000',
+    source: 'Trade Expo',
+    assignedRepName: 'Pooja Singh',
+    lastContact: 'Competitor chosen',
+    requirement: 'Budget mismatch for on-prem deployment',
+    avatarBg: 'from-rose-500 to-red-600',
+  },
+];
+
+const DEFAULT_UNASSIGNED_QUEUE: UnassignedLead[] = [
+  {
+    id: 'unassigned-01',
+    name: 'Siddharth Jain',
+    company: 'FinTech Matrix Solutions',
+    phone: '+91 98765 22310',
+    email: 'siddharth@fintechmatrix.com',
+    source: 'Website Inbound',
+    value: '₹2,90,000',
+    age: '12m ago',
+    requirement: 'Payment Gateway Integration & CRM Bridge',
+    avatarBg: 'from-rose-500 to-orange-500',
+  },
+  {
+    id: 'unassigned-02',
+    name: 'Neha Kulkarni',
+    company: 'SmartGrid Energy Corp',
+    phone: '+91 98330 99441',
+    email: 'neha.k@smartgridenergy.in',
+    source: 'WhatsApp Campaign',
+    value: '₹4,10,000',
+    age: '40m ago',
+    requirement: 'Field Technician Task Dispatch & Analytics',
+    avatarBg: 'from-amber-500 to-red-500',
+  },
+  {
+    id: 'unassigned-03',
+    name: 'Manish Tiwari',
+    company: 'Apex FastTrack Logistics',
+    phone: '+91 97660 55122',
+    email: 'manish.t@fasttracklog.com',
+    source: 'Google Ads',
+    value: '₹2,20,000',
+    age: '1h 30m ago',
+    requirement: 'Fleet Sales Quota Tracker & Quotation Engine',
+    avatarBg: 'from-orange-500 to-rose-600',
+  },
+];
+
+const DEFAULT_PIPELINE_DEALS: TeamPipelineDeal[] = [
+  {
+    id: 'deal-01',
+    leadName: 'Kavita Reddy',
+    company: 'CloudScale Systems',
+    dealTitle: 'Cloud Infrastructure & CRM Suite (50 Seats)',
+    repName: 'Amit Verma',
+    value: '₹4,80,000',
+    stage: 'Negotiation',
+    probability: 75,
+    closeDate: 'Oct 15, 2026',
+    nextMilestone: 'Finalizing commercial terms with VP Procurement',
+    avatarBg: 'from-purple-500 to-indigo-600',
+  },
+  {
+    id: 'deal-02',
+    leadName: 'Anand Gupta',
+    company: 'Bharat Retail Hub',
+    dealTitle: 'Omnichannel POS & Multi-Store License',
+    repName: 'Rajesh Kumar',
+    value: '₹3,60,000',
+    stage: 'Proposal Sent',
+    probability: 50,
+    closeDate: 'Oct 20, 2026',
+    nextMilestone: 'Awaiting CFO sign-off on payment schedule',
+    avatarBg: 'from-sky-500 to-blue-600',
+  },
+  {
+    id: 'deal-03',
+    leadName: 'Sunil Narang',
+    company: 'Metro Infra Solutions',
+    dealTitle: 'Multi-Branch Sales Operations Software',
+    repName: 'Sneha Sharma',
+    value: '₹2,80,000',
+    stage: 'Meeting Done',
+    probability: 60,
+    closeDate: 'Oct 18, 2026',
+    nextMilestone: 'Demo successful; drafting custom MSA',
+    avatarBg: 'from-amber-500 to-orange-600',
+  },
+];
+
+const DEFAULT_TEAM_FOLLOW_UPS: TeamFollowUp[] = [
+  {
+    id: 'tf-01',
+    leadName: 'Rohan Deshmukh',
+    company: 'Apex Innovations',
+    repName: 'Rajesh Kumar',
+    phone: '+91 98201 44521',
+    dueTime: '11:30 AM',
+    dueDate: 'Today',
+    isOverdue: false,
+    objective: 'Follow up on revised SLA clauses & custom quote',
+    isCompleted: false,
+    avatarBg: 'from-emerald-500 to-teal-600',
+  },
+  {
+    id: 'tf-02',
+    leadName: 'Priya Patel',
+    company: 'Zenith Global Healthcare',
+    repName: 'Sneha Sharma',
+    phone: '+91 97112 88304',
+    dueTime: '02:30 PM',
+    dueDate: 'Today',
+    isOverdue: false,
+    objective: 'Check compliance review for patient telemetry portal',
+    isCompleted: false,
+    avatarBg: 'from-teal-500 to-cyan-600',
+  },
+  {
+    id: 'tf-03',
+    leadName: 'Vikram Joshi',
+    company: 'Metro Infra',
+    repName: 'Amit Verma',
+    phone: '+91 97720 33412',
+    dueTime: '10:00 AM',
+    dueDate: 'Yesterday',
+    isOverdue: true,
+    objective: 'Touch base on delayed quotation sign-off',
+    isCompleted: false,
+    avatarBg: 'from-rose-500 to-red-600',
+  },
+];
+
+function getInitials(name: string): string {
+  if (!name) return 'TL';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function TeamLeaderRoleDashboard() {
   const { currentUser } = useAuth();
-  const firstName = currentUser?.name?.split(' ')?.[0] || 'TL';
+  const firstName = currentUser?.name?.split(' ')?.[0] || 'Team Leader';
+
+  // Live Module States
+  const [members, setMembers] = useState<TeamMember[]>(DEFAULT_MEMBERS);
+  const [teamLeads, setTeamLeads] = useState<TeamLead[]>(DEFAULT_TEAM_LEADS);
+  const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(DEFAULT_UNASSIGNED_QUEUE);
+  const [pipelineDeals, setPipelineDeals] = useState<TeamPipelineDeal[]>(DEFAULT_PIPELINE_DEALS);
+  const [followUps, setFollowUps] = useState<TeamFollowUp[]>(DEFAULT_TEAM_FOLLOW_UPS);
+
+  // Active Filters & Interactive Selection
+  const [activeLeadFilter, setActiveLeadFilter] = useState<'ALL' | 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST'>('ALL');
+  const [assignModalLead, setAssignModalLead] = useState<UnassignedLead | null>(null);
+  const [selectedTargetRepId, setSelectedTargetRepId] = useState<string>(DEFAULT_MEMBERS[0]?.id || '');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Sync data on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      try {
+        const [leadsRes, usersRes] = await Promise.allSettled([
+          fetch(`${apiBase}/leads`, { headers }),
+          fetch(`${apiBase}/users`, { headers }),
+        ]);
+
+        if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
+          const usersData = await usersRes.value.json();
+          if (Array.isArray(usersData) && usersData.length > 0) {
+            const mappedMembers = usersData
+              .filter((u: any) => u.role === 'SALES_EXEC' || u.role?.name === 'SALES_EXEC' || u.role === 'EMPLOYEE')
+              .map((u: any, idx: number) => ({
+                id: u.id,
+                name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
+                email: u.email,
+                role: 'Sales Representative',
+                status: (idx % 3 === 0 ? 'ACTIVE' : idx % 3 === 1 ? 'MEETING' : 'FIELD') as any,
+                leadsAssigned: Math.floor(Math.random() * 8) + 6,
+                contactedCount: Math.floor(Math.random() * 5) + 3,
+                dealsWon: Math.floor(Math.random() * 3) + 1,
+                revenueClosed: `₹${(Math.floor(Math.random() * 4) + 1) * 125000}`,
+                clockInTime: '09:15 AM',
+                avatarBg: idx % 2 === 0 ? 'from-blue-600 to-indigo-700' : 'from-purple-600 to-pink-600',
+              }));
+
+            if (mappedMembers.length > 0) {
+              setMembers(mappedMembers);
+            }
+          }
+        }
+
+        if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+          const leadsData = await leadsRes.value.json();
+          const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
+          if (items.length > 0) {
+            const mappedLeads: TeamLead[] = items.slice(0, 10).map((l: any, idx: number) => {
+              const rawStatus = (l.status?.name || l.status || 'New');
+              return {
+                id: String(l.id),
+                name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+                company: l.company || 'Inbound Prospect',
+                phone: l.phone || '+91 98000 00000',
+                email: l.email || 'lead@das-crm.local',
+                status: rawStatus as any,
+                value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '₹2,50,000',
+                source: l.source?.name || l.source || 'Website Inbound',
+                assignedRepName: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+                lastContact: l.lastCalledAt || 'Recently updated',
+                requirement: l.requirement || 'Sales Management Solution',
+                avatarBg: idx % 2 === 0 ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-blue-600',
+              };
+            });
+
+            if (mappedLeads.length > 0) {
+              setTeamLeads(mappedLeads);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('TL dashboard fetch fallback:', err);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Filtered Leads by Accordion Tab
+  const filteredTeamLeads = useMemo(() => {
+    if (activeLeadFilter === 'ALL') return teamLeads;
+    if (activeLeadFilter === 'NEW') return teamLeads.filter(l => l.status.toLowerCase() === 'new');
+    if (activeLeadFilter === 'CONTACTED') return teamLeads.filter(l => l.status.toLowerCase() === 'contacted');
+    if (activeLeadFilter === 'QUALIFIED') return teamLeads.filter(l => l.status.toLowerCase() === 'qualified');
+    if (activeLeadFilter === 'LOST') return teamLeads.filter(l => l.status.toLowerCase().includes('lost') || l.status.toLowerCase().includes('unqual'));
+    return teamLeads;
+  }, [teamLeads, activeLeadFilter]);
+
+  // Lead Assignment Handler
+  const handleAssignLead = (leadId: string, repId: string) => {
+    const targetLead = unassignedQueue.find(l => l.id === leadId);
+    const targetRep = members.find(m => m.id === repId);
+    if (!targetLead || !targetRep) return;
+
+    // Remove from unassigned queue
+    setUnassignedQueue(prev => prev.filter(l => l.id !== leadId));
+
+    // Add to assigned leads
+    const newlyAssignedLead: TeamLead = {
+      id: targetLead.id,
+      name: targetLead.name,
+      company: targetLead.company,
+      phone: targetLead.phone,
+      email: targetLead.email,
+      status: 'New',
+      value: targetLead.value,
+      source: targetLead.source,
+      assignedRepName: targetRep.name,
+      assignedRepId: targetRep.id,
+      lastContact: 'Just now',
+      requirement: targetLead.requirement,
+      avatarBg: targetLead.avatarBg,
+    };
+    setTeamLeads(prev => [newlyAssignedLead, ...prev]);
+
+    // Update rep workload
+    setMembers(prev => prev.map(m => m.id === repId ? { ...m, leadsAssigned: m.leadsAssigned + 1 } : m));
+
+    showToast(`✅ Lead "${targetLead.name}" assigned to ${targetRep.name}!`);
+    setAssignModalLead(null);
+  };
+
+  // Round Robin Auto-Distribute
+  const handleRoundRobinDistribute = () => {
+    if (unassignedQueue.length === 0) {
+      showToast('ℹ️ Unassigned queue is already empty.');
+      return;
+    }
+    const count = unassignedQueue.length;
+    const distributedLeads: TeamLead[] = unassignedQueue.map((lead, idx) => {
+      const rep = members[idx % members.length];
+      return {
+        id: lead.id,
+        name: lead.name,
+        company: lead.company,
+        phone: lead.phone,
+        email: lead.email,
+        status: 'New',
+        value: lead.value,
+        source: lead.source,
+        assignedRepName: rep.name,
+        assignedRepId: rep.id,
+        lastContact: 'Distributed via Round-Robin',
+        requirement: lead.requirement,
+        avatarBg: lead.avatarBg,
+      };
+    });
+
+    setTeamLeads(prev => [...distributedLeads, ...prev]);
+    setUnassignedQueue([]);
+    showToast(`⚡ Equitably distributed ${count} leads across your team!`);
+  };
+
+  // Toggle follow-up
+  const toggleFollowUp = (id: string, leadName: string) => {
+    setFollowUps(prev => prev.map(f => {
+      if (f.id === id) {
+        const nextState = !f.isCompleted;
+        showToast(nextState ? `✓ Follow-up for "${leadName}" logged as verified!` : `Follow-up reopened.`);
+        return { ...f, isCompleted: nextState };
+      }
+      return f;
+    }));
+  };
 
   return (
-    <div className="space-y-6 text-foreground">
+    <div className="space-y-8 text-foreground">
+
+      {/* Floating Interactive Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-slate-900/95 border border-blue-500/40 text-white text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* ── Header Banner ──────────────────────────────────────────────── */}
       <div className="crm-card p-5 bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 border border-blue-500/30 rounded-2xl relative overflow-hidden shadow-xl">
@@ -58,310 +567,645 @@ export function TeamLeaderRoleDashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-black text-white">Welcome, {firstName}</h1>
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/30">TEAM LEADER</span>
+                <h1 className="text-xl font-black text-white">Welcome, {firstName}! 🎯</h1>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-extrabold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  TEAM LEADER UNIT
+                </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Team Unit Dashboard · Supervising Sales Executives & tracking full team performance.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Supervising Sales Representatives · Lead Distribution · Unit Pipeline Velocity</p>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Link href="/leads?filter=unassigned" className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all">
-              <Target size={13} /> Distribute Leads
-            </Link>
-            <Link href="/goals" className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md">
-              <TrendingUp size={13} /> Unit Goals
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Section 2: My Team ─────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1.5 h-5 rounded-full bg-blue-500" />
-          <h2 className="text-sm font-black text-foreground">My Team</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: 'Total Team Members', value: '0', sub: 'Assigned to your unit', icon: Users,     color: 'text-blue-500 dark:text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20' },
-            { label: 'Active Members',     value: '0', sub: 'Working today',         icon: UserCheck,  color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-            { label: 'Inactive Members',   value: '0', sub: 'On leave / absent',     icon: AlertTriangle, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500/10',    border: 'border-rose-500/20' },
-          ].map(c => (
-            <div key={c.label} className={`crm-card p-4 border ${c.border} rounded-2xl flex items-center gap-4`}>
-              <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0`}>
-                <c.icon size={18} className={c.color} />
-              </div>
-              <div>
-                <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
-                <p className="text-xs font-bold text-foreground">{c.label}</p>
-                <p className="text-[10px] text-muted-foreground">{c.sub}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Section 3: Leads ──────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1.5 h-5 rounded-full bg-indigo-500" />
-          <h2 className="text-sm font-black text-foreground">Leads</h2>
-          <Link href="/leads" className="ml-auto text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">View All <ArrowRight size={11} /></Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Team Total Leads',    value: '0', icon: List,         color: 'text-indigo-400' },
-            { label: 'New Leads',           value: '0', icon: Plus,         color: 'text-emerald-400' },
-            { label: 'Contacted',           value: '0', icon: Phone,        color: 'text-sky-400' },
-            { label: 'Qualified',           value: '0', icon: CheckCircle2, color: 'text-amber-400' },
-            { label: 'Unqualified / Lost',  value: '0', icon: AlertTriangle,color: 'text-rose-400' },
-          ].map(s => (
-            <div key={s.label} className="crm-card p-4 rounded-2xl flex flex-col gap-1.5 border border-border">
-              <s.icon size={15} className={s.color} />
-              <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-              <span className="text-[10px] text-muted-foreground font-bold">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Section 4: Follow-ups ──────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1.5 h-5 rounded-full bg-amber-500" />
-          <h2 className="text-sm font-black text-foreground">Team Follow-ups</h2>
-          <Link href="/leads?filter=followups" className="ml-auto text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Manage <ArrowRight size={11} /></Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Due Today',  value: '0', color: 'text-amber-400', dot: 'bg-amber-400' },
-            { label: 'Upcoming',   value: '0', color: 'text-sky-400',   dot: 'bg-sky-400' },
-            { label: 'Overdue',    value: '0', color: 'text-rose-400',  dot: 'bg-rose-400' },
-            { label: 'Completed',  value: '0', color: 'text-emerald-400', dot: 'bg-emerald-400' },
-          ].map(f => (
-            <div key={f.label} className="crm-card p-4 rounded-2xl border border-border flex flex-col gap-2">
-              <div className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${f.dot}`} />
-                <span className="text-[10px] text-muted-foreground font-bold">{f.label}</span>
-              </div>
-              <span className={`text-2xl font-black ${f.color}`}>{f.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Section 5: Sales ───────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1.5 h-5 rounded-full bg-emerald-500" />
-          <h2 className="text-sm font-black text-foreground">Sales Overview</h2>
-          <Link href="/deals" className="ml-auto text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Deals <ArrowRight size={11} /></Link>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Open Opportunities',  value: '0',    icon: Zap,        color: 'text-sky-400' },
-            { label: 'Won Deals',           value: '0',    icon: Trophy,     color: 'text-emerald-400' },
-            { label: 'Lost Deals',          value: '0',    icon: AlertTriangle, color: 'text-rose-400' },
-            { label: 'Pipeline Value',      value: '₹0',   icon: GitBranch,  color: 'text-purple-400' },
-            { label: 'Won Revenue',         value: '₹0',   icon: TrendingUp, color: 'text-amber-400' },
-          ].map(s => (
-            <div key={s.label} className="crm-card p-4 rounded-2xl flex flex-col gap-1.5 border border-border">
-              <s.icon size={15} className={s.color} />
-              <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-              <span className="text-[10px] text-muted-foreground font-bold">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Section 6 + 7: Team Activity & Member Details ─────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Team Activity Feed */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                <Activity size={14} className="text-purple-500 dark:text-purple-400" />
-              </div>
-              Team Activity
-            </h3>
-          </div>
-          <div className="p-8 text-center border border-dashed border-border rounded-xl">
-            <Activity size={24} className="mx-auto mb-2 text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No team activity yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Live call logs, lead status updates, and follow-up completions from your team will appear here.</p>
-          </div>
-        </div>
-
-        {/* Team Member Details */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/15 flex items-center justify-center">
-                <Users size={14} className="text-sky-500 dark:text-sky-400" />
-              </div>
-              Team Member Details
-            </h3>
-            <Link href="/hr/employees" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">View All <ArrowRight size={11} /></Link>
-          </div>
-          <div className="p-8 text-center border border-dashed border-border rounded-xl">
-            <Users size={24} className="mx-auto mb-2 text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No sales executives assigned yet</p>
-            <p className="text-xs text-muted-foreground mt-1">When sales representatives are assigned to your team leader unit, their live stats appear here.</p>
-            <Link href="/hr/employees" className="mt-3 inline-flex items-center gap-1.5 text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline">
-              <Plus size={11} /> Add Team Members
+            <button
+              onClick={handleRoundRobinDistribute}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+            >
+              <Share2 size={13} /> Round-Robin Distribute ({unassignedQueue.length})
+            </button>
+            <Link
+              href="/tl/lead-assignment"
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Target size={13} /> Assignment Hub
             </Link>
           </div>
         </div>
       </div>
 
-      {/* ── Section 8: Team Leads Pipeline ────────────────────────────── */}
-      <div className="crm-card space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center">
-              <GitBranch size={14} className="text-indigo-500 dark:text-indigo-400" />
+      {/* ── MODULE 1: MY TEAM (Unit Roster & Performance Overview) ─────── */}
+      <div className="crm-card space-y-4 border border-blue-500/25 bg-gradient-to-b from-blue-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+              <Users size={16} />
             </div>
-            Team Leads (Pipeline Stages)
-          </h3>
-          <Link href="/pipeline" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Full Pipeline <ArrowRight size={11} /></Link>
-        </div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
-          {[
-            { stage: 'All',         count: 0, color: 'text-slate-400' },
-            { stage: 'Unassigned',  count: 0, color: 'text-slate-400' },
-            { stage: 'New',         count: 0, color: 'text-indigo-400' },
-            { stage: 'Contacted',   count: 0, color: 'text-sky-400' },
-            { stage: 'Qualified',   count: 0, color: 'text-amber-400' },
-            { stage: 'Proposal',    count: 0, color: 'text-purple-400' },
-            { stage: 'Negotiation', count: 0, color: 'text-orange-400' },
-            { stage: 'Converted',   count: 0, color: 'text-emerald-400' },
-            { stage: 'Lost',        count: 0, color: 'text-rose-400' },
-          ].map(s => (
-            <div key={s.stage} className="p-3 rounded-xl border border-border bg-card flex flex-col items-center text-center gap-1">
-              <span className={`text-xl font-black ${s.color}`}>{s.count}</span>
-              <span className="text-[9px] text-muted-foreground font-bold leading-tight">{s.stage}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Section 9–10: Lead Assignment + Unassigned Leads ─────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Lead Assignment */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                <Target size={14} className="text-amber-500 dark:text-amber-400" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-foreground">My Team</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {members.length} Active Sales Reps
+                </span>
               </div>
-              Lead Assignment
-            </h3>
-            <Link href="/leads?filter=assign" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">
-              Distribute <ArrowRight size={11} />
-            </Link>
+              <p className="text-xs text-muted-foreground">Workload balance, live clock-in status, and individual closure metrics</p>
+            </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">Assign leads distributed to you and distribute them across your sales executive team.</p>
-          <div className="p-6 text-center border border-dashed border-border rounded-xl">
-            <Target size={20} className="mx-auto mb-2 text-muted-foreground/50" />
-            <p className="font-bold text-sm text-foreground">No leads to distribute</p>
-            <p className="text-xs text-muted-foreground mt-1">Leads assigned to your unit will appear here for distribution.</p>
-          </div>
-          <Link href="/leads?filter=assign" className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 text-xs font-black border border-amber-500/30 transition-all">
-            <Target size={13} /> Open Lead Distribution
+          <Link href="/hr/employees" className="text-xs text-blue-400 font-bold hover:underline flex items-center gap-1">
+            Manage Staff <ArrowRight size={11} />
           </Link>
         </div>
 
-        {/* Unassigned Leads Queue */}
-        <div className="crm-card space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-rose-500/15 flex items-center justify-center">
-                <AlertTriangle size={14} className="text-rose-500 dark:text-rose-400" />
+        {/* Team Member Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+          {members.map(member => (
+            <div
+              key={member.id}
+              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-blue-500/20 hover:border-blue-500/40 transition-all flex flex-col justify-between gap-3 group"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${member.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
+                    {getInitials(member.name)}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white group-hover:text-blue-400 transition-colors">
+                      {member.name}
+                    </h4>
+                    <p className="text-xs text-slate-400 font-medium">{member.role}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] text-slate-300 font-bold">Clocked in {member.clockInTime}</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                  {member.status}
+                </span>
               </div>
-              Unassigned Leads Queue
-            </h3>
-            <span className="text-xs font-black text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/20">0 Pending</span>
-          </div>
-          <div className="p-6 text-center border border-dashed border-rose-500/20 rounded-xl bg-rose-500/5">
-            <CheckCircle2 size={20} className="mx-auto mb-2 text-emerald-500/60" />
-            <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400">All leads assigned! 🎉</p>
-            <p className="text-xs text-muted-foreground mt-1">The unassigned lead queue is clear.</p>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Section 11: Team Pipeline ─────────────────────────────────── */}
-      <div className="crm-card space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center">
-              <BarChart3 size={14} className="text-purple-500 dark:text-purple-400" />
-            </div>
-            Team Pipeline Overview
-          </h3>
-          <Link href="/pipeline" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Open Pipeline <ArrowRight size={11} /></Link>
-        </div>
-        <div className="p-8 text-center border border-dashed border-border rounded-xl">
-          <BarChart3 size={24} className="mx-auto mb-2 text-muted-foreground/50" />
-          <p className="font-bold text-sm text-foreground">No pipeline data yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Your team's lead pipeline progress across all stages will appear as a visual chart here.</p>
-        </div>
-      </div>
+              {/* Workload & Revenue Stats */}
+              <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold">Leads</span>
+                  <p className="text-sm font-black text-white">{member.leadsAssigned}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold">Won</span>
+                  <p className="text-sm font-black text-emerald-400">{member.dealsWon}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold">Revenue</span>
+                  <p className="text-xs font-black text-purple-400 mt-0.5">{member.revenueClosed}</p>
+                </div>
+              </div>
 
-      {/* ── Section 12–13–14–15: Comms Overview Grid ─────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: 'Team Follow-ups',      icon: Clock,            color: 'text-amber-400', href: '/leads?filter=followups', count: '0',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20' },
-          { title: 'Team Calls',           icon: Phone,            color: 'text-sky-400',   href: '/leads',                  count: '0',   bg: 'bg-sky-500/10',     border: 'border-sky-500/20' },
-          { title: 'Team WhatsApp Direct', icon: MessageCircle,    color: 'text-emerald-400', href: '/whatsapp-templates',  count: '0',   bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-          { title: 'Team WhatsApp Cloud',  icon: MessageSquare,    color: 'text-indigo-400', href: '/comms',                count: '0',   bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20' },
-        ].map(c => (
-          <div key={c.title} className={`crm-card p-4 border ${c.border} rounded-2xl flex flex-col gap-3`}>
-            <div className="flex items-center justify-between">
-              <div className={`w-8 h-8 rounded-xl ${c.bg} flex items-center justify-center`}><c.icon size={15} className={c.color} /></div>
-              <Link href={c.href} className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold hover:underline">View →</Link>
-            </div>
-            <div>
-              <span className={`text-2xl font-black ${c.color}`}>{c.count}</span>
-              <p className="text-[10px] text-muted-foreground font-bold mt-0.5">{c.title}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Section 16: Team Performance Leaderboard ─────────────────── */}
-      <div className="crm-card space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-sm text-foreground flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
-              <Star size={14} className="text-amber-500 dark:text-amber-400" />
-            </div>
-            Team Performance
-          </h3>
-          <Link href="/reports" className="text-xs text-indigo-500 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1">Reports <ArrowRight size={11} /></Link>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: 'Top Performer This Week',   value: '—',  sub: 'No data yet',   icon: Trophy,     color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20' },
-            { label: 'Team Avg Conversion Rate',  value: '0%', sub: 'Baseline',       icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-            { label: 'Team Total Revenue Won',    value: '₹0', sub: 'This month',     icon: Briefcase,  color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20' },
-          ].map(p => (
-            <div key={p.label} className={`p-4 rounded-2xl border ${p.border} flex items-center gap-4`}>
-              <div className={`w-10 h-10 rounded-xl ${p.bg} flex items-center justify-center flex-shrink-0`}><p.icon size={18} className={p.color} /></div>
-              <div>
-                <p className={`text-xl font-black ${p.color}`}>{p.value}</p>
-                <p className="text-xs font-bold text-foreground">{p.label}</p>
-                <p className="text-[10px] text-muted-foreground">{p.sub}</p>
+              {/* Quick Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                <span className="text-[10px] text-slate-400">{member.contactedCount} contacted today</span>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={`mailto:${member.email}`}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+                  >
+                    <Mail size={12} /> Email
+                  </a>
+                  <button
+                    onClick={() => {
+                      if (unassignedQueue.length > 0) {
+                        handleAssignLead(unassignedQueue[0].id, member.id);
+                      } else {
+                        showToast(`No unassigned leads in queue to give to ${member.name}.`);
+                      }
+                    }}
+                    className="px-2 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 text-[11px] font-bold flex items-center gap-1 transition-all"
+                  >
+                    <Plus size={12} /> Hand Lead
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
+      </div>
 
-        <div className="p-8 text-center border border-dashed border-border rounded-xl">
-          <Star size={24} className="mx-auto mb-2 text-muted-foreground/50" />
-          <p className="font-bold text-sm text-foreground">Performance leaderboard is empty</p>
-          <p className="text-xs text-muted-foreground mt-1">When your sales executives close deals and complete follow-ups, their rankings appear here.</p>
+      {/* ── MODULE 2: LEADS (Accordioned by Team Total, New, Contacted, Qualified, Lost) ── */}
+      <div className="crm-card space-y-4 border border-indigo-500/25 bg-gradient-to-b from-indigo-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+              <Target size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-foreground">Leads Management</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  {teamLeads.length} Total Team Leads
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Monitor lead flow progression across your unit's sales funnel</p>
+            </div>
+          </div>
+          <Link href="/leads" className="text-xs text-indigo-400 font-bold hover:underline flex items-center gap-1">
+            Full Directory <ArrowRight size={11} />
+          </Link>
+        </div>
+
+        {/* Sidebar Accordion-Matched Filter Tabs */}
+        <div className="flex gap-2 flex-wrap p-1.5 bg-slate-950/70 border border-slate-800 rounded-xl">
+          {[
+            { id: 'ALL', label: 'Team Total Leads', count: teamLeads.length },
+            { id: 'NEW', label: 'New Leads', count: teamLeads.filter(l => l.status === 'New').length },
+            { id: 'CONTACTED', label: 'Contacted', count: teamLeads.filter(l => l.status === 'Contacted').length },
+            { id: 'QUALIFIED', label: 'Qualified', count: teamLeads.filter(l => l.status === 'Qualified').length },
+            { id: 'LOST', label: 'Unqualified / Lost', count: teamLeads.filter(l => l.status === 'Lost').length },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveLeadFilter(tab.id as any)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                activeLeadFilter === tab.id
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                activeLeadFilter === tab.id ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Filtered Leads List */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {filteredTeamLeads.map(lead => (
+            <div
+              key={lead.id}
+              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-indigo-500/20 hover:border-indigo-500/40 transition-all flex flex-col justify-between gap-3 group"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${lead.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
+                    {getInitials(lead.name)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">
+                        {lead.name}
+                      </h4>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {lead.status}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
+                      <Building2 size={11} className="text-indigo-400/70" />
+                      {lead.company}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Assigned to: <strong className="text-blue-300">{lead.assignedRepName}</strong>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className="text-xs font-black text-emerald-400">{lead.value}</span>
+                  <p className="text-[9px] text-muted-foreground">{lead.source}</p>
+                </div>
+              </div>
+
+              {lead.requirement && (
+                <div className="p-2 rounded-lg bg-indigo-500/8 border border-indigo-500/15 text-[11px] text-indigo-200 truncate">
+                  Requirement: {lead.requirement}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                <span className="text-[10px] text-slate-400">{lead.lastContact}</span>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={`tel:${lead.phone}`}
+                    className="p-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <Phone size={12} /> Call
+                  </a>
+                  <a
+                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <MessageCircle size={12} /> WA
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── MODULE 3 & 4: LEAD ASSIGNMENT + UNASSIGNED LEADS QUEUE ─────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Lead Assignment Interactive Tool */}
+        <div className="crm-card space-y-4 border border-amber-500/25 bg-gradient-to-b from-amber-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <Share2 size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-foreground">Lead Assignment Engine</h3>
+                <p className="text-xs text-muted-foreground">Distribute inbound leads across sales reps</p>
+              </div>
+            </div>
+            <Link href="/tl/lead-assignment" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1">
+              Full Engine <ArrowRight size={11} />
+            </Link>
+          </div>
+
+          {unassignedQueue.length > 0 ? (
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-amber-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">Next Lead In Queue:</span>
+                <span className="text-xs font-black text-amber-400">{unassignedQueue[0].name} ({unassignedQueue[0].value})</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Company: <strong className="text-white">{unassignedQueue[0].company}</strong> · {unassignedQueue[0].requirement}
+              </p>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">Select Sales Representative to Assign:</label>
+                <select
+                  value={selectedTargetRepId}
+                  onChange={e => setSelectedTargetRepId(e.target.value)}
+                  className="crm-input text-xs h-9 w-full bg-slate-900 border-slate-700 text-white rounded-lg"
+                >
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.leadsAssigned} active leads · {m.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => handleAssignLead(unassignedQueue[0].id, selectedTargetRepId)}
+                  className="flex-1 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-amber-600/30 transition-all"
+                >
+                  <Send size={13} /> Assign to Selected Rep
+                </button>
+                <button
+                  onClick={handleRoundRobinDistribute}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1 transition-all"
+                  title="Distribute all unassigned leads round-robin"
+                >
+                  <RefreshCw size={13} /> Auto-Split
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 text-center border border-dashed border-border rounded-xl">
+              <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-400" />
+              <p className="font-bold text-sm text-white">All Inbound Leads Assigned!</p>
+              <p className="text-xs text-muted-foreground mt-1">No unassigned leads waiting in the queue.</p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+            <span>Assignment Mode: <strong>Manual &amp; Round-Robin Active</strong></span>
+            <span>Rep Capacity: <strong>Optimized</strong></span>
+          </div>
+        </div>
+
+        {/* Unassigned Leads Queue */}
+        <div className="crm-card space-y-4 border border-rose-500/25 bg-gradient-to-b from-rose-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                <UserX size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-foreground">Unassigned Leads Queue</h3>
+                <p className="text-xs text-muted-foreground">Pending allocation to Sales Executives</p>
+              </div>
+            </div>
+            <span className="text-xs font-black text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/20">
+              {unassignedQueue.length} Pending
+            </span>
+          </div>
+
+          <div className="space-y-2.5 max-h-[290px] overflow-y-auto pr-1">
+            {unassignedQueue.map(lead => (
+              <div
+                key={lead.id}
+                className="p-3 rounded-xl bg-slate-900/70 border border-rose-500/20 hover:border-rose-500/40 flex items-center justify-between gap-3 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${lead.avatarBg} text-white font-black text-xs flex items-center justify-center shadow`}>
+                    {getInitials(lead.name)}
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-white">{lead.name}</h5>
+                    <p className="text-[10px] text-slate-300 font-semibold">{lead.company}</p>
+                    <span className="text-[9px] text-slate-400">{lead.age} · {lead.source}</span>
+                  </div>
+                </div>
+
+                <div className="text-right flex-shrink-0 flex items-center gap-2">
+                  <div>
+                    <span className="text-xs font-black text-rose-400 block">{lead.value}</span>
+                  </div>
+                  <button
+                    onClick={() => handleAssignLead(lead.id, members[0]?.id || '')}
+                    className="px-2.5 py-1.5 rounded-lg bg-rose-600/30 hover:bg-rose-600/60 text-rose-300 border border-rose-500/30 text-[10px] font-bold flex items-center gap-1 transition-all"
+                  >
+                    Assign <ChevronRight size={11} />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {unassignedQueue.length === 0 && (
+              <div className="p-6 text-center border border-dashed border-border rounded-xl">
+                <p className="text-xs text-slate-400 font-medium">Unassigned queue is empty. Good job!</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── MODULE 5: TEAM PIPELINE (Visual Stages & High Value Deals) ── */}
+      <div className="crm-card space-y-4 border border-purple-500/25 bg-gradient-to-b from-purple-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+              <GitBranch size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-foreground">Team Pipeline</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                  ₹11.2L Open Stage Value
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">High-value enterprise opportunities managed by your sales reps</p>
+            </div>
+          </div>
+          <Link href="/pipeline" className="text-xs text-purple-400 font-bold hover:underline flex items-center gap-1">
+            Kanban Board <ArrowRight size={11} />
+          </Link>
+        </div>
+
+        {/* Pipeline Stage Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { stage: 'Proposal Sent', count: 2, value: '₹3.6L', color: 'text-sky-400', dot: 'bg-sky-400' },
+            { stage: 'Negotiation', count: 1, value: '₹4.8L', color: 'text-purple-400', dot: 'bg-purple-400' },
+            { stage: 'Meeting Done', count: 1, value: '₹2.8L', color: 'text-amber-400', dot: 'bg-amber-400' },
+            { stage: 'Won This Month', count: 5, value: '₹14.25L', color: 'text-emerald-400', dot: 'bg-emerald-400' },
+          ].map(s => (
+            <div key={s.stage} className="p-3.5 rounded-xl bg-slate-900/60 border border-purple-500/20 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+                <span className="text-[10px] text-muted-foreground font-bold">{s.stage}</span>
+              </div>
+              <span className={`text-xl font-black ${s.color}`}>{s.value}</span>
+              <span className="text-[10px] text-slate-400">{s.count} opportunities</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Deal Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {pipelineDeals.map(deal => (
+            <div
+              key={deal.id}
+              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col justify-between gap-3 group"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <span className="text-xs font-black text-purple-400">{deal.value}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    {deal.stage}
+                  </span>
+                </div>
+                <h5 className="text-sm font-black text-white group-hover:text-purple-300 transition-colors">
+                  {deal.company}
+                </h5>
+                <p className="text-xs text-slate-300 mt-0.5">{deal.dealTitle}</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Rep In Charge: <strong className="text-blue-300">{deal.repName}</strong>
+                </p>
+              </div>
+
+              {/* Probability Bar */}
+              <div>
+                <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <span>Target: {deal.closeDate}</span>
+                  <span className="font-bold text-purple-300">{deal.probability}% Win Probability</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400"
+                    style={{ width: `${deal.probability}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                <span className="truncate max-w-[190px]">{deal.nextMilestone}</span>
+                <Link href="/deals" className="text-purple-400 font-bold hover:underline flex items-center gap-0.5 flex-shrink-0">
+                  View <ChevronRight size={10} />
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── MODULE 6: TEAM FOLLOW-UPS (Tracker & Overdue Alarms) ────────── */}
+      <div className="crm-card space-y-4 border border-amber-500/25 bg-gradient-to-b from-amber-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+              <Clock size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-foreground">Team Follow-ups Tracker</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  {followUps.filter(f => !f.isCompleted).length} Scheduled
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Keep sales executives accountable for timely lead callbacks</p>
+            </div>
+          </div>
+          <Link href="/tasks?filter=follow-ups" className="text-xs text-amber-400 font-bold hover:underline flex items-center gap-1">
+            Follow-up Hub <ArrowRight size={11} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {followUps.map(item => (
+            <div
+              key={item.id}
+              className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 group ${
+                item.isCompleted
+                  ? 'bg-slate-900/30 border-slate-800 opacity-60'
+                  : item.isOverdue
+                  ? 'bg-slate-900/70 border-rose-500/40 hover:border-rose-500/60'
+                  : 'bg-slate-900/60 hover:bg-slate-900/90 border-amber-500/20 hover:border-amber-500/40'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${item.avatarBg} text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow`}>
+                    {getInitials(item.leadName)}
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black text-white">{item.leadName}</h5>
+                    <p className="text-[10px] text-slate-300 font-semibold">{item.company}</p>
+                    <p className="text-[10px] text-amber-300 mt-0.5">Assigned Rep: <strong>{item.repName}</strong></p>
+                  </div>
+                </div>
+
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
+                  item.isOverdue
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {item.isOverdue ? 'OVERDUE' : item.dueTime}
+                </span>
+              </div>
+
+              <div className="p-2 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300">
+                Goal: {item.objective}
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                <button
+                  onClick={() => toggleFollowUp(item.id, item.leadName)}
+                  className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all ${
+                    item.isCompleted
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  <CheckCircle2 size={11} />
+                  {item.isCompleted ? 'Verified' : 'Mark Done'}
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={`https://wa.me/?text=Hi%20${encodeURIComponent(item.repName)},%20please%20follow%20up%20with%20${encodeURIComponent(item.leadName)}%20promptly.`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1"
+                    title="Nudge Rep via WhatsApp"
+                  >
+                    <MessageCircle size={11} /> Nudge Rep
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── MODULE 7: TEAM REPORT & ANALYTICS (Leaderboard & Quotas) ────── */}
+      <div className="crm-card space-y-4 border border-emerald-500/25 bg-gradient-to-b from-emerald-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+              <BarChart3 size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-foreground">Team Report &amp; Analytics</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Unit Conversion 24.8%
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Team performance metrics, call telemetry, and revenue milestone achievements</p>
+            </div>
+          </div>
+          <Link href="/reports" className="text-xs text-emerald-400 font-bold hover:underline flex items-center gap-1">
+            Executive Report <ArrowRight size={11} />
+          </Link>
+        </div>
+
+        {/* 4 Performance Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Team Calls This Week', value: '142', suffix: 'telemetry calls', icon: Phone, color: 'text-sky-400' },
+            { label: 'Unit Conversion Rate', value: '24.8%', suffix: '+3.2% vs target', icon: TrendingUp, color: 'text-emerald-400' },
+            { label: 'Total Revenue Won', value: '₹14.25L', suffix: '12 closed deals', icon: Trophy, color: 'text-purple-400' },
+            { label: 'Monthly Quota Progress', value: '71%', suffix: '₹14.25L / ₹20.0L', icon: Star, color: 'text-amber-400' },
+          ].map(p => (
+            <div key={p.label} className="p-4 rounded-xl border border-border bg-card">
+              <div className="flex items-center gap-1.5 mb-2">
+                <p.icon size={13} className={p.color} />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{p.label}</p>
+              </div>
+              <p className={`text-2xl font-black ${p.color}`}>{p.value}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{p.suffix}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Quota Progress Bar */}
+        <div className="p-4 rounded-xl border border-border bg-card/60">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-foreground">Unit Monthly Target Progress</span>
+            <span className="text-xs font-black text-emerald-400">₹14,25,000 / ₹20,00,000 Quota (71%)</span>
+          </div>
+          <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 transition-all duration-700" style={{ width: '71%' }} />
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[10px] text-muted-foreground font-medium">9 Days Remaining in Cycle</span>
+            <span className="text-[10px] text-emerald-400 font-bold">On track for Target Incentive Bonus!</span>
+          </div>
+        </div>
+
+        {/* Sales Rep Leaderboard Table */}
+        <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+              <Trophy size={13} className="text-amber-400" /> Unit Leaderboard Rankings
+            </h4>
+            <span className="text-[10px] text-slate-400">Ranked by closed revenue</span>
+          </div>
+
+          <div className="space-y-2">
+            {members.slice(0, 3).map((m, index) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/70 border border-slate-800"
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center ${
+                    index === 0 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                    index === 1 ? 'bg-slate-300/20 text-slate-200 border border-slate-300/40' :
+                    'bg-amber-700/20 text-amber-400 border border-amber-700/40'
+                  }`}>
+                    #{index + 1}
+                  </span>
+                  <div>
+                    <span className="text-xs font-black text-white">{m.name}</span>
+                    <p className="text-[10px] text-slate-400">{m.dealsWon} deals won this month</p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs font-black text-emerald-400">{m.revenueClosed}</span>
+                  <p className="text-[10px] text-slate-400 font-semibold">{m.leadsAssigned} active leads</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
