@@ -43,3 +43,7 @@ secrets.txt
 backend/service-account.json
 backend/outbox/
 outbox/
+backend/storage/drive_vault/
+backend/storage/vault/
+storage/
+
