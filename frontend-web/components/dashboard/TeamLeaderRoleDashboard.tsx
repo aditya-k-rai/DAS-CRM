@@ -10,6 +10,7 @@ import {
   Sparkles, Send, Check, Mail, Building2, Filter, Search, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getCachedData, setCachedData, clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Team Leader Dashboard Modules
@@ -365,12 +366,19 @@ export function TeamLeaderRoleDashboard() {
   const { currentUser } = useAuth();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Team Leader';
 
-  // Live Module States
-  const [members, setMembers] = useState<TeamMember[]>(DEFAULT_MEMBERS);
-  const [teamLeads, setTeamLeads] = useState<TeamLead[]>(DEFAULT_TEAM_LEADS);
-  const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(DEFAULT_UNASSIGNED_QUEUE);
-  const [pipelineDeals, setPipelineDeals] = useState<TeamPipelineDeal[]>(DEFAULT_PIPELINE_DEALS);
-  const [followUps, setFollowUps] = useState<TeamFollowUp[]>(DEFAULT_TEAM_FOLLOW_UPS);
+  // Live Module States (Initialized from Cache or Defaults)
+  const [members, setMembers] = useState<TeamMember[]>(() => getCachedData('tl_members') || DEFAULT_MEMBERS);
+  const [teamLeads, setTeamLeads] = useState<TeamLead[]>(() => getCachedData('tl_leads') || DEFAULT_TEAM_LEADS);
+  const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(() => getCachedData('tl_unassigned') || DEFAULT_UNASSIGNED_QUEUE);
+  const [pipelineDeals, setPipelineDeals] = useState<TeamPipelineDeal[]>(() => getCachedData('tl_pipeline') || DEFAULT_PIPELINE_DEALS);
+  const [followUps, setFollowUps] = useState<TeamFollowUp[]>(() => getCachedData('tl_followups') || DEFAULT_TEAM_FOLLOW_UPS);
+
+  // Sync state mutations to Cache automatically
+  useEffect(() => { setCachedData('tl_members', members); }, [members]);
+  useEffect(() => { setCachedData('tl_leads', teamLeads); }, [teamLeads]);
+  useEffect(() => { setCachedData('tl_unassigned', unassignedQueue); }, [unassignedQueue]);
+  useEffect(() => { setCachedData('tl_pipeline', pipelineDeals); }, [pipelineDeals]);
+  useEffect(() => { setCachedData('tl_followups', followUps); }, [followUps]);
 
   // Active Filters & Interactive Selection
   const [activeLeadFilter, setActiveLeadFilter] = useState<'ALL' | 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST'>('ALL');
@@ -385,6 +393,14 @@ export function TeamLeaderRoleDashboard() {
 
   // Sync data on mount
   useEffect(() => {
+    // Only fetch if data is not already cached
+    const hasCachedUsers = getCachedData('tl_members');
+    const hasCachedLeads = getCachedData('tl_leads');
+
+    if (hasCachedUsers && hasCachedLeads) {
+      return; // Skip fetch, use cache
+    }
+
     const fetchData = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
@@ -577,10 +593,20 @@ export function TeamLeaderRoleDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
+              onClick={() => {
+                clearAllDashboardCaches();
+                window.location.reload();
+              }}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+              title="Force refresh data from server"
+            >
+              <RefreshCw size={13} /> Refresh
+            </button>
+            <button
               onClick={handleRoundRobinDistribute}
               className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
             >
-              <Share2 size={13} /> Round-Robin Distribute ({unassignedQueue.length})
+              <Share2 size={13} /> Round-Robin ({unassignedQueue.length})
             </button>
             <Link
               href="/tl/lead-assignment"
