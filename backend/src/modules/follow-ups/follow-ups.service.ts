@@ -470,7 +470,7 @@ export class FollowUpsService {
     }
 
     // Create next follow-up if requested
-    let nextFollowUp = null;
+    let nextFollowUp: any = null;
     if (dto.createNextFollowUp && dto.nextFollowUpDate) {
       const nextTime = dto.nextFollowUpTime || '09:00:00';
       const nextDueAt = new Date(`${dto.nextFollowUpDate}T${nextTime}`);
