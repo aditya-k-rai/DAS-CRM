@@ -40,7 +40,6 @@ const salesRepNavigation: NavItem[] = [
   { label: 'Follow-ups', href: '/tasks?type=follow-up', icon: Clock, moduleKey: 'TASKS' },
   { label: 'Meetings', href: '/tasks?type=meeting', icon: Calendar, moduleKey: 'TASKS' },
   { label: 'Active Opportunities', href: '/deals', icon: Briefcase, moduleKey: 'DEALS' },
-  { label: 'My Total Leads', href: '/leads?view=all-my-leads', icon: Users, moduleKey: 'LEADS' },
   { label: 'My Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS', dividerAfter: true },
   { label: 'Attendance', href: '/attendance', icon: Calendar, moduleKey: 'ATTENDANCE' },
   { label: 'The Notice Board', href: '/communicate', icon: Radio, moduleKey: 'UPCOMING_COMMS', dividerAfter: true },
