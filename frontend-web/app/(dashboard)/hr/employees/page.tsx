@@ -19,7 +19,7 @@ function EmployeesContent() {
   );
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
-  const isAuthorized = rawRole === 'HR' || rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER' || rawRole.includes('MANAGER');
+  const isAuthorized = rawRole === 'HR' || rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER' || rawRole.includes('MANAGER') || rawRole === 'TEAM_LEADER';
 
   if (!isAuthorized) {
     if (typeof window !== 'undefined') {
