@@ -649,9 +649,14 @@ export function ProductsCatalog({ isAdmin = true }: ProductsCatalogProps) {
     if (!deleteConfirmProduct) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/products/${deleteConfirmProduct.id}`, {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const response = await fetch(`${apiBase}/products/${deleteConfirmProduct.id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
       if (response.ok || response.status === 200) {

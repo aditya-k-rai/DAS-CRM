@@ -7,6 +7,8 @@ import {
   Param,
   UseGuards,
   Req,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -22,12 +24,31 @@ export class BillingController {
     private couponService: CouponService,
   ) {}
 
+  private getOrgId(req: any): string {
+    const orgId = req.user?.organizationId || req.user?.org_id;
+    if (!orgId) {
+      throw new BadRequestException('Organization context not found in session.');
+    }
+    return orgId;
+  }
+
+  private getUserId(req: any): string {
+    return req.user?.id || req.user?.sub || '';
+  }
+
+  private assertSuperAdmin(req: any) {
+    const roleName = typeof req.user?.role === 'string' ? req.user.role : req.user?.role?.name;
+    if (roleName !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only Super Administrators can perform platform billing control operations.');
+    }
+  }
+
   @Get('plan')
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Get current plan details for logged-in org' })
   async getCurrentPlan(@Req() req: any) {
-    return this.billingService.getCurrentPlan(req.user.org_id);
+    return this.billingService.getCurrentPlan(this.getOrgId(req));
   }
 
   @Post('create-order')
@@ -39,7 +60,7 @@ export class BillingController {
     @Req() req: any,
   ) {
     return this.billingService.createRazorpayOrder({
-      organizationId: req.user.org_id,
+      organizationId: this.getOrgId(req),
       requestedPlan: body.requestedPlan,
       addOnSeats: body.addOnSeats,
     });
@@ -61,7 +82,7 @@ export class BillingController {
     @Req() req: any,
   ) {
     return this.billingService.verifyPaymentAndCreateRequest({
-      organizationId: req.user.org_id,
+      organizationId: this.getOrgId(req),
       ...body,
     });
   }
@@ -72,7 +93,8 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: '[Super Admin] Get all pending upgrade requests' })
-  async getUpgradeRequests() {
+  async getUpgradeRequests(@Req() req: any) {
+    this.assertSuperAdmin(req);
     return this.billingService.getPendingUpgradeRequests();
   }
 
@@ -81,7 +103,8 @@ export class BillingController {
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: '[Super Admin] Approve a plan upgrade request' })
   async approveRequest(@Param('requestId') requestId: string, @Req() req: any) {
-    return this.billingService.approvePlanUpgrade(requestId, req.user.sub);
+    this.assertSuperAdmin(req);
+    return this.billingService.approvePlanUpgrade(requestId, this.getUserId(req));
   }
 
   @Post('upgrade-requests/:requestId/reject')
@@ -93,7 +116,8 @@ export class BillingController {
     @Body() body: { reason: string },
     @Req() req: any,
   ) {
-    return this.billingService.rejectPlanUpgrade(requestId, req.user.sub, body.reason);
+    this.assertSuperAdmin(req);
+    return this.billingService.rejectPlanUpgrade(requestId, this.getUserId(req), body.reason);
   }
 
   // ── Coupon Management (Super Admin) ───────────────────────────
@@ -113,7 +137,9 @@ export class BillingController {
       applicablePlans?: string[];
       expiresAt?: string;
     },
+    @Req() req: any,
   ) {
+    this.assertSuperAdmin(req);
     return this.couponService.createCoupon(body);
   }
 
@@ -121,7 +147,8 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: '[Super Admin] List all coupons with redemption stats' })
-  async listCoupons() {
+  async listCoupons(@Req() req: any) {
+    this.assertSuperAdmin(req);
     return this.couponService.listCoupons();
   }
 
@@ -129,7 +156,8 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: '[Super Admin] Revoke/deactivate a coupon' })
-  async revokeCoupon(@Param('couponId') couponId: string) {
+  async revokeCoupon(@Param('couponId') couponId: string, @Req() req: any) {
+    this.assertSuperAdmin(req);
     return this.couponService.revokeCoupon(couponId);
   }
 
@@ -141,10 +169,7 @@ export class BillingController {
     @Body() body: { code: string; planKey?: string },
     @Req() req: any,
   ) {
-    const orgId = req?.user?.org_id || 'pre-registration';
+    const orgId = req?.user?.organizationId || req?.user?.org_id || 'pre-registration';
     return this.couponService.validateCoupon(body.code, orgId, body.planKey);
   }
 }
-
-
-

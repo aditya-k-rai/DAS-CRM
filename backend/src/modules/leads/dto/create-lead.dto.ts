@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsObject, IsNumber } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateLeadDto {
@@ -53,4 +53,30 @@ export class CreateLeadDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  // ─── Dual Mobile & Web Compatibility Fields (Decision F1) ───
+  @ApiPropertyOptional({ description: 'Status/Stage name sent by mobile client (e.g. "NEW LEAD", "Contacted")' })
+  @IsOptional()
+  @IsString()
+  stage?: string;
+
+  @ApiPropertyOptional({ description: 'Company name sent by mobile or web client' })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @ApiPropertyOptional({ description: 'Lead source name (e.g. "Mobile App", "Website")' })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @ApiPropertyOptional({ description: 'Lead priority (e.g. "High", "Medium", "Low")' })
+  @IsOptional()
+  @IsString()
+  priority?: string;
+
+  @ApiPropertyOptional({ description: 'Estimated lead deal value in INR' })
+  @IsOptional()
+  @IsNumber()
+  estimatedValue?: number;
 }

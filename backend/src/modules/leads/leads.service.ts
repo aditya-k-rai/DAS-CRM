@@ -16,38 +16,45 @@ export class LeadsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  private async getHierarchyScope(organizationId: string, userId?: string) {
-    if (!userId) return {};
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: { select: { name: true } } }
-    });
-    const roleName = currentUser?.role?.name || '';
-    if (roleName === 'ADMIN' || roleName === 'HR') {
-      return {};
-    }
+  async getDownstreamUserIds(organizationId: string, managerId: string): Promise<Set<string>> {
     const allUsers = await this.prisma.user.findMany({
       where: { organizationId },
-      select: { id: true, managerId: true }
+      select: { id: true, managerId: true },
     });
-    const subordinateIds = new Set<string>();
-    subordinateIds.add(userId);
+    const downstreamIds = new Set<string>();
+    downstreamIds.add(managerId);
     let added = true;
     while (added) {
       added = false;
       for (const u of allUsers) {
-        if (u.managerId && subordinateIds.has(u.managerId) && !subordinateIds.has(u.id)) {
-          subordinateIds.add(u.id);
+        if (u.managerId && downstreamIds.has(u.managerId) && !downstreamIds.has(u.id)) {
+          downstreamIds.add(u.id);
           added = true;
         }
       }
     }
+    return downstreamIds;
+  }
+
+  private async getHierarchyScope(organizationId: string, userId?: string) {
+    if (!userId) return {};
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: { select: { name: true } } },
+    });
+    const roleName = currentUser?.role?.name || '';
+    // Global Admins and Owners see company-wide leads.
+    // Decision B1: HR gets aggregate metrics only (NO company-wide leads bypass).
+    if (['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName)) {
+      return {};
+    }
+    const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
     const allowedIds = Array.from(subordinateIds);
     return {
       OR: [
         { ownerId: { in: allowedIds } },
-        { createdById: { in: allowedIds } }
-      ]
+        { createdById: { in: allowedIds } },
+      ],
     };
   }
 
@@ -65,22 +72,26 @@ export class LeadsService {
     const skip = (page - 1) * limit;
 
     const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
-    
-    const where: any = {
-      organizationId,
-      ...hierarchyScope,
-      ...(statusId && { statusId }),
-      ...(ownerId && { ownerId }),
-      ...(sourceId && { sourceId }),
-      ...(search && {
+
+    const whereConditions: any[] = [{ organizationId }];
+    if (hierarchyScope && Object.keys(hierarchyScope).length > 0) {
+      whereConditions.push(hierarchyScope);
+    }
+    if (statusId) whereConditions.push({ statusId });
+    if (ownerId) whereConditions.push({ ownerId });
+    if (sourceId) whereConditions.push({ sourceId });
+    if (search) {
+      whereConditions.push({
         OR: [
           { firstName: { contains: search, mode: 'insensitive' } },
           { lastName: { contains: search, mode: 'insensitive' } },
           { email: { contains: search, mode: 'insensitive' } },
           { phone: { contains: search, mode: 'insensitive' } },
         ],
-      }),
-    };
+      });
+    }
+
+    const where: any = { AND: whereConditions };
 
     const [leads, total] = await Promise.all([
       this.prisma.lead.findMany({
@@ -114,13 +125,13 @@ export class LeadsService {
 
   async findOne(organizationId: string, id: string, userId?: string) {
     const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    const whereConditions: any[] = [{ id, organizationId }];
+    if (hierarchyScope && Object.keys(hierarchyScope).length > 0) {
+      whereConditions.push(hierarchyScope);
+    }
     
     const lead = await this.prisma.lead.findFirst({
-      where: {
-        id,
-        organizationId,
-        ...hierarchyScope,
-      },
+      where: { AND: whereConditions },
       include: {
         status: true,
         owner: {
@@ -170,6 +181,96 @@ export class LeadsService {
     createdById: string,
     dto: CreateLeadDto,
   ) {
+    // 1. Resolve statusId: explicit statusId -> stage name lookup -> default status (Decision F1)
+    let statusId = dto.statusId;
+    if (!statusId && dto.stage) {
+      const match = await this.prisma.leadStatus.findFirst({
+        where: {
+          organizationId,
+          name: { equals: dto.stage.trim(), mode: 'insensitive' },
+        },
+      });
+      if (match) {
+        statusId = match.id;
+      }
+    }
+    if (!statusId) {
+      const defaultStatus = await this.prisma.leadStatus.findFirst({
+        where: { organizationId },
+        orderBy: { order: 'asc' },
+      });
+      if (defaultStatus) {
+        statusId = defaultStatus.id;
+      } else {
+        const created = await this.prisma.leadStatus.create({
+          data: {
+            organizationId,
+            name: dto.stage?.trim() || 'New',
+            color: '#6366f1',
+            order: 0,
+            isDefault: true,
+          },
+        });
+        statusId = created.id;
+      }
+    }
+
+    // 2. Resolve sourceId: explicit sourceId -> source name lookup
+    let sourceId = dto.sourceId;
+    if (!sourceId && dto.source && dto.source.trim()) {
+      let src = await this.prisma.leadSource.findFirst({
+        where: {
+          organizationId,
+          name: { equals: dto.source.trim(), mode: 'insensitive' },
+        },
+      });
+      if (!src) {
+        src = await this.prisma.leadSource.create({
+          data: {
+            organizationId,
+            name: dto.source.trim(),
+          },
+        }).catch(() => null);
+      }
+      if (src) sourceId = src.id;
+    }
+
+    // 3. Resolve companyId: explicit companyId -> companyName lookup
+    let companyId = dto.companyId;
+    if (!companyId && dto.companyName && dto.companyName.trim()) {
+      let comp = await this.prisma.company.findFirst({
+        where: {
+          organizationId,
+          name: { equals: dto.companyName.trim(), mode: 'insensitive' },
+        },
+      });
+      if (!comp) {
+        comp = await this.prisma.company.create({
+          data: {
+            organizationId,
+            name: dto.companyName.trim(),
+          },
+        }).catch(() => null);
+      }
+      if (comp) companyId = comp.id;
+    }
+
+    // 4. Tags and customFields handling for priority and estimatedValue
+    const tags = [...(dto.tags || [])];
+    if (dto.priority && !tags.includes(dto.priority)) {
+      tags.push(dto.priority);
+    }
+    const customFields = { ...(dto.customFields || {}) };
+    if (dto.estimatedValue !== undefined) {
+      customFields.estimatedValue = dto.estimatedValue;
+    }
+    if (dto.priority) {
+      customFields.priority = dto.priority;
+    }
+    if (dto.stage) {
+      customFields.stage = dto.stage;
+    }
+
     const lead = await this.prisma.lead.create({
       data: {
         organizationId,
@@ -178,13 +279,14 @@ export class LeadsService {
         lastName: dto.lastName,
         email: dto.email,
         phone: dto.phone,
-        statusId: dto.statusId,
+        statusId: statusId!,
         ownerId: dto.ownerId ?? createdById,
-        sourceId: dto.sourceId,
-        companyId: dto.companyId,
-        customFields: dto.customFields ?? {},
-        tags: dto.tags ?? [],
+        sourceId,
+        companyId,
+        customFields,
+        tags,
         notes: dto.notes,
+        score: dto.estimatedValue ? Math.min(100, Math.round(dto.estimatedValue / 1000)) : undefined,
       },
       include: {
         status: true,
@@ -213,15 +315,57 @@ export class LeadsService {
     dto: UpdateLeadDto,
   ) {
     const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    const whereConditions: any[] = [{ id, organizationId }];
+    if (hierarchyScope && Object.keys(hierarchyScope).length > 0) {
+      whereConditions.push(hierarchyScope);
+    }
     
     const existing = await this.prisma.lead.findFirst({
-      where: {
-        id,
-        organizationId,
-        ...hierarchyScope,
-      },
+      where: { AND: whereConditions },
     });
     if (!existing) throw new NotFoundException('Lead not found or access denied');
+
+    // Decision A2 & C2: Only Admin + Manager + TL (downstream only) can reassign lead owners
+    if (dto.ownerId !== undefined && dto.ownerId !== existing.ownerId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: { select: { name: true } } },
+      });
+      const roleName = user?.role?.name || '';
+      const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName);
+      if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName)) {
+        throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can reassign lead owners.');
+      }
+      if (!isGlobalAdmin && dto.ownerId) {
+        const downstreamIds = await this.getDownstreamUserIds(organizationId, userId);
+        if (!downstreamIds.has(dto.ownerId)) {
+          throw new ForbiddenException('⛔ You can only reassign leads to subordinates within your downstream reporting tree.');
+        }
+      }
+    }
+
+    // Resolve stage to statusId if passed
+    let statusId = dto.statusId;
+    if (!statusId && dto.stage) {
+      const st = await this.prisma.leadStatus.findFirst({
+        where: { organizationId, name: { equals: dto.stage.trim(), mode: 'insensitive' } },
+      });
+      if (st) statusId = st.id;
+    }
+
+    // Resolve companyName to companyId if passed
+    let companyId = dto.companyId;
+    if (!companyId && dto.companyName && dto.companyName.trim()) {
+      let comp = await this.prisma.company.findFirst({
+        where: { organizationId, name: { equals: dto.companyName.trim(), mode: 'insensitive' } },
+      });
+      if (!comp) {
+        comp = await this.prisma.company.create({
+          data: { organizationId, name: dto.companyName.trim() },
+        }).catch(() => null);
+      }
+      if (comp) companyId = comp.id;
+    }
 
     const lead = await this.prisma.lead.update({
       where: { id },
@@ -230,8 +374,9 @@ export class LeadsService {
         ...(dto.lastName && { lastName: dto.lastName }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(statusId && { statusId }),
         ...(dto.ownerId !== undefined && { ownerId: dto.ownerId }),
-        ...(dto.companyId !== undefined && { companyId: dto.companyId }),
+        ...(companyId !== undefined && { companyId }),
         ...(dto.sourceId !== undefined && { sourceId: dto.sourceId }),
         ...(dto.customFields && { customFields: dto.customFields }),
         ...(dto.tags && { tags: dto.tags }),
@@ -437,17 +582,25 @@ export class LeadsService {
   }
 
   async remove(organizationId: string, userId: string, id: string) {
-    const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    // Decision A1: Lead deletion is Admin Only
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: { select: { name: true } } },
+    });
+    const roleName = user?.role?.name || '';
+    if (!['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName)) {
+      throw new ForbiddenException('⛔ Access Denied: Only Admins can permanently delete leads.');
+    }
+
     const existing = await this.prisma.lead.findFirst({
       where: {
         id,
         organizationId,
-        ...hierarchyScope,
       },
     });
-    if (!existing) throw new NotFoundException('Lead not found or access denied');
+    if (!existing) throw new NotFoundException('Lead not found');
     await this.prisma.lead.delete({ where: { id } });
-    return { message: 'Lead deleted' };
+    return { message: 'Lead deleted successfully' };
   }
 
   async getTimeline(organizationId: string, id: string) {
@@ -725,6 +878,23 @@ export class LeadsService {
     managerId: string,
     dto: { leadIds: string[]; targetUserId: string },
   ) {
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managerId },
+      select: { role: { select: { name: true } } },
+    });
+    const roleName = manager?.role?.name || '';
+    const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName);
+    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName)) {
+      throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can allocate leads.');
+    }
+
+    if (!isGlobalAdmin) {
+      const downstreamIds = await this.getDownstreamUserIds(organizationId, managerId);
+      if (!downstreamIds.has(dto.targetUserId)) {
+        throw new ForbiddenException('⛔ You can only allocate leads to subordinates in your downstream reporting tree.');
+      }
+    }
+
     await this.prisma.lead.updateMany({
       where: { id: { in: dto.leadIds }, organizationId },
       data: { ownerId: dto.targetUserId, lastActivityAt: new Date() },
@@ -782,6 +952,27 @@ export class LeadsService {
     const allocatorName = allocator
       ? `${allocator.firstName || ''} ${allocator.lastName || ''}`.trim() || 'Administrator'
       : 'Administrator';
+
+    const allocatorRole = typeof allocator?.role === 'string' ? allocator.role : (allocator?.role as any)?.name || '';
+    const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(allocatorRole);
+    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(allocatorRole)) {
+      throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can allocate leads.');
+    }
+
+    if (!isGlobalAdmin) {
+      const downstreamIds = await this.getDownstreamUserIds(organizationId, allocatorId);
+      if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
+        if (!downstreamIds.has(dto.directAssign.assigneeId)) {
+          throw new ForbiddenException('⛔ You can only allocate leads to subordinates in your downstream reporting tree.');
+        }
+      } else if (dto.mode === 'BATCHWISE' && dto.batchRules) {
+        for (const rule of dto.batchRules) {
+          if (!downstreamIds.has(rule.assigneeId)) {
+            throw new ForbiddenException(`⛔ You can only allocate leads to subordinates in your downstream reporting tree. "${rule.assigneeName}" is outside your team.`);
+          }
+        }
+      }
+    }
 
     const allocationResults: Array<{
       assigneeId: string;

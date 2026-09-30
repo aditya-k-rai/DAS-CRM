@@ -209,6 +209,49 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     }
   }, [externalOpenHistory, onExternalOpenHistoryHandled]);
 
+  useEffect(() => {
+    const fetchSavedQuotes = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        if (!token) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/quotations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setSavedQuotes(data.map((q: any) => ({
+              id: q.id,
+              docNo: q.quoteNumber || q.id,
+              docType: (q.docType || 'QUOTATION') as DocumentType,
+              partyName: q.clientName || 'Client',
+              companyName: q.clientCompany || 'Company',
+              savedAt: q.createdAt ? new Date(q.createdAt).toLocaleString('en-IN') : 'Recently',
+              totalAmount: Number(q.totalAmount || 0),
+              status: q.status === 'SENT' ? 'GENERATED_SENT' : 'DRAFT',
+              itemsCount: q.itemsCount || (q.items ? q.items.length : 0),
+              payload: q.payload || {
+                items: q.items || [],
+                customColumns: [],
+                sectionOrder: ['HEADER', 'PARTY_INFO', 'ITEMS_TABLE', 'SUMMARY_AND_BANK', 'FOOTER_TERMS'],
+                sectionGap: 10,
+                pdfTopPadding: 32,
+                pdfBottomPadding: 28,
+                globalGstRate: 18,
+                docDate: new Date().toISOString().split('T')[0],
+                validUntilDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+              },
+            })));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load saved quotes from backend:', e);
+      }
+    };
+    fetchSavedQuotes();
+  }, []);
+
   // View Mode & Zoom Scale State (With Auto-responsive scaling for Mobile Viewports)
   const [viewMode, setViewMode] = useState<'SPLIT' | 'FULL_PREVIEW'>('SPLIT');
   const [zoomScale, setZoomScale] = useState<number>(0.78);
@@ -360,6 +403,39 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
     setSavedQuotes(prev => [newRecord, ...prev]);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
+
+    // Asynchronously persist to backend database
+    (async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        const res = await fetch(`${apiBase}/quotations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            quoteNumber: newRecord.docNo,
+            docType: newRecord.docType,
+            partyName: newRecord.partyName,
+            companyName: newRecord.companyName,
+            totalAmount: newRecord.totalAmount,
+            status: newRecord.status,
+            items: newRecord.payload.items,
+            payload: newRecord.payload,
+          }),
+        });
+        if (res.ok) {
+          const savedData = await res.json();
+          if (savedData?.id) {
+            setSavedQuotes(prev => prev.map(q => q.id === newRecord.id ? { ...q, id: savedData.id } : q));
+          }
+        }
+      } catch (e) {
+        console.warn('Backend quote save error:', e);
+      }
+    })();
   };
 
   const handleLoadSavedQuote = (record: SavedQuoteRecord) => {
@@ -3588,7 +3664,17 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             <FolderOpen size={12} /> Load
                           </button>
                           <button
-                            onClick={() => setSavedQuotes(prev => prev.filter(q => q.id !== record.id))}
+                            onClick={async () => {
+                              setSavedQuotes(prev => prev.filter(q => q.id !== record.id));
+                              try {
+                                const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+                                const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                                await fetch(`${apiBase}/quotations/${record.id}`, {
+                                  method: 'DELETE',
+                                  headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                });
+                              } catch (_) {}
+                            }}
                             className="p-1 text-slate-500 hover:text-rose-400 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
                             title="Delete Quote Record"
                           >

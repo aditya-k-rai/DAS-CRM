@@ -21,6 +21,14 @@ import { UserRole } from '@prisma/client';
 export class RoleTransitionController {
   constructor(private roleTransitionService: RoleTransitionService) {}
 
+  private getUserId(req: any): string {
+    return req.user?.id || req.user?.sub || '';
+  }
+
+  private getOrgId(req: any): string {
+    return req.user?.organizationId || req.user?.org_id || '';
+  }
+
   @Post('initiate')
   @ApiOperation({
     summary: 'Admin initiates a role change (creates 24hr lock)',
@@ -32,8 +40,8 @@ export class RoleTransitionController {
     return this.roleTransitionService.initiateRoleTransition({
       userId: body.userId,
       newRole: body.newRole,
-      initiatedByAdminId: req.user.sub,
-      organizationId: req.user.org_id,
+      initiatedByAdminId: this.getUserId(req),
+      organizationId: this.getOrgId(req),
     });
   }
 
@@ -43,7 +51,7 @@ export class RoleTransitionController {
     summary: 'Logged-in user accepts their new role (releases lock)',
   })
   async accept(@Req() req: any) {
-    return this.roleTransitionService.acceptRoleTransition(req.user.sub);
+    return this.roleTransitionService.acceptRoleTransition(this.getUserId(req));
   }
 
   @Post('revert/:transitionId')
@@ -52,7 +60,7 @@ export class RoleTransitionController {
   async revert(@Param('transitionId') transitionId: string, @Req() req: any) {
     return this.roleTransitionService.revertRoleTransition(
       transitionId,
-      req.user.sub,
+      this.getUserId(req),
     );
   }
 
@@ -60,7 +68,7 @@ export class RoleTransitionController {
   @ApiOperation({ summary: 'Get current user active role transition lock' })
   async getActiveLock(@Req() req: any) {
     const transition = await this.roleTransitionService.getActiveTransition(
-      req.user.sub,
+      this.getUserId(req),
     );
     return { isLocked: !!transition, transition: transition ?? null };
   }

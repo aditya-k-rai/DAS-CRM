@@ -749,8 +749,8 @@ export class UsersService {
   }
 
   private async assertAdminOrOwner(organizationId: string, userId: string) {
-    if (!userId || userId === 'admin_direct' || userId === 'admin_1') {
-      return;
+    if (!userId) {
+      throw new ForbiddenException('Authentication required.');
     }
     const user = await this.prisma.user.findFirst({
       where: { id: userId, organizationId },
