@@ -364,6 +364,13 @@ export function EmployeeRoleDashboard() {
         }
       }
 
+      // Sync meetings from local storage
+      if (typeof window !== 'undefined') {
+        try {
+          const savedTasksRaw = localStorage.getItem('@das_crm_tasks_v1');
+          if (savedTasksRaw) {
+            const savedTasks = JSON.parse(savedTasksRaw);
+            if (Array.isArray(savedTasks) && savedTasks.length > 0) {
               const taskMeetings = savedTasks
                 .filter((t: any) => t.type === 'MEETING')
                 .map((t: any, idx: number) => ({
