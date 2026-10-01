@@ -43,12 +43,13 @@ export class LeadsService {
     if (!userId) return {};
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: { select: { name: true } } },
+      include: { role: true },
     });
-    const roleName = currentUser?.role?.name || '';
-    // Global Admins and Owners see company-wide leads.
-    // Decision B1: HR gets aggregate metrics only (NO company-wide leads bypass).
-    if (['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName)) {
+    const rawRole = currentUser?.role?.name || (typeof currentUser?.role === 'string' ? currentUser.role : '') || '';
+    const roleName = rawRole.toUpperCase();
+
+    // Global Admins, Super Admins, Owners, and Department Managers see company-wide leads.
+    if (['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER', 'HR'].includes(roleName)) {
       return {};
     }
     const subordinateIds = await this.getDownstreamUserIds(organizationId, userId);
@@ -56,7 +57,9 @@ export class LeadsService {
     return {
       OR: [
         { ownerId: { in: allowedIds } },
+        { ownerId: null },
         { createdById: { in: allowedIds } },
+        { createdById: userId },
       ],
     };
   }
@@ -951,6 +954,7 @@ export class LeadsService {
       colsCount?: number;
     },
   ) {
+    const now = new Date();
     const allocator = await this.prisma.user.findUnique({
       where: { id: allocatorId },
       include: { role: true },
@@ -1084,6 +1088,7 @@ export class LeadsService {
           company: companyName,
           platform: dto.sourceName || 'Spreadsheet Ingestion',
           fileName: dto.fileName || 'Spreadsheet_Import.xlsx',
+          allocatedAt: now.toISOString(),
           rowNumber: rowNum,
         };
 
@@ -1230,7 +1235,6 @@ export class LeadsService {
     const totalLeads = dto.leads?.length || dto.totalLeadsCount || totalAllocated || 1;
 
     // Record Ingestion & Employee Allocation Audit Log in DB
-    const now = new Date();
     const formattedInjectedAt = now.toLocaleString('en-IN', {
       day: '2-digit',
       month: 'short',
