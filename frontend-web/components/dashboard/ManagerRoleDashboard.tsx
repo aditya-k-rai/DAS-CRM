@@ -151,7 +151,7 @@ export function ManagerRoleDashboard() {
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       if (!token) return;
       try {
-        const res = await fetch(`${apiBase}/leads`, {
+        const res = await fetch(`${apiBase}/leads?limit=1000`, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -168,7 +168,7 @@ export function ManagerRoleDashboard() {
               'from-indigo-500 to-blue-600',
               'from-amber-500 to-orange-600',
             ];
-            const mapped: DepartmentLead[] = items.slice(0, 12).map((l: any, idx: number) => {
+            const mapped: DepartmentLead[] = items.map((l: any, idx: number) => {
               const rawStatus = l.status?.name || l.status || 'New';
               const numVal = Number(l.estimatedValue) || 250000;
               return {

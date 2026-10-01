@@ -165,13 +165,39 @@ export default function LeadPipelinePage() {
     try {
       const [auditRes, leadsRes] = await Promise.allSettled([
         fetch(`${apiBase}/leads/distribution/ingestion-audit-logs`, { headers }),
-        fetch(`${apiBase}/leads`, { headers }),
+        fetch(`${apiBase}/leads?limit=1000`, { headers }),
       ]);
 
+      let serverLogs: any[] = [];
       if (auditRes.status === 'fulfilled' && auditRes.value.ok) {
         const auditData = await auditRes.value.json();
-        if (Array.isArray(auditData) && auditData.length > 0) {
-          setWebAuditLogs(auditData);
+        if (Array.isArray(auditData)) {
+          serverLogs = auditData;
+        }
+      }
+
+      // Check localStorage for offline/cached logs
+      let localLogs: any[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          localLogs = JSON.parse(localStorage.getItem('das_crm_web_audit_logs') || '[]');
+        } catch (_) {}
+      }
+
+      const logMap = new Map<string, any>();
+      serverLogs.forEach(l => logMap.set(l.fileName || l.id, l));
+      localLogs.forEach(l => {
+        const key = l.fileName || l.id;
+        if (!logMap.has(key)) logMap.set(key, l);
+      });
+
+      const combinedLogs = Array.from(logMap.values());
+      if (combinedLogs.length > 0) {
+        setWebAuditLogs(combinedLogs);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(combinedLogs));
+          } catch (_) {}
         }
       }
 
@@ -1554,24 +1580,32 @@ export default function LeadPipelinePage() {
           }}
           onAllocationComplete={async (result) => {
             // Update webAuditLogs item to ALLOCATED
-            setWebAuditLogs(prev => prev.map(a => {
-              const isMatch = (pendingAllocationSheet.auditId && a.id === pendingAllocationSheet.auditId) ||
-                              (a.fileName === pendingAllocationSheet.fileName);
-              if (isMatch) {
-                let summaryText = 'Allocated to sales reps';
-                if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
-                  summaryText = `Assigned directly to ${result.assignedUser.name}`;
-                } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
-                  summaryText = result.batchRules.map(r => `${r.assigneeName} [Rows ${r.fromRow}-${r.toRow}]`).join(', ');
+            setWebAuditLogs(prev => {
+              const updated = prev.map(a => {
+                const isMatch = (pendingAllocationSheet.auditId && a.id === pendingAllocationSheet.auditId) ||
+                                (a.fileName === pendingAllocationSheet.fileName);
+                if (isMatch) {
+                  let summaryText = 'Allocated to sales reps';
+                  if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+                    summaryText = `Assigned directly to ${result.assignedUser.name}`;
+                  } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+                    summaryText = result.batchRules.map(r => `${r.assigneeName} [Rows ${r.fromRow}-${r.toRow}]`).join(', ');
+                  }
+                  return {
+                    ...a,
+                    status: 'ALLOCATED' as const,
+                    allocationSummary: summaryText,
+                  };
                 }
-                return {
-                  ...a,
-                  status: 'ALLOCATED' as const,
-                  allocationSummary: summaryText,
-                };
+                return a;
+              });
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(updated));
+                } catch (_) {}
               }
-              return a;
-            }));
+              return updated;
+            });
 
             // Assign reps to directory leads
             if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {

@@ -122,7 +122,7 @@ export function LeadsTable() {
 
       try {
         const [leadsRes, usersRes] = await Promise.allSettled([
-          fetch(`${apiBase}/leads`, { headers }),
+          fetch(`${apiBase}/leads?limit=1000`, { headers }),
           fetch(`${apiBase}/users`, { headers }),
         ]);
 
@@ -308,25 +308,15 @@ export function LeadsTable() {
   const isRep = isSalesExec;
 
   const filtered = leadsList.filter((l) => {
-    // 🔒 Role-Based Data Isolation Scoping (Except Admin)
-    if (!userRole.includes('ADMIN')) {
-      if (userRole.includes('MANAGER')) {
-        // Manager A sees only Manager A's allocated leads or team leads
-        if (l.allocationTrail) {
-          const inTrail = l.allocationTrail.some((a) => a.toRole === 'MANAGER' && a.toName.toLowerCase().includes(userName.toLowerCase()));
-          if (!inTrail && !l.owner.toLowerCase().includes(userName.toLowerCase())) return false;
-        }
-      } else if (userRole.includes('TL') || userRole.includes('LEADER')) {
-        // TL A sees only TL A's allocated leads or sales rep leads under TL A
-        if (l.allocationTrail) {
-          const inTrail = l.allocationTrail.some((a) => a.toRole === 'TEAM_LEADER' && a.toName.toLowerCase().includes(userName.toLowerCase()));
-          if (!inTrail && !l.owner.toLowerCase().includes(userName.toLowerCase())) return false;
-        }
-      } else {
-        // Sales Rep: can ONLY see leads explicitly assigned to him
-        const isAssignedToUser = l.owner.toLowerCase().includes(userName.toLowerCase()) || (l.currentAssignee && l.currentAssignee.toLowerCase().includes(userName.toLowerCase()));
-        if (!isAssignedToUser) return false;
-      }
+    // 🔒 Role-Based Data Isolation Scoping
+    // Backend API already performs authoritative hierarchical scoping.
+    // If pure Sales Rep, ensure only seeing leads assigned to them if not supervisor.
+    if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
+      const isAssignedToUser =
+        (l.owner && l.owner.toLowerCase().includes(userName.toLowerCase())) ||
+        (l.currentAssignee && l.currentAssignee.toLowerCase().includes(userName.toLowerCase())) ||
+        l.owner === 'Unassigned';
+      if (!isAssignedToUser) return false;
     }
 
     // 👤 Person-Wise Filtering

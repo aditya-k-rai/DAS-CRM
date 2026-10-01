@@ -348,6 +348,50 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     }
   };
 
+  const handleSplitTotalEvenly = () => {
+    if (totalLeadsCount <= 0) {
+      alert('No leads available to distribute.');
+      return;
+    }
+    if (selectedMemberIds.length === 0) {
+      alert('Please select at least one team member to distribute leads to.');
+      return;
+    }
+
+    const selectedMembers = batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id));
+    if (selectedMembers.length === 0) return;
+
+    const totalMembers = selectedMembers.length;
+    const baseQuota = Math.floor(totalLeadsCount / totalMembers);
+    const remainder = totalLeadsCount % totalMembers;
+
+    let currentStart = 1;
+    const newRules: WebBatchRule[] = [];
+
+    for (let i = 0; i < totalMembers; i++) {
+      if (currentStart > totalLeadsCount) break;
+      const member = selectedMembers[i];
+      // Distribute remainder fairly across the first 'remainder' members
+      const quota = baseQuota + (i < remainder ? 1 : 0);
+      if (quota <= 0) continue;
+
+      const endRow = Math.min(currentStart + quota - 1, totalLeadsCount);
+
+      newRules.push({
+        id: `batch-even-${Date.now()}-${i}`,
+        fromRow: currentStart,
+        toRow: endRow,
+        assigneeId: member.id,
+        assigneeName: `${member.name} (${member.role})`,
+        role: member.role,
+      });
+
+      currentStart = endRow + 1;
+    }
+
+    setBatchRules(newRules);
+  };
+
   const handleApplyCustomBatch = () => {
     const size = Number(customBatchSize);
     if (!size || isNaN(size) || size <= 0) {
@@ -498,31 +542,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     ]);
   };
 
-  // Auto-generate valid pre-filled non-overlapping batch rules on mount (no blank inputs!)
-  useEffect(() => {
-    if (batchRules.length === 0 && batchAssignableTeam.length > 0 && totalLeadsCount > 0) {
-      const initialMembers = batchAssignableTeam.slice(0, Math.min(4, batchAssignableTeam.length));
-      const countPerMember = Math.max(1, Math.floor(totalLeadsCount / initialMembers.length));
-      let currentStart = 1;
-
-      const initialRules: WebBatchRule[] = initialMembers.map((member, idx) => {
-        const isLast = idx === initialMembers.length - 1;
-        const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerMember - 1, totalLeadsCount);
-        const rule: WebBatchRule = {
-          id: `b-${idx + 1}`,
-          fromRow: currentStart,
-          toRow: endRow,
-          assigneeId: member.id,
-          assigneeName: `${member.name} (${member.role})`,
-          role: member.role,
-        };
-        currentStart = Math.min(endRow + 1, totalLeadsCount);
-        return rule;
-      });
-
-      setBatchRules(initialRules);
-    }
-  }, [totalLeadsCount, batchAssignableTeam]);
+  // Note: Rules start blank on mount so user can explicitly choose "Split Evenly" or custom batch size.
 
   if (!isOpen) return null;
 
@@ -1073,20 +1093,31 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                   </div>
                 </div>
 
-                {/* Primary Action Button */}
-                <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                {/* Primary Action Buttons: Split Evenly + Custom Batch Size */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-1 gap-2.5">
                   <div className="text-[11px] text-slate-400">
-                    Will allocate <span className="font-extrabold text-white">{Number(customBatchSize || 0) * selectedMemberIds.length}</span> leads total ({customBatchSize || 0} × {selectedMemberIds.length} reps).
+                    Selected <span className="font-extrabold text-white">{selectedMemberIds.length}</span> reps · Ingested: <span className="font-extrabold text-indigo-400">{totalLeadsCount}</span> total leads
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleApplyCustomBatch}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
-                  >
-                    <Zap size={14} className="text-amber-300" />
-                    Distribute {customBatchSize || 0} Leads Each →
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleSplitTotalEvenly}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Sparkles size={14} className="text-yellow-300" />
+                      ⚖️ Split Evenly Across ({selectedMemberIds.length}) Reps
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyCustomBatch}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Zap size={14} className="text-amber-300" />
+                      Distribute {customBatchSize || 0} Leads Each →
+                    </button>
+                  </div>
                 </div>
 
                 {/* LIVE REMAINING TELEMETRY & CONTROLS */}
@@ -1098,12 +1129,12 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                       <span
                         className="font-black px-2.5 py-1 rounded-lg border text-xs flex items-center gap-1.5 shadow-sm"
                         style={
-                          remainingRowsCount === 0
+                          remainingRowsCount === 0 && totalLeadsCount > 0
                             ? { backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', borderColor: 'rgba(52, 211, 153, 0.5)' }
                             : { backgroundColor: 'rgba(245, 158, 11, 0.25)', color: '#fef08a', borderColor: 'rgba(251, 191, 36, 0.6)' }
                         }
                       >
-                        {remainingRowsCount === 0 ? '✓ 100% Leads Allocated' : `⚠️ Remaining Unassigned: ${remainingRowsCount} Leads`}
+                        {remainingRowsCount === 0 && totalLeadsCount > 0 ? '✓ 100% Leads Allocated' : `⚠️ Remaining Unassigned: ${remainingRowsCount} Leads`}
                       </span>
                     </div>
                   </div>
@@ -1112,11 +1143,11 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                   <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800 shadow-inner">
                     <div
                       className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-300"
-                      style={{ width: `${Math.min(100, (allocatedRowsCount / totalLeadsCount) * 100)}%` }}
+                      style={{ width: `${totalLeadsCount > 0 ? Math.min(100, (allocatedRowsCount / totalLeadsCount) * 100) : 0}%` }}
                     />
                     <div
                       className="h-full bg-amber-500 transition-all duration-300 shadow-sm"
-                      style={{ width: `${Math.min(100, (remainingRowsCount / totalLeadsCount) * 100)}%` }}
+                      style={{ width: `${totalLeadsCount > 0 ? Math.min(100, (remainingRowsCount / totalLeadsCount) * 100) : 0}%` }}
                     />
                   </div>
 
@@ -1178,7 +1209,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                     </div>
                   )}
 
-                  {remainingRowsCount === 0 && (
+                  {remainingRowsCount === 0 && totalLeadsCount > 0 && (
                     <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5 pt-1">
                       <CheckCircle size={14} /> 100% of dataset is fully assigned! Ready for verification.
                     </div>
@@ -1190,6 +1221,16 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
                 <span className="text-xs font-bold text-slate-300">Detailed Batch Rules Breakdown:</span>
                 <span className="text-xs font-black text-indigo-400">{batchRules.length} Active Rules</span>
               </div>
+
+              {/* EMPTY BATCH RULES PLACEHOLDER */}
+              {batchRules.length === 0 && (
+                <div className="p-6 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 text-center space-y-2">
+                  <p className="text-xs font-bold text-slate-300">No active batch rules yet (Rules start blank by default).</p>
+                  <p className="text-[11px] text-slate-500">
+                    Click <strong className="text-emerald-400">⚖️ Split Evenly Across Reps</strong> or <strong className="text-indigo-400">Distribute Leads Each</strong> above to automatically allocate rows, or click <strong className="text-slate-300">+ Add Custom Batch Range</strong> below to define manual ranges.
+                  </p>
+                </div>
+              )}
 
               {/* ERROR NOTIFICATION BANNER (When overlap or boundary conflict occurs) */}
               {validation.hasConflict && (
