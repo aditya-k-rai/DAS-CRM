@@ -192,7 +192,7 @@ export function filterDirectoryByRole(
 }
 
 /**
- * Get assigned manager overrides from local storage and auto-migrate legacy supervisor linkages.
+ * Get assigned manager overrides from local storage.
  */
 export function getCleanStoredManagers(): Record<string, string> {
   if (typeof window === 'undefined') return {};
@@ -200,28 +200,6 @@ export function getCleanStoredManagers(): Record<string, string> {
   try {
     storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
   } catch (_) {}
-
-  let hasChanged = false;
-  // If Nandini was previously stored under Sachin, align to Aditya Kumar Rai (Manager)
-  if (
-    storedManagers['rastoginandini92@gmail.com'] === 'Sachin Puri (Team Leader)' ||
-    storedManagers['cmuhp0517000ngg2dq93a6nlp'] === 'Sachin Puri (Team Leader)'
-  ) {
-    storedManagers['rastoginandini92@gmail.com'] = 'Aditya Kumar Rai (Manager)';
-    storedManagers['cmuhp0517000ngg2dq93a6nlp'] = 'Aditya Kumar Rai (Manager)';
-    hasChanged = true;
-  }
-  // Ensure Sadhana is assigned under Sachin Puri (Team Leader)
-  if (!storedManagers['sadhnadikshit98@gmail.com'] && !storedManagers['cmukykfoe000nht2d0ylnsd3t']) {
-    storedManagers['sadhnadikshit98@gmail.com'] = 'Sachin Puri (Team Leader)';
-    storedManagers['cmukykfoe000nht2d0ylnsd3t'] = 'Sachin Puri (Team Leader)';
-    hasChanged = true;
-  }
-  if (hasChanged) {
-    try {
-      localStorage.setItem('das_crm_assigned_managers', JSON.stringify(storedManagers));
-    } catch (_) {}
-  }
   return storedManagers;
 }
 
@@ -585,8 +563,6 @@ export async function getUserDirectory(
                 : role === 'MANAGER' || role === 'HR'
                 ? 'Admin'
                 : role === 'TEAM_LEADER'
-                ? 'Aditya Kumar Rai (Manager)'
-                : u.email === 'rastoginandini92@gmail.com'
                 ? 'Aditya Kumar Rai (Manager)'
                 : 'Sachin Puri (Team Leader)';
 

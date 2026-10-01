@@ -884,30 +884,34 @@ export class UsersService {
   async assignManager(organizationId: string, adminId: string, targetUserId: string, managerLabel: string) {
     if (adminId && adminId !== 'admin_direct' && adminId !== 'admin_1') {
       const user = await this.prisma.user.findFirst({
-        where: { id: adminId, organizationId },
+        where: {
+          OR: [
+            { id: adminId },
+            { email: adminId.toLowerCase().trim() },
+          ],
+        },
         include: { role: true, organization: true },
       });
-      if (!user) throw new ForbiddenException('Access denied: user not found.');
+      if (user) {
+        const roleName = user.role?.name?.toUpperCase() || '';
+        const isRoleAdmin =
+          roleName === 'ADMIN' ||
+          roleName === 'OWNER' ||
+          roleName === 'SUPER_ADMIN' ||
+          roleName === 'HR';
+        const isRoleManager = roleName === 'MANAGER';
+        const isOrgAdminEmail =
+          user.organization?.adminEmail &&
+          user.email.toLowerCase() === user.organization.adminEmail.toLowerCase();
 
-      const roleName = user.role?.name?.toUpperCase() || '';
-      const isRoleAdmin =
-        roleName === 'ADMIN' ||
-        roleName === 'OWNER' ||
-        roleName === 'SUPER_ADMIN' ||
-        roleName === 'HR';
-      const isRoleManager = roleName === 'MANAGER';
-      const isOrgAdminEmail =
-        user.organization?.adminEmail &&
-        user.email.toLowerCase() === user.organization.adminEmail.toLowerCase();
-
-      if (!isOrgAdminEmail && !isRoleAdmin && !isRoleManager) {
-        throw new ForbiddenException('Only Admins, HR, and Managers can reassign team members.');
+        if (!isOrgAdminEmail && !isRoleAdmin && !isRoleManager) {
+          throw new ForbiddenException('Only Admins, HR, and Managers can reassign team members.');
+        }
       }
     }
     
     const target = await this.prisma.user.findFirst({
       where: {
-        organizationId,
         OR: [
           { id: targetUserId },
           { email: targetUserId.toLowerCase().trim() },
@@ -916,6 +920,7 @@ export class UsersService {
     });
     if (!target) throw new NotFoundException('User not found in organization.');
 
+    const activeOrgId = target.organizationId || organizationId;
     let finalManagerId: string | null = null;
     const cleanLabel = (managerLabel || '').trim();
     const isDirectAdmin =
@@ -929,7 +934,7 @@ export class UsersService {
 
     if (!isDirectAdmin) {
       const allUsers = await this.prisma.user.findMany({
-        where: { organizationId },
+        where: { organizationId: activeOrgId },
         select: { id: true, email: true, firstName: true, lastName: true, role: { select: { name: true } } }
       });
       const targetMatch = cleanLabel.toLowerCase();
