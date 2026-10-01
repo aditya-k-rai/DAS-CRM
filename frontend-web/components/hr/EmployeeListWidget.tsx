@@ -50,6 +50,7 @@ export interface EmployeeProfileWeb {
   role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED';
   isVerified?: boolean;
   verificationStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  managerId?: string | null;
   assignedManager: string;
   baseSalary: string;
   joined: string;
@@ -216,8 +217,34 @@ export function EmployeeListWidget({
   const handleQuickSupervisorChange = async (emp: EmployeeProfileWeb, newSupervisor: string) => {
     setIsSavingSupervisor(true);
 
+    const isDirectAdmin =
+      !newSupervisor ||
+      newSupervisor.toLowerCase() === 'admin' ||
+      newSupervisor.toLowerCase() === 'organization admin' ||
+      newSupervisor.toLowerCase() === 'direct / admin';
+
+    let resolvedManagerId: string | null = null;
+    if (!isDirectAdmin) {
+      const match = employees.find(
+        e =>
+          e.name.toLowerCase() === newSupervisor.toLowerCase() ||
+          `${e.name} (${e.role === 'MANAGER' ? 'Manager' : e.role === 'TEAM_LEADER' ? 'Team Leader' : e.role})`.toLowerCase() === newSupervisor.toLowerCase() ||
+          e.email?.toLowerCase() === newSupervisor.toLowerCase() ||
+          e.id === newSupervisor
+      );
+      if (match) {
+        resolvedManagerId = match.id;
+      }
+    }
+
     // 1. Update local employee state immediately
-    setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, assignedManager: newSupervisor } : e));
+    setEmployees(prev =>
+      prev.map(e =>
+        e.id === emp.id
+          ? { ...e, assignedManager: newSupervisor, managerId: resolvedManagerId }
+          : e
+      )
+    );
 
     // 2. Persist to localStorage
     if (typeof window !== 'undefined') {
@@ -232,7 +259,7 @@ export function EmployeeListWidget({
         const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
         const updatedExtra = extraStaff.map((st: any) => {
           if (st.id === emp.id || (emp.email && st.email?.toLowerCase().trim() === emp.email.toLowerCase().trim())) {
-            return { ...st, assignedManager: newSupervisor };
+            return { ...st, assignedManager: newSupervisor, managerId: resolvedManagerId };
           }
           return st;
         });
@@ -253,8 +280,8 @@ export function EmployeeListWidget({
     // 3. Sync to backend API
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = currentUser?.companyId || (typeof window !== 'undefined' ? localStorage.getItem('das_crm_org_id') : '');
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+      const compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId')) : '');
       await fetch(`${apiBase}/users/${emp.id}/manager`, {
         method: 'PATCH',
         headers: {
@@ -262,7 +289,11 @@ export function EmployeeListWidget({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(compId ? { 'x-organization-id': compId } : {}),
         },
-        body: JSON.stringify({ managerId: newSupervisor }),
+        body: JSON.stringify({
+          managerId: resolvedManagerId || newSupervisor,
+          assignedManager: newSupervisor,
+          organizationId: compId,
+        }),
       });
     } catch (e) {
       console.warn('Backend supervisor sync warning:', e);

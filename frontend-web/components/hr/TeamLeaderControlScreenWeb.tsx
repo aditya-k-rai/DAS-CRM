@@ -61,6 +61,26 @@ export default function TeamLeaderControlScreenWeb({ employee, allEmployees = []
   const seniorUsers = computeSeniorUsers();
 
   const handleSupervisorChange = async (selectedLabel: string) => {
+    const isDirectAdmin =
+      !selectedLabel ||
+      selectedLabel.toLowerCase() === 'admin' ||
+      selectedLabel.toLowerCase() === 'organization admin' ||
+      selectedLabel.toLowerCase() === 'direct / admin';
+
+    let resolvedManagerId: string | null = null;
+    if (!isDirectAdmin) {
+      const match = seniorUsers.find(
+        s =>
+          s.label.toLowerCase() === selectedLabel.toLowerCase() ||
+          s.name.toLowerCase() === selectedLabel.toLowerCase() ||
+          s.email.toLowerCase() === selectedLabel.toLowerCase() ||
+          s.id === selectedLabel
+      );
+      if (match) {
+        resolvedManagerId = match.id;
+      }
+    }
+
     if (typeof window !== 'undefined') {
       try {
         const stored = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
@@ -73,7 +93,7 @@ export default function TeamLeaderControlScreenWeb({ employee, allEmployees = []
         const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
         const updatedExtra = extraStaff.map((st: any) => {
           if (st.id === employee.id || (employee.email && st.email?.toLowerCase().trim() === employee.email.toLowerCase().trim())) {
-            return { ...st, assignedManager: selectedLabel };
+            return { ...st, assignedManager: selectedLabel, managerId: resolvedManagerId };
           }
           return st;
         });
@@ -94,8 +114,8 @@ export default function TeamLeaderControlScreenWeb({ employee, allEmployees = []
     // Sync to backend API
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const compId = typeof window !== 'undefined' ? localStorage.getItem('das_crm_org_id') : null;
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+      const compId = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId')) : null;
       await fetch(`${apiBase}/users/${employee.id}/manager`, {
         method: 'PATCH',
         headers: {
@@ -103,11 +123,15 @@ export default function TeamLeaderControlScreenWeb({ employee, allEmployees = []
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(compId ? { 'x-organization-id': compId } : {}),
         },
-        body: JSON.stringify({ managerId: selectedLabel }),
+        body: JSON.stringify({
+          managerId: resolvedManagerId || selectedLabel,
+          assignedManager: selectedLabel,
+          organizationId: compId,
+        }),
       }).catch(() => null);
     } catch (_) {}
 
-    onUpdateEmployee({ ...employee, assignedManager: selectedLabel });
+    onUpdateEmployee({ ...employee, assignedManager: selectedLabel, managerId: resolvedManagerId });
     setChangeSupervisorModalOpen(false);
   };
 

@@ -15,6 +15,7 @@ export interface CachedEmployee {
   role: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' | 'UNASSIGNED';
   isVerified: boolean;
   verificationStatus: 'VERIFIED' | 'PENDING';
+  managerId?: string | null;
   assignedManager: string;
   baseSalary: string;
   joined: string;
@@ -116,9 +117,6 @@ export function getCleanStoredOverrides(): Record<string, string> {
 }
 
 /**
- * Returns default resilient directory if backend is unreachable or during initial hydration.
- */
-/**
  * Strict Hierarchical RBAC Filter:
  * - Admin / Super Admin / HR: Sees ALL users in organization.
  * - Manager: Sees Self + Transitive Subordinates (TLs under him + Sales Reps under those TLs or under Manager).
@@ -141,31 +139,42 @@ export function filterDirectoryByRole(
     return employees;
   }
 
-  const currentUserId = String(currentUser.id || '');
+  const currentUserId = String(currentUser.id || '').trim();
   const currentUserName = (currentUser.name || '').trim().toLowerCase();
   const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
 
-  // Helper to match if emp is assigned under supervisor
-  const isDirectSubordinate = (emp: CachedEmployee, supId: string, supName: string, supEmail: string) => {
-    if (!emp.assignedManager) return false;
-    const mgr = emp.assignedManager.toLowerCase();
-    const isUnderAdmin = mgr === 'admin' || mgr === 'organization admin' || mgr.includes('direct');
-    if (isUnderAdmin) return false;
-
-    return (
-      (emp as any).managerId === supId ||
-      (supName && mgr.includes(supName)) ||
-      (supEmail && mgr.includes(supEmail)) ||
-      (supId && mgr === supId)
-    );
-  };
-
   const allowedIds = new Set<string>();
   if (currentUserId) allowedIds.add(currentUserId);
+
   const selfEmp = employees.find(
     e => (currentUserId && e.id === currentUserId) || (currentUserEmail && e.email.toLowerCase() === currentUserEmail)
   );
-  if (selfEmp) allowedIds.add(selfEmp.id);
+  if (selfEmp) {
+    allowedIds.add(selfEmp.id);
+  }
+
+  // Helper to match if emp is assigned under supervisor
+  const isDirectSubordinate = (emp: CachedEmployee, supId: string, supName: string, supEmail: string) => {
+    if (!emp) return false;
+    if (emp.id === supId) return false;
+    if (emp.role === 'ADMIN') return false;
+
+    // 1. Direct managerId check
+    if (emp.managerId && (emp.managerId === supId || (selfEmp && emp.managerId === selfEmp.id))) {
+      return true;
+    }
+
+    if (!emp.assignedManager) return false;
+    const mgr = emp.assignedManager.toLowerCase().trim();
+    const isUnderAdmin = mgr === 'admin' || mgr === 'organization admin' || mgr.includes('direct') || mgr === 'pending admin assignment';
+    if (isUnderAdmin) return false;
+
+    return (
+      (supId && (mgr === supId.toLowerCase() || mgr.includes(supId.toLowerCase()))) ||
+      (supEmail && (mgr.includes(supEmail) || mgr === supEmail)) ||
+      (supName && (mgr.includes(supName) || mgr === supName))
+    );
+  };
 
   // Traverse tree recursively for Manager or TL
   let added = true;
@@ -175,8 +184,8 @@ export function filterDirectoryByRole(
       if (allowedIds.has(emp.id)) continue;
       for (const supId of Array.from(allowedIds)) {
         const sup = employees.find(e => e.id === supId);
-        const supName = (sup?.name || (supId === currentUserId ? currentUserName : '')).toLowerCase();
-        const supEmail = (sup?.email || (supId === currentUserId ? currentUserEmail : '')).toLowerCase();
+        const supName = (sup?.name || (supId === currentUserId ? currentUserName : '')).toLowerCase().trim();
+        const supEmail = (sup?.email || (supId === currentUserId ? currentUserEmail : '')).toLowerCase().trim();
         if (isDirectSubordinate(emp, supId, supName, supEmail)) {
           allowedIds.add(emp.id);
           added = true;
@@ -315,6 +324,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukk5cq2000nf01vkfpi00d5'] || storedOverrides['rai992522@gmail.com'] || 'MANAGER') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
+      managerId: null,
       assignedManager: storedManagers['cmukk5cq2000nf01vkfpi00d5'] || storedManagers['rai992522@gmail.com'] || 'Admin',
       baseSalary: '₹75,000',
       joined: 'Sep 28, 2026',
@@ -336,6 +346,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukv4tgl000n7d2d65001ydp'] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
+      managerId: 'cmukk5cq2000nf01vkfpi00d5',
       assignedManager: storedManagers['cmukv4tgl000n7d2d65001ydp'] || storedManagers['sachinpuri938@gmail.com'] || 'Aditya Kumar Rai (Manager)',
       baseSalary: '₹55,000',
       joined: 'Sep 28, 2026',
@@ -357,6 +368,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmuhp0517000ngg2dq93a6nlp'] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
+      managerId: 'cmukk5cq2000nf01vkfpi00d5',
       assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || storedManagers['rastoginandini92@gmail.com'] || 'Aditya Kumar Rai (Manager)',
       baseSalary: '₹45,000',
       joined: 'Sep 26, 2026',
@@ -378,6 +390,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukwwdv9000ng42dghtw6t3z'] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
+      managerId: 'cmukv4tgl000n7d2d65001ydp',
       assignedManager: storedManagers['cmukwwdv9000ng42dghtw6t3z'] || storedManagers['sulekhatmr@gmail.com'] || 'Sachin Puri (Team Leader)',
       baseSalary: '₹45,000',
       joined: 'Sep 28, 2026',
@@ -399,6 +412,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
+      managerId: 'cmukv4tgl000n7d2d65001ydp',
       assignedManager: storedManagers['cmukykfoe000nht2d0ylnsd3t'] || storedManagers['sadhnadikshit98@gmail.com'] || 'Sachin Puri (Team Leader)',
       baseSalary: '₹45,000',
       joined: 'Sep 28, 2026',
@@ -568,9 +582,9 @@ export async function getUserDirectory(
 
             const assignedMgr = isRoleUnassigned
               ? 'Pending Admin Assignment'
-              : (storedManagers[String(u.id)] ||
+              : (u.assignedManager ||
+                 storedManagers[String(u.id)] ||
                  storedManagers[u.email?.toLowerCase().trim()] ||
-                 u.assignedManager ||
                  defaultMgr);
 
             return {
@@ -594,6 +608,7 @@ export async function getUserDirectory(
               role,
               isVerified: isRoleUnassigned ? false : (u.isVerified ?? true),
               verificationStatus: isRoleUnassigned ? 'PENDING' : 'VERIFIED',
+              managerId: u.managerId || null,
               assignedManager: assignedMgr,
               baseSalary: isRoleUnassigned ? '₹0' : (role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000'),
               joined: u.createdAt

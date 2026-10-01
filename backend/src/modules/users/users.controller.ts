@@ -170,9 +170,10 @@ export class UsersController {
   async assignManager(
     @CurrentUser() adminUser: any,
     @Param('id') targetUserId: string,
-    @Body() body: { managerId: string; organizationId?: string },
+    @Body() body: { managerId?: string; assignedManager?: string; organizationId?: string },
   ) {
     const orgId = this.getAuthorizedOrgId(adminUser, body?.organizationId);
-    return this.usersService.assignManager(orgId, adminUser.id, targetUserId, body.managerId);
+    const mgrVal = body?.assignedManager || body?.managerId || '';
+    return this.usersService.assignManager(orgId, adminUser.id, targetUserId, mgrVal);
   }
 }
