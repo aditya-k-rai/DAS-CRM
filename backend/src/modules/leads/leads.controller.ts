@@ -185,10 +185,12 @@ export class LeadsController {
         assigneeId: string;
         assigneeName?: string;
       };
+      leads?: any[];
       leadIds?: string[];
       totalLeadsCount?: number;
       sourceName?: string;
       fileName?: string;
+      colsCount?: number;
     },
   ) {
     return this.leadsService.allocateLeadsWithVerification(
@@ -196,6 +198,12 @@ export class LeadsController {
       user.id,
       dto,
     );
+  }
+
+  @Get('distribution/ingestion-audit-logs')
+  @ApiOperation({ summary: 'Get spreadsheet ingestion and employee allocation audit logs' })
+  getIngestionAuditLogs(@CurrentUser() user: any) {
+    return this.leadsService.getIngestionAuditLogs(user.organizationId);
   }
 
   // ── Google Sheets Sync & Ingestion History Endpoints ──

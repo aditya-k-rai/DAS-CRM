@@ -253,10 +253,10 @@ export function EmployeeRoleDashboard() {
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Rep';
 
   // Synced States (Initialized from Cache or Defaults)
-  const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || DEFAULT_NEW_LEADS);
-  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || DEFAULT_FOLLOW_UPS);
-  const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData('emp_meetings') || DEFAULT_MEETINGS);
-  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData('emp_opportunities') || DEFAULT_OPPORTUNITIES);
+  const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || []);
+  const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || []);
+  const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData('emp_meetings') || []);
+  const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData('emp_opportunities') || []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Sync state mutations to Cache automatically
@@ -272,12 +272,6 @@ export function EmployeeRoleDashboard() {
 
   // Sync leads from backend and local task store on mount
   useEffect(() => {
-    // Only fetch if data is not already cached
-    const hasCachedLeads = getCachedData('emp_newLeads');
-    if (hasCachedLeads) {
-      return; // Skip fetch, use cache
-    }
-
     const syncData = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
@@ -292,32 +286,28 @@ export function EmployeeRoleDashboard() {
           const data = await res.json();
           const items = Array.isArray(data) ? data : (data.leads || data.data || []);
           if (items.length > 0) {
-            // Map fresh leads with status 'New'
             const freshItems: SyncedLead[] = items
-              .filter((l: any) => {
-                const s = (l.status?.name || l.status || '').toLowerCase();
-                return s === 'new' || s === '';
-              })
-              .slice(0, 6)
               .map((l: any, idx: number) => {
                 const colors = [
                   'from-emerald-500 to-teal-600',
                   'from-teal-500 to-cyan-600',
-                  'from-emerald-600 to-emerald-800'
+                  'from-emerald-600 to-emerald-800',
+                  'from-indigo-500 to-purple-600',
                 ];
+                const rawStatus = (l.status?.name || l.status || 'New');
                 return {
                   id: String(l.id),
                   name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-                  company: l.company || l.source?.name || 'Inbound Prospect',
+                  company: l.company?.name || l.company || l.source?.name || 'Inbound Prospect',
                   designation: l.jobTitle || 'Decision Maker',
                   phone: l.phone || '+91 98000 00000',
                   email: l.email || 'lead@crm.local',
-                  status: 'New',
+                  status: (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) as any,
                   value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '₹2,50,000',
                   rawEstimatedValue: Number(l.estimatedValue) || 250000,
-                  assignedTime: 'Recently assigned',
+                  assignedTime: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recently assigned',
                   source: l.source?.name || l.source || 'Direct Inbound',
-                  requirement: l.requirement || 'Interested in Enterprise Sales Management',
+                  requirement: l.requirement || l.notes || 'Interested in Sales Management',
                   avatarBg: colors[idx % colors.length],
                 };
               });
@@ -328,7 +318,7 @@ export function EmployeeRoleDashboard() {
           }
         }
       } catch (err) {
-        console.warn('API lead sync fallback to high-fidelity seed data:', err);
+        console.warn('API lead sync error:', err);
       }
 
       // Sync follow-ups from new backend API
@@ -441,7 +431,7 @@ export function EmployeeRoleDashboard() {
   const newLeadsCount = newLeads.length;
   const contactedCount = followUps.length;
   const qualifiedCount = meetings.length;
-  const wonCount = 1; // Baseline active won deal this month
+  const wonCount = 0; // Active won deal count this month
 
   return (
     <div className="space-y-7 text-foreground">
@@ -546,85 +536,93 @@ export function EmployeeRoleDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-          {newLeads.map((lead) => (
-            <div
-              key={lead.id}
-              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-3 group relative overflow-hidden"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  {/* Lead Name Focused Avatar */}
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${lead.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform`}>
-                    {getInitials(lead.name)}
-                  </div>
-                  <div>
-                    {/* Hero Lead Name */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Link href="/leads" className="text-sm font-black text-white hover:text-emerald-400 transition-colors">
-                        {lead.name}
-                      </Link>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        NEW
-                      </span>
-                    </div>
-                    {/* Organization / Company */}
-                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
-                      <Building2 size={11} className="text-emerald-400/70" />
-                      {lead.company}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{lead.designation}</p>
-                  </div>
-                </div>
-                {/* Lead Estimated Value */}
-                <div className="text-right flex-shrink-0">
-                  <span className="text-xs font-black text-emerald-400">{lead.value}</span>
-                  <p className="text-[9px] text-muted-foreground">{lead.source}</p>
-                </div>
-              </div>
-
-              {/* Requirement Snippet */}
-              {lead.requirement && (
-                <div className="p-2 rounded-lg bg-emerald-500/8 border border-emerald-500/15 text-[11px] text-emerald-200/90 flex items-center gap-1.5">
-                  <Sparkles size={11} className="text-emerald-400 flex-shrink-0" />
-                  <span className="truncate">{lead.requirement}</span>
-                </div>
-              )}
-
-              {/* Action Buttons Focused on Lead */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                  <Clock size={10} /> {lead.assignedTime}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`tel:${lead.phone}`}
-                    onClick={() => handleDirectCall(lead.name, lead.phone)}
-                    title={`Call ${lead.name}`}
-                    className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <Phone size={12} /> Call
-                  </a>
-                  <a
-                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => handleWhatsApp(lead.name)}
-                    title={`WhatsApp ${lead.name}`}
-                    className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
-                  >
-                    <MessageCircle size={12} /> WA
-                  </a>
-                  <Link
-                    href="/leads"
-                    title={`Open details for ${lead.name}`}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-                  >
-                    Details <ArrowRight size={11} />
-                  </Link>
-                </div>
-              </div>
+          {newLeads.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-emerald-400/80 border border-dashed border-emerald-500/30 rounded-xl bg-emerald-500/5">
+              <Sparkles size={20} className="mx-auto mb-1.5 text-emerald-400/60" />
+              <p className="font-bold text-sm text-foreground">No new leads assigned</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Newly ingested or assigned inbound leads will appear here.</p>
             </div>
-          ))}
+          ) : (
+            newLeads.map((lead) => (
+              <div
+                key={lead.id}
+                className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between gap-3 group relative overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {/* Lead Name Focused Avatar */}
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${lead.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform`}>
+                      {getInitials(lead.name)}
+                    </div>
+                    <div>
+                      {/* Hero Lead Name */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link href="/leads" className="text-sm font-black text-white hover:text-emerald-400 transition-colors">
+                          {lead.name}
+                        </Link>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          NEW
+                        </span>
+                      </div>
+                      {/* Organization / Company */}
+                      <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
+                        <Building2 size={11} className="text-emerald-400/70" />
+                        {lead.company}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{lead.designation}</p>
+                    </div>
+                  </div>
+                  {/* Lead Estimated Value */}
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-xs font-black text-emerald-400">{lead.value}</span>
+                    <p className="text-[9px] text-muted-foreground">{lead.source}</p>
+                  </div>
+                </div>
+
+                {/* Requirement Snippet */}
+                {lead.requirement && (
+                  <div className="p-2 rounded-lg bg-emerald-500/8 border border-emerald-500/15 text-[11px] text-emerald-200/90 flex items-center gap-1.5">
+                    <Sparkles size={11} className="text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">{lead.requirement}</span>
+                  </div>
+                )}
+
+                {/* Action Buttons Focused on Lead */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Clock size={10} /> {lead.assignedTime}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`tel:${lead.phone}`}
+                      onClick={() => handleDirectCall(lead.name, lead.phone)}
+                      title={`Call ${lead.name}`}
+                      className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
+                    >
+                      <Phone size={12} /> Call
+                    </a>
+                    <a
+                      href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => handleWhatsApp(lead.name)}
+                      title={`WhatsApp ${lead.name}`}
+                      className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 text-[11px] font-bold transition-all"
+                    >
+                      <MessageCircle size={12} /> WA
+                    </a>
+                    <Link
+                      href="/leads"
+                      title={`Open details for ${lead.name}`}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      Details <ArrowRight size={11} />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -771,95 +769,103 @@ export function EmployeeRoleDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {meetings.map((item) => (
-            <div
-              key={item.id}
-              className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 group relative ${
-                item.isCompleted
-                  ? 'bg-slate-900/30 border-slate-800/50 opacity-60'
-                  : 'bg-slate-900/60 hover:bg-slate-900/90 border-sky-500/20 hover:border-sky-500/40'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  {/* Lead Name Focused Avatar */}
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-sky-500/20`}>
-                    {getInitials(item.leadName)}
-                  </div>
-                  <div>
-                    {/* Hero Lead Name */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-black text-white hover:text-sky-400 transition-colors">
-                        {item.leadName}
-                      </h4>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
-                        <Video size={10} /> {item.platform}
-                      </span>
-                    </div>
-                    {/* Organization */}
-                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
-                      <Building2 size={11} className="text-sky-400/70" />
-                      {item.company}
-                    </p>
-                  </div>
-                </div>
-                {/* Meeting Time */}
-                <div className="text-right flex-shrink-0">
-                  <span className="text-xs font-black text-sky-400 flex items-center gap-1 justify-end">
-                    <Clock size={11} /> {item.time}
-                  </span>
-                  <p className="text-[10px] text-muted-foreground">{item.duration}</p>
-                </div>
-              </div>
-
-              {/* Meeting Title / Agenda */}
-              <div className="p-2.5 rounded-lg bg-sky-500/8 border border-sky-500/15">
-                <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Calendar size={12} className="text-sky-400 flex-shrink-0" />
-                  {item.title}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Lead Contact: <span className="text-sky-300 font-bold">{item.leadName}</span> ({item.phone})
-                </p>
-              </div>
-
-              {/* Meeting Action Bar */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
-                <button
-                  onClick={() => toggleMeeting(item.id, item.leadName)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
-                    item.isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                  }`}
-                >
-                  <CheckCircle2 size={12} className={item.isCompleted ? 'text-emerald-400' : 'text-slate-400'} />
-                  {item.isCompleted ? 'Completed' : 'Mark Held'}
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`tel:${item.phone}`}
-                    onClick={() => handleDirectCall(item.leadName, item.phone)}
-                    title={`Call ${item.leadName}`}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-                  >
-                    <Phone size={12} /> Dial
-                  </a>
-                  {item.meetUrl && (
-                    <a
-                      href={item.meetUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-sky-600/30 transition-all"
-                    >
-                      <Video size={12} /> Join Call with {item.leadName.split(' ')[0]}
-                    </a>
-                  )}
-                </div>
-              </div>
+          {meetings.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-sky-400/80 border border-dashed border-sky-500/30 rounded-xl bg-sky-500/5">
+              <Calendar size={20} className="mx-auto mb-1.5 text-sky-400/60" />
+              <p className="font-bold text-sm text-foreground">No meetings scheduled today</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Scheduled product demos and stakeholder calls will appear here.</p>
             </div>
-          ))}
+          ) : (
+            meetings.map((item) => (
+              <div
+                key={item.id}
+                className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 group relative ${
+                  item.isCompleted
+                    ? 'bg-slate-900/30 border-slate-800/50 opacity-60'
+                    : 'bg-slate-900/60 hover:bg-slate-900/90 border-sky-500/20 hover:border-sky-500/40'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {/* Lead Name Focused Avatar */}
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md shadow-sky-500/20`}>
+                      {getInitials(item.leadName)}
+                    </div>
+                    <div>
+                      {/* Hero Lead Name */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-black text-white hover:text-sky-400 transition-colors">
+                          {item.leadName}
+                        </h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
+                          <Video size={10} /> {item.platform}
+                        </span>
+                      </div>
+                      {/* Organization */}
+                      <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
+                        <Building2 size={11} className="text-sky-400/70" />
+                        {item.company}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Meeting Time */}
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-xs font-black text-sky-400 flex items-center gap-1 justify-end">
+                      <Clock size={11} /> {item.time}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground">{item.duration}</p>
+                  </div>
+                </div>
+
+                {/* Meeting Title / Agenda */}
+                <div className="p-2.5 rounded-lg bg-sky-500/8 border border-sky-500/15">
+                  <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Calendar size={12} className="text-sky-400 flex-shrink-0" />
+                    {item.title}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Lead Contact: <span className="text-sky-300 font-bold">{item.leadName}</span> ({item.phone})
+                  </p>
+                </div>
+
+                {/* Meeting Action Bar */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2">
+                  <button
+                    onClick={() => toggleMeeting(item.id, item.leadName)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                      item.isCompleted
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                    }`}
+                  >
+                    <CheckCircle2 size={12} className={item.isCompleted ? 'text-emerald-400' : 'text-slate-400'} />
+                    {item.isCompleted ? 'Completed' : 'Mark Held'}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${item.phone}`}
+                      onClick={() => handleDirectCall(item.leadName, item.phone)}
+                      title={`Call ${item.leadName}`}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <Phone size={12} /> Dial
+                    </a>
+                    {item.meetUrl && (
+                      <a
+                        href={item.meetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-sky-600/30 transition-all"
+                      >
+                        <Video size={12} /> Join Call with {item.leadName.split(' ')[0]}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

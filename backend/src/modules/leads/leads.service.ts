@@ -927,6 +927,7 @@ export class LeadsService {
   }
 
   /** Authoritative Online-Verified Lead Allocation Engine with Employee Notification Dispatch */
+  /** Authoritative Online-Verified Lead Allocation Engine with Employee Notification Dispatch */
   async allocateLeadsWithVerification(
     organizationId: string,
     allocatorId: string,
@@ -942,10 +943,12 @@ export class LeadsService {
         assigneeId: string;
         assigneeName?: string;
       };
+      leads?: any[];
       leadIds?: string[];
       totalLeadsCount?: number;
       sourceName?: string;
       fileName?: string;
+      colsCount?: number;
     },
   ) {
     const allocator = await this.prisma.user.findUnique({
@@ -977,6 +980,34 @@ export class LeadsService {
       }
     }
 
+    // Default status and source
+    let defaultStatus = await this.prisma.leadStatus.findFirst({
+      where: { organizationId },
+      orderBy: { order: 'asc' },
+    });
+    if (!defaultStatus) {
+      defaultStatus = await this.prisma.leadStatus.create({
+        data: {
+          organizationId,
+          name: 'New',
+          color: '#6366f1',
+          order: 0,
+        },
+      });
+    }
+
+    let defaultSource = await this.prisma.leadSource.findFirst({
+      where: { organizationId },
+    });
+    if (!defaultSource) {
+      defaultSource = await this.prisma.leadSource.create({
+        data: {
+          organizationId,
+          name: dto.sourceName || 'Spreadsheet Ingestion',
+        },
+      });
+    }
+
     const allocationResults: Array<{
       assigneeId: string;
       assigneeName: string;
@@ -985,151 +1016,285 @@ export class LeadsService {
     }> = [];
 
     let totalAllocated = 0;
+    const userNotificationCounts: Map<string, { count: number; name: string }> = new Map();
 
-    let candidateLeads: Array<{ id: string; firstName?: string | null; lastName?: string | null }> = [];
-    if (dto.leadIds && dto.leadIds.length > 0) {
-      candidateLeads = await this.prisma.lead.findMany({
-        where: { id: { in: dto.leadIds }, organizationId },
-        select: { id: true, firstName: true, lastName: true },
-        orderBy: { createdAt: 'desc' },
-      });
+    // CASE 1: Full Ingested Leads provided (Raw spreadsheet records to persist)
+    if (dto.leads && Array.isArray(dto.leads) && dto.leads.length > 0) {
+      for (let idx = 0; idx < dto.leads.length; idx++) {
+        const item = dto.leads[idx];
+        const rowNum = idx + 1;
+
+        let targetAssigneeId: string | null = null;
+        let targetAssigneeName = 'Unassigned';
+
+        if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
+          targetAssigneeId = dto.directAssign.assigneeId;
+          targetAssigneeName = dto.directAssign.assigneeName || 'Employee';
+        } else if (dto.mode === 'BATCHWISE' && dto.batchRules && dto.batchRules.length > 0) {
+          const matched = dto.batchRules.find(r => rowNum >= Number(r.fromRow) && rowNum <= Number(r.toRow));
+          if (matched) {
+            targetAssigneeId = matched.assigneeId;
+            targetAssigneeName = matched.assigneeName;
+          }
+        }
+
+        const rawName = (item.name || item.fullName || item.firstName || item.clientName || 'Lead').trim();
+        const parts = rawName.split(/\s+/);
+        const firstName = item.firstName || parts[0] || 'Lead';
+        const lastName = item.lastName || (parts.length > 1 ? parts.slice(1).join(' ') : null);
+        const phone = item.phone ? String(item.phone).trim() : null;
+        const email = item.email ? String(item.email).trim() : null;
+        const notes = item.notes || item.requirement || item.comments || null;
+        const companyName = item.company || item.organization || item.org || null;
+        const score = Number(item.score) || 50;
+
+        const customFields: Record<string, any> = {
+          ...(typeof item.customFields === 'object' ? item.customFields : {}),
+          company: companyName,
+          platform: dto.sourceName || 'Spreadsheet Ingestion',
+          fileName: dto.fileName || 'Spreadsheet_Import.xlsx',
+          rowNumber: rowNum,
+        };
+
+        const createdLead = await this.prisma.lead.create({
+          data: {
+            organizationId,
+            firstName,
+            lastName,
+            email,
+            phone,
+            ownerId: targetAssigneeId,
+            createdById: allocatorId,
+            statusId: defaultStatus.id,
+            sourceId: defaultSource.id,
+            notes,
+            score,
+            customFields,
+            lastActivityAt: new Date(),
+          },
+        });
+
+        // Activity log
+        await this.prisma.activity.create({
+          data: {
+            organizationId,
+            leadId: createdLead.id,
+            userId: allocatorId,
+            type: 'SYSTEM',
+            description: targetAssigneeId
+              ? `Lead ingested and allocated to ${targetAssigneeName} by ${allocatorName}`
+              : `Lead ingested from ${dto.fileName || 'Spreadsheet'} by ${allocatorName}`,
+          },
+        }).catch(() => {});
+
+        if (targetAssigneeId) {
+          totalAllocated++;
+          const prev = userNotificationCounts.get(targetAssigneeId) || { count: 0, name: targetAssigneeName };
+          userNotificationCounts.set(targetAssigneeId, { count: prev.count + 1, name: targetAssigneeName });
+        }
+      }
     } else {
-      const takeLimit = dto.totalLeadsCount && dto.totalLeadsCount > 0 ? dto.totalLeadsCount : 50;
-      candidateLeads = await this.prisma.lead.findMany({
-        where: { organizationId, ownerId: null },
-        select: { id: true, firstName: true, lastName: true },
-        orderBy: { createdAt: 'desc' },
-        take: takeLimit,
-      });
-
-      if (candidateLeads.length === 0) {
+      // CASE 2: Allocate existing leads in database (by leadIds or candidate selection)
+      let candidateLeads: Array<{ id: string; firstName?: string | null; lastName?: string | null }> = [];
+      if (dto.leadIds && dto.leadIds.length > 0) {
         candidateLeads = await this.prisma.lead.findMany({
-          where: { organizationId },
+          where: { id: { in: dto.leadIds }, organizationId },
+          select: { id: true, firstName: true, lastName: true },
+          orderBy: { createdAt: 'desc' },
+        });
+      } else {
+        const takeLimit = dto.totalLeadsCount && dto.totalLeadsCount > 0 ? dto.totalLeadsCount : 50;
+        candidateLeads = await this.prisma.lead.findMany({
+          where: { organizationId, ownerId: null },
           select: { id: true, firstName: true, lastName: true },
           orderBy: { createdAt: 'desc' },
           take: takeLimit,
         });
-      }
-    }
 
-    if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
-      const targetUserId = dto.directAssign.assigneeId;
-      const targetUser = await this.prisma.user.findFirst({
-        where: { id: targetUserId, organizationId },
-        select: { id: true, firstName: true, lastName: true },
-      });
-
-      const assignedName = targetUser
-        ? `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim()
-        : dto.directAssign.assigneeName || 'Employee';
-
-      const targetLeadIds = candidateLeads.map((l) => l.id);
-
-      if (targetLeadIds.length > 0) {
-        await this.prisma.lead.updateMany({
-          where: { id: { in: targetLeadIds } },
-          data: { ownerId: targetUserId, lastActivityAt: new Date() },
-        });
-
-        const activities = targetLeadIds.map((leadId) => ({
-          organizationId,
-          type: 'SYSTEM' as const,
-          leadId,
-          userId: allocatorId,
-          description: `Lead directly assigned to ${assignedName} by ${allocatorName}`,
-        }));
-        await this.prisma.activity.createMany({ data: activities });
-
-        totalAllocated = targetLeadIds.length;
+        if (candidateLeads.length === 0) {
+          candidateLeads = await this.prisma.lead.findMany({
+            where: { organizationId },
+            select: { id: true, firstName: true, lastName: true },
+            orderBy: { createdAt: 'desc' },
+            take: takeLimit,
+          });
+        }
       }
 
-      if (targetUserId) {
-        await this.notificationsService.send({
-          organizationId,
-          recipientIds: [targetUserId],
-          event: 'LEAD_ASSIGNED',
-          title: '⚡ New Leads Assigned to You',
-          body: `${totalAllocated || dto.totalLeadsCount || 1} lead(s) have been assigned to you by ${allocatorName}. Check your workspace to start outreach.`,
-          linkUrl: '/leads',
-          channels: ['IN_APP', 'PUSH'],
-          metadata: {
-            allocatorId,
-            allocatorName,
-            leadCount: totalAllocated,
-            fileName: dto.fileName,
-          },
-        }).catch(() => {});
-      }
+      if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
+        const targetUserId = dto.directAssign.assigneeId;
+        const targetLeadIds = candidateLeads.map((l) => l.id);
 
-      allocationResults.push({
-        assigneeId: targetUserId,
-        assigneeName: assignedName,
-        leadCount: totalAllocated || dto.totalLeadsCount || 1,
-        notified: true,
-      });
-    } else if (dto.mode === 'BATCHWISE' && dto.batchRules && dto.batchRules.length > 0) {
-      for (const rule of dto.batchRules) {
-        const startIdx = Math.max(0, rule.fromRow - 1);
-        const endIdx = rule.toRow;
-        const ruleLeads = candidateLeads.slice(startIdx, endIdx);
-        const ruleLeadIds = ruleLeads.map((l) => l.id);
-
-        if (ruleLeadIds.length > 0) {
+        if (targetLeadIds.length > 0) {
           await this.prisma.lead.updateMany({
-            where: { id: { in: ruleLeadIds } },
-            data: { ownerId: rule.assigneeId, lastActivityAt: new Date() },
+            where: { id: { in: targetLeadIds } },
+            data: { ownerId: targetUserId, lastActivityAt: new Date() },
           });
 
-          const activities = ruleLeadIds.map((leadId) => ({
+          const activities = targetLeadIds.map((leadId) => ({
             organizationId,
             type: 'SYSTEM' as const,
             leadId,
             userId: allocatorId,
-            description: `Lead allocated (Rows ${rule.fromRow}-${rule.toRow}) to ${rule.assigneeName} by ${allocatorName}`,
+            description: `Lead directly assigned to ${dto.directAssign?.assigneeName || 'Staff'} by ${allocatorName}`,
           }));
-          await this.prisma.activity.createMany({ data: activities });
-
-          totalAllocated += ruleLeadIds.length;
+          await this.prisma.activity.createMany({ data: activities }).catch(() => {});
+          totalAllocated = targetLeadIds.length;
         }
 
-        if (rule.assigneeId) {
-          await this.notificationsService.send({
-            organizationId,
-            recipientIds: [rule.assigneeId],
-            event: 'LEAD_ASSIGNED',
-            title: '⚡ New Batch Leads Allocated',
-            body: `You were assigned rows ${rule.fromRow}–${rule.toRow} (${ruleLeadIds.length || (rule.toRow - rule.fromRow + 1)} leads) by ${allocatorName}.`,
-            linkUrl: '/leads',
-            channels: ['IN_APP', 'PUSH'],
-            metadata: {
-              allocatorId,
-              allocatorName,
-              fromRow: rule.fromRow,
-              toRow: rule.toRow,
-              leadCount: ruleLeadIds.length,
-              fileName: dto.fileName,
-            },
-          }).catch(() => {});
-        }
-
-        allocationResults.push({
-          assigneeId: rule.assigneeId,
-          assigneeName: rule.assigneeName,
-          leadCount: ruleLeadIds.length || (rule.toRow - rule.fromRow + 1),
-          notified: true,
+        userNotificationCounts.set(targetUserId, {
+          count: totalAllocated || dto.totalLeadsCount || 1,
+          name: dto.directAssign.assigneeName || 'Employee',
         });
+      } else if (dto.mode === 'BATCHWISE' && dto.batchRules && dto.batchRules.length > 0) {
+        for (const rule of dto.batchRules) {
+          const startIdx = Math.max(0, rule.fromRow - 1);
+          const endIdx = rule.toRow;
+          const ruleLeads = candidateLeads.slice(startIdx, endIdx);
+          const ruleLeadIds = ruleLeads.map((l) => l.id);
+
+          if (ruleLeadIds.length > 0) {
+            await this.prisma.lead.updateMany({
+              where: { id: { in: ruleLeadIds } },
+              data: { ownerId: rule.assigneeId, lastActivityAt: new Date() },
+            });
+
+            const activities = ruleLeadIds.map((leadId) => ({
+              organizationId,
+              type: 'SYSTEM' as const,
+              leadId,
+              userId: allocatorId,
+              description: `Lead allocated (Rows ${rule.fromRow}-${rule.toRow}) to ${rule.assigneeName} by ${allocatorName}`,
+            }));
+            await this.prisma.activity.createMany({ data: activities }).catch(() => {});
+            totalAllocated += ruleLeadIds.length;
+          }
+
+          const prev = userNotificationCounts.get(rule.assigneeId) || { count: 0, name: rule.assigneeName };
+          userNotificationCounts.set(rule.assigneeId, {
+            count: prev.count + (ruleLeadIds.length || (rule.toRow - rule.fromRow + 1)),
+            name: rule.assigneeName,
+          });
+        }
       }
+    }
+
+    // Build allocation summary text
+    let summaryText = 'Allocated to sales team';
+    if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
+      summaryText = `Assigned directly to ${dto.directAssign.assigneeName || 'User'}`;
+    } else if (dto.mode === 'BATCHWISE' && dto.batchRules && dto.batchRules.length > 0) {
+      summaryText = dto.batchRules.map(r => `${r.assigneeName} [Rows ${r.fromRow}-${r.toRow}]`).join(', ');
+    }
+
+    const totalLeads = dto.leads?.length || dto.totalLeadsCount || totalAllocated || 1;
+
+    // Record Ingestion & Employee Allocation Audit Log in DB
+    const now = new Date();
+    const formattedInjectedAt = now.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    await this.prisma.import.create({
+      data: {
+        organizationId,
+        filename: dto.fileName || `Spreadsheet_Import_${now.toISOString().split('T')[0]}.xlsx`,
+        entity: 'lead',
+        status: 'COMPLETED',
+        totalRows: totalLeads,
+        processedRows: totalLeads,
+        successRows: totalAllocated || totalLeads,
+        createdById: allocatorId,
+        mapping: {
+          platform: dto.sourceName || 'Spreadsheet Ingestion',
+          colsCount: dto.colsCount || 6,
+          allocationMode: dto.mode,
+          batchRules: dto.batchRules || [],
+          directAssign: dto.directAssign || null,
+          allocationSummary: summaryText,
+          injectedAt: formattedInjectedAt,
+          allocatedAt: now.toISOString(),
+        },
+      },
+    }).catch((err) => {
+      console.warn('Could not record import audit record:', err);
+    });
+
+    // Send in-app & push notifications to all assigned users
+    for (const [userId, info] of userNotificationCounts.entries()) {
+      allocationResults.push({
+        assigneeId: userId,
+        assigneeName: info.name,
+        leadCount: info.count,
+        notified: true,
+      });
+
+      await this.notificationsService.send({
+        organizationId,
+        recipientIds: [userId],
+        event: 'LEAD_ASSIGNED',
+        title: '⚡ New Leads Allocated to You',
+        body: `${info.count} lead(s) from "${dto.fileName || 'Spreadsheet Ingestion'}" were allocated to you by ${allocatorName}.`,
+        linkUrl: '/leads',
+        channels: ['IN_APP', 'PUSH'],
+        metadata: {
+          allocatorId,
+          allocatorName,
+          leadCount: info.count,
+          fileName: dto.fileName,
+        },
+      }).catch(() => {});
     }
 
     return {
       success: true,
       verified: true,
-      totalAllocated: totalAllocated || dto.totalLeadsCount || 0,
+      totalAllocated: totalAllocated || totalLeads,
       allocations: allocationResults,
       notificationsSent: allocationResults.length,
-      serverTimestamp: new Date().toISOString(),
-      message: `Allocations verified and committed to database. Dispatched notifications to ${allocationResults.length} employee(s).`,
+      serverTimestamp: now.toISOString(),
+      message: `Allocations verified and committed to database (${totalAllocated || totalLeads} leads). Dispatched notifications to ${allocationResults.length} employee(s).`,
     };
+  }
+
+  async getIngestionAuditLogs(organizationId: string) {
+    const imports = await this.prisma.import.findMany({
+      where: { organizationId, entity: 'lead' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return imports.map((imp) => {
+      const mapData = (imp.mapping as any) || {};
+      const now = imp.createdAt;
+      const injectedAt = mapData.injectedAt || now.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      return {
+        id: imp.id,
+        fileName: imp.filename,
+        injectedAt,
+        leadsCount: imp.totalRows,
+        rowsCount: imp.totalRows,
+        colsCount: mapData.colsCount || 6,
+        platform: mapData.platform || 'Spreadsheet Ingestion',
+        status: 'ALLOCATED' as const,
+        allocationSummary: mapData.allocationSummary || 'Allocated to sales team',
+        allocationMode: mapData.allocationMode || 'BATCHWISE',
+        batchRules: mapData.batchRules || [],
+        directAssign: mapData.directAssign || null,
+        createdAt: imp.createdAt,
+      };
+    });
   }
 
   /** Google Sheets Webhook Real-Time Sync & Ingestion */

@@ -8,7 +8,7 @@ import {
   Layers, CheckCircle, Ban, Eye, Type, AlertCircle,
   Cloud, CloudUpload, Zap, Folder, Check, Clock, RefreshCw,
   AlertTriangle, Target, Filter, Phone, Mail, User, ShieldAlert,
-  Save, FastForward, UserX, Database
+  Save, FastForward, UserX, Database, Download, ExternalLink, FileText
 } from 'lucide-react';
 
 import { LeadAllocationModal } from './LeadAllocationModal';
@@ -18,6 +18,7 @@ import {
   uploadLeadSpreadsheetToDrive,
   formatTimestampedFileName,
   GoogleDriveUploadProgress,
+  checkDuplicateFileInFirestore,
 } from '../../lib/googleDriveService';
 
 export interface FileImportEngineModalProps {
@@ -468,10 +469,17 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
   const [driveProgress, setDriveProgress] = useState<GoogleDriveUploadProgress | null>(null);
   const [isDriveUploaded, setIsDriveUploaded] = useState(false);
 
+  // 📁 Firestore Duplicate File Archive Check State
+  const [existingFirestoreDuplicate, setExistingFirestoreDuplicate] = useState<any | null>(null);
+  const [isFirestoreDuplicateModalOpen, setIsFirestoreDuplicateModalOpen] = useState(false);
+  const [bypassFirestoreDuplicateCheck, setBypassFirestoreDuplicateCheck] = useState(false);
+  const [isCheckingFirestoreDuplicate, setIsCheckingFirestoreDuplicate] = useState(false);
+
   // 🔍 Duplicate Leads Detection & Retargeting Resolution State
   const [duplicateRecords, setDuplicateRecords] = useState<DuplicateLeadRecord[]>([]);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicatesResolved, setDuplicatesResolved] = useState(true);
+  const [extractedLeadsForAllocation, setExtractedLeadsForAllocation] = useState<any[]>([]);
   const previousLeadsRef = useRef<any[]>(DEFAULT_PREVIOUS_LEADS);
 
   // ⚠️ Missing Contact Info (No Phone / No Email) Sanitation State
@@ -881,7 +889,13 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
 
         setSheets(parsedSheets);
         setActiveSheetIndex(0);
+        setBypassFirestoreDuplicateCheck(false);
+        setExistingFirestoreDuplicate(null);
         runDeduplicationScan(parsedSheets);
+
+        setTimeout(() => {
+          triggerFirestoreDuplicateCheck(file, parsedSheets, file.name.replace(/\.[^/.]+$/, ''));
+        }, 150);
       } catch (err) {
         alert('Error parsing spreadsheet file: ' + (err as Error).message);
       }
@@ -1254,8 +1268,71 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       localStorage.setItem('das_lead_file_upload_history', JSON.stringify([newAuditItem, ...existingHistory]));
     } catch (_) {}
 
+    setExtractedLeadsForAllocation(extractedLeads);
     setCommittedLeadsCount(extractedLeads.length);
     setIsAllocationModalOpen(true);
+  };
+
+  // 📁 Firestore Duplicate File Archive Detection Engine
+  const triggerFirestoreDuplicateCheck = async (
+    fileBlob: File | Blob | null,
+    currentSheets: ParsedSheet[],
+    currentFileName: string,
+  ): Promise<boolean> => {
+    if (bypassFirestoreDuplicateCheck) return false;
+
+    const totalRowsCount = currentSheets.reduce((acc, s) => acc + s.data.length, 0);
+    const totalColsCount = currentSheets[0]?.data[0]?.length || 0;
+    const sizeBytes = fileBlob?.size || 0;
+
+    setIsCheckingFirestoreDuplicate(true);
+    try {
+      const checkRes = await checkDuplicateFileInFirestore({
+        sizeBytes,
+        rowsCount: totalRowsCount,
+        colsCount: totalColsCount,
+        fileName: currentFileName,
+        companyName: currentUser?.companyName || 'Adorable Trading',
+      });
+
+      if (checkRes.isDuplicate && checkRes.matchedFile) {
+        setExistingFirestoreDuplicate(checkRes.matchedFile);
+        setIsFirestoreDuplicateModalOpen(true);
+        setIsCheckingFirestoreDuplicate(false);
+        return true;
+      }
+    } catch (e) {
+      console.warn('Error checking Firestore file duplicate:', e);
+    } finally {
+      setIsCheckingFirestoreDuplicate(false);
+    }
+    return false;
+  };
+
+  const handleUploadAnyway = () => {
+    setBypassFirestoreDuplicateCheck(true);
+    setIsFirestoreDuplicateModalOpen(false);
+    setTimeout(() => {
+      executeGoogleDriveUpload(true);
+    }, 100);
+  };
+
+  const handleSkipUpload = () => {
+    setIsFirestoreDuplicateModalOpen(false);
+  };
+
+  const handleDownloadPreviousFile = () => {
+    if (!existingFirestoreDuplicate) return;
+    const downloadUrl =
+      existingFirestoreDuplicate.downloadUrl ||
+      existingFirestoreDuplicate.storageUrl ||
+      existingFirestoreDuplicate.driveViewUrl;
+
+    if (downloadUrl && downloadUrl !== '#') {
+      window.open(downloadUrl, '_blank');
+    } else {
+      alert(`Downloading previous file: ${existingFirestoreDuplicate.fileName} (${existingFirestoreDuplicate.fileSize})`);
+    }
   };
 
   // Firebase Storage Upload Handler with Real-time Progress & Speed
@@ -1265,6 +1342,17 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       return;
     }
 
+    if (!bypassFirestoreDuplicateCheck) {
+      const isDup = await triggerFirestoreDuplicateCheck(selectedFileBlob, sheets, fileName);
+      if (isDup) {
+        return; // Pause upload flow and show duplicate file modal
+      }
+    }
+
+    await executeGoogleDriveUpload();
+  };
+
+  const executeGoogleDriveUpload = async (bypassed: boolean = false) => {
     setIsUploadingDrive(true);
     try {
       let uploadBlob: Blob | File = selectedFileBlob!;
@@ -1310,6 +1398,7 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           id: result.fileId || `file_${Date.now()}`,
           fileName: result.fileName,
           fileSize: fileSize || '—',
+          sizeBytes: uploadBlob.size || 0,
           uploadedAt: formattedDate,
           leadsCount: totalDataRows,
           rowsCount: totalRowsCount,
@@ -2032,6 +2121,172 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         </div>
       )}
 
+      {/* 📁 DUPLICATE FILE DETECTED IN FIRESTORE COLD VAULT MODAL */}
+      {isFirestoreDuplicateModalOpen && existingFirestoreDuplicate && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border-2 border-amber-500/70 rounded-2xl max-w-3xl w-full flex flex-col shadow-2xl shadow-amber-950/60 overflow-hidden text-white">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-slate-950 via-amber-950/40 to-slate-950 border-b border-amber-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400">
+                  <ShieldAlert size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-white">
+                      Duplicate File Detected in Firestore Cold Vault
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/25 text-amber-300 border border-amber-500/40 animate-pulse">
+                      MATCH FOUND
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    A file with matching criteria (<strong>File Size: {existingFirestoreDuplicate.fileSize}</strong>, <strong>Rows: {existingFirestoreDuplicate.rowsCount}</strong>, <strong>Cols: {existingFirestoreDuplicate.colsCount}</strong>) is already stored in Firestore.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFirestoreDuplicateModalOpen(false)}
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body: Comparison Box */}
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-200 leading-relaxed font-medium">
+                  <strong>Notice:</strong> This spreadsheet file appears to have already been ingested into Firestore &amp; Cold Vault. Compare details below to download the previous file, skip upload, or force upload anyway.
+                </p>
+              </div>
+
+              {/* Side-by-Side Dual Comparison Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Card: Existing File in Firestore */}
+                <div className="p-4 rounded-xl bg-slate-950 border-2 border-indigo-500/40 flex flex-col gap-2 relative">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Database size={14} /> 1. Previous File in Firestore
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-black border border-indigo-500/30">
+                      ARCHIVED
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">File Name:</span>
+                      <span className="font-extrabold text-white text-right truncate max-w-[180px]" title={existingFirestoreDuplicate.fileName}>
+                        {existingFirestoreDuplicate.fileName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">File Size:</span>
+                      <span className="font-mono font-bold text-amber-400">{existingFirestoreDuplicate.fileSize}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Total Rows:</span>
+                      <span className="font-mono font-bold text-cyan-400">{existingFirestoreDuplicate.rowsCount} Rows</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Total Columns:</span>
+                      <span className="font-mono font-bold text-emerald-400">{existingFirestoreDuplicate.colsCount} Cols</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Uploaded At:</span>
+                      <span className="font-mono text-slate-300 text-[11px]">{existingFirestoreDuplicate.uploadDateFormatted || existingFirestoreDuplicate.uploadedAt}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Uploaded By:</span>
+                      <span className="font-semibold text-slate-200">{existingFirestoreDuplicate.uploadedBy || 'Admin'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Source Platform:</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-emerald-300 font-bold text-[10px] border border-slate-800">
+                        {existingFirestoreDuplicate.sourcePlatform || 'Spreadsheet Import'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Card: Current File Selected */}
+                <div className="p-4 rounded-xl bg-slate-950 border-2 border-slate-700 flex flex-col gap-2">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-xs font-black text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <FileSpreadsheet size={14} /> 2. Selected File for Upload
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-black border border-sky-500/30">
+                      CURRENT
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">File Name:</span>
+                      <span className="font-extrabold text-white text-right truncate max-w-[180px]" title={fileName || selectedFileBlob?.name}>
+                        {fileName || selectedFileBlob?.name || 'Current_File'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">File Size:</span>
+                      <span className="font-mono font-bold text-amber-400">{fileSize || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Total Rows:</span>
+                      <span className="font-mono font-bold text-cyan-400">{totalRowsCount} Rows</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Total Columns:</span>
+                      <span className="font-mono font-bold text-emerald-400">{totalColsCount} Cols</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Selected Platform:</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-emerald-300 font-bold text-[10px] border border-slate-800">
+                        {selectedPlatform || 'Not Selected Yet'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer with 3 Action Buttons */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {/* Left Action: Download Previous File */}
+              <button
+                type="button"
+                onClick={handleDownloadPreviousFile}
+                className="px-4 py-2.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                <Download size={14} className="text-indigo-400" />
+                <span>Download Previous File</span>
+              </button>
+
+              {/* Right Actions: Skip Upload & Upload Anyway */}
+              <div className="flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleSkipUpload}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer border border-slate-700"
+                >
+                  Skip Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUploadAnyway}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                >
+                  <CloudUpload size={15} />
+                  <span>Upload Anyway →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ⚠️ Incomplete / Missing Contact Details Resolution Center Popup */}
       {isMissingContactModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in dark-context">
@@ -2338,6 +2593,13 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           }}
           totalLeadsCount={committedLeadsCount}
           fileName={fileName}
+          leads={extractedLeadsForAllocation}
+          platform={selectedPlatform}
+          colsCount={sheets[0]?.data[0]?.length || 6}
+          onAllocationComplete={() => {
+            setIsAllocationModalOpen(false);
+            onClose();
+          }}
         />
       )}
     </div>

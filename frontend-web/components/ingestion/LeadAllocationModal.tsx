@@ -37,12 +37,16 @@ export interface LeadAllocationModalProps {
   onClose: () => void;
   totalLeadsCount?: number;
   fileName?: string;
+  leads?: any[];
+  platform?: string;
+  colsCount?: number;
   onDeleteAllocation?: () => void;
   onPreviewSheet?: () => void;
   onAllocationComplete?: (result: {
     mode: AllocationMode;
     batchRules?: AllocatedBatchRule[];
     assignedUser?: { id: string; name: string };
+    leads?: any[];
   }) => void;
 }
 
@@ -168,6 +172,9 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   onClose,
   totalLeadsCount = 32,
   fileName = 'Lotwaala_August_2026_Work_Plan',
+  leads,
+  platform,
+  colsCount,
   onDeleteAllocation,
   onPreviewSheet,
   onAllocationComplete,
@@ -353,46 +360,64 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     }
 
     const selectedMembers = batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id));
+    if (selectedMembers.length === 0) return;
+
+    // Calculate quota per member: if total leads count is less than size * selectedMembers.length,
+    // split totalLeadsCount fairly across selected members so everyone gets an equal batch
+    const perMemberQuota = (size * selectedMembers.length > totalLeadsCount)
+      ? Math.max(1, Math.floor(totalLeadsCount / selectedMembers.length))
+      : size;
+
     let currentStart = 1;
     const newRules: WebBatchRule[] = [];
 
     for (let i = 0; i < selectedMembers.length; i++) {
       if (currentStart > totalLeadsCount) break;
       const member = selectedMembers[i];
-      const endRow = Math.min(currentStart + size - 1, totalLeadsCount);
-      newRules.push({
-        id: `batch-${Date.now()}-${i}`,
-        fromRow: currentStart,
-        toRow: endRow,
-        assigneeId: member.id,
-        assigneeName: `${member.name} (${member.role})`,
-        role: member.role,
-      });
-      currentStart = endRow + 1;
+      const isLast = (i === selectedMembers.length - 1);
+      const endRow = isLast
+        ? totalLeadsCount
+        : Math.min(currentStart + perMemberQuota - 1, totalLeadsCount);
+
+      if (endRow >= currentStart) {
+        newRules.push({
+          id: `batch-${Date.now()}-${i}`,
+          fromRow: currentStart,
+          toRow: endRow,
+          assigneeId: member.id,
+          assigneeName: `${member.name} (${member.role})`,
+          role: member.role,
+        });
+        currentStart = endRow + 1;
+      }
     }
 
     setBatchRules(newRules);
   };
 
   const handleAssignRemainingToMember = (assigneeId: string) => {
-    if (remainingRowsCount <= 0) {
-      alert('All leads in the dataset have already been allocated.');
-      return;
-    }
-    const member = batchAssignableTeam.find(m => m.id === assigneeId) || batchAssignableTeam[0];
-    if (!member) return;
+    // Purge any empty unfilled rules first
+    const validRules = batchRules.filter(r =>
+      String(r.fromRow).trim() !== '' &&
+      String(r.toRow).trim() !== '' &&
+      !isNaN(Number(r.fromRow)) &&
+      !isNaN(Number(r.toRow))
+    );
 
     let maxTo = 0;
-    batchRules.forEach(r => {
+    validRules.forEach(r => {
       const to = Number(r.toRow);
       if (!isNaN(to) && to > maxTo) maxTo = to;
     });
 
     const startRow = maxTo + 1;
     if (startRow > totalLeadsCount) {
-      alert('Dataset range is already fully occupied.');
+      alert('Dataset range is already fully allocated.');
       return;
     }
+
+    const member = batchAssignableTeam.find(m => m.id === assigneeId) || batchAssignableTeam[0];
+    if (!member) return;
 
     const newRule: WebBatchRule = {
       id: `batch-remaining-${Date.now()}`,
@@ -403,28 +428,35 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       role: member.role,
     };
 
-    setBatchRules(prev => [...prev, newRule]);
+    setBatchRules([...validRules, newRule]);
   };
 
   const handleSplitRemainingEvenly = () => {
-    if (remainingRowsCount <= 0) {
-      alert('All leads are already allocated.');
-      return;
-    }
-    const membersToUse = selectedMemberIds.length > 0
-      ? batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id))
-      : batchAssignableTeam;
-    if (membersToUse.length === 0) return;
+    // Purge any empty unfilled rules first
+    const validRules = batchRules.filter(r =>
+      String(r.fromRow).trim() !== '' &&
+      String(r.toRow).trim() !== '' &&
+      !isNaN(Number(r.fromRow)) &&
+      !isNaN(Number(r.toRow))
+    );
 
     let maxTo = 0;
-    batchRules.forEach(r => {
+    validRules.forEach(r => {
       const to = Number(r.toRow);
       if (!isNaN(to) && to > maxTo) maxTo = to;
     });
 
     let currentStart = maxTo + 1;
     const remainingToDistribute = totalLeadsCount - maxTo;
-    if (remainingToDistribute <= 0) return;
+    if (remainingToDistribute <= 0) {
+      alert('All leads are already allocated.');
+      return;
+    }
+
+    const membersToUse = selectedMemberIds.length > 0
+      ? batchAssignableTeam.filter(m => selectedMemberIds.includes(m.id))
+      : batchAssignableTeam;
+    if (membersToUse.length === 0) return;
 
     const countPerMember = Math.max(1, Math.floor(remainingToDistribute / membersToUse.length));
     const additionalRules: WebBatchRule[] = [];
@@ -444,7 +476,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
       currentStart = endRow + 1;
     });
 
-    setBatchRules(prev => [...prev, ...additionalRules]);
+    setBatchRules([...validRules, ...additionalRules]);
   };
 
   // 👁️ Preview & Edit Sheet State
@@ -466,14 +498,29 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
     ]);
   };
 
+  // Auto-generate valid pre-filled non-overlapping batch rules on mount (no blank inputs!)
   useEffect(() => {
-    if (batchRules.length === 0 && batchAssignableTeam.length > 0) {
-      const u1 = batchAssignableTeam[0];
-      const u2 = batchAssignableTeam[1] || batchAssignableTeam[0];
-      setBatchRules([
-        { id: 'b-1', fromRow: '', toRow: '', assigneeId: u1.id, assigneeName: `${u1.name} (${u1.role})`, role: u1.role },
-        ...(batchAssignableTeam.length > 1 ? [{ id: 'b-2', fromRow: '', toRow: '', assigneeId: u2.id, assigneeName: `${u2.name} (${u2.role})`, role: u2.role }] : []),
-      ]);
+    if (batchRules.length === 0 && batchAssignableTeam.length > 0 && totalLeadsCount > 0) {
+      const initialMembers = batchAssignableTeam.slice(0, Math.min(4, batchAssignableTeam.length));
+      const countPerMember = Math.max(1, Math.floor(totalLeadsCount / initialMembers.length));
+      let currentStart = 1;
+
+      const initialRules: WebBatchRule[] = initialMembers.map((member, idx) => {
+        const isLast = idx === initialMembers.length - 1;
+        const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerMember - 1, totalLeadsCount);
+        const rule: WebBatchRule = {
+          id: `b-${idx + 1}`,
+          fromRow: currentStart,
+          toRow: endRow,
+          assigneeId: member.id,
+          assigneeName: `${member.name} (${member.role})`,
+          role: member.role,
+        };
+        currentStart = Math.min(endRow + 1, totalLeadsCount);
+        return rule;
+      });
+
+      setBatchRules(initialRules);
     }
   }, [totalLeadsCount, batchAssignableTeam]);
 
@@ -510,12 +557,15 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   };
 
   const handleAutoFixRanges = () => {
-    if (batchRules.length === 0) return;
-    const countPerRule = Math.max(1, Math.floor(totalLeadsCount / batchRules.length));
+    const activeRules = batchRules.filter(r => String(r.fromRow).trim() !== '' || String(r.toRow).trim() !== '');
+    const rulesToFix = activeRules.length > 0 ? activeRules : batchRules;
+    if (rulesToFix.length === 0) return;
+
+    const countPerRule = Math.max(1, Math.floor(totalLeadsCount / rulesToFix.length));
     let currentStart = 1;
 
-    const fixed = batchRules.map((rule, idx) => {
-      const isLast = idx === batchRules.length - 1;
+    const fixed = rulesToFix.map((rule, idx) => {
+      const isLast = idx === rulesToFix.length - 1;
       const endRow = isLast ? totalLeadsCount : Math.min(currentStart + countPerRule - 1, totalLeadsCount);
       const updatedRule = {
         ...rule,
@@ -554,7 +604,21 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
   const handleConfirmAllocation = async () => {
     if (mode === 'BATCHWISE') {
-      const strictVal = validateBatchRules(batchRules, totalLeadsCount, true);
+      // Clean out completely blank rules before validation
+      const activeRules = batchRules.filter(r =>
+        String(r.fromRow).trim() !== '' || String(r.toRow).trim() !== ''
+      );
+
+      if (activeRules.length === 0) {
+        alert('Please define at least one batch rule or click Distribute to generate rules.');
+        return;
+      }
+
+      if (activeRules.length !== batchRules.length) {
+        setBatchRules(activeRules);
+      }
+
+      const strictVal = validateBatchRules(activeRules, totalLeadsCount, true);
       if (strictVal.hasConflict) {
         alert(strictVal.message);
         return;
@@ -591,8 +655,11 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
           toRow: Number(r.toRow),
         })) : undefined,
         directAssign: mode === 'DIRECT_ASSIGN' ? { assigneeId: selectedUser.id, assigneeName: selectedUser.name } : undefined,
-        totalLeadsCount,
+        leads: leads && leads.length > 0 ? leads : undefined,
+        totalLeadsCount: leads?.length || totalLeadsCount,
         fileName,
+        sourceName: platform || 'Spreadsheet Ingestion',
+        colsCount,
       };
 
       let verifiedData: any = null;
@@ -645,6 +712,7 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
         toRow: Number(r.toRow),
       })) : undefined,
       assignedUser: mode === 'DIRECT_ASSIGN' ? { id: selectedUser.id, name: selectedUser.name } : undefined,
+      leads,
     });
     onClose();
   };

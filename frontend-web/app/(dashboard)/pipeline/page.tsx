@@ -145,11 +145,64 @@ export default function LeadPipelinePage() {
     fileName: string;
     leadsCount: number;
     auditId?: string;
+    leadsData?: any[];
+    platform?: string;
+    colsCount?: number;
   }>({
     isOpen: false,
     fileName: '',
     leadsCount: 0,
   });
+
+  const fetchAuditLogsAndLeads = async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    try {
+      const [auditRes, leadsRes] = await Promise.allSettled([
+        fetch(`${apiBase}/leads/distribution/ingestion-audit-logs`, { headers }),
+        fetch(`${apiBase}/leads`, { headers }),
+      ]);
+
+      if (auditRes.status === 'fulfilled' && auditRes.value.ok) {
+        const auditData = await auditRes.value.json();
+        if (Array.isArray(auditData) && auditData.length > 0) {
+          setWebAuditLogs(auditData);
+        }
+      }
+
+      if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+        const leadsData = await leadsRes.value.json();
+        const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
+        if (Array.isArray(items) && items.length > 0) {
+          const mapped: DashboardLeadRecord[] = items.map((l: any) => ({
+            id: String(l.id),
+            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+            email: l.email || '—',
+            phone: l.phone || '—',
+            company: l.company?.name || l.company || l.customFields?.company || 'Individual Lead',
+            source: l.source?.name || l.source || 'Website Form',
+            stage: l.status?.name || l.stage || 'Prospecting',
+            value: l.score || l.estimatedValue || 0,
+            assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+            customFields: l.customFields || {},
+            createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Just now',
+          }));
+          setLeadDirectory(mapped);
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching audit logs and leads:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAuditLogsAndLeads();
+  }, [currentUser]);
 
   // Dynamic Custom Columns & Excel Table Config State
   const [customColumns, setCustomColumns] = useState<Array<{ id: string; name: string; type: string; options?: string[] }>>([
@@ -1401,6 +1454,9 @@ export default function LeadPipelinePage() {
               fileName: audit.filename,
               leadsCount: audit.count,
               auditId: newAuditLogItem.id,
+              leadsData: leads,
+              platform: audit.platform,
+              colsCount: audit.colsCount,
             });
           }}
         />
@@ -1489,11 +1545,14 @@ export default function LeadPipelinePage() {
           onClose={() => setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 })}
           totalLeadsCount={pendingAllocationSheet.leadsCount}
           fileName={pendingAllocationSheet.fileName}
+          leads={pendingAllocationSheet.leadsData}
+          platform={pendingAllocationSheet.platform}
+          colsCount={pendingAllocationSheet.colsCount}
           onPreviewSheet={() => {
             setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
             setImportCsvModalOpen(true);
           }}
-          onAllocationComplete={(result) => {
+          onAllocationComplete={async (result) => {
             // Update webAuditLogs item to ALLOCATED
             setWebAuditLogs(prev => prev.map(a => {
               const isMatch = (pendingAllocationSheet.auditId && a.id === pendingAllocationSheet.auditId) ||
@@ -1525,6 +1584,7 @@ export default function LeadPipelinePage() {
             }
 
             setPendingAllocationSheet({ isOpen: false, fileName: '', leadsCount: 0 });
+            await fetchAuditLogsAndLeads();
           }}
         />
       )}
