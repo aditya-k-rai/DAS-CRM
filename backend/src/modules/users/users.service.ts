@@ -24,10 +24,16 @@ export class UsersService {
         where: { id: userId },
         select: { role: { select: { name: true } } }
       });
-      const roleName = currentUser?.role?.name || '';
+      const roleName = (currentUser?.role?.name || '').toUpperCase();
       
-      // Admin and HR can see all users
-      if (roleName !== 'ADMIN' && roleName !== 'HR') {
+      // Admin, Super Admin, Owner, and HR can see all users in the workspace
+      const isAdminOrHR =
+        roleName === 'ADMIN' ||
+        roleName === 'HR' ||
+        roleName === 'OWNER' ||
+        roleName === 'SUPER_ADMIN';
+
+      if (!isAdminOrHR) {
         const allUsers = await this.prisma.user.findMany({
           where: { organizationId },
           select: { id: true, managerId: true }
@@ -814,14 +820,18 @@ export class UsersService {
       if (!user) throw new ForbiddenException('Access denied: user not found.');
 
       const roleName = user.role?.name?.toUpperCase() || '';
-      const isRoleAdmin = roleName === 'ADMIN' || roleName === 'OWNER' || roleName === 'SUPER_ADMIN';
+      const isRoleAdmin =
+        roleName === 'ADMIN' ||
+        roleName === 'OWNER' ||
+        roleName === 'SUPER_ADMIN' ||
+        roleName === 'HR';
       const isRoleManager = roleName === 'MANAGER';
       const isOrgAdminEmail =
-        user.organization.adminEmail &&
+        user.organization?.adminEmail &&
         user.email.toLowerCase() === user.organization.adminEmail.toLowerCase();
 
       if (!isOrgAdminEmail && !isRoleAdmin && !isRoleManager) {
-        throw new ForbiddenException('Only Admins and Managers can reassign team members.');
+        throw new ForbiddenException('Only Admins, HR, and Managers can reassign team members.');
       }
     }
     
@@ -831,17 +841,29 @@ export class UsersService {
     if (!target) throw new NotFoundException('User not found in organization.');
 
     let finalManagerId: string | null = null;
-    if (managerLabel && managerLabel !== 'Admin' && managerLabel !== 'Organization Admin' && managerLabel !== 'null') {
+    const cleanLabel = (managerLabel || '').trim();
+    const isDirectAdmin =
+      !cleanLabel ||
+      cleanLabel.toLowerCase() === 'admin' ||
+      cleanLabel.toLowerCase() === 'organization admin' ||
+      cleanLabel.toLowerCase() === 'direct / admin' ||
+      cleanLabel.toLowerCase() === 'none' ||
+      cleanLabel.toLowerCase() === 'null' ||
+      cleanLabel.toLowerCase() === 'undefined';
+
+    if (!isDirectAdmin) {
       const allUsers = await this.prisma.user.findMany({
         where: { organizationId },
-        select: { id: true, firstName: true, lastName: true, role: { select: { name: true } } }
+        select: { id: true, email: true, firstName: true, lastName: true, role: { select: { name: true } } }
       });
+      const targetMatch = cleanLabel.toLowerCase();
       // Try to find the matching manager
       const manager = allUsers.find(u => {
-        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
-        const roleLabel = u.role?.name === 'ADMIN' ? 'Admin' : u.role?.name === 'MANAGER' ? 'Manager' : u.role?.name === 'TEAM_LEADER' ? 'Team Leader' : u.role?.name;
+        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+        const cleanEmail = (u.email || '').trim().toLowerCase();
+        const roleLabel = (u.role?.name === 'ADMIN' ? 'Admin' : u.role?.name === 'MANAGER' ? 'Manager' : u.role?.name === 'TEAM_LEADER' ? 'Team Leader' : u.role?.name || '').toLowerCase();
         const fullLabel = roleLabel ? `${fullName} (${roleLabel})` : fullName;
-        return fullName === managerLabel || fullLabel === managerLabel || u.id === managerLabel;
+        return u.id === cleanLabel || cleanEmail === targetMatch || fullName === targetMatch || fullLabel === targetMatch;
       });
       if (manager) {
         finalManagerId = manager.id;
