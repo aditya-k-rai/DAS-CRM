@@ -17,6 +17,12 @@ import {
   UserCheck, UserX, AlertTriangle, ArrowUpRight, Upload, FileSpreadsheet, Search, X, GitBranch, Trash2, Check
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
+import {
+  getUserDirectory,
+  subscribeUserDirectory,
+  getDefaultDirectory,
+  CachedEmployee,
+} from '@/lib/userDirectoryCache';
 
 interface DashboardLeadRecord {
   id: string;
@@ -81,14 +87,12 @@ export default function LeadPipelinePage() {
 
   // Tenant-scoped sales representatives & users (Restricted to TL & Sales Exec for lead assignment)
   const [tenantReps, setTenantReps] = useState<Array<{ id: string; name: string; role: string }>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
-        if (u && (u.name || u.email)) {
-          return [{ id: u.id || 'usr-1', name: u.name || 'Sales Rep', role: u.role || 'Sales Rep' }];
-        }
-      } catch (e) {}
-    }
+    try {
+      const emps = getDefaultDirectory(currentUser);
+      if (emps && emps.length > 0) {
+        return emps.map(e => ({ id: e.id, name: e.name, role: e.role }));
+      }
+    } catch (_) {}
     return [];
   });
 
@@ -97,29 +101,22 @@ export default function LeadPipelinePage() {
   }, [tenantReps]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsers = async (force = false) => {
       try {
-        const token = localStorage.getItem('das_crm_token');
-        if (!token) return;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : (data.items || data.users || []);
-          if (items.length > 0) {
-            setTenantReps(items.map((u: any) => ({
-              id: u.id,
-              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-              role: u.role || 'Sales Rep',
-            })));
-          }
+        const res = await getUserDirectory(currentUser, force);
+        if (res && Array.isArray(res.employees)) {
+          setTenantReps(res.employees.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            role: u.role,
+          })));
         }
       } catch (e) {}
     };
-    fetchUsers();
-  }, []);
+    fetchUsers(false);
+    const unsub = subscribeUserDirectory(() => fetchUsers(true));
+    return () => unsub();
+  }, [currentUser]);
 
 
   // Custom Column Form

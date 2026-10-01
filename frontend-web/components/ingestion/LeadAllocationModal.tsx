@@ -1,9 +1,16 @@
 'use me';
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layers, UserCheck, X, Check, ArrowRight, ShieldCheck, Sparkles, RefreshCw, Eye, Edit3, Trash2, Clock, Plus, Save, AlertTriangle, Wifi, WifiOff, Zap, Hash, Users, CheckCircle } from 'lucide-react';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
+import { useAuth } from '@/context/AuthContext';
+import {
+  getUserDirectory,
+  subscribeUserDirectory,
+  getDefaultDirectory,
+  CachedEmployee,
+} from '@/lib/userDirectoryCache';
 
 export type AllocationMode = 'BATCHWISE' | 'DIRECT_ASSIGN';
 
@@ -62,11 +69,7 @@ export const isBatchAssignableRole = (roleStr: string): boolean => {
   return true;
 };
 
-const DEFAULT_BATCH_TEAM = [
-  { id: 'usr-tl-1', name: 'Team Leader A', role: 'Team Leader', leadsCount: 0, color: '#818cf8' },
-  { id: 'usr-rep-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
-  { id: 'usr-rep-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
-];
+const COLOR_PALETTE = ['#818cf8', '#34d399', '#f59e0b', '#f472b6', '#38bdf8', '#a855f7', '#10b981', '#6366f1'];
 
 export interface ValidationConflict {
   hasConflict: boolean;
@@ -169,26 +172,33 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   onPreviewSheet,
   onAllocationComplete,
 }) => {
+  const { currentUser } = useAuth();
   const [mode, setMode] = useState<AllocationMode>('BATCHWISE');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [teamMembers, setTeamMembers] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
-        if (u && (u.name || u.email)) {
-          return [{ id: u.id || 'usr-1', name: u.name || 'Admin', role: u.role || 'Admin', leadsCount: 0, color: '#818cf8' }];
-        }
-      } catch (e) {}
-    }
-    return DEFAULT_BATCH_TEAM;
+    try {
+      const defaultEmps = getDefaultDirectory(currentUser);
+      const assignable = defaultEmps
+        .filter(e => e.role !== 'UNASSIGNED' && isBatchAssignableRole(e.role))
+        .map((e, idx) => ({
+          id: e.id,
+          name: e.name,
+          role: e.role === 'TEAM_LEADER' ? 'Team Leader' : 'Sales Exec',
+          leadsCount: e.leads?.totalReceived || 0,
+          color: COLOR_PALETTE[idx % COLOR_PALETTE.length],
+        }));
+      if (assignable.length > 0) return assignable;
+    } catch (_) {}
+    return [];
   });
 
-  const [selectedUser, setSelectedUser] = useState(teamMembers[0]);
+  const [selectedUser, setSelectedUser] = useState(teamMembers[0] || null);
 
   // Restrict batchwise assignees strictly to Team Leaders and Sales Reps (Excludes Super Admin, Admin, Manager, HR)
   const batchAssignableTeam = useMemo(() => {
     const filtered = teamMembers.filter(m => isBatchAssignableRole(m.role));
-    return filtered.length > 0 ? filtered : DEFAULT_BATCH_TEAM;
+    return filtered;
   }, [teamMembers]);
 
   // Batchwise Allocation State
@@ -203,38 +213,46 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
   useEffect(() => {
     if (batchAssignableTeam.length > 0) {
       setSelectedMemberIds(batchAssignableTeam.map(m => m.id));
-      setRemainingAssigneeId(batchAssignableTeam[0]?.id || '');
+      setRemainingAssigneeId(prev => (batchAssignableTeam.some(m => m.id === prev) ? prev : batchAssignableTeam[0]?.id || ''));
     }
   }, [batchAssignableTeam]);
 
+  // Synchronize real verified team members from user directory cache
   useEffect(() => {
-    const fetchTeam = async () => {
+    let isMounted = true;
+    const loadRealTeam = async (force = false) => {
       try {
-        const token = localStorage.getItem('das_crm_token');
-        if (!token) return;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const res = await fetch(`${apiBase}/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : (data.items || data.users || []);
-          if (items.length > 0) {
-            const mapped = items.map((u: any, idx: number) => ({
-              id: u.id,
-              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-              role: u.role || 'Sales Exec',
-              leadsCount: 0,
-              color: ['#818cf8', '#34d399', '#f59e0b', '#f472b6', '#38bdf8'][idx % 5],
+        const res = await getUserDirectory(currentUser, force);
+        if (res && Array.isArray(res.employees) && isMounted) {
+          const assignable = res.employees
+            .filter(e => e.role !== 'UNASSIGNED' && isBatchAssignableRole(e.role))
+            .map((e, idx) => ({
+              id: e.id,
+              name: e.name,
+              role: e.role === 'TEAM_LEADER' ? 'Team Leader' : 'Sales Exec',
+              leadsCount: e.leads?.totalReceived || 0,
+              color: COLOR_PALETTE[idx % COLOR_PALETTE.length],
             }));
-            setTeamMembers(mapped);
-            setSelectedUser(mapped[0]);
+
+          if (assignable.length > 0 && isMounted) {
+            setTeamMembers(assignable);
+            setSelectedUser(assignable[0]);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('LeadAllocationModal getUserDirectory error:', e);
+      }
     };
-    fetchTeam();
-  }, []);
+
+    loadRealTeam(false);
+    const unsub = subscribeUserDirectory(() => {
+      loadRealTeam(true);
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [currentUser]);
 
   // Compute allocated rows & remaining rows
   const allocatedRowsCount = useMemo(() => {
