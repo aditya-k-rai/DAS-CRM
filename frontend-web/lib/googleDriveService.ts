@@ -666,4 +666,108 @@ export async function getUnifiedStorageTelemetry(): Promise<UnifiedStorageTeleme
   return null;
 }
 
+export interface DuplicateFileCheckResult {
+  isDuplicate: boolean;
+  matchedFile?: {
+    fileId: string;
+    fileName: string;
+    originalName: string;
+    fileSize: string;
+    sizeBytes: number;
+    rowsCount: number;
+    colsCount: number;
+    leadsCount: number;
+    uploadedAt: string;
+    uploadDateFormatted: string;
+    uploadedBy: string;
+    sourcePlatform: string;
+    folderPath?: string;
+    companyName?: string;
+    downloadUrl: string;
+    driveViewUrl?: string;
+    storageUrl?: string;
+  };
+}
+
+/**
+ * Check if a spreadsheet file with matching File Size, Rows, and Columns is already stored in Firestore
+ */
+export async function checkDuplicateFileInFirestore(params: {
+  sizeBytes?: number;
+  rowsCount?: number;
+  colsCount?: number;
+  fileName?: string;
+  companyName?: string;
+}): Promise<DuplicateFileCheckResult> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+  try {
+    const res = await fetch(`${apiBase}/drive/check-duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.data && json.data.isDuplicate) {
+        return json.data;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend duplicate check unreachable, checking local upload history:', err);
+  }
+
+  // Fallback: search local upload history for matching file size & rows/cols
+  try {
+    const history = JSON.parse(localStorage.getItem('das_lead_file_upload_history') || '[]');
+    if (Array.isArray(history) && history.length > 0) {
+      const matched = history.find((item: any) => {
+        const sizeMatch =
+          params.sizeBytes !== undefined &&
+          item.sizeBytes !== undefined &&
+          (item.sizeBytes === params.sizeBytes || Math.abs(item.sizeBytes - params.sizeBytes) <= 2048);
+
+        const rowsMatch = params.rowsCount !== undefined && item.rowsCount === params.rowsCount;
+        const colsMatch = params.colsCount !== undefined && item.colsCount === params.colsCount;
+
+        const cleanTarget = params.fileName ? params.fileName.toLowerCase().replace(/\.[^/.]+$/, '').trim() : '';
+        const cleanHist = item.fileName ? item.fileName.toLowerCase().replace(/\.[^/.]+$/, '').trim() : '';
+        const nameMatch = cleanTarget && cleanHist && (cleanHist.includes(cleanTarget) || cleanTarget.includes(cleanHist));
+
+        if (sizeMatch && rowsMatch && colsMatch) return true;
+        if (rowsMatch && colsMatch && nameMatch) return true;
+        if (sizeMatch && rowsMatch && (params.colsCount === undefined || colsMatch)) return true;
+        return false;
+      });
+
+      if (matched) {
+        return {
+          isDuplicate: true,
+          matchedFile: {
+            fileId: matched.id || `file_${Date.now()}`,
+            fileName: matched.fileName || 'Spreadsheet_Import.xlsx',
+            originalName: matched.fileName || 'Spreadsheet_Import.xlsx',
+            fileSize: matched.fileSize || '6.0 KB',
+            sizeBytes: matched.sizeBytes || params.sizeBytes || 6144,
+            rowsCount: matched.rowsCount || params.rowsCount || 0,
+            colsCount: matched.colsCount || params.colsCount || 0,
+            leadsCount: matched.leadsCount || matched.rowsCount || 0,
+            uploadedAt: matched.uploadedAt || new Date().toISOString(),
+            uploadDateFormatted: matched.uploadedAt || new Date().toLocaleString(),
+            uploadedBy: matched.uploadedBy || 'Admin',
+            sourcePlatform: matched.sourcePlatform || 'Spreadsheet Import',
+            folderPath: matched.folderPath || 'Firebase Storage > Adorable Trading > Leads',
+            companyName: matched.companyName || 'Adorable Trading',
+            downloadUrl: matched.downloadUrl || matched.storageUrl || '#',
+            driveViewUrl: matched.driveViewUrl,
+            storageUrl: matched.downloadUrl || matched.storageUrl || '#',
+          },
+        };
+      }
+    }
+  } catch (_) {}
+
+  return { isDuplicate: false };
+}
+
+
 

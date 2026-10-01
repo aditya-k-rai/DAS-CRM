@@ -230,6 +230,39 @@ export default function TeamLeaderControlScreenWeb({ employee, allEmployees = []
             </span>
           </div>
           <p className="text-slate-400 text-xs mt-1">Assigned Under: <strong className="text-indigo-400">{employee.assignedManager}</strong></p>
+
+          {/* 🟢 Last Active Status & Platform Details */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-950 border border-slate-800 text-xs font-bold">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${employee.isOnline !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${employee.isOnline !== false ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              </span>
+              <span className={employee.isOnline !== false ? 'text-emerald-300' : 'text-amber-300'}>
+                {employee.lastActiveAt || 'Active Now'}
+              </span>
+            </span>
+
+            <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase flex items-center gap-1 border ${
+              employee.lastActivePlatform === 'APP'
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                : employee.lastActivePlatform === 'BOTH'
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+            }`}>
+              {employee.lastActivePlatform === 'APP' ? (
+                <>📱 Mobile App</>
+              ) : employee.lastActivePlatform === 'BOTH' ? (
+                <>🌐📱 Web &amp; App</>
+              ) : (
+                <>🌐 Web Portal</>
+              )}
+            </span>
+
+            <span className="text-slate-400 text-xs font-mono">
+              Last Login: <strong className="text-slate-200">{employee.lastLoginAt || 'Today, 02:45 AM'}</strong>
+            </span>
+          </div>
         </div>
 
         <div className="flex gap-3">

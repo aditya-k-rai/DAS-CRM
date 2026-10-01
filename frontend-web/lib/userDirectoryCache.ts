@@ -21,6 +21,11 @@ export interface CachedEmployee {
   joined: string;
   canSelfCheckIn: boolean;
   status: 'active' | 'inactive';
+  lastActiveAt?: string;
+  lastActivePlatform?: 'WEB' | 'APP' | 'BOTH' | string;
+  lastLoginAt?: string;
+  lastLoginDevice?: string;
+  isOnline?: boolean;
   documents: {
     pan: string;
     aadhaar: string;
@@ -330,6 +335,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
       status: 'active',
+      lastActiveAt: 'Active Now',
+      lastActivePlatform: 'WEB',
+      lastLoginAt: 'Today, 03:15 AM',
+      lastLoginDevice: 'Web (Chrome / Windows)',
+      isOnline: true,
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
       bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
@@ -352,6 +362,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
       status: 'active',
+      lastActiveAt: 'Active Now',
+      lastActivePlatform: 'APP',
+      lastLoginAt: 'Today, 02:45 AM',
+      lastLoginDevice: 'App (Android Mobile)',
+      isOnline: true,
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
       bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sachin Puri', accountNo: '••••••••', ifscCode: '—', upiId: 'sachinpuri938@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
@@ -374,6 +389,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       joined: 'Sep 26, 2026',
       canSelfCheckIn: true,
       status: 'active',
+      lastActiveAt: '12 mins ago',
+      lastActivePlatform: 'WEB',
+      lastLoginAt: 'Today, 01:20 AM',
+      lastLoginDevice: 'Web (Edge / Windows)',
+      isOnline: true,
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
       bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Nandini Rastogi', accountNo: '••••••••', ifscCode: '—', upiId: 'rastoginandini92@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
@@ -396,6 +416,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
       status: 'active',
+      lastActiveAt: 'Active Now',
+      lastActivePlatform: 'APP',
+      lastLoginAt: 'Today, 03:10 AM',
+      lastLoginDevice: 'App (Android Mobile)',
+      isOnline: true,
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
       bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sulekha Tomar', accountNo: '••••••••', ifscCode: '—', upiId: 'sulekhatmr@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
@@ -418,6 +443,11 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
       status: 'active',
+      lastActiveAt: '28 mins ago',
+      lastActivePlatform: 'BOTH',
+      lastLoginAt: 'Today, 00:50 AM',
+      lastLoginDevice: 'Web & Mobile App',
+      isOnline: false,
       documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
       bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
       attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },

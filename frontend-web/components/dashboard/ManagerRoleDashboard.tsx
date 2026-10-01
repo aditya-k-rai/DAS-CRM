@@ -114,7 +114,7 @@ export function ManagerRoleDashboard() {
   const [employees, setEmployees] = useState<CachedEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [deptLeads, setDeptLeads] = useState<DepartmentLead[]>(() => getCachedData('mgr_leads') || DEFAULT_DEPT_LEADS);
+  const [deptLeads, setDeptLeads] = useState<DepartmentLead[]>(() => getCachedData('mgr_leads') || []);
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TEAM_LEADERS' | 'REPS' | 'LEADS'>('OVERVIEW');
   const [leadFilter, setLeadFilter] = useState<'ALL' | 'NEW' | 'QUALIFIED' | 'WON'>('ALL');
 
@@ -263,12 +263,11 @@ export function ManagerRoleDashboard() {
   const totalSubordinateCount = subordinates.length;
   const totalWonRevenue = useMemo(() => {
     const wonLeads = deptLeads.filter(l => l.status.toLowerCase() === 'won' || l.status.toLowerCase().includes('convert'));
-    const totalWon = wonLeads.reduce((acc, l) => acc + l.numericValue, 0);
-    return totalWon > 0 ? totalWon : 1850000;
+    return wonLeads.reduce((acc, l) => acc + l.numericValue, 0);
   }, [deptLeads]);
 
   const conversionRate = useMemo(() => {
-    if (deptLeads.length === 0) return '24.5%';
+    if (deptLeads.length === 0) return '0.0%';
     const wonCount = deptLeads.filter(l => l.status.toLowerCase() === 'won' || l.status.toLowerCase().includes('convert')).length;
     const rate = ((wonCount / deptLeads.length) * 100).toFixed(1);
     return `${rate}%`;
@@ -616,56 +615,68 @@ export function ManagerRoleDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 bg-slate-950/40">
-              {filteredLeads.map(lead => {
-                const statusBadgeColor =
-                  lead.status === 'Won'
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : lead.status === 'Negotiation' || lead.status === 'Proposal'
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                    : lead.status === 'Qualified'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+              {filteredLeads.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Target size={28} className="text-purple-400/40" />
+                      <p className="font-bold text-sm text-foreground">No Leads Found in Department Pipeline</p>
+                      <p className="text-xs text-muted-foreground">Import leads via Google Sheets / CSV or assign leads to your team reps to populate this view.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredLeads.map(lead => {
+                  const statusBadgeColor =
+                    lead.status === 'Won'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : lead.status === 'Negotiation' || lead.status === 'Proposal'
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                      : lead.status === 'Qualified'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-sky-500/20 text-sky-300 border-sky-500/40';
 
-                return (
-                  <tr key={lead.id} className="hover:bg-slate-900/60 transition-colors">
-                    <td className="p-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${lead.avatarBg} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
-                          {getInitials(lead.name)}
+                  return (
+                    <tr key={lead.id} className="hover:bg-slate-900/60 transition-colors">
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${lead.avatarBg} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
+                            {getInitials(lead.name)}
+                          </div>
+                          <div>
+                            <p className="font-bold text-white text-xs">{lead.name}</p>
+                            <p className="text-[11px] text-slate-400 font-mono">{lead.phone}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-white text-xs">{lead.name}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">{lead.phone}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-3.5">
-                      <p className="font-semibold text-slate-200">{lead.company}</p>
-                      <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{lead.requirement}</p>
-                    </td>
-                    <td className="p-3.5">
-                      <p className="font-bold text-indigo-300">{lead.assignedRepName}</p>
-                      <span className="text-[10px] text-slate-400">{lead.assignedRepRole}</span>
-                    </td>
-                    <td className="p-3.5 font-bold text-emerald-400 font-mono">
-                      {lead.value}
-                    </td>
-                    <td className="p-3.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${statusBadgeColor}`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <Link
-                        href="/leads"
-                        className="text-purple-400 hover:text-purple-300 font-bold text-xs inline-flex items-center gap-0.5"
-                      >
-                        View <ChevronRight size={12} />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="p-3.5">
+                        <p className="font-semibold text-slate-200">{lead.company}</p>
+                        <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{lead.requirement}</p>
+                      </td>
+                      <td className="p-3.5">
+                        <p className="font-bold text-indigo-300">{lead.assignedRepName}</p>
+                        <span className="text-[10px] text-slate-400">{lead.assignedRepRole}</span>
+                      </td>
+                      <td className="p-3.5 font-bold text-emerald-400 font-mono">
+                        {lead.value}
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${statusBadgeColor}`}>
+                          {lead.status}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <Link
+                          href="/leads"
+                          className="text-purple-400 hover:text-purple-300 font-bold text-xs inline-flex items-center gap-0.5"
+                        >
+                          View <ChevronRight size={12} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

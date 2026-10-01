@@ -38,6 +38,48 @@ export class DriveController {
     };
   }
 
+  @Post('check-duplicate')
+  async checkDuplicatePost(
+    @Body('sizeBytes') sizeBytes?: number | string,
+    @Body('rowsCount') rowsCount?: number | string,
+    @Body('colsCount') colsCount?: number | string,
+    @Body('fileName') fileName?: string,
+    @Body('companyName') companyName?: string,
+  ) {
+    const result = await this.driveService.checkDuplicateFile({
+      sizeBytes: sizeBytes !== undefined ? parseInt(String(sizeBytes), 10) : undefined,
+      rowsCount: rowsCount !== undefined ? parseInt(String(rowsCount), 10) : undefined,
+      colsCount: colsCount !== undefined ? parseInt(String(colsCount), 10) : undefined,
+      fileName,
+      companyName,
+    });
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('check-duplicate')
+  async checkDuplicateGet(
+    @Query('sizeBytes') sizeBytes?: string,
+    @Query('rowsCount') rowsCount?: string,
+    @Query('colsCount') colsCount?: string,
+    @Query('fileName') fileName?: string,
+    @Query('companyName') companyName?: string,
+  ) {
+    const result = await this.driveService.checkDuplicateFile({
+      sizeBytes: sizeBytes ? parseInt(sizeBytes, 10) : undefined,
+      rowsCount: rowsCount ? parseInt(rowsCount, 10) : undefined,
+      colsCount: colsCount ? parseInt(colsCount, 10) : undefined,
+      fileName,
+      companyName,
+    });
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(

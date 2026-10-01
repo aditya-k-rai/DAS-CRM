@@ -236,6 +236,89 @@ export class FirestoreStorageService {
     return files;
   }
 
+  async checkDuplicateFile(criteria: {
+    sizeBytes?: number;
+    rowsCount?: number;
+    colsCount?: number;
+    fileName?: string;
+    companyName?: string;
+  }): Promise<{ isDuplicate: boolean; matchedFile?: any }> {
+    let records = Array.from(this.localFilesRegistry.values()).filter((f) => !f.isDeleted);
+
+    const firestore = this.firestoreService.getFirestore();
+    if (firestore) {
+      try {
+        const snapshot = await firestore.collection(this.collectionName).get();
+        if (!snapshot.empty) {
+          const firestoreDocs = snapshot.docs.map((d: any) => d.data() as FirestoreFileDocument);
+          const recordMap = new Map<string, FirestoreFileDocument>();
+          records.forEach((r) => recordMap.set(r.fileId, r));
+          firestoreDocs.forEach((d) => {
+            if (!d.isDeleted) recordMap.set(d.fileId, d);
+          });
+          records = Array.from(recordMap.values());
+        }
+      } catch (err) {
+        this.logger.warn('Could not query Firestore files collection for duplicate check:', err);
+      }
+    }
+
+    const matched = records.find((rec) => {
+      const sizeMatch =
+        criteria.sizeBytes !== undefined &&
+        rec.sizeBytes !== undefined &&
+        (rec.sizeBytes === criteria.sizeBytes || Math.abs(rec.sizeBytes - criteria.sizeBytes) <= 2048);
+
+      const rowsMatch = criteria.rowsCount !== undefined && rec.rowsCount === criteria.rowsCount;
+      const colsMatch = criteria.colsCount !== undefined && rec.colsCount === criteria.colsCount;
+
+      const cleanTargetName = criteria.fileName ? criteria.fileName.toLowerCase().replace(/\.[^/.]+$/, '').trim() : '';
+      const cleanRecName = rec.fileName ? rec.fileName.toLowerCase().replace(/\.[^/.]+$/, '').trim() : '';
+      const nameMatch = cleanTargetName && cleanRecName && (cleanRecName.includes(cleanTargetName) || cleanTargetName.includes(cleanRecName));
+
+      if (sizeMatch && rowsMatch && colsMatch) return true;
+      if (rowsMatch && colsMatch && nameMatch) return true;
+      if (sizeMatch && rowsMatch && (criteria.colsCount === undefined || colsMatch)) return true;
+
+      return false;
+    });
+
+    if (matched) {
+      return {
+        isDuplicate: true,
+        matchedFile: {
+          fileId: matched.fileId,
+          fileName: matched.fileName,
+          originalName: matched.originalName || matched.fileName,
+          fileSize: matched.sizeFormatted || this.formatBytes(matched.sizeBytes),
+          sizeBytes: matched.sizeBytes,
+          rowsCount: matched.rowsCount || 0,
+          colsCount: matched.colsCount || 0,
+          leadsCount: matched.leadsCount || matched.rowsCount || 0,
+          uploadedAt: matched.uploadedAt,
+          uploadDateFormatted: matched.uploadedAt
+            ? new Date(matched.uploadedAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : 'Previously Uploaded',
+          uploadedBy: matched.uploadedBy || 'Admin',
+          sourcePlatform: matched.sourcePlatform || 'Spreadsheet Import',
+          folderPath: matched.folderPath,
+          companyName: matched.companyName,
+          downloadUrl: matched.gcsDownloadUrl || matched.driveDownloadUrl || `/api/v1/drive/download/${matched.fileId}`,
+          driveViewUrl: matched.driveViewUrl,
+          storageUrl: matched.gcsDownloadUrl || matched.driveDownloadUrl || `/api/v1/drive/file/${matched.fileId}?raw=true`,
+        },
+      };
+    }
+
+    return { isDuplicate: false };
+  }
+
   async getFileRecord(fileId: string): Promise<FirestoreFileDocument> {
     // 1. Check local cache first for sub-millisecond retrieval
     if (this.localFilesRegistry.has(fileId)) {

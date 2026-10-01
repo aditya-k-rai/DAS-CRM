@@ -700,6 +700,16 @@ export class DriveService {
     );
   }
 
+  async checkDuplicateFile(criteria: {
+    sizeBytes?: number;
+    rowsCount?: number;
+    colsCount?: number;
+    fileName?: string;
+    companyName?: string;
+  }): Promise<{ isDuplicate: boolean; matchedFile?: any }> {
+    return this.firestoreStorageService.checkDuplicateFile(criteria);
+  }
+
   async listFiles(
     companyName?: string,
     category?: StorageCategory,

@@ -317,10 +317,10 @@ export function TeamLeaderRoleDashboard() {
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Team Leader';
 
   // Live Module States (Initialized from Cache or Defaults)
-  const [members, setMembers] = useState<TeamMember[]>(() => getCachedData('tl_members') || DEFAULT_MEMBERS);
-  const [teamLeads, setTeamLeads] = useState<TeamLead[]>(() => getCachedData('tl_leads') || DEFAULT_TEAM_LEADS);
-  const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(() => getCachedData('tl_unassigned') || DEFAULT_UNASSIGNED_QUEUE);
-  const [followUps, setFollowUps] = useState<TeamFollowUp[]>(() => getCachedData('tl_followups') || DEFAULT_TEAM_FOLLOW_UPS);
+  const [members, setMembers] = useState<TeamMember[]>(() => getCachedData('tl_members') || []);
+  const [teamLeads, setTeamLeads] = useState<TeamLead[]>(() => getCachedData('tl_leads') || []);
+  const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(() => getCachedData('tl_unassigned') || []);
+  const [followUps, setFollowUps] = useState<TeamFollowUp[]>(() => getCachedData('tl_followups') || []);
 
   // Sync state mutations to Cache automatically
   useEffect(() => { setCachedData('tl_members', members); }, [members]);
@@ -331,7 +331,7 @@ export function TeamLeaderRoleDashboard() {
   // Active Filters & Interactive Selection
   const [activeLeadFilter, setActiveLeadFilter] = useState<'ALL' | 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST'>('ALL');
   const [assignModalLead, setAssignModalLead] = useState<UnassignedLead | null>(null);
-  const [selectedTargetRepId, setSelectedTargetRepId] = useState<string>(DEFAULT_MEMBERS[0]?.id || '');
+  const [selectedTargetRepId, setSelectedTargetRepId] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -605,74 +605,82 @@ export function TeamLeaderRoleDashboard() {
 
         {/* Team Member Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-          {members.map(member => (
-            <div
-              key={member.id}
-              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-blue-500/20 hover:border-blue-500/40 transition-all flex flex-col justify-between gap-3 group"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${member.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    {getInitials(member.name)}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-white group-hover:text-blue-400 transition-colors">
-                      {member.name}
-                    </h4>
-                    <p className="text-xs text-slate-400 font-medium">{member.role}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[10px] text-slate-300 font-bold">Clocked in {member.clockInTime}</span>
+          {members.length === 0 ? (
+            <div className="col-span-full p-8 text-center border border-dashed border-blue-500/30 rounded-xl bg-blue-500/5">
+              <Users size={24} className="mx-auto mb-2 text-blue-400/60" />
+              <p className="font-bold text-sm text-foreground">No Sales Representatives Assigned</p>
+              <p className="text-xs text-muted-foreground mt-1">Assign sales execs to your Team Leader unit from the Staff Directory.</p>
+            </div>
+          ) : (
+            members.map(member => (
+              <div
+                key={member.id}
+                className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-blue-500/20 hover:border-blue-500/40 transition-all flex flex-col justify-between gap-3 group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${member.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
+                      {getInitials(member.name)}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white group-hover:text-blue-400 transition-colors">
+                        {member.name}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-medium">{member.role}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[10px] text-slate-300 font-bold">Clocked in {member.clockInTime}</span>
+                      </div>
                     </div>
                   </div>
+                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                    {member.status}
+                  </span>
                 </div>
-                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
-                  {member.status}
-                </span>
-              </div>
 
-              {/* Workload & Revenue Stats */}
-              <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold">Leads</span>
-                  <p className="text-sm font-black text-white">{member.leadsAssigned}</p>
+                {/* Workload & Revenue Stats */}
+                <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold">Leads</span>
+                    <p className="text-sm font-black text-white">{member.leadsAssigned}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold">Won</span>
+                    <p className="text-sm font-black text-emerald-400">{member.dealsWon}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold">Revenue</span>
+                    <p className="text-xs font-black text-purple-400 mt-0.5">{member.revenueClosed}</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold">Won</span>
-                  <p className="text-sm font-black text-emerald-400">{member.dealsWon}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold">Revenue</span>
-                  <p className="text-xs font-black text-purple-400 mt-0.5">{member.revenueClosed}</p>
-                </div>
-              </div>
 
-              {/* Quick Actions */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                <span className="text-[10px] text-slate-400">{member.contactedCount} contacted today</span>
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`mailto:${member.email}`}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-                  >
-                    <Mail size={12} /> Email
-                  </a>
-                  <button
-                    onClick={() => {
-                      if (unassignedQueue.length > 0) {
-                        handleAssignLead(unassignedQueue[0].id, member.id);
-                      } else {
-                        showToast(`No unassigned leads in queue to give to ${member.name}.`);
-                      }
-                    }}
-                    className="px-2 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 text-[11px] font-bold flex items-center gap-1 transition-all"
-                  >
-                    <Plus size={12} /> Hand Lead
-                  </button>
+                {/* Quick Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] text-slate-400">{member.contactedCount} contacted today</span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`mailto:${member.email}`}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <Mail size={12} /> Email
+                    </a>
+                    <button
+                      onClick={() => {
+                        if (unassignedQueue.length > 0) {
+                          handleAssignLead(unassignedQueue[0].id, member.id);
+                        } else {
+                          showToast(`No unassigned leads in queue to give to ${member.name}.`);
+                        }
+                      }}
+                      className="px-2 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 text-[11px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <Plus size={12} /> Hand Lead
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -728,67 +736,75 @@ export function TeamLeaderRoleDashboard() {
 
         {/* Filtered Leads List */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {filteredTeamLeads.map(lead => (
-            <div
-              key={lead.id}
-              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-indigo-500/20 hover:border-indigo-500/40 transition-all flex flex-col justify-between gap-3 group"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${lead.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    {getInitials(lead.name)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">
-                        {lead.name}
-                      </h4>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        {lead.status}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
-                      <Building2 size={11} className="text-indigo-400/70" />
-                      {lead.company}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Assigned to: <strong className="text-blue-300">{lead.assignedRepName}</strong>
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <span className="text-xs font-black text-emerald-400">{lead.value}</span>
-                  <p className="text-[9px] text-muted-foreground">{lead.source}</p>
-                </div>
-              </div>
-
-              {lead.requirement && (
-                <div className="p-2 rounded-lg bg-indigo-500/8 border border-indigo-500/15 text-[11px] text-indigo-200 truncate">
-                  Requirement: {lead.requirement}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                <span className="text-[10px] text-slate-400">{lead.lastContact}</span>
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={`tel:${lead.phone}`}
-                    className="p-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold flex items-center gap-1"
-                  >
-                    <Phone size={12} /> Call
-                  </a>
-                  <a
-                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1"
-                  >
-                    <MessageCircle size={12} /> WA
-                  </a>
-                </div>
-              </div>
+          {filteredTeamLeads.length === 0 ? (
+            <div className="col-span-full p-8 text-center border border-dashed border-indigo-500/30 rounded-xl bg-indigo-500/5">
+              <Target size={24} className="mx-auto mb-2 text-indigo-400/60" />
+              <p className="font-bold text-sm text-foreground">No Team Leads in Selected Stage</p>
+              <p className="text-xs text-muted-foreground mt-1">Distribute leads or import records to populate your unit's leads list.</p>
             </div>
-          ))}
+          ) : (
+            filteredTeamLeads.map(lead => (
+              <div
+                key={lead.id}
+                className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-indigo-500/20 hover:border-indigo-500/40 transition-all flex flex-col justify-between gap-3 group"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${lead.avatarBg} text-white font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md`}>
+                      {getInitials(lead.name)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">
+                          {lead.name}
+                        </h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          {lead.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
+                        <Building2 size={11} className="text-indigo-400/70" />
+                        {lead.company}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Assigned to: <strong className="text-blue-300">{lead.assignedRepName}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-xs font-black text-emerald-400">{lead.value}</span>
+                    <p className="text-[9px] text-muted-foreground">{lead.source}</p>
+                  </div>
+                </div>
+
+                {lead.requirement && (
+                  <div className="p-2 rounded-lg bg-indigo-500/8 border border-indigo-500/15 text-[11px] text-indigo-200 truncate">
+                    Requirement: {lead.requirement}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] text-slate-400">{lead.lastContact}</span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`tel:${lead.phone}`}
+                      className="p-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <Phone size={12} /> Call
+                    </a>
+                    <a
+                      href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1"
+                    >
+                      <MessageCircle size={12} /> WA
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

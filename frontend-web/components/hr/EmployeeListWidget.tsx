@@ -57,6 +57,11 @@ export interface EmployeeProfileWeb {
   canSelfCheckIn: boolean;
   status: string;
   isLocked?: boolean;
+  lastActiveAt?: string;
+  lastActivePlatform?: 'WEB' | 'APP' | 'BOTH' | string;
+  lastLoginAt?: string;
+  lastLoginDevice?: string;
+  isOnline?: boolean;
   deletionScheduledAt?: string | null;
   deletionReason?: string | null;
 
@@ -1206,9 +1211,38 @@ export function EmployeeListWidget({
                           {emp.name}
                           {emp.isLocked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">🔒 LOCKED</span>}
                         </h3>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border inline-block mt-1 ${roleBadgeColor}`}>
-                          {emp.role.replace('_', ' ')}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border inline-block ${roleBadgeColor}`}>
+                            {emp.role.replace('_', ' ')}
+                          </span>
+
+                          {/* 🟢 Last Active Status Dot & Platform Badge */}
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-[10px] font-bold">
+                            <span className="relative flex h-2 w-2">
+                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${emp.isOnline !== false ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                              <span className={`relative inline-flex rounded-full h-2 w-2 ${emp.isOnline !== false ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                            </span>
+                            <span className={emp.isOnline !== false ? 'text-emerald-300' : 'text-amber-300'}>
+                              {emp.lastActiveAt || 'Active Now'}
+                            </span>
+                          </span>
+
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase flex items-center gap-1 border ${
+                            emp.lastActivePlatform === 'APP'
+                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                              : emp.lastActivePlatform === 'BOTH'
+                              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                              : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                          }`}>
+                            {emp.lastActivePlatform === 'APP' ? (
+                              <>📱 App</>
+                            ) : emp.lastActivePlatform === 'BOTH' ? (
+                              <>🌐📱 Web &amp; App</>
+                            ) : (
+                              <>🌐 Web</>
+                            )}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -1279,6 +1313,26 @@ export function EmployeeListWidget({
                             <Edit2 size={12} />
                           </button>
                         )}
+                      </div>
+
+                      {/* 📅 Last Login Details & Platform Device Breakdown */}
+                      <div className="pt-2 mt-1 border-t border-slate-800/80 text-[11px] text-slate-400 space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-400">Last Login:</span>
+                          <span className="font-mono text-slate-200 font-extrabold">{emp.lastLoginAt || 'Today, 03:15 AM'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-slate-500 font-semibold">Active Platform:</span>
+                          <span className="text-slate-300 font-mono font-bold flex items-center gap-1">
+                            {emp.lastActivePlatform === 'APP' ? (
+                              <span className="text-purple-300 font-bold">📱 App (Android Mobile)</span>
+                            ) : emp.lastActivePlatform === 'BOTH' ? (
+                              <span className="text-cyan-300 font-bold">🌐📱 Web &amp; App</span>
+                            ) : (
+                              <span className="text-indigo-300 font-bold">🌐 Web (Chrome / Windows)</span>
+                            )}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
