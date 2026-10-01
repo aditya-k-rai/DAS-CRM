@@ -28,7 +28,7 @@ export class UsersService {
             { email: userId.toLowerCase().trim() },
           ],
         },
-        select: { id: true, role: { select: { name: true } } }
+        select: { id: true, firstName: true, lastName: true, email: true, role: { select: { name: true } } }
       });
       const roleName = (currentUser?.role?.name || '').toUpperCase();
       
@@ -42,17 +42,42 @@ export class UsersService {
       if (!isAdminOrHR && currentUser) {
         const allUsers = await this.prisma.user.findMany({
           where: { organizationId },
-          select: { id: true, managerId: true }
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            managerId: true,
+            manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+          }
         });
         
         const subordinateIds = new Set<string>();
         subordinateIds.add(currentUser.id);
+
+        const currentName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim().toLowerCase();
+        const currentEmail = (currentUser.email || '').toLowerCase().trim();
         
         let added = true;
         while (added) {
           added = false;
           for (const u of allUsers) {
-            if (u.managerId && subordinateIds.has(u.managerId) && !subordinateIds.has(u.id)) {
+            if (subordinateIds.has(u.id)) continue;
+
+            const isDirectManager = u.managerId && subordinateIds.has(u.managerId);
+            const isManagerRelation = u.manager && subordinateIds.has(u.manager.id);
+
+            let isNameMatch = false;
+            if (u.manager) {
+              const mgrName = `${u.manager.firstName || ''} ${u.manager.lastName || ''}`.trim().toLowerCase();
+              const mgrEmail = (u.manager.email || '').toLowerCase().trim();
+              if ((currentName && (mgrName.includes(currentName) || currentName.includes(mgrName))) ||
+                  (currentEmail && mgrEmail === currentEmail)) {
+                isNameMatch = true;
+              }
+            }
+
+            if (isDirectManager || isManagerRelation || isNameMatch) {
               subordinateIds.add(u.id);
               added = true;
             }
