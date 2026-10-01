@@ -329,7 +329,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       name: 'Nandini Rastogi',
       email: 'rastoginandini92@gmail.com',
       role: 'SALES_EXEC',
-      assignedManager: 'Sachin Puri (Team Leader)',
+      assignedManager: 'Aditya Kumar Rai (Manager)',
       isActive: true,
       lastLoginAt: '2026-09-28T07:55:00.000Z',
       lastActiveAt: '2026-09-28T08:05:00.000Z',

@@ -354,13 +354,14 @@ export class UsersService {
   }
 
   /**
-   * Verify an unassigned user and allocate their initial operational role.
+   * Verify an unassigned user and allocate their initial operational role and supervisor.
    */
   async verifyAndAssignRole(
     organizationId: string,
     adminUserId: string,
     targetUserId: string,
     assignedRole: string,
+    assignedManager?: string,
   ) {
     if (!organizationId || !targetUserId) {
       throw new BadRequestException('Organization ID and Target User ID are required.');
@@ -369,9 +370,15 @@ export class UsersService {
     // 1. Verify requester is Admin/Owner
     await this.assertAdminOrOwner(organizationId, adminUserId);
 
-    // 2. Fetch target user
+    // 2. Fetch target user (search by ID or email for resilience)
     const targetUser = await this.prisma.user.findFirst({
-      where: { id: targetUserId, organizationId },
+      where: {
+        organizationId,
+        OR: [
+          { id: targetUserId },
+          { email: targetUserId.toLowerCase().trim() },
+        ],
+      },
       include: { role: true },
     });
 
@@ -414,25 +421,85 @@ export class UsersService {
       });
     }
 
-    // 5. Update user with permanent role
+    // 5. Resolve supervisor/manager ID if specified or default by hierarchy
+    let resolvedManagerId: string | null = null;
+    const cleanManager = (assignedManager || '').trim();
+    const isDirectAdmin =
+      !cleanManager ||
+      cleanManager.toLowerCase() === 'admin' ||
+      cleanManager.toLowerCase() === 'organization admin' ||
+      cleanManager.toLowerCase() === 'direct / admin' ||
+      cleanManager.toLowerCase() === 'none' ||
+      cleanManager.toLowerCase() === 'null' ||
+      cleanManager.toLowerCase() === 'undefined';
+
+    if (!isDirectAdmin) {
+      const allUsers = await this.prisma.user.findMany({
+        where: { organizationId },
+        select: { id: true, email: true, firstName: true, lastName: true, role: { select: { name: true } } }
+      });
+      const targetMatch = cleanManager.toLowerCase();
+      const matchedManager = allUsers.find(u => {
+        const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+        const cleanEmail = (u.email || '').trim().toLowerCase();
+        const roleLabel = (u.role?.name === 'ADMIN' ? 'Admin' : u.role?.name === 'MANAGER' ? 'Manager' : u.role?.name === 'TEAM_LEADER' ? 'Team Leader' : u.role?.name || '').toLowerCase();
+        const fullLabel = roleLabel ? `${fullName} (${roleLabel})` : fullName;
+        return (
+          u.id === cleanManager ||
+          cleanEmail === targetMatch ||
+          fullName === targetMatch ||
+          fullLabel === targetMatch ||
+          targetMatch.includes(fullName) ||
+          targetMatch.includes(cleanEmail) ||
+          (u.firstName && targetMatch.includes(u.firstName.toLowerCase()))
+        );
+      });
+      if (matchedManager) {
+        resolvedManagerId = matchedManager.id;
+      }
+    } else if (targetRoleName === 'TEAM_LEADER') {
+      // Team Leaders default to the Manager if available
+      const mgr = await this.prisma.user.findFirst({
+        where: { organizationId, role: { name: 'MANAGER' } },
+        select: { id: true },
+      });
+      if (mgr) resolvedManagerId = mgr.id;
+    }
+
+    // 6. Update user with permanent role and supervisor
     const updatedUser = await this.prisma.user.update({
-      where: { id: targetUserId },
-      data: { roleId: role.id, isActive: true },
-      include: { role: true },
+      where: { id: targetUser.id },
+      data: {
+        roleId: role.id,
+        isActive: true,
+        ...(assignedManager !== undefined || resolvedManagerId !== null ? { managerId: resolvedManagerId } : {}),
+      },
+      include: {
+        role: true,
+        manager: { select: { firstName: true, lastName: true, role: { select: { name: true } } } },
+      },
     });
 
-    // 6. Log notification
+    // 7. Log notification
     try {
       await this.prisma.notification.create({
         data: {
           organizationId,
-          userId: targetUserId,
+          userId: targetUser.id,
           type: 'ROLE_TRANSITION',
           title: 'Account Role Verified & Approved',
           body: `Your account has been verified and permanently assigned to the ${role.name} role by your Administrator.`,
         },
       });
     } catch (_) {}
+
+    let assignedManagerLabel = role.name === 'ADMIN' ? 'Organization Admin' : 'Admin';
+    if (updatedUser.managerId && updatedUser.manager) {
+      const mgrRole = updatedUser.manager.role?.name || '';
+      const mgrRoleLabel = mgrRole === 'ADMIN' ? 'Admin' : mgrRole === 'MANAGER' ? 'Manager' : mgrRole === 'TEAM_LEADER' ? 'Team Leader' : mgrRole;
+      const mgrName = `${updatedUser.manager.firstName || ''} ${updatedUser.manager.lastName || ''}`.trim();
+      assignedManagerLabel = mgrRoleLabel ? `${mgrName} (${mgrRoleLabel})` : mgrName;
+    }
 
     return {
       success: true,
@@ -442,8 +509,11 @@ export class UsersService {
         email: updatedUser.email,
         name: `${updatedUser.firstName || ''} ${updatedUser.lastName || ''}`.trim() || updatedUser.email,
         role: role.name,
+        roleId: updatedUser.roleId,
         hasAssignedRole: true,
         isVerified: true,
+        managerId: updatedUser.managerId,
+        assignedManager: assignedManagerLabel,
       },
     };
   }
@@ -836,7 +906,13 @@ export class UsersService {
     }
     
     const target = await this.prisma.user.findFirst({
-      where: { id: targetUserId, organizationId }
+      where: {
+        organizationId,
+        OR: [
+          { id: targetUserId },
+          { email: targetUserId.toLowerCase().trim() },
+        ],
+      },
     });
     if (!target) throw new NotFoundException('User not found in organization.');
 
@@ -863,7 +939,15 @@ export class UsersService {
         const cleanEmail = (u.email || '').trim().toLowerCase();
         const roleLabel = (u.role?.name === 'ADMIN' ? 'Admin' : u.role?.name === 'MANAGER' ? 'Manager' : u.role?.name === 'TEAM_LEADER' ? 'Team Leader' : u.role?.name || '').toLowerCase();
         const fullLabel = roleLabel ? `${fullName} (${roleLabel})` : fullName;
-        return u.id === cleanLabel || cleanEmail === targetMatch || fullName === targetMatch || fullLabel === targetMatch;
+        return (
+          u.id === cleanLabel ||
+          cleanEmail === targetMatch ||
+          fullName === targetMatch ||
+          fullLabel === targetMatch ||
+          targetMatch.includes(fullName) ||
+          targetMatch.includes(cleanEmail) ||
+          (u.firstName && targetMatch.includes(u.firstName.toLowerCase()))
+        );
       });
       if (manager) {
         finalManagerId = manager.id;
@@ -871,7 +955,7 @@ export class UsersService {
     }
 
     return this.prisma.user.update({
-      where: { id: targetUserId },
+      where: { id: target.id },
       data: { managerId: finalManagerId },
       select: {
         id: true,

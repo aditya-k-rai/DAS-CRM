@@ -55,7 +55,7 @@ export async function GET(req: Request) {
       role: 'SALES_EXEC',
       isActive: true,
       phone: '+91 98765 43210',
-      assignedManager: 'Sachin Puri (Team Leader)',
+      assignedManager: 'Aditya Kumar Rai (Manager)',
       keyUsed: 'ADOR-EC-7187',
       lastLoginAt: '2026-09-28T07:55:00.000Z',
       lastActiveAt: '2026-09-28T08:05:00.000Z',

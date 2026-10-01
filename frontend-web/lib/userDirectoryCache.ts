@@ -192,6 +192,40 @@ export function filterDirectoryByRole(
 }
 
 /**
+ * Get assigned manager overrides from local storage and auto-migrate legacy supervisor linkages.
+ */
+export function getCleanStoredManagers(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  let storedManagers: Record<string, string> = {};
+  try {
+    storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+  } catch (_) {}
+
+  let hasChanged = false;
+  // If Nandini was previously stored under Sachin, align to Aditya Kumar Rai (Manager)
+  if (
+    storedManagers['rastoginandini92@gmail.com'] === 'Sachin Puri (Team Leader)' ||
+    storedManagers['cmuhp0517000ngg2dq93a6nlp'] === 'Sachin Puri (Team Leader)'
+  ) {
+    storedManagers['rastoginandini92@gmail.com'] = 'Aditya Kumar Rai (Manager)';
+    storedManagers['cmuhp0517000ngg2dq93a6nlp'] = 'Aditya Kumar Rai (Manager)';
+    hasChanged = true;
+  }
+  // Ensure Sadhana is assigned under Sachin Puri (Team Leader)
+  if (!storedManagers['sadhnadikshit98@gmail.com'] && !storedManagers['cmukykfoe000nht2d0ylnsd3t']) {
+    storedManagers['sadhnadikshit98@gmail.com'] = 'Sachin Puri (Team Leader)';
+    storedManagers['cmukykfoe000nht2d0ylnsd3t'] = 'Sachin Puri (Team Leader)';
+    hasChanged = true;
+  }
+  if (hasChanged) {
+    try {
+      localStorage.setItem('das_crm_assigned_managers', JSON.stringify(storedManagers));
+    } catch (_) {}
+  }
+  return storedManagers;
+}
+
+/**
  * Returns default/seed employee directory for demo or offline fallback.
  */
 export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
@@ -206,18 +240,15 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
   ]);
 
   const storedOverrides = getCleanStoredOverrides();
+  const storedManagers = getCleanStoredManagers();
   let removedIds: string[] = [];
   let storedPhones: Record<string, string> = {};
-  let storedManagers: Record<string, string> = {};
   if (typeof window !== 'undefined') {
     try {
       removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
     } catch (_) {}
     try {
       storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
-    } catch (_) {}
-    try {
-      storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
     } catch (_) {}
   }
 
@@ -348,7 +379,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmuhp0517000ngg2dq93a6nlp'] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
-      assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || storedManagers['rastoginandini92@gmail.com'] || 'Sachin Puri (Team Leader)',
+      assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || storedManagers['rastoginandini92@gmail.com'] || 'Aditya Kumar Rai (Manager)',
       baseSalary: '₹45,000',
       joined: 'Sep 26, 2026',
       canSelfCheckIn: true,
@@ -383,24 +414,22 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     {
       id: 'cmukykfoe000nht2d0ylnsd3t',
       name: 'Sadhana',
-      code: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? 'EMP006' : 'UNASSIGNED',
-      dept: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? 'Sales & Growth' : 'Pending Department',
+      code: 'EMP006',
+      dept: 'Sales & Growth',
       email: 'sadhnadikshit98@gmail.com',
       phone: formatPhone(storedPhones['cmukykfoe000nht2d0ylnsd3t'] || storedPhones['sadhnadikshit98@gmail.com'] || '8796824282'),
-      role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'UNASSIGNED') as any,
-      isVerified: Boolean(storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']),
-      verificationStatus: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? 'VERIFIED' : 'PENDING',
-      assignedManager: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'])
-        ? (storedManagers['cmukykfoe000nht2d0ylnsd3t'] || storedManagers['sadhnadikshit98@gmail.com'] || 'Sachin Puri (Team Leader)')
-        : 'Pending Admin Assignment',
-      baseSalary: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? '₹45,000' : '₹0',
+      role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmukykfoe000nht2d0ylnsd3t'] || storedManagers['sadhnadikshit98@gmail.com'] || 'Sachin Puri (Team Leader)',
+      baseSalary: '₹45,000',
       joined: 'Sep 28, 2026',
-      canSelfCheckIn: false,
+      canSelfCheckIn: true,
       status: 'active',
-      documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
-      bankDetails: { bankName: 'Pending', accountHolder: 'Sadhana', accountNo: '—', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
-      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 6, connected: 4, inNegotiation: 1, meetingScheduled: 1, won: 1, totalDistributed: 0, distributionBreakdown: [] },
       subordinates: [],
     },
   ];
@@ -504,17 +533,14 @@ export async function getUserDirectory(
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const storedOverrides = getCleanStoredOverrides();
+          const storedManagers = getCleanStoredManagers();
           let removedIds: string[] = [];
           let storedPhones: Record<string, string> = {};
-          let storedManagers: Record<string, string> = {};
           try {
             removedIds = JSON.parse(localStorage.getItem('das_crm_removed_user_ids') || '[]');
           } catch (_) {}
           try {
             storedPhones = JSON.parse(localStorage.getItem('das_crm_user_phones') || '{}');
-          } catch (_) {}
-          try {
-            storedManagers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
           } catch (_) {}
 
           const filteredData = data.filter((u: any) => !removedIds.includes(String(u.id)));
@@ -560,13 +586,16 @@ export async function getUserDirectory(
                 ? 'Admin'
                 : role === 'TEAM_LEADER'
                 ? 'Aditya Kumar Rai (Manager)'
+                : u.email === 'rastoginandini92@gmail.com'
+                ? 'Aditya Kumar Rai (Manager)'
                 : 'Sachin Puri (Team Leader)';
 
             const assignedMgr = isRoleUnassigned
               ? 'Pending Admin Assignment'
               : (storedManagers[String(u.id)] ||
                  storedManagers[u.email?.toLowerCase().trim()] ||
-                 (u.assignedManager && u.assignedManager !== 'Admin' ? u.assignedManager : defaultMgr));
+                 u.assignedManager ||
+                 defaultMgr);
 
             return {
               id: String(u.id),

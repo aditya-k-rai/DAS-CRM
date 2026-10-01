@@ -86,7 +86,7 @@ export class UsersController {
   async verifyAndAssignRole(
     @CurrentUser() adminUser: any,
     @Param('id') targetUserId: string,
-    @Body() body: { role?: string; assignedRole?: string; organizationId?: string },
+    @Body() body: { role?: string; assignedRole?: string; assignedManager?: string; organizationId?: string },
   ) {
     const orgId = this.getAuthorizedOrgId(adminUser, body.organizationId);
     const role = body?.assignedRole || body?.role || 'SALES_EXEC';
@@ -95,6 +95,7 @@ export class UsersController {
       adminUser.id,
       targetUserId,
       role,
+      body?.assignedManager,
     );
   }
 
