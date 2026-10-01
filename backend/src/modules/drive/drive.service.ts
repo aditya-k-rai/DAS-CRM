@@ -354,11 +354,19 @@ export class DriveService {
     rawFileName: string,
     mimeType: string,
     trackingId: string,
-    companyName: string = 'Acme Sales Solutions',
+    companyName: string = 'Adorable Trading',
     category: StorageCategory = 'LEADS',
     customFileName?: string,
     employeeName?: string,
     subCategory?: string,
+    ingestionMetadata?: {
+      rowsCount?: number;
+      colsCount?: number;
+      leadsCount?: number;
+      uploadedBy?: string;
+      sourcePlatform?: string;
+      leadsData?: any[];
+    },
   ): Promise<FileUploadProgress> {
     const totalBytes = fileBuffer.length;
     const startTime = Date.now();
@@ -511,6 +519,12 @@ export class DriveService {
       employeeName,
       folderHierarchy: hierarchy,
       folderPath,
+      rowsCount: ingestionMetadata?.rowsCount,
+      colsCount: ingestionMetadata?.colsCount,
+      leadsCount: ingestionMetadata?.leadsCount,
+      uploadedBy: ingestionMetadata?.uploadedBy,
+      sourcePlatform: ingestionMetadata?.sourcePlatform,
+      leadsData: ingestionMetadata?.leadsData,
       storageEngines: {
         firestore: true,
         googleCloudStorage: !!gcsPath,

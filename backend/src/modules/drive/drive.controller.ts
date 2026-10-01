@@ -47,25 +47,46 @@ export class DriveController {
     @Body('customFileName') customFileName?: string,
     @Body('employeeName') employeeName?: string,
     @Body('subCategory') subCategory?: string,
+    @Body('rowsCount') rowsCount?: string,
+    @Body('colsCount') colsCount?: string,
+    @Body('leadsCount') leadsCount?: string,
+    @Body('uploadedBy') uploadedBy?: string,
+    @Body('sourcePlatform') sourcePlatform?: string,
+    @Body('leadsData') leadsData?: string,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded in form-data');
     }
     const trackingId = `up_${Date.now()}`;
+    let parsedLeadsData: any[] | undefined = undefined;
+    if (leadsData) {
+      try {
+        parsedLeadsData = typeof leadsData === 'string' ? JSON.parse(leadsData) : leadsData;
+      } catch (_) {}
+    }
+
     const result = await this.driveService.uploadFileWithProgress(
       file.buffer,
       file.originalname,
       file.mimetype || 'application/octet-stream',
       trackingId,
-      companyName || 'Acme Sales Solutions',
+      companyName || 'Adorable Trading',
       category || (employeeName ? 'EMPLOYEES' : 'LEADS'),
       customFileName,
       employeeName,
       subCategory,
+      {
+        rowsCount: rowsCount ? parseInt(rowsCount, 10) : undefined,
+        colsCount: colsCount ? parseInt(colsCount, 10) : undefined,
+        leadsCount: leadsCount ? parseInt(leadsCount, 10) : undefined,
+        uploadedBy: uploadedBy || 'Admin',
+        sourcePlatform: sourcePlatform || 'Spreadsheet Import',
+        leadsData: parsedLeadsData,
+      },
     );
     return {
       success: true,
-      message: `File stored in Firestore & Google Drive folder: ${result.folderPath}`,
+      message: `File and lead metadata stored in Firestore & Google Drive folder: ${result.folderPath}`,
       data: result,
     };
   }

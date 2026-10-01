@@ -40,6 +40,12 @@ export interface GoogleDriveUploadOptions {
   subCategory?: 'DP' | 'Documents' | 'Details' | string;
   folderHierarchy?: string[];
   customFileName?: string;
+  rowsCount?: number;
+  colsCount?: number;
+  leadsCount?: number;
+  uploadedBy?: string;
+  sourcePlatform?: string;
+  leadsData?: any[];
   onProgress?: (progress: GoogleDriveUploadProgress) => void;
 }
 
@@ -274,6 +280,24 @@ export async function uploadFileToGoogleDrive(
     if (options.subCategory) {
       formData.append('subCategory', options.subCategory);
     }
+    if (options.rowsCount !== undefined) {
+      formData.append('rowsCount', String(options.rowsCount));
+    }
+    if (options.colsCount !== undefined) {
+      formData.append('colsCount', String(options.colsCount));
+    }
+    if (options.leadsCount !== undefined) {
+      formData.append('leadsCount', String(options.leadsCount));
+    }
+    if (options.uploadedBy) {
+      formData.append('uploadedBy', options.uploadedBy);
+    }
+    if (options.sourcePlatform) {
+      formData.append('sourcePlatform', options.sourcePlatform);
+    }
+    if (options.leadsData) {
+      formData.append('leadsData', JSON.stringify(options.leadsData));
+    }
 
     // Progressive simulated telemetry ticks for super-smooth UI
     const chunkSize = Math.max(32 * 1024, Math.floor(totalBytes / 15));
@@ -497,15 +521,48 @@ export async function uploadLeadSpreadsheetToDrive(
   fileOrBlob: File | Blob,
   originalFileName: string,
   companyName: string = 'DAS Organization',
-  onProgress?: (progress: GoogleDriveUploadProgress) => void
+  metadataOrProgress?:
+    | {
+        rowsCount?: number;
+        colsCount?: number;
+        leadsCount?: number;
+        uploadedBy?: string;
+        sourcePlatform?: string;
+        leadsData?: any[];
+      }
+    | ((progress: GoogleDriveUploadProgress) => void),
+  onProgressCallback?: (progress: GoogleDriveUploadProgress) => void
 ): Promise<GoogleDriveUploadProgress> {
   const extMatch = originalFileName.match(/\.([a-zA-Z0-9]+)$/);
   const ext = extMatch ? extMatch[1] : 'xlsx';
   const baseName = originalFileName.replace(/\.[^/.]+$/, '').trim() || 'Leads_Import';
+
+  let metadata: {
+    rowsCount?: number;
+    colsCount?: number;
+    leadsCount?: number;
+    uploadedBy?: string;
+    sourcePlatform?: string;
+    leadsData?: any[];
+  } = {};
+  let onProgress = onProgressCallback;
+
+  if (typeof metadataOrProgress === 'function') {
+    onProgress = metadataOrProgress;
+  } else if (metadataOrProgress && typeof metadataOrProgress === 'object') {
+    metadata = metadataOrProgress;
+  }
+
   return uploadFileToGoogleDrive(fileOrBlob, `${baseName}.${ext}`, {
     companyName,
     category: 'LEADS',
     customFileName: baseName,
+    rowsCount: metadata.rowsCount,
+    colsCount: metadata.colsCount,
+    leadsCount: metadata.leadsCount,
+    uploadedBy: metadata.uploadedBy,
+    sourcePlatform: metadata.sourcePlatform,
+    leadsData: metadata.leadsData,
     onProgress,
   });
 }

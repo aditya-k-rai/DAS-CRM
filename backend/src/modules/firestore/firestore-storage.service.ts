@@ -125,15 +125,115 @@ export class FirestoreStorageService {
     if (firestore) {
       try {
         const sanitizedDoc = JSON.parse(JSON.stringify(doc));
+        // Collection 1: 'files' - Full File Archive & Metadata
         const docRef = firestore.collection(this.collectionName).doc(doc.fileId);
         await docRef.set(sanitizedDoc, { merge: true });
         this.logger.log(`🔥 Document synced to Firestore collection [${this.collectionName}/${doc.fileId}] (${doc.fileName})`);
+
+        // Collection 2: 'lead_imports' - Dedicated Audit Log for CSV/Excel/Spreadsheet Ingestions
+        if (doc.category === 'LEADS' || doc.rowsCount !== undefined || doc.leadsCount !== undefined) {
+          const importRecord = {
+            id: doc.fileId,
+            fileId: doc.fileId,
+            fileName: doc.fileName,
+            originalName: doc.originalName || doc.fileName,
+            fileSize: doc.sizeFormatted,
+            sizeBytes: doc.sizeBytes,
+            rowsCount: doc.rowsCount ?? 0,
+            colsCount: doc.colsCount ?? 0,
+            leadsCount: doc.leadsCount ?? doc.rowsCount ?? 0,
+            uploadedAt: doc.uploadedAt,
+            uploadDateFormatted: new Date(doc.uploadedAt).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            uploadedBy: doc.uploadedBy || 'Admin',
+            sourcePlatform: doc.sourcePlatform || 'Spreadsheet Import',
+            status: 'SUCCESS',
+            downloadUrl: doc.gcsDownloadUrl || doc.driveDownloadUrl || '',
+            storageUrl: doc.gcsDownloadUrl || doc.driveDownloadUrl || '',
+            folderPath: doc.folderPath,
+            companyName: doc.companyName,
+          };
+          const importDocRef = firestore.collection('lead_imports').doc(doc.fileId);
+          await importDocRef.set(JSON.parse(JSON.stringify(importRecord)), { merge: true });
+          this.logger.log(`🔥 Import audit log synced to Firestore [lead_imports/${doc.fileId}] (${doc.fileName})`);
+        }
+
+        // Collection 3: 'leads' - Persist individual leads data if attached
+        if (Array.isArray(doc.leadsData) && doc.leadsData.length > 0) {
+          const batch = firestore.batch();
+          doc.leadsData.forEach((lead: any, idx: number) => {
+            const leadId = lead.id || `lead_${doc.fileId}_${idx}`;
+            const leadDocRef = firestore.collection('leads').doc(leadId);
+            const leadPayload = {
+              id: leadId,
+              fileId: doc.fileId,
+              fileName: doc.fileName,
+              name: lead.name || 'Unnamed Lead',
+              email: lead.email || '',
+              phone: lead.phone || '',
+              company: lead.company || 'Individual',
+              value: lead.value || 0,
+              source: doc.sourcePlatform || lead.source || 'Spreadsheet Import',
+              status: lead.status || 'NEW',
+              stage: lead.stage || 'Prospecting',
+              assignedRep: lead.assignedRep || 'Unassigned',
+              customFields: lead.customFields || {},
+              uploadedAt: doc.uploadedAt,
+              uploadedBy: doc.uploadedBy || 'Admin',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            batch.set(leadDocRef, JSON.parse(JSON.stringify(leadPayload)), { merge: true });
+          });
+          await batch.commit();
+          this.logger.log(`🔥 Batch synced ${doc.leadsData.length} lead items to Firestore [leads] for file ${doc.fileName}`);
+        }
       } catch (err) {
         this.logger.error(`Error saving document ${doc.fileId} to Firestore:`, err);
       }
     }
 
     return doc;
+  }
+
+  async getLeadImports(): Promise<any[]> {
+    const firestore = this.firestoreService.getFirestore();
+    if (firestore) {
+      try {
+        const snapshot = await firestore.collection('lead_imports').orderBy('uploadedAt', 'desc').get();
+        if (!snapshot.empty) {
+          return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        }
+      } catch (err) {
+        this.logger.warn('Could not query Firestore lead_imports directly, falling back to files:', err);
+      }
+    }
+
+    // Fallback: search local files registry for LEADS category
+    const files = Array.from(this.localFilesRegistry.values())
+      .filter((f) => f.category === 'LEADS' || f.rowsCount !== undefined)
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+      .map((f) => ({
+        id: f.fileId,
+        fileName: f.fileName,
+        fileSize: f.sizeFormatted,
+        sizeBytes: f.sizeBytes,
+        rowsCount: f.rowsCount || 0,
+        colsCount: f.colsCount || 0,
+        leadsCount: f.leadsCount || f.rowsCount || 0,
+        uploadedAt: f.uploadedAt,
+        uploadedBy: f.uploadedBy || 'Admin',
+        sourcePlatform: f.sourcePlatform || 'Spreadsheet Import',
+        status: 'SUCCESS',
+        downloadUrl: f.gcsDownloadUrl || f.driveDownloadUrl || '',
+      }));
+
+    return files;
   }
 
   async getFileRecord(fileId: string): Promise<FirestoreFileDocument> {

@@ -1205,6 +1205,14 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
           uploadBlob,
           `${fileName.trim() || 'Leads_Import'}.${ext}`,
           currentUser?.companyName || 'DAS Organization',
+          {
+            rowsCount: totalRowsCount,
+            colsCount: totalColsCount,
+            leadsCount: extractedLeads.length,
+            uploadedBy: currentUser ? `${currentUser.name} (${currentUser.role || 'ADMIN'})` : 'Admin',
+            sourcePlatform: selectedPlatform || 'Spreadsheet Import',
+            leadsData: extractedLeads.slice(0, 100), // attach lead records for Firestore ingestion
+          },
           (p) => {
             setDriveProgress(p);
             if (p.status === 'COMPLETED') setIsDriveUploaded(true);
@@ -1227,6 +1235,24 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
       rawFileBlob: uploadBlob,
       storageUrl: driveProgress?.driveDownloadUrl || driveProgress?.gcsDownloadUrl || '',
     });
+
+    // Save to local upload history for immediate rendering
+    try {
+      const newAuditItem = {
+        id: `file_${Date.now()}`,
+        fileName: timestampedFileName,
+        fileSize: fileSize || '—',
+        uploadedAt: formattedDate,
+        leadsCount: extractedLeads.length,
+        rowsCount: totalRowsCount,
+        colsCount: totalColsCount,
+        sourcePlatform: selectedPlatform || 'Spreadsheet Import',
+        uploadedBy: currentUser ? `${currentUser.name} (${currentUser.role || 'ADMIN'})` : 'Admin',
+        status: 'SUCCESS',
+      };
+      const existingHistory = JSON.parse(localStorage.getItem('das_lead_file_upload_history') || '[]');
+      localStorage.setItem('das_lead_file_upload_history', JSON.stringify([newAuditItem, ...existingHistory]));
+    } catch (_) {}
 
     setCommittedLeadsCount(extractedLeads.length);
     setIsAllocationModalOpen(true);
@@ -1252,15 +1278,50 @@ export const FileImportEngineModal: React.FC<FileImportEngineModalProps> = ({
         uploadBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       }
 
+      const totalRowsCount = sheets.reduce((acc, s) => acc + s.data.length, 0);
+      const totalColsCount = sheets[0]?.data[0]?.length || 0;
+      const totalDataRows = sheets.reduce((acc, s) => {
+        const rows = s.data.length;
+        return acc + (rows > 0 ? (s.rowMappings[0] === 'header' ? rows - 1 : rows) : 0);
+      }, 0);
+
       const ext = (detectedFormat || 'xlsx').toLowerCase();
       const result = await uploadLeadSpreadsheetToDrive(
         uploadBlob,
         `${fileName.trim() || 'Leads_Import'}.${ext}`,
         currentUser?.companyName || 'DAS Organization',
+        {
+          rowsCount: totalRowsCount,
+          colsCount: totalColsCount,
+          leadsCount: totalDataRows,
+          uploadedBy: currentUser ? `${currentUser.name} (${currentUser.role || 'ADMIN'})` : 'Admin',
+          sourcePlatform: selectedPlatform || 'Spreadsheet Import',
+        },
         (p) => {
           setDriveProgress(p);
         }
       );
+
+      // Save audit entry to local history
+      try {
+        const now = new Date();
+        const formattedDate = `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+        const newAuditItem = {
+          id: result.fileId || `file_${Date.now()}`,
+          fileName: result.fileName,
+          fileSize: fileSize || '—',
+          uploadedAt: formattedDate,
+          leadsCount: totalDataRows,
+          rowsCount: totalRowsCount,
+          colsCount: totalColsCount,
+          sourcePlatform: selectedPlatform || 'Spreadsheet Import',
+          uploadedBy: currentUser ? `${currentUser.name} (${currentUser.role || 'ADMIN'})` : 'Admin',
+          status: 'SUCCESS',
+          downloadUrl: result.driveDownloadUrl || result.gcsDownloadUrl || '',
+        };
+        const existingHistory = JSON.parse(localStorage.getItem('das_lead_file_upload_history') || '[]');
+        localStorage.setItem('das_lead_file_upload_history', JSON.stringify([newAuditItem, ...existingHistory]));
+      } catch (_) {}
 
       setIsDriveUploaded(true);
       setDriveProgress(result);

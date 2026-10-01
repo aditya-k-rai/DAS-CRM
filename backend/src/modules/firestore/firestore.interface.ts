@@ -55,6 +55,14 @@ export interface FirestoreFileDocument {
   uploadedByRole?: string;
   accessControl?: 'PUBLIC' | 'ORG_INTERNAL' | 'HR_CONFIDENTIAL' | 'ADMIN_RESTRICTED';
 
+  // Ingestion & Lead Audit Metadata
+  rowsCount?: number;
+  colsCount?: number;
+  leadsCount?: number;
+  uploadedBy?: string;
+  sourcePlatform?: string;
+  leadsData?: any[];
+
   // Timestamps & Lifecycle
   uploadedAt: string;
   updatedAt: string;
