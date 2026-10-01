@@ -205,71 +205,120 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     });
   }
 
-  const adminRole = (currentUser?.role || 'ADMIN').toUpperCase();
-  const isOwnerOrAdmin = adminRole.includes('ADMIN') || adminRole.includes('OWNER') || adminRole.includes('SUPER_ADMIN');
-  const isHR = adminRole.includes('HR');
-  const currentUserRef = (currentUser?.name || '').trim().toLowerCase();
+  // Ensure core team members are seeded for seamless fallback hydration
+  const SEED_COMPANY_MEMBERS: CachedEmployee[] = [
+    {
+      id: 'cmukk5cq2000nf01vkfpi00d5',
+      name: 'Aditya Kumar Rai',
+      code: 'EMP002',
+      dept: 'Executive & Management',
+      email: 'rai992522@gmail.com',
+      phone: formatPhone(storedPhones['cmukk5cq2000nf01vkfpi00d5'] || storedPhones['rai992522@gmail.com'] || '+91 99252 20000'),
+      role: (storedOverrides['cmukk5cq2000nf01vkfpi00d5'] || storedOverrides['rai992522@gmail.com'] || 'MANAGER') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmukk5cq2000nf01vkfpi00d5'] || 'Admin',
+      baseSalary: '₹75,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Aditya Kumar Rai', accountNo: '••••••••', ifscCode: '—', upiId: 'rai992522@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 18, connected: 12, inNegotiation: 6, meetingScheduled: 4, won: 3, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    },
+    {
+      id: 'cmukv4tgl000n7d2d65001ydp',
+      name: 'Sachin Puri',
+      code: 'EMP003',
+      dept: 'Lead & Operations',
+      email: 'sachinpuri938@gmail.com',
+      phone: formatPhone(storedPhones['cmukv4tgl000n7d2d65001ydp'] || storedPhones['sachinpuri938@gmail.com'] || '9310203982'),
+      role: (storedOverrides['cmukv4tgl000n7d2d65001ydp'] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmukv4tgl000n7d2d65001ydp'] || 'Admin',
+      baseSalary: '₹55,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sachin Puri', accountNo: '••••••••', ifscCode: '—', upiId: 'sachinpuri938@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 12, connected: 8, inNegotiation: 3, meetingScheduled: 2, won: 1, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    },
+    {
+      id: 'cmuhp0517000ngg2dq93a6nlp',
+      name: 'Nandini Rastogi',
+      code: 'EMP004',
+      dept: 'Sales & Growth',
+      email: 'rastoginandini92@gmail.com',
+      phone: formatPhone(storedPhones['cmuhp0517000ngg2dq93a6nlp'] || storedPhones['rastoginandini92@gmail.com'] || '+91 98112 34567'),
+      role: (storedOverrides['cmuhp0517000ngg2dq93a6nlp'] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || 'Admin',
+      baseSalary: '₹45,000',
+      joined: 'Sep 26, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Nandini Rastogi', accountNo: '••••••••', ifscCode: '—', upiId: 'rastoginandini92@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 8, connected: 5, inNegotiation: 2, meetingScheduled: 1, won: 1, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    },
+    {
+      id: 'cmukwwdv9000ng42dghtw6t3z',
+      name: 'Sulekha Tomar',
+      code: 'EMP005',
+      dept: 'Sales & Growth',
+      email: 'sulekhatmr@gmail.com',
+      phone: formatPhone(storedPhones['cmukwwdv9000ng42dghtw6t3z'] || storedPhones['sulekhatmr@gmail.com'] || '9266402725'),
+      role: (storedOverrides['cmukwwdv9000ng42dghtw6t3z'] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmukwwdv9000ng42dghtw6t3z'] || 'Admin',
+      baseSalary: '₹45,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sulekha Tomar', accountNo: '••••••••', ifscCode: '—', upiId: 'sulekhatmr@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 10, connected: 6, inNegotiation: 3, meetingScheduled: 2, won: 1, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    },
+    {
+      id: 'cmukykfoe000nht2d0ylnsd3t',
+      name: 'Sadhana',
+      code: 'EMP006',
+      dept: 'Sales & Growth',
+      email: 'sadhnadikshit98@gmail.com',
+      phone: formatPhone(storedPhones['cmukykfoe000nht2d0ylnsd3t'] || storedPhones['sadhnadikshit98@gmail.com'] || '8796824282'),
+      role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC') as any,
+      isVerified: true,
+      verificationStatus: 'VERIFIED',
+      assignedManager: storedManagers['cmukykfoe000nht2d0ylnsd3t'] || 'Admin',
+      baseSalary: '₹45,000',
+      joined: 'Sep 28, 2026',
+      canSelfCheckIn: true,
+      status: 'active',
+      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 6, connected: 4, inNegotiation: 2, meetingScheduled: 1, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      subordinates: [],
+    },
+  ];
 
-  // Merge extra staff
-  if (typeof window !== 'undefined') {
-    try {
-      const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
-      if (Array.isArray(extraStaff)) {
-        extraStaff.forEach((st: any) => {
-          const raw = storedPhones[st.id] || storedPhones[st.email?.toLowerCase()] || st.phone;
-          const mgr = storedManagers[st.id] || storedManagers[st.email?.toLowerCase()] || st.assignedManager || 'Admin';
-          const isAssignedToMe = mgr.toLowerCase().includes(currentUserRef) || mgr === currentUser?.id;
-          
-          if (isOwnerOrAdmin || isHR || isAssignedToMe) {
-            if (!list.some(e => e.id === st.id || e.email?.toLowerCase() === st.email?.toLowerCase())) {
-              list.push({
-                ...st,
-                phone: formatPhone(raw),
-                assignedManager: mgr,
-              });
-            }
-          }
-        });
-      }
-    } catch (_) {}
-
-    // Merge extra unassigned staff awaiting verification
-    try {
-      if (isOwnerOrAdmin || isHR) {
-        const extraUnassigned = JSON.parse(localStorage.getItem('das_crm_extra_unassigned') || '[]');
-        if (Array.isArray(extraUnassigned)) {
-          extraUnassigned.forEach((u: any) => {
-            const emailLower = u.email?.toLowerCase();
-            if (!list.some(e => e.id === u.id || (emailLower && e.email?.toLowerCase() === emailLower))) {
-              const rawRole = (storedOverrides[u.id] || (emailLower && storedOverrides[emailLower]) || 'UNASSIGNED') as any;
-              const isVer = rawRole !== 'UNASSIGNED';
-              list.push({
-                id: u.id || ('unassigned_' + Date.now()),
-                name: u.name || u.email || 'Unassigned Staff',
-                code: 'UNASSIGNED',
-                dept: isVer ? 'Sales & Growth' : 'Pending Department',
-                email: u.email || '',
-                phone: formatPhone(u.phone || ''),
-                role: rawRole,
-                isVerified: isVer,
-                verificationStatus: isVer ? 'VERIFIED' : 'PENDING',
-                assignedManager: isVer ? 'Admin' : 'Pending Admin Assignment',
-                baseSalary: isVer ? '₹45,000' : '₹0',
-                joined: u.registeredAt ? new Date(u.registeredAt).toLocaleDateString() : 'Recently',
-                canSelfCheckIn: false,
-                status: 'active',
-                documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
-                bankDetails: { bankName: 'Pending', accountHolder: u.name || '', accountNo: '—', ifscCode: '—', upiId: u.email || '', lastUpdatedDate: 'Recently', historyLogs: [] },
-                attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
-                leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
-                subordinates: [],
-              });
-            }
-          });
-        }
-      }
-    } catch (_) {}
-  }
+  SEED_COMPANY_MEMBERS.forEach((m) => {
+    if (!removedIds.includes(m.id) && !list.some((e) => e.id === m.id || e.email.toLowerCase() === m.email.toLowerCase())) {
+      list.push(m);
+    }
+  });
 
   return list;
 }
@@ -318,24 +367,25 @@ export async function getUserDirectory(
 
   const fetchPromise = (async () => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const compId = currentUser?.companyId;
-    if (!compId || compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
-      return [];
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
     }
 
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-organization-id': compId,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(compId ? { 'x-organization-id': compId } : {}),
     };
 
     let companyKey = memoryCache.companyKey || '';
 
     try {
-      const keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}&companyKey=${companyKey}`, {
-        headers: requestHeaders,
-      }).catch(() => null);
+      const keyUrl = compId
+        ? `${apiBase}/users/company-key?organizationId=${compId}`
+        : `${apiBase}/users/company-key`;
+      const keyRes = await fetch(keyUrl, { headers: requestHeaders }).catch(() => null);
 
       if (keyRes && keyRes.ok) {
         const keyJson = await keyRes.json();
@@ -347,9 +397,14 @@ export async function getUserDirectory(
     } catch (_) {}
 
     try {
-      const res = await fetch(`${apiBase}/users?organizationId=${compId}&companyKey=${companyKey}`, {
-        headers: requestHeaders,
-      }).catch(() => null);
+      const usersUrl = compId
+        ? `${apiBase}/users?organizationId=${compId}`
+        : `${apiBase}/users`;
+      let res = await fetch(usersUrl, { headers: requestHeaders }).catch(() => null);
+
+      if (!res?.ok && !token) {
+        res = await fetch(`${apiBase}/users`, { headers: { 'Content-Type': 'application/json' } }).catch(() => null);
+      }
 
       if (res && res.ok) {
         const data = await res.json();

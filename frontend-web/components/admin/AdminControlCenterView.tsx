@@ -175,23 +175,24 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
       return prev;
     });
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const compId = currentUser?.companyId;
-    if (!compId || compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
-      setManagedUsers([]);
-      setSelectedUserId('');
-      setLoadingUsers(false);
-      return;
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
     }
+
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-organization-id': compId,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(compId ? { 'x-organization-id': compId } : {}),
     };
 
     try {
-      let keyRes = await fetch(`${apiBase}/users/company-key?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
-      if (!keyRes?.ok) keyRes = await fetch(`/api/v1/users/company-key?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
+      const keyUrl = compId
+        ? `${apiBase}/users/company-key?organizationId=${compId}`
+        : `${apiBase}/users/company-key`;
+      let keyRes = await fetch(keyUrl, { headers: requestHeaders }).catch(() => null);
+      if (!keyRes?.ok) keyRes = await fetch(compId ? `/api/v1/users/company-key?organizationId=${compId}` : `/api/v1/users/company-key`, { headers: requestHeaders }).catch(() => null);
       if (keyRes?.ok) {
         const keyJson = await keyRes.json();
         if (keyJson?.companyKey) setCompanyKey(keyJson.companyKey);
@@ -201,8 +202,9 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     let realUsers: ManagedWorkspaceUser[] = [];
 
     try {
-      let res = await fetch(`${apiBase}/users?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
-      if (!res?.ok) res = await fetch(`/api/v1/users?organizationId=${compId}`, { headers: requestHeaders }).catch(() => null);
+      const usersUrl = compId ? `${apiBase}/users?organizationId=${compId}` : `${apiBase}/users`;
+      let res = await fetch(usersUrl, { headers: requestHeaders }).catch(() => null);
+      if (!res?.ok) res = await fetch(compId ? `/api/v1/users?organizationId=${compId}` : `/api/v1/users`, { headers: requestHeaders }).catch(() => null);
 
       if (res?.ok) {
         const data = await res.json();
