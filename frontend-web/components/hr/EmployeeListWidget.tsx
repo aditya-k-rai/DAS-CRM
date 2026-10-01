@@ -157,6 +157,10 @@ export function EmployeeListWidget({
   const [roleChangeError, setRoleChangeError] = useState<string | null>(null);
   const [isChangingRole, setIsChangingRole] = useState(false);
 
+  // Quick Supervisor / Assign Under Change States
+  const [supervisorChangeTarget, setSupervisorChangeTarget] = useState<EmployeeProfileWeb | null>(null);
+  const [isSavingSupervisor, setIsSavingSupervisor] = useState(false);
+
   // Unassigned Verification States
   const [selectedVerifyRoles, setSelectedVerifyRoles] = useState<Record<string, string>>({});
   const [selectedVerifySupervisors, setSelectedVerifySupervisors] = useState<Record<string, string>>({});
@@ -164,13 +168,14 @@ export function EmployeeListWidget({
   const [actionFeedback, setActionFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Helper to compute list of eligible supervisors for an unassigned user given their target role
-  const getEligibleSupervisors = (targetRole: string) => {
+  // Helper to compute list of eligible supervisors for a user given their target role
+  const getEligibleSupervisors = (targetRole: string, targetEmpId?: string) => {
     const list: Array<{ label: string; name: string; role: string }> = [
       { label: 'Admin', name: 'Admin', role: 'Admin' },
     ];
 
     employees.forEach(e => {
+      if (targetEmpId && (e.id === targetEmpId || e.email?.toLowerCase() === targetEmpId.toLowerCase())) return;
       if (e.role === 'MANAGER') {
         const lbl = `${e.name} (Manager)`;
         if (!list.some(item => item.label === lbl)) {
@@ -183,6 +188,11 @@ export function EmployeeListWidget({
         }
       }
     });
+
+    if (currentUser?.role === 'MANAGER' && !list.some(i => i.role === 'Manager')) {
+      const lbl = `${currentUser.name || 'Aditya Kumar Rai'} (Manager)`;
+      list.push({ label: lbl, name: currentUser.name || 'Aditya Kumar Rai', role: 'Manager' });
+    }
 
     return list;
   };
@@ -201,6 +211,68 @@ export function EmployeeListWidget({
       return 'Admin';
     }
     return 'Admin';
+  };
+
+  const handleQuickSupervisorChange = async (emp: EmployeeProfileWeb, newSupervisor: string) => {
+    setIsSavingSupervisor(true);
+
+    // 1. Update local employee state immediately
+    setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, assignedManager: newSupervisor } : e));
+
+    // 2. Persist to localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+        stored[emp.id] = newSupervisor;
+        if (emp.email) {
+          stored[emp.email.toLowerCase().trim()] = newSupervisor;
+        }
+        localStorage.setItem('das_crm_assigned_managers', JSON.stringify(stored));
+
+        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+        const updatedExtra = extraStaff.map((st: any) => {
+          if (st.id === emp.id || (emp.email && st.email?.toLowerCase().trim() === emp.email.toLowerCase().trim())) {
+            return { ...st, assignedManager: newSupervisor };
+          }
+          return st;
+        });
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(updatedExtra));
+
+        window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
+        window.dispatchEvent(new CustomEvent('user-directory-updated'));
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const bc = new BroadcastChannel('das_crm_sync');
+            bc.postMessage({ type: 'USER_DIRECTORY_INVALIDATED', timestamp: Date.now() });
+            bc.close();
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
+    // 3. Sync to backend API
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const compId = currentUser?.companyId || (typeof window !== 'undefined' ? localStorage.getItem('das_crm_org_id') : '');
+      await fetch(`${apiBase}/users/${emp.id}/manager`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(compId ? { 'x-organization-id': compId } : {}),
+        },
+        body: JSON.stringify({ managerId: newSupervisor }),
+      });
+    } catch (e) {
+      console.warn('Backend supervisor sync warning:', e);
+    }
+
+    invalidateUserDirectoryCache();
+    setIsSavingSupervisor(false);
+    setSupervisorChangeTarget(null);
+    setActionFeedback({ text: `✓ Updated supervisor for ${emp.name} to ${newSupervisor}`, type: 'success' });
+    setTimeout(() => setActionFeedback(null), 4000);
   };
 
   // Helper to format phone cleanly as +91 XXXXXXXXXX
@@ -1110,7 +1182,23 @@ export function EmployeeListWidget({
                     </div>
 
                     <div className="text-xs text-muted space-y-1">
-                      <p>👤 Assign Under: <strong className="text-indigo-400 font-bold">{emp.assignedManager}</strong></p>
+                      {/* Assign Under Info & Quick Change Button */}
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="flex items-center gap-1.5 flex-wrap">
+                          <span>👤 Assign Under:</span>
+                          <strong className="text-indigo-400 font-bold">{emp.assignedManager}</strong>
+                        </p>
+                        {canManageRoles && emp.role !== 'ADMIN' && (
+                          <button
+                            onClick={() => setSupervisorChangeTarget(emp)}
+                            title="Change Reporting Supervisor (Assign Under)"
+                            className="text-[10px] px-2 py-0.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/35 flex items-center gap-1 transition-all cursor-pointer font-bold shrink-0 shadow-sm"
+                          >
+                            <Edit2 size={10} />
+                            <span>Change</span>
+                          </button>
+                        )}
+                      </div>
                       <p>✉️ Email: <span className="text-slate-300">{emp.email}</span></p>
 
                       {/* Dynamic & Editable Phone */}
@@ -1327,6 +1415,93 @@ export function EmployeeListWidget({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: QUICK CHANGE SUPERVISOR (ASSIGN UNDER) ──────────────── */}
+      {supervisorChangeTarget && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-border/80 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>✏️ Assign Under: {supervisorChangeTarget.name}</span>
+                </h3>
+                <p className="text-xs text-muted mt-0.5">
+                  Select who this employee reports to in the organization hierarchy:
+                </p>
+              </div>
+              <button
+                onClick={() => setSupervisorChangeTarget(null)}
+                className="w-7 h-7 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              {getEligibleSupervisors(supervisorChangeTarget.role, supervisorChangeTarget.id).map((senior) => {
+                const isSelected =
+                  supervisorChangeTarget.assignedManager === senior.label ||
+                  supervisorChangeTarget.assignedManager === senior.name ||
+                  (senior.role === 'Admin' &&
+                    (supervisorChangeTarget.assignedManager === 'Admin' ||
+                      supervisorChangeTarget.assignedManager === 'Organization Admin'));
+
+                const badgeBg =
+                  senior.role === 'Admin'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : senior.role === 'Manager'
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+
+                return (
+                  <button
+                    key={senior.label}
+                    disabled={isSavingSupervisor}
+                    onClick={() => handleQuickSupervisorChange(supervisorChangeTarget, senior.label)}
+                    className={`w-full p-3 rounded-2xl text-left transition-all border flex items-center justify-between gap-3 cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/40 shadow-lg'
+                        : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black border ${badgeBg}`}>
+                        {senior.name.slice(0, 1)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-white">{senior.name}</span>
+                          <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border ${badgeBg}`}>
+                            {senior.role}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">{senior.label}</span>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                disabled={isSavingSupervisor}
+                onClick={() => setSupervisorChangeTarget(null)}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                {isSavingSupervisor ? 'Saving...' : 'Cancel'}
+              </button>
+            </div>
           </div>
         </div>
       )}
