@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { Topbar } from '@/components/layout/Topbar';
 import { DealsKanban } from '@/components/deals/DealsKanban';
@@ -45,11 +46,23 @@ function sanitizeCellString(input: any, fallback: string = '—'): string {
 }
 
 export default function LeadPipelinePage() {
+  const router = useRouter();
   const { currentUser } = useAuth();
 
   const rawRole = (currentUser?.role || '').toString().toUpperCase();
   const isAdminOrManager = rawRole === 'SUPER_ADMIN' || rawRole === 'TENANT_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER';
   const canBulkImport = isAdminOrManager;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!isAdminOrManager) {
+      if (rawRole.includes('LEADER') || rawRole.includes('TL')) {
+        router.replace('/dashboard/team-leader');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [currentUser, isAdminOrManager, rawRole, router]);
 
   // Ingestion Modal States
   const [insertLeadModalOpen, setInsertLeadModalOpen] = useState(false);
@@ -402,6 +415,17 @@ export default function LeadPipelinePage() {
     if (cur >= total - 3) return [1, '...', total-4, total-3, total-2, total-1, total];
     return [1, '...', cur - 1, cur, cur + 1, '...', total];
   };
+
+  if (currentUser && !isAdminOrManager) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-muted-foreground font-medium">Redirecting to authorized dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">

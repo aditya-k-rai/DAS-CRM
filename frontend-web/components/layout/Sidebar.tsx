@@ -68,7 +68,6 @@ const teamLeaderNavigation: NavItem[] = [
   { label: 'Team Report & Analytics', href: '/reports', icon: BarChart3, moduleKey: 'REPORTS' },
   { label: 'Lead Assignment', href: '/tl/lead-assignment', icon: Share2, moduleKey: 'LEAD_ASSIGNMENT' },
   { label: 'Unassigned Leads', href: '/leads?filter=unassigned', icon: UserX, moduleKey: 'LEADS' },
-  { label: 'Team Pipeline', href: '/pipeline', icon: GitBranch, moduleKey: 'PIPELINE' },
   { label: 'Team Follow-ups', href: '/follow-ups', icon: Clock, moduleKey: 'FOLLOW_UPS' },
   { label: 'Team Calls', href: '/reports?tab=calls', icon: Phone, moduleKey: 'REPORTS', dividerAfter: true },
   { label: 'Team WhatsApp Direct', href: '/whatsapp-templates', icon: MessageCircle, moduleKey: 'WA_TEMPLATES' }, // Not Default (enabled by Admin)
@@ -143,7 +142,7 @@ const roleDefaultsMap: Record<string, string[]> = {
   ADMIN:       Object.values(HREF_TO_MODULE_KEY),
   SUPER_ADMIN: Object.values(HREF_TO_MODULE_KEY),
   MANAGER:     ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'PRODUCTS', 'QUOTES', 'UPCOMING_COMMS', 'SUPPORT', 'GOALS', 'TASKS', 'SETTINGS', 'FOLLOW_UPS'],
-  TEAM_LEADER: ['LEADS', 'PIPELINE', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
+  TEAM_LEADER: ['LEADS', 'REPORTS', 'ATTENDANCE', 'EMPLOYEES', 'DEALS', 'GOALS', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'LEAD_ASSIGNMENT', 'TASKS', 'FOLLOW_UPS'],
   SALES_EXEC:  ['LEADS', 'DEALS', 'REPORTS', 'ATTENDANCE', 'SETTINGS', 'UPCOMING_COMMS', 'SUPPORT', 'TASKS', 'FOLLOW_UPS'],
   HR:          ['EMPLOYEES', 'ATTENDANCE', 'INTERVIEWS', 'UPCOMING_COMMS', 'SUPPORT', 'SETTINGS'],
   UNASSIGNED:  [],

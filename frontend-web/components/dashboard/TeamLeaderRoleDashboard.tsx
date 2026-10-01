@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Users, Target, TrendingUp, Phone, ArrowRight, Plus, Clock,
   AlertTriangle, CheckCircle2, BarChart3, UserCheck, Briefcase,
-  Radio, Star, Trophy, Activity, Zap, Calendar, GitBranch,
+  Radio, Star, Trophy, Activity, Zap, Calendar,
   List, MessageSquare, MessageCircle, Share2, UserX, ChevronRight,
   Sparkles, Send, Check, Mail, Building2, Filter, Search, RefreshCw
 } from 'lucide-react';
@@ -56,20 +56,6 @@ interface UnassignedLead {
   value: string;
   age: string;
   requirement: string;
-  avatarBg: string;
-}
-
-interface TeamPipelineDeal {
-  id: string;
-  leadName: string;
-  company: string;
-  dealTitle: string;
-  repName: string;
-  value: string;
-  stage: 'Proposal Sent' | 'Negotiation' | 'Meeting Done' | 'Won';
-  probability: number;
-  closeDate: string;
-  nextMilestone: string;
   avatarBg: string;
 }
 
@@ -271,48 +257,6 @@ const DEFAULT_UNASSIGNED_QUEUE: UnassignedLead[] = [
   },
 ];
 
-const DEFAULT_PIPELINE_DEALS: TeamPipelineDeal[] = [
-  {
-    id: 'deal-01',
-    leadName: 'Kavita Reddy',
-    company: 'CloudScale Systems',
-    dealTitle: 'Cloud Infrastructure & CRM Suite (50 Seats)',
-    repName: 'Amit Verma',
-    value: '₹4,80,000',
-    stage: 'Negotiation',
-    probability: 75,
-    closeDate: 'Oct 15, 2026',
-    nextMilestone: 'Finalizing commercial terms with VP Procurement',
-    avatarBg: 'from-purple-500 to-indigo-600',
-  },
-  {
-    id: 'deal-02',
-    leadName: 'Anand Gupta',
-    company: 'Bharat Retail Hub',
-    dealTitle: 'Omnichannel POS & Multi-Store License',
-    repName: 'Rajesh Kumar',
-    value: '₹3,60,000',
-    stage: 'Proposal Sent',
-    probability: 50,
-    closeDate: 'Oct 20, 2026',
-    nextMilestone: 'Awaiting CFO sign-off on payment schedule',
-    avatarBg: 'from-sky-500 to-blue-600',
-  },
-  {
-    id: 'deal-03',
-    leadName: 'Sunil Narang',
-    company: 'Metro Infra Solutions',
-    dealTitle: 'Multi-Branch Sales Operations Software',
-    repName: 'Sneha Sharma',
-    value: '₹2,80,000',
-    stage: 'Meeting Done',
-    probability: 60,
-    closeDate: 'Oct 18, 2026',
-    nextMilestone: 'Demo successful; drafting custom MSA',
-    avatarBg: 'from-amber-500 to-orange-600',
-  },
-];
-
 const DEFAULT_TEAM_FOLLOW_UPS: TeamFollowUp[] = [
   {
     id: 'tf-01',
@@ -370,14 +314,12 @@ export function TeamLeaderRoleDashboard() {
   const [members, setMembers] = useState<TeamMember[]>(() => getCachedData('tl_members') || DEFAULT_MEMBERS);
   const [teamLeads, setTeamLeads] = useState<TeamLead[]>(() => getCachedData('tl_leads') || DEFAULT_TEAM_LEADS);
   const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(() => getCachedData('tl_unassigned') || DEFAULT_UNASSIGNED_QUEUE);
-  const [pipelineDeals, setPipelineDeals] = useState<TeamPipelineDeal[]>(() => getCachedData('tl_pipeline') || DEFAULT_PIPELINE_DEALS);
   const [followUps, setFollowUps] = useState<TeamFollowUp[]>(() => getCachedData('tl_followups') || DEFAULT_TEAM_FOLLOW_UPS);
 
   // Sync state mutations to Cache automatically
   useEffect(() => { setCachedData('tl_members', members); }, [members]);
   useEffect(() => { setCachedData('tl_leads', teamLeads); }, [teamLeads]);
   useEffect(() => { setCachedData('tl_unassigned', unassignedQueue); }, [unassignedQueue]);
-  useEffect(() => { setCachedData('tl_pipeline', pipelineDeals); }, [pipelineDeals]);
   useEffect(() => { setCachedData('tl_followups', followUps); }, [followUps]);
 
   // Active Filters & Interactive Selection
@@ -960,95 +902,6 @@ export function TeamLeaderRoleDashboard() {
           </div>
         </div>
 
-      </div>
-
-      {/* ── MODULE 5: TEAM PIPELINE (Visual Stages & High Value Deals) ── */}
-      <div className="crm-card space-y-4 border border-purple-500/25 bg-gradient-to-b from-purple-500/5 via-card to-card p-5 rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
-              <GitBranch size={16} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-sm text-foreground">Team Pipeline</h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                  ₹11.2L Open Stage Value
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">High-value enterprise opportunities managed by your sales reps</p>
-            </div>
-          </div>
-          <Link href="/pipeline" className="text-xs text-purple-400 font-bold hover:underline flex items-center gap-1">
-            Kanban Board <ArrowRight size={11} />
-          </Link>
-        </div>
-
-        {/* Pipeline Stage Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { stage: 'Proposal Sent', count: 2, value: '₹3.6L', color: 'text-sky-400', dot: 'bg-sky-400' },
-            { stage: 'Negotiation', count: 1, value: '₹4.8L', color: 'text-purple-400', dot: 'bg-purple-400' },
-            { stage: 'Meeting Done', count: 1, value: '₹2.8L', color: 'text-amber-400', dot: 'bg-amber-400' },
-            { stage: 'Won This Month', count: 5, value: '₹14.25L', color: 'text-emerald-400', dot: 'bg-emerald-400' },
-          ].map(s => (
-            <div key={s.stage} className="p-3.5 rounded-xl bg-slate-900/60 border border-purple-500/20 flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-                <span className="text-[10px] text-muted-foreground font-bold">{s.stage}</span>
-              </div>
-              <span className={`text-xl font-black ${s.color}`}>{s.value}</span>
-              <span className="text-[10px] text-slate-400">{s.count} opportunities</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Deal Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {pipelineDeals.map(deal => (
-            <div
-              key={deal.id}
-              className="p-4 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-purple-500/20 hover:border-purple-500/40 transition-all flex flex-col justify-between gap-3 group"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <span className="text-xs font-black text-purple-400">{deal.value}</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                    {deal.stage}
-                  </span>
-                </div>
-                <h5 className="text-sm font-black text-white group-hover:text-purple-300 transition-colors">
-                  {deal.company}
-                </h5>
-                <p className="text-xs text-slate-300 mt-0.5">{deal.dealTitle}</p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Rep In Charge: <strong className="text-blue-300">{deal.repName}</strong>
-                </p>
-              </div>
-
-              {/* Probability Bar */}
-              <div>
-                <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                  <span>Target: {deal.closeDate}</span>
-                  <span className="font-bold text-purple-300">{deal.probability}% Win Probability</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400"
-                    style={{ width: `${deal.probability}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                <span className="truncate max-w-[190px]">{deal.nextMilestone}</span>
-                <Link href="/deals" className="text-purple-400 font-bold hover:underline flex items-center gap-0.5 flex-shrink-0">
-                  View <ChevronRight size={10} />
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* ── MODULE 6: TEAM FOLLOW-UPS (Tracker & Overdue Alarms) ────────── */}
