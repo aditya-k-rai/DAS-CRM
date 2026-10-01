@@ -118,6 +118,82 @@ export function getCleanStoredOverrides(): Record<string, string> {
 /**
  * Returns default resilient directory if backend is unreachable or during initial hydration.
  */
+/**
+ * Strict Hierarchical RBAC Filter:
+ * - Admin / Super Admin / HR: Sees ALL users in organization.
+ * - Manager: Sees Self + Transitive Subordinates (TLs under him + Sales Reps under those TLs or under Manager).
+ * - Team Leader: Sees Self + Direct Subordinates (Sales Reps assigned under him). Strictly NO Managers or Admins.
+ * - Sales Rep: Sees Self Only.
+ */
+export function filterDirectoryByRole(
+  employees: CachedEmployee[],
+  currentUser?: any
+): CachedEmployee[] {
+  if (!currentUser) return employees;
+  const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
+  const isAdminOrHR =
+    rawRole.includes('ADMIN') ||
+    rawRole.includes('OWNER') ||
+    rawRole.includes('SUPER_ADMIN') ||
+    rawRole.includes('HR');
+
+  if (isAdminOrHR) {
+    return employees;
+  }
+
+  const currentUserId = String(currentUser.id || '');
+  const currentUserName = (currentUser.name || '').trim().toLowerCase();
+  const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
+
+  // Helper to match if emp is assigned under supervisor
+  const isDirectSubordinate = (emp: CachedEmployee, supId: string, supName: string, supEmail: string) => {
+    if (!emp.assignedManager) return false;
+    const mgr = emp.assignedManager.toLowerCase();
+    const isUnderAdmin = mgr === 'admin' || mgr === 'organization admin' || mgr.includes('direct');
+    if (isUnderAdmin) return false;
+
+    return (
+      (emp as any).managerId === supId ||
+      (supName && mgr.includes(supName)) ||
+      (supEmail && mgr.includes(supEmail)) ||
+      (supId && mgr === supId)
+    );
+  };
+
+  const allowedIds = new Set<string>();
+  if (currentUserId) allowedIds.add(currentUserId);
+  const selfEmp = employees.find(
+    e => (currentUserId && e.id === currentUserId) || (currentUserEmail && e.email.toLowerCase() === currentUserEmail)
+  );
+  if (selfEmp) allowedIds.add(selfEmp.id);
+
+  // Traverse tree recursively for Manager or TL
+  let added = true;
+  while (added) {
+    added = false;
+    for (const emp of employees) {
+      if (allowedIds.has(emp.id)) continue;
+      for (const supId of Array.from(allowedIds)) {
+        const sup = employees.find(e => e.id === supId);
+        const supName = (sup?.name || (supId === currentUserId ? currentUserName : '')).toLowerCase();
+        const supEmail = (sup?.email || (supId === currentUserId ? currentUserEmail : '')).toLowerCase();
+        if (isDirectSubordinate(emp, supId, supName, supEmail)) {
+          allowedIds.add(emp.id);
+          added = true;
+          break;
+        }
+      }
+    }
+  }
+
+  return employees.filter(
+    e => allowedIds.has(e.id) || (currentUserEmail && e.email.toLowerCase() === currentUserEmail)
+  );
+}
+
+/**
+ * Returns default/seed employee directory for demo or offline fallback.
+ */
 export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
   const DEMO_SENTINEL_IDS = new Set([
     'usr_admin',
@@ -205,7 +281,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     });
   }
 
-  // Ensure core team members are seeded for seamless fallback hydration
+  // Ensure core team members are seeded for seamless fallback hydration with proper hierarchy
   const SEED_COMPANY_MEMBERS: CachedEmployee[] = [
     {
       id: 'cmukk5cq2000nf01vkfpi00d5',
@@ -238,7 +314,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukv4tgl000n7d2d65001ydp'] || storedOverrides['sachinpuri938@gmail.com'] || 'TEAM_LEADER') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
-      assignedManager: storedManagers['cmukv4tgl000n7d2d65001ydp'] || 'Admin',
+      assignedManager: storedManagers['cmukv4tgl000n7d2d65001ydp'] || 'Aditya Kumar Rai (Manager)',
       baseSalary: '₹55,000',
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
@@ -259,7 +335,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmuhp0517000ngg2dq93a6nlp'] || storedOverrides['rastoginandini92@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
-      assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || 'Admin',
+      assignedManager: storedManagers['cmuhp0517000ngg2dq93a6nlp'] || 'Sachin Puri (Team Leader)',
       baseSalary: '₹45,000',
       joined: 'Sep 26, 2026',
       canSelfCheckIn: true,
@@ -280,7 +356,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
       role: (storedOverrides['cmukwwdv9000ng42dghtw6t3z'] || storedOverrides['sulekhatmr@gmail.com'] || 'SALES_EXEC') as any,
       isVerified: true,
       verificationStatus: 'VERIFIED',
-      assignedManager: storedManagers['cmukwwdv9000ng42dghtw6t3z'] || 'Admin',
+      assignedManager: storedManagers['cmukwwdv9000ng42dghtw6t3z'] || 'Sachin Puri (Team Leader)',
       baseSalary: '₹45,000',
       joined: 'Sep 28, 2026',
       canSelfCheckIn: true,
@@ -322,7 +398,7 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     }
   });
 
-  return list;
+  return filterDirectoryByRole(list, currentUser);
 }
 
 /**
@@ -337,8 +413,9 @@ export async function getUserDirectory(
 
   // 1. Check in-memory cache first
   if (!forceRefresh && memoryCache.data && now - memoryCache.timestamp < CACHE_TTL_MS) {
-    const activeCount = memoryCache.data.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
-    return { employees: memoryCache.data, companyKey: memoryCache.companyKey, activeCount };
+    const roleFiltered = filterDirectoryByRole(memoryCache.data, currentUser);
+    const activeCount = roleFiltered.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
+    return { employees: roleFiltered, companyKey: memoryCache.companyKey, activeCount };
   }
 
   // 2. Check localStorage / sessionStorage cache
@@ -352,8 +429,9 @@ export async function getUserDirectory(
           if (Array.isArray(parsed) && parsed.length > 0) {
             memoryCache.data = parsed;
             memoryCache.timestamp = storedTime;
-            const activeCount = parsed.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
-            return { employees: parsed, companyKey: memoryCache.companyKey, activeCount };
+            const roleFiltered = filterDirectoryByRole(parsed, currentUser);
+            const activeCount = roleFiltered.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
+            return { employees: roleFiltered, companyKey: memoryCache.companyKey, activeCount };
           }
         }
       }
@@ -363,8 +441,9 @@ export async function getUserDirectory(
   // 3. Prevent duplicate simultaneous network requests
   if (memoryCache.fetching && !forceRefresh) {
     const data = await memoryCache.fetching;
-    const activeCount = data.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
-    return { employees: data, companyKey: memoryCache.companyKey, activeCount };
+    const roleFiltered = filterDirectoryByRole(data, currentUser);
+    const activeCount = roleFiltered.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
+    return { employees: roleFiltered, companyKey: memoryCache.companyKey, activeCount };
   }
 
   const fetchPromise = (async () => {
@@ -606,8 +685,9 @@ export async function getUserDirectory(
   const result = await fetchPromise;
   memoryCache.fetching = null;
 
-  const activeCount = result.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
-  return { employees: result, companyKey: memoryCache.companyKey, activeCount };
+  const roleFiltered = filterDirectoryByRole(result, currentUser);
+  const activeCount = roleFiltered.filter(e => e.role !== 'UNASSIGNED' && e.status !== 'inactive').length;
+  return { employees: roleFiltered, companyKey: memoryCache.companyKey, activeCount };
 }
 
 /**
