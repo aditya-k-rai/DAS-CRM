@@ -28,24 +28,27 @@ export default function ManagerControlScreenWeb({ employee, allEmployees = [], o
 
   // Compute Senior Users above Manager (Organization Admin)
   const computeSeniorUsers = () => {
-    const list: Array<{ id: string; name: string; role: string; email: string; label: string }> = [];
+    const list: Array<{ id: string; name: string; role: string; email: string; label: string }> = [
+      { id: 'admin_root', name: 'Admin', role: 'Admin', email: 'admin@das.com', label: 'Admin' },
+    ];
 
     if (allEmployees && allEmployees.length > 0) {
       allEmployees.forEach(emp => {
         if (emp.id === employee.id || emp.email?.toLowerCase() === employee.email?.toLowerCase()) return;
         if (emp.role === 'ADMIN') {
-          list.push({
-            id: emp.id,
-            name: emp.name,
-            role: 'Admin',
-            email: emp.email,
-            label: `${emp.name} (Admin)`,
-          });
+          const lbl = `${emp.name} (Admin)`;
+          if (!list.some(item => item.label === lbl || item.name === emp.name)) {
+            list.push({
+              id: emp.id,
+              name: emp.name,
+              role: 'Admin',
+              email: emp.email,
+              label: lbl,
+            });
+          }
         }
       });
     }
-
-
 
     return list;
   };
@@ -58,9 +61,28 @@ export default function ManagerControlScreenWeb({ employee, allEmployees = [], o
         const stored = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
         stored[employee.id] = selectedLabel;
         if (employee.email) {
-          stored[employee.email.toLowerCase()] = selectedLabel;
+          stored[employee.email.toLowerCase().trim()] = selectedLabel;
         }
         localStorage.setItem('das_crm_assigned_managers', JSON.stringify(stored));
+
+        const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
+        const updatedExtra = extraStaff.map((st: any) => {
+          if (st.id === employee.id || (employee.email && st.email?.toLowerCase().trim() === employee.email.toLowerCase().trim())) {
+            return { ...st, assignedManager: selectedLabel };
+          }
+          return st;
+        });
+        localStorage.setItem('das_crm_extra_staff', JSON.stringify(updatedExtra));
+
+        window.dispatchEvent(new CustomEvent('das-crm-staff-updated'));
+        window.dispatchEvent(new CustomEvent('user-directory-updated'));
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const bc = new BroadcastChannel('das_crm_sync');
+            bc.postMessage({ type: 'USER_DIRECTORY_INVALIDATED', timestamp: Date.now() });
+            bc.close();
+          } catch (_) {}
+        }
       } catch (_) {}
     }
 

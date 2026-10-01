@@ -136,7 +136,7 @@ const LIVE_DETAILS: Record<string, any> = {
         id: 'cmukykfoe000nht2d0ylnsd3t',
         name: 'Sadhana',
         email: 'sadhnadikshit98@gmail.com',
-        role: 'UNASSIGNED',
+        role: 'SALES_EXEC',
         isActive: true,
         lastLoginAt: null,
         lastActiveAt: null,

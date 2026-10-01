@@ -129,6 +129,11 @@ export function EmployeeListWidget({
   const { currentUser, subscription, updateUserProfile } = useAuth();
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const isAdmin = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'OWNER';
+  const isHR = rawRole === 'HR';
+  const isManager = rawRole === 'MANAGER';
+  const isTL = rawRole === 'TEAM_LEADER' || rawRole === 'LEADER';
+  const canManageRoles = isAdmin || isHR || isManager;
+  const canInspectAndControl = isAdmin || isHR || isManager;
 
   const [employees, setEmployees] = useState<EmployeeProfileWeb[]>(() => getDefaultDirectory(currentUser));
   const [inspectingEmp, setInspectingEmp] = useState<EmployeeProfileWeb | null>(null);
@@ -154,9 +159,49 @@ export function EmployeeListWidget({
 
   // Unassigned Verification States
   const [selectedVerifyRoles, setSelectedVerifyRoles] = useState<Record<string, string>>({});
+  const [selectedVerifySupervisors, setSelectedVerifySupervisors] = useState<Record<string, string>>({});
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Helper to compute list of eligible supervisors for an unassigned user given their target role
+  const getEligibleSupervisors = (targetRole: string) => {
+    const list: Array<{ label: string; name: string; role: string }> = [
+      { label: 'Admin', name: 'Admin', role: 'Admin' },
+    ];
+
+    employees.forEach(e => {
+      if (e.role === 'MANAGER') {
+        const lbl = `${e.name} (Manager)`;
+        if (!list.some(item => item.label === lbl)) {
+          list.push({ label: lbl, name: e.name, role: 'Manager' });
+        }
+      } else if (e.role === 'TEAM_LEADER' && targetRole === 'SALES_EXEC') {
+        const lbl = `${e.name} (Team Leader)`;
+        if (!list.some(item => item.label === lbl)) {
+          list.push({ label: lbl, name: e.name, role: 'Team Leader' });
+        }
+      }
+    });
+
+    return list;
+  };
+
+  const getDefaultSupervisorForRole = (targetRole: string) => {
+    if (targetRole === 'SALES_EXEC') {
+      const tl = employees.find(e => e.role === 'TEAM_LEADER');
+      if (tl) return `${tl.name} (Team Leader)`;
+      const mgr = employees.find(e => e.role === 'MANAGER');
+      if (mgr) return `${mgr.name} (Manager)`;
+      return 'Admin';
+    }
+    if (targetRole === 'TEAM_LEADER') {
+      const mgr = employees.find(e => e.role === 'MANAGER');
+      if (mgr) return `${mgr.name} (Manager)`;
+      return 'Admin';
+    }
+    return 'Admin';
+  };
 
   // Helper to format phone cleanly as +91 XXXXXXXXXX
   const formatPhone = (raw?: string | null): string => {
@@ -225,8 +270,8 @@ export function EmployeeListWidget({
     setEditingPhoneId(null);
   };
 
-  // ── 1. APPROVE & VERIFY UNASSIGNED USER (PERMANENT ROLE) ─────────────
-  const handleVerifyAndAssignRole = async (empId: string, explicitRole?: string) => {
+  // ── 1. APPROVE & VERIFY UNASSIGNED USER (PERMANENT ROLE & SUPERVISOR) ─────────────
+  const handleVerifyAndAssignRole = async (empId: string, explicitRole?: string, explicitSupervisor?: string) => {
     const targetEmp = employees.find(e => e.id === empId || e.email?.toLowerCase() === empId.toLowerCase());
     const isAditya = targetEmp?.email?.toLowerCase() === 'rai992522@gmail.com' || empId === 'usr_aditya_rai_01';
     const defaultRole = isAditya ? 'MANAGER' : 'SALES_EXEC';
@@ -246,6 +291,11 @@ export function EmployeeListWidget({
         : rawSelected === 'TEAM_LEADER'
         ? 'TEAM_LEADER'
         : 'SALES_EXEC';
+
+    const assignedManager =
+      explicitSupervisor ||
+      selectedVerifySupervisors[empId] ||
+      getDefaultSupervisorForRole(assignedRole);
 
     setVerifyingId(empId);
     setActionFeedback(null);
@@ -267,7 +317,7 @@ export function EmployeeListWidget({
                 : assignedRole === 'TEAM_LEADER'
                 ? 'Lead & Operations'
                 : 'Sales & Growth',
-            assignedManager: 'Admin',
+            assignedManager,
             baseSalary: assignedRole === 'MANAGER' ? '₹75,000' : assignedRole === 'HR' ? '₹55,000' : '₹45,000',
           };
         }
@@ -275,14 +325,21 @@ export function EmployeeListWidget({
       })
     );
 
-    // Save override to localStorage so verification persists
+    // Save override & assigned manager to localStorage so verification persists
     try {
       const overrides = JSON.parse(localStorage.getItem('das_crm_verified_overrides') || '{}');
       overrides[empId] = assignedRole;
       if (targetEmp?.email) {
-        overrides[targetEmp.email.toLowerCase()] = assignedRole;
+        overrides[targetEmp.email.toLowerCase().trim()] = assignedRole;
       }
       localStorage.setItem('das_crm_verified_overrides', JSON.stringify(overrides));
+
+      const managers = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+      managers[empId] = assignedManager;
+      if (targetEmp?.email) {
+        managers[targetEmp.email.toLowerCase().trim()] = assignedManager;
+      }
+      localStorage.setItem('das_crm_assigned_managers', JSON.stringify(managers));
 
       // Also update das_crm_extra_staff
       const extraStaff = JSON.parse(localStorage.getItem('das_crm_extra_staff') || '[]');
@@ -293,6 +350,7 @@ export function EmployeeListWidget({
             role: assignedRole,
             isVerified: true,
             verificationStatus: 'VERIFIED',
+            assignedManager,
             dept:
               assignedRole === 'HR'
                 ? 'Human Resources'
@@ -326,13 +384,23 @@ export function EmployeeListWidget({
           'x-organization-id': compId,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ assignedRole, organizationId: compId }),
+        body: JSON.stringify({ assignedRole, assignedManager, organizationId: compId }),
+      }).catch(() => null);
+
+      await fetch(`${apiBase}/users/${empId}/manager`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-organization-id': compId,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ managerId: assignedManager }),
       }).catch(() => null);
     } catch (_) {}
 
     invalidateUserDirectoryCache();
     setActionFeedback({
-      text: `Successfully approved & verified user with permanent role: ${assignedRole.replace('_', ' ')}! They can now access their dashboard and data.`,
+      text: `Successfully approved & verified ${targetEmp?.name || 'user'} with role ${assignedRole.replace('_', ' ')} assigned under ${assignedManager}!`,
       type: 'success',
     });
     setVerifyingId(null);
@@ -926,9 +994,40 @@ export function EmployeeListWidget({
                           </select>
                         </div>
 
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-300 block mb-1.5">
+                            Assign Under (Supervisor / Reporting To):
+                          </label>
+                          {(() => {
+                            const eligibleSups = getEligibleSupervisors(currentSelectedRole);
+                            const currentSupervisor =
+                              selectedVerifySupervisors[emp.id] ||
+                              getDefaultSupervisorForRole(currentSelectedRole);
+
+                            return (
+                              <select
+                                value={currentSupervisor}
+                                onChange={(e) => setSelectedVerifySupervisors(prev => ({ ...prev, [emp.id]: e.target.value }))}
+                                className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400 font-medium"
+                              >
+                                {eligibleSups.map(sup => (
+                                  <option key={sup.label} value={sup.label}>
+                                    {sup.label}
+                                  </option>
+                                ))}
+                              </select>
+                            );
+                          })()}
+                        </div>
+
                         <div className="flex gap-2 pt-1">
                           <button
-                            onClick={() => handleVerifyAndAssignRole(emp.id, currentSelectedRole)}
+                            onClick={() => {
+                              const currentSupervisor =
+                                selectedVerifySupervisors[emp.id] ||
+                                getDefaultSupervisorForRole(currentSelectedRole);
+                              handleVerifyAndAssignRole(emp.id, currentSelectedRole, currentSupervisor);
+                            }}
                             disabled={isVerifying || removingId === emp.id}
                             className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all cursor-pointer"
                           >
@@ -1064,44 +1163,50 @@ export function EmployeeListWidget({
                       </div>
                     </div>
 
-                    {/* Permanent Role & Upgrade / Downgrade Action (Requires Company Key Confirmation) */}
-                    <div className="pt-1">
-                      {emp.role !== 'ADMIN' && emp.role !== 'UNASSIGNED' ? (
-                        <button
-                          onClick={() => openRoleChangeModal(emp)}
-                          className="w-full py-2 px-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                          title="Upgrade or Downgrade Role (Requires Company Key confirmation)"
-                        >
-                          <ArrowUpCircle size={14} className="rotate-45" />
-                          <span>⇄ Upgrade / Downgrade Role</span>
-                        </button>
-                      ) : emp.role === 'ADMIN' ? (
-                        <div className="w-full py-1.5 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5">
-                          <ShieldCheck size={13} className="text-rose-400" />
-                          <span>Organization Administrator</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setActiveTab('unassigned')}
-                          className="w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
-                        >
-                          <AlertTriangle size={13} />
-                          <span>Verify &amp; Assign Role →</span>
-                        </button>
-                      )}
-                    </div>
+                    {/* Permanent Role & Upgrade / Downgrade Action (Requires Company Key Confirmation & Admin/Manager authority) */}
+                    {canManageRoles && (
+                      <div className="pt-1">
+                        {emp.role !== 'ADMIN' && emp.role !== 'UNASSIGNED' ? (
+                          <button
+                            onClick={() => openRoleChangeModal(emp)}
+                            className="w-full py-2 px-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                            title="Upgrade or Downgrade Role (Requires Company Key confirmation)"
+                          >
+                            <ArrowUpCircle size={14} className="rotate-45" />
+                            <span>⇄ Upgrade / Downgrade Role</span>
+                          </button>
+                        ) : emp.role === 'ADMIN' ? (
+                          <div className="w-full py-1.5 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5">
+                            <ShieldCheck size={13} className="text-rose-400" />
+                            <span>Organization Administrator</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setActiveTab('unassigned')}
+                            className="w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
+                          >
+                            <AlertTriangle size={13} />
+                            <span>Verify &amp; Assign Role →</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex gap-2 pt-1 border-t border-border/50">
-                      <button
-                        onClick={() => setInspectingEmp(emp)}
-                        className="flex-1 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 border border-brand/40 text-brand-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
-                      >
-                        Inspect &amp; Control →
-                      </button>
+                      {canInspectAndControl && (
+                        <button
+                          onClick={() => setInspectingEmp(emp)}
+                          className="flex-1 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 border border-brand/40 text-brand-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
+                        >
+                          Inspect &amp; Control →
+                        </button>
+                      )}
                       <button
                         onClick={() => setVaultEmp(emp)}
                         title={`Open ${emp.name}'s Firebase Storage Vault`}
-                        className="px-3 py-2.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
+                        className={`${
+                          canInspectAndControl ? 'px-3' : 'w-full'
+                        } py-2.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer`}
                       >
                         <Cloud size={15} />
                         <span>Cloud Vault</span>

@@ -621,6 +621,41 @@ export default function EmployeesScreen() {
       }
     }
 
+    // Sales Exec (Sadhana)
+    const sadhanaId = 'cmukykfoe000nht2d0ylnsd3t';
+    if (!removedIds.includes(sadhanaId) && !removedIds.includes('sadhnadikshit98@gmail.com')) {
+      const sadhanaAssigned = roleOverrides[sadhanaId] || roleOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC';
+      const sadhanaPhone = storedPhones[sadhanaId] || storedPhones['sadhnadikshit98@gmail.com'] || '+91 87968 24282';
+      if (sadhanaAssigned === 'UNASSIGNED') {
+        fallbackUnassigned.push({
+          id: sadhanaId,
+          name: 'Sadhana',
+          email: 'sadhnadikshit98@gmail.com',
+          phone: sadhanaPhone,
+          registeredAt: 'Sep 28, 2026',
+          deviceInfo: 'App/Web Registration',
+        });
+      } else {
+        const finalRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'HR' | 'SALES_EXEC' =
+          (sadhanaAssigned as any) || 'SALES_EXEC';
+        fallbackAssigned.push({
+          id: sadhanaId,
+          name: 'Sadhana',
+          email: 'sadhnadikshit98@gmail.com',
+          phone: sadhanaPhone,
+          role: finalRole,
+          assignedManager: storedManagers[sadhanaId] || storedManagers['sadhnadikshit98@gmail.com'] || 'Sachin Puri (Team Leader)',
+          status: 'ONLINE',
+          avatarUrl: '',
+          documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_SUBMITTED.pdf', eduCert: 'DEGREE_SUBMITTED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
+          bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhana@okaxis', lastUpdatedDate: 'Sep 28, 2026', historyLogs: [] },
+          leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+          attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '' },
+          subordinates: [],
+        });
+      }
+    }
+
     // Merge any locally added unassigned users from AsyncStorage
     try {
       const raw = await AsyncStorage.getItem('@das_crm_extra_unassigned');
@@ -756,6 +791,12 @@ export default function EmployeesScreen() {
     const target = assignRoleTarget;
     const assignedRoleName = selectedRole;
     const compId = currentUser?.companyId || 'cmuev7n3o000mikew7je1tdiw';
+    const assignedMgr =
+      assignedRoleName === 'MANAGER' || assignedRoleName === 'HR'
+        ? 'Admin'
+        : assignedRoleName === 'TEAM_LEADER'
+        ? 'Aditya Kumar Rai (Manager)'
+        : 'Sachin Puri (Team Leader)';
 
     // 1. Optimistically move to assigned list immediately
     setUnassignedUsers(prev => prev.filter(u => u.id !== target.id));
@@ -766,7 +807,7 @@ export default function EmployeesScreen() {
         email: target.email,
         phone: target.phone,
         role: assignedRoleName as any,
-        assignedManager: 'Admin',
+        assignedManager: assignedMgr,
         status: 'ONLINE',
         avatarUrl: '',
         documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
@@ -790,6 +831,14 @@ export default function EmployeesScreen() {
         overrides[target.email.toLowerCase()] = assignedRoleName;
       }
       await AsyncStorage.setItem('@das_crm_verified_overrides', JSON.stringify(overrides));
+
+      const rawMgrs = await AsyncStorage.getItem('@das_crm_assigned_managers');
+      const mgrMap = rawMgrs ? JSON.parse(rawMgrs) : {};
+      mgrMap[target.id] = assignedMgr;
+      if (target.email) {
+        mgrMap[target.email.toLowerCase()] = assignedMgr;
+      }
+      await AsyncStorage.setItem('@das_crm_assigned_managers', JSON.stringify(mgrMap));
 
       const rawUnassigned = await AsyncStorage.getItem('@das_crm_extra_unassigned');
       if (rawUnassigned) {

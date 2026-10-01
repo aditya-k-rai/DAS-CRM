@@ -108,6 +108,7 @@ export interface CompanyEmployee {
   name: string;
   email: string;
   role: string;
+  assignedManager?: string;
   isActive: boolean;
   lastLoginAt?: string | null;
   lastActiveAt?: string | null;
@@ -328,6 +329,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       name: 'Nandini Rastogi',
       email: 'rastoginandini92@gmail.com',
       role: 'SALES_EXEC',
+      assignedManager: 'Sachin Puri (Team Leader)',
       isActive: true,
       lastLoginAt: '2026-09-28T07:55:00.000Z',
       lastActiveAt: '2026-09-28T08:05:00.000Z',
@@ -340,6 +342,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       name: 'Aditya Kumar Rai',
       email: 'rai992522@gmail.com',
       role: 'MANAGER',
+      assignedManager: 'Admin',
       isActive: true,
       lastLoginAt: '2026-09-28T06:15:00.000Z',
       lastActiveAt: '2026-09-28T07:30:00.000Z',
@@ -352,6 +355,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       name: 'Sachin Puri',
       email: 'sachinpuri938@gmail.com',
       role: 'TEAM_LEADER',
+      assignedManager: 'Aditya Kumar Rai (Manager)',
       isActive: true,
       lastLoginAt: '2026-09-28T05:20:00.000Z',
       lastActiveAt: '2026-09-28T07:50:00.000Z',
@@ -364,6 +368,7 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       name: 'Sulekha Tomar',
       email: 'sulekhatmr@gmail.com',
       role: 'SALES_EXEC',
+      assignedManager: 'Sachin Puri (Team Leader)',
       isActive: true,
       lastLoginAt: '2026-09-28T06:30:00.000Z',
       lastActiveAt: '2026-09-28T07:40:00.000Z',
@@ -375,7 +380,8 @@ const MOCK_DEMO_EMPLOYEES: Record<string, CompanyEmployee[]> = {
       id: 'cmukykfoe000nht2d0ylnsd3t',
       name: 'Sadhana',
       email: 'sadhnadikshit98@gmail.com',
-      role: 'UNASSIGNED',
+      role: 'SALES_EXEC',
+      assignedManager: 'Sachin Puri (Team Leader)',
       isActive: true,
       lastLoginAt: null,
       lastActiveAt: null,
@@ -641,10 +647,35 @@ export function mergeCompanyEmployees(compId: string, serverEmployees: any[] = [
       }
     }
 
+    let assignedManager = emp.assignedManager;
+    if (typeof window !== 'undefined') {
+      try {
+        const storedMgrs = JSON.parse(localStorage.getItem('das_crm_assigned_managers') || '{}');
+        if (storedMgrs[emp.id]) {
+          assignedManager = storedMgrs[emp.id];
+        } else if (storedMgrs[emailLower]) {
+          assignedManager = storedMgrs[emailLower];
+        }
+      } catch (_) {}
+    }
+    if (!assignedManager) {
+      assignedManager =
+        role === 'ADMIN'
+          ? 'Organization Admin'
+          : role === 'MANAGER' || role === 'HR'
+          ? 'Admin'
+          : role === 'TEAM_LEADER'
+          ? 'Aditya Kumar Rai (Manager)'
+          : role === 'UNASSIGNED'
+          ? 'Pending Admin Assignment'
+          : 'Sachin Puri (Team Leader)';
+    }
+
     const defaultPlatform = (role === 'TEAM_LEADER' || emailLower.includes('puri') || emailLower.includes('tomar')) ? 'ANDROID' : 'WEB';
     return {
       ...emp,
       role,
+      assignedManager,
       lastActiveAt: emp.lastActiveAt || emp.lastLoginAt || null,
       lastPlatform: emp.lastPlatform || defaultPlatform,
     };
@@ -3896,6 +3927,12 @@ export function SuperAdminDashboard() {
                                   </div>
                                   <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium mt-0.5">
                                     <span>Joined {emp.createdAt ? new Date(emp.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 2026'}</span>
+                                    {emp.assignedManager && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="text-indigo-400 font-bold">Under: {emp.assignedManager}</span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </div>
