@@ -124,9 +124,10 @@ export class FirestoreStorageService {
     const firestore = this.firestoreService.getFirestore();
     if (firestore) {
       try {
+        const sanitizedDoc = JSON.parse(JSON.stringify(doc));
         const docRef = firestore.collection(this.collectionName).doc(doc.fileId);
-        await docRef.set(doc, { merge: true });
-        this.logger.log(`🔥 Document synced to Firestore collection [${this.collectionName}/${doc.fileId}]`);
+        await docRef.set(sanitizedDoc, { merge: true });
+        this.logger.log(`🔥 Document synced to Firestore collection [${this.collectionName}/${doc.fileId}] (${doc.fileName})`);
       } catch (err) {
         this.logger.error(`Error saving document ${doc.fileId} to Firestore:`, err);
       }

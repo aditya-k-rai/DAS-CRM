@@ -30,6 +30,9 @@ export class FirestoreService implements OnModuleInit {
         this.firebaseApp = apps[0];
         this.firestoreInstance = getFirestore(this.firebaseApp);
         try {
+          this.firestoreInstance.settings({ ignoreUndefinedProperties: true });
+        } catch {}
+        try {
           this.storageBucketInstance = getStorage(this.firebaseApp).bucket(this.bucketName);
         } catch {
           // storage bucket optional
@@ -41,9 +44,23 @@ export class FirestoreService implements OnModuleInit {
 
       // 2. Check Service Account Key JSON file
       const keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || 'service-account.json';
-      const keyFilePath = path.isAbsolute(keyFile) ? keyFile : path.resolve(process.cwd(), keyFile);
+      const candidatePaths = [
+        path.isAbsolute(keyFile) ? keyFile : null,
+        path.resolve(process.cwd(), keyFile),
+        path.resolve(process.cwd(), 'backend', keyFile),
+        path.resolve(__dirname, '..', '..', '..', keyFile),
+        path.resolve(__dirname, '..', '..', '..', '..', keyFile),
+      ].filter(Boolean) as string[];
 
-      if (fs.existsSync(keyFilePath)) {
+      let keyFilePath: string | null = null;
+      for (const p of candidatePaths) {
+        if (fs.existsSync(p)) {
+          keyFilePath = p;
+          break;
+        }
+      }
+
+      if (keyFilePath) {
         const keyData = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
         this.projectId = keyData.project_id || this.projectId;
         this.clientEmail = keyData.client_email || this.clientEmail;
@@ -56,13 +73,16 @@ export class FirestoreService implements OnModuleInit {
 
         this.firestoreInstance = getFirestore(this.firebaseApp);
         try {
+          this.firestoreInstance.settings({ ignoreUndefinedProperties: true });
+        } catch {}
+        try {
           this.storageBucketInstance = getStorage(this.firebaseApp).bucket(this.bucketName);
         } catch {
           // storage bucket optional
         }
         this.isConnected = true;
         this.authType = 'SERVICE_ACCOUNT';
-        this.logger.log(`✅ Google Firestore initialized via Service Account JSON (${this.clientEmail})`);
+        this.logger.log(`✅ Google Firestore initialized via Service Account JSON (${this.clientEmail}) from ${keyFilePath}`);
         return;
       }
 
@@ -81,6 +101,9 @@ export class FirestoreService implements OnModuleInit {
 
         this.firestoreInstance = getFirestore(this.firebaseApp);
         try {
+          this.firestoreInstance.settings({ ignoreUndefinedProperties: true });
+        } catch {}
+        try {
           this.storageBucketInstance = getStorage(this.firebaseApp).bucket(this.bucketName);
         } catch {
           // storage bucket optional
@@ -98,6 +121,9 @@ export class FirestoreService implements OnModuleInit {
           storageBucket: this.bucketName,
         });
         this.firestoreInstance = getFirestore(this.firebaseApp);
+        try {
+          this.firestoreInstance.settings({ ignoreUndefinedProperties: true });
+        } catch {}
         try {
           this.storageBucketInstance = getStorage(this.firebaseApp).bucket(this.bucketName);
         } catch {

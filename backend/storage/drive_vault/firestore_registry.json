@@ -304,5 +304,137 @@
     "uploadedAt": "2026-09-29T21:23:45.845Z",
     "updatedAt": "2026-09-29T21:23:45.845Z",
     "isDeleted": false
+  },
+  {
+    "fileId": "up_1790806353363",
+    "organizationId": "org_default",
+    "companyName": "Adorable Trading",
+    "fileName": "Test_Data_2026-10-01_03-42-33.xlsx",
+    "originalName": "Test_Data_2026-10-01_03-42-33.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 6183,
+    "sizeFormatted": "6.04 KB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Adorable Trading",
+      "Leads"
+    ],
+    "folderPath": "Firebase Storage > Adorable Trading > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": true,
+      "googleDrive": false,
+      "localVault": true
+    },
+    "gcsPath": "vault://vault/Adorable Trading/Leads/up_1790806353363_Test_Data_2026-10-01_03-42-33.xlsx",
+    "gcsDownloadUrl": "/api/v1/storage/files/vault/vault%2FAdorable%20Trading%2FLeads%2Fup_1790806353363_Test_Data_2026-10-01_03-42-33.xlsx",
+    "driveFileId": "",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_up_1790806353363/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_up_1790806353363",
+    "localPath": "C:\\Users\\Mighty\\Downloads\\DAS CRM\\backend\\storage\\drive_vault\\Adorable Trading\\Leads\\up_1790806353363_Test_Data_2026-10-01_03-42-33.xlsx",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-30T22:12:37.941Z",
+    "updatedAt": "2026-09-30T22:12:37.941Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "up_1790806359600",
+    "organizationId": "org_default",
+    "companyName": "Adorable Trading",
+    "fileName": "Test_Data_2026-10-01_03-42-39.xlsx",
+    "originalName": "Test_Data_2026-10-01_03-42-39.xlsx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "fileExtension": "xlsx",
+    "sizeBytes": 6183,
+    "sizeFormatted": "6.04 KB",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Adorable Trading",
+      "Leads"
+    ],
+    "folderPath": "Firebase Storage > Adorable Trading > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": true,
+      "googleDrive": false,
+      "localVault": true
+    },
+    "gcsPath": "vault://vault/Adorable Trading/Leads/up_1790806359600_Test_Data_2026-10-01_03-42-39.xlsx",
+    "gcsDownloadUrl": "/api/v1/storage/files/vault/vault%2FAdorable%20Trading%2FLeads%2Fup_1790806359600_Test_Data_2026-10-01_03-42-39.xlsx",
+    "driveFileId": "",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_up_1790806359600/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_up_1790806359600",
+    "localPath": "C:\\Users\\Mighty\\Downloads\\DAS CRM\\backend\\storage\\drive_vault\\Adorable Trading\\Leads\\up_1790806359600_Test_Data_2026-10-01_03-42-39.xlsx",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-30T22:12:41.251Z",
+    "updatedAt": "2026-09-30T22:12:41.251Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "up_1790811638611",
+    "organizationId": "org_default",
+    "companyName": "Adorable Trading",
+    "fileName": "Demo_CSV_with_data__2026-10-01_05-10-38.csv",
+    "originalName": "Demo CSV with data .csv",
+    "mimeType": "application/octet-stream",
+    "fileExtension": "csv",
+    "sizeBytes": 968,
+    "sizeFormatted": "968 B",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Adorable Trading",
+      "Leads"
+    ],
+    "folderPath": "Firebase Storage > Adorable Trading > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": true,
+      "googleDrive": false,
+      "localVault": true
+    },
+    "gcsPath": "vault://vault/Adorable Trading/Leads/up_1790811638611_Demo_CSV_with_data__2026-10-01_05-10-38.csv",
+    "gcsDownloadUrl": "/api/v1/storage/files/vault/vault%2FAdorable%20Trading%2FLeads%2Fup_1790811638611_Demo_CSV_with_data__2026-10-01_05-10-38.csv",
+    "driveFileId": "",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_up_1790811638611/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_up_1790811638611",
+    "localPath": "C:\\Users\\Mighty\\Downloads\\DAS CRM\\backend\\storage\\drive_vault\\Adorable Trading\\Leads\\up_1790811638611_Demo_CSV_with_data__2026-10-01_05-10-38.csv",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-30T23:40:41.184Z",
+    "updatedAt": "2026-09-30T23:40:41.184Z",
+    "isDeleted": false
+  },
+  {
+    "fileId": "up_1790812417653",
+    "organizationId": "org_default",
+    "companyName": "Adorable Trading",
+    "fileName": "Demo_CSV_with_data__2026-10-01_05-23-37.csv",
+    "originalName": "Demo CSV with data .csv",
+    "mimeType": "application/octet-stream",
+    "fileExtension": "csv",
+    "sizeBytes": 968,
+    "sizeFormatted": "968 B",
+    "category": "LEADS",
+    "folderHierarchy": [
+      "Adorable Trading",
+      "Leads"
+    ],
+    "folderPath": "Firebase Storage > Adorable Trading > Leads",
+    "storageEngines": {
+      "firestore": true,
+      "googleCloudStorage": true,
+      "googleDrive": false,
+      "localVault": true
+    },
+    "gcsPath": "vault://vault/Adorable Trading/Leads/up_1790812417653_Demo_CSV_with_data__2026-10-01_05-23-37.csv",
+    "gcsDownloadUrl": "/api/v1/storage/files/vault/vault%2FAdorable%20Trading%2FLeads%2Fup_1790812417653_Demo_CSV_with_data__2026-10-01_05-23-37.csv",
+    "driveFileId": "",
+    "driveViewUrl": "https://drive.google.com/file/d/drive_up_1790812417653/view",
+    "driveDownloadUrl": "https://drive.google.com/uc?export=download&id=drive_up_1790812417653",
+    "localPath": "C:\\Users\\Mighty\\Downloads\\DAS CRM\\backend\\storage\\drive_vault\\Adorable Trading\\Leads\\up_1790812417653_Demo_CSV_with_data__2026-10-01_05-23-37.csv",
+    "isProtectedKyc": false,
+    "uploadedAt": "2026-09-30T23:53:39.812Z",
+    "updatedAt": "2026-09-30T23:53:39.812Z",
+    "isDeleted": false
   }
 ]

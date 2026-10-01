@@ -499,16 +499,6 @@ export function LeadImportHistoryView({ onOpenNewIngestion }: LeadImportHistoryV
               </button>
             )}
           </div>
-
-          {onOpenNewIngestion && (
-            <button
-              onClick={onOpenNewIngestion}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-purple-600/20 transition-all self-start sm:self-auto cursor-pointer"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Import New File / Wizard</span>
-            </button>
-          )}
         </div>
 
         {/* ============================================================ */}
