@@ -294,22 +294,24 @@ export function getDefaultDirectory(currentUser?: any): CachedEmployee[] {
     {
       id: 'cmukykfoe000nht2d0ylnsd3t',
       name: 'Sadhana',
-      code: 'EMP006',
-      dept: 'Sales & Growth',
+      code: 'UNASSIGNED',
+      dept: 'Pending Department',
       email: 'sadhnadikshit98@gmail.com',
       phone: formatPhone(storedPhones['cmukykfoe000nht2d0ylnsd3t'] || storedPhones['sadhnadikshit98@gmail.com'] || '8796824282'),
-      role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'SALES_EXEC') as any,
-      isVerified: true,
-      verificationStatus: 'VERIFIED',
-      assignedManager: storedManagers['cmukykfoe000nht2d0ylnsd3t'] || 'Admin',
-      baseSalary: '₹45,000',
+      role: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'] || 'UNASSIGNED') as any,
+      isVerified: Boolean(storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']),
+      verificationStatus: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? 'VERIFIED' : 'PENDING',
+      assignedManager: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com'])
+        ? (storedManagers['cmukykfoe000nht2d0ylnsd3t'] || 'Admin')
+        : 'Pending Admin Assignment',
+      baseSalary: (storedOverrides['cmukykfoe000nht2d0ylnsd3t'] || storedOverrides['sadhnadikshit98@gmail.com']) ? '₹45,000' : '₹0',
       joined: 'Sep 28, 2026',
-      canSelfCheckIn: true,
+      canSelfCheckIn: false,
       status: 'active',
-      documents: { pan: 'VERIFIED', aadhaar: 'AADHAAR_VERIFIED.pdf', eduCert: 'DEGREE_VERIFIED.pdf', offerLetter: 'OFFER_LETTER.pdf', lastUpdatedDate: 'Recently', historyLogs: [] },
-      bankDetails: { bankName: 'Direct Deposit', accountHolder: 'Sadhana', accountNo: '••••••••', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
-      attendance: { presentDays: 1, absentDays: 0, leaveDays: 0, todayInTime: '09:30 AM', todayOutTime: null, todayGps: '—' },
-      leads: { totalReceived: 6, connected: 4, inNegotiation: 2, meetingScheduled: 1, won: 0, totalDistributed: 0, distributionBreakdown: [] },
+      documents: { pan: 'PENDING', aadhaar: 'PENDING', eduCert: 'PENDING', offerLetter: 'PENDING', lastUpdatedDate: 'Recently', historyLogs: [] },
+      bankDetails: { bankName: 'Pending', accountHolder: 'Sadhana', accountNo: '—', ifscCode: '—', upiId: 'sadhnadikshit98@gmail.com', lastUpdatedDate: 'Recently', historyLogs: [] },
+      attendance: { presentDays: 0, absentDays: 0, leaveDays: 0, todayInTime: '—', todayOutTime: null, todayGps: '—' },
+      leads: { totalReceived: 0, connected: 0, inNegotiation: 0, meetingScheduled: 0, won: 0, totalDistributed: 0, distributionBreakdown: [] },
       subordinates: [],
     },
   ];
@@ -458,15 +460,18 @@ export async function getUserDirectory(
             }
             const displayPhone = formatPhone(rawPhone);
 
-            const assignedMgr =
-              storedManagers[String(u.id)] ||
-              storedManagers[u.email?.toLowerCase()] ||
-              (role === 'ADMIN' ? 'Organization Admin' : 'Admin');
+            const isRoleUnassigned = role === 'UNASSIGNED';
+            const assignedMgr = isRoleUnassigned
+              ? 'Pending Admin Assignment'
+              : (storedManagers[String(u.id)] ||
+                 storedManagers[u.email?.toLowerCase()] ||
+                 u.assignedManager ||
+                 (role === 'ADMIN' ? 'Organization Admin' : 'Admin'));
 
             return {
               id: String(u.id),
               name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || u.email,
-              code: `EMP${String(idx + 1).padStart(3, '0')}`,
+              code: isRoleUnassigned ? 'UNASSIGNED' : `EMP${String(idx + 1).padStart(3, '0')}`,
               dept:
                 role === 'ADMIN'
                   ? 'Executive & Administration'
@@ -482,10 +487,10 @@ export async function getUserDirectory(
               email: u.email,
               phone: displayPhone,
               role,
-              isVerified: u.isVerified ?? (role !== 'UNASSIGNED'),
-              verificationStatus: role === 'UNASSIGNED' ? 'PENDING' : 'VERIFIED',
+              isVerified: isRoleUnassigned ? false : (u.isVerified ?? true),
+              verificationStatus: isRoleUnassigned ? 'PENDING' : 'VERIFIED',
               assignedManager: assignedMgr,
-              baseSalary: role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000',
+              baseSalary: isRoleUnassigned ? '₹0' : (role === 'ADMIN' ? '₹95,000' : role === 'MANAGER' ? '₹75,000' : role === 'HR' ? '₹55,000' : '₹45,000'),
               joined: u.createdAt
                 ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 : 'Recently',
