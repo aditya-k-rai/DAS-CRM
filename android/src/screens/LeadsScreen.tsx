@@ -144,7 +144,7 @@ export default function LeadsScreen() {
     });
 
     if (persons.size === 0) {
-      return ['Team Leader A (TL)', 'Sales Rep 1 (Sales Exec)', 'Sales Rep 2 (Sales Exec)'];
+      return ['Sachin Puri (TL)', 'Nandini Rastogi (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sadhana (Sales Exec)'];
     }
 
     return Array.from(persons);

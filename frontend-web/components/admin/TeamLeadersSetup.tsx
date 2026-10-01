@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Plus, Users, UserCheck, ArrowRight, Lock, CheckCircle2, Edit3, PhoneCall, Target, DollarSign } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { getUserDirectory, subscribeUserDirectory } from '@/lib/userDirectoryCache';
 
 interface EmployeeNode {
   id: string;
@@ -36,32 +37,65 @@ export function TeamLeadersSetup() {
 
   const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
 
+  const loadRealHierarchy = (force = false) => {
+    getUserDirectory(currentUser, force).then(res => {
+      if (res && Array.isArray(res.employees)) {
+        const managers = res.employees.filter(e => e.role === 'MANAGER' || e.role === 'ADMIN');
+        const tlsAndReps = res.employees.filter(e => e.role === 'TEAM_LEADER' || e.role === 'SALES_EXEC');
+
+        const managerNodes: ManagerNode[] = (managers.length > 0 ? managers : [{ id: 'mgr_1', name: 'Aditya Kumar Rai (Manager)' } as any]).map((m, mIdx) => {
+          const children: EmployeeNode[] = tlsAndReps.map(emp => ({
+            id: emp.id,
+            name: `${emp.name} (${emp.role === 'TEAM_LEADER' ? 'Team Leader' : 'Sales Exec'})`,
+            role: emp.role,
+            reportingTo: emp.assignedManager || m.name,
+            type: emp.role === 'TEAM_LEADER' ? 'TL' : 'TL_EMP',
+            callsMade: emp.leads?.connected || 0,
+            leadsHandled: emp.leads?.totalReceived || 0,
+            revenue: `₹${((emp.leads?.won || 0) * 50000).toLocaleString('en-IN')}`,
+          }));
+
+          return {
+            id: m.id || `mgr_${mIdx}`,
+            name: m.name.includes('Manager') ? m.name : `${m.name} (Manager)`,
+            children,
+          };
+        });
+
+        if (managerNodes.length > 0) {
+          setHierarchy(managerNodes);
+        }
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadRealHierarchy(false);
+    const unsub = subscribeUserDirectory(() => loadRealHierarchy(true));
+    return () => unsub();
+  }, [currentUser]);
+
   const handleCreateTL = () => {
     if (!isAdmin || !newTLName.trim()) return;
 
-    setHierarchy(prev => prev.map(m => {
-      if (m.id === 'mgr_1') {
-        return {
-          ...m,
-          children: [
-            ...m.children,
-            {
-              id: `tl_${Date.now()}`,
-              name: `${newTLName} (Team Leader)`,
-              role: 'TEAM_LEADER',
-              reportingTo: m.name,
-              type: 'TL',
-              callsMade: 0,
-              leadsHandled: 0,
-              revenue: '$0',
-            },
-          ],
-        };
-      }
-      return m;
-    }));
+    setHierarchy(prev => prev.map(m => ({
+      ...m,
+      children: [
+        ...m.children,
+        {
+          id: `tl_${Date.now()}`,
+          name: `${newTLName} (Team Leader)`,
+          role: 'TEAM_LEADER',
+          reportingTo: m.name,
+          type: 'TL',
+          callsMade: 0,
+          leadsHandled: 0,
+          revenue: '₹0',
+        },
+      ],
+    })));
 
-    setNotice(`✓ Created Team Leader "${newTLName}" under Manager A`);
+    setNotice(`✓ Created Team Leader "${newTLName}"`);
     setTimeout(() => setNotice(null), 3000);
     setNewTLName('');
     setShowAddModal(false);

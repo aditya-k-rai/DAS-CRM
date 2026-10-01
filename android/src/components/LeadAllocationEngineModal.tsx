@@ -98,14 +98,16 @@ export const isBatchAssignableRole = (roleStr: string): boolean => {
 const COLOR_PALETTE = ['#818cf8', '#34d399', '#f59e0b', '#ec4899', '#38bdf8', '#a855f7', '#14b8a6'];
 
 const FALLBACK_BATCH_TEAM: WorkspaceTeamMember[] = [
-  { id: 'usr-tl-1', name: 'Team Leader A', role: 'Team Leader', leadsCount: 0, color: '#818cf8' },
-  { id: 'usr-rep-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
-  { id: 'usr-rep-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
+  { id: 'cmukv4tgl000n7d2d65001ydp', name: 'Sachin Puri', role: 'Team Leader', leadsCount: 0, color: '#818cf8' },
+  { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+  { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', role: 'Sales Exec', leadsCount: 0, color: '#f59e0b' },
+  { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', role: 'Sales Exec', leadsCount: 0, color: '#ec4899' },
 ];
 
 const FALLBACK_TL_REPS: WorkspaceTeamMember[] = [
-  { id: 'sub-1', name: 'Sales Representative 1', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
-  { id: 'sub-2', name: 'Sales Representative 2', role: 'Sales Exec', leadsCount: 0, color: '#38bdf8' },
+  { id: 'cmuhp0517000ngg2dq93a6nlp', name: 'Nandini Rastogi', role: 'Sales Exec', leadsCount: 0, color: '#34d399' },
+  { id: 'cmukwwdv9000ng42dghtw6t3z', name: 'Sulekha Tomar', role: 'Sales Exec', leadsCount: 0, color: '#f59e0b' },
+  { id: 'cmukykfoe000nht2d0ylnsd3t', name: 'Sadhana', role: 'Sales Exec', leadsCount: 0, color: '#ec4899' },
 ];
 
 export interface ValidationConflict {
