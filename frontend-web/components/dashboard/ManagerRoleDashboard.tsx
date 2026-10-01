@@ -188,11 +188,21 @@ export function ManagerRoleDashboard() {
                 avatarBg: colors[idx % colors.length],
               };
             });
-            setDeptLeads(mapped);
-            setCachedData('mgr_leads', mapped);
+            const finalDeptLeads = [
+              DEFAULT_DEPT_LEADS[0],
+              ...mapped.filter((l: any) => l.id !== DEFAULT_DEPT_LEADS[0].id),
+            ];
+            setDeptLeads(finalDeptLeads);
+            setCachedData('mgr_leads', finalDeptLeads);
+          } else {
+            setDeptLeads(DEFAULT_DEPT_LEADS);
           }
+        } else {
+          setDeptLeads(DEFAULT_DEPT_LEADS);
         }
-      } catch (_) {}
+      } catch (_) {
+        setDeptLeads(DEFAULT_DEPT_LEADS);
+      }
     };
     fetchLeads();
   }, []);

@@ -9,6 +9,12 @@ import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService'
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
 import { useWorkflowLeadStatuses } from '@/lib/workflowService';
+import {
+  getUserDirectory,
+  subscribeUserDirectory,
+  getDefaultDirectory,
+  CachedEmployee,
+} from '@/lib/userDirectoryCache';
 
 interface LeadDataWeb {
   id: string;
@@ -37,7 +43,30 @@ interface LeadDataWeb {
   lastCalledAt?: string;
 }
 
-const LEADS: LeadDataWeb[] = [];
+export const DEMO_TEST_LEAD: LeadDataWeb = {
+  id: 'demo-lead-test-01',
+  name: 'Dr. Vikram Malhotra (Test Lead)',
+  email: 'vikram.malhotra@zenithhospital.in',
+  phone: '+91 98201 12345',
+  status: 'New',
+  statusColor: '#6366f1',
+  source: 'Website Form (Test)',
+  score: 92,
+  owner: 'Sachin Puri',
+  value: '₹4,50,000',
+  created: 'Today',
+  rawCreatedAt: new Date().toISOString(),
+  tags: ['TEST LEAD 🔥', 'VERIFIED ✓'],
+  city: 'Mumbai',
+  budget: '₹4.5 Lakhs',
+  requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
+  currentAssignee: 'Sachin Puri',
+  currentAssigneeRole: 'TEAM_LEADER',
+  totalCalls: 1,
+  lastCalledAt: '10m ago',
+};
+
+const LEADS: LeadDataWeb[] = [DEMO_TEST_LEAD];
 
 export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string; totalCalls?: number; lastCalledAt?: string }) => {
   if ((lead.totalCalls || 0) > 0) return true;
@@ -51,15 +80,58 @@ export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string
 
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
-  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([]);
-  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const { currentUser } = useAuth();
+  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([DEMO_TEST_LEAD]);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string }>>(() => {
+    try {
+      const defaultEmps = getDefaultDirectory(currentUser);
+      if (defaultEmps && defaultEmps.length > 0) {
+        return defaultEmps.map(e => ({
+          id: e.id,
+          name: e.name,
+          role: e.role === 'TEAM_LEADER' ? 'Team Leader' : e.role === 'SALES_EXEC' ? 'Sales Exec' : e.role,
+        }));
+      }
+    } catch (_) {}
+    return [];
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [activeStatus, setActiveStatus] = useState('All');
   const [selected, setSelected] = useState<string[]>([]);
   const [isExcelMode, setIsExcelMode] = useState(true);
   const [expandedTrailLeadId, setExpandedTrailLeadId] = useState<string | null>(null);
-  const { currentUser } = useAuth();
+
+  // Synchronize real team users from User Directory Cache
+  useEffect(() => {
+    let isMounted = true;
+    const syncTeamUsers = async (force = false) => {
+      try {
+        const res = await getUserDirectory(currentUser, force);
+        if (res && Array.isArray(res.employees) && isMounted) {
+          const list = res.employees.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            role: e.role === 'TEAM_LEADER' ? 'Team Leader' : e.role === 'SALES_EXEC' ? 'Sales Exec' : e.role,
+          }));
+          if (list.length > 0) {
+            setTeamUsers(list);
+          }
+        }
+      } catch (e) {
+        console.warn('Error syncing team directory in LeadsTable:', e);
+      }
+    };
+
+    syncTeamUsers(false);
+    const unsub = subscribeUserDirectory(() => {
+      syncTeamUsers(true);
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [currentUser]);
 
   // Multi-Dimensional Filtering State
   const [filterPerson, setFilterPerson] = useState<string>('ALL');
@@ -126,10 +198,11 @@ export function LeadsTable() {
           fetch(`${apiBase}/users`, { headers }),
         ]);
 
+        let mappedServerLeads: LeadDataWeb[] = [];
         if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
           const leadsData = await leadsRes.value.json();
           const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
-          const mapped: LeadDataWeb[] = items.map((l: any) => {
+          mappedServerLeads = items.map((l: any) => {
             const rawStatus = l.status?.name || l.status || 'New';
             return {
               id: String(l.id),
@@ -141,35 +214,42 @@ export function LeadsTable() {
               source: l.source?.name || l.source || 'Website',
               score: l.score || 0,
               aiScore: l.aiScore || undefined,
-              owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+              owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned'),
               value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value || '₹0'),
-              created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || '—'),
+              created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || 'Today'),
               rawCreatedAt: l.createdAt || l.created || undefined,
               tags: l.tags || [],
-              city: l.city || '—',
-              budget: l.budget || '—',
-              requirement: l.requirement || '—',
+              city: l.city || l.customFields?.city || '—',
+              budget: l.budget || l.customFields?.budget || '—',
+              requirement: l.requirement || l.notes || l.customFields?.requirement || '—',
               allocationTrail: l.allocationTrail || [],
-              currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
+              currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned'),
               totalCalls: l.totalCalls || 0,
               lastCalledAt: l.lastCalledAt || 'Never',
             };
           });
-          setLeadsList(mapped);
         }
+
+        // Prepend DEMO_TEST_LEAD as the first line test lead
+        const finalLeads = [
+          DEMO_TEST_LEAD,
+          ...mappedServerLeads.filter(l => l.id !== DEMO_TEST_LEAD.id),
+        ];
+        setLeadsList(finalLeads);
 
         if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
           const usersData = await usersRes.value.json();
-          if (Array.isArray(usersData)) {
+          if (Array.isArray(usersData) && usersData.length > 0) {
             setTeamUsers(usersData.map((u: any) => ({
               id: u.id,
               name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-              role: u.role || 'Member',
+              role: u.role?.name || u.role || 'Sales Rep',
             })));
           }
         }
       } catch (err) {
         console.warn('Error fetching leads or team:', err);
+        setLeadsList([DEMO_TEST_LEAD]);
       } finally {
         setIsLoading(false);
       }
@@ -562,16 +642,18 @@ export function LeadsTable() {
                 <User size={12} className="text-slate-500" /> Person:
               </span>
               {(() => {
-                const ownersInLeads = Array.from(
-                  new Set(
-                    leadsList
-                      .map(l => l.owner)
-                      .filter(o => o && o !== 'Unassigned' && o !== '—')
-                  )
-                );
+                const namesSet = new Set<string>();
+                teamUsers.forEach(u => {
+                  if (u.name && u.name !== 'Unassigned' && u.name !== '—') namesSet.add(u.name);
+                });
+                leadsList.forEach(l => {
+                  if (l.owner && l.owner !== 'Unassigned' && l.owner !== '—') namesSet.add(l.owner);
+                  if (l.currentAssignee && l.currentAssignee !== 'Unassigned' && l.currentAssignee !== '—') namesSet.add(l.currentAssignee);
+                });
+
                 const filterOptions = [
                   { id: 'ALL', label: 'All Persons' },
-                  ...ownersInLeads.map(o => ({ id: o, label: o })),
+                  ...Array.from(namesSet).map(name => ({ id: name, label: name })),
                   { id: 'UNASSIGNED', label: 'Unassigned Leads' },
                 ];
 
@@ -1055,14 +1137,24 @@ export function LeadsTable() {
                       Assigned Employee / Person
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'ALL', label: '👥 All Persons' },
-                        { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
-                        ...Array.from(new Set(leadsList.map((l: any) => l.owner || l.currentAssignee).filter((o: any) => Boolean(o) && o !== 'Unassigned' && o !== '—'))).map(person => ({
-                          id: person as string,
-                          label: `👤 ${person}`,
-                        })),
-                      ].map((item) => (
+                      {(() => {
+                        const namesSet = new Set<string>();
+                        teamUsers.forEach(u => {
+                          if (u.name && u.name !== 'Unassigned' && u.name !== '—') namesSet.add(u.name);
+                        });
+                        leadsList.forEach(l => {
+                          if (l.owner && l.owner !== 'Unassigned' && l.owner !== '—') namesSet.add(l.owner);
+                          if (l.currentAssignee && l.currentAssignee !== 'Unassigned' && l.currentAssignee !== '—') namesSet.add(l.currentAssignee);
+                        });
+                        return [
+                          { id: 'ALL', label: '👥 All Persons' },
+                          { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
+                          ...Array.from(namesSet).map(person => ({
+                            id: person,
+                            label: `👤 ${person}`,
+                          })),
+                        ];
+                      })().map((item) => (
                         <button
                           key={item.id}
                           onClick={() => setFilterPerson(item.id)}
