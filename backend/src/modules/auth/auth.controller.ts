@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Put,
   Patch,
   Param,
   Body,
@@ -398,6 +399,24 @@ export class AuthController {
   @ApiOperation({ summary: '[Super Admin] Get full in-depth company details' })
   getCompanyDetails(@Param('id') id: string) {
     return this.authService.getCompanyDetails(id);
+  }
+
+  @Put('super-admin/companies/:id')
+  @ApiOperation({ summary: '[Super Admin] Update full company details, plan, seats, features and expiry' })
+  updateCompanyDetailsPut(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.authService.updateCompanyDetails(id, body);
+  }
+
+  @Patch('super-admin/companies/:id')
+  @ApiOperation({ summary: '[Super Admin] Update full company details, plan, seats, features and expiry' })
+  updateCompanyDetailsPatch(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.authService.updateCompanyDetails(id, body);
   }
 
   @Patch('super-admin/companies/:id/block')

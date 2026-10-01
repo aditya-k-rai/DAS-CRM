@@ -1702,6 +1702,32 @@ export function SuperAdminDashboard() {
       ? Math.max(0, Math.ceil((new Date(editExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0;
 
+    const payload = {
+      name: editName,
+      plan: editPlan,
+      seatsAllocated: editSeats,
+      expiryDate: editExpiryDate,
+      isActive: editIsActive,
+      emailConfig: {
+        enabled: editEmailEnabled,
+        monthlyLimit: editEmailLimit,
+        senderDomain: editEmailSenderDomain,
+      },
+      whatsAppConfig: {
+        enabled: editWAEnabled,
+        monthlyLimit: editWALimit,
+        phoneNumber: editWAPhoneNumber,
+        status: editWAEnabled ? (editingCompany.whatsAppConfig?.status === 'NOT_CONFIGURED' ? 'CONNECTED' : editingCompany.whatsAppConfig?.status) : 'DISCONNECTED',
+      },
+      aiConfig: {
+        enabled: editAIEnabled,
+        tier: editAITier,
+        customSystemPrompt: editAIPrompt,
+        monthlyTokenLimit: editAITokenLimit,
+      },
+    };
+
+    // Immediate UI update
     setCompanies(prev => prev.map(c => c.id === editingCompany.id ? {
       ...c,
       name: editName,
@@ -1734,15 +1760,34 @@ export function SuperAdminDashboard() {
     } : c));
 
     setEditModalOpen(false);
+
+    // Backend database update
+    const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    try {
+      await fetch(`${apiBase}/auth/super-admin/companies/${editingCompany.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      await fetchBackendData();
+    } catch (err) {
+      console.warn('Backend database update error:', err);
+    }
   };
 
-  const handleToggleInstantFeature = (companyId: string, feature: 'email' | 'whatsapp' | 'ai', nextState: boolean) => {
+  const handleToggleInstantFeature = async (companyId: string, feature: 'email' | 'whatsapp' | 'ai', nextState: boolean) => {
+    let updatedCompany: CompanyRecord | null = null;
     setCompanies(prev => prev.map(c => {
       if (c.id !== companyId) return c;
+      let newComp = { ...c };
       if (feature === 'email') {
-        return { ...c, emailConfig: { ...c.emailConfig, enabled: nextState } };
+        newComp = { ...c, emailConfig: { ...c.emailConfig, enabled: nextState } };
       } else if (feature === 'whatsapp') {
-        return {
+        newComp = {
           ...c,
           whatsAppConfig: {
             ...c.whatsAppConfig,
@@ -1751,18 +1796,58 @@ export function SuperAdminDashboard() {
           },
         };
       } else if (feature === 'ai') {
-        return { ...c, aiConfig: { ...c.aiConfig, enabled: nextState } };
+        newComp = { ...c, aiConfig: { ...c.aiConfig, enabled: nextState } };
       }
-      return c;
+      updatedCompany = newComp;
+      return newComp;
     }));
+
+    if (updatedCompany) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      try {
+        await fetch(`${apiBase}/auth/super-admin/companies/${companyId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            emailConfig: (updatedCompany as CompanyRecord).emailConfig,
+            whatsAppConfig: (updatedCompany as CompanyRecord).whatsAppConfig,
+            aiConfig: (updatedCompany as CompanyRecord).aiConfig,
+          }),
+        });
+      } catch (err) {
+        console.warn('Backend toggle update error:', err);
+      }
+    }
   };
 
-  const handleQuickAdjustSeats = (companyId: string, delta: number) => {
+  const handleQuickAdjustSeats = async (companyId: string, delta: number) => {
+    let updatedSeats = 0;
     setCompanies(prev => prev.map(c => {
       if (c.id !== companyId) return c;
-      const updated = Math.max(c.seatsUsed, c.seatsAllocated + delta);
-      return { ...c, seatsAllocated: updated };
+      updatedSeats = Math.max(c.seatsUsed, c.seatsAllocated + delta);
+      return { ...c, seatsAllocated: updatedSeats };
     }));
+
+    if (updatedSeats > 0) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('superadmin_token') || localStorage.getItem('token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+
+      try {
+        await fetch(`${apiBase}/auth/super-admin/companies/${companyId}/seats`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ memberLimit: updatedSeats }),
+        });
+      } catch (err) {
+        console.warn('Backend seat adjustment error:', err);
+      }
+    }
   };
 
   const handleEditPlanChange = (newPlan: PlanType) => {
