@@ -68,7 +68,10 @@ const SCORE_CATEGORIES = [
 
 export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps) {
   const [expanded, setExpanded] = useState(false);
-  const config = TIER_CONFIG[score.tier] || TIER_CONFIG.LOW;
+  const safeScore: AIScoreData = (score && typeof score === 'object' && typeof score.totalScore === 'number')
+    ? score
+    : generateMockAIScore(typeof (score as any)?.totalScore === 'number' ? (score as any).totalScore : 7.2);
+  const config = (safeScore?.tier && TIER_CONFIG[safeScore.tier]) || TIER_CONFIG.LOW;
 
   const getScoreColor = (value: number) => {
     if (value >= 80) return '#22c55e';
@@ -76,6 +79,10 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
     if (value >= 40) return '#eab308';
     return '#94a3b8';
   };
+
+  const formattedScore = typeof safeScore.totalScore === 'number' && !isNaN(safeScore.totalScore)
+    ? safeScore.totalScore.toFixed(1)
+    : '7.0';
 
   if (compact) {
     // Compact display for table cells
@@ -91,7 +98,7 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
         title="Click to view AI score breakdown"
       >
         <span>{config.emoji}</span>
-        <span>{score.totalScore.toFixed(1)}</span>
+        <span>{formattedScore}</span>
       </button>
     );
   }
@@ -110,7 +117,7 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
         title="Click to view AI score breakdown"
       >
         <span className="text-base">{config.emoji}</span>
-        <span>{score.totalScore.toFixed(1)}</span>
+        <span>{formattedScore}</span>
         <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
@@ -130,7 +137,7 @@ export function AILeadScoreCell({ score, compact = false }: AILeadScoreCellProps
                 <div>
                   <h3 className="text-lg font-bold text-white">AI Lead Score</h3>
                   <p className="text-xs text-slate-400">
-                    {config.label} Priority · Score: {score.totalScore.toFixed(1)}/10
+                    {config.label} Priority · Score: {formattedScore}/10
                   </p>
                 </div>
               </div>

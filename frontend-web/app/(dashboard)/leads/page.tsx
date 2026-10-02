@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { LeadsTable } from '@/components/leads/LeadsTable';
 import { LeadFunnelDistribution } from '@/components/leads/LeadFunnelDistribution';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { Target, Sliders, Plus, Upload, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -86,13 +87,17 @@ export default function LeadsPage() {
       />
 
       <main className="flex-1 p-6 overflow-auto">
-        {canAccessFunnel && activeTab === 'funnel' ? (
-          <LeadFunnelDistribution />
-        ) : (
-          <Suspense fallback={<div className="p-8 text-center text-muted">Loading leads...</div>}>
-            <LeadsTable />
-          </Suspense>
-        )}
+        <ErrorBoundary fallbackTitle="Leads View Error">
+          {canAccessFunnel && activeTab === 'funnel' ? (
+            <Suspense fallback={<div className="p-8 text-center text-muted">Loading Funnel & Distribution...</div>}>
+              <LeadFunnelDistribution />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<div className="p-8 text-center text-muted">Loading leads...</div>}>
+              <LeadsTable />
+            </Suspense>
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* New Lead Modal */}

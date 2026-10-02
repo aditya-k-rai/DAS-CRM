@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { RoleTransitionBanner } from '@/components/role-transition/RoleTransitionBanner';
 import { RoleTransitionModal } from '@/components/role-transition/RoleTransitionModal';
 import { SidebarProvider, useSidebar } from '@/context/SidebarContext';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useState } from 'react';
 
 const ROUTE_TO_MODULE_KEY: Record<string, string> = {
@@ -211,15 +212,23 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen relative overflow-x-hidden">
-      <Sidebar />
+      <ErrorBoundary fallbackTitle="Sidebar Error">
+        <Sidebar />
+      </ErrorBoundary>
       <div
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ml-0 ${
           collapsed ? 'lg:ml-[68px]' : 'lg:ml-[260px]'
         }`}
       >
-        <RoleTransitionBanner />
-        {children}
-        <RoleTransitionModal />
+        <ErrorBoundary fallbackTitle="Navigation Error">
+          <RoleTransitionBanner />
+        </ErrorBoundary>
+        <ErrorBoundary fallbackTitle="Page Error">
+          {children}
+        </ErrorBoundary>
+        <ErrorBoundary fallbackTitle="Modal Error" showClearCache={false}>
+          <RoleTransitionModal />
+        </ErrorBoundary>
       </div>
     </div>
   );

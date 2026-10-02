@@ -47,7 +47,7 @@ export function RoleTransitionModal() {
         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3 text-xs text-amber-100">
           <div className="flex justify-between items-center pb-2 border-b border-amber-500/20">
             <span className="text-muted">User Account:</span>
-            <strong className="text-white">{currentUser.name}</strong>
+            <strong className="text-white">{currentUser?.name || 'User'}</strong>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-amber-500/20">
             <span className="text-muted">Previous Role:</span>
@@ -64,7 +64,7 @@ export function RoleTransitionModal() {
             <FileText size={15} className="text-indigo-400" /> Automated Activity Export:
           </p>
           <p className="pl-6">
-            Accepting this role will generate a PDF report of your activities under <strong>{roleTransitionLock.oldRole}</strong>. A download link valid for 7 days will be emailed to you (<strong>{currentUser.email}</strong>) and your Admin.
+            Accepting this role will generate a PDF report of your activities under <strong>{roleTransitionLock.oldRole}</strong>. A download link valid for 7 days will be emailed to you (<strong>{currentUser?.email || 'your email'}</strong>) and your Admin.
           </p>
         </div>
 

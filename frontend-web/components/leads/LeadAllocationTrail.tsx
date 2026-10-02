@@ -518,7 +518,8 @@ export function LeadAllocationTrail({
 
     const currentActor = resolveActor();
     const cleanTarget = assignToName.trim().replace(/\s*\([^)]*\)/g, '');
-    const targetWithRole = `${cleanTarget} (${ROLE_META[assignToRole].label})`;
+    const targetRoleLabel = ROLE_META[assignToRole]?.label || 'Sales Exec';
+    const targetWithRole = `${cleanTarget} (${targetRoleLabel})`;
 
     const newEvent: AllocationEvent = {
       id: `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -783,7 +784,7 @@ export function LeadAllocationTrail({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-slate-400 block">
-                    Quick Select Real {ROLE_META[assignToRole].label}:
+                    Quick Select Real {ROLE_META[assignToRole]?.label || 'Assignee'}:
                   </label>
                   <button
                     type="button"
@@ -816,9 +817,9 @@ export function LeadAllocationTrail({
               {/* 3. Search & Select Real Users from Database */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                  <span>Search & Select {ROLE_META[assignToRole].label} *</span>
+                  <span>Search & Select {ROLE_META[assignToRole]?.label || 'Assignee'} *</span>
                   <span className="text-[10px] text-slate-400 font-normal">
-                    {searchFilteredUsers.length} real {ROLE_META[assignToRole].label.toLowerCase()}(s) found
+                    {searchFilteredUsers.length} real {(ROLE_META[assignToRole]?.label || 'User').toLowerCase()}(s) found
                   </span>
                 </label>
 
@@ -828,7 +829,7 @@ export function LeadAllocationTrail({
                   <input
                     type="text"
                     className="crm-input w-full pl-9 pr-7 text-xs font-medium"
-                    placeholder={`Search real ${ROLE_META[assignToRole].label.toLowerCase()} by name, email, phone...`}
+                    placeholder={`Search real ${(ROLE_META[assignToRole]?.label || 'user').toLowerCase()} by name, email, phone...`}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                   />
@@ -899,7 +900,7 @@ export function LeadAllocationTrail({
                     })
                   ) : (
                     <div className="p-4 text-center text-xs text-slate-400">
-                      No real {ROLE_META[assignToRole].label.toLowerCase()} found matching &quot;{searchQuery}&quot;.
+                      No real {(ROLE_META[assignToRole]?.label || 'user').toLowerCase()} found matching &quot;{searchQuery}&quot;.
                     </div>
                   )}
                 </div>
@@ -913,7 +914,7 @@ export function LeadAllocationTrail({
                       Selected Real Assignee:
                     </span>
                     <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {ROLE_META[assignToRole].label}
+                      {ROLE_META[assignToRole]?.label || 'Assignee'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs flex-wrap gap-1">

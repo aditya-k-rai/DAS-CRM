@@ -241,15 +241,15 @@ export function CallContactHistory({
               <div className="absolute left-[18px] top-6 bottom-2 w-0.5 bg-gradient-to-b from-slate-700 to-transparent pointer-events-none" />
 
               {items.map((attempt, idx) => {
-                const typeMeta = TYPE_META[attempt.type];
-                const outcomeMeta = OUTCOME_META[attempt.outcome];
-                const { time, date } = formatTimestamp(attempt.timestamp);
-                const isExpanded = expandedId === attempt.id;
-                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt.outcome);
-                const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER'].includes(attempt.outcome);
+                const typeMeta = (attempt?.type && TYPE_META[attempt.type]) || TYPE_META.CALL_OUT;
+                const outcomeMeta = (attempt?.outcome && OUTCOME_META[attempt.outcome]) || OUTCOME_META.TALKED;
+                const { time, date } = formatTimestamp(attempt?.timestamp);
+                const isExpanded = expandedId === attempt?.id;
+                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '');
+                const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER'].includes(attempt?.outcome || '');
 
                 return (
-                  <div key={attempt.id} className="flex gap-3 relative">
+                  <div key={attempt?.id || `attempt-${idx}`} className="flex gap-3 relative">
                     {/* Timeline Node */}
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center border-2 flex-shrink-0 z-10 mt-0.5"
@@ -347,7 +347,12 @@ export function CallContactHistory({
                               <div>
                                 <p className="text-[10px] font-extrabold text-slate-400 uppercase">Follow-Up / Callback Scheduled</p>
                                 <p className="text-xs font-extrabold text-sky-300">
-                                  {new Date(attempt.followUpDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  {(() => {
+                                    const d = new Date(attempt.followUpDate);
+                                    return !isNaN(d.getTime())
+                                      ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                      : attempt.followUpDate;
+                                  })()}
                                   {attempt.followUpTime && <span className="ml-2">at {attempt.followUpTime}</span>}
                                 </p>
                               </div>

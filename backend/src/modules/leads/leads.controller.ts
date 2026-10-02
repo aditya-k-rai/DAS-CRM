@@ -48,58 +48,6 @@ export class LeadsController {
     return this.leadsService.updateStatuses(user.organizationId, body.statuses);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get lead detail with full timeline' })
-  findOne(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.leadsService.findOne(user.organizationId, id, user?.id);
-  }
-
-  @Post()
-  @ApiOperation({ summary: 'Create a new lead' })
-  create(@CurrentUser() user: any, @Body() dto: CreateLeadDto) {
-    return this.leadsService.create(user.organizationId, user.id, dto);
-  }
-
-  @Put(':id')
-  @ApiOperation({ summary: 'Update lead' })
-  update(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Body() dto: UpdateLeadDto,
-  ) {
-    return this.leadsService.update(user.organizationId, user.id, id, dto);
-  }
-
-  @Patch(':id/status')
-  @ApiOperation({ summary: 'Change lead status (with server verification and history tracking)' })
-  changeStatus(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Body() body: { statusId?: string; status?: string; newStatus?: string; notes?: string },
-  ) {
-    const statusIdentifier = body.statusId || body.status || body.newStatus || '';
-    return this.leadsService.changeStatus(
-      user.organizationId,
-      user.id,
-      id,
-      statusIdentifier,
-      body.notes,
-    );
-  }
-
-  @Get(':id/timeline')
-  @ApiOperation({ summary: 'Get lead activity timeline' })
-  timeline(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.leadsService.getTimeline(user.organizationId, id);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete lead' })
-  remove(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.leadsService.remove(user.organizationId, user.id, id);
-  }
-
   // ── Lead Distribution Engine (3 Allocation Models + Manager Control) ──
 
   @Get('distribution/whitelist')
@@ -118,6 +66,18 @@ export class LeadsController {
   @ApiOperation({ summary: '[Model 2] Get unassigned leads with anonymized serial # (Admin Access Guarded)' })
   getOpenGrabPool(@CurrentUser() user: any) {
     return this.leadsService.getOpenGrabPool(user.organizationId, user.id);
+  }
+
+  @Get('distribution/ingestion-audit-logs')
+  @ApiOperation({ summary: 'Get spreadsheet ingestion and employee allocation audit logs' })
+  getIngestionAuditLogs(@CurrentUser() user: any) {
+    return this.leadsService.getIngestionAuditLogs(user.organizationId);
+  }
+
+  @Get('ingestion-history')
+  @ApiOperation({ summary: 'Get Lead Ingestion & Integration History Audit Logs' })
+  getIngestionHistory(@CurrentUser() user: any) {
+    return this.leadsService.getIngestionHistory(user.organizationId);
   }
 
   @Post('distribution/grab-lead/:id')
@@ -200,12 +160,6 @@ export class LeadsController {
     );
   }
 
-  @Get('distribution/ingestion-audit-logs')
-  @ApiOperation({ summary: 'Get spreadsheet ingestion and employee allocation audit logs' })
-  getIngestionAuditLogs(@CurrentUser() user: any) {
-    return this.leadsService.getIngestionAuditLogs(user.organizationId);
-  }
-
   // ── Google Sheets Sync & Ingestion History Endpoints ──
 
   @Post('google-sheets/sync')
@@ -246,12 +200,6 @@ export class LeadsController {
     return this.leadsService.importFileLeads(user.organizationId, user.id, dto);
   }
 
-  @Get('ingestion-history')
-  @ApiOperation({ summary: 'Get Lead Ingestion & Integration History Audit Logs' })
-  getIngestionHistory(@CurrentUser() user: any) {
-    return this.leadsService.getIngestionHistory(user.organizationId);
-  }
-
   @Post('mail-import-report')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mail Lead Import & Allocation Report to Admin' })
@@ -270,5 +218,59 @@ export class LeadsController {
     },
   ) {
     return this.leadsService.mailImportReport(user.organizationId, user.id, dto);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new lead' })
+  create(@CurrentUser() user: any, @Body() dto: CreateLeadDto) {
+    return this.leadsService.create(user.organizationId, user.id, dto);
+  }
+
+  // ── Parametrized Lead Endpoints (Must be after all static routes) ──
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get lead detail with full timeline' })
+  findOne(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.leadsService.findOne(user.organizationId, id, user?.id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update lead' })
+  update(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateLeadDto,
+  ) {
+    return this.leadsService.update(user.organizationId, user.id, id, dto);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({ summary: 'Change lead status (with server verification and history tracking)' })
+  changeStatus(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { statusId?: string; status?: string; newStatus?: string; notes?: string },
+  ) {
+    const statusIdentifier = body.statusId || body.status || body.newStatus || '';
+    return this.leadsService.changeStatus(
+      user.organizationId,
+      user.id,
+      id,
+      statusIdentifier,
+      body.notes,
+    );
+  }
+
+  @Get(':id/timeline')
+  @ApiOperation({ summary: 'Get lead activity timeline' })
+  timeline(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.leadsService.getTimeline(user.organizationId, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete lead' })
+  remove(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.leadsService.remove(user.organizationId, user.id, id);
   }
 }

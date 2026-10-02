@@ -463,14 +463,14 @@ export function Sidebar() {
                 title="View Profile & Account Settings"
               >
                 <div className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm">
-                  {currentUser.avatar}
+                  {currentUser?.avatar || '?'}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold truncate text-foreground">
-                    {currentUser.name}
+                    {currentUser?.name || 'User'}
                   </p>
                   <p className="text-[10px] truncate text-muted-foreground font-medium">
-                    {currentUser.email}
+                    {currentUser?.email || ''}
                   </p>
                 </div>
               </Link>
@@ -488,10 +488,10 @@ export function Sidebar() {
             <div className="flex flex-col items-center gap-2 py-1">
               <Link
                 href={profileHref}
-                title={`${currentUser.name} (View Profile)`}
+                title={`${currentUser?.name || 'User'} (View Profile)`}
                 className="avatar w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center flex-shrink-0 shadow-sm hover:ring-2 hover:ring-indigo-500/40 transition-all"
               >
-                {currentUser.avatar}
+                {currentUser?.avatar || '?'}
               </Link>
               <button
                 type="button"

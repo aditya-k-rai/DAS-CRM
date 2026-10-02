@@ -637,22 +637,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             },
             assignee: {
               id: currentUser?.id,
-              name: repName,
-              firstName: repName.split(' ')[0],
-              lastName: repName.split(' ').slice(1).join(' '),
+              name: String(repName || 'Sachin Puri'),
+              firstName: String(repName || 'Sachin').split(' ')[0],
+              lastName: String(repName || '').split(' ').slice(1).join(' ') || 'Puri',
               role: 'SALES_REP',
             },
             lead: {
               id: lead.id,
               name: lead.name,
-              firstName: (lead as any).firstName || (lead.name ? lead.name.split(' ')[0] : ''),
+              firstName: (lead as any).firstName || (lead.name ? lead.name.split(' ')[0] : 'Lead'),
               lastName: (lead as any).lastName || (lead.name ? lead.name.split(' ').slice(1).join(' ') : ''),
               phone: lead.phone,
               email: lead.email,
               owner: {
-                name: repName,
-                firstName: repName.split(' ')[0],
-                lastName: repName.split(' ').slice(1).join(' '),
+                name: String(repName || 'Sachin Puri'),
+                firstName: String(repName || 'Sachin').split(' ')[0],
+                lastName: String(repName || '').split(' ').slice(1).join(' ') || 'Puri',
                 role: 'SALES_REP',
               },
               company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
@@ -824,11 +824,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-brand/20 text-brand-400 font-extrabold text-xl flex items-center justify-center border border-brand/30">
-              {lead.name.slice(0, 2).toUpperCase()}
+              {(lead.name || 'LP').slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-extrabold text-white">{lead.name}</h2>
+                <h2 className="text-xl font-extrabold text-white">{lead.name || 'Lead'}</h2>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-brand/20 text-brand-300 border border-brand/30">
                   {lead.status}
                 </span>

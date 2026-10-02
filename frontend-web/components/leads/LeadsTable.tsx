@@ -608,7 +608,7 @@ export function LeadsTable() {
 
         // Clean out any dummy test leads and ensure sanitized allocation trails
         finalLeads = finalLeads
-          .filter(l => !l.name?.includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
+          .filter(l => l && !String(l.name || '').includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
           .map(l => ({
             ...l,
             allocationTrail: Array.isArray(l.allocationTrail) && l.allocationTrail.length > 0
@@ -956,12 +956,18 @@ export function LeadsTable() {
   };
 
   const filtered = leadsList.filter((l) => {
+    if (!l) return false;
+    const lOwner = (l.owner || '').toLowerCase();
+    const lAssignee = (l.currentAssignee || '').toLowerCase();
+    const lStatus = (l.status || '').toLowerCase();
+    const lName = (l.name || '').toLowerCase();
+
     // 🔒 Role-Based Data Isolation Scoping
     if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
       const isAssignedToUser =
-        (l.owner && l.owner.toLowerCase().includes(userName.toLowerCase())) ||
-        (l.currentAssignee && l.currentAssignee.toLowerCase().includes(userName.toLowerCase())) ||
-        l.owner === 'Unassigned';
+        (lOwner && lOwner.includes(userName.toLowerCase())) ||
+        (lAssignee && lAssignee.includes(userName.toLowerCase())) ||
+        lOwner === 'unassigned' || !lOwner;
       if (!isAssignedToUser) return false;
     }
 
@@ -972,19 +978,17 @@ export function LeadsTable() {
         if (!isUnassigned) return false;
       } else {
         const cleanTL = filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim();
-        const leadOwner = (l.owner || '').toLowerCase();
-        const leadAssignee = (l.currentAssignee || '').toLowerCase();
 
         if (filterSales !== 'ALL') {
           // Specific Sales Rep selected under this TL
           const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
-          const repMatch = leadOwner.includes(cleanSales) || leadAssignee.includes(cleanSales);
+          const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales);
           if (!repMatch) return false;
         } else {
           // WHOLE TL TEAM: Match leads assigned to the TL themselves OR any sales rep under this TL
-          const subReps = visibleSalesReps.map(s => s.name.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim());
-          const matchesTL = leadOwner.includes(cleanTL) || leadAssignee.includes(cleanTL);
-          const matchesSubRep = subReps.some(rep => leadOwner.includes(rep) || leadAssignee.includes(rep));
+          const subReps = visibleSalesReps.map(s => (s.name || '').toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim());
+          const matchesTL = lOwner.includes(cleanTL) || lAssignee.includes(cleanTL);
+          const matchesSubRep = subReps.some(rep => rep && (lOwner.includes(rep) || lAssignee.includes(rep)));
           if (!matchesTL && !matchesSubRep) return false;
         }
       }
@@ -992,9 +996,7 @@ export function LeadsTable() {
       // filterTL === 'ALL'
       if (filterSales !== 'ALL') {
         const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
-        const leadOwner = (l.owner || '').toLowerCase();
-        const leadAssignee = (l.currentAssignee || '').toLowerCase();
-        const repMatch = leadOwner.includes(cleanSales) || leadAssignee.includes(cleanSales);
+        const repMatch = lOwner.includes(cleanSales) || lAssignee.includes(cleanSales);
         if (!repMatch) return false;
       }
     }
@@ -1005,8 +1007,9 @@ export function LeadsTable() {
         const isUnassigned = !l.owner || l.owner === 'Unassigned' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
         if (!isUnassigned) return false;
       } else {
-        const matchesOwner = l.owner.toLowerCase().includes(filterPerson.toLowerCase());
-        const matchesAssignee = l.currentAssignee ? l.currentAssignee.toLowerCase().includes(filterPerson.toLowerCase()) : false;
+        const pLower = filterPerson.toLowerCase();
+        const matchesOwner = lOwner.includes(pLower);
+        const matchesAssignee = lAssignee.includes(pLower);
         if (!matchesOwner && !matchesAssignee) return false;
       }
     }
@@ -1070,30 +1073,30 @@ export function LeadsTable() {
 
     // 📌 Status/Stage Filtering (Tabs or Modal)
     if (filterStatus !== 'ALL') {
-      if (l.status.toLowerCase() !== filterStatus.toLowerCase()) return false;
+      if (lStatus !== filterStatus.toLowerCase()) return false;
     }
 
     // Status tab filter
-    const matchStatusTab = activeStatus === 'All' || l.status === activeStatus;
+    const matchStatusTab = activeStatus === 'All' || (l.status || '').toLowerCase() === activeStatus.toLowerCase();
     if (!matchStatusTab) return false;
 
     // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       const matchSearch =
-        l.name.toLowerCase().includes(q) ||
-        l.email.toLowerCase().includes(q) ||
-        l.phone.toLowerCase().includes(q) ||
-        l.status.toLowerCase().includes(q) ||
-        l.source.toLowerCase().includes(q) ||
-        l.owner.toLowerCase().includes(q) ||
-        l.value.toLowerCase().includes(q) ||
-        l.city.toLowerCase().includes(q) ||
-        l.budget.toLowerCase().includes(q) ||
-        l.requirement.toLowerCase().includes(q) ||
-        l.created.toLowerCase().includes(q) ||
-        l.tags.some(tag => tag.toLowerCase().includes(q)) ||
-        String(l.score).includes(q);
+        lName.includes(q) ||
+        (l.email || '').toLowerCase().includes(q) ||
+        (l.phone || '').toLowerCase().includes(q) ||
+        lStatus.includes(q) ||
+        (l.source || '').toLowerCase().includes(q) ||
+        lOwner.includes(q) ||
+        (l.value || '').toLowerCase().includes(q) ||
+        (l.city || '').toLowerCase().includes(q) ||
+        (l.budget || '').toLowerCase().includes(q) ||
+        (l.requirement || '').toLowerCase().includes(q) ||
+        (l.created || '').toLowerCase().includes(q) ||
+        (Array.isArray(l.tags) && l.tags.some(tag => tag && String(tag).toLowerCase().includes(q))) ||
+        String(l.score || '').includes(q);
       if (!matchSearch) return false;
     }
 
@@ -1640,7 +1643,7 @@ export function LeadsTable() {
                     {colKey === 'name' && (
                       <div className="overflow-hidden">
                         <Link
-                          href={`/leads/${lead.id}`}
+                          href={`/leads/${encodeURIComponent(lead.id || '1')}`}
                           onClick={() => {
                             if (typeof window !== 'undefined') {
                               sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
@@ -1655,7 +1658,7 @@ export function LeadsTable() {
                         {/* Badges Container: Allocation Chain + Call Telemetry */}
                         <div className="flex items-center gap-1.5 flex-wrap mt-1">
                           {/* Allocation Chain Mini-Badge */}
-                          {lead.allocationTrail && lead.allocationTrail.length > 0 && (
+                          {Array.isArray(lead.allocationTrail) && lead.allocationTrail.length > 0 && (
                             <button
                               onClick={() => setExpandedTrailLeadId(expandedTrailLeadId === lead.id ? null : lead.id)}
                               className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
@@ -1673,7 +1676,7 @@ export function LeadsTable() {
 
                           {/* Call Telemetry Count Badge */}
                           <Link
-                            href={`/leads/${lead.id}`}
+                            href={`/leads/${encodeURIComponent(lead.id || '1')}`}
                             onClick={() => {
                               if (typeof window !== 'undefined') {
                                 sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
@@ -1796,7 +1799,7 @@ export function LeadsTable() {
               </tr>
 
               {/* 🔗 Inline Allocation Trail Expanded Row */}
-              {expandedTrailLeadId === lead.id && lead.allocationTrail && (
+              {expandedTrailLeadId === lead.id && Array.isArray(lead.allocationTrail) && lead.allocationTrail.length > 0 && (
                 <tr key={`trail-${lead.id}`}>
                   <td colSpan={columnOrder.length + 2} className="px-4 py-0 bg-slate-950/60 border-b border-slate-800">
                     <div className="py-4">
