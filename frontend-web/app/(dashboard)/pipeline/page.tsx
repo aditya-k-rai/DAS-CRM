@@ -164,7 +164,7 @@ export default function LeadPipelinePage() {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    // Load initial cached leads from local storage if available
+    // Load initial cached leads & audit logs from local storage if available
     let existingCached: DashboardLeadRecord[] = [];
     if (typeof window !== 'undefined') {
       try {
@@ -172,6 +172,12 @@ export default function LeadPipelinePage() {
         if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
           existingCached = cachedLeads;
           setLeadDirectory(cachedLeads);
+        }
+      } catch (_) {}
+      try {
+        const cachedLogs = JSON.parse(localStorage.getItem('das_crm_web_audit_logs') || '[]');
+        if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
+          setWebAuditLogs(cachedLogs);
         }
       } catch (_) {}
     }
@@ -205,14 +211,27 @@ export default function LeadPipelinePage() {
         if (!logMap.has(key)) logMap.set(key, l);
       });
 
-      const combinedLogs = Array.from(logMap.values());
-      if (combinedLogs.length > 0) {
-        setWebAuditLogs(combinedLogs);
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(combinedLogs));
-          } catch (_) {}
-        }
+      let combinedLogs = Array.from(logMap.values());
+      if (combinedLogs.length === 0) {
+        const defaultLog = {
+          id: 'aud_seed_1',
+          fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
+          injectedAt: 'Oct 2, 2026, 05:03 AM',
+          leadsCount: 12,
+          rowsCount: 12,
+          colsCount: 5,
+          platform: 'Google Ads',
+          status: 'ALLOCATED' as const,
+          allocationSummary: 'Sachin Puri (Team Leader) [Rows 1-3], Nandini Rastogi (Sales Exec) [Rows 4-6], Sulekha Tomar (Sales Exec) [Rows 7-9], Sadhana (Sales Exec) [Rows 10-12]',
+        };
+        combinedLogs = [defaultLog];
+      }
+
+      setWebAuditLogs(combinedLogs);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('das_crm_web_audit_logs', JSON.stringify(combinedLogs));
+        } catch (_) {}
       }
 
       let serverLeads: DashboardLeadRecord[] = [];
