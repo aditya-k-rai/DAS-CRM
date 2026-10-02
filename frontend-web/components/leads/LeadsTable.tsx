@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
-import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead } from './LeadAllocationTrail';
+import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead, sanitizeAllocationEvent, getSafeRoleMeta } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
 import { useWorkflowLeadStatuses } from '@/lib/workflowService';
 import {
@@ -606,8 +606,15 @@ export function LeadsTable() {
           finalLeads = DEFAULT_REAL_LEADS;
         }
 
-        // Clean out any dummy test leads
-        finalLeads = finalLeads.filter(l => !l.name?.includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01');
+        // Clean out any dummy test leads and ensure sanitized allocation trails
+        finalLeads = finalLeads
+          .filter(l => !l.name?.includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
+          .map(l => ({
+            ...l,
+            allocationTrail: Array.isArray(l.allocationTrail) && l.allocationTrail.length > 0
+              ? l.allocationTrail.map((e: any, i: number) => sanitizeAllocationEvent(e, i))
+              : buildAllocationTrailForLead(l.owner || 'Sachin Puri (Team Leader)', l.source || 'Website'),
+          }));
 
         setLeadsList(finalLeads);
 
@@ -1800,18 +1807,13 @@ export function LeadsTable() {
                         <span className="text-[10px] text-slate-500 ml-auto">Admin → Manager → TL → Sales Rep</span>
                       </div>
                       <div className="flex items-stretch gap-0 overflow-x-auto pb-1">
-                        {lead.allocationTrail.map((event, idx) => {
-                          const roleColors: Record<string, { color: string; bg: string; border: string; label: string }> = {
-                            ADMIN: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.35)', label: 'Admin' },
-                            MANAGER: { color: '#818cf8', bg: 'rgba(129,140,248,0.12)', border: 'rgba(129,140,248,0.35)', label: 'Manager' },
-                            TEAM_LEADER: { color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', border: 'rgba(56,189,248,0.35)', label: 'TL' },
-                            SALES_EXEC: { color: '#34d399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.35)', label: 'Sales Rep' },
-                          };
-                          const toMeta = roleColors[event.toRole] || roleColors.SALES_EXEC;
-                          const fromMeta = roleColors[event.fromRole] || roleColors.ADMIN;
+                        {lead.allocationTrail.map((rawEvent, idx) => {
+                          const event = sanitizeAllocationEvent(rawEvent, idx);
+                          const toMeta = getSafeRoleMeta(event.toRole);
+                          const fromMeta = getSafeRoleMeta(event.fromRole);
                           const dt = new Date(event.assignedAt);
-                          const dateStr = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                          const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                          const dateStr = !isNaN(dt.getTime()) ? dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Today';
+                          const timeStr = !isNaN(dt.getTime()) ? dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
                           const isFinal = event.toRole === 'SALES_EXEC';
 
                           return (

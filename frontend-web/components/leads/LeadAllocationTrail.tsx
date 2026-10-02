@@ -40,7 +40,7 @@ export interface AllocationEvent {
 }
 
 // ─── Role Meta ─────────────────────────────────────────────────────────────────
-const ROLE_META: Record<AllocationRole, { label: string; color: string; bg: string; border: string; icon: any }> = {
+export const ROLE_META: Record<AllocationRole, { label: string; color: string; bg: string; border: string; icon: any }> = {
   ADMIN: {
     label: 'Admin',
     color: '#f59e0b',
@@ -70,6 +70,46 @@ const ROLE_META: Record<AllocationRole, { label: string; color: string; bg: stri
     icon: User,
   },
 };
+
+export function getSafeRoleMeta(role?: any): { label: string; color: string; bg: string; border: string; icon: any } {
+  if (!role) return ROLE_META.SALES_EXEC;
+  const normalized = getUserRoleFromName(role, 'SALES_EXEC');
+  return ROLE_META[normalized] || ROLE_META.SALES_EXEC;
+}
+
+export function sanitizeAllocationEvent(event: any, idx: number = 0): AllocationEvent {
+  if (!event || typeof event !== 'object') {
+    return {
+      id: `trail_ev_${idx}_${Date.now()}`,
+      fromRole: 'MANAGER',
+      fromName: 'Aditya Kumar Rai (Manager)',
+      toRole: 'SALES_EXEC',
+      toName: 'Sachin Puri (Team Leader)',
+      action: 'ALLOCATED',
+      assignedAt: new Date().toISOString(),
+      note: 'Allocated to assignee',
+    };
+  }
+
+  const fromRole = getUserRoleFromName(event.fromRole || event.actorRole || event.role || event.actor || 'MANAGER', 'MANAGER');
+  const toRole = getUserRoleFromName(event.toRole || event.assignedRole || event.role || (event.toName ? event.toName : 'SALES_EXEC'), 'SALES_EXEC');
+  const fromName = event.fromName || event.actor || event.userName || 'Aditya Kumar Rai (Manager)';
+  const toName = event.toName || event.assignedTo || event.name || event.actor || 'Sachin Puri (Team Leader)';
+  const action = (event.action || (toRole === 'SALES_EXEC' ? 'ASSIGNED' : 'ALLOCATED')).toUpperCase().includes('ASSIGN') ? 'REASSIGNED' : 'ALLOCATED';
+  const assignedAt = event.assignedAt || event.timestamp || event.createdAt || new Date().toISOString();
+  const note = event.note || event.notes || event.description || '';
+
+  return {
+    id: String(event.id || `alloc_${idx}_${Date.now()}`),
+    fromRole,
+    fromName: fromName.includes('(') ? fromName : `${fromName} (${ROLE_META[fromRole]?.label || 'Manager'})`,
+    toRole,
+    toName: toName.includes('(') ? toName : `${toName} (${ROLE_META[toRole]?.label || 'Sales Exec'})`,
+    action,
+    assignedAt,
+    note,
+  };
+}
 
 // ─── Sample Allocation Trail for Fallback ──────────────────────────────────────
 const SAMPLE_TRAIL: AllocationEvent[] = [];
@@ -157,23 +197,21 @@ export function buildAllocationTrailForLead(
   assigneeName: string = 'Sachin Puri (Team Leader)',
   sourceOrFileName: string = 'Website Inbound',
   allocatedTimestamp: string = new Date().toISOString(),
-  existingTrail?: AllocationEvent[],
+  existingTrail?: any[],
   leadCustomFields?: any
 ): AllocationEvent[] {
   if (Array.isArray(existingTrail) && existingTrail.length > 0) {
-    const sanitized = existingTrail.filter(step => {
-      if (!step) return false;
-      const fName = (step.fromName || '').toLowerCase();
-      const tName = (step.toName || '').toLowerCase();
-      // Remove any erroneous TL -> TL self-assignment
-      if (step.fromRole === 'TEAM_LEADER' && step.toRole === 'TEAM_LEADER') {
-        return false;
-      }
-      if (fName.includes('sachin') && tName.includes('sachin')) {
-        return false;
-      }
-      return true;
-    });
+    const sanitized = existingTrail
+      .filter(step => step && typeof step === 'object')
+      .map((step, idx) => sanitizeAllocationEvent(step, idx))
+      .filter(step => {
+        const fName = (step.fromName || '').toLowerCase();
+        const tName = (step.toName || '').toLowerCase();
+        if (step.fromRole === 'TEAM_LEADER' && step.toRole === 'TEAM_LEADER' && fName === tName) {
+          return false;
+        }
+        return true;
+      });
     if (sanitized.length > 0) return sanitized;
   }
 
@@ -236,8 +274,14 @@ export function buildAllocationTrailForLead(
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function formatDateTime(iso: string): { date: string; time: string; relative: string } {
+function formatDateTime(iso?: string): { date: string; time: string; relative: string } {
+  if (!iso) {
+    return { date: 'Today', time: '11:00 AM', relative: 'Just now' };
+  }
   const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    return { date: String(iso), time: '', relative: 'Recently' };
+  }
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -556,9 +600,10 @@ export function LeadAllocationTrail({
       {/* Allocation Trail Timeline */}
       {!collapsed && (
         <div className="space-y-0">
-          {effectiveTrail.map((event, idx) => {
-            const fromMeta = ROLE_META[event.fromRole];
-            const toMeta = ROLE_META[event.toRole];
+          {effectiveTrail.map((rawEvent, idx) => {
+            const event = sanitizeAllocationEvent(rawEvent, idx);
+            const fromMeta = getSafeRoleMeta(event.fromRole);
+            const toMeta = getSafeRoleMeta(event.toRole);
             const dt = formatDateTime(event.assignedAt);
             const actionLabel = getActionLabel(event);
             const isLast = idx === effectiveTrail.length - 1;

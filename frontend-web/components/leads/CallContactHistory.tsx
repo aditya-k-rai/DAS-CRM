@@ -56,8 +56,14 @@ function formatDuration(secs: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-function formatTimestamp(iso: string): { date: string; time: string; dayLabel: string } {
+function formatTimestamp(iso?: string): { date: string; time: string; dayLabel: string } {
+  if (!iso) {
+    return { date: 'Today', time: '11:00 AM', dayLabel: 'Today' };
+  }
   const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    return { date: String(iso), time: '', dayLabel: 'Today' };
+  }
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
@@ -76,12 +82,17 @@ function formatTimestamp(iso: string): { date: string; time: string; dayLabel: s
 
 function groupByDate(history: ContactAttempt[]): Record<string, ContactAttempt[]> {
   const groups: Record<string, ContactAttempt[]> = {};
-  [...history].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .forEach(item => {
-      const { dayLabel } = formatTimestamp(item.timestamp);
-      if (!groups[dayLabel]) groups[dayLabel] = [];
-      groups[dayLabel].push(item);
-    });
+  if (!Array.isArray(history)) return groups;
+  [...history].sort((a, b) => {
+    const tA = new Date(a?.timestamp || 0).getTime() || 0;
+    const tB = new Date(b?.timestamp || 0).getTime() || 0;
+    return tB - tA;
+  }).forEach(item => {
+    if (!item) return;
+    const { dayLabel } = formatTimestamp(item.timestamp);
+    if (!groups[dayLabel]) groups[dayLabel] = [];
+    groups[dayLabel].push(item);
+  });
   return groups;
 }
 
