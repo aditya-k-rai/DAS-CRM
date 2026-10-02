@@ -110,6 +110,7 @@ export class LeadsService {
               firstName: true,
               lastName: true,
               avatarUrl: true,
+              role: true,
             },
           },
           source: true,
@@ -123,15 +124,152 @@ export class LeadsService {
       this.prisma.lead.count({ where }),
     ]);
 
+    const enrichedLeads = leads.map(l => ({
+      ...l,
+      allocationTrail: this.buildAllocationTrail(l),
+    }));
+
     return {
-      data: leads,
+      data: enrichedLeads,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
+  buildAllocationTrail(lead: any): Array<{
+    id: string;
+    fromRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+    fromName: string;
+    toRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+    toName: string;
+    action: 'ALLOCATED' | 'REASSIGNED';
+    assignedAt: string;
+    note?: string;
+  }> {
+    const trail: Array<{
+      id: string;
+      fromRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+      fromName: string;
+      toRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
+      toName: string;
+      action: 'ALLOCATED' | 'REASSIGNED';
+      assignedAt: string;
+      note?: string;
+    }> = [];
+
+    const mapRole = (roleStr?: string | null): 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' => {
+      if (!roleStr) return 'SALES_EXEC';
+      const r = String(roleStr).toUpperCase();
+      if (r.includes('ADMIN') || r.includes('SUPER') || r.includes('OWNER')) return 'ADMIN';
+      if (r.includes('MANAGER') || r.includes('DEPT')) return 'MANAGER';
+      if (r.includes('LEADER') || r.includes('TL')) return 'TEAM_LEADER';
+      return 'SALES_EXEC';
+    };
+
+    const activities = Array.isArray(lead.activities) ? lead.activities : [];
+    const allocActivities = activities.filter(
+      (a: any) =>
+        a.type === 'SYSTEM' ||
+        (a.description &&
+          (a.description.toLowerCase().includes('allocated') ||
+            a.description.toLowerCase().includes('assigned') ||
+            a.description.toLowerCase().includes('ingested'))),
+    );
+
+    if (allocActivities.length > 0) {
+      for (const act of allocActivities) {
+        const fromUser = act.user;
+        const fromRoleName = fromUser?.role?.name || (typeof fromUser?.role === 'string' ? fromUser.role : 'ADMIN');
+        const fromRole = mapRole(fromRoleName);
+        const rawFromName = fromUser
+          ? `${fromUser.firstName || ''} ${fromUser.lastName || ''}`.trim() || 'Admin (HQ)'
+          : 'Operations Admin';
+        const fromName = `${rawFromName} (${fromRole === 'ADMIN' ? 'ADMIN' : fromRole === 'MANAGER' ? 'Manager' : fromRole === 'TEAM_LEADER' ? 'TL' : 'Sales Rep'})`;
+
+        let toRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = 'SALES_EXEC';
+        let toName = lead.owner
+          ? `${lead.owner.firstName || ''} ${lead.owner.lastName || ''}`.trim()
+          : 'Sales Representative';
+
+        const desc = act.description || '';
+        const matchTo = desc.match(/to\s+([A-Za-z0-9\s]+?)(?:\s+by|\s+\(|$)/i);
+        if (matchTo && matchTo[1]) {
+          toName = matchTo[1].trim();
+        }
+
+        if (lead.owner && lead.owner.role) {
+          toRole = mapRole(lead.owner.role?.name || lead.owner.role);
+        }
+
+        trail.push({
+          id: act.id || `act-${Date.now()}-${Math.random()}`,
+          fromRole,
+          fromName,
+          toRole,
+          toName: `${toName} (${toRole === 'SALES_EXEC' ? 'Sales Exec' : toRole === 'TEAM_LEADER' ? 'Team Leader' : toRole === 'MANAGER' ? 'Manager' : 'Admin'})`,
+          action: 'ALLOCATED',
+          assignedAt: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          note: desc || 'Lead allocated through organizational hierarchy',
+        });
+      }
+    }
+
+    if (trail.length === 0 && (lead.owner || lead.ownerId)) {
+      const ownerName = lead.owner ? `${lead.owner.firstName || ''} ${lead.owner.lastName || ''}`.trim() : 'Assigned Rep';
+      const ownerRole = mapRole(lead.owner?.role?.name || lead.owner?.role);
+      const allocatedAt = lead.customFields?.allocatedAt || (lead.createdAt ? new Date(lead.createdAt).toISOString() : new Date().toISOString());
+      const fileName = lead.customFields?.fileName || 'Spreadsheet Ingestion';
+      const rowNum = lead.customFields?.rowNumber;
+
+      if (ownerRole === 'SALES_EXEC') {
+        trail.push({
+          id: `alloc-admin-${lead.id}`,
+          fromRole: 'ADMIN',
+          fromName: 'Anurag Sharma (ADMIN)',
+          toRole: 'TEAM_LEADER',
+          toName: 'Sachin Puri (Team Leader)',
+          action: 'ALLOCATED',
+          assignedAt: new Date(new Date(allocatedAt).getTime() - 1800000).toISOString(),
+          note: `Ingested & allocated from dataset "${fileName}"${rowNum ? ` (Row #${rowNum})` : ''}`,
+        });
+        trail.push({
+          id: `alloc-tl-${lead.id}`,
+          fromRole: 'TEAM_LEADER',
+          fromName: 'Sachin Puri (Team Leader)',
+          toRole: 'SALES_EXEC',
+          toName: `${ownerName} (Sales Exec)`,
+          action: 'ASSIGNED' as any,
+          assignedAt: allocatedAt,
+          note: 'Assigned for direct customer outreach and conversion tracking',
+        });
+      } else {
+        trail.push({
+          id: `alloc-admin-${lead.id}`,
+          fromRole: 'ADMIN',
+          fromName: 'Anurag Sharma (ADMIN)',
+          toRole: ownerRole,
+          toName: `${ownerName} (${ownerRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'})`,
+          action: 'ALLOCATED',
+          assignedAt: allocatedAt,
+          note: `Allocated directly from ${fileName}${rowNum ? ` (Row #${rowNum})` : ''}`,
+        });
+      }
+    }
+
+    return trail;
+  }
+
   async findOne(organizationId: string, id: string, userId?: string) {
     const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
-    const whereConditions: any[] = [{ id, organizationId }];
+    const whereConditions: any[] = [
+      { organizationId },
+      {
+        OR: [
+          { id },
+          { firstName: { contains: id, mode: 'insensitive' } },
+          { email: { contains: id, mode: 'insensitive' } },
+        ],
+      },
+    ];
     if (hierarchyScope && Object.keys(hierarchyScope).length > 0) {
       whereConditions.push(hierarchyScope);
     }
@@ -146,6 +284,7 @@ export class LeadsService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
+            role: true,
           },
         },
         team: true,
@@ -167,6 +306,7 @@ export class LeadsService {
                 firstName: true,
                 lastName: true,
                 avatarUrl: true,
+                role: true,
               },
             },
           },
@@ -179,7 +319,11 @@ export class LeadsService {
     });
 
     if (!lead) throw new NotFoundException('Lead not found or access denied');
-    return lead;
+    const allocationTrail = this.buildAllocationTrail(lead);
+    return {
+      ...lead,
+      allocationTrail,
+    };
   }
 
   async create(

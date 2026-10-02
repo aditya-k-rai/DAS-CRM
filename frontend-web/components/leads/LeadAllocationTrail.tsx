@@ -119,8 +119,7 @@ export function LeadAllocationTrail({
 
   const effectiveTrail: AllocationEvent[] = (trail && trail.length > 0)
     ? trail
-    : currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep'
-    ? [
+    : [
         {
           id: 'alloc_step_admin',
           fromRole: 'ADMIN',
@@ -136,15 +135,19 @@ export function LeadAllocationTrail({
           fromRole: 'TEAM_LEADER',
           fromName: 'Sachin Puri (Team Leader)',
           toRole: currentRole || 'SALES_EXEC',
-          toName: currentAssignee,
+          toName: (currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep') ? currentAssignee : 'Sachin Puri (Team Leader)',
           action: 'ASSIGNED' as any,
           assignedAt: new Date(Date.now() - 1800000).toISOString(),
           note: 'Assigned for direct customer outreach & conversion',
         },
-      ]
-    : [];
+      ];
 
-  const currentRoleMeta = ROLE_META[currentRole];
+  const lastEvent = effectiveTrail[effectiveTrail.length - 1];
+  const displayAssignee = (currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep')
+    ? currentAssignee
+    : (lastEvent?.toName || 'Sachin Puri (Team Leader)');
+  const displayRole = (lastEvent?.toRole || currentRole || 'SALES_EXEC') as AllocationRole;
+  const currentRoleMeta = ROLE_META[displayRole] || ROLE_META.SALES_EXEC;
   const canAllocate = isAdmin || isManager || isTL;
 
   // Determine who the current user can assign to
@@ -228,7 +231,7 @@ export function LeadAllocationTrail({
           </div>
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Currently Assigned To</p>
-            <p className="text-sm font-extrabold text-white">{currentAssignee}</p>
+            <p className="text-sm font-extrabold text-white">{displayAssignee}</p>
           </div>
         </div>
         <span

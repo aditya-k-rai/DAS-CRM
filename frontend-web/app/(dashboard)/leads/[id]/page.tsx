@@ -6,7 +6,8 @@ import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Lead Employee Workspace | DAS CRM' };
 
-export default function LeadDetailPage({ params }: { params: { id: string } }) {
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Topbar
@@ -20,7 +21,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
       />
 
       <main className="flex-1 p-6 overflow-auto">
-        <EmployeeLeadWorkspace leadId={params.id} />
+        <EmployeeLeadWorkspace leadId={id} />
       </main>
     </div>
   );

@@ -311,6 +311,15 @@ export function LeadsTable() {
         ];
         setLeadsList(finalLeads);
 
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
+            finalLeads.forEach(item => {
+              sessionStorage.setItem(`das_crm_lead_${item.id}`, JSON.stringify(item));
+            });
+          } catch (_) {}
+        }
+
         if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
           const usersData = await usersRes.value.json();
           if (Array.isArray(usersData) && usersData.length > 0) {
@@ -417,14 +426,16 @@ export function LeadsTable() {
     }
   };
 
-  // Excel Interactive Column Order State
+  // Excel Interactive Column Order State (Dedicated Phone & Email Columns)
   const [columnOrder, setColumnOrder] = useState<string[]>([
-    'name', 'status', 'aiScore', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
+    'name', 'phone', 'email', 'status', 'aiScore', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
   ]);
 
   // Dynamic Column Names (Renameable)
   const [columnTitles, setColumnTitles] = useState<Record<string, string>>({
     name: 'Lead Name / Client',
+    phone: 'Phone Number',
+    email: 'Email Address',
     status: 'Status',
     aiScore: 'AI Score',
     value: 'Lead Value',
@@ -438,7 +449,9 @@ export function LeadsTable() {
 
   // Column Width Resizers
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    name: 240,
+    name: 220,
+    phone: 150,
+    email: 210,
     status: 130,
     aiScore: 110,
     value: 130,
@@ -928,16 +941,20 @@ export function LeadsTable() {
                   <td key={colKey} className="px-3 py-3 border-b border-r border-slate-800/60 text-xs">
                     {colKey === 'name' && (
                       <div>
-                        <Link href={`/leads/${lead.id}`} className="font-bold text-white hover:text-indigo-400 hover:underline">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          onClick={() => {
+                            if (typeof window !== 'undefined') {
+                              sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
+                              sessionStorage.setItem('das_crm_active_lead', JSON.stringify(lead));
+                            }
+                          }}
+                          className="font-bold text-white hover:text-indigo-400 hover:underline text-sm"
+                        >
                           {lead.name}
                         </Link>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                          <span>{lead.email}</span>
-                          <span>·</span>
-                          <span>{lead.phone}</span>
-                        </div>
                         {/* Badges Container: Allocation Chain + Call Telemetry */}
-                        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
                           {/* Allocation Chain Mini-Badge */}
                           {lead.allocationTrail && lead.allocationTrail.length > 0 && (
                             <button
@@ -958,6 +975,12 @@ export function LeadsTable() {
                           {/* Call Telemetry Count Badge */}
                           <Link
                             href={`/leads/${lead.id}`}
+                            onClick={() => {
+                              if (typeof window !== 'undefined') {
+                                sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
+                                sessionStorage.setItem('das_crm_active_lead', JSON.stringify(lead));
+                              }
+                            }}
                             className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all hover:opacity-80"
                             style={{
                               background: 'rgba(52,211,153,0.1)',
@@ -967,9 +990,27 @@ export function LeadsTable() {
                             title="Click to view full call contact timeline & audit"
                           >
                             <Phone size={9} />
-                            {lead.totalCalls || 4} Calls (Last: {lead.lastCalledAt || 'Today 2:45 PM'})
+                            {lead.totalCalls || 1} Calls (Last: {lead.lastCalledAt || '10m ago'})
                           </Link>
                         </div>
+                      </div>
+                    )}
+
+                    {colKey === 'phone' && (
+                      <div className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold whitespace-nowrap">
+                        <Phone size={12} className="text-emerald-500 flex-shrink-0" />
+                        <a href={`tel:${lead.phone}`} className="hover:underline hover:text-emerald-300">
+                          {lead.phone || '—'}
+                        </a>
+                      </div>
+                    )}
+
+                    {colKey === 'email' && (
+                      <div className="flex items-center gap-1.5 text-purple-300 font-medium whitespace-nowrap">
+                        <Mail size={12} className="text-purple-400 flex-shrink-0" />
+                        <a href={`mailto:${lead.email}`} className="hover:underline hover:text-purple-200 truncate max-w-[190px]" title={lead.email}>
+                          {lead.email || '—'}
+                        </a>
                       </div>
                     )}
 
