@@ -799,7 +799,7 @@ export default function FollowUpsModule() {
     setShowCreateModal(true);
   };
 
-  // Filter list based on selected quick chip
+  // Filter list based on selected quick chip & search query
   const filterList = (items: any[]) => {
     if (!items || !Array.isArray(items)) return [];
     let result = items;
@@ -831,14 +831,46 @@ export default function FollowUpsModule() {
         return type === 'EMAIL' || title.includes('email') || title.includes('mail');
       });
     }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((i) => {
+        const title = (i.title || '').toLowerCase();
+        const purpose = (i.purpose || '').toLowerCase();
+        const leadName = (i.lead?.name || (i.lead?.firstName ? `${i.lead.firstName || ''} ${i.lead.lastName || ''}` : '')).toLowerCase();
+        const leadPhone = (i.lead?.phone || i.leadPhone || i.phone || '').toLowerCase();
+        const leadEmail = (i.lead?.email || i.leadEmail || i.email || '').toLowerCase();
+        const leadCompany = (typeof i.lead?.company === 'string' ? i.lead.company : i.lead?.company?.name || '').toLowerCase();
+        const creatorName = (i.createdByName || i.createdBy?.name || '').toLowerCase();
+        const assigneeName = (i.assignee?.name || '').toLowerCase();
+        const repName = (i.lead?.owner?.name || '').toLowerCase();
+        const outcome = (i.outcome || '').toLowerCase();
+        const notes = (i.completionNotes || i.rescheduleReason || i.cancelledReason || '').toLowerCase();
+
+        return (
+          title.includes(q) ||
+          purpose.includes(q) ||
+          leadName.includes(q) ||
+          leadPhone.includes(q) ||
+          leadEmail.includes(q) ||
+          leadCompany.includes(q) ||
+          creatorName.includes(q) ||
+          assigneeName.includes(q) ||
+          repName.includes(q) ||
+          outcome.includes(q) ||
+          notes.includes(q)
+        );
+      });
+    }
+
     return result;
   };
 
-  const filteredAllData = useMemo(() => filterList(allData), [allData, selectedTypeFilter]);
-  const filteredDueNow = useMemo(() => filterList(todayData.dueNow), [todayData.dueNow, selectedTypeFilter]);
-  const filteredUpcomingToday = useMemo(() => filterList(todayData.upcomingToday), [todayData.upcomingToday, selectedTypeFilter]);
-  const filteredCompletedToday = useMemo(() => filterList(todayData.completedToday), [todayData.completedToday, selectedTypeFilter]);
-  const filteredMissedToday = useMemo(() => filterList(todayData.missedToday), [todayData.missedToday, selectedTypeFilter]);
+  const filteredAllData = useMemo(() => filterList(allData), [allData, selectedTypeFilter, searchQuery]);
+  const filteredDueNow = useMemo(() => filterList(todayData.dueNow), [todayData.dueNow, selectedTypeFilter, searchQuery]);
+  const filteredUpcomingToday = useMemo(() => filterList(todayData.upcomingToday), [todayData.upcomingToday, selectedTypeFilter, searchQuery]);
+  const filteredCompletedToday = useMemo(() => filterList(todayData.completedToday), [todayData.completedToday, selectedTypeFilter, searchQuery]);
+  const filteredMissedToday = useMemo(() => filterList(todayData.missedToday), [todayData.missedToday, selectedTypeFilter, searchQuery]);
 
   const hasAnyTodayItems = filteredDueNow.length > 0 || filteredUpcomingToday.length > 0 || filteredCompletedToday.length > 0 || filteredMissedToday.length > 0;
 
@@ -2544,6 +2576,138 @@ interface LeadOption {
   owner?: string;
 }
 
+const DEFAULT_FALLBACK_LEADS: LeadOption[] = [
+  { id: 'lead_anjali_01', name: 'Anjali Verma', company: 'Adorable Trading', phone: '+91 98000 10007', email: 'anjali.verma@example.com', status: 'Meeting Scheduled', owner: 'Sachin Puri' },
+  { id: 'lead_pooja_02', name: 'Pooja Nair', company: 'Nair Logistics India', phone: '+91 98000 10009', email: 'pooja.nair@nairlogistics.in', status: 'Meeting Scheduled', owner: 'Sachin Puri' },
+  { id: 'lead_vikram_03', name: 'Dr. Vikram Malhotra', company: 'Zenith Hospital & Research Centre', phone: '+91 98201 12345', email: 'vikram.malhotra@zenithhospital.org', status: 'Qualified', owner: 'Sachin Puri' },
+  { id: 'lead_rohan_04', name: 'Rohan Deshmukh', company: 'TechVista Enterprises', phone: '+91 98000 10000', email: 'rohan.deshmukh@example.com', status: 'New', owner: 'Sachin Puri' },
+  { id: 'lead_priya_05', name: 'Priya Patel', company: 'Patel Consultancies', phone: '+91 98000 10001', email: 'priya.patel@example.com', status: 'Contacted', owner: 'Sachin Puri' },
+  { id: 'lead_neha_06', name: 'Neha Sharma', company: 'Sharma Innovations', phone: '+91 98000 10003', email: 'neha.sharma@example.com', status: 'Proposal', owner: 'Nandini Rastogi' },
+  { id: 'lead_arjun_07', name: 'Arjun Reddy', company: 'Reddy Logistics', phone: '+91 98000 10004', email: 'arjun.reddy@example.com', status: 'Negotiation', owner: 'Nandini Rastogi' },
+  { id: 'lead_kavita_08', name: 'Kavita Singh', company: 'Singh Global Exports', phone: '+91 98000 10005', email: 'kavita.singh@example.com', status: 'Won', owner: 'Nandini Rastogi' },
+  { id: 'lead_siddharth_09', name: 'Siddharth Mehta', company: 'Mehta Textiles', phone: '+91 98000 10006', email: 'siddharth.mehta@example.com', status: 'Follow Up', owner: 'Sulekha Tomar' },
+  { id: 'lead_rahul_10', name: 'Rahul Kapoor', company: 'Kapoor Auto Corp', phone: '+91 98000 10008', email: 'rahul.kapoor@example.com', status: 'Contacted', owner: 'Sadhana' },
+  { id: 'lead_rajesh_11', name: 'Rajesh Khanna', company: 'Khanna Exports Ltd', phone: '+91 98111 22334', email: 'rajesh@khannaexports.com', status: 'Qualified', owner: 'Sachin Puri' },
+  { id: 'lead_sunita_12', name: 'Sunita Gupta', company: 'Apex Healthcare Pvt Ltd', phone: '+91 98222 33445', email: 'sunita@apexhealth.in', status: 'New', owner: 'Nandini Rastogi' },
+  { id: 'lead_suresh_13', name: 'Suresh Patel', company: 'Gujarat Textiles Hub', phone: '+91 98333 44556', email: 'suresh@gujarattextiles.com', status: 'Contacted', owner: 'Sachin Puri' },
+  { id: 'lead_amit_14', name: 'Amit Shah', company: 'Skyline Infra Ventures', phone: '+91 98444 55667', email: 'amit@skylineinfra.com', status: 'Proposal', owner: 'Nandini Rastogi' },
+  { id: 'lead_sneha_15', name: 'Sneha Reddy', company: 'Cloud Nine Systems', phone: '+91 98555 66778', email: 'sneha@cloudninesys.com', status: 'Negotiation', owner: 'Sachin Puri' },
+  { id: 'lead_anurag_16', name: 'Anurag Enterprises', company: 'Anurag Tech Hub', phone: '+91 98765 43210', email: 'contact@anuragenterprises.com', status: 'Active', owner: 'Aditya Kumar Rai' },
+];
+
+function getAggregatedLeadOptions(extraServerLeads: any[] = []): LeadOption[] {
+  const map = new Map<string, LeadOption>();
+
+  // 1. Defaults
+  DEFAULT_FALLBACK_LEADS.forEach((lead) => {
+    map.set(lead.name.toLowerCase().trim(), lead);
+  });
+
+  if (typeof window !== 'undefined') {
+    // 2. das_crm_all_leads_cache
+    try {
+      const rawAll = localStorage.getItem('das_crm_all_leads_cache');
+      if (rawAll) {
+        const parsed = JSON.parse(rawAll);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((l: any) => {
+            const name = (l.name || `${l.firstName || ''} ${l.lastName || ''}`).trim();
+            if (name) {
+              const key = name.toLowerCase();
+              map.set(key, {
+                id: String(l.id || `lead_${key}`),
+                name,
+                phone: l.phone || l.mobilePhone || '',
+                email: l.email || '',
+                company: typeof l.company === 'string' ? l.company : l.company?.name || l.companyName || '',
+                status: typeof l.status === 'string' ? l.status : l.status?.name || 'Active',
+                owner: typeof l.owner === 'string' ? l.owner : l.owner?.name || (l.owner?.firstName ? `${l.owner.firstName} ${l.owner.lastName || ''}`.trim() : 'Sachin Puri'),
+              });
+            }
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 3. das_crm_lead_directory_cache
+    try {
+      const rawDir = localStorage.getItem('das_crm_lead_directory_cache');
+      if (rawDir) {
+        const parsed = JSON.parse(rawDir);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((l: any) => {
+            const name = (l.name || `${l.firstName || ''} ${l.lastName || ''}`).trim();
+            if (name) {
+              const key = name.toLowerCase();
+              const existing = map.get(key);
+              map.set(key, {
+                id: String(l.id || existing?.id || `lead_${key}`),
+                name,
+                phone: l.phone || l.mobilePhone || existing?.phone || '',
+                email: l.email || existing?.email || '',
+                company: typeof l.company === 'string' ? l.company : l.company?.name || l.companyName || existing?.company || '',
+                status: typeof l.status === 'string' ? l.status : l.status?.name || existing?.status || 'Active',
+                owner: typeof l.owner === 'string' ? l.owner : l.owner?.name || existing?.owner || 'Sachin Puri',
+              });
+            }
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 4. das_crm_followup_tasks_cache
+    try {
+      const rawTasks = localStorage.getItem('das_crm_followup_tasks_cache');
+      if (rawTasks) {
+        const parsed = JSON.parse(rawTasks);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((task: any) => {
+            if (task.lead) {
+              const l = task.lead;
+              const name = (l.name || `${l.firstName || ''} ${l.lastName || ''}`).trim();
+              if (name) {
+                const key = name.toLowerCase();
+                const existing = map.get(key);
+                map.set(key, {
+                  id: String(l.id || existing?.id || `lead_${key}`),
+                  name,
+                  phone: l.phone || existing?.phone || '',
+                  email: l.email || existing?.email || '',
+                  company: typeof l.company === 'string' ? l.company : l.company?.name || existing?.company || '',
+                  status: typeof l.status === 'string' ? l.status : l.status?.name || existing?.status || 'Active',
+                  owner: typeof l.owner === 'string' ? l.owner : l.owner?.name || existing?.owner || 'Sachin Puri',
+                });
+              }
+            }
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 5. Server extra leads
+  if (Array.isArray(extraServerLeads)) {
+    extraServerLeads.forEach((l: any) => {
+      const name = (l.name || `${l.firstName || ''} ${l.lastName || ''}`).trim();
+      if (name) {
+        const key = name.toLowerCase();
+        const existing = map.get(key);
+        map.set(key, {
+          id: String(l.id || existing?.id || `lead_${key}`),
+          name,
+          phone: l.phone || l.mobilePhone || existing?.phone || '',
+          email: l.email || existing?.email || '',
+          company: typeof l.company === 'string' ? l.company : l.company?.name || l.companyName || existing?.company || '',
+          status: typeof l.status === 'string' ? l.status : l.status?.name || existing?.status || 'Active',
+          owner: typeof l.owner === 'string' ? l.owner : l.owner?.name || (l.owner?.firstName ? `${l.owner.firstName} ${l.owner.lastName || ''}`.trim() : existing?.owner || 'Sachin Puri'),
+        });
+      }
+    });
+  }
+
+  return Array.from(map.values());
+}
+
 function CreateFollowUpModal({
   presetType = 'CALL',
   onClose,
@@ -2556,7 +2720,7 @@ function CreateFollowUpModal({
   const { token, currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [leadsLoading, setLeadsLoading] = useState(false);
-  const [leadsList, setLeadsList] = useState<LeadOption[]>([]);
+  const [leadsList, setLeadsList] = useState<LeadOption[]>(() => getAggregatedLeadOptions([]));
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -2571,25 +2735,17 @@ function CreateFollowUpModal({
     purpose: '',
   });
 
-  // Fetch available leads for selection
+  // Fetch available leads from API and merge
   useEffect(() => {
     let isMounted = true;
     const loadLeads = async () => {
       try {
         setLeadsLoading(true);
-        const data = await fetchApi('/leads?limit=100', token);
+        const data = await fetchApi('/leads?limit=200', token).catch(() => null);
         const raw = Array.isArray(data) ? data : data?.data || data?.leads || [];
         if (isMounted) {
-          const parsed: LeadOption[] = raw.map((l: any) => ({
-            id: String(l.id),
-            name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-            phone: l.phone || l.mobilePhone || '',
-            email: l.email || '',
-            company: l.company?.name || l.company || l.companyName || '',
-            status: l.status?.name || l.status || 'Active',
-            owner: l.owner?.name || (l.owner?.firstName ? `${l.owner.firstName} ${l.owner.lastName || ''}`.trim() : 'Sachin Puri'),
-          }));
-          setLeadsList(parsed);
+          const merged = getAggregatedLeadOptions(raw);
+          setLeadsList(merged);
         }
       } catch (err) {
         console.warn('Leads fetch notice:', err);
@@ -2605,17 +2761,27 @@ function CreateFollowUpModal({
 
   // Filtered leads based on search query
   const filteredLeads = useMemo(() => {
-    if (!leadSearchQuery.trim()) return leadsList.slice(0, 8);
     const q = leadSearchQuery.toLowerCase().trim();
+    if (!q) return leadsList.slice(0, 10);
+    const cleanQ = q.replace(/[\s+-]/g, '');
+
     return leadsList
-      .filter(
-        (l) =>
-          l.name.toLowerCase().includes(q) ||
-          (l.phone && l.phone.includes(q)) ||
-          (l.company && l.company.toLowerCase().includes(q)) ||
-          (l.email && l.email.toLowerCase().includes(q))
-      )
-      .slice(0, 10);
+      .filter((l) => {
+        const nameMatch = l.name.toLowerCase().includes(q);
+        const phoneMatch = l.phone ? l.phone.toLowerCase().replace(/[\s+-]/g, '').includes(cleanQ) : false;
+        const companyMatch = l.company ? l.company.toLowerCase().includes(q) : false;
+        const emailMatch = l.email ? l.email.toLowerCase().includes(q) : false;
+        const ownerMatch = l.owner ? l.owner.toLowerCase().includes(q) : false;
+        const statusMatch = l.status ? l.status.toLowerCase().includes(q) : false;
+        return nameMatch || phoneMatch || companyMatch || emailMatch || ownerMatch || statusMatch;
+      })
+      .slice(0, 15);
+  }, [leadsList, leadSearchQuery]);
+
+  const hasExactMatch = useMemo(() => {
+    const q = leadSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return leadsList.some((l) => l.name.toLowerCase().trim() === q);
   }, [leadsList, leadSearchQuery]);
 
   const handleSelectLead = (lead: LeadOption) => {
@@ -2643,6 +2809,21 @@ function CreateFollowUpModal({
         ? prev.title
         : suggestedTitle,
     }));
+  };
+
+  const handleCreateCustomProspect = () => {
+    const trimmed = leadSearchQuery.trim();
+    if (!trimmed) return;
+    const customLead: LeadOption = {
+      id: `custom_lead_${Date.now()}`,
+      name: trimmed,
+      company: '',
+      phone: '',
+      email: '',
+      status: 'Custom Prospect',
+      owner: currentUser?.name || 'Aditya Kumar Rai',
+    };
+    handleSelectLead(customLead);
   };
 
   const handleClearSelectedLead = () => {
@@ -2684,8 +2865,8 @@ function CreateFollowUpModal({
         try {
           const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
           const dueAtIso = `${formData.scheduledDate}T${formData.scheduledTime || '11:00'}:00`;
-          const creatorName = currentUser?.name || 'Anurag Sharma';
-          const creatorRole = currentUser?.role || 'ADMIN';
+          const creatorName = currentUser?.name || 'Aditya Kumar Rai';
+          const creatorRole = currentUser?.role || 'MANAGER';
           const repName = selectedLead?.owner || 'Sachin Puri';
 
           cachedTasks.unshift({
@@ -2694,7 +2875,7 @@ function CreateFollowUpModal({
             dueAt: dueAtIso,
             createdAt: new Date().toISOString(),
             status: 'PENDING',
-            createdById: currentUser?.id || 'admin_user',
+            createdById: currentUser?.id || 'mgr_aditya',
             createdByName: creatorName,
             createdByRole: creatorRole,
             createdBy: { name: creatorName, role: creatorRole },
@@ -2748,7 +2929,7 @@ function CreateFollowUpModal({
               {modalTitle}
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Creator: <strong className="text-slate-200">{currentUser?.name || 'Anurag Sharma'}</strong> ({currentUser?.role || 'ADMIN'})
+              Creator: <strong className="text-slate-200">{currentUser?.name || 'Aditya Kumar Rai'}</strong> ({currentUser?.role || 'MANAGER'})
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
@@ -2767,7 +2948,7 @@ function CreateFollowUpModal({
                 <button
                   type="button"
                   onClick={handleClearSelectedLead}
-                  className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold"
+                  className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
                 >
                   Change Lead
                 </button>
@@ -2797,7 +2978,7 @@ function CreateFollowUpModal({
                 <button
                   type="button"
                   onClick={handleClearSelectedLead}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0 ml-2"
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 shrink-0 ml-2 cursor-pointer"
                   title="Remove lead association"
                 >
                   <X size={14} />
@@ -2806,38 +2987,57 @@ function CreateFollowUpModal({
             ) : (
               <div className="relative">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(true)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                    title="Open prospect search"
+                  >
+                    <Search size={14} />
+                  </button>
                   <input
                     type="text"
-                    placeholder="Search prospect by name, company, phone, or email..."
+                    placeholder="Search prospect by name (e.g. Anjali), company, phone, email..."
                     value={leadSearchQuery}
                     onFocus={() => setIsDropdownOpen(true)}
+                    onClick={() => setIsDropdownOpen(true)}
                     onChange={(e) => {
                       setLeadSearchQuery(e.target.value);
                       setIsDropdownOpen(true);
                     }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-14 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
                   />
-                  {leadSearchQuery && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    {leadSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setLeadSearchQuery('')}
+                        className="text-slate-500 hover:text-white cursor-pointer p-0.5"
+                        title="Clear search"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setLeadSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="text-slate-400 hover:text-white text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                      title="Toggle dropdown"
                     >
-                      <X size={12} />
+                      {isDropdownOpen ? '▲' : '▼'}
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Dropdown list */}
                 {isDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-52 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-800/60 no-scrollbar">
                     {leadsLoading ? (
                       <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                         <RefreshCw size={13} className="animate-spin text-indigo-400" />
-                        Loading assigned leads...
+                        Syncing leads directory...
                       </div>
-                    ) : filteredLeads.length === 0 ? (
+                    ) : filteredLeads.length === 0 && hasExactMatch ? (
                       <div className="p-3 text-center text-xs text-slate-400">
                         {leadSearchQuery ? 'No matching leads found.' : 'No leads available.'}
                       </div>
@@ -2846,15 +3046,15 @@ function CreateFollowUpModal({
                         <div
                           key={lead.id}
                           onClick={() => handleSelectLead(lead)}
-                          className="p-2.5 hover:bg-slate-900 cursor-pointer flex items-center justify-between transition-colors"
+                          className="p-2.5 hover:bg-slate-900 cursor-pointer flex items-center justify-between transition-colors group"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 font-black text-[11px] flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-lg bg-slate-800 group-hover:bg-indigo-600/30 text-slate-300 group-hover:text-indigo-300 font-black text-[11px] flex items-center justify-center shrink-0 border border-slate-700/60 transition-colors">
                               {lead.name.slice(0, 2).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
-                                <span className="truncate">{lead.name}</span>
+                                <span className="truncate group-hover:text-indigo-300 transition-colors">{lead.name}</span>
                                 <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-bold shrink-0">
                                   {lead.status}
                                 </span>
@@ -2862,14 +3062,33 @@ function CreateFollowUpModal({
                               <div className="text-[10px] text-slate-400 flex items-center gap-2 truncate mt-0.5">
                                 {lead.phone && <span>📞 {lead.phone}</span>}
                                 {lead.company && <span className="truncate">🏢 {lead.company}</span>}
+                                {lead.owner && <span className="text-indigo-300 truncate">👤 {lead.owner}</span>}
                               </div>
                             </div>
                           </div>
-                          <span className="text-[10px] font-bold text-indigo-400 hover:underline shrink-0 ml-2">
-                            Select
+                          <span className="text-[10px] font-bold text-indigo-400 group-hover:text-indigo-300 hover:underline shrink-0 ml-2">
+                            Select →
                           </span>
                         </div>
                       ))
+                    )}
+
+                    {/* Fallback: Create / Use typed query as Custom Prospect */}
+                    {leadSearchQuery.trim() && !hasExactMatch && (
+                      <div
+                        onClick={handleCreateCustomProspect}
+                        className="p-3 bg-indigo-950/60 hover:bg-indigo-900/80 border-t border-indigo-500/30 cursor-pointer flex items-center justify-between text-indigo-300 font-bold transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Plus size={14} className="text-indigo-400 shrink-0" />
+                          <span className="text-xs truncate">
+                            Use <strong className="text-white">&ldquo;{leadSearchQuery.trim()}&rdquo;</strong> as custom prospect
+                          </span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 font-bold shrink-0 ml-2">
+                          + Select
+                        </span>
+                      </div>
                     )}
                   </div>
                 )}
@@ -2983,3 +3202,4 @@ function CreateFollowUpModal({
     </div>
   );
 }
+
