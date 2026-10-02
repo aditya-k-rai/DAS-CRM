@@ -520,6 +520,28 @@ export function LeadsTable() {
   // Interactive Column Drag-to-Resize Handler
   const [resizingCol, setResizingCol] = useState<{ key: string; startX: number; startWidth: number } | null>(null);
 
+  // Toggle Header Controls (Reorder, Rename, Resize buttons) — default to clean heading text only!
+  const [showHeaderControls, setShowHeaderControls] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('das_crm_lead_show_col_controls');
+        if (saved !== null) return JSON.parse(saved);
+      } catch (_) {}
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('das_crm_lead_show_col_controls', JSON.stringify(showHeaderControls));
+      } catch (_) {}
+    }
+  }, [showHeaderControls]);
+
+  // AI Score Properties Detail Modal State (Android-style full properties view)
+  const [activeAIScoreModal, setActiveAIScoreModal] = useState<{ leadName: string; scoreData: AIScoreData } | null>(null);
+
   const startResize = (colKey: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -854,6 +876,19 @@ export function LeadsTable() {
                 <span>{isExcelMode ? '📊 Interactive Excel Data Grid' : '📋 Standard List View'}</span>
               </button>
 
+              {/* Toggle Header Controls (Hide/Unhide to Customize) */}
+              <button
+                onClick={() => setShowHeaderControls(!showHeaderControls)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                  showHeaderControls
+                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm shadow-indigo-600/30'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title={showHeaderControls ? 'Hide column tools (clean headers view)' : 'Unhide column tools to customize, reorder, rename, or resize'}
+              >
+                <span>{showHeaderControls ? '👁️ Hide Controls' : '⚙️ Customize Columns'}</span>
+              </button>
+
               {/* Reset to Default Button */}
               <button
                 onClick={resetGridToDefault}
@@ -964,9 +999,9 @@ export function LeadsTable() {
         <table className="crm-table border-collapse" style={{ tableLayout: 'fixed', minWidth: '100%', width: 'max-content' }}>
           <thead>
             <tr className="bg-slate-900/90">
-              {/* Checkbox, AI Score & Serial Header */}
+              {/* Checkbox, Big AI Score & Serial Header */}
               <th
-                style={{ width: 88, minWidth: 88, maxWidth: 88 }}
+                style={{ width: 108, minWidth: 108, maxWidth: 108 }}
                 className="px-2 py-3 border-b border-r border-slate-800 bg-slate-900/90 text-center select-none"
               >
                 <div className="flex items-center justify-between px-1">
@@ -977,7 +1012,7 @@ export function LeadsTable() {
                     className="cursor-pointer"
                     title="Select all"
                   />
-                  <span className="text-[10px] font-bold text-slate-400 font-mono" title="Serial Number & AI Score">AI / #</span>
+                  <span className="text-[10px] font-bold text-slate-400 font-mono tracking-wider" title="AI Score & Serial Number">AI / #</span>
                 </div>
               </th>
 
@@ -992,11 +1027,13 @@ export function LeadsTable() {
                   className="px-3 py-2.5 border-b border-r border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider relative group select-none overflow-hidden"
                 >
                   <div className="flex items-center justify-between gap-1 overflow-hidden">
-                    <span className="truncate" title={columnTitles[colKey] || colKey}>{columnTitles[colKey] || colKey}</span>
+                    <span className="truncate block" title={columnTitles[colKey] || colKey}>
+                      {columnTitles[colKey] || colKey}
+                    </span>
 
-                    {/* Excel Column Tools (Reorder, Rename, Resize) */}
-                    {isExcelMode && (
-                      <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    {/* Excel Column Tools (Only visible when showHeaderControls is enabled) */}
+                    {isExcelMode && showHeaderControls && (
+                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity flex-shrink-0 animate-in fade-in duration-150">
                         {/* Shift Left */}
                         <button
                           onClick={(e) => { e.stopPropagation(); moveColumn(colKey, 'left'); }}
@@ -1098,10 +1135,10 @@ export function LeadsTable() {
             filtered.map((lead, idx) => (
               <React.Fragment key={lead.id}>
               <tr className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
-                {/* Checkbox, AI Score Circle, and Serial Number */}
+                {/* Checkbox, Big AI Score Circle, and Serial Number */}
                 <td
-                  style={{ width: 88, minWidth: 88, maxWidth: 88 }}
-                  className="px-2 py-3 border-b border-r border-slate-800/60 bg-slate-950/30 select-none"
+                  style={{ width: 108, minWidth: 108, maxWidth: 108 }}
+                  className="px-2 py-2.5 border-b border-r border-slate-800/60 bg-slate-950/30 select-none"
                 >
                   <div className="flex items-center justify-between gap-1.5">
                     <input
@@ -1110,27 +1147,32 @@ export function LeadsTable() {
                       onChange={() => toggleSelect(lead.id)}
                       className="cursor-pointer"
                     />
-                    {/* AI Score Badge in Small Circle */}
+                    {/* Big AI Score Circle Badge (Clickable with Android-Style Properties Modal) */}
                     {(() => {
                       const numScore = lead.score || lead.aiScore?.totalScore || 0;
                       if (numScore > 0) {
                         const badgeColor = numScore >= 80
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-500/20'
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:border-emerald-400 hover:bg-emerald-500/30 shadow-emerald-500/20'
                           : numScore >= 50
-                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-indigo-500/20'
-                          : 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-amber-500/20';
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 hover:border-indigo-400 hover:bg-indigo-500/30 shadow-indigo-500/20'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:border-amber-400 hover:bg-amber-500/30 shadow-amber-500/20';
                         return (
-                          <div
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border shadow-sm flex-shrink-0 ${badgeColor}`}
-                            title={`AI Lead Score: ${numScore}/100`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const scoreData = lead.aiScore || generateMockAIScore(numScore > 10 ? numScore / 10 : numScore);
+                              setActiveAIScoreModal({ leadName: lead.name, scoreData });
+                            }}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black border shadow-sm flex-shrink-0 cursor-pointer transition-all transform hover:scale-110 active:scale-95 ${badgeColor}`}
+                            title={`AI Lead Score: ${numScore}/100 — Click to view AI properties & analysis (like Android)`}
                           >
                             {numScore}
-                          </div>
+                          </button>
                         );
                       }
                       return (
                         <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-slate-800/90 text-slate-400 border border-slate-700 flex-shrink-0"
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black bg-slate-800 text-slate-400 border border-slate-700 flex-shrink-0"
                           title="AI Score: No Score (N)"
                         >
                           N
@@ -1138,7 +1180,7 @@ export function LeadsTable() {
                       );
                     })()}
                     {/* Row Serial Number */}
-                    <span className="text-[11px] font-mono font-bold text-slate-400 min-w-[18px] text-right">
+                    <span className="text-xs font-mono font-bold text-slate-400 min-w-[20px] text-right">
                       #{idx + 1}
                     </span>
                   </div>
@@ -1638,6 +1680,116 @@ export function LeadsTable() {
                 className="btn-primary text-xs py-2.5 px-6 font-bold shadow-lg shadow-indigo-600/30"
               >
                 Apply Filters ({filtered.length} Leads Matching)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📊 Rich AI Score Properties Breakdown Modal (Android Style) */}
+      {activeAIScoreModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-xl font-black text-indigo-300">
+                  {activeAIScoreModal.scoreData.tier === 'HOT' ? '🔥' : activeAIScoreModal.scoreData.tier === 'WARM' ? '🟢' : activeAIScoreModal.scoreData.tier === 'COLD' ? '🟡' : '⚪'}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">AI Lead Score Properties</h3>
+                  <p className="text-xs text-indigo-400 font-semibold">{activeAIScoreModal.leadName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveAIScoreModal(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Overall Score Banner */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400">Total Score Rating</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-emerald-400">{activeAIScoreModal.scoreData.totalScore.toFixed(1)}</span>
+                  <span className="text-xs text-slate-500 font-bold">/ 100</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Priority Tier</span>
+                <div className="pt-0.5">
+                  <span className={`text-xs font-black px-2.5 py-1 rounded-full border ${
+                    activeAIScoreModal.scoreData.tier === 'HOT'
+                      ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                      : activeAIScoreModal.scoreData.tier === 'WARM'
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  }`}>
+                    {activeAIScoreModal.scoreData.tier} PRIORITY
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Score Properties Category Breakdown */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Metric Breakdown (0 - 10)</h4>
+              {[
+                { label: 'Budget & Commercial Potential', value: activeAIScoreModal.scoreData.budgetScore, color: 'bg-purple-500' },
+                { label: 'Intent & Purchase Urgency', value: activeAIScoreModal.scoreData.intentScore, color: 'bg-pink-500' },
+                { label: 'Engagement & Call Response', value: activeAIScoreModal.scoreData.engagementScore, color: 'bg-blue-500' },
+                { label: 'Product & Requirement Fit', value: activeAIScoreModal.scoreData.productFitScore, color: 'bg-amber-500' },
+                { label: 'Response & Velocity Score', value: activeAIScoreModal.scoreData.responseScore, color: 'bg-emerald-500' },
+              ].map((prop, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-slate-300">{prop.label}</span>
+                    <span className="font-mono font-bold text-white">{(prop.value || 8.5).toFixed(1)} / 10</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className={`h-full ${prop.color} rounded-full transition-all`}
+                      style={{ width: `${Math.min(100, Math.max(10, (prop.value || 8.5) * 10))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* AI Analysis Summary */}
+            {activeAIScoreModal.scoreData.analysisSummary && (
+              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-1">
+                <p className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5">
+                  <Brain size={13} /> AI Intelligence Summary
+                </p>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {activeAIScoreModal.scoreData.analysisSummary}
+                </p>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {activeAIScoreModal.scoreData.recommendations && activeAIScoreModal.scoreData.recommendations.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold text-emerald-400">💡 Recommended Next Steps:</p>
+                <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
+                  {activeAIScoreModal.scoreData.recommendations.map((rec, i) => (
+                    <li key={i}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setActiveAIScoreModal(null)}
+                className="btn-primary text-xs py-2 px-5 font-bold shadow-lg"
+              >
+                Done
               </button>
             </div>
           </div>
