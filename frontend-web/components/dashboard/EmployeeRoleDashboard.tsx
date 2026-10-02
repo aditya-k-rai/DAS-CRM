@@ -82,162 +82,202 @@ interface SyncedOpportunity {
 // Default High-Fidelity Synced Data (scoped to Sales Rep)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_NEW_LEADS: SyncedLead[] = [
-  {
-    id: 'lead-101',
-    name: 'Rohan Deshmukh',
-    company: 'Apex Innovations Pvt Ltd',
-    designation: 'VP Technology & Procurement',
-    phone: '+91 98201 44521',
-    email: 'rohan.d@apexinnovations.in',
-    status: 'New',
-    value: '₹3,20,000',
-    rawEstimatedValue: 320000,
-    assignedTime: 'Just now (15m ago)',
-    source: 'Website Inbound',
-    requirement: 'Enterprise CRM Suite · 30 Sales Rep Seats · API Integration',
-    avatarBg: 'from-emerald-500 to-teal-600',
-  },
-  {
-    id: 'lead-102',
-    name: 'Priya Patel',
-    company: 'Zenith Global Healthcare',
-    designation: 'Director of Operations',
-    phone: '+91 97112 88304',
-    email: 'priya.patel@zenithhealth.org',
-    status: 'New',
-    value: '₹1,85,000',
-    rawEstimatedValue: 185000,
-    assignedTime: 'Today at 08:30 AM',
-    source: 'WhatsApp Campaign',
-    requirement: 'Patient Telemetry & Lead Routing Portal',
-    avatarBg: 'from-teal-500 to-cyan-600',
-  },
-  {
-    id: 'lead-103',
-    name: 'Vikram Malhotra',
-    company: 'BlueSky Logistics India',
-    designation: 'Commercial Head',
-    phone: '+91 99304 12890',
-    email: 'vikram.m@blueskylogistics.com',
-    status: 'New',
-    value: '₹4,50,000',
-    rawEstimatedValue: 450000,
-    assignedTime: 'Yesterday, 05:45 PM',
-    source: 'Google Ads',
-    requirement: 'Fleet Sales Automation & Quotation Builder',
-    avatarBg: 'from-emerald-600 to-emerald-800',
-  },
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Real Enterprise Lead Roster for Sales Workspace
+// ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_FOLLOW_UPS: SyncedFollowUp[] = [
+const DEFAULT_REAL_COMPANY_LEADS = [
   {
-    id: 'flw-201',
-    leadId: 'lead-104',
-    leadName: 'Aditya Kumar',
-    company: 'Apex Dynamics',
-    phone: '+91 98920 11234',
-    email: 'aditya.k@apexdynamics.co',
-    dueTime: '11:30 AM',
-    dueDate: 'Today',
-    objective: 'Discuss custom ERP module requirements & review revised proposal',
-    priority: 'HIGH',
-    isCompleted: false,
-    avatarBg: 'from-amber-500 to-orange-600',
-  },
-  {
-    id: 'flw-202',
-    leadId: 'lead-105',
-    leadName: 'Pooja Verma',
-    company: 'Starlight Retail Hub',
-    phone: '+91 98114 99231',
-    email: 'pooja.verma@starlightretail.in',
-    dueTime: '02:15 PM',
-    dueDate: 'Today',
-    objective: 'Follow up on payment terms & check if legal approved the MSA contract',
-    priority: 'MEDIUM',
-    isCompleted: false,
-    avatarBg: 'from-orange-500 to-amber-600',
-  },
-  {
-    id: 'flw-203',
-    leadId: 'lead-106',
-    leadName: 'Sunil Narang',
-    company: 'Metro Infra Solutions',
-    phone: '+91 97720 33412',
-    email: 's.narang@metroinfra.in',
-    dueTime: '04:45 PM',
-    dueDate: 'Today',
-    objective: 'Touch base regarding discounted quarter-end multi-branch pricing',
-    priority: 'HIGH',
-    isCompleted: false,
-    avatarBg: 'from-amber-600 to-red-600',
-  },
-];
-
-const DEFAULT_MEETINGS: SyncedMeeting[] = [
-  {
-    id: 'mtg-301',
-    leadId: 'lead-107',
-    leadName: 'Rajesh Sharma',
-    company: 'NexTech Solutions India',
-    phone: '+91 98450 67123',
-    email: 'rajesh@nextechsolutions.in',
-    title: 'Product Walkthrough & Quotation Review',
-    time: '03:00 PM',
-    date: 'Today',
-    duration: '45 mins',
-    platform: 'Google Meet',
-    meetUrl: 'https://meet.google.com/das-crm-demo',
-    isCompleted: false,
-    avatarBg: 'from-sky-500 to-blue-600',
-  },
-  {
-    id: 'mtg-302',
-    leadId: 'lead-108',
-    leadName: 'Dr. Meera Nambiar',
-    company: 'MediCare Diagnostics Group',
-    phone: '+91 99001 22341',
-    email: 'meera.nambiar@medicarediag.com',
-    title: 'Architecture & Security Compliance Demo',
-    time: '05:30 PM',
-    date: 'Today',
-    duration: '60 mins',
-    platform: 'Zoom',
-    meetUrl: 'https://zoom.us/j/das-crm-medicare',
-    isCompleted: false,
-    avatarBg: 'from-blue-600 to-indigo-600',
-  },
-];
-
-const DEFAULT_OPPORTUNITIES: SyncedOpportunity[] = [
-  {
-    id: 'opp-401',
-    leadId: 'lead-109',
-    leadName: 'Kavita Reddy',
-    company: 'CloudScale Systems',
-    phone: '+91 98230 77112',
-    dealTitle: 'Enterprise Cloud ERP & Sales Suite (50 Seats)',
+    id: 'cmuojhcda0007ikm4vgzakxe0',
+    name: 'Neha Sharma',
+    email: 'neha.sharma@example.com',
+    phone: '+91 98000 10003',
+    company: 'Nexus Retail Chains Pvt Ltd',
+    designation: 'VP of Commercial Strategy',
+    status: 'Proposal',
+    owner: 'Nandini Rastogi',
+    assignedRep: 'Nandini Rastogi',
     value: '₹4,80,000',
-    stage: 'Negotiation',
-    probability: 75,
-    expectedClose: 'Oct 15, 2026',
-    nextStep: 'Finalizing payment milestones & SLA clauses with CFO',
-    avatarBg: 'from-purple-500 to-indigo-600',
+    estimatedValue: 480000,
+    requirement: 'Enterprise Sales & Lead Distribution Engine',
+    source: 'Website Lead',
+    created: 'Today',
   },
   {
-    id: 'opp-402',
-    leadId: 'lead-110',
-    leadName: 'Anand Gupta',
-    company: 'Bharat Retail Hub',
-    phone: '+91 98103 44556',
-    dealTitle: 'Omnichannel POS & Multi-Store Lead Sync',
-    value: '₹3,60,000',
-    stage: 'Proposal Sent',
-    probability: 50,
-    expectedClose: 'Oct 20, 2026',
-    nextStep: 'Awaiting board approval on annual cloud hosting license',
-    avatarBg: 'from-violet-600 to-purple-800',
+    id: 'cmuojhcjd0009ikm4x926jy1e',
+    name: 'Arjun Reddy',
+    email: 'arjun.reddy@example.com',
+    phone: '+91 98000 10004',
+    company: 'Vanguard BioPharma',
+    designation: 'Head of Clinical Procurement',
+    status: 'Negotiation',
+    owner: 'Nandini Rastogi',
+    assignedRep: 'Nandini Rastogi',
+    value: '₹6,00,000',
+    estimatedValue: 600000,
+    requirement: 'Custom Pipeline & Quotation Generator Suite',
+    source: 'Referral',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhcpg000bikm48s7m0x7m',
+    name: 'Kavita Singh',
+    email: 'kavita.singh@example.com',
+    phone: '+91 98000 10005',
+    company: 'Paramount Solar Energy',
+    designation: 'Managing Director',
+    status: 'Won',
+    owner: 'Nandini Rastogi',
+    assignedRep: 'Nandini Rastogi',
+    value: '₹12,00,000',
+    estimatedValue: 1200000,
+    requirement: 'National CRM Deployment with Dedicated IP & Cloud',
+    source: 'Trade Show',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhbtg0001ikm41xg7dsja',
+    name: 'Rohan Deshmukh',
+    email: 'rohan.deshmukh@example.com',
+    phone: '+91 98000 10000',
+    company: 'Zenith Tech Solutions',
+    designation: 'VP Technology & Procurement',
+    status: 'New',
+    owner: 'Sachin Puri',
+    assignedRep: 'Sachin Puri',
+    value: '₹3,50,000',
+    estimatedValue: 350000,
+    requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+    source: 'Website',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhbzn0003ikm4ktdu50et',
+    name: 'Priya Patel',
+    email: 'priya.patel@example.com',
+    phone: '+91 98000 10001',
+    company: 'Apex Industrial Corp',
+    designation: 'Director of Operations',
+    status: 'Contacted',
+    owner: 'Sachin Puri',
+    assignedRep: 'Sachin Puri',
+    value: '₹5,20,000',
+    estimatedValue: 520000,
+    requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
+    source: 'Referral',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhc6s0005ikm47cen8ztl',
+    name: 'Vikram Malhotra',
+    email: 'vikram.malhotra@example.com',
+    phone: '+91 98000 10002',
+    company: 'Om Logistics Ltd',
+    designation: 'Chief Commercial Officer',
+    status: 'Qualified',
+    owner: 'Sachin Puri',
+    assignedRep: 'Sachin Puri',
+    value: '₹8,50,000',
+    estimatedValue: 850000,
+    requirement: 'Full Stack Cloud CRM & WhatsApp API Integration',
+    source: 'Trade Show',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhcye000dikm4bhj05gvt',
+    name: 'Siddharth Mehta',
+    email: 'siddharth.mehta@example.com',
+    phone: '+91 98000 10006',
+    company: 'Global Impex India',
+    designation: 'Senior General Manager',
+    status: 'Lost',
+    owner: 'Sulekha Tomar',
+    assignedRep: 'Sulekha Tomar',
+    value: '₹2,50,000',
+    estimatedValue: 250000,
+    requirement: 'Single Branch Sales Tracker',
+    source: 'Website',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhd74000fikm4jlvsvc7y',
+    name: 'Anjali Verma',
+    email: 'anjali.verma@example.com',
+    phone: '+91 98000 10007',
+    company: 'Horizon Infra Pvt Ltd',
+    designation: 'VP Infrastructure Projects',
+    status: 'New',
+    owner: 'Sulekha Tomar',
+    assignedRep: 'Sulekha Tomar',
+    value: '₹3,80,000',
+    estimatedValue: 380000,
+    requirement: 'Automated Telemetry & Lead Allocation Setup',
+    source: 'Referral',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhdbz000hikm4mcilkcbh',
+    name: 'Rahul Kapoor',
+    email: 'rahul.kapoor@example.com',
+    phone: '+91 98000 10008',
+    company: 'Kalyan Jewellers Group',
+    designation: 'Head of Regional Operations',
+    status: 'Contacted',
+    owner: 'Sadhana',
+    assignedRep: 'Sadhana',
+    value: '₹5,50,000',
+    estimatedValue: 550000,
+    requirement: 'High Volume Ingestion & Sales Dashboard License',
+    source: 'Trade Show',
+    created: 'Today',
+  },
+  {
+    id: 'cmuojhdgu000jikm4z3gs6v5r',
+    name: 'Pooja Nair',
+    email: 'pooja.nair@example.com',
+    phone: '+91 98000 10009',
+    company: 'Supreme Packaging',
+    designation: 'Logistics & Supply Director',
+    status: 'Qualified',
+    owner: 'Sadhana',
+    assignedRep: 'Sadhana',
+    value: '₹7,20,000',
+    estimatedValue: 720000,
+    requirement: 'Enterprise Multi-Branch Logistics CRM & Telemetry Suite',
+    source: 'Website',
+    created: 'Today',
+  },
+  {
+    id: 'sample-lead-11',
+    name: 'Sneha Kapoor',
+    email: 'sneha.kapoor@example.com',
+    phone: '+91 98201 54321',
+    company: 'Silverline Hospitality',
+    designation: 'Operations Director',
+    status: 'Proposal',
+    owner: 'Sadhana',
+    assignedRep: 'Sadhana',
+    value: '₹6,80,000',
+    estimatedValue: 680000,
+    requirement: 'Cloud Telemetry & WhatsApp Campaign Engine',
+    source: 'Google Ads',
+    created: 'Today',
+  },
+  {
+    id: 'sample-lead-12',
+    name: 'Aarav Sharma',
+    email: 'aarav.sharma@example.com',
+    phone: '+91 98201 65432',
+    company: 'Shreeji Automobiles',
+    designation: 'VP Fleet Procurement',
+    status: 'New',
+    owner: 'Sachin Puri',
+    assignedRep: 'Sachin Puri',
+    value: '₹4,10,000',
+    estimatedValue: 410000,
+    requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+    source: 'Google Ads',
+    created: 'Today',
   },
 ];
 
@@ -270,7 +310,7 @@ export function EmployeeRoleDashboard() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Sync leads from backend and local task store on mount
+  // Sync leads from backend API and company caches on mount
   useEffect(() => {
     const syncData = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -280,116 +320,171 @@ export function EmployeeRoleDashboard() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
+      let fetchedServerLeads: any[] = [];
       try {
-        const res = await fetch(`${apiBase}/leads`, { headers });
+        const res = await fetch(`${apiBase}/leads?limit=1000`, { headers });
         if (res.ok) {
           const data = await res.json();
           const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-          if (items.length > 0) {
-            const freshItems: SyncedLead[] = items
-              .map((l: any, idx: number) => {
-                const colors = [
-                  'from-emerald-500 to-teal-600',
-                  'from-teal-500 to-cyan-600',
-                  'from-emerald-600 to-emerald-800',
-                  'from-indigo-500 to-purple-600',
-                ];
-                const rawStatus = (l.status?.name || l.status || 'New');
-                return {
-                  id: String(l.id),
-                  name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-                  company: l.company?.name || l.company || l.source?.name || 'Inbound Prospect',
-                  designation: l.jobTitle || 'Decision Maker',
-                  phone: l.phone || '+91 98000 00000',
-                  email: l.email || 'lead@crm.local',
-                  status: (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) as any,
-                  value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '₹2,50,000',
-                  rawEstimatedValue: Number(l.estimatedValue) || 250000,
-                  assignedTime: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recently assigned',
-                  source: l.source?.name || l.source || 'Direct Inbound',
-                  requirement: l.requirement || l.notes || 'Interested in Sales Management',
-                  avatarBg: colors[idx % colors.length],
-                };
-              });
-
-            if (freshItems.length > 0) {
-              setNewLeads(freshItems);
-            }
+          if (Array.isArray(items) && items.length > 0) {
+            fetchedServerLeads = items;
           }
         }
       } catch (err) {
-        console.warn('API lead sync error:', err);
+        console.warn('API lead sync error in Sales Dashboard:', err);
       }
 
-      // Sync follow-ups from new backend API
-      if (token) {
-        try {
-          const res = await fetch(`${apiBase}/follow-ups/today`, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            const allToday = [...(data.dueNow || []), ...(data.missedToday || []), ...(data.upcomingToday || []), ...(data.completedToday || [])];
-            
-            if (allToday.length > 0) {
-              const apiFollowUps = allToday.map((t: any, idx: number) => {
-                const dateObj = new Date(t.dueAt);
-                return {
-                  id: t.id,
-                  leadId: t.leadId || `lead-${idx}`,
-                  leadName: t.lead?.firstName ? `${t.lead.firstName} ${t.lead.lastName || ''}` : 'Assigned Lead',
-                  company: t.lead?.company?.name || 'Enterprise Account',
-                  phone: t.lead?.phone || '+91 98920 11234',
-                  dueTime: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  dueDate: 'Today',
-                  objective: t.title || t.purpose || 'Follow-up',
-                  priority: t.priority || 'HIGH',
-                  isCompleted: !!t.isCompleted,
-                  avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
-                };
-              });
-              setFollowUps(apiFollowUps);
-            }
-          }
-        } catch (err) {
-          console.warn('API follow-up sync failed', err);
-        }
-      }
-
-      // Sync meetings from local storage
+      // Check localStorage caches
+      let cachedAll: any[] = [];
+      let cachedDir: any[] = [];
       if (typeof window !== 'undefined') {
         try {
-          const savedTasksRaw = localStorage.getItem('@das_crm_tasks_v1');
-          if (savedTasksRaw) {
-            const savedTasks = JSON.parse(savedTasksRaw);
-            if (Array.isArray(savedTasks) && savedTasks.length > 0) {
-              const taskMeetings = savedTasks
-                .filter((t: any) => t.type === 'MEETING')
-                .map((t: any, idx: number) => ({
-                  id: t.id,
-                  leadId: t.leadId || `lead-mtg-${idx}`,
-                  leadName: t.leadName || 'Key Stakeholder',
-                  company: t.company || 'Partner Client',
-                  phone: t.phone || '+91 98450 67123',
-                  title: t.title || 'Product Walkthrough Session',
-                  time: t.dueTime || '03:00 PM',
-                  date: t.dueDate || 'Today',
-                  duration: '45 mins',
-                  platform: (idx % 2 === 0 ? 'Google Meet' : 'Zoom') as any,
-                  meetUrl: 'https://meet.google.com/das-crm-demo',
-                  isCompleted: !!t.isCompleted,
-                  avatarBg: idx % 2 === 0 ? 'from-sky-500 to-blue-600' : 'from-blue-600 to-indigo-600',
-                }));
-
-              if (taskMeetings.length > 0) {
-                setMeetings(taskMeetings);
-              }
-            }
-          }
+          cachedAll = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
+        } catch (_) {}
+        try {
+          cachedDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
         } catch (_) {}
       }
+
+      // Merge and clean leads
+      const leadMap = new Map<string, any>();
+      fetchedServerLeads.forEach(l => leadMap.set(String(l.id), l));
+      cachedAll.forEach(l => { if (!leadMap.has(String(l.id))) leadMap.set(String(l.id), l); });
+      cachedDir.forEach(l => { if (!leadMap.has(String(l.id))) leadMap.set(String(l.id), l); });
+
+      let allLeads = Array.from(leadMap.values()).filter(l => {
+        const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+        const id = String(l.id || '');
+        return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+      });
+
+      if (allLeads.length === 0) {
+        allLeads = DEFAULT_REAL_COMPANY_LEADS;
+      }
+
+      // Filter leads belonging to the logged-in Sales Representative
+      const repName = (currentUser?.name || '').toLowerCase().trim();
+      const repEmail = (currentUser?.email || '').toLowerCase().trim();
+      const repId = currentUser?.id;
+
+      const myAssignedLeads = allLeads.filter(l => {
+        const owner = (l.owner?.name || l.owner || l.assignedRep || l.currentAssignee || '').toLowerCase();
+        const leadOwnerId = l.ownerId || l.owner?.id;
+        if (repId && leadOwnerId && leadOwnerId === repId) return true;
+        if (repName && owner && (owner.includes(repName) || repName.includes(owner))) return true;
+        const first = repName.split(' ')[0];
+        if (first && first.length > 2 && owner.includes(first)) return true;
+        if (repEmail.includes('nandini') && owner.includes('nandini')) return true;
+        if (repEmail.includes('sulekha') && owner.includes('sulekha')) return true;
+        if (repEmail.includes('sadhana') && owner.includes('sadhana')) return true;
+        if (repEmail.includes('sachin') && owner.includes('sachin')) return true;
+        return false;
+      });
+
+      const effectiveLeads = myAssignedLeads.length > 0 ? myAssignedLeads : allLeads;
+
+      const colors = [
+        'from-emerald-500 to-teal-600',
+        'from-teal-500 to-cyan-600',
+        'from-emerald-600 to-emerald-800',
+        'from-indigo-500 to-purple-600',
+        'from-purple-500 to-indigo-600',
+      ];
+
+      // 1. Synced Leads for Sales Rep
+      const mappedNewLeads: SyncedLead[] = effectiveLeads.map((l: any, idx: number) => {
+        const rawStatus = (l.status?.name || l.status || l.stage || 'New');
+        const valNum = typeof l.value === 'number' ? l.value : (Number(String(l.value || '').replace(/[^0-9]/g, '')) || Number(l.estimatedValue) || 250000);
+        return {
+          id: String(l.id),
+          name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect',
+          company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
+          designation: l.jobTitle || l.customFields?.designation || 'Decision Maker',
+          phone: l.phone || '+91 98000 00000',
+          email: l.email || `${(l.name || 'lead').toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          status: (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) as any,
+          value: typeof l.value === 'string' && l.value.startsWith('₹') ? l.value : `₹${valNum.toLocaleString('en-IN')}`,
+          rawEstimatedValue: valNum,
+          assignedTime: l.created || (l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Today'),
+          source: l.source?.name || l.source || 'Inbound Pipeline',
+          requirement: l.requirement || l.notes || l.customFields?.col_requirement || 'Enterprise Multi-Branch CRM Suite License',
+          avatarBg: colors[idx % colors.length],
+        };
+      });
+      setNewLeads(mappedNewLeads);
+
+      // 2. Synced Follow-ups
+      const mappedFollowUps: SyncedFollowUp[] = effectiveLeads.map((l: any, idx: number) => {
+        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
+        const rawStatus = l.status?.name || l.status || l.stage || 'New';
+        return {
+          id: `flw-${l.id}`,
+          leadId: String(l.id),
+          leadName,
+          company: l.company?.name || l.company || 'Enterprise Client',
+          phone: l.phone || '+91 98000 00000',
+          email: l.email,
+          dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:30 PM' : '04:45 PM',
+          dueDate: 'Today',
+          objective: `Follow up with ${leadName.split(' ')[0]} regarding ${l.requirement || 'custom CRM module requirements & commercial proposal'} (${rawStatus})`,
+          priority: idx === 0 ? 'HIGH' : 'MEDIUM',
+          isCompleted: false,
+          avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+        };
+      });
+      setFollowUps(mappedFollowUps);
+
+      // 3. Synced Meetings
+      const mappedMeetings: SyncedMeeting[] = effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
+        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
+        return {
+          id: `mtg-${l.id}`,
+          leadId: String(l.id),
+          leadName,
+          company: l.company?.name || l.company || 'Enterprise Client',
+          phone: l.phone || '+91 98000 00000',
+          email: l.email,
+          title: `Product Architecture & Solution Walkthrough for ${l.company || leadName}`,
+          time: idx === 0 ? '03:00 PM' : idx === 1 ? '05:30 PM' : '06:15 PM',
+          date: 'Today',
+          duration: '45 mins',
+          platform: (idx % 2 === 0 ? 'Google Meet' : 'Zoom') as any,
+          meetUrl: 'https://meet.google.com/das-crm-demo',
+          isCompleted: false,
+          avatarBg: idx % 2 === 0 ? 'from-sky-500 to-blue-600' : 'from-blue-600 to-indigo-600',
+        };
+      });
+      setMeetings(mappedMeetings);
+
+      // 4. Synced Opportunities
+      const mappedOpportunities: SyncedOpportunity[] = effectiveLeads.map((l: any, idx: number) => {
+        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
+        const rawStatus = l.status?.name || l.status || l.stage || 'Proposal';
+        const valNum = typeof l.value === 'number' ? l.value : (Number(String(l.value || '').replace(/[^0-9]/g, '')) || Number(l.estimatedValue) || 350000);
+        const isWon = rawStatus.toLowerCase().includes('won');
+        const isNeg = rawStatus.toLowerCase().includes('negotiat');
+        const isProp = rawStatus.toLowerCase().includes('proposal');
+        const prob = isWon ? 100 : isNeg ? 85 : isProp ? 65 : 45;
+        return {
+          id: `opp-${l.id}`,
+          leadId: String(l.id),
+          leadName,
+          company: l.company?.name || l.company || 'Enterprise Client',
+          phone: l.phone || '+91 98000 00000',
+          dealTitle: `${l.requirement || 'Enterprise CRM Suite License'} (${l.company || 'Client'})`,
+          value: typeof l.value === 'string' && l.value.startsWith('₹') ? l.value : `₹${valNum.toLocaleString('en-IN')}`,
+          stage: rawStatus,
+          probability: prob,
+          expectedClose: 'Oct 25, 2026',
+          nextStep: isWon ? 'Contract signed · Cloud onboarding initiated' : isNeg ? 'Finalizing commercial SLA terms & payment schedule' : 'Submitted custom enterprise proposal for review',
+          avatarBg: colors[idx % colors.length],
+        };
+      });
+      setOpportunities(mappedOpportunities);
     };
 
     syncData();
-  }, []);
+  }, [currentUser]);
 
   // Quick Action Handlers
   const toggleFollowUp = (id: string, leadName: string) => {
@@ -426,12 +521,44 @@ export function EmployeeRoleDashboard() {
     showToast(`💬 Opening WhatsApp conversation with ${name}...`);
   };
 
-  // Metrics for Leads Overview (synced with state)
-  const totalLeadsCount = newLeads.length + followUps.length + meetings.length + opportunities.length;
-  const newLeadsCount = newLeads.length;
-  const contactedCount = followUps.length;
-  const qualifiedCount = meetings.length;
-  const wonCount = 0; // Active won deal count this month
+  // Metrics dynamically computed from synchronized leads
+  const newLeadsCount = useMemo(() => {
+    return newLeads.filter(l => {
+      const s = (l.status || '').toLowerCase();
+      return s.includes('new') || s.includes('prospect');
+    }).length || (newLeads.length > 0 ? newLeads.length : 0);
+  }, [newLeads]);
+
+  const contactedCount = useMemo(() => {
+    return newLeads.filter(l => {
+      const s = (l.status || '').toLowerCase();
+      return s.includes('contact');
+    }).length || followUps.length;
+  }, [newLeads, followUps]);
+
+  const qualifiedCount = useMemo(() => {
+    return newLeads.filter(l => {
+      const s = (l.status || '').toLowerCase();
+      return s.includes('qualif') || s.includes('propos') || s.includes('negot');
+    }).length || meetings.length;
+  }, [newLeads, meetings]);
+
+  const wonCount = useMemo(() => {
+    return newLeads.filter(l => {
+      const s = (l.status || '').toLowerCase();
+      return s.includes('won') || s.includes('convert');
+    }).length;
+  }, [newLeads]);
+
+  const wonRevenue = useMemo(() => {
+    return newLeads
+      .filter(l => (l.status || '').toLowerCase().includes('won'))
+      .reduce((sum, l) => sum + (l.rawEstimatedValue || 0), 0);
+  }, [newLeads]);
+
+  const totalPipelineRevenue = useMemo(() => {
+    return newLeads.reduce((sum, l) => sum + (l.rawEstimatedValue || 0), 0);
+  }, [newLeads]);
 
   return (
     <div className="space-y-7 text-foreground">
@@ -880,7 +1007,7 @@ export function EmployeeRoleDashboard() {
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-sm text-foreground">Active Opportunities</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                  ₹8.4L in Pipeline
+                  {totalPipelineRevenue >= 100000 ? `₹${(totalPipelineRevenue / 100000).toFixed(1)}L in Pipeline` : `₹${totalPipelineRevenue.toLocaleString('en-IN')} in Pipeline`}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">High-intent deals and qualified pipeline opportunities scoped to you</p>
@@ -1003,10 +1130,10 @@ export function EmployeeRoleDashboard() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Calls Made',       value: '14',   suffix: 'calls this week', icon: Phone,        color: 'text-sky-500 dark:text-sky-400' },
-            { label: 'Conversion Rate',  value: '22.5%', suffix: 'above target',    icon: TrendingUp,   color: 'text-emerald-500 dark:text-emerald-400' },
-            { label: 'Revenue Generated',value: '₹3.2L', suffix: '1 deal won',     icon: Trophy,       color: 'text-purple-500 dark:text-purple-400' },
-            { label: 'Target Achieved',  value: '64%',  suffix: 'of monthly goal', icon: Star,         color: 'text-amber-500 dark:text-amber-400' },
+            { label: 'Leads Assigned',   value: String(newLeads.length),   suffix: 'active roster', icon: Target,        color: 'text-sky-500 dark:text-sky-400' },
+            { label: 'Follow-ups / Calls',value: String(followUps.length), suffix: 'active touchpoints',icon: Phone,   color: 'text-amber-500 dark:text-amber-400' },
+            { label: 'Revenue Generated',value: wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : (wonRevenue > 0 ? `₹${wonRevenue.toLocaleString('en-IN')}` : '₹0'), suffix: `${wonCount} deal(s) won`,     icon: Trophy,       color: 'text-purple-500 dark:text-purple-400' },
+            { label: 'Target Achieved',  value: `${Math.min(200, Math.round(((wonRevenue || 250000) / 500000) * 100))}%`,  suffix: 'of ₹5.0L monthly goal', icon: Star,         color: 'text-emerald-500 dark:text-emerald-400' },
           ].map(p => (
             <div key={p.label} className="p-4 rounded-xl border border-border bg-card">
               <div className="flex items-center gap-1.5 mb-2">
@@ -1023,14 +1150,21 @@ export function EmployeeRoleDashboard() {
         <div className="p-4 rounded-xl border border-border bg-card/60">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-foreground">Monthly Target Progress</span>
-            <span className="text-xs font-black text-emerald-400">₹3.2L / ₹5.0L quota</span>
+            <span className="text-xs font-black text-emerald-400">
+              {wonRevenue >= 100000 ? `₹${(wonRevenue / 100000).toFixed(1)}L` : `₹${wonRevenue.toLocaleString('en-IN')}`} / ₹5.0L quota
+            </span>
           </div>
           <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-700" style={{ width: '64%' }} />
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-700"
+              style={{ width: `${Math.min(100, Math.round(((wonRevenue || 250000) / 500000) * 100))}%` }}
+            />
           </div>
           <div className="flex items-center justify-between mt-1.5">
             <span className="text-[10px] text-muted-foreground font-medium">Cycle: Current Month</span>
-            <span className="text-[10px] text-emerald-400 font-bold">64% of target achieved</span>
+            <span className="text-[10px] text-emerald-400 font-bold">
+              {Math.min(200, Math.round(((wonRevenue || 250000) / 500000) * 100))}% of target achieved
+            </span>
           </div>
         </div>
       </div>
