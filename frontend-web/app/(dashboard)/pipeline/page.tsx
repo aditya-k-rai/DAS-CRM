@@ -325,10 +325,10 @@ export default function LeadPipelinePage() {
               value: 120000 + (i * 45000),
               assignedRep: rep,
               customFields: {
-                col_city: ['Mumbai', 'Delhi NCR', 'Bengaluru', 'Pune', 'Hyderabad', 'Ahmedabad'][i % 6],
-                col_budget: ['₹5 - 10 Lakhs', '₹10 - 25 Lakhs', '₹2.5 - 5 Lakhs', '₹25+ Lakhs'][i % 4],
+                col_city: '—',
+                col_budget: '—',
                 col_rating: ['Hot Lead 🔥', 'Warm Lead ⚡', 'Cold Lead ❄️'][i % 3],
-                col_requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+                col_requirement: '—',
               },
               createdAt: 'Oct 2, 2026',
             });

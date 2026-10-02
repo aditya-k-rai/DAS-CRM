@@ -184,7 +184,7 @@ export function ManagerRoleDashboard() {
                 assignedRepName: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
                 assignedRepRole: l.owner?.role || 'Sales Rep',
                 lastContact: l.lastCalledAt || 'Recently updated',
-                requirement: l.requirement || 'Sales Management Solution',
+                requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
                 avatarBg: colors[idx % colors.length],
               };
             });

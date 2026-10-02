@@ -420,7 +420,7 @@ export function TeamLeaderRoleDashboard() {
                 source: l.source?.name || l.source || 'Website Inbound',
                 assignedRepName: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
                 lastContact: l.lastCalledAt || 'Recently updated',
-                requirement: l.requirement || 'Sales Management Solution',
+                requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
                 avatarBg: idx % 2 === 0 ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-blue-600',
               };
             });

@@ -23,6 +23,8 @@ export interface ImportLeadRow {
   source?: string;
   status?: string;
   assignedRep?: string;
+  priority?: string;
+  notes?: string;
   city?: string;
   budget?: string;
   requirement?: string;
@@ -100,17 +102,17 @@ export class ImportsService {
 
       const getEmail = () => {
         if (columnMapping?.email && rowData[columnMapping.email]) return rowData[columnMapping.email];
-        return rowData['email'] || rowData['Email'] || `${getName().toLowerCase().replace(/\s+/g, '')}@import.com`;
+        return rowData['email'] || rowData['Email'] || '';
       };
 
       const getCompany = () => {
         if (columnMapping?.company && rowData[columnMapping.company]) return rowData[columnMapping.company];
-        return rowData['company'] || rowData['Company'] || rowData['Firm'] || 'Enterprise Prospect';
+        return rowData['company'] || rowData['Company'] || rowData['Firm'] || '';
       };
 
       const getValue = () => {
         if (columnMapping?.value && rowData[columnMapping.value]) return rowData[columnMapping.value];
-        return rowData['value'] || rowData['Value'] || rowData['Budget'] || '₹50,000';
+        return rowData['value'] || rowData['Value'] || rowData['Budget'] || '';
       };
 
       const leadItem = {
@@ -122,11 +124,11 @@ export class ImportsService {
         status: (rowData['status'] || rowData['Status'] || 'NEW LEAD').toUpperCase(),
         value: getValue(),
         source: rowData['source'] || rowData['Source'] || 'CSV Import',
-        priority: 'High',
+        priority: rowData['priority'] || rowData['Priority'] || 'High',
         assignedRep: rowData['assignedRep'] || rowData['Assigned Rep'] || rowData['Owner'] || 'Unassigned',
-        city: rowData['city'] || rowData['City'] || 'Mumbai',
-        budget: rowData['budget'] || rowData['Budget'] || '₹50k - ₹1L',
-        requirement: rowData['requirement'] || rowData['Requirement'] || 'DAS CRM License',
+        city: rowData['city'] || rowData['City'] || '',
+        budget: rowData['budget'] || rowData['Budget'] || '',
+        requirement: rowData['requirement'] || rowData['Requirement'] || rowData['Requirement Details'] || rowData['notes'] || rowData['Notes'] || '',
         callSyncStatus: `Imported from CSV (Header Row #${validHeaderIdx + 1})`,
         created: new Date().toISOString(),
       };
@@ -173,16 +175,18 @@ export class ImportsService {
           detectedHeaders = Object.keys(rawArray[0] || {});
           parsedLeads = rawArray.map((r: any, idx: number) => ({
             id: `import_json_${Date.now()}_${idx}`,
-            name: r.name || r.fullName || r.customerName || 'JSON Prospect',
-            phone: r.phone || r.mobile || r.contact || `+91 98765 ${20000 + idx}`,
-            email: r.email || r.mail || `lead_${idx}@json-import.com`,
-            company: r.company || r.firm || 'Corporate Client',
-            value: r.value || r.budget || '₹1,20,000',
+            name: r.name || r.fullName || r.customerName || 'Lead Prospect',
+            phone: r.phone || r.mobile || r.contact || '',
+            email: r.email || r.mail || '',
+            company: r.company || r.firm || '',
+            value: r.value || r.budget || '',
             status: (r.status || 'NEW LEAD').toUpperCase(),
-            source: 'JSON Multi-Format Import',
-            priority: 'High',
-            assignedRep: 'Rajesh Kumar',
-            city: r.city || r.location || 'Delhi NCR',
+            source: r.source || 'JSON Multi-Format Import',
+            priority: r.priority || 'High',
+            assignedRep: r.assignedRep || 'Unassigned',
+            city: r.city || r.location || '',
+            budget: r.budget || '',
+            requirement: r.requirement || r.notes || '',
             callSyncStatus: 'Imported via JSON Parser',
             created: new Date().toISOString(),
           }));
@@ -202,16 +206,18 @@ export class ImportsService {
           };
           return {
             id: `import_xml_${Date.now()}_${idx}`,
-            name: getXmlTag('name') || getXmlTag('fullName') || 'XML Prospect',
-            phone: getXmlTag('phone') || getXmlTag('mobile') || `+91 98765 ${30000 + idx}`,
-            email: getXmlTag('email') || `lead_${idx}@xml-import.com`,
-            company: getXmlTag('company') || 'Enterprise Lead',
-            value: getXmlTag('value') || '₹90,000',
+            name: getXmlTag('name') || getXmlTag('fullName') || 'Lead Prospect',
+            phone: getXmlTag('phone') || getXmlTag('mobile') || '',
+            email: getXmlTag('email') || '',
+            company: getXmlTag('company') || '',
+            value: getXmlTag('value') || '',
             status: (getXmlTag('status') || 'NEW LEAD').toUpperCase(),
             source: 'XML Multi-Format Import',
             priority: 'High',
-            assignedRep: 'Priya Sharma',
-            city: getXmlTag('city') || 'Mumbai',
+            assignedRep: getXmlTag('assignedRep') || 'Unassigned',
+            city: getXmlTag('city') || '',
+            budget: getXmlTag('budget') || '',
+            requirement: getXmlTag('requirement') || getXmlTag('notes') || '',
             callSyncStatus: 'Imported via XML Tag Parser',
             created: new Date().toISOString(),
           };
@@ -221,15 +227,17 @@ export class ImportsService {
           parsedLeads.push({
             id: `import_xml_${Date.now()}_0`,
             name: 'XML Lead Record',
-            phone: '+91 98765 43210',
-            email: 'xml_lead@import.com',
-            company: 'XML Systems',
-            value: '₹1,50,000',
+            phone: '',
+            email: '',
+            company: '',
+            value: '',
             status: 'NEW LEAD',
             source: 'XML Multi-Format Import',
             priority: 'High',
-            assignedRep: 'Priya Sharma',
-            city: 'Bengaluru',
+            assignedRep: 'Unassigned',
+            city: '',
+            budget: '',
+            requirement: '',
             callSyncStatus: 'Imported via XML Parser',
             created: new Date().toISOString(),
           });
@@ -247,16 +255,18 @@ export class ImportsService {
           const parts = line.split(delimiter).map((p) => p.trim());
           return {
             id: `import_${format.toLowerCase()}_${Date.now()}_${idx}`,
-            name: parts[0] || `${format} Lead`,
-            phone: parts[1] || `+91 98765 ${40000 + idx}`,
-            email: parts[2] || `lead_${idx}@${format.toLowerCase()}.com`,
-            company: parts[3] || 'Prospect Co',
-            value: parts[4] || '₹85,000',
+            name: parts[0] || `Lead ${idx + 1}`,
+            phone: parts[1] || '',
+            email: parts[2] || '',
+            company: parts[3] || '',
+            value: parts[4] || '',
             status: (parts[5] || 'NEW LEAD').toUpperCase(),
             source: `${format} File Ingestion`,
             priority: 'High',
-            assignedRep: 'Amit Patel',
-            city: parts[6] || 'Hyderabad',
+            assignedRep: parts[7] || 'Unassigned',
+            city: parts[6] || '',
+            budget: parts[8] || '',
+            requirement: parts[9] || '',
             callSyncStatus: `Imported via ${format} Parser`,
             created: new Date().toISOString(),
           };
@@ -293,18 +303,18 @@ export class ImportsService {
 
     const importedLeads = rows.map((r, idx) => ({
       id: `import_xl_${Date.now()}_${idx}`,
-      name: r.name || 'Excel Lead',
-      company: r.company || 'Corporate Prospect',
-      email: r.email || `lead_${idx}@excel.com`,
-      phone: r.phone || `+91 98765 ${10000 + idx}`,
+      name: r.name || 'Lead',
+      company: r.company || '',
+      email: r.email || '',
+      phone: r.phone || '',
       status: (r.status || 'NEW LEAD').toUpperCase(),
-      value: r.value || '₹75,000',
+      value: r.value || '',
       source: r.source || 'Excel Import',
-      priority: 'High',
-      assignedRep: r.assignedRep || 'Rajesh Kumar',
-      city: r.city || 'Delhi NCR',
-      budget: r.budget || '₹1L - ₹2.5L',
-      requirement: r.requirement || 'Full CRM Suite',
+      priority: r.priority || 'High',
+      assignedRep: r.assignedRep || 'Unassigned',
+      city: r.city || '',
+      budget: r.budget || '',
+      requirement: r.requirement || r.notes || '',
       callSyncStatus: 'Imported via Excel Grid',
       created: new Date().toISOString(),
     }));

@@ -75,10 +75,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     company: leadData?.company || 'Zenith Hospital & Research Centre',
     status: leadData?.status || 'New Lead',
     owner: leadData?.owner || 'Sachin Puri (Team Leader)',
-    city: leadData?.city || 'Mumbai',
-    budget: leadData?.budget || '₹4.5 Lakhs',
-    requirement: leadData?.requirement || 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
-    source: leadData?.source || 'Spreadsheet Ingestion',
+    city: leadData?.city || '—',
+    budget: leadData?.budget || '—',
+    requirement: leadData?.requirement || '—',
+    source: leadData?.source || '—',
     allocationTrail: leadData?.allocationTrail || [],
   });
 
@@ -92,7 +92,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         const ownerName = leadData.owner || 'Sachin Puri (Team Leader)';
         const defaultTrail = buildAllocationTrailForLead(
           ownerName,
-          leadData.source || 'Spreadsheet Ingestion',
+          leadData.source || 'Lead Ingestion',
           new Date().toISOString(),
           leadData.allocationTrail
         );
@@ -100,15 +100,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         setLead({
           id: leadData.id || leadId,
           name: leadData.name,
-          email: leadData.email || 'lead@das-crm.com',
-          phone: leadData.phone || '+91 98201 12345',
-          company: leadData.company || 'Enterprise Client',
+          email: leadData.email || '—',
+          phone: leadData.phone || '—',
+          company: leadData.company || '—',
           status: leadData.status || 'New Lead',
           owner: ownerName,
-          city: leadData.city || 'Mumbai',
-          budget: leadData.budget || '₹5 - 10 Lakhs',
-          requirement: leadData.requirement || 'Multi-Branch CRM Enterprise License',
-          source: leadData.source || 'Spreadsheet Ingestion',
+          city: leadData.city || '—',
+          budget: leadData.budget || '—',
+          requirement: leadData.requirement || '—',
+          source: leadData.source || '—',
           allocationTrail: defaultTrail,
         });
         return;
@@ -132,7 +132,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const cleanName = sessionMatch.name || `${sessionMatch.firstName || ''} ${sessionMatch.lastName || ''}`.trim() || 'Lead Prospect';
             const ownerName = sessionMatch.owner || sessionMatch.assignedRep || 'Sachin Puri (Team Leader)';
             const allocatedTimestamp = sessionMatch.allocatedAt || sessionMatch.createdAt || sessionMatch.rawCreatedAt || new Date().toISOString();
-            const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || sessionMatch.source || 'Spreadsheet Ingestion';
+            const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || sessionMatch.source || 'Lead Ingestion';
 
             const sessionTrail = buildAllocationTrailForLead(
               ownerName,
@@ -145,14 +145,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             setLead({
               id: String(sessionMatch.id || leadId),
               name: cleanName,
-              email: sessionMatch.email && sessionMatch.email !== '—' ? sessionMatch.email : `${cleanName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-              phone: sessionMatch.phone && sessionMatch.phone !== '—' ? sessionMatch.phone : '+91 98201 12345',
-              company: sessionMatch.company || sessionMatch.customFields?.company || 'Enterprise Client',
+              email: sessionMatch.email && sessionMatch.email !== '—' ? sessionMatch.email : '—',
+              phone: sessionMatch.phone && sessionMatch.phone !== '—' ? sessionMatch.phone : '—',
+              company: sessionMatch.company || sessionMatch.customFields?.company || '—',
               status: sessionMatch.status || sessionMatch.stage || 'New Lead',
               owner: ownerName,
-              city: sessionMatch.city || sessionMatch.customFields?.col_city || sessionMatch.customFields?.city || 'Mumbai',
-              budget: sessionMatch.budget || sessionMatch.customFields?.col_budget || sessionMatch.customFields?.budget || '₹5 - 10 Lakhs',
-              requirement: sessionMatch.requirement || sessionMatch.notes || sessionMatch.customFields?.col_requirement || sessionMatch.customFields?.requirement || 'Enterprise CRM Suite License',
+              city: sessionMatch.city || sessionMatch.customFields?.col_city || sessionMatch.customFields?.city || sessionMatch.customFields?.City || '—',
+              budget: sessionMatch.budget || sessionMatch.customFields?.col_budget || sessionMatch.customFields?.budget || sessionMatch.customFields?.Budget || '—',
+              requirement: sessionMatch.requirement || sessionMatch.notes || sessionMatch.customFields?.col_requirement || sessionMatch.customFields?.requirement || sessionMatch.customFields?.Requirement || '—',
               source: sessionMatch.source || fileName,
               allocationTrail: sessionTrail,
             });
@@ -178,7 +178,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               const cleanName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim() || 'Lead Prospect';
               const ownerName = matched.owner || matched.assignedRep || 'Sachin Puri (Team Leader)';
               const allocatedTimestamp = matched.rawCreatedAt || matched.createdAt || new Date().toISOString();
-              const fileName = (matched.tags && matched.tags[0]) || matched.source || 'Spreadsheet Ingestion';
+              const fileName = (matched.tags && matched.tags[0]) || matched.source || 'Lead Ingestion';
 
               const matchedTrail = buildAllocationTrailForLead(
                 ownerName,
@@ -191,14 +191,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               setLead({
                 id: String(matched.id || leadId),
                 name: cleanName,
-                email: matched.email && matched.email !== '—' ? matched.email : `${cleanName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-                phone: matched.phone && matched.phone !== '—' ? matched.phone : '+91 98201 12345',
-                company: matched.company || matched.customFields?.company || 'Enterprise Client',
+                email: matched.email && matched.email !== '—' ? matched.email : '—',
+                phone: matched.phone && matched.phone !== '—' ? matched.phone : '—',
+                company: matched.company || matched.customFields?.company || '—',
                 status: matched.status || matched.stage || 'New Lead',
                 owner: ownerName,
-                city: matched.city || matched.customFields?.col_city || matched.customFields?.city || 'Mumbai',
-                budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || '₹5 - 10 Lakhs',
-                requirement: matched.requirement || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || 'Enterprise CRM Suite License',
+                city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
+                budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
+                requirement: matched.requirement || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.Requirement || '—',
                 source: matched.source || fileName,
                 allocationTrail: matchedTrail,
               });
@@ -225,7 +225,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const ownerName = l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)');
             const cleanName = `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || (l.customFields?.clientName) || 'Lead Prospect';
             const allocatedTimestamp = l.customFields?.allocatedAt || l.createdAt || new Date().toISOString();
-            const fileName = l.customFields?.fileName || l.customFields?.platform || 'Spreadsheet Ingestion';
+            const fileName = l.customFields?.fileName || l.customFields?.platform || 'Lead Ingestion';
 
             const serverTrail = buildAllocationTrailForLead(
               ownerName,
@@ -238,15 +238,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             setLead({
               id: String(l.id || leadId),
               name: cleanName,
-              email: l.email || l.customFields?.email || `${cleanName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-              phone: l.phone || l.customFields?.phone || '+91 98201 12345',
-              company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
+              email: l.email || l.customFields?.email || '—',
+              phone: l.phone || l.customFields?.phone || '—',
+              company: l.company?.name || l.company || l.customFields?.company || '—',
               status: rawStatus,
               owner: ownerName,
-              city: l.city || l.customFields?.col_city || l.customFields?.city || 'Mumbai',
-              budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || '₹5 - 10 Lakhs',
-              requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || 'Multi-Branch CRM Enterprise License & Cloud Integration',
-              source: l.source?.name || l.source || l.customFields?.platform || l.customFields?.fileName || 'Spreadsheet Ingestion',
+              city: l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City || '—',
+              budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget || '—',
+              requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.Requirement || '—',
+              source: l.source?.name || l.source || l.customFields?.platform || l.customFields?.fileName || '—',
               allocationTrail: serverTrail,
             });
             return;
@@ -268,7 +268,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const cleanName = (matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`).replace('(Test Lead)', '').trim() || 'Lead Prospect';
             const ownerName = matched.owner || matched.assignedRep || 'Sachin Puri (Team Leader)';
             const allocatedTimestamp = matched.allocatedAt || matched.createdAt || new Date().toISOString();
-            const fileName = matched.fileName || matched.source || 'Spreadsheet Ingestion';
+            const fileName = matched.fileName || matched.source || 'Lead Ingestion';
 
             const cachedTrail = buildAllocationTrailForLead(
               ownerName,
@@ -281,15 +281,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             setLead({
               id: String(matched.id || leadId),
               name: cleanName,
-              email: matched.email && matched.email !== '—' ? matched.email : `${cleanName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-              phone: matched.phone && matched.phone !== '—' ? matched.phone : '+91 98201 12345',
-              company: matched.company || 'Enterprise Client',
+              email: matched.email && matched.email !== '—' ? matched.email : '—',
+              phone: matched.phone && matched.phone !== '—' ? matched.phone : '—',
+              company: matched.company || '—',
               status: matched.stage || matched.status || 'New Lead',
               owner: ownerName,
-              city: matched.customFields?.col_city || matched.customFields?.city || 'Mumbai',
-              budget: matched.customFields?.col_budget || matched.customFields?.budget || '₹5 - 10 Lakhs',
-              requirement: matched.customFields?.col_requirement || matched.customFields?.requirement || 'Multi-Branch CRM Enterprise License & Cloud Integration',
-              source: matched.source || matched.fileName || 'Spreadsheet Ingestion',
+              city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
+              budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
+              requirement: matched.requirement || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.Requirement || '—',
+              source: matched.source || matched.fileName || '—',
               allocationTrail: cachedTrail,
             });
             return;
@@ -297,40 +297,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         } catch (_) {}
       }
 
-      // 6. Sample Roster Matcher for sample-lead-X
-      const sampleNames = ['Aarav Sharma', 'Priya Patel', 'Rohan Mehta', 'Sneha Kapoor', 'Vikram Malhotra', 'Ananya Deshmukh', 'Kabir Verma', 'Neha Joshi', 'Siddharth Singhania', 'Rhea Chakraborty', 'Karan Oberoi', 'Divya Nair', 'Pooja Nair', 'Rahul Kapoor'];
-      const sampleReps = ['Sachin Puri (Team Leader)', 'Sachin Puri (Team Leader)', 'Sachin Puri (Team Leader)', 'Nandini Rastogi (Sales Exec)', 'Nandini Rastogi (Sales Exec)', 'Nandini Rastogi (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sadhana (Sales Exec)', 'Sadhana (Sales Exec)', 'Sadhana (Sales Exec)', 'Sachin Puri (Team Leader)', 'Sachin Puri (Team Leader)'];
-      const sampleCompanies = ['Zenith Tech Solutions', 'Apex Industrial Corp', 'Om Logistics Ltd', 'Shreeji Automobiles', 'Global Impex India', 'Horizon Infra Pvt Ltd', 'Nexus Retail Chains', 'Vanguard BioPharma', 'Paramount Solar Energy', 'Kalyan Jewellers Group', 'Supreme Packaging', 'Silverline Hospitality', 'Nair Logistics India', 'Kapoor Enterprises'];
-      const sampleCities = ['Mumbai', 'Delhi NCR', 'Bengaluru', 'Pune', 'Hyderabad', 'Ahmedabad', 'Mumbai', 'Delhi NCR', 'Bengaluru', 'Pune', 'Hyderabad', 'Ahmedabad', 'Kochi', 'Mumbai'];
-      const sampleBudgets = ['₹5 - 10 Lakhs', '₹10 - 25 Lakhs', '₹2.5 - 5 Lakhs', '₹25+ Lakhs', '₹4.5 Lakhs', '₹8 Lakhs', '₹12 Lakhs', '₹15 Lakhs', '₹6 Lakhs', '₹20 Lakhs', '₹3 Lakhs', '₹18 Lakhs', '₹6.7 Lakhs', '₹3.4 Lakhs'];
-
-      const nameMatchIdx = sampleNames.findIndex(n =>
-        decodeURIComponent(leadId).toLowerCase().includes(n.toLowerCase()) ||
-        n.toLowerCase().includes(decodeURIComponent(leadId).toLowerCase()) ||
-        (decodeURIComponent(leadId).toLowerCase().includes('pooja') && n.includes('Pooja')) ||
-        (decodeURIComponent(leadId).toLowerCase().includes('rahul') && n.includes('Rahul'))
-      );
-      const numMatch = leadId.match(/\d+/);
-      const parsedIdx = nameMatchIdx !== -1
-        ? nameMatchIdx
-        : (numMatch ? (parseInt(numMatch[0], 10) - 1) % sampleNames.length : 0);
-      const safeIdx = Math.max(0, parsedIdx);
-
+      // 6. Default Fallback
       if (isMounted) {
-        const rep = sampleReps[safeIdx];
         setLead({
           id: leadId,
-          name: sampleNames[safeIdx],
-          email: `${sampleNames[safeIdx].toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          phone: `+91 ${9820100000 + (safeIdx * 12345) % 90000}`,
-          company: sampleCompanies[safeIdx],
+          name: 'Lead Prospect',
+          email: '—',
+          phone: '—',
+          company: '—',
           status: 'New Lead',
-          owner: rep,
-          city: sampleCities[safeIdx],
-          budget: sampleBudgets[safeIdx],
-          requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
-          source: 'Spreadsheet Ingestion',
-          allocationTrail: buildAllocationTrailForLead(rep, `Spreadsheet Ingestion - Record #${safeIdx + 1}`),
+          owner: 'Sachin Puri (Team Leader)',
+          city: '—',
+          budget: '—',
+          requirement: '—',
+          source: '—',
+          allocationTrail: buildAllocationTrailForLead('Sachin Puri (Team Leader)', 'Lead Record'),
         });
       }
     };
