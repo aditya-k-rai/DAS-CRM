@@ -74,6 +74,7 @@ type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL' | 'CALENDAR'
 type FilterType = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING' | 'HIGH_PRIORITY';
 
 export default function FollowUpsModule() {
+  const router = useRouter();
   const { token, currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('TODAY');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<FilterType>('ALL');
@@ -110,6 +111,76 @@ export default function FollowUpsModule() {
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleNavigateToLead = (itemOrLead: any) => {
+    const lead = itemOrLead?.lead || itemOrLead;
+    const leadId = lead?.id || itemOrLead?.leadId || itemOrLead?.id || 'dir_lead_anjali';
+    const leadName = lead?.name || `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim() || itemOrLead?.title?.replace(/^[^:]+:\s*/, '') || 'Prospect';
+    const leadPhone = lead?.phone || itemOrLead?.phone || '+91 98000 10007';
+    const leadEmail = lead?.email || itemOrLead?.email || 'anjali.verma@example.com';
+    const companyName = typeof lead?.company === 'string' ? lead.company : lead?.company?.name || 'Enterprise Client';
+    const leadOwnerName = lead?.owner?.name || (typeof lead?.owner === 'string' ? lead.owner : itemOrLead?.assignee?.name || 'Sachin Puri');
+    const leadOwnerRole = lead?.owner?.role?.name || lead?.owner?.role || itemOrLead?.assignee?.role || 'SALES_REP';
+    const creatorName = itemOrLead?.createdByName || itemOrLead?.createdBy?.name || currentUser?.name || 'Aditya Kumar Rai';
+    const creatorRole = itemOrLead?.createdByRole || itemOrLead?.createdBy?.role || currentUser?.role || 'MANAGER';
+
+    const scheduledDateFormatted = itemOrLead?.dueAt
+      ? new Date(itemOrLead.dueAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : 'Scheduled';
+
+    const leadObj = {
+      id: String(leadId),
+      name: leadName,
+      email: leadEmail,
+      phone: leadPhone,
+      company: companyName,
+      status: typeof lead?.status === 'string' ? lead.status : lead?.status?.name || 'Meeting Scheduled',
+      owner: leadOwnerName,
+      assignedRep: leadOwnerName,
+      source: lead?.source || 'Referral',
+      requirement: itemOrLead?.purpose || 'Enterprise CRM Suite',
+      city: lead?.city || 'Mumbai',
+      budget: lead?.budget || '₹ 4,50,000',
+      createdAt: itemOrLead?.createdAt || new Date().toISOString(),
+      allocationTrail: [
+        {
+          action: 'Lead Ingestion & Verification',
+          actor: creatorName,
+          role: creatorRole,
+          timestamp: new Date().toLocaleDateString(),
+          notes: `Follow-up / Meeting scheduled for ${scheduledDateFormatted}`,
+        },
+        {
+          action: 'Assigned to Sales Rep',
+          actor: leadOwnerName,
+          role: leadOwnerRole,
+          timestamp: new Date().toLocaleDateString(),
+          notes: `Active owner managing follow-up outreach`,
+        },
+      ],
+      ...lead,
+    };
+
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('das_crm_active_lead', JSON.stringify(leadObj));
+        sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(leadObj));
+        
+        const existing = localStorage.getItem('das_crm_all_leads_cache');
+        let arr = existing ? JSON.parse(existing) : [];
+        if (!Array.isArray(arr)) arr = [];
+        const idx = arr.findIndex((x: any) => String(x.id) === String(leadId) || (x.name && x.name.toLowerCase() === leadName.toLowerCase()));
+        if (idx >= 0) {
+          arr[idx] = { ...arr[idx], ...leadObj };
+        } else {
+          arr.unshift(leadObj);
+        }
+        localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(arr));
+      } catch (_) {}
+    }
+
+    router.push(`/leads/${encodeURIComponent(leadId)}`);
+  };
 
   const computeLocalStatus = (task: any): string => {
     if (task.status === 'CANCELLED') return 'CANCELLED';
@@ -1228,6 +1299,7 @@ export default function FollowUpsModule() {
                           item={item}
                           onSelect={setSelectedFollowUp}
                           selected={selectedFollowUp?.id === item.id}
+                          onNavigateToLead={handleNavigateToLead}
                           onQuickComplete={() => {
                             setSelectedFollowUp(item);
                             setShowCompleteModal(true);
@@ -1249,6 +1321,7 @@ export default function FollowUpsModule() {
                           item={item}
                           onSelect={setSelectedFollowUp}
                           selected={selectedFollowUp?.id === item.id}
+                          onNavigateToLead={handleNavigateToLead}
                           onQuickComplete={() => {
                             setSelectedFollowUp(item);
                             setShowCompleteModal(true);
@@ -1270,6 +1343,7 @@ export default function FollowUpsModule() {
                           item={item}
                           onSelect={setSelectedFollowUp}
                           selected={selectedFollowUp?.id === item.id}
+                          onNavigateToLead={handleNavigateToLead}
                           onQuickComplete={() => {
                             setSelectedFollowUp(item);
                             setShowCompleteModal(true);
@@ -1291,6 +1365,7 @@ export default function FollowUpsModule() {
                           item={item}
                           onSelect={setSelectedFollowUp}
                           selected={selectedFollowUp?.id === item.id}
+                          onNavigateToLead={handleNavigateToLead}
                           onQuickComplete={() => {}}
                         />
                       ))}
@@ -1310,6 +1385,7 @@ export default function FollowUpsModule() {
                     item={item}
                     onSelect={setSelectedFollowUp}
                     selected={selectedFollowUp?.id === item.id}
+                    onNavigateToLead={handleNavigateToLead}
                     onQuickComplete={() => {
                       setSelectedFollowUp(item);
                       setShowCompleteModal(true);
@@ -1332,6 +1408,7 @@ export default function FollowUpsModule() {
               onComplete={() => setShowCompleteModal(true)}
               onReschedule={() => setShowRescheduleModal(true)}
               onCancel={() => setShowCancelModal(true)}
+              onNavigateToLead={handleNavigateToLead}
             />
           ) : (
             <ProductivityWorkbench
@@ -1389,11 +1466,13 @@ function FollowUpCard({
   onSelect,
   selected,
   onQuickComplete,
+  onNavigateToLead,
 }: {
   item: any;
   onSelect: (i: any) => void;
   selected: boolean;
   onQuickComplete: () => void;
+  onNavigateToLead?: (i: any) => void;
 }) {
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -1502,14 +1581,26 @@ function FollowUpCard({
       {/* WHOSE LEAD IS THAT & CONTACT INFO */}
       <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/60">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div
+            onClick={(e) => {
+              if (onNavigateToLead) {
+                e.stopPropagation();
+                onNavigateToLead(item);
+              }
+            }}
+            className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer group/lead"
+            title="Click to open Lead Profile Workspace"
+          >
             <Building2 size={11} className="text-indigo-400 shrink-0" />
-            <span className="font-bold text-white break-words">
+            <span className="font-bold text-white break-words group-hover/lead:text-indigo-300 group-hover/lead:underline transition-colors">
               {item.lead?.name || 'General Prospect'}
             </span>
             {item.lead?.company?.name && (
               <span className="text-[10px] text-slate-400 truncate">({item.lead.company.name})</span>
             )}
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20 group-hover/lead:bg-indigo-500/25 shrink-0">
+              Open ↗
+            </span>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-indigo-300 font-semibold shrink-0">
             <UserCheck size={11} className="text-indigo-400" />
@@ -1585,12 +1676,14 @@ function FollowUpDetails({
   onComplete,
   onReschedule,
   onCancel,
+  onNavigateToLead,
 }: {
   item: any;
   onClose: () => void;
   onComplete: () => void;
   onReschedule: () => void;
   onCancel: () => void;
+  onNavigateToLead?: (i: any) => void;
 }) {
   const router = useRouter();
 
@@ -1694,7 +1787,7 @@ function FollowUpDetails({
           </button>
           
           <div
-            onClick={() => handleNavigateToLead(item.lead)}
+            onClick={() => onNavigateToLead ? onNavigateToLead(item) : handleNavigateToLead(item.lead)}
             className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-inner cursor-pointer hover:bg-indigo-500/30 hover:scale-105 transition-all"
             title="Click to view Lead Profile"
           >
@@ -1703,7 +1796,7 @@ function FollowUpDetails({
 
           {/* Interactive, full-width non-truncated Heading with Routing to Lead */}
           <div
-            onClick={() => handleNavigateToLead(item.lead)}
+            onClick={() => onNavigateToLead ? onNavigateToLead(item) : handleNavigateToLead(item.lead)}
             className="min-w-0 flex-1 cursor-pointer group p-1.5 -ml-1.5 rounded-xl hover:bg-slate-800/60 border border-transparent hover:border-indigo-500/30 transition-all"
             title="Click heading to open Lead Profile Workspace"
           >
@@ -1852,7 +1945,7 @@ function FollowUpDetails({
                 <User size={13} className="text-indigo-400" /> Linked Prospect Profile
               </span>
               <button
-                onClick={() => handleNavigateToLead(item.lead)}
+                onClick={() => onNavigateToLead ? onNavigateToLead(item) : handleNavigateToLead(item.lead)}
                 className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-md border border-indigo-500/20 transition-all shadow-sm"
               >
                 <span>View Full Lead Workspace</span>

@@ -12,6 +12,7 @@ import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService'
 import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getUserRoleFromName } from './LeadAllocationTrail';
 import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType } from './CallContactHistory';
 import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
+import { DEFAULT_REAL_LEADS } from './LeadsTable';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -272,7 +273,42 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         }
       } catch (_) {}
 
-      // 5. Fallback to Local Ingestion & Directory Cache (Pipeline Sync)
+      // 5. Check DEFAULT_REAL_LEADS & Standard Fallbacks
+      const decodedLower = decodeURIComponent(leadId).toLowerCase().trim();
+      const defaultMatched = (DEFAULT_REAL_LEADS || []).find((l) =>
+        String(l.id).toLowerCase() === decodedLower ||
+        (l.name && l.name.toLowerCase() === decodedLower) ||
+        (l.name && decodedLower.includes(l.name.toLowerCase())) ||
+        (decodedLower.includes('anjali') && l.name.toLowerCase().includes('anjali')) ||
+        (decodedLower.includes('pooja') && l.name.toLowerCase().includes('pooja')) ||
+        (decodedLower.includes('vikram') && l.name.toLowerCase().includes('vikram')) ||
+        (decodedLower.includes('rohan') && l.name.toLowerCase().includes('rohan')) ||
+        (decodedLower.includes('priya') && l.name.toLowerCase().includes('priya')) ||
+        (decodedLower.includes('neha') && l.name.toLowerCase().includes('neha')) ||
+        (decodedLower.includes('arjun') && l.name.toLowerCase().includes('arjun')) ||
+        (decodedLower.includes('kavita') && l.name.toLowerCase().includes('kavita'))
+      );
+
+      if (defaultMatched && isMounted) {
+        const ownerName = defaultMatched.owner || 'Sachin Puri (Team Leader)';
+        setLead({
+          id: defaultMatched.id || leadId,
+          name: defaultMatched.name,
+          email: defaultMatched.email || '—',
+          phone: defaultMatched.phone || '—',
+          company: defaultMatched.city !== '—' ? defaultMatched.city : 'Enterprise Client',
+          status: defaultMatched.status || 'New Lead',
+          owner: ownerName,
+          city: defaultMatched.city || 'Mumbai',
+          budget: defaultMatched.budget || '₹ 4,50,000',
+          requirement: defaultMatched.requirement || 'Enterprise CRM',
+          source: defaultMatched.source || 'Website',
+          allocationTrail: defaultMatched.allocationTrail || buildAllocationTrailForLead(ownerName, defaultMatched.source || 'Website'),
+        });
+        return;
+      }
+
+      // 6. Fallback to Local Ingestion & Directory Cache (Pipeline Sync)
       if (typeof window !== 'undefined') {
         try {
           const cachedAll: any[] = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
@@ -315,11 +351,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         } catch (_) {}
       }
 
-      // 6. Default Fallback
+      // 7. Default Fallback
       if (isMounted) {
+        // If the leadId is a named slug like "Anjali Verma"
+        const friendlyName = decodeURIComponent(leadId).replace(/[_-]/g, ' ').trim();
+        const finalName = friendlyName.length > 2 && !friendlyName.startsWith('cmu') ? friendlyName : 'Lead Prospect';
         setLead({
           id: leadId,
-          name: 'Lead Prospect',
+          name: finalName,
           email: '—',
           phone: '—',
           company: '—',
