@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
@@ -125,7 +125,7 @@ export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
   const { currentUser } = useAuth();
   const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([DEMO_TEST_LEAD]);
-  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string }>>(() => {
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
       const defaultEmps = getDefaultDirectory(currentUser);
       if (defaultEmps && defaultEmps.length > 0) {
@@ -133,6 +133,8 @@ export function LeadsTable() {
           id: e.id,
           name: e.name,
           role: e.role === 'TEAM_LEADER' ? 'Team Leader' : e.role === 'SALES_EXEC' ? 'Sales Exec' : e.role,
+          assignedManager: e.assignedManager,
+          managerId: e.managerId,
         }));
       }
     } catch (_) {}
@@ -156,6 +158,8 @@ export function LeadsTable() {
             id: e.id,
             name: e.name,
             role: e.role === 'TEAM_LEADER' ? 'Team Leader' : e.role === 'SALES_EXEC' ? 'Sales Exec' : e.role,
+            assignedManager: e.assignedManager,
+            managerId: e.managerId,
           }));
           if (list.length > 0) {
             setTeamUsers(list);
@@ -176,7 +180,9 @@ export function LeadsTable() {
     };
   }, [currentUser]);
 
-  // Multi-Dimensional Filtering State
+  // Multi-Dimensional Filtering State (Two-Tier TL & Sales Hierarchy)
+  const [filterTL, setFilterTL] = useState<string>('ALL');
+  const [filterSales, setFilterSales] = useState<string>('ALL');
   const [filterPerson, setFilterPerson] = useState<string>('ALL');
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState<string>('ALL');
@@ -202,12 +208,18 @@ export function LeadsTable() {
     const viewParam = searchParams.get('view');
 
     if (filterParam === 'unassigned') {
+      setFilterTL('UNASSIGNED');
+      setFilterSales('ALL');
       setFilterPerson('UNASSIGNED');
     } else if (filterParam === 'all') {
+      setFilterTL('ALL');
+      setFilterSales('ALL');
       setFilterPerson('ALL');
     }
 
     if (viewParam === 'all-my-leads') {
+      setFilterTL('ALL');
+      setFilterSales('ALL');
       setFilterPerson('ALL');
       setActiveStatus('All');
       setFilterStatus('ALL');
@@ -593,10 +605,67 @@ export function LeadsTable() {
   const canBulkImport = !userRole.includes('SALES') && !userRole.includes('EXEC') && !userRole.includes('LEADER') && !userRole.includes('TL');
   const isRep = isSalesExec;
 
+  // 👑 Strictly Team Leaders ONLY (No Managers / No Admins like Aditya Kumar Rai)
+  const teamLeaderUsers = useMemo(() => {
+    const tls = teamUsers.filter(u => {
+      const r = (u.role || '').toLowerCase();
+      const n = (u.name || '').toLowerCase();
+      // Exclude managers and admins
+      if (r.includes('manager') || r.includes('admin') || n.includes('aditya') || n.includes('anurag')) return false;
+      return r.includes('leader') || r.includes('tl') || n.includes('sachin');
+    });
+    if (tls.length > 0) return tls;
+    return [{ id: 'tl-default', name: 'Sachin Puri', role: 'Team Leader' }];
+  }, [teamUsers]);
+
+  // 🎯 Strictly Sales Executives ONLY (No Managers / No Admins / No TLs)
+  const salesExecUsers = useMemo(() => {
+    const reps = teamUsers.filter(u => {
+      const r = (u.role || '').toLowerCase();
+      const n = (u.name || '').toLowerCase();
+      if (r.includes('manager') || r.includes('admin') || r.includes('leader') || r.includes('tl')) return false;
+      if (n.includes('aditya') || n.includes('anurag') || n.includes('sachin')) return false;
+      return true;
+    });
+    if (reps.length > 0) return reps;
+    return [
+      { id: 'rep-1', name: 'Nandini Rastogi', role: 'Sales Exec', assignedManager: 'Sachin Puri (Team Leader)' },
+      { id: 'rep-2', name: 'Sulekha Tomar', role: 'Sales Exec', assignedManager: 'Sachin Puri (Team Leader)' },
+      { id: 'rep-3', name: 'Sadhana', role: 'Sales Exec', assignedManager: 'Sachin Puri (Team Leader)' },
+    ];
+  }, [teamUsers]);
+
+  // 🎯 Sales Executives assigned under the currently selected Team Leader
+  const visibleSalesReps = useMemo(() => {
+    if (filterTL === 'ALL' || filterTL === 'UNASSIGNED') {
+      return salesExecUsers;
+    }
+    const cleanTL = filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim();
+    const matched = salesExecUsers.filter(s => {
+      const mgr = (s.assignedManager || '').toLowerCase();
+      return mgr.includes(cleanTL);
+    });
+    if (matched.length > 0) return matched;
+    // Fallback: If Sachin Puri is selected, all sales reps belong to his team
+    if (cleanTL.includes('sachin')) {
+      return salesExecUsers;
+    }
+    return salesExecUsers;
+  }, [filterTL, salesExecUsers]);
+
+  const handleSelectTL = (tlName: string) => {
+    setFilterTL(tlName);
+    setFilterSales('ALL'); // Reset sales filter to ALL so the whole team's leads are displayed
+    setFilterPerson('ALL');
+  };
+
+  const handleSelectSales = (salesName: string) => {
+    setFilterSales(salesName);
+    setFilterPerson('ALL');
+  };
+
   const filtered = leadsList.filter((l) => {
     // 🔒 Role-Based Data Isolation Scoping
-    // Backend API already performs authoritative hierarchical scoping.
-    // If pure Sales Rep, ensure only seeing leads assigned to them if not supervisor.
     if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
       const isAssignedToUser =
         (l.owner && l.owner.toLowerCase().includes(userName.toLowerCase())) ||
@@ -605,7 +674,41 @@ export function LeadsTable() {
       if (!isAssignedToUser) return false;
     }
 
-    // 👤 Person-Wise Filtering
+    // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering
+    if (filterTL !== 'ALL') {
+      if (filterTL === 'UNASSIGNED') {
+        const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
+        if (!isUnassigned) return false;
+      } else {
+        const cleanTL = filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim();
+        const leadOwner = (l.owner || '').toLowerCase();
+        const leadAssignee = (l.currentAssignee || '').toLowerCase();
+
+        if (filterSales !== 'ALL') {
+          // Specific Sales Rep selected under this TL
+          const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
+          const repMatch = leadOwner.includes(cleanSales) || leadAssignee.includes(cleanSales);
+          if (!repMatch) return false;
+        } else {
+          // WHOLE TL TEAM: Match leads assigned to the TL themselves OR any sales rep under this TL
+          const subReps = visibleSalesReps.map(s => s.name.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim());
+          const matchesTL = leadOwner.includes(cleanTL) || leadAssignee.includes(cleanTL);
+          const matchesSubRep = subReps.some(rep => leadOwner.includes(rep) || leadAssignee.includes(rep));
+          if (!matchesTL && !matchesSubRep) return false;
+        }
+      }
+    } else {
+      // filterTL === 'ALL'
+      if (filterSales !== 'ALL') {
+        const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();
+        const leadOwner = (l.owner || '').toLowerCase();
+        const leadAssignee = (l.currentAssignee || '').toLowerCase();
+        const repMatch = leadOwner.includes(cleanSales) || leadAssignee.includes(cleanSales);
+        if (!repMatch) return false;
+      }
+    }
+
+    // 👤 Person-Wise Filtering (Modal compatibility)
     if (filterPerson !== 'ALL') {
       if (filterPerson === 'UNASSIGNED') {
         const isUnassigned = !l.owner || l.owner === 'Unassigned' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
@@ -707,12 +810,16 @@ export function LeadsTable() {
   });
 
   const activeFilterCount =
+    (filterTL !== 'ALL' ? 1 : 0) +
+    (filterSales !== 'ALL' ? 1 : 0) +
     (filterPerson !== 'ALL' ? 1 : 0) +
     (filterRole !== 'ALL' ? 1 : 0) +
     (filterDate !== 'ALL' ? 1 : 0) +
     (filterStatus !== 'ALL' ? 1 : 0);
 
   const resetFilters = () => {
+    setFilterTL('ALL');
+    setFilterSales('ALL');
     setFilterPerson('ALL');
     setFilterRole('ALL');
     setFilterDate('ALL');
@@ -901,50 +1008,94 @@ export function LeadsTable() {
             </div>
           </div>
 
-          {/* Quick Person Filter Bar — Only visible for supervisory roles (Admin, Manager, Team Leader) */}
+          {/* Quick Two-Tier Hierarchy Filter Bar (Team Leader above, Sales Executive down) — No Managers */}
           {canFilterByTeam && (
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1 border-t border-b border-slate-200 dark:border-slate-800/60 text-xs">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 pr-1">
-                <User size={12} className="text-slate-500" /> Person:
-              </span>
-              {(() => {
-                const namesSet = new Set<string>();
-                teamUsers.forEach(u => {
-                  if (u.name && u.name !== 'Unassigned' && u.name !== '—') namesSet.add(u.name);
-                });
-                leadsList.forEach(l => {
-                  if (l.owner && l.owner !== 'Unassigned' && l.owner !== '—') namesSet.add(l.owner);
-                  if (l.currentAssignee && l.currentAssignee !== 'Unassigned' && l.currentAssignee !== '—') namesSet.add(l.currentAssignee);
-                });
+            <div className="space-y-2 py-2.5 px-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs shadow-inner">
+              {/* Line 1: Team Leaders (Top Line) */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+                <span className="text-[11px] font-extrabold text-sky-400 flex items-center gap-1.5 flex-shrink-0 min-w-[140px] uppercase tracking-wider">
+                  <UserCheck size={14} className="text-sky-400" /> Team Leader:
+                </span>
+                <button
+                  onClick={() => handleSelectTL('ALL')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${
+                    filterTL === 'ALL'
+                      ? 'bg-sky-600 border-sky-400 text-white shadow-md shadow-sky-600/30'
+                      : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                  }`}
+                >
+                  👥 All Team Leaders
+                </button>
+                {teamLeaderUsers.map(tl => {
+                  const isSelected = filterTL.toLowerCase().includes(tl.name.toLowerCase());
+                  return (
+                    <button
+                      key={tl.id || tl.name}
+                      onClick={() => handleSelectTL(tl.name)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-sky-600 border-sky-400 text-white shadow-md shadow-sky-600/30'
+                          : 'bg-slate-900 hover:bg-slate-800 text-sky-300 border-sky-500/30'
+                      }`}
+                    >
+                      👑 {tl.name}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => handleSelectTL('UNASSIGNED')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-1 ${
+                    filterTL === 'UNASSIGNED'
+                      ? 'bg-amber-600 border-amber-400 text-white shadow-md shadow-amber-600/30'
+                      : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/30'
+                  }`}
+                >
+                  ⚠️ Unassigned Leads
+                </button>
 
-                const filterOptions = [
-                  { id: 'ALL', label: 'All Persons' },
-                  ...Array.from(namesSet).map(name => ({ id: name, label: name })),
-                  { id: 'UNASSIGNED', label: 'Unassigned Leads' },
-                ];
-
-                return filterOptions.map((item) => (
+                {activeFilterCount > 0 && (
                   <button
-                    key={item.id}
-                    onClick={() => setFilterPerson(item.id)}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border transition-all ${
-                      filterPerson === item.id
-                        ? 'filter-pill-selected bg-indigo-600 border-indigo-600 shadow-sm'
-                        : 'filter-pill-unselected'
+                    onClick={resetFilters}
+                    className="ml-auto text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 pl-3 flex-shrink-0"
+                  >
+                    <RotateCcw size={12} /> Reset All ({activeFilterCount})
+                  </button>
+                )}
+              </div>
+
+              {/* Line 2: Sales Executives (Bottom Line — Dynamically Scoped to Selected TL) */}
+              {filterTL !== 'UNASSIGNED' && (
+                <div className="flex items-center gap-2 overflow-x-auto pt-1 border-t border-slate-800/60">
+                  <span className="text-[11px] font-extrabold text-emerald-400 flex items-center gap-1.5 flex-shrink-0 min-w-[140px] uppercase tracking-wider">
+                    <User size={14} className="text-emerald-400" /> Sales Executive:
+                  </span>
+                  <button
+                    onClick={() => handleSelectSales('ALL')}
+                    className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${
+                      filterSales === 'ALL'
+                        ? 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
                     }`}
                   >
-                    {item.label}
+                    {filterTL !== 'ALL' ? `🎯 All Reps under ${filterTL} (Whole Team Leads)` : '🎯 All Sales Reps'}
                   </button>
-                ));
-              })()}
-
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={resetFilters}
-                  className="ml-auto text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-1 pl-2"
-                >
-                  <RotateCcw size={11} /> Reset All ({activeFilterCount})
-                </button>
+                  {visibleSalesReps.map(rep => {
+                    const isSelected = filterSales.toLowerCase().includes(rep.name.toLowerCase());
+                    return (
+                      <button
+                        key={rep.id || rep.name}
+                        onClick={() => handleSelectSales(rep.name)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-600/30'
+                            : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30'
+                        }`}
+                      >
+                        {rep.name}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
@@ -987,8 +1138,7 @@ export function LeadsTable() {
           {selected.length > 0 && (
             <div className="flex items-center gap-2 text-sm flex-wrap" style={{ color: 'rgb(var(--muted-foreground))' }}>
               <span className="font-medium" style={{ color: 'rgb(var(--brand-400))' }}>{selected.length} selected</span>
-              <button className="btn-secondary text-xs py-1 px-3">Assign</button>
-              <button className="btn-secondary text-xs py-1 px-3">Change Status</button>
+              <button className="btn-secondary text-xs py-1 px-3" onClick={() => setSelected([])}>Clear Selection</button>
             </div>
           )}
         </div>
@@ -1272,19 +1422,23 @@ export function LeadsTable() {
                       </div>
                     )}
 
-                    {colKey === 'status' && (
-                      <select
-                        value={lead.status}
-                        onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                        className="status-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border border-slate-700 bg-slate-900 cursor-pointer focus:outline-none transition-all hover:border-indigo-500 max-w-full"
-                        style={{ color: statusColorMap[lead.status] || lead.statusColor || '#6366f1' }}
-                        title="Change Lead Stage (Online Verified with Server)"
-                      >
-                        {statusNames.map(st => (
-                          <option key={st} value={st} className="bg-slate-900 text-white">{st}</option>
-                        ))}
-                      </select>
-                    )}
+                    {colKey === 'status' && (() => {
+                      const color = statusColorMap[lead.status] || lead.statusColor || '#6366f1';
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold border truncate select-none shadow-sm"
+                          style={{
+                            color: color,
+                            backgroundColor: `${color}18`,
+                            borderColor: `${color}40`,
+                          }}
+                          title={`Lead Status: ${lead.status}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                          <span className="truncate">{lead.status}</span>
+                        </span>
+                      );
+                    })()}
 
                     {colKey === 'value' && (
                       <span className="font-bold text-indigo-400 truncate block">{lead.value}</span>
@@ -1498,21 +1652,13 @@ export function LeadsTable() {
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       {(() => {
-                        const namesSet = new Set<string>();
-                        teamUsers.forEach(u => {
-                          if (u.name && u.name !== 'Unassigned' && u.name !== '—') namesSet.add(u.name);
-                        });
-                        leadsList.forEach(l => {
-                          if (l.owner && l.owner !== 'Unassigned' && l.owner !== '—') namesSet.add(l.owner);
-                          if (l.currentAssignee && l.currentAssignee !== 'Unassigned' && l.currentAssignee !== '—') namesSet.add(l.currentAssignee);
-                        });
+                        const tlOptions = teamLeaderUsers.map(tl => ({ id: tl.name, label: `👑 ${tl.name} (TL)` }));
+                        const salesOptions = salesExecUsers.map(rep => ({ id: rep.name, label: `🎯 ${rep.name} (Sales)` }));
                         return [
-                          { id: 'ALL', label: '👥 All Persons' },
+                          { id: 'ALL', label: '👥 All Team & Reps' },
                           { id: 'UNASSIGNED', label: '🔓 Unassigned Only' },
-                          ...Array.from(namesSet).map(person => ({
-                            id: person,
-                            label: `👤 ${person}`,
-                          })),
+                          ...tlOptions,
+                          ...salesOptions,
                         ];
                       })().map((item) => (
                         <button
