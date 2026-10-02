@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getCachedData, setCachedData, clearAllDashboardCaches } from '@/lib/cacheUtils';
+import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeRequirement, safeSource } from '@/lib/leadNormalizer';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Synced Leads & Activities
@@ -368,8 +369,8 @@ export function EmployeeRoleDashboard() {
       const repId = currentUser?.id;
 
       const myAssignedLeads = allLeads.filter(l => {
-        const owner = (l.owner?.name || l.owner || l.assignedRep || l.currentAssignee || '').toLowerCase();
-        const leadOwnerId = l.ownerId || l.owner?.id;
+        const owner = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee || l.assignedRepName).toLowerCase();
+        const leadOwnerId = l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : undefined);
         if (repId && leadOwnerId && leadOwnerId === repId) return true;
         if (repName && owner && (owner.includes(repName) || repName.includes(owner))) return true;
         const first = repName.split(' ')[0];
@@ -393,21 +394,20 @@ export function EmployeeRoleDashboard() {
 
       // 1. Synced Leads for Sales Rep
       const mappedNewLeads: SyncedLead[] = effectiveLeads.map((l: any, idx: number) => {
-        const rawStatus = (l.status?.name || l.status || l.stage || 'New');
-        const valNum = typeof l.value === 'number' ? l.value : (Number(String(l.value || '').replace(/[^0-9]/g, '')) || Number(l.estimatedValue) || 250000);
+        const norm = normalizeLead(l, idx);
         return {
-          id: String(l.id),
-          name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect',
-          company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
+          id: String(norm.id),
+          name: norm.name,
+          company: norm.company,
           designation: l.jobTitle || l.customFields?.designation || 'Decision Maker',
-          phone: l.phone || '+91 98000 00000',
-          email: l.email || `${(l.name || 'lead').toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          status: (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()) as any,
-          value: typeof l.value === 'string' && l.value.startsWith('₹') ? l.value : `₹${valNum.toLocaleString('en-IN')}`,
-          rawEstimatedValue: valNum,
-          assignedTime: l.created || (l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Today'),
-          source: l.source?.name || l.source || 'Inbound Pipeline',
-          requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
+          phone: norm.phone,
+          email: norm.email,
+          status: norm.status as any,
+          value: norm.value,
+          rawEstimatedValue: norm.numericValue,
+          assignedTime: norm.created,
+          source: norm.source,
+          requirement: norm.requirement,
           avatarBg: colors[idx % colors.length],
         };
       });
@@ -415,20 +415,19 @@ export function EmployeeRoleDashboard() {
 
       // 2. Synced Follow-ups
       const mappedFollowUps: SyncedFollowUp[] = effectiveLeads.map((l: any, idx: number) => {
-        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
-        const rawStatus = l.status?.name || l.status || l.stage || 'New';
+        const norm = normalizeLead(l, idx);
         return {
-          id: `flw-${l.id}`,
-          leadId: String(l.id),
-          leadName,
-          company: l.company?.name || l.company || '—',
-          phone: l.phone || '—',
-          email: l.email,
+          id: `flw-${norm.id}`,
+          leadId: String(norm.id),
+          leadName: norm.name,
+          company: norm.company,
+          phone: norm.phone,
+          email: norm.email,
           dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:30 PM' : '04:45 PM',
           dueDate: 'Today',
-          objective: l.requirement && l.requirement !== '—'
-            ? `Follow up with ${leadName.split(' ')[0]} regarding ${l.requirement} (${rawStatus})`
-            : `Follow up with ${leadName.split(' ')[0]} (${rawStatus})`,
+          objective: norm.requirement && norm.requirement !== '—'
+            ? `Follow up with ${norm.name.split(' ')[0]} regarding ${norm.requirement} (${norm.status})`
+            : `Follow up with ${norm.name.split(' ')[0]} (${norm.status})`,
           priority: idx === 0 ? 'HIGH' : 'MEDIUM',
           isCompleted: false,
           avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
@@ -438,15 +437,15 @@ export function EmployeeRoleDashboard() {
 
       // 3. Synced Meetings
       const mappedMeetings: SyncedMeeting[] = effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
-        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
+        const norm = normalizeLead(l, idx);
         return {
-          id: `mtg-${l.id}`,
-          leadId: String(l.id),
-          leadName,
-          company: l.company?.name || l.company || '—',
-          phone: l.phone || '—',
-          email: l.email,
-          title: `Discussion with ${leadName}${l.company ? ` (${l.company})` : ''}`,
+          id: `mtg-${norm.id}`,
+          leadId: String(norm.id),
+          leadName: norm.name,
+          company: norm.company,
+          phone: norm.phone,
+          email: norm.email,
+          title: `Discussion with ${norm.name}${norm.company !== '—' ? ` (${norm.company})` : ''}`,
           time: idx === 0 ? '03:00 PM' : idx === 1 ? '05:30 PM' : '06:15 PM',
           date: 'Today',
           duration: '45 mins',
@@ -460,22 +459,20 @@ export function EmployeeRoleDashboard() {
 
       // 4. Synced Opportunities
       const mappedOpportunities: SyncedOpportunity[] = effectiveLeads.map((l: any, idx: number) => {
-        const leadName = l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Lead Prospect';
-        const rawStatus = l.status?.name || l.status || l.stage || 'Proposal';
-        const valNum = typeof l.value === 'number' ? l.value : (Number(String(l.value || '').replace(/[^0-9]/g, '')) || Number(l.estimatedValue) || 350000);
-        const isWon = rawStatus.toLowerCase().includes('won');
-        const isNeg = rawStatus.toLowerCase().includes('negotiat');
-        const isProp = rawStatus.toLowerCase().includes('proposal');
+        const norm = normalizeLead(l, idx);
+        const isWon = norm.status.toLowerCase().includes('won');
+        const isNeg = norm.status.toLowerCase().includes('negotiat');
+        const isProp = norm.status.toLowerCase().includes('proposal');
         const prob = isWon ? 100 : isNeg ? 85 : isProp ? 65 : 45;
         return {
-          id: `opp-${l.id}`,
-          leadId: String(l.id),
-          leadName,
-          company: l.company?.name || l.company || 'Enterprise Client',
-          phone: l.phone || '+91 98000 00000',
-          dealTitle: `${l.requirement || 'Enterprise CRM Suite License'} (${l.company || 'Client'})`,
-          value: typeof l.value === 'string' && l.value.startsWith('₹') ? l.value : `₹${valNum.toLocaleString('en-IN')}`,
-          stage: rawStatus,
+          id: `opp-${norm.id}`,
+          leadId: String(norm.id),
+          leadName: norm.name,
+          company: norm.company,
+          phone: norm.phone,
+          dealTitle: `${norm.requirement !== '—' ? norm.requirement : 'Enterprise CRM Suite License'} (${norm.company})`,
+          value: norm.value,
+          stage: norm.status,
           probability: prob,
           expectedClose: 'Oct 25, 2026',
           nextStep: isWon ? 'Contract signed · Cloud onboarding initiated' : isNeg ? 'Finalizing commercial SLA terms & payment schedule' : 'Submitted custom enterprise proposal for review',

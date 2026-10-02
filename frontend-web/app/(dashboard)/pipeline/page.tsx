@@ -23,6 +23,7 @@ import {
   getDefaultDirectory,
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
+import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource } from '@/lib/leadNormalizer';
 
 interface DashboardLeadRecord {
   id: string;
@@ -252,8 +253,9 @@ export default function LeadPipelinePage() {
               const id = String(l.id || '');
               return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
             })
-            .map((l: any) => {
-              const rawFile = l.customFields?.fileName || l.customFields?.filename || (l.source?.name || l.source) || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
+            .map((l: any, idx: number) => {
+              const norm = normalizeLead(l, idx);
+              const rawFile = norm.customFields?.fileName || norm.customFields?.filename || norm.source || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
               
               let rawAllocated = combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM';
               if (l.customFields?.allocatedAt) {
@@ -268,28 +270,20 @@ export default function LeadPipelinePage() {
                 } catch (_) {}
               }
 
-              let createdDateStr = 'Today';
-              if (l.createdAt) {
-                try {
-                  const d = new Date(l.createdAt);
-                  createdDateStr = isNaN(d.getTime()) ? String(l.createdAt) : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                } catch (_) {}
-              }
-
               return {
-                id: String(l.id || `lead_${Math.random()}`),
-                name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Lead Prospect',
-                fileName: rawFile,
+                id: String(norm.id),
+                name: norm.name,
+                fileName: safeString(rawFile, 'Spreadsheet Import'),
                 allocatedAt: rawAllocated,
-                email: l.email || '—',
-                phone: l.phone || '—',
-                company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
-                source: l.source?.name || l.source || 'Google Ads',
-                stage: l.status?.name || l.stage || 'Prospecting',
-                value: Number(l.score || l.estimatedValue || l.value || 150000) || 150000,
-                assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)'),
-                customFields: l.customFields || {},
-                createdAt: createdDateStr,
+                email: norm.email,
+                phone: norm.phone,
+                company: norm.company,
+                source: norm.source,
+                stage: norm.status,
+                value: norm.numericValue || 150000,
+                assignedRep: norm.owner,
+                customFields: norm.customFields || {},
+                createdAt: norm.created,
               };
             });
         }
@@ -668,10 +662,10 @@ export default function LeadPipelinePage() {
     if (!lead) return false;
     if (!leadSearchQuery.trim()) return true;
     const q = leadSearchQuery.toLowerCase();
-    return (lead.name || '').toLowerCase().includes(q) ||
-      (lead.email || '').toLowerCase().includes(q) ||
-      (lead.phone || '').toLowerCase().includes(q) ||
-      (lead.company || '').toLowerCase().includes(q);
+    return safeString(lead.name).toLowerCase().includes(q) ||
+      safeString(lead.email).toLowerCase().includes(q) ||
+      safeString(lead.phone).toLowerCase().includes(q) ||
+      safeString(lead.company).toLowerCase().includes(q);
   });
 
   // ── Pagination State ────────────────────────────────────────────────────────
@@ -1202,22 +1196,22 @@ export default function LeadPipelinePage() {
                           );
                         }
                         if (col.id === 'name') {
-                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">{lead.name}</td>;
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">{safeString(lead.name, 'Lead Prospect')}</td>;
                         }
                         if (col.id === 'email') {
-                          return <td key={col.id} className="p-3 text-muted border-r border-border/40 last:border-0">{lead.email}</td>;
+                          return <td key={col.id} className="p-3 text-muted border-r border-border/40 last:border-0">{safeString(lead.email, '—')}</td>;
                         }
                         if (col.id === 'phone') {
-                          return <td key={col.id} className="p-3 text-emerald-400 font-mono font-medium border-r border-border/40 last:border-0">{lead.phone}</td>;
+                          return <td key={col.id} className="p-3 text-emerald-400 font-mono font-medium border-r border-border/40 last:border-0">{safeString(lead.phone, '—')}</td>;
                         }
                         if (col.id === 'company') {
-                          return <td key={col.id} className="p-3 text-slate-300 border-r border-border/40 last:border-0">{lead.company}</td>;
+                          return <td key={col.id} className="p-3 text-slate-300 border-r border-border/40 last:border-0">{safeString(lead.company, '—')}</td>;
                         }
                         if (col.id === 'source') {
                           return (
                             <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                                {lead.source}
+                                {safeString(lead.source, 'Google Ads')}
                               </span>
                             </td>
                           );
@@ -1226,7 +1220,7 @@ export default function LeadPipelinePage() {
                           return (
                             <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                                {lead.stage}
+                                {safeString(lead.stage, 'Prospecting')}
                               </span>
                             </td>
                           );

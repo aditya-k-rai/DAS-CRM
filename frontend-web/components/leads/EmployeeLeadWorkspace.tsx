@@ -13,6 +13,7 @@ import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getU
 import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType } from './CallContactHistory';
 import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
 import { DEFAULT_REAL_LEADS } from './LeadsTable';
+import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement } from '@/lib/leadNormalizer';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -86,19 +87,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     requirement: string;
     source: string;
     allocationTrail: AllocationEvent[];
-  }>({
-    id: leadData?.id || leadId,
-    name: leadData?.name || 'Dr. Vikram Malhotra',
-    email: leadData?.email || 'vikram.malhotra@zenithhospital.in',
-    phone: leadData?.phone || '+91 98201 12345',
-    company: leadData?.company || 'Zenith Hospital & Research Centre',
-    status: leadData?.status || 'New Lead',
-    owner: leadData?.owner || 'Sachin Puri (Team Leader)',
-    city: leadData?.city || '—',
-    budget: leadData?.budget || '—',
-    requirement: leadData?.requirement || '—',
-    source: leadData?.source || '—',
-    allocationTrail: leadData?.allocationTrail || [],
+  }>(() => {
+    const norm = normalizeLead(leadData || { id: leadId });
+    return {
+      id: norm.id || leadId,
+      name: norm.name || 'Dr. Vikram Malhotra',
+      email: norm.email || 'vikram.malhotra@zenithhospital.in',
+      phone: norm.phone || '+91 98201 12345',
+      company: norm.company || 'Zenith Hospital & Research Centre',
+      status: norm.status || 'New Lead',
+      owner: norm.owner || 'Sachin Puri (Team Leader)',
+      city: norm.city || '—',
+      budget: norm.budget || '—',
+      requirement: norm.requirement || '—',
+      source: norm.source || '—',
+      allocationTrail: norm.allocationTrail || [],
+    };
   });
 
   // Asynchronously fetch lead details from Backend API, Directory Cache, or Pre-Allocated Rosters
@@ -108,26 +112,27 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const loadLeadDetails = async () => {
       // 1. If leadData is provided directly via props and is populated, use it
       if (leadData && leadData.name && leadData.name !== 'Prospect Lead' && leadData.phone) {
-        const ownerName = leadData.owner || 'Sachin Puri (Team Leader)';
+        const norm = normalizeLead(leadData);
+        const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
         const defaultTrail = buildAllocationTrailForLead(
           ownerName,
-          leadData.source || 'Lead Ingestion',
+          norm.source || 'Lead Ingestion',
           new Date().toISOString(),
-          leadData.allocationTrail
+          norm.allocationTrail
         );
 
         setLead({
-          id: leadData.id || leadId,
-          name: leadData.name,
-          email: leadData.email || '—',
-          phone: leadData.phone || '—',
-          company: leadData.company || '—',
-          status: leadData.status || 'New Lead',
+          id: norm.id || leadId,
+          name: norm.name,
+          email: norm.email || '—',
+          phone: norm.phone || '—',
+          company: norm.company || '—',
+          status: norm.status || 'New Lead',
           owner: ownerName,
-          city: leadData.city || '—',
-          budget: leadData.budget || '—',
-          requirement: leadData.requirement || '—',
-          source: leadData.source || '—',
+          city: norm.city || '—',
+          budget: norm.budget || '—',
+          requirement: norm.requirement || '—',
+          source: norm.source || '—',
           allocationTrail: defaultTrail,
         });
         return;
@@ -143,36 +148,36 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             sessionMatch = JSON.parse(directSession);
           } else if (activeSession) {
             const parsed = JSON.parse(activeSession);
-            if (String(parsed.id) === String(leadId) || (parsed.name && decodeURIComponent(leadId).toLowerCase().includes(parsed.name.toLowerCase()))) {
+            if (String(parsed.id) === String(leadId) || (parsed.name && decodeURIComponent(leadId).toLowerCase().includes(String(parsed.name).toLowerCase()))) {
               sessionMatch = parsed;
             }
           }
           if (sessionMatch && isMounted) {
-            const cleanName = sessionMatch.name || `${sessionMatch.firstName || ''} ${sessionMatch.lastName || ''}`.trim() || 'Lead Prospect';
-            const ownerName = sessionMatch.owner || sessionMatch.assignedRep || 'Sachin Puri (Team Leader)';
-            const allocatedTimestamp = sessionMatch.allocatedAt || sessionMatch.createdAt || sessionMatch.rawCreatedAt || new Date().toISOString();
-            const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || sessionMatch.source || 'Lead Ingestion';
+            const norm = normalizeLead(sessionMatch);
+            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
+            const allocatedTimestamp = sessionMatch.allocatedAt || sessionMatch.createdAt || norm.rawCreatedAt || new Date().toISOString();
+            const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || norm.source || 'Lead Ingestion';
 
             const sessionTrail = buildAllocationTrailForLead(
               ownerName,
               fileName,
               allocatedTimestamp,
-              sessionMatch.allocationTrail,
+              norm.allocationTrail,
               sessionMatch.customFields
             );
 
             setLead({
-              id: String(sessionMatch.id || leadId),
-              name: cleanName,
-              email: sessionMatch.email && sessionMatch.email !== '—' ? sessionMatch.email : '—',
-              phone: sessionMatch.phone && sessionMatch.phone !== '—' ? sessionMatch.phone : '—',
-              company: sessionMatch.company || sessionMatch.customFields?.company || '—',
-              status: sessionMatch.status || sessionMatch.stage || 'New Lead',
+              id: String(norm.id || leadId),
+              name: norm.name,
+              email: norm.email && norm.email !== '—' ? norm.email : '—',
+              phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
+              company: norm.company || '—',
+              status: norm.status || 'New Lead',
               owner: ownerName,
-              city: sessionMatch.city || sessionMatch.customFields?.col_city || sessionMatch.customFields?.city || sessionMatch.customFields?.City || '—',
-              budget: sessionMatch.budget || sessionMatch.customFields?.col_budget || sessionMatch.customFields?.budget || sessionMatch.customFields?.Budget || '—',
-              requirement: sessionMatch.requirement || sessionMatch.productInterest || sessionMatch.product || sessionMatch.service || sessionMatch.notes || sessionMatch.customFields?.col_requirement || sessionMatch.customFields?.requirement || sessionMatch.customFields?.product || sessionMatch.customFields?.service || sessionMatch.customFields?.['Product / Service'] || sessionMatch.customFields?.['Interested Product'] || sessionMatch.customFields?.Requirement || '—',
-              source: sessionMatch.source || fileName,
+              city: norm.city || '—',
+              budget: norm.budget || '—',
+              requirement: norm.requirement || '—',
+              source: norm.source || fileName,
               allocationTrail: sessionTrail,
             });
             return;
@@ -189,36 +194,36 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const decodedId = decodeURIComponent(leadId).toLowerCase().trim();
             const matched = allLeads.find((item: any) =>
               String(item.id) === String(leadId) ||
-              (item.name && item.name.toLowerCase() === decodedId) ||
-              (item.name && decodedId.includes(item.name.toLowerCase())) ||
-              (item.name && item.name.toLowerCase().includes(decodedId))
+              (item.name && String(item.name).toLowerCase() === decodedId) ||
+              (item.name && decodedId.includes(String(item.name).toLowerCase())) ||
+              (item.name && String(item.name).toLowerCase().includes(decodedId))
             );
             if (matched && isMounted) {
-              const cleanName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim() || 'Lead Prospect';
-              const ownerName = matched.owner || matched.assignedRep || 'Sachin Puri (Team Leader)';
+              const norm = normalizeLead(matched);
+              const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
               const allocatedTimestamp = matched.rawCreatedAt || matched.createdAt || new Date().toISOString();
-              const fileName = (matched.tags && matched.tags[0]) || matched.source || 'Lead Ingestion';
+              const fileName = (matched.tags && matched.tags[0]) || norm.source || 'Lead Ingestion';
 
               const matchedTrail = buildAllocationTrailForLead(
                 ownerName,
                 fileName,
                 allocatedTimestamp,
-                matched.allocationTrail,
+                norm.allocationTrail,
                 matched.customFields
               );
 
               setLead({
-                id: String(matched.id || leadId),
-                name: cleanName,
-                email: matched.email && matched.email !== '—' ? matched.email : '—',
-                phone: matched.phone && matched.phone !== '—' ? matched.phone : '—',
-                company: matched.company || matched.customFields?.company || '—',
-                status: matched.status || matched.stage || 'New Lead',
+                id: String(norm.id || leadId),
+                name: norm.name,
+                email: norm.email && norm.email !== '—' ? norm.email : '—',
+                phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
+                company: norm.company || '—',
+                status: norm.status || 'New Lead',
                 owner: ownerName,
-                city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
-                budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
-                requirement: matched.requirement || matched.productInterest || matched.product || matched.service || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.product || matched.customFields?.service || matched.customFields?.['Product / Service'] || matched.customFields?.['Interested Product'] || matched.customFields?.Requirement || '—',
-                source: matched.source || fileName,
+                city: norm.city || '—',
+                budget: norm.budget || '—',
+                requirement: norm.requirement || '—',
+                source: norm.source || fileName,
                 allocationTrail: matchedTrail,
               });
               return;
@@ -240,9 +245,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         if (res.ok) {
           const l = await res.json();
           if (l && isMounted) {
-            const rawStatus = l.status?.name || l.status || 'New Lead';
-            const ownerName = l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)');
-            const cleanName = `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || (l.customFields?.clientName) || 'Lead Prospect';
+            const norm = normalizeLead(l);
+            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
             const allocatedTimestamp = l.customFields?.allocatedAt || l.createdAt || new Date().toISOString();
             const fileName = l.customFields?.fileName || l.customFields?.platform || 'Lead Ingestion';
 
@@ -250,22 +254,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               ownerName,
               fileName,
               allocatedTimestamp,
-              l.allocationTrail,
+              norm.allocationTrail,
               l.customFields
             );
 
             setLead({
-              id: String(l.id || leadId),
-              name: cleanName,
-              email: l.email || l.customFields?.email || '—',
-              phone: l.phone || l.customFields?.phone || '—',
-              company: l.company?.name || l.company || l.customFields?.company || '—',
-              status: rawStatus,
+              id: String(norm.id || leadId),
+              name: norm.name,
+              email: norm.email || '—',
+              phone: norm.phone || '—',
+              company: norm.company || '—',
+              status: norm.status || 'New Lead',
               owner: ownerName,
-              city: l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City || '—',
-              budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget || '—',
-              requirement: l.requirement || l.productInterest || l.product || l.service || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.product || l.customFields?.service || l.customFields?.['Product / Service'] || l.customFields?.['Interested Product'] || l.customFields?.Requirement || '—',
-              source: l.source?.name || l.source || l.customFields?.platform || l.customFields?.fileName || '—',
+              city: norm.city || '—',
+              budget: norm.budget || '—',
+              requirement: norm.requirement || '—',
+              source: norm.source || '—',
               allocationTrail: serverTrail,
             });
             return;
@@ -277,33 +281,34 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       const decodedLower = decodeURIComponent(leadId).toLowerCase().trim();
       const defaultMatched = (DEFAULT_REAL_LEADS || []).find((l) =>
         String(l.id).toLowerCase() === decodedLower ||
-        (l.name && l.name.toLowerCase() === decodedLower) ||
-        (l.name && decodedLower.includes(l.name.toLowerCase())) ||
-        (decodedLower.includes('anjali') && l.name.toLowerCase().includes('anjali')) ||
-        (decodedLower.includes('pooja') && l.name.toLowerCase().includes('pooja')) ||
-        (decodedLower.includes('vikram') && l.name.toLowerCase().includes('vikram')) ||
-        (decodedLower.includes('rohan') && l.name.toLowerCase().includes('rohan')) ||
-        (decodedLower.includes('priya') && l.name.toLowerCase().includes('priya')) ||
-        (decodedLower.includes('neha') && l.name.toLowerCase().includes('neha')) ||
-        (decodedLower.includes('arjun') && l.name.toLowerCase().includes('arjun')) ||
-        (decodedLower.includes('kavita') && l.name.toLowerCase().includes('kavita'))
+        (l.name && String(l.name).toLowerCase() === decodedLower) ||
+        (l.name && decodedLower.includes(String(l.name).toLowerCase())) ||
+        (decodedLower.includes('anjali') && String(l.name).toLowerCase().includes('anjali')) ||
+        (decodedLower.includes('pooja') && String(l.name).toLowerCase().includes('pooja')) ||
+        (decodedLower.includes('vikram') && String(l.name).toLowerCase().includes('vikram')) ||
+        (decodedLower.includes('rohan') && String(l.name).toLowerCase().includes('rohan')) ||
+        (decodedLower.includes('priya') && String(l.name).toLowerCase().includes('priya')) ||
+        (decodedLower.includes('neha') && String(l.name).toLowerCase().includes('neha')) ||
+        (decodedLower.includes('arjun') && String(l.name).toLowerCase().includes('arjun')) ||
+        (decodedLower.includes('kavita') && String(l.name).toLowerCase().includes('kavita'))
       );
 
       if (defaultMatched && isMounted) {
-        const ownerName = defaultMatched.owner || 'Sachin Puri (Team Leader)';
+        const norm = normalizeLead(defaultMatched);
+        const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
         setLead({
-          id: defaultMatched.id || leadId,
-          name: defaultMatched.name,
-          email: defaultMatched.email || '—',
-          phone: defaultMatched.phone || '—',
-          company: defaultMatched.city !== '—' ? defaultMatched.city : 'Enterprise Client',
-          status: defaultMatched.status || 'New Lead',
+          id: norm.id || leadId,
+          name: norm.name,
+          email: norm.email || '—',
+          phone: norm.phone || '—',
+          company: norm.city !== '—' ? norm.city : 'Enterprise Client',
+          status: norm.status || 'New Lead',
           owner: ownerName,
-          city: defaultMatched.city || 'Mumbai',
-          budget: defaultMatched.budget || '₹ 4,50,000',
-          requirement: defaultMatched.requirement || 'Enterprise CRM',
-          source: defaultMatched.source || 'Website',
-          allocationTrail: defaultMatched.allocationTrail || buildAllocationTrailForLead(ownerName, defaultMatched.source || 'Website'),
+          city: norm.city || 'Mumbai',
+          budget: norm.budget || '₹ 4,50,000',
+          requirement: norm.requirement || 'Enterprise CRM',
+          source: norm.source || 'Website',
+          allocationTrail: norm.allocationTrail && norm.allocationTrail.length > 0 ? norm.allocationTrail : buildAllocationTrailForLead(ownerName, norm.source || 'Website'),
         });
         return;
       }
@@ -316,34 +321,34 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           const combined = [...cachedAll, ...cachedDir];
           const matched = combined.find((c: any) =>
             String(c.id) === String(leadId) ||
-            (c.name && decodeURIComponent(leadId).toLowerCase().includes(c.name.toLowerCase()))
+            (c.name && decodeURIComponent(leadId).toLowerCase().includes(String(c.name).toLowerCase()))
           );
           if (matched && isMounted) {
-            const cleanName = (matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`).replace('(Test Lead)', '').trim() || 'Lead Prospect';
-            const ownerName = matched.owner || matched.assignedRep || 'Sachin Puri (Team Leader)';
+            const norm = normalizeLead(matched);
+            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
             const allocatedTimestamp = matched.allocatedAt || matched.createdAt || new Date().toISOString();
-            const fileName = matched.fileName || matched.source || 'Lead Ingestion';
+            const fileName = matched.fileName || norm.source || 'Lead Ingestion';
 
             const cachedTrail = buildAllocationTrailForLead(
               ownerName,
               fileName,
               allocatedTimestamp,
-              matched.allocationTrail,
+              norm.allocationTrail,
               matched.customFields
             );
 
             setLead({
-              id: String(matched.id || leadId),
-              name: cleanName,
-              email: matched.email && matched.email !== '—' ? matched.email : '—',
-              phone: matched.phone && matched.phone !== '—' ? matched.phone : '—',
-              company: matched.company || '—',
-              status: matched.stage || matched.status || 'New Lead',
+              id: String(norm.id || leadId),
+              name: norm.name,
+              email: norm.email && norm.email !== '—' ? norm.email : '—',
+              phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
+              company: norm.company || '—',
+              status: norm.status || 'New Lead',
               owner: ownerName,
-              city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
-              budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
-              requirement: matched.requirement || matched.productInterest || matched.product || matched.service || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.product || matched.customFields?.service || matched.customFields?.['Product / Service'] || matched.customFields?.['Interested Product'] || matched.customFields?.Requirement || '—',
-              source: matched.source || matched.fileName || '—',
+              city: norm.city || '—',
+              budget: norm.budget || '—',
+              requirement: norm.requirement || '—',
+              source: norm.source || fileName,
               allocationTrail: cachedTrail,
             });
             return;
@@ -828,24 +833,24 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-extrabold text-white">{lead.name || 'Lead'}</h2>
+                <h2 className="text-xl font-extrabold text-white">{safeString(lead.name, 'Lead')}</h2>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-brand/20 text-brand-300 border border-brand/30">
-                  {lead.status}
+                  {safeString(lead.status, 'New Lead')}
                 </span>
               </div>
               <p className="text-xs text-muted flex items-center gap-3 mt-1">
-                <span className="flex items-center gap-1"><Building2 size={13} className="text-indigo-400" /> {lead.company}</span>
+                <span className="flex items-center gap-1"><Building2 size={13} className="text-indigo-400" /> {safeString(lead.company, '—')}</span>
                 <span>•</span>
-                <span className="flex items-center gap-1"><Phone size={13} className="text-emerald-400" /> {lead.phone}</span>
+                <span className="flex items-center gap-1"><Phone size={13} className="text-emerald-400" /> {safeString(lead.phone, '—')}</span>
                 <span>•</span>
-                <span className="flex items-center gap-1"><Mail size={13} className="text-purple-400" /> {lead.email}</span>
+                <span className="flex items-center gap-1"><Mail size={13} className="text-purple-400" /> {safeString(lead.email, '—')}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-muted bg-muted/20 px-3 py-1.5 rounded-xl border border-border">
-              Assigned Rep: <strong className="text-white">{lead.owner}</strong>
+              Assigned Rep: <strong className="text-white">{safeString(lead.owner, 'Sachin Puri')}</strong>
             </span>
           </div>
         </div>
@@ -949,32 +954,32 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               <div className="space-y-3 text-xs">
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Lead Name:</span>
-                  <span className="font-bold text-white">{lead.name}</span>
+                  <span className="font-bold text-white">{safeString(lead.name, 'Lead Prospect')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Company:</span>
-                  <span className="font-bold text-white">{lead.company}</span>
+                  <span className="font-bold text-white">{safeString(lead.company, '—')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Phone:</span>
-                  <span className="font-bold text-emerald-400">{lead.phone}</span>
+                  <span className="font-bold text-emerald-400">{safeString(lead.phone, '—')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Email:</span>
-                  <span className="font-bold text-purple-400">{lead.email}</span>
+                  <span className="font-bold text-purple-400">{safeString(lead.email, '—')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Ingestion Source:</span>
-                  <span className="font-bold text-indigo-300">{lead.source}</span>
+                  <span className="font-bold text-indigo-300">{safeString(lead.source, '—')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Interested Product / Service:</span>
-                  <span className="font-bold text-amber-300 truncate max-w-[180px]" title={lead.requirement}>{lead.requirement}</span>
+                  <span className="font-bold text-amber-300 truncate max-w-[180px]" title={safeString(lead.requirement)}>{safeString(lead.requirement, '—')}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Current Status:</span>
                   <span className="font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
-                    {lead.status}
+                    {safeString(lead.status, 'New Lead')}
                   </span>
                 </div>
               </div>

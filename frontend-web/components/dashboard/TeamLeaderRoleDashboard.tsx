@@ -17,6 +17,7 @@ import {
   invalidateUserDirectoryCache,
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
+import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany } from '@/lib/leadNormalizer';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types for Team Leader Dashboard Modules
@@ -408,19 +409,19 @@ export function TeamLeaderRoleDashboard() {
           const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
           if (items.length > 0) {
             const mappedLeads: TeamLead[] = items.slice(0, 10).map((l: any, idx: number) => {
-              const rawStatus = (l.status?.name || l.status || 'New');
+              const norm = normalizeLead(l, idx);
               return {
-                id: String(l.id),
-                name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-                company: l.company || 'Inbound Prospect',
-                phone: l.phone || '+91 98000 00000',
-                email: l.email || 'lead@das-crm.local',
-                status: rawStatus as any,
-                value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '₹2,50,000',
-                source: l.source?.name || l.source || 'Website Inbound',
-                assignedRepName: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
-                lastContact: l.lastCalledAt || 'Recently updated',
-                requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
+                id: String(norm.id),
+                name: norm.name,
+                company: norm.company,
+                phone: norm.phone,
+                email: norm.email,
+                status: norm.status as any,
+                value: norm.value,
+                source: norm.source,
+                assignedRepName: norm.owner,
+                lastContact: norm.lastCalledAt || 'Recently updated',
+                requirement: norm.requirement,
                 avatarBg: idx % 2 === 0 ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-blue-600',
               };
             });
@@ -441,10 +442,13 @@ export function TeamLeaderRoleDashboard() {
   // Filtered Leads by Accordion Tab
   const filteredTeamLeads = useMemo(() => {
     if (activeLeadFilter === 'ALL') return teamLeads;
-    if (activeLeadFilter === 'NEW') return teamLeads.filter(l => l.status.toLowerCase() === 'new');
-    if (activeLeadFilter === 'CONTACTED') return teamLeads.filter(l => l.status.toLowerCase() === 'contacted');
-    if (activeLeadFilter === 'QUALIFIED') return teamLeads.filter(l => l.status.toLowerCase() === 'qualified');
-    if (activeLeadFilter === 'LOST') return teamLeads.filter(l => l.status.toLowerCase().includes('lost') || l.status.toLowerCase().includes('unqual'));
+    if (activeLeadFilter === 'NEW') return teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'new');
+    if (activeLeadFilter === 'CONTACTED') return teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'contacted');
+    if (activeLeadFilter === 'QUALIFIED') return teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'qualified');
+    if (activeLeadFilter === 'LOST') return teamLeads.filter(l => {
+      const s = safeStatus(l.status).toLowerCase();
+      return s.includes('lost') || s.includes('unqual');
+    });
     return teamLeads;
   }, [teamLeads, activeLeadFilter]);
 
@@ -805,10 +809,13 @@ export function TeamLeaderRoleDashboard() {
         <div className="flex gap-2 flex-wrap p-1.5 bg-slate-950/70 border border-slate-800 rounded-xl">
           {[
             { id: 'ALL', label: 'Team Total Leads', count: teamLeads.length },
-            { id: 'NEW', label: 'New Leads', count: teamLeads.filter(l => l.status === 'New').length },
-            { id: 'CONTACTED', label: 'Contacted', count: teamLeads.filter(l => l.status === 'Contacted').length },
-            { id: 'QUALIFIED', label: 'Qualified', count: teamLeads.filter(l => l.status === 'Qualified').length },
-            { id: 'LOST', label: 'Unqualified / Lost', count: teamLeads.filter(l => l.status === 'Lost').length },
+            { id: 'NEW', label: 'New Leads', count: teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'new').length },
+            { id: 'CONTACTED', label: 'Contacted', count: teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'contacted').length },
+            { id: 'QUALIFIED', label: 'Qualified', count: teamLeads.filter(l => safeStatus(l.status).toLowerCase() === 'qualified').length },
+            { id: 'LOST', label: 'Unqualified / Lost', count: teamLeads.filter(l => {
+              const s = safeStatus(l.status).toLowerCase();
+              return s.includes('lost') || s.includes('unqual');
+            }).length },
           ].map(tab => (
             <button
               key={tab.id}
@@ -851,24 +858,24 @@ export function TeamLeaderRoleDashboard() {
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">
-                          {lead.name}
+                          {safeString(lead.name, 'Lead Prospect')}
                         </h4>
                         <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                          {lead.status}
+                          {safeStatus(lead.status)}
                         </span>
                       </div>
                       <p className="text-xs font-semibold text-slate-300 flex items-center gap-1 mt-0.5">
                         <Building2 size={11} className="text-indigo-400/70" />
-                        {lead.company}
+                        {safeString(lead.company, '—')}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-1">
-                        Assigned to: <strong className="text-blue-300">{lead.assignedRepName}</strong>
+                        Assigned to: <strong className="text-blue-300">{safeString(lead.assignedRepName, 'Unassigned')}</strong>
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className="text-xs font-black text-emerald-400">{lead.value}</span>
-                    <p className="text-[9px] text-muted-foreground">{lead.source}</p>
+                    <span className="text-xs font-black text-emerald-400">{safeString(lead.value, '—')}</span>
+                    <p className="text-[9px] text-muted-foreground">{safeString(lead.source, 'Website')}</p>
                   </div>
                 </div>
 

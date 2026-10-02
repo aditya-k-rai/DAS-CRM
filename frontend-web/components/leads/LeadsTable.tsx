@@ -15,6 +15,15 @@ import {
   getDefaultDirectory,
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
+import {
+  normalizeLead,
+  safeString,
+  safeStatus,
+  safeOwnerName,
+  safeCompany,
+  safeSource,
+  getStatusColor,
+} from '@/lib/leadNormalizer';
 
 interface LeadDataWeb {
   id: string;
@@ -517,35 +526,34 @@ export function LeadsTable() {
           if (Array.isArray(items) && items.length > 0) {
             mappedServerLeads = items
               .filter((l: any) => {
-                const n = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+                const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
                 const id = String(l.id || '');
                 return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
               })
-              .map((l: any) => {
-                const rawStatus = l.status?.name || l.status || 'New';
-                const ownerName = l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned');
+              .map((l: any, idx: number) => {
+                const norm = normalizeLead(l, idx);
                 return {
-                  id: String(l.id),
-                  name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-                  email: l.email || '',
-                  phone: l.phone || '',
-                  status: rawStatus,
-                  statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
-                  source: l.source?.name || l.source || (l.customFields?.platform || 'Website'),
-                  score: l.score || 85,
+                  id: norm.id,
+                  name: norm.name,
+                  email: norm.email,
+                  phone: norm.phone,
+                  status: norm.status,
+                  statusColor: norm.statusColor,
+                  source: norm.source,
+                  score: norm.score,
                   aiScore: l.aiScore || undefined,
-                  owner: ownerName,
-                  value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value ? (typeof l.value === 'number' ? `₹${l.value.toLocaleString('en-IN')}` : l.value) : '—'),
-                  created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || 'Today'),
-                  rawCreatedAt: l.createdAt || l.created || undefined,
-                  tags: l.tags && l.tags.length > 0 ? l.tags : [l.customFields?.fileName || 'Database Lead', 'VERIFIED ✓'],
-                  city: l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City || l.customFields?.location || '—',
-                  budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget || (l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '—'),
-                  requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.Requirement || l.customFields?.requirements || '—',
-                  allocationTrail: l.allocationTrail || [],
-                  currentAssignee: ownerName,
-                  totalCalls: l.totalCalls || 1,
-                  lastCalledAt: l.lastCalledAt || '15m ago',
+                  owner: norm.owner,
+                  value: norm.value,
+                  created: norm.created,
+                  rawCreatedAt: norm.rawCreatedAt,
+                  tags: norm.tags,
+                  city: norm.city,
+                  budget: norm.budget,
+                  requirement: norm.requirement,
+                  allocationTrail: norm.allocationTrail,
+                  currentAssignee: norm.currentAssignee,
+                  totalCalls: norm.totalCalls,
+                  lastCalledAt: norm.lastCalledAt,
                 };
               });
           }
@@ -559,35 +567,34 @@ export function LeadsTable() {
             if (Array.isArray(cached) && cached.length > 0) {
               directoryCachedLeads = cached
                 .filter((c: any) => {
-                  const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
+                  const name = safeString(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
                   const id = String(c.id || '');
                   return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
                 })
-                .map((c: any) => {
-                  const rawStatus = c.stage || c.status || 'New';
-                  const repName = (c.assignedRep || 'Sachin Puri').replace(/\(.*?\)/g, '').trim();
+                .map((c: any, idx: number) => {
+                  const norm = normalizeLead(c, idx);
                   return {
-                    id: String(c.id),
-                    name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Lead Prospect',
-                    email: c.email && c.email !== '—' ? c.email : '',
-                    phone: c.phone && c.phone !== '—' ? c.phone : '',
-                    status: rawStatus,
-                    statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
-                    source: c.source || 'Spreadsheet Ingestion',
-                    score: Number(c.value) > 300000 ? 92 : 78,
+                    id: norm.id,
+                    name: norm.name,
+                    email: norm.email,
+                    phone: norm.phone,
+                    status: norm.status,
+                    statusColor: norm.statusColor,
+                    source: norm.source,
+                    score: norm.score,
                     aiScore: undefined,
-                    owner: repName,
-                    value: typeof c.value === 'number' ? `₹${c.value.toLocaleString('en-IN')}` : (c.value || '—'),
-                    created: c.createdAt || 'Today',
-                    rawCreatedAt: c.createdAt || new Date().toISOString(),
-                    tags: [c.fileName || 'Spreadsheet Import', 'ALLOCATED ✓'],
-                    city: c.city || c.customFields?.col_city || c.customFields?.city || c.customFields?.City || '—',
-                    budget: c.budget || c.customFields?.col_budget || c.customFields?.budget || c.customFields?.Budget || '—',
-                    requirement: c.requirement || c.notes || c.customFields?.col_requirement || c.customFields?.requirement || c.customFields?.Requirement || '—',
-                    allocationTrail: [],
-                    currentAssignee: repName,
-                    totalCalls: 1,
-                    lastCalledAt: '15m ago',
+                    owner: norm.owner,
+                    value: norm.value,
+                    created: norm.created,
+                    rawCreatedAt: norm.rawCreatedAt,
+                    tags: norm.tags,
+                    city: norm.city,
+                    budget: norm.budget,
+                    requirement: norm.requirement,
+                    allocationTrail: norm.allocationTrail,
+                    currentAssignee: norm.currentAssignee,
+                    totalCalls: norm.totalCalls,
+                    lastCalledAt: norm.lastCalledAt,
                   };
                 });
             }
@@ -603,18 +610,21 @@ export function LeadsTable() {
 
         let finalLeads = Array.from(leadMap.values());
         if (finalLeads.length === 0) {
-          finalLeads = DEFAULT_REAL_LEADS;
+          finalLeads = DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
         }
 
         // Clean out any dummy test leads and ensure sanitized allocation trails
         finalLeads = finalLeads
-          .filter(l => l && !String(l.name || '').includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
-          .map(l => ({
-            ...l,
-            allocationTrail: Array.isArray(l.allocationTrail) && l.allocationTrail.length > 0
-              ? l.allocationTrail.map((e: any, i: number) => sanitizeAllocationEvent(e, i))
-              : buildAllocationTrailForLead(l.owner || 'Sachin Puri (Team Leader)', l.source || 'Website'),
-          }));
+          .filter(l => l && !safeString(l.name).includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
+          .map((l, idx) => {
+            const norm = normalizeLead(l, idx);
+            return {
+              ...norm,
+              allocationTrail: Array.isArray(norm.allocationTrail) && norm.allocationTrail.length > 0
+                ? norm.allocationTrail.map((e: any, i: number) => sanitizeAllocationEvent(e, i))
+                : buildAllocationTrailForLead(norm.owner || 'Sachin Puri (Team Leader)', norm.source || 'Website'),
+            };
+          });
 
         setLeadsList(finalLeads);
 

@@ -17,6 +17,7 @@ import {
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
 import { getCachedData, setCachedData } from '@/lib/cacheUtils';
+import { normalizeLead, safeString } from '@/lib/leadNormalizer';
 
 interface DepartmentLead {
   id: string;
@@ -114,7 +115,28 @@ export function ManagerRoleDashboard() {
   const [employees, setEmployees] = useState<CachedEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [deptLeads, setDeptLeads] = useState<DepartmentLead[]>(() => getCachedData('mgr_leads') || []);
+  const [deptLeads, setDeptLeads] = useState<DepartmentLead[]>(() => {
+    const raw = getCachedData('mgr_leads') || [];
+    return Array.isArray(raw) ? raw.map((l, idx) => {
+      const norm = normalizeLead(l, idx);
+      return {
+        id: norm.id,
+        name: norm.name,
+        company: norm.company,
+        phone: norm.phone,
+        email: norm.email,
+        status: norm.status as any,
+        value: norm.value,
+        numericValue: norm.numericValue,
+        source: norm.source,
+        assignedRepName: norm.assignedRepName,
+        assignedRepRole: norm.assignedRepRole,
+        lastContact: norm.lastCalledAt || 'Recently updated',
+        requirement: norm.requirement,
+        avatarBg: 'from-emerald-500 to-teal-600',
+      };
+    }) : [];
+  });
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TEAM_LEADERS' | 'REPS' | 'LEADS'>('OVERVIEW');
   const [leadFilter, setLeadFilter] = useState<'ALL' | 'NEW' | 'QUALIFIED' | 'WON'>('ALL');
 
@@ -169,29 +191,25 @@ export function ManagerRoleDashboard() {
               'from-amber-500 to-orange-600',
             ];
             const mapped: DepartmentLead[] = items.map((l: any, idx: number) => {
-              const rawStatus = l.status?.name || l.status || 'New';
-              const numVal = Number(l.estimatedValue) || 250000;
+              const norm = normalizeLead(l, idx);
               return {
-                id: String(l.id),
-                name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-                company: l.company || 'Inbound Enterprise',
-                phone: l.phone || '+91 98000 00000',
-                email: l.email || 'lead@das-crm.local',
-                status: rawStatus as any,
-                value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : '₹2,50,000',
-                numericValue: numVal,
-                source: l.source?.name || l.source || 'Website Inbound',
-                assignedRepName: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : 'Unassigned',
-                assignedRepRole: l.owner?.role || 'Sales Rep',
-                lastContact: l.lastCalledAt || 'Recently updated',
-                requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
+                id: norm.id,
+                name: norm.name,
+                company: norm.company,
+                phone: norm.phone,
+                email: norm.email,
+                status: norm.status as any,
+                value: norm.value,
+                numericValue: norm.numericValue,
+                source: norm.source,
+                assignedRepName: norm.assignedRepName,
+                assignedRepRole: norm.assignedRepRole,
+                lastContact: norm.lastCalledAt || 'Recently updated',
+                requirement: norm.requirement,
                 avatarBg: colors[idx % colors.length],
               };
             });
-            const finalDeptLeads = [
-              DEFAULT_DEPT_LEADS[0],
-              ...mapped.filter((l: any) => l.id !== DEFAULT_DEPT_LEADS[0].id),
-            ];
+            const finalDeptLeads = mapped.length > 0 ? mapped : DEFAULT_DEPT_LEADS;
             setDeptLeads(finalDeptLeads);
             setCachedData('mgr_leads', finalDeptLeads);
           } else {
@@ -637,12 +655,13 @@ export function ManagerRoleDashboard() {
                 </tr>
               ) : (
                 filteredLeads.map(lead => {
+                  const statusStr = safeString(lead.status, 'New');
                   const statusBadgeColor =
-                    lead.status === 'Won'
+                    statusStr.toLowerCase().includes('won')
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : lead.status === 'Negotiation' || lead.status === 'Proposal'
+                      : statusStr.toLowerCase().includes('negotiat') || statusStr.toLowerCase().includes('proposal')
                       ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                      : lead.status === 'Qualified'
+                      : statusStr.toLowerCase().includes('qualif')
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                       : 'bg-sky-500/20 text-sky-300 border-sky-500/40';
 
@@ -651,28 +670,28 @@ export function ManagerRoleDashboard() {
                       <td className="p-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${lead.avatarBg} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
-                            {getInitials(lead.name)}
+                            {getInitials(safeString(lead.name))}
                           </div>
                           <div>
-                            <p className="font-bold text-white text-xs">{lead.name}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">{lead.phone}</p>
+                            <p className="font-bold text-white text-xs">{safeString(lead.name)}</p>
+                            <p className="text-[11px] text-slate-400 font-mono">{safeString(lead.phone)}</p>
                           </div>
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <p className="font-semibold text-slate-200">{lead.company}</p>
-                        <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{lead.requirement}</p>
+                        <p className="font-semibold text-slate-200">{safeString(lead.company)}</p>
+                        <p className="text-[11px] text-slate-400 truncate max-w-[200px]">{safeString(lead.requirement)}</p>
                       </td>
                       <td className="p-3.5">
-                        <p className="font-bold text-indigo-300">{lead.assignedRepName}</p>
-                        <span className="text-[10px] text-slate-400">{lead.assignedRepRole}</span>
+                        <p className="font-bold text-indigo-300">{safeString(lead.assignedRepName)}</p>
+                        <span className="text-[10px] text-slate-400">{safeString(lead.assignedRepRole)}</span>
                       </td>
                       <td className="p-3.5 font-bold text-emerald-400 font-mono">
-                        {lead.value}
+                        {safeString(lead.value)}
                       </td>
                       <td className="p-3.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${statusBadgeColor}`}>
-                          {lead.status}
+                          {statusStr}
                         </span>
                       </td>
                       <td className="p-3.5 text-right">
