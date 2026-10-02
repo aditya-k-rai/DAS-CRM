@@ -269,20 +269,11 @@ export default function PostCallOutcomeModal({
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.subBtn, subOption === 'CATALOGUE_SHARED' && styles.subBtnActive]}
-                    onPress={() => setSubOption('CATALOGUE_SHARED')}
-                  >
-                    <Text style={[styles.subBtnText, subOption === 'CATALOGUE_SHARED' && styles.subBtnTextActive]}>
-                      📄 Catalogue Shared (WhatsApp / Email)
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.subBtn, subOption === 'INTERESTED' && styles.subBtnActive]}
+                    style={[styles.subBtn, (subOption === 'INTERESTED' || subOption === 'CATALOGUE_SHARED') && styles.subBtnActive]}
                     onPress={() => setSubOption('INTERESTED')}
                   >
-                    <Text style={[styles.subBtnText, subOption === 'INTERESTED' && styles.subBtnTextActive]}>
-                      💡 Interested (Product Search &amp; Selection)
+                    <Text style={[styles.subBtnText, (subOption === 'INTERESTED' || subOption === 'CATALOGUE_SHARED') && styles.subBtnTextActive]}>
+                      💡 Interested in Product &amp; Product Shared
                     </Text>
                   </TouchableOpacity>
 

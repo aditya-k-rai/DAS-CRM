@@ -18,6 +18,8 @@ export type DispositionOption =
   | 'Not Interested'
   | 'Will Talk Later'
   | 'Talked & Enter Response'
+  | 'Said Will Visit'
+  | 'Interested in Product & Product Shared'
   | 'Other Requirements';
 
 export interface SyncedActivityLog {
@@ -152,7 +154,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               owner: ownerName,
               city: sessionMatch.city || sessionMatch.customFields?.col_city || sessionMatch.customFields?.city || sessionMatch.customFields?.City || '—',
               budget: sessionMatch.budget || sessionMatch.customFields?.col_budget || sessionMatch.customFields?.budget || sessionMatch.customFields?.Budget || '—',
-              requirement: sessionMatch.requirement || sessionMatch.notes || sessionMatch.customFields?.col_requirement || sessionMatch.customFields?.requirement || sessionMatch.customFields?.Requirement || '—',
+              requirement: sessionMatch.requirement || sessionMatch.productInterest || sessionMatch.product || sessionMatch.service || sessionMatch.notes || sessionMatch.customFields?.col_requirement || sessionMatch.customFields?.requirement || sessionMatch.customFields?.product || sessionMatch.customFields?.service || sessionMatch.customFields?.['Product / Service'] || sessionMatch.customFields?.['Interested Product'] || sessionMatch.customFields?.Requirement || '—',
               source: sessionMatch.source || fileName,
               allocationTrail: sessionTrail,
             });
@@ -198,7 +200,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 owner: ownerName,
                 city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
                 budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
-                requirement: matched.requirement || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.Requirement || '—',
+                requirement: matched.requirement || matched.productInterest || matched.product || matched.service || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.product || matched.customFields?.service || matched.customFields?.['Product / Service'] || matched.customFields?.['Interested Product'] || matched.customFields?.Requirement || '—',
                 source: matched.source || fileName,
                 allocationTrail: matchedTrail,
               });
@@ -245,7 +247,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               owner: ownerName,
               city: l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City || '—',
               budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget || '—',
-              requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.Requirement || '—',
+              requirement: l.requirement || l.productInterest || l.product || l.service || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.product || l.customFields?.service || l.customFields?.['Product / Service'] || l.customFields?.['Interested Product'] || l.customFields?.Requirement || '—',
               source: l.source?.name || l.source || l.customFields?.platform || l.customFields?.fileName || '—',
               allocationTrail: serverTrail,
             });
@@ -288,7 +290,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               owner: ownerName,
               city: matched.city || matched.customFields?.col_city || matched.customFields?.city || matched.customFields?.City || '—',
               budget: matched.budget || matched.customFields?.col_budget || matched.customFields?.budget || matched.customFields?.Budget || '—',
-              requirement: matched.requirement || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.Requirement || '—',
+              requirement: matched.requirement || matched.productInterest || matched.product || matched.service || matched.notes || matched.customFields?.col_requirement || matched.customFields?.requirement || matched.customFields?.product || matched.customFields?.service || matched.customFields?.['Product / Service'] || matched.customFields?.['Interested Product'] || matched.customFields?.Requirement || '—',
               source: matched.source || matched.fileName || '—',
               allocationTrail: cachedTrail,
             });
@@ -380,7 +382,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     setSyncedActivities((prev) => [newLog, ...prev]);
 
     // Update lead status if disposition specifies — verify with internet and backend
-    if (selectedCallDisposition === 'Not Interested' || selectedCallDisposition === 'Talked & Enter Response') {
+    if (
+      selectedCallDisposition === 'Not Interested' ||
+      selectedCallDisposition === 'Talked & Enter Response' ||
+      selectedCallDisposition === 'Interested in Product & Product Shared'
+    ) {
       const targetStatus = selectedCallDisposition === 'Not Interested' ? 'Lost' : 'Qualified';
       if (!isBrowserOnline()) {
         showSyncNotification('⚡ Internet Required: Cannot sync status change while offline. Connect to internet.');
@@ -647,6 +653,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                   <span className="font-bold text-indigo-300">{lead.source}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-border/50">
+                  <span className="text-muted">Interested Product / Service:</span>
+                  <span className="font-bold text-amber-300 truncate max-w-[180px]" title={lead.requirement}>{lead.requirement}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-border/50">
                   <span className="text-muted">Current Status:</span>
                   <span className="font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
                     {lead.status}
@@ -732,7 +742,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
           {/* Right Column: Full Contact History & Call Timeline */}
           <div className="md:col-span-2 space-y-6">
-            <CallContactHistory leadName={lead.name} />
+            <CallContactHistory leadName={lead.name} interestedProduct={lead.requirement} />
           </div>
         </div>
       )}
@@ -802,8 +812,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     { key: 'Talked & Enter Response', label: '🗣️ Talked (Call Completed)' },
                     { key: 'Will Talk Later', label: '⏰ Will Call Later' },
                     { key: 'Said Will Visit', label: '🤝 Said He Will Visit' },
-                    { key: 'Catalogue Shared', label: '📄 Catalogue Shared' },
-                    { key: 'Interested Product', label: '💡 Interested in Product' },
+                    { key: 'Interested in Product & Product Shared', label: '💡 Interested in Product & Product Shared' },
                     { key: 'Not Responding', label: '📞 Not Responding' },
                     { key: 'Busy', label: '⏳ Busy' },
                     { key: 'Switch Off', label: '📴 Switched Off' },
@@ -876,10 +885,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                   </div>
                 )}
 
-                {/* 💡 INTERESTED: Live Product Selection Box */}
-                {selectedCallDisposition === ('Interested Product' as any) && (
+                {/* 💡 INTERESTED IN PRODUCT & PRODUCT SHARED: Product Selection Box */}
+                {(selectedCallDisposition === ('Interested in Product & Product Shared' as any) ||
+                  selectedCallDisposition === ('Interested Product' as any) ||
+                  selectedCallDisposition === ('Catalogue Shared' as any)) && (
                   <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <label className="text-xs text-emerald-400 font-bold block">💡 Select Interested Catalog Product:</label>
+                    <label className="text-xs text-emerald-400 font-bold block">💡 Select Interested Product / Shared Catalogue:</label>
                     <div className="space-y-1.5">
                       {[
                         { name: 'DAS CRM Enterprise Suite', tier: '₹49,999 / yr' },
@@ -887,7 +898,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         { name: 'WhatsApp Automation Bot Engine', tier: '₹8,999 / mo' },
                         { name: 'Cloud Telemetry License', tier: '₹4,999 / mo' },
                       ].map((prod) => (
-                        <div key={prod.name} className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer hover:border-emerald-500">
+                        <div
+                          key={prod.name}
+                          onClick={() => {
+                            setCallResponseNotes((prev) =>
+                              prev ? `${prev} | Product Discussed & Shared: ${prod.name}` : `Product Discussed & Shared: ${prod.name}`
+                            );
+                          }}
+                          className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors"
+                        >
                           <span className="text-xs font-bold text-white">{prod.name}</span>
                           <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">{prod.tier}</span>
                         </div>

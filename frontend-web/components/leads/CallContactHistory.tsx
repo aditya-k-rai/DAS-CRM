@@ -117,11 +117,16 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
 interface CallContactHistoryProps {
   history?: ContactAttempt[];
   leadName?: string;
+  interestedProduct?: string;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-export function CallContactHistory({ history = SAMPLE_CONTACT_HISTORY, leadName = 'Lead' }: CallContactHistoryProps) {
+export function CallContactHistory({
+  history = SAMPLE_CONTACT_HISTORY,
+  leadName = 'Lead',
+  interestedProduct = '—',
+}: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<'ALL' | ContactType>('ALL');
 
@@ -132,7 +137,11 @@ export function CallContactHistory({ history = SAMPLE_CONTACT_HISTORY, leadName 
   const waCount = history.filter(h => h.type === 'WHATSAPP').length;
   const emailCount = history.filter(h => h.type === 'EMAIL').length;
   const totalTalkSecs = history.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
-  const interestedCount = history.filter(h => ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED'].includes(h.outcome)).length;
+  
+  // Resolve Interested Product / Service (from lead profile or logged history)
+  const displayProduct = (interestedProduct && interestedProduct !== '—' && interestedProduct.trim())
+    ? interestedProduct
+    : (history.find(h => h.productInterest)?.productInterest || '—');
 
   // ── Filter ──────────────────────────────────────────────────────────────────
   const filtered = filterType === 'ALL' ? history : history.filter(h => h.type === filterType);
@@ -164,16 +173,21 @@ export function CallContactHistory({ history = SAMPLE_CONTACT_HISTORY, leadName 
           { label: 'WhatsApp', value: waCount, color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: <MessageSquare size={13} /> },
           { label: 'Email', value: emailCount, color: '#818cf8', bg: 'rgba(129,140,248,0.12)', icon: <Mail size={13} /> },
           { label: 'Talk Time', value: formatDuration(totalTalkSecs), color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', icon: <Mic size={13} /> },
-          { label: 'Interested', value: interestedCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <TrendingUp size={13} /> },
+          { label: 'Interested Product / Service', value: displayProduct, color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Package size={13} /> },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="p-2.5 rounded-xl border text-center space-y-0.5"
+            className="p-2.5 rounded-xl border text-center space-y-0.5 min-w-0 flex flex-col justify-between"
             style={{ background: stat.bg, borderColor: stat.color + '40' }}
+            title={typeof stat.value === 'string' ? stat.value : undefined}
           >
             <div className="flex justify-center" style={{ color: stat.color }}>{stat.icon}</div>
-            <p className="text-base font-extrabold text-white">{stat.value}</p>
-            <p className="text-[9px] font-bold text-slate-400 uppercase">{stat.label}</p>
+            <p className="text-sm font-extrabold text-white truncate px-0.5 leading-tight" title={String(stat.value)}>
+              {stat.value}
+            </p>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight truncate" title={stat.label}>
+              {stat.label}
+            </p>
           </div>
         ))}
       </div>
