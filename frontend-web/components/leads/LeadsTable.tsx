@@ -78,6 +78,49 @@ export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string
   return false;
 };
 
+// Default Table Grid Configuration
+export const DEFAULT_COLUMN_ORDER: string[] = [
+  'name',
+  'phone',
+  'email',
+  'status',
+  'value',
+  'owner',
+  'city',
+  'budget',
+  'requirement',
+  'source',
+  'created',
+];
+
+export const DEFAULT_COLUMN_TITLES: Record<string, string> = {
+  name: 'Lead Name / Client',
+  phone: 'Phone Number',
+  email: 'Email Address',
+  status: 'Status',
+  value: 'Lead Value',
+  owner: 'Assigned Rep',
+  city: 'City',
+  budget: 'Budget',
+  requirement: 'Requirement',
+  source: 'Source',
+  created: 'Created Date',
+};
+
+export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  name: 260,
+  phone: 170,
+  email: 220,
+  status: 140,
+  value: 130,
+  owner: 160,
+  city: 130,
+  budget: 130,
+  requirement: 220,
+  source: 130,
+  created: 120,
+};
+
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
   const { currentUser } = useAuth();
@@ -426,42 +469,96 @@ export function LeadsTable() {
     }
   };
 
-  // Excel Interactive Column Order State (Dedicated Phone & Email Columns)
-  const [columnOrder, setColumnOrder] = useState<string[]>([
-    'name', 'phone', 'email', 'status', 'aiScore', 'value', 'owner', 'city', 'budget', 'requirement', 'source', 'created'
-  ]);
+
+
+  // Excel Interactive Column Order State (Default: Name -> Phone -> Email -> Status -> Value -> Rep -> City -> Budget -> Requirement -> Source -> Created)
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('das_crm_lead_col_order');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const sanitized = parsed.filter((c: string) => c !== 'aiScore' && DEFAULT_COLUMN_ORDER.includes(c));
+            DEFAULT_COLUMN_ORDER.forEach(col => {
+              if (!sanitized.includes(col)) sanitized.push(col);
+            });
+            if (sanitized.length > 0) return sanitized;
+          }
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_COLUMN_ORDER;
+  });
 
   // Dynamic Column Names (Renameable)
-  const [columnTitles, setColumnTitles] = useState<Record<string, string>>({
-    name: 'Lead Name / Client',
-    phone: 'Phone Number',
-    email: 'Email Address',
-    status: 'Status',
-    aiScore: 'AI Score',
-    value: 'Lead Value',
-    owner: 'Assigned Rep',
-    city: 'City',
-    budget: 'Budget',
-    requirement: 'Requirement',
-    source: 'Source',
-    created: 'Created Date',
+  const [columnTitles, setColumnTitles] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('das_crm_lead_col_titles');
+        if (saved) {
+          return { ...DEFAULT_COLUMN_TITLES, ...JSON.parse(saved) };
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_COLUMN_TITLES;
   });
 
   // Column Width Resizers
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    name: 220,
-    phone: 150,
-    email: 210,
-    status: 130,
-    aiScore: 110,
-    value: 130,
-    owner: 140,
-    city: 120,
-    budget: 130,
-    requirement: 180,
-    source: 110,
-    created: 110,
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('das_crm_lead_col_widths');
+        if (saved) {
+          return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(saved) };
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_COLUMN_WIDTHS;
   });
+
+  // Interactive Column Drag-to-Resize Handler
+  const [resizingCol, setResizingCol] = useState<{ key: string; startX: number; startWidth: number } | null>(null);
+
+  const startResize = (colKey: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const currentWidth = columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150;
+    setResizingCol({
+      key: colKey,
+      startX: e.clientX,
+      startWidth: currentWidth,
+    });
+  };
+
+  useEffect(() => {
+    if (!resizingCol) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizingCol.startX;
+      const newWidth = Math.max(90, Math.min(600, resizingCol.startWidth + deltaX));
+      setColumnWidths(prev => {
+        const next = { ...prev, [resizingCol.key]: newWidth };
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('das_crm_lead_col_widths', JSON.stringify(next));
+          } catch (_) {}
+        }
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setResizingCol(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingCol]);
 
   // Rename Header Modal State
   const [editingColKey, setEditingColKey] = useState<string | null>(null);
@@ -617,21 +714,58 @@ export function LeadsTable() {
     newOrder[idx] = newOrder[targetIdx];
     newOrder[targetIdx] = temp;
     setColumnOrder(newOrder);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('das_crm_lead_col_order', JSON.stringify(newOrder));
+      } catch (_) {}
+    }
   };
 
-  // Cycle Column Widths (110px -> 180px -> 280px -> 110px)
+  // Cycle Column Widths (130px -> 180px -> 260px -> 360px)
   const cycleWidth = (colKey: string) => {
     setColumnWidths(prev => {
-      const current = prev[colKey] || 140;
-      const next = current <= 130 ? 180 : current <= 200 ? 280 : 110;
-      return { ...prev, [colKey]: next };
+      const current = prev[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150;
+      let next = 180;
+      if (current < 160) next = 240;
+      else if (current < 250) next = 340;
+      else if (current < 350) next = 130;
+      else next = 180;
+      const updated = { ...prev, [colKey]: next };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('das_crm_lead_col_widths', JSON.stringify(updated));
+        } catch (_) {}
+      }
+      return updated;
     });
+  };
+
+  // Reset Table to Factory Default
+  const resetGridToDefault = () => {
+    setColumnOrder(DEFAULT_COLUMN_ORDER);
+    setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+    setColumnTitles(DEFAULT_COLUMN_TITLES);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('das_crm_lead_col_order');
+        localStorage.removeItem('das_crm_lead_col_widths');
+        localStorage.removeItem('das_crm_lead_col_titles');
+      } catch (_) {}
+    }
+    showTableToast('✓ Reset column layout, widths, and order to default!');
   };
 
   // Handle Header Title Save
   const handleSaveHeaderTitle = () => {
     if (editingColKey && newTitleInput.trim()) {
-      setColumnTitles(prev => ({ ...prev, [editingColKey]: newTitleInput.trim() }));
+      const updated = { ...columnTitles, [editingColKey]: newTitleInput.trim() };
+      setColumnTitles(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('das_crm_lead_col_titles', JSON.stringify(updated));
+        } catch (_) {}
+      }
+      showTableToast(`✓ Column renamed to "${newTitleInput.trim()}"`);
       setEditingColKey(null);
     }
   };
@@ -718,6 +852,16 @@ export function LeadsTable() {
               >
                 <Table size={14} />
                 <span>{isExcelMode ? '📊 Interactive Excel Data Grid' : '📋 Standard List View'}</span>
+              </button>
+
+              {/* Reset to Default Button */}
+              <button
+                onClick={resetGridToDefault}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all shadow-sm"
+                title="Reset columns, widths, and titles to factory default"
+              >
+                <RotateCcw size={13} className="text-amber-400" />
+                <span>↺ Reset to Default</span>
               </button>
             </div>
           </div>
@@ -816,51 +960,65 @@ export function LeadsTable() {
       </div>
 
       {/* Table (Excel Spreadsheet Grid View vs Standard) */}
-      <div className="overflow-x-auto">
-        <table className="crm-table w-full border-collapse">
+      <div className="overflow-x-auto select-none">
+        <table className="crm-table border-collapse" style={{ tableLayout: 'fixed', minWidth: '100%', width: 'max-content' }}>
           <thead>
-            <tr className="bg-slate-900/80">
-              <th className="w-10 px-3 py-3 border-b border-slate-800">
-                <input
-                  type="checkbox"
-                  onChange={(e) => setSelected(e.target.checked ? filtered.map((l) => l.id) : [])}
-                  checked={selected.length === filtered.length && filtered.length > 0}
-                />
+            <tr className="bg-slate-900/90">
+              {/* Checkbox, AI Score & Serial Header */}
+              <th
+                style={{ width: 88, minWidth: 88, maxWidth: 88 }}
+                className="px-2 py-3 border-b border-r border-slate-800 bg-slate-900/90 text-center select-none"
+              >
+                <div className="flex items-center justify-between px-1">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => setSelected(e.target.checked ? filtered.map((l) => l.id) : [])}
+                    checked={selected.length === filtered.length && filtered.length > 0}
+                    className="cursor-pointer"
+                    title="Select all"
+                  />
+                  <span className="text-[10px] font-bold text-slate-400 font-mono" title="Serial Number & AI Score">AI / #</span>
+                </div>
               </th>
 
               {columnOrder.map((colKey) => (
                 <th
                   key={colKey}
-                  style={{ width: columnWidths[colKey] }}
-                  className="px-3 py-2.5 border-b border-r border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider relative group"
+                  style={{
+                    width: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                    minWidth: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                    maxWidth: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                  }}
+                  className="px-3 py-2.5 border-b border-r border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider relative group select-none overflow-hidden"
                 >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="truncate">{columnTitles[colKey]}</span>
+                  <div className="flex items-center justify-between gap-1 overflow-hidden">
+                    <span className="truncate" title={columnTitles[colKey] || colKey}>{columnTitles[colKey] || colKey}</span>
 
                     {/* Excel Column Tools (Reorder, Rename, Resize) */}
                     {isExcelMode && (
-                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         {/* Shift Left */}
                         <button
-                          onClick={() => moveColumn(colKey, 'left')}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => { e.stopPropagation(); moveColumn(colKey, 'left'); }}
+                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-[10px]"
                           title="Move Column Left (←)"
                         >
                           ←
                         </button>
                         {/* Shift Right */}
                         <button
-                          onClick={() => moveColumn(colKey, 'right')}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={(e) => { e.stopPropagation(); moveColumn(colKey, 'right'); }}
+                          className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-[10px]"
                           title="Move Column Right (→)"
                         >
                           →
                         </button>
                         {/* Rename Header */}
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingColKey(colKey);
-                            setNewTitleInput(columnTitles[colKey]);
+                            setNewTitleInput(columnTitles[colKey] || '');
                           }}
                           className="p-1 rounded hover:bg-slate-800 text-indigo-400"
                           title="Rename Header Title"
@@ -869,18 +1027,25 @@ export function LeadsTable() {
                         </button>
                         {/* Line Separator Resizer */}
                         <button
-                          onClick={() => cycleWidth(colKey)}
+                          onClick={(e) => { e.stopPropagation(); cycleWidth(colKey); }}
                           className="p-1 rounded hover:bg-slate-800 text-emerald-400 font-mono text-[10px]"
-                          title="Resize Column Width"
+                          title="Click to cycle width or drag right handle"
                         >
                           │↔│
                         </button>
                       </div>
                     )}
                   </div>
+
+                  {/* Drag-to-Resize Handle */}
+                  <div
+                    onMouseDown={(e) => startResize(colKey, e)}
+                    className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-indigo-500/60 active:bg-indigo-500 transition-colors z-10"
+                    title="Drag to resize column width"
+                  />
                 </th>
               ))}
-              <th className="w-10 px-3 py-3 border-b border-slate-800"></th>
+              <th style={{ width: 44, minWidth: 44, maxWidth: 44 }} className="px-2 py-3 border-b border-slate-800"></th>
             </tr>
           </thead>
           <tbody>
@@ -930,17 +1095,67 @@ export function LeadsTable() {
                 </td>
               </tr>
             ) : (
-            filtered.map((lead) => (
+            filtered.map((lead, idx) => (
               <React.Fragment key={lead.id}>
               <tr className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
-                <td className="px-3 py-3 border-b border-slate-800/60">
-                  <input type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggleSelect(lead.id)} />
+                {/* Checkbox, AI Score Circle, and Serial Number */}
+                <td
+                  style={{ width: 88, minWidth: 88, maxWidth: 88 }}
+                  className="px-2 py-3 border-b border-r border-slate-800/60 bg-slate-950/30 select-none"
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(lead.id)}
+                      onChange={() => toggleSelect(lead.id)}
+                      className="cursor-pointer"
+                    />
+                    {/* AI Score Badge in Small Circle */}
+                    {(() => {
+                      const numScore = lead.score || lead.aiScore?.totalScore || 0;
+                      if (numScore > 0) {
+                        const badgeColor = numScore >= 80
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-500/20'
+                          : numScore >= 50
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-indigo-500/20'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-amber-500/20';
+                        return (
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border shadow-sm flex-shrink-0 ${badgeColor}`}
+                            title={`AI Lead Score: ${numScore}/100`}
+                          >
+                            {numScore}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold bg-slate-800/90 text-slate-400 border border-slate-700 flex-shrink-0"
+                          title="AI Score: No Score (N)"
+                        >
+                          N
+                        </div>
+                      );
+                    })()}
+                    {/* Row Serial Number */}
+                    <span className="text-[11px] font-mono font-bold text-slate-400 min-w-[18px] text-right">
+                      #{idx + 1}
+                    </span>
+                  </div>
                 </td>
 
                 {columnOrder.map((colKey) => (
-                  <td key={colKey} className="px-3 py-3 border-b border-r border-slate-800/60 text-xs">
+                  <td
+                    key={colKey}
+                    style={{
+                      width: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                      minWidth: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                      maxWidth: columnWidths[colKey] || DEFAULT_COLUMN_WIDTHS[colKey] || 150,
+                    }}
+                    className="px-3 py-3 border-b border-r border-slate-800/60 text-xs overflow-hidden"
+                  >
                     {colKey === 'name' && (
-                      <div>
+                      <div className="overflow-hidden">
                         <Link
                           href={`/leads/${lead.id}`}
                           onClick={() => {
@@ -949,7 +1164,8 @@ export function LeadsTable() {
                               sessionStorage.setItem('das_crm_active_lead', JSON.stringify(lead));
                             }
                           }}
-                          className="font-bold text-white hover:text-indigo-400 hover:underline text-sm"
+                          className="font-bold text-white hover:text-indigo-400 hover:underline text-sm truncate block"
+                          title={lead.name}
                         >
                           {lead.name}
                         </Link>
@@ -997,18 +1213,18 @@ export function LeadsTable() {
                     )}
 
                     {colKey === 'phone' && (
-                      <div className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-mono text-emerald-400 font-semibold whitespace-nowrap overflow-hidden">
                         <Phone size={12} className="text-emerald-500 flex-shrink-0" />
-                        <a href={`tel:${lead.phone}`} className="hover:underline hover:text-emerald-300">
+                        <a href={`tel:${lead.phone}`} className="hover:underline hover:text-emerald-300 truncate">
                           {lead.phone || '—'}
                         </a>
                       </div>
                     )}
 
                     {colKey === 'email' && (
-                      <div className="flex items-center gap-1.5 text-purple-300 font-medium whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-purple-300 font-medium whitespace-nowrap overflow-hidden">
                         <Mail size={12} className="text-purple-400 flex-shrink-0" />
-                        <a href={`mailto:${lead.email}`} className="hover:underline hover:text-purple-200 truncate max-w-[190px]" title={lead.email}>
+                        <a href={`mailto:${lead.email}`} className="hover:underline hover:text-purple-200 truncate" title={lead.email}>
                           {lead.email || '—'}
                         </a>
                       </div>
@@ -1018,7 +1234,7 @@ export function LeadsTable() {
                       <select
                         value={lead.status}
                         onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                        className="status-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border border-slate-700 bg-slate-900 cursor-pointer focus:outline-none transition-all hover:border-indigo-500"
+                        className="status-badge inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border border-slate-700 bg-slate-900 cursor-pointer focus:outline-none transition-all hover:border-indigo-500 max-w-full"
                         style={{ color: statusColorMap[lead.status] || lead.statusColor || '#6366f1' }}
                         title="Change Lead Stage (Online Verified with Server)"
                       >
@@ -1028,21 +1244,8 @@ export function LeadsTable() {
                       </select>
                     )}
 
-                    {colKey === 'aiScore' && (
-                      <div className="flex items-center gap-2">
-                        {lead.aiScore ? (
-                          <AILeadScoreCell score={lead.aiScore} />
-                        ) : (
-                          <div className="flex items-center gap-1 text-xs text-slate-500">
-                            <Brain size={12} />
-                            <span>No Score</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {colKey === 'value' && (
-                      <span className="font-bold text-indigo-400">{lead.value}</span>
+                      <span className="font-bold text-indigo-400 truncate block">{lead.value}</span>
                     )}
 
                     {colKey === 'owner' && (() => {
@@ -1051,10 +1254,10 @@ export function LeadsTable() {
 
                       if (isLocked) {
                         return (
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
-                            <Lock size={12} className="text-amber-400" />
-                            <span className="font-bold text-slate-300 text-xs">{lead.owner}</span>
-                            <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">LOCKED</span>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 truncate" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
+                            <Lock size={12} className="text-amber-400 flex-shrink-0" />
+                            <span className="font-bold text-slate-300 text-xs truncate">{lead.owner}</span>
+                            <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 flex-shrink-0">LOCKED</span>
                           </div>
                         );
                       }
@@ -1064,7 +1267,7 @@ export function LeadsTable() {
                           <select
                             value={lead.owner || 'Unassigned'}
                             onChange={(e) => handleReassignOwner(lead.id, e.target.value)}
-                            className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
+                            className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer max-w-full truncate ${
                               isUnassigned
                                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
                                 : 'bg-slate-900 border-slate-700 text-indigo-300 hover:border-indigo-500'
@@ -1090,16 +1293,16 @@ export function LeadsTable() {
                       );
                     })()}
 
-                    {colKey === 'city' && <span className="text-slate-300 font-medium">{lead.city}</span>}
-                    {colKey === 'budget' && <span className="text-emerald-400 font-mono font-semibold">{lead.budget}</span>}
-                    {colKey === 'requirement' && <span className="text-slate-300 truncate max-w-[160px] inline-block">{lead.requirement}</span>}
-                    {colKey === 'source' && <span className="text-slate-400">{lead.source}</span>}
-                    {colKey === 'created' && <span className="text-slate-400">{lead.created}</span>}
+                    {colKey === 'city' && <span className="text-slate-300 font-medium truncate block">{lead.city}</span>}
+                    {colKey === 'budget' && <span className="text-emerald-400 font-mono font-semibold truncate block">{lead.budget}</span>}
+                    {colKey === 'requirement' && <span className="text-slate-300 truncate block" title={lead.requirement}>{lead.requirement}</span>}
+                    {colKey === 'source' && <span className="text-slate-400 truncate block">{lead.source}</span>}
+                    {colKey === 'created' && <span className="text-slate-400 truncate block">{lead.created}</span>}
                   </td>
                 ))}
 
-                <td className="px-3 py-3 border-b border-border">
-                  <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted">
+                <td style={{ width: 44, minWidth: 44, maxWidth: 44 }} className="px-2 py-3 border-b border-border text-center">
+                  <button className="btn-ghost w-7 h-7 p-0 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted mx-auto">
                     <MoreHorizontal size={15} />
                   </button>
                 </td>
