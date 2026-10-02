@@ -53,6 +53,155 @@ const ROLE_META: Record<AllocationRole, { label: string; color: string; bg: stri
 // ─── Sample Allocation Trail for Fallback ──────────────────────────────────────
 const SAMPLE_TRAIL: AllocationEvent[] = [];
 
+// ─── Helpers & Resolvers ───────────────────────────────────────────────────────
+export function getUserRoleFromName(nameOrRole?: string | null, fallbackRole: AllocationRole = 'TEAM_LEADER'): AllocationRole {
+  if (!nameOrRole) return fallbackRole;
+  const str = String(nameOrRole).trim().toLowerCase();
+
+  if (str.includes('team leader') || str.includes('team_leader') || str.includes('(tl)') || str.includes('sachin')) {
+    return 'TEAM_LEADER';
+  }
+  if (str.includes('manager') || str.includes('aditya') || str.includes('dept manager')) {
+    return 'MANAGER';
+  }
+  if (str.includes('admin') || str.includes('super_admin') || str.includes('super admin') || str.includes('anurag') || str.includes('owner') || str.includes('hq')) {
+    return 'ADMIN';
+  }
+  if (str.includes('sales') || str.includes('exec') || str.includes('rep') || str.includes('nandini') || str.includes('sulekha') || str.includes('sadhana')) {
+    return 'SALES_EXEC';
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const dirRaw = localStorage.getItem('das_crm_user_dir_cache_v2');
+      if (dirRaw) {
+        const list: any[] = JSON.parse(dirRaw);
+        const match = list.find((u: any) => u.name && (u.name.toLowerCase() === str || str.includes(u.name.toLowerCase())));
+        if (match && match.role) {
+          const r = String(match.role).toUpperCase();
+          if (r.includes('ADMIN')) return 'ADMIN';
+          if (r.includes('MANAGER')) return 'MANAGER';
+          if (r.includes('LEADER') || r.includes('TL')) return 'TEAM_LEADER';
+          return 'SALES_EXEC';
+        }
+      }
+    } catch (_) {}
+  }
+
+  return fallbackRole;
+}
+
+export function getAllocatorInfo(leadCustomFields?: any): { fromName: string; fromRole: AllocationRole } {
+  if (leadCustomFields?.allocatedBy) {
+    const fromRole = getUserRoleFromName(leadCustomFields.allocatedByRole || leadCustomFields.allocatedBy, 'MANAGER');
+    const name = leadCustomFields.allocatedBy;
+    return {
+      fromName: name.includes('(') ? name : `${name} (${ROLE_META[fromRole]?.label || 'Manager'})`,
+      fromRole,
+    };
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const uRaw = localStorage.getItem('das_crm_user');
+      if (uRaw) {
+        const u = JSON.parse(uRaw);
+        if (u && (u.name || u.role)) {
+          const uRole = getUserRoleFromName(u.role || u.name, 'MANAGER');
+          const uName = u.name || (uRole === 'MANAGER' ? 'Aditya Kumar Rai' : 'Anurag Sharma');
+          return {
+            fromName: uName.includes('(') ? uName : `${uName} (${ROLE_META[uRole]?.label || 'Manager'})`,
+            fromRole: uRole,
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  return {
+    fromName: 'Aditya Kumar Rai (Manager)',
+    fromRole: 'MANAGER',
+  };
+}
+
+export function buildAllocationTrailForLead(
+  assigneeName: string = 'Sachin Puri (Team Leader)',
+  sourceOrFileName: string = 'Spreadsheet Ingestion',
+  allocatedTimestamp: string = new Date().toISOString(),
+  existingTrail?: AllocationEvent[],
+  leadCustomFields?: any
+): AllocationEvent[] {
+  if (Array.isArray(existingTrail) && existingTrail.length > 0) {
+    const sanitized = existingTrail.filter(step => {
+      if (!step) return false;
+      const fName = (step.fromName || '').toLowerCase();
+      const tName = (step.toName || '').toLowerCase();
+      if (fName.includes('sachin') && tName.includes('sachin') && step.toRole === 'SALES_EXEC') {
+        return false;
+      }
+      return true;
+    });
+    if (sanitized.length > 0) return sanitized;
+  }
+
+  const role = getUserRoleFromName(assigneeName, 'TEAM_LEADER');
+  const allocator = getAllocatorInfo(leadCustomFields);
+  const cleanAssignee = assigneeName.replace(/\s*\([^)]*\)/g, '').trim() || 'Sachin Puri';
+
+  if (role === 'TEAM_LEADER') {
+    return [
+      {
+        id: `alloc_mgr_tl_${Date.now()}`,
+        fromRole: allocator.fromRole,
+        fromName: allocator.fromName,
+        toRole: 'TEAM_LEADER',
+        toName: cleanAssignee.includes('Team Leader') ? cleanAssignee : `${cleanAssignee} (Team Leader)`,
+        action: 'ALLOCATED',
+        assignedAt: allocatedTimestamp,
+        note: `Allocated from dataset "${sourceOrFileName}"`,
+      }
+    ];
+  }
+
+  if (role === 'SALES_EXEC') {
+    return [
+      {
+        id: `alloc_mgr_tl_${Date.now()}`,
+        fromRole: allocator.fromRole,
+        fromName: allocator.fromName,
+        toRole: 'TEAM_LEADER',
+        toName: 'Sachin Puri (Team Leader)',
+        action: 'ALLOCATED',
+        assignedAt: new Date(new Date(allocatedTimestamp).getTime() - 1800000).toISOString(),
+        note: `Allocated from dataset "${sourceOrFileName}"`,
+      },
+      {
+        id: `alloc_tl_sales_${Date.now()}`,
+        fromRole: 'TEAM_LEADER',
+        fromName: 'Sachin Puri (Team Leader)',
+        toRole: 'SALES_EXEC',
+        toName: cleanAssignee.includes('Sales') ? cleanAssignee : `${cleanAssignee} (Sales Exec)`,
+        action: 'ASSIGNED' as any,
+        assignedAt: allocatedTimestamp,
+        note: 'Assigned for client engagement & sales execution',
+      }
+    ];
+  }
+
+  return [
+    {
+      id: `alloc_adm_mgr_${Date.now()}`,
+      fromRole: 'ADMIN',
+      fromName: 'Anurag Sharma (ADMIN)',
+      toRole: role,
+      toName: `${cleanAssignee} (${ROLE_META[role]?.label || 'Manager'})`,
+      action: 'ALLOCATED',
+      assignedAt: allocatedTimestamp,
+      note: `Allocated directly from ${sourceOrFileName}`,
+    }
+  ];
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(iso: string): { date: string; time: string; relative: string } {
   const d = new Date(iso);
@@ -104,50 +253,48 @@ interface LeadAllocationTrailProps {
 export function LeadAllocationTrail({
   trail = SAMPLE_TRAIL,
   currentAssignee = 'Unassigned',
-  currentRole = 'SALES_EXEC',
-  isAdmin = true,
-  isManager = false,
+  currentRole,
+  isAdmin = false,
+  isManager = true,
   isTL = false,
   leadId = '1',
   onNewAllocation,
 }: LeadAllocationTrailProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignToRole, setAssignToRole] = useState<AllocationRole>('MANAGER');
+  const [assignToRole, setAssignToRole] = useState<AllocationRole>('TEAM_LEADER');
   const [assignToName, setAssignToName] = useState('');
   const [assignNote, setAssignNote] = useState('');
 
-  const effectiveTrail: AllocationEvent[] = (trail && trail.length > 0)
-    ? trail
-    : [
-        {
-          id: 'alloc_step_admin',
-          fromRole: 'ADMIN',
-          fromName: 'Anurag Sharma (ADMIN)',
-          toRole: 'TEAM_LEADER',
-          toName: 'Sachin Puri (Team Leader)',
-          action: 'ALLOCATED',
-          assignedAt: new Date(Date.now() - 3600000).toISOString(),
-          note: 'Allocated during batch spreadsheet ingestion',
-        },
-        {
-          id: 'alloc_step_tl',
-          fromRole: 'TEAM_LEADER',
-          fromName: 'Sachin Puri (Team Leader)',
-          toRole: currentRole || 'SALES_EXEC',
-          toName: (currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep') ? currentAssignee : 'Sachin Puri (Team Leader)',
-          action: 'ASSIGNED' as any,
-          assignedAt: new Date(Date.now() - 1800000).toISOString(),
-          note: 'Assigned for direct customer outreach & conversion',
-        },
-      ];
+  // 1. Sanitize incoming trail if provided
+  const cleanTrail = (trail && trail.length > 0)
+    ? trail.filter(event => {
+        if (!event) return false;
+        const fName = (event.fromName || '').toLowerCase();
+        const tName = (event.toName || '').toLowerCase();
+        if (fName.includes('sachin') && tName.includes('sachin') && event.toRole === 'SALES_EXEC') {
+          return false;
+        }
+        return true;
+      })
+    : [];
+
+  const effectiveTrail: AllocationEvent[] = cleanTrail.length > 0
+    ? cleanTrail
+    : buildAllocationTrailForLead(
+        currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep' ? currentAssignee : 'Sachin Puri (Team Leader)',
+        'Website / Lead Pipeline'
+      );
 
   const lastEvent = effectiveTrail[effectiveTrail.length - 1];
+  const resolvedRole = getUserRoleFromName(currentAssignee, (currentRole || lastEvent?.toRole || 'TEAM_LEADER'));
+  const displayRole = (resolvedRole || lastEvent?.toRole || currentRole || 'TEAM_LEADER') as AllocationRole;
+  const currentRoleMeta = ROLE_META[displayRole] || ROLE_META.TEAM_LEADER;
+
   const displayAssignee = (currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep')
-    ? currentAssignee
+    ? (currentAssignee.includes('(') ? currentAssignee : `${currentAssignee} (${currentRoleMeta.label})`)
     : (lastEvent?.toName || 'Sachin Puri (Team Leader)');
-  const displayRole = (lastEvent?.toRole || currentRole || 'SALES_EXEC') as AllocationRole;
-  const currentRoleMeta = ROLE_META[displayRole] || ROLE_META.SALES_EXEC;
+
   const canAllocate = isAdmin || isManager || isTL;
 
   // Determine who the current user can assign to
@@ -157,7 +304,7 @@ export function LeadAllocationTrail({
     ? ['TEAM_LEADER', 'SALES_EXEC']
     : isTL
     ? ['SALES_EXEC']
-    : [];
+    : ['TEAM_LEADER', 'SALES_EXEC'];
 
   const handleSaveAllocation = () => {
     if (!assignToName.trim()) {
@@ -165,13 +312,14 @@ export function LeadAllocationTrail({
       return;
     }
 
+    const allocator = getAllocatorInfo();
     const newEvent: AllocationEvent = {
       id: 'alloc-' + Date.now(),
-      fromRole: isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : 'TEAM_LEADER',
-      fromName: 'Current User',
+      fromRole: isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : isTL ? 'TEAM_LEADER' : allocator.fromRole,
+      fromName: allocator.fromName,
       toRole: assignToRole,
-      toName: assignToName.trim(),
-      action: 'ALLOCATED',
+      toName: assignToName.trim().includes('(') ? assignToName.trim() : `${assignToName.trim()} (${ROLE_META[assignToRole].label})`,
+      action: assignToRole === 'SALES_EXEC' ? 'ASSIGNED' as any : 'ALLOCATED',
       assignedAt: new Date().toISOString(),
       note: assignNote.trim() || undefined,
     };

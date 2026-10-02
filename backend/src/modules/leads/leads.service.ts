@@ -215,16 +215,19 @@ export class LeadsService {
 
     if (trail.length === 0 && (lead.owner || lead.ownerId)) {
       const ownerName = lead.owner ? `${lead.owner.firstName || ''} ${lead.owner.lastName || ''}`.trim() : 'Assigned Rep';
-      const ownerRole = mapRole(lead.owner?.role?.name || lead.owner?.role);
+      const ownerRole = mapRole(lead.owner?.role?.name || lead.owner?.role || (ownerName.toLowerCase().includes('sachin') ? 'TEAM_LEADER' : undefined));
       const allocatedAt = lead.customFields?.allocatedAt || (lead.createdAt ? new Date(lead.createdAt).toISOString() : new Date().toISOString());
-      const fileName = lead.customFields?.fileName || 'Spreadsheet Ingestion';
+      const fileName = lead.customFields?.fileName || lead.customFields?.platform || 'Spreadsheet Ingestion';
       const rowNum = lead.customFields?.rowNumber;
+
+      const allocatorName = lead.customFields?.allocatedBy || 'Aditya Kumar Rai (Manager)';
+      const allocatorRole = mapRole(lead.customFields?.allocatedByRole || (allocatorName.toLowerCase().includes('admin') ? 'ADMIN' : 'MANAGER'));
 
       if (ownerRole === 'SALES_EXEC') {
         trail.push({
-          id: `alloc-admin-${lead.id}`,
-          fromRole: 'ADMIN',
-          fromName: 'Anurag Sharma (ADMIN)',
+          id: `alloc-mgr-${lead.id}`,
+          fromRole: allocatorRole,
+          fromName: allocatorName,
           toRole: 'TEAM_LEADER',
           toName: 'Sachin Puri (Team Leader)',
           action: 'ALLOCATED',
@@ -236,10 +239,21 @@ export class LeadsService {
           fromRole: 'TEAM_LEADER',
           fromName: 'Sachin Puri (Team Leader)',
           toRole: 'SALES_EXEC',
-          toName: `${ownerName} (Sales Exec)`,
+          toName: `${ownerName.includes('Sales') ? ownerName : `${ownerName} (Sales Exec)`}`,
           action: 'ASSIGNED' as any,
           assignedAt: allocatedAt,
           note: 'Assigned for direct customer outreach and conversion tracking',
+        });
+      } else if (ownerRole === 'TEAM_LEADER') {
+        trail.push({
+          id: `alloc-mgr-${lead.id}`,
+          fromRole: allocatorRole,
+          fromName: allocatorName,
+          toRole: 'TEAM_LEADER',
+          toName: `${ownerName.includes('Team Leader') ? ownerName : `${ownerName} (Team Leader)`}`,
+          action: 'ALLOCATED',
+          assignedAt: allocatedAt,
+          note: `Allocated from dataset "${fileName}"${rowNum ? ` (Row #${rowNum})` : ''}`,
         });
       } else {
         trail.push({
@@ -247,7 +261,7 @@ export class LeadsService {
           fromRole: 'ADMIN',
           fromName: 'Anurag Sharma (ADMIN)',
           toRole: ownerRole,
-          toName: `${ownerName} (${ownerRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'})`,
+          toName: `${ownerName} (${ownerRole === 'MANAGER' ? 'Manager' : 'Admin'})`,
           action: 'ALLOCATED',
           assignedAt: allocatedAt,
           note: `Allocated directly from ${fileName}${rowNum ? ` (Row #${rowNum})` : ''}`,

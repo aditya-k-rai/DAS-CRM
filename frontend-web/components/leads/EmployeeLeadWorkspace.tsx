@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
-import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
+import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getUserRoleFromName } from './LeadAllocationTrail';
 import { CallContactHistory } from './CallContactHistory';
 
 export type DispositionOption =
@@ -90,30 +90,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       // 1. If leadData is provided directly via props and is populated, use it
       if (leadData && leadData.name && leadData.name !== 'Prospect Lead' && leadData.phone) {
         const ownerName = leadData.owner || 'Sachin Puri (Team Leader)';
-        const defaultTrail: AllocationEvent[] = leadData.allocationTrail && leadData.allocationTrail.length > 0
-          ? leadData.allocationTrail
-          : [
-              {
-                id: 'alloc_init_admin',
-                fromRole: 'ADMIN',
-                fromName: 'Anurag Sharma (ADMIN)',
-                toRole: 'TEAM_LEADER',
-                toName: 'Sachin Puri (Team Leader)',
-                action: 'ALLOCATED',
-                assignedAt: new Date(Date.now() - 3600000).toISOString(),
-                note: `Allocated via dataset (${leadData.source || 'Spreadsheet Ingestion'})`,
-              },
-              {
-                id: 'alloc_init_rep',
-                fromRole: 'TEAM_LEADER',
-                fromName: 'Sachin Puri (Team Leader)',
-                toRole: 'SALES_EXEC',
-                toName: ownerName,
-                action: 'ASSIGNED' as any,
-                assignedAt: new Date(Date.now() - 1800000).toISOString(),
-                note: 'Assigned for client engagement & sales execution',
-              }
-            ];
+        const defaultTrail = buildAllocationTrailForLead(
+          ownerName,
+          leadData.source || 'Spreadsheet Ingestion',
+          new Date().toISOString(),
+          leadData.allocationTrail
+        );
 
         setLead({
           id: leadData.id || leadId,
@@ -152,30 +134,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const allocatedTimestamp = sessionMatch.allocatedAt || sessionMatch.createdAt || sessionMatch.rawCreatedAt || new Date().toISOString();
             const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || sessionMatch.source || 'Spreadsheet Ingestion';
 
-            const sessionTrail: AllocationEvent[] = (Array.isArray(sessionMatch.allocationTrail) && sessionMatch.allocationTrail.length > 0)
-              ? sessionMatch.allocationTrail
-              : [
-                  {
-                    id: 'alloc_session_admin',
-                    fromRole: 'ADMIN',
-                    fromName: 'Anurag Sharma (ADMIN)',
-                    toRole: 'TEAM_LEADER',
-                    toName: 'Sachin Puri (Team Leader)',
-                    action: 'ALLOCATED',
-                    assignedAt: new Date(new Date(allocatedTimestamp).getTime() - 1800000).toISOString(),
-                    note: `Allocated from dataset "${fileName}"`,
-                  },
-                  {
-                    id: 'alloc_session_rep',
-                    fromRole: 'TEAM_LEADER',
-                    fromName: 'Sachin Puri (Team Leader)',
-                    toRole: 'SALES_EXEC',
-                    toName: ownerName,
-                    action: 'ASSIGNED' as any,
-                    assignedAt: allocatedTimestamp,
-                    note: 'Assigned for client engagement & sales execution',
-                  }
-                ];
+            const sessionTrail = buildAllocationTrailForLead(
+              ownerName,
+              fileName,
+              allocatedTimestamp,
+              sessionMatch.allocationTrail,
+              sessionMatch.customFields
+            );
 
             setLead({
               id: String(sessionMatch.id || leadId),
@@ -215,30 +180,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               const allocatedTimestamp = matched.rawCreatedAt || matched.createdAt || new Date().toISOString();
               const fileName = (matched.tags && matched.tags[0]) || matched.source || 'Spreadsheet Ingestion';
 
-              const matchedTrail: AllocationEvent[] = (Array.isArray(matched.allocationTrail) && matched.allocationTrail.length > 0)
-                ? matched.allocationTrail
-                : [
-                    {
-                      id: 'alloc_all_cache_admin',
-                      fromRole: 'ADMIN',
-                      fromName: 'Anurag Sharma (ADMIN)',
-                      toRole: 'TEAM_LEADER',
-                      toName: 'Sachin Puri (Team Leader)',
-                      action: 'ALLOCATED',
-                      assignedAt: new Date(new Date(allocatedTimestamp).getTime() - 1800000).toISOString(),
-                      note: `Allocated from dataset "${fileName}"`,
-                    },
-                    {
-                      id: 'alloc_all_cache_rep',
-                      fromRole: 'TEAM_LEADER',
-                      fromName: 'Sachin Puri (Team Leader)',
-                      toRole: 'SALES_EXEC',
-                      toName: ownerName,
-                      action: 'ASSIGNED' as any,
-                      assignedAt: allocatedTimestamp,
-                      note: 'Assigned for direct communication & conversion',
-                    }
-                  ];
+              const matchedTrail = buildAllocationTrailForLead(
+                ownerName,
+                fileName,
+                allocatedTimestamp,
+                matched.allocationTrail,
+                matched.customFields
+              );
 
               setLead({
                 id: String(matched.id || leadId),
@@ -278,32 +226,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const cleanName = `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || (l.customFields?.clientName) || 'Lead Prospect';
             const allocatedTimestamp = l.customFields?.allocatedAt || l.createdAt || new Date().toISOString();
             const fileName = l.customFields?.fileName || l.customFields?.platform || 'Spreadsheet Ingestion';
-            const rowNumber = l.customFields?.rowNumber;
 
-            const serverTrail: AllocationEvent[] = (Array.isArray(l.allocationTrail) && l.allocationTrail.length > 0)
-              ? l.allocationTrail
-              : [
-                  {
-                    id: 'alloc_srv_admin',
-                    fromRole: 'ADMIN',
-                    fromName: 'Anurag Sharma (ADMIN)',
-                    toRole: 'TEAM_LEADER',
-                    toName: 'Sachin Puri (Team Leader)',
-                    action: 'ALLOCATED',
-                    assignedAt: new Date(new Date(allocatedTimestamp).getTime() - 1800000).toISOString(),
-                    note: `Ingested & allocated from dataset "${fileName}"${rowNumber ? ` (Row #${rowNumber})` : ''}`,
-                  },
-                  {
-                    id: 'alloc_srv_rep',
-                    fromRole: 'TEAM_LEADER',
-                    fromName: 'Sachin Puri (Team Leader)',
-                    toRole: 'SALES_EXEC',
-                    toName: ownerName,
-                    action: 'ASSIGNED' as any,
-                    assignedAt: allocatedTimestamp,
-                    note: 'Assigned for direct customer outreach and conversion tracking',
-                  }
-                ];
+            const serverTrail = buildAllocationTrailForLead(
+              ownerName,
+              fileName,
+              allocatedTimestamp,
+              l.allocationTrail,
+              l.customFields
+            );
 
             setLead({
               id: String(l.id || leadId),
@@ -338,30 +268,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const allocatedTimestamp = matched.allocatedAt || matched.createdAt || new Date().toISOString();
             const fileName = matched.fileName || matched.source || 'Spreadsheet Ingestion';
 
-            const cachedTrail: AllocationEvent[] = (Array.isArray(matched.allocationTrail) && matched.allocationTrail.length > 0)
-              ? matched.allocationTrail
-              : [
-                  {
-                    id: 'alloc_cache_admin',
-                    fromRole: 'ADMIN',
-                    fromName: 'Anurag Sharma (ADMIN)',
-                    toRole: 'TEAM_LEADER',
-                    toName: 'Sachin Puri (Team Leader)',
-                    action: 'ALLOCATED',
-                    assignedAt: new Date(new Date(allocatedTimestamp).getTime() - 1800000).toISOString(),
-                    note: `Allocated from spreadsheet "${fileName}"`,
-                  },
-                  {
-                    id: 'alloc_cache_rep',
-                    fromRole: 'TEAM_LEADER',
-                    fromName: 'Sachin Puri (Team Leader)',
-                    toRole: 'SALES_EXEC',
-                    toName: ownerName,
-                    action: 'ASSIGNED' as any,
-                    assignedAt: allocatedTimestamp,
-                    note: 'Assigned for direct phone & WhatsApp communication',
-                  }
-                ];
+            const cachedTrail = buildAllocationTrailForLead(
+              ownerName,
+              fileName,
+              allocatedTimestamp,
+              matched.allocationTrail,
+              matched.customFields
+            );
 
             setLead({
               id: String(matched.id || leadId),
@@ -415,28 +328,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             budget: '₹4.5 Lakhs',
             requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
             source: 'Website Form (Test)',
-            allocationTrail: [
-              {
-                id: 'alloc_demo_1',
-                fromRole: 'ADMIN',
-                fromName: 'Anurag Sharma (ADMIN)',
-                toRole: 'TEAM_LEADER',
-                toName: 'Sachin Puri (Team Leader)',
-                action: 'ALLOCATED',
-                assignedAt: new Date(Date.now() - 3600000).toISOString(),
-                note: 'Inbound high-priority lead allocated via System Routing Engine',
-              },
-              {
-                id: 'alloc_demo_2',
-                fromRole: 'TEAM_LEADER',
-                fromName: 'Sachin Puri (Team Leader)',
-                toRole: 'SALES_EXEC',
-                toName: 'Sachin Puri (Team Leader)',
-                action: 'ASSIGNED' as any,
-                assignedAt: new Date(Date.now() - 1800000).toISOString(),
-                note: 'Direct assignment for medical enterprise evaluation',
-              }
-            ],
+            allocationTrail: buildAllocationTrailForLead('Sachin Puri (Team Leader)', 'Website Form (Test)'),
           });
         } else {
           const rep = sampleReps[safeIdx];
@@ -452,28 +344,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             budget: sampleBudgets[safeIdx],
             requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
             source: 'Spreadsheet Ingestion',
-            allocationTrail: [
-              {
-                id: `alloc_sample_1_${safeIdx}`,
-                fromRole: 'ADMIN',
-                fromName: 'Anurag Sharma (ADMIN)',
-                toRole: 'TEAM_LEADER',
-                toName: 'Sachin Puri (Team Leader)',
-                action: 'ALLOCATED',
-                assignedAt: new Date(Date.now() - 7200000).toISOString(),
-                note: `Allocated from batch dataset (Spreadsheet Ingestion - Record #${safeIdx + 1})`,
-              },
-              {
-                id: `alloc_sample_2_${safeIdx}`,
-                fromRole: 'TEAM_LEADER',
-                fromName: 'Sachin Puri (Team Leader)',
-                toRole: 'SALES_EXEC',
-                toName: rep,
-                action: 'ASSIGNED' as any,
-                assignedAt: new Date(Date.now() - 3600000).toISOString(),
-                note: 'Assigned for direct outbound call follow-up',
-              }
-            ],
+            allocationTrail: buildAllocationTrailForLead(rep, `Spreadsheet Ingestion - Record #${safeIdx + 1}`),
           });
         }
       }
@@ -822,8 +693,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             <LeadAllocationTrail
               trail={lead.allocationTrail}
               currentAssignee={lead.owner}
-              currentRole="SALES_EXEC"
+              currentRole={getUserRoleFromName(lead.owner)}
               leadId={lead.id}
+              isAdmin={false}
+              isManager={true}
               onNewAllocation={(newEvent) => {
                 setLead(prev => ({
                   ...prev,
