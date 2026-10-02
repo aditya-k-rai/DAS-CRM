@@ -170,8 +170,15 @@ export default function LeadPipelinePage() {
       try {
         const cachedLeads = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
         if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
-          existingCached = cachedLeads;
-          setLeadDirectory(cachedLeads);
+          const cleanCached = cachedLeads.filter((c: any) => {
+            const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
+            const id = String(c.id || '');
+            return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+          });
+          if (cleanCached.length > 0) {
+            existingCached = cleanCached;
+            setLeadDirectory(cleanCached);
+          }
         }
       } catch (_) {}
       try {
@@ -239,28 +246,34 @@ export default function LeadPipelinePage() {
         const leadsData = await leadsRes.value.json();
         const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
         if (Array.isArray(items) && items.length > 0) {
-          serverLeads = items.map((l: any) => {
-            const rawFile = l.customFields?.fileName || l.customFields?.filename || (l.source?.name || l.source) || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
-            const rawAllocated = l.customFields?.allocatedAt
-              ? new Date(l.customFields.allocatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              : (l.createdAt ? new Date(l.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM'));
+          serverLeads = items
+            .filter((l: any) => {
+              const n = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+              const id = String(l.id || '');
+              return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+            })
+            .map((l: any) => {
+              const rawFile = l.customFields?.fileName || l.customFields?.filename || (l.source?.name || l.source) || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
+              const rawAllocated = l.customFields?.allocatedAt
+                ? new Date(l.customFields.allocatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : (l.createdAt ? new Date(l.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM'));
 
-            return {
-              id: String(l.id),
-              name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Lead Prospect',
-              fileName: rawFile,
-              allocatedAt: rawAllocated,
-              email: l.email || '—',
-              phone: l.phone || '—',
-              company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
-              source: l.source?.name || l.source || 'Google Ads',
-              stage: l.status?.name || l.stage || 'Prospecting',
-              value: l.score || l.estimatedValue || 150000,
-              assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)'),
-              customFields: l.customFields || {},
-              createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today',
-            };
-          });
+              return {
+                id: String(l.id),
+                name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Lead Prospect',
+                fileName: rawFile,
+                allocatedAt: rawAllocated,
+                email: l.email || '—',
+                phone: l.phone || '—',
+                company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
+                source: l.source?.name || l.source || 'Google Ads',
+                stage: l.status?.name || l.stage || 'Prospecting',
+                value: l.score || l.estimatedValue || 150000,
+                assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)'),
+                customFields: l.customFields || {},
+                createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today',
+              };
+            });
         }
       }
 
@@ -331,31 +344,52 @@ export default function LeadPipelinePage() {
           }
         }
       } else {
-        // Default initial test lead
-        const initialLead: DashboardLeadRecord = {
-          id: 'lead-test-demo-01',
-          name: 'Dr. Vikram Malhotra (Test Lead)',
-          fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
-          allocatedAt: 'Oct 2, 2026, 05:03 AM',
-          email: 'vikram.malhotra@zenithhospital.in',
-          phone: '+91 98201 12345',
-          company: 'Zenith Hospital & Research Centre',
-          source: 'Google Ads',
-          stage: 'Prospecting',
-          value: 450000,
-          assignedRep: 'Sachin Puri (Team Leader)',
-          customFields: {
-            col_city: 'Mumbai',
-            col_budget: '₹4.5 Lakhs',
-            col_rating: 'Hot Lead 🔥',
-            col_requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
+        const defaultRoster: DashboardLeadRecord[] = [
+          {
+            id: 'dir_lead_1',
+            name: 'Dr. Vikram Malhotra',
+            fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
+            allocatedAt: 'Oct 2, 2026, 05:03 AM',
+            email: 'vikram.malhotra@zenithhospital.in',
+            phone: '+91 98201 12345',
+            company: 'Zenith Hospital & Research Centre',
+            source: 'Google Ads',
+            stage: 'Prospecting',
+            value: 450000,
+            assignedRep: 'Sachin Puri (Team Leader)',
+            customFields: {
+              col_city: 'Mumbai',
+              col_budget: '₹4.5 Lakhs',
+              col_rating: 'Hot Lead 🔥',
+              col_requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
+            },
+            createdAt: 'Just now',
           },
-          createdAt: 'Just now',
-        };
-        setLeadDirectory([initialLead]);
+          {
+            id: 'dir_lead_2',
+            name: 'Pooja Nair',
+            fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
+            allocatedAt: 'Oct 2, 2026, 05:03 AM',
+            email: 'pooja.nair@example.com',
+            phone: '+91 98000 10009',
+            company: 'Nair Logistics India',
+            source: 'Website',
+            stage: 'Qualified',
+            value: 720000,
+            assignedRep: 'Sadhana (Sales Exec)',
+            customFields: {
+              col_city: 'Kochi',
+              col_budget: '₹10 - 25 Lakhs',
+              col_rating: 'Hot Lead 🔥',
+              col_requirement: 'Enterprise Multi-Branch Logistics CRM & Telemetry Suite',
+            },
+            createdAt: 'Just now',
+          }
+        ];
+        setLeadDirectory(defaultRoster);
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify([initialLead]));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(defaultRoster));
           } catch (_) {}
         }
       }

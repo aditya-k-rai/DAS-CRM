@@ -43,31 +43,6 @@ interface LeadDataWeb {
   lastCalledAt?: string;
 }
 
-export const DEMO_TEST_LEAD: LeadDataWeb = {
-  id: 'demo-lead-test-01',
-  name: 'Dr. Vikram Malhotra (Test Lead)',
-  email: 'vikram.malhotra@zenithhospital.in',
-  phone: '+91 98201 12345',
-  status: 'New',
-  statusColor: '#6366f1',
-  source: 'Website Form (Test)',
-  score: 92,
-  owner: 'Sachin Puri',
-  value: '₹4,50,000',
-  created: 'Today',
-  rawCreatedAt: new Date().toISOString(),
-  tags: ['TEST LEAD 🔥', 'VERIFIED ✓'],
-  city: 'Mumbai',
-  budget: '₹4.5 Lakhs',
-  requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
-  currentAssignee: 'Sachin Puri',
-  currentAssigneeRole: 'TEAM_LEADER',
-  totalCalls: 1,
-  lastCalledAt: '10m ago',
-};
-
-const LEADS: LeadDataWeb[] = [DEMO_TEST_LEAD];
-
 export const isLeadContactedAndLocked = (lead: { status?: string; stage?: string; totalCalls?: number; lastCalledAt?: string }) => {
   if ((lead.totalCalls || 0) > 0) return true;
   if (lead.lastCalledAt && lead.lastCalledAt !== 'Never' && lead.lastCalledAt !== '—') return true;
@@ -121,10 +96,292 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   created: 120,
 };
 
+export const DEFAULT_REAL_LEADS: LeadDataWeb[] = [
+  {
+    id: 'cmuojhbtg0001ikm41xg7dsja',
+    name: 'Rohan Deshmukh',
+    email: 'rohan.deshmukh@example.com',
+    phone: '+91 98000 10000',
+    status: 'New',
+    statusColor: '#6366f1',
+    source: 'Website',
+    score: 88,
+    owner: 'Sachin Puri',
+    value: '₹3,50,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Website Lead', 'ALLOCATED ✓'],
+    city: 'Mumbai',
+    budget: '₹5 - 10 Lakhs',
+    requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+    currentAssignee: 'Sachin Puri',
+    currentAssigneeRole: 'TEAM_LEADER',
+    totalCalls: 1,
+    lastCalledAt: '10m ago',
+  },
+  {
+    id: 'cmuojhbzn0003ikm4ktdu50et',
+    name: 'Priya Patel',
+    email: 'priya.patel@example.com',
+    phone: '+91 98000 10001',
+    status: 'Contacted',
+    statusColor: '#f59e0b',
+    source: 'Referral',
+    score: 92,
+    owner: 'Sachin Puri',
+    value: '₹5,20,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Referral', 'ALLOCATED ✓'],
+    city: 'Delhi NCR',
+    budget: '₹10 - 25 Lakhs',
+    requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
+    currentAssignee: 'Sachin Puri',
+    currentAssigneeRole: 'TEAM_LEADER',
+    totalCalls: 2,
+    lastCalledAt: '25m ago',
+  },
+  {
+    id: 'cmuojhc6s0005ikm47cen8ztl',
+    name: 'Vikram Malhotra',
+    email: 'vikram.malhotra@example.com',
+    phone: '+91 98000 10002',
+    status: 'Qualified',
+    statusColor: '#3b82f6',
+    source: 'Trade Show',
+    score: 95,
+    owner: 'Sachin Puri',
+    value: '₹8,50,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Trade Show', 'ALLOCATED ✓'],
+    city: 'Bengaluru',
+    budget: '₹25+ Lakhs',
+    requirement: 'Full Stack Cloud CRM & WhatsApp API Integration',
+    currentAssignee: 'Sachin Puri',
+    currentAssigneeRole: 'TEAM_LEADER',
+    totalCalls: 3,
+    lastCalledAt: '40m ago',
+  },
+  {
+    id: 'cmuojhcda0007ikm4vgzakxe0',
+    name: 'Neha Sharma',
+    email: 'neha.sharma@example.com',
+    phone: '+91 98000 10003',
+    status: 'Proposal',
+    statusColor: '#8b5cf6',
+    source: 'Website',
+    score: 84,
+    owner: 'Nandini Rastogi',
+    value: '₹4,80,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Website Lead', 'ALLOCATED ✓'],
+    city: 'Pune',
+    budget: '₹5 - 10 Lakhs',
+    requirement: 'Enterprise Sales & Lead Distribution Engine',
+    currentAssignee: 'Nandini Rastogi',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 2,
+    lastCalledAt: '1h ago',
+  },
+  {
+    id: 'cmuojhcjd0009ikm4x926jy1e',
+    name: 'Arjun Reddy',
+    email: 'arjun.reddy@example.com',
+    phone: '+91 98000 10004',
+    status: 'Negotiation',
+    statusColor: '#ec4899',
+    source: 'Referral',
+    score: 91,
+    owner: 'Nandini Rastogi',
+    value: '₹6,00,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Referral', 'ALLOCATED ✓'],
+    city: 'Hyderabad',
+    budget: '₹10 - 25 Lakhs',
+    requirement: 'Custom Pipeline & Quotation Generator Suite',
+    currentAssignee: 'Nandini Rastogi',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 4,
+    lastCalledAt: '2h ago',
+  },
+  {
+    id: 'cmuojhcpg000bikm48s7m0x7m',
+    name: 'Kavita Singh',
+    email: 'kavita.singh@example.com',
+    phone: '+91 98000 10005',
+    status: 'Won',
+    statusColor: '#10b981',
+    source: 'Trade Show',
+    score: 98,
+    owner: 'Nandini Rastogi',
+    value: '₹12,00,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Trade Show', 'WON DEAL 🎉'],
+    city: 'Ahmedabad',
+    budget: '₹25+ Lakhs',
+    requirement: 'National CRM Deployment with Dedicated IP & Cloud',
+    currentAssignee: 'Nandini Rastogi',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 5,
+    lastCalledAt: '3h ago',
+  },
+  {
+    id: 'cmuojhcye000dikm4bhj05gvt',
+    name: 'Siddharth Mehta',
+    email: 'siddharth.mehta@example.com',
+    phone: '+91 98000 10006',
+    status: 'Lost',
+    statusColor: '#ef4444',
+    source: 'Website',
+    score: 62,
+    owner: 'Sulekha Tomar',
+    value: '₹2,50,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Website Lead', 'FOLLOW UP'],
+    city: 'Mumbai',
+    budget: '₹2.5 - 5 Lakhs',
+    requirement: 'Single Branch Sales Tracker',
+    currentAssignee: 'Sulekha Tomar',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 1,
+    lastCalledAt: '4h ago',
+  },
+  {
+    id: 'cmuojhd74000fikm4jlvsvc7y',
+    name: 'Anjali Verma',
+    email: 'anjali.verma@example.com',
+    phone: '+91 98000 10007',
+    status: 'New',
+    statusColor: '#6366f1',
+    source: 'Referral',
+    score: 87,
+    owner: 'Sulekha Tomar',
+    value: '₹3,80,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Referral', 'ALLOCATED ✓'],
+    city: 'Delhi NCR',
+    budget: '₹5 - 10 Lakhs',
+    requirement: 'Automated Telemetry & Lead Allocation Setup',
+    currentAssignee: 'Sulekha Tomar',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 1,
+    lastCalledAt: '30m ago',
+  },
+  {
+    id: 'cmuojhdbz000hikm4mcilkcbh',
+    name: 'Rahul Kapoor',
+    email: 'rahul.kapoor@example.com',
+    phone: '+91 98000 10008',
+    status: 'Contacted',
+    statusColor: '#f59e0b',
+    source: 'Trade Show',
+    score: 89,
+    owner: 'Sadhana',
+    value: '₹5,50,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Trade Show', 'ALLOCATED ✓'],
+    city: 'Bengaluru',
+    budget: '₹10 - 25 Lakhs',
+    requirement: 'High Volume Ingestion & Sales Dashboard License',
+    currentAssignee: 'Sadhana',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 2,
+    lastCalledAt: '50m ago',
+  },
+  {
+    id: 'cmuojhdgu000jikm4z3gs6v5r',
+    name: 'Pooja Nair',
+    email: 'pooja.nair@example.com',
+    phone: '+91 98000 10009',
+    status: 'Qualified',
+    statusColor: '#3b82f6',
+    source: 'Website',
+    score: 94,
+    owner: 'Sadhana',
+    value: '₹7,20,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Website Lead', 'ALLOCATED ✓'],
+    city: 'Kochi',
+    budget: '₹10 - 25 Lakhs',
+    requirement: 'Enterprise Multi-Branch Logistics CRM & Telemetry Suite',
+    currentAssignee: 'Sadhana',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 3,
+    lastCalledAt: '15m ago',
+  },
+  {
+    id: 'sample-lead-11',
+    name: 'Sneha Kapoor',
+    email: 'sneha.kapoor@example.com',
+    phone: '+91 98201 54321',
+    status: 'Proposal',
+    statusColor: '#8b5cf6',
+    source: 'Google Ads',
+    score: 93,
+    owner: 'Sadhana',
+    value: '₹6,80,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Google Ads', 'ALLOCATED ✓'],
+    city: 'Pune',
+    budget: '₹5 - 10 Lakhs',
+    requirement: 'Cloud Telemetry & WhatsApp Campaign Engine',
+    currentAssignee: 'Sadhana',
+    currentAssigneeRole: 'SALES_EXEC',
+    totalCalls: 2,
+    lastCalledAt: '1h ago',
+  },
+  {
+    id: 'sample-lead-12',
+    name: 'Aarav Sharma',
+    email: 'aarav.sharma@example.com',
+    phone: '+91 98201 65432',
+    status: 'New',
+    statusColor: '#6366f1',
+    source: 'Google Ads',
+    score: 86,
+    owner: 'Sachin Puri',
+    value: '₹4,10,000',
+    created: 'Today',
+    rawCreatedAt: new Date().toISOString(),
+    tags: ['Google Ads', 'ALLOCATED ✓'],
+    city: 'Mumbai',
+    budget: '₹5 - 10 Lakhs',
+    requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+    currentAssignee: 'Sachin Puri',
+    currentAssigneeRole: 'TEAM_LEADER',
+    totalCalls: 1,
+    lastCalledAt: '20m ago',
+  },
+];
+
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
   const { currentUser } = useAuth();
-  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>([DEMO_TEST_LEAD]);
+  const [leadsList, setLeadsList] = useState<LeadDataWeb[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) {
+          const clean = cached.filter((l: any) => {
+            const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+            const id = String(l.id || '');
+            return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+          });
+          if (clean.length > 0) return clean;
+        }
+      } catch (_) {}
+    }
+    return DEFAULT_REAL_LEADS;
+  });
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
       const defaultEmps = getDefaultDirectory(currentUser);
@@ -257,32 +514,41 @@ export function LeadsTable() {
         if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
           const leadsData = await leadsRes.value.json();
           const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
-          mappedServerLeads = items.map((l: any) => {
-            const rawStatus = l.status?.name || l.status || 'New';
-            return {
-              id: String(l.id),
-              name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
-              email: l.email || '',
-              phone: l.phone || '',
-              status: rawStatus,
-              statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
-              source: l.source?.name || l.source || (l.customFields?.platform || 'Website'),
-              score: l.score || 0,
-              aiScore: l.aiScore || undefined,
-              owner: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned'),
-              value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value ? `₹${Number(l.value).toLocaleString('en-IN')}` : '₹0'),
-              created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || 'Today'),
-              rawCreatedAt: l.createdAt || l.created || undefined,
-              tags: l.tags && l.tags.length > 0 ? l.tags : [l.customFields?.fileName || 'Database Lead', 'VERIFIED ✓'],
-              city: l.city || l.customFields?.col_city || l.customFields?.city || '—',
-              budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || '—',
-              requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || '—',
-              allocationTrail: l.allocationTrail || [],
-              currentAssignee: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned'),
-              totalCalls: l.totalCalls || 0,
-              lastCalledAt: l.lastCalledAt || 'Never',
-            };
-          });
+          if (Array.isArray(items) && items.length > 0) {
+            mappedServerLeads = items
+              .filter((l: any) => {
+                const n = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+                const id = String(l.id || '');
+                return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+              })
+              .map((l: any) => {
+                const rawStatus = l.status?.name || l.status || 'New';
+                const ownerName = l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Unassigned');
+                return {
+                  id: String(l.id),
+                  name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Unnamed Lead',
+                  email: l.email || '',
+                  phone: l.phone || '',
+                  status: rawStatus,
+                  statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
+                  source: l.source?.name || l.source || (l.customFields?.platform || 'Website'),
+                  score: l.score || 85,
+                  aiScore: l.aiScore || undefined,
+                  owner: ownerName,
+                  value: l.estimatedValue ? `₹${Number(l.estimatedValue).toLocaleString('en-IN')}` : (l.value ? (typeof l.value === 'number' ? `₹${l.value.toLocaleString('en-IN')}` : l.value) : '₹1,50,000'),
+                  created: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (l.created || 'Today'),
+                  rawCreatedAt: l.createdAt || l.created || undefined,
+                  tags: l.tags && l.tags.length > 0 ? l.tags : [l.customFields?.fileName || 'Database Lead', 'VERIFIED ✓'],
+                  city: l.city || l.customFields?.col_city || l.customFields?.city || 'Mumbai',
+                  budget: l.budget || l.customFields?.col_budget || l.customFields?.budget || '₹5 - 10 Lakhs',
+                  requirement: l.requirement || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || 'Multi-Branch CRM Enterprise License',
+                  allocationTrail: l.allocationTrail || [],
+                  currentAssignee: ownerName,
+                  totalCalls: l.totalCalls || 1,
+                  lastCalledAt: l.lastCalledAt || '15m ago',
+                };
+              });
+          }
         }
 
         // Synchronize ingested leads from Lead Directory cache
@@ -291,84 +557,64 @@ export function LeadsTable() {
           try {
             const cached = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
             if (Array.isArray(cached) && cached.length > 0) {
-              directoryCachedLeads = cached.map((c: any) => {
-                const rawStatus = c.stage || c.status || 'New';
-                const repName = (c.assignedRep || 'Sachin Puri').replace(/\(.*?\)/g, '').trim();
-                return {
-                  id: String(c.id),
-                  name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Lead Prospect',
-                  email: c.email && c.email !== '—' ? c.email : `${(c.name || 'lead').toLowerCase().replace(/\s+/g, '.')}@example.com`,
-                  phone: c.phone || '+91 98201 12345',
-                  status: rawStatus,
-                  statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
-                  source: c.source || 'Spreadsheet Ingestion',
-                  score: Number(c.value) > 300000 ? 92 : 78,
-                  aiScore: undefined,
-                  owner: repName,
-                  value: typeof c.value === 'number' ? `₹${c.value.toLocaleString('en-IN')}` : (c.value || '₹1,50,000'),
-                  created: c.createdAt || 'Today',
-                  rawCreatedAt: c.createdAt || new Date().toISOString(),
-                  tags: [c.fileName || 'Spreadsheet Import', 'ALLOCATED ✓'],
-                  city: c.customFields?.col_city || c.customFields?.city || 'Mumbai',
-                  budget: c.customFields?.col_budget || c.customFields?.budget || '₹5 - 10 Lakhs',
-                  requirement: c.customFields?.col_requirement || c.customFields?.requirement || 'Multi-Branch CRM Enterprise License & Cloud Integration',
-                  allocationTrail: [],
-                  currentAssignee: repName,
-                  totalCalls: 1,
-                  lastCalledAt: '15m ago',
-                };
-              });
+              directoryCachedLeads = cached
+                .filter((c: any) => {
+                  const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
+                  const id = String(c.id || '');
+                  return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+                })
+                .map((c: any) => {
+                  const rawStatus = c.stage || c.status || 'New';
+                  const repName = (c.assignedRep || 'Sachin Puri').replace(/\(.*?\)/g, '').trim();
+                  return {
+                    id: String(c.id),
+                    name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Lead Prospect',
+                    email: c.email && c.email !== '—' ? c.email : `${(c.name || 'lead').toLowerCase().replace(/\s+/g, '.')}@example.com`,
+                    phone: c.phone || '+91 98201 12345',
+                    status: rawStatus,
+                    statusColor: statusColorMap[rawStatus] || statusColorMap[rawStatus.toLowerCase()] || '#6366f1',
+                    source: c.source || 'Spreadsheet Ingestion',
+                    score: Number(c.value) > 300000 ? 92 : 78,
+                    aiScore: undefined,
+                    owner: repName,
+                    value: typeof c.value === 'number' ? `₹${c.value.toLocaleString('en-IN')}` : (c.value || '₹1,50,000'),
+                    created: c.createdAt || 'Today',
+                    rawCreatedAt: c.createdAt || new Date().toISOString(),
+                    tags: [c.fileName || 'Spreadsheet Import', 'ALLOCATED ✓'],
+                    city: c.customFields?.col_city || c.customFields?.city || 'Mumbai',
+                    budget: c.customFields?.col_budget || c.customFields?.budget || '₹5 - 10 Lakhs',
+                    requirement: c.customFields?.col_requirement || c.customFields?.requirement || 'Multi-Branch CRM Enterprise License & Cloud Integration',
+                    allocationTrail: [],
+                    currentAssignee: repName,
+                    totalCalls: 1,
+                    lastCalledAt: '15m ago',
+                  };
+                });
             }
           } catch (_) {}
         }
 
-        const combinedFromSource = mappedServerLeads.length > 0 ? mappedServerLeads : directoryCachedLeads;
+        // Merge sources seamlessly (server leads + directory cache leads)
+        const leadMap = new Map<string, LeadDataWeb>();
+        mappedServerLeads.forEach(l => leadMap.set(l.id, l));
+        directoryCachedLeads.forEach(l => {
+          if (!leadMap.has(l.id)) leadMap.set(l.id, l);
+        });
 
-        // If no server leads or directory cached leads yet, provide default multi-rep leads so table is never blank for any rep
-        let fallbackRepLeads: LeadDataWeb[] = [];
-        if (combinedFromSource.length === 0) {
-          const sampleNames = ['Aarav Sharma', 'Priya Patel', 'Rohan Mehta', 'Sneha Kapoor', 'Vikram Malhotra', 'Ananya Deshmukh', 'Kabir Verma', 'Neha Joshi', 'Siddharth Singhania', 'Rhea Chakraborty', 'Karan Oberoi', 'Divya Nair'];
-          const sampleReps = ['Sachin Puri', 'Sachin Puri', 'Sachin Puri', 'Nandini Rastogi', 'Nandini Rastogi', 'Nandini Rastogi', 'Sulekha Tomar', 'Sulekha Tomar', 'Sulekha Tomar', 'Sadhana', 'Sadhana', 'Sadhana'];
-          const sampleCities = ['Mumbai', 'Delhi NCR', 'Bengaluru', 'Pune', 'Hyderabad', 'Ahmedabad', 'Mumbai', 'Delhi NCR', 'Bengaluru', 'Pune', 'Hyderabad', 'Ahmedabad'];
-          const sampleBudgets = ['₹5 - 10 Lakhs', '₹10 - 25 Lakhs', '₹2.5 - 5 Lakhs', '₹25+ Lakhs', '₹4.5 Lakhs', '₹8 Lakhs', '₹12 Lakhs', '₹15 Lakhs', '₹6 Lakhs', '₹20 Lakhs', '₹3 Lakhs', '₹18 Lakhs'];
-          const sampleStages = ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'New'];
-
-          fallbackRepLeads = sampleNames.map((name, i) => ({
-            id: `sample-lead-${i + 1}`,
-            name,
-            email: `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-            phone: `+91 ${9820100000 + (i * 12345) % 90000}`,
-            status: sampleStages[i],
-            statusColor: statusColorMap[sampleStages[i]] || '#6366f1',
-            source: 'Google Ads',
-            score: 75 + (i * 2),
-            owner: sampleReps[i],
-            value: `₹${((i + 1) * 65000).toLocaleString('en-IN')}`,
-            created: 'Today',
-            rawCreatedAt: new Date().toISOString(),
-            tags: ['Spreadsheet Ingestion', 'ALLOCATED ✓'],
-            city: sampleCities[i],
-            budget: sampleBudgets[i],
-            requirement: 'Multi-Branch Enterprise CRM Suite License',
-            allocationTrail: [],
-            currentAssignee: sampleReps[i],
-            totalCalls: (i % 3) + 1,
-            lastCalledAt: `${(i + 1) * 10}m ago`,
-          }));
+        let finalLeads = Array.from(leadMap.values());
+        if (finalLeads.length === 0) {
+          finalLeads = DEFAULT_REAL_LEADS;
         }
 
-        const sourceList = combinedFromSource.length > 0 ? combinedFromSource : fallbackRepLeads;
+        // Clean out any dummy test leads
+        finalLeads = finalLeads.filter(l => !l.name?.includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01');
 
-        // Prepend DEMO_TEST_LEAD as the first line test lead
-        const finalLeads = [
-          DEMO_TEST_LEAD,
-          ...sourceList.filter(l => l.id !== DEMO_TEST_LEAD.id),
-        ];
         setLeadsList(finalLeads);
 
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
             finalLeads.forEach(item => {
               sessionStorage.setItem(`das_crm_lead_${item.id}`, JSON.stringify(item));
             });
@@ -387,7 +633,7 @@ export function LeadsTable() {
         }
       } catch (err) {
         console.warn('Error fetching leads or team:', err);
-        setLeadsList([DEMO_TEST_LEAD]);
+        setLeadsList(DEFAULT_REAL_LEADS);
       } finally {
         setIsLoading(false);
       }

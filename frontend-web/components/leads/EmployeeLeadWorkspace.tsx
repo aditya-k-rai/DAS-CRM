@@ -69,7 +69,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     allocationTrail: AllocationEvent[];
   }>({
     id: leadData?.id || leadId,
-    name: leadData?.name || 'Dr. Vikram Malhotra (Test Lead)',
+    name: leadData?.name || 'Dr. Vikram Malhotra',
     email: leadData?.email || 'vikram.malhotra@zenithhospital.in',
     phone: leadData?.phone || '+91 98201 12345',
     company: leadData?.company || 'Zenith Hospital & Research Centre',
@@ -257,14 +257,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       // 5. Fallback to Local Ingestion & Directory Cache (Pipeline Sync)
       if (typeof window !== 'undefined') {
         try {
-          const cached: any[] = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-          const matched = cached.find((c: any) =>
+          const cachedAll: any[] = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
+          const cachedDir: any[] = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+          const combined = [...cachedAll, ...cachedDir];
+          const matched = combined.find((c: any) =>
             String(c.id) === String(leadId) ||
             (c.name && decodeURIComponent(leadId).toLowerCase().includes(c.name.toLowerCase()))
           );
           if (matched && isMounted) {
-            const cleanName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim() || 'Lead Prospect';
-            const ownerName = matched.assignedRep || 'Sachin Puri (Team Leader)';
+            const cleanName = (matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`).replace('(Test Lead)', '').trim() || 'Lead Prospect';
+            const ownerName = matched.owner || matched.assignedRep || 'Sachin Puri (Team Leader)';
             const allocatedTimestamp = matched.allocatedAt || matched.createdAt || new Date().toISOString();
             const fileName = matched.fileName || matched.source || 'Spreadsheet Ingestion';
 
@@ -315,38 +317,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       const safeIdx = Math.max(0, parsedIdx);
 
       if (isMounted) {
-        if (leadId === 'demo-lead-test-01') {
-          setLead({
-            id: leadId,
-            name: 'Dr. Vikram Malhotra (Test Lead)',
-            email: 'vikram.malhotra@zenithhospital.in',
-            phone: '+91 98201 12345',
-            company: 'Zenith Hospital & Research Centre',
-            status: 'New Lead',
-            owner: 'Sachin Puri (Team Leader)',
-            city: 'Mumbai',
-            budget: '₹4.5 Lakhs',
-            requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
-            source: 'Website Form (Test)',
-            allocationTrail: buildAllocationTrailForLead('Sachin Puri (Team Leader)', 'Website Form (Test)'),
-          });
-        } else {
-          const rep = sampleReps[safeIdx];
-          setLead({
-            id: leadId,
-            name: sampleNames[safeIdx],
-            email: `${sampleNames[safeIdx].toLowerCase().replace(/\s+/g, '.')}@example.com`,
-            phone: `+91 ${9820100000 + (safeIdx * 12345) % 90000}`,
-            company: sampleCompanies[safeIdx],
-            status: 'New Lead',
-            owner: rep,
-            city: sampleCities[safeIdx],
-            budget: sampleBudgets[safeIdx],
-            requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
-            source: 'Spreadsheet Ingestion',
-            allocationTrail: buildAllocationTrailForLead(rep, `Spreadsheet Ingestion - Record #${safeIdx + 1}`),
-          });
-        }
+        const rep = sampleReps[safeIdx];
+        setLead({
+          id: leadId,
+          name: sampleNames[safeIdx],
+          email: `${sampleNames[safeIdx].toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          phone: `+91 ${9820100000 + (safeIdx * 12345) % 90000}`,
+          company: sampleCompanies[safeIdx],
+          status: 'New Lead',
+          owner: rep,
+          city: sampleCities[safeIdx],
+          budget: sampleBudgets[safeIdx],
+          requirement: 'Multi-Branch CRM Enterprise License & Cloud Integration',
+          source: 'Spreadsheet Ingestion',
+          allocationTrail: buildAllocationTrailForLead(rep, `Spreadsheet Ingestion - Record #${safeIdx + 1}`),
+        });
       }
     };
 
