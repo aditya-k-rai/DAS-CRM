@@ -55,6 +55,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     'lead_center' | 'dialler' | 'wa_direct' | 'wa_cloud' | 'email_marketing'
   >('lead_center');
 
+  const { currentUser } = useAuth();
+  const currentActiveRole = currentUser?.role || (typeof window !== 'undefined' ? (() => {
+    try {
+      return String(JSON.parse(localStorage.getItem('das_crm_user') || '{}').role || '').toUpperCase();
+    } catch (_) {
+      return '';
+    }
+  })() : '');
+
+  const isUserAdmin = currentActiveRole.includes('ADMIN');
+  const isUserManager = currentActiveRole.includes('MANAGER');
+  const isUserTL = currentActiveRole.includes('LEADER') || currentActiveRole.includes('TL');
+  const isUserSales = currentActiveRole.includes('SALES') || currentActiveRole.includes('EXEC') || currentActiveRole.includes('REP');
+
   // Lead State
   const [lead, setLead] = useState<{
     id: string;
@@ -671,8 +685,10 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               currentAssignee={lead.owner}
               currentRole={getUserRoleFromName(lead.owner)}
               leadId={lead.id}
-              isAdmin={false}
-              isManager={true}
+              isAdmin={isUserAdmin}
+              isManager={isUserManager}
+              isTL={isUserTL}
+              isSales={isUserSales}
               onNewAllocation={async (newEvent) => {
                 const updatedTrail = [...(lead.allocationTrail || []), newEvent];
                 const updatedLead = {

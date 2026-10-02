@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { GitBranch, ChevronRight, Shield, Users, UserCheck, User, Clock, Plus, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react';
 
 // ─── Lead Allocation Trail Types ──────────────────────────────────────────────
@@ -257,6 +257,7 @@ interface LeadAllocationTrailProps {
   isAdmin?: boolean;
   isManager?: boolean;
   isTL?: boolean;
+  isSales?: boolean;
   leadId?: string;
   onNewAllocation?: (event: AllocationEvent) => void;
 }
@@ -267,18 +268,98 @@ export function LeadAllocationTrail({
   currentAssignee = 'Unassigned',
   currentRole,
   isAdmin = false,
-  isManager = true,
+  isManager = false,
   isTL = false,
+  isSales = false,
   leadId = '1',
   onNewAllocation,
 }: LeadAllocationTrailProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignToRole, setAssignToRole] = useState<AllocationRole>('SALES_EXEC');
+  const [assignToRole, setAssignToRole] = useState<AllocationRole>('TEAM_LEADER');
   const [assignToName, setAssignToName] = useState('');
   const [assignNote, setAssignNote] = useState('');
 
-  // 1. Sanitize incoming trail if provided
+  // 1. Determine active permissions: ONLY Admin and Manager can re-allocate. TL and Sales are strictly blocked.
+  const storedUserRole = typeof window !== 'undefined'
+    ? (() => {
+        try {
+          return String(JSON.parse(localStorage.getItem('das_crm_user') || '{}').role || '').toUpperCase();
+        } catch (_) {
+          return '';
+        }
+      })()
+    : '';
+
+  const effectiveIsAdmin = isAdmin || storedUserRole.includes('ADMIN');
+  const effectiveIsManager = isManager || storedUserRole.includes('MANAGER');
+  const effectiveIsTL = isTL || storedUserRole.includes('LEADER') || storedUserRole.includes('TL');
+  const effectiveIsSales = isSales || storedUserRole.includes('SALES') || storedUserRole.includes('EXEC') || storedUserRole.includes('REP');
+
+  // Strict Rule: Re-Allocate button is visible ONLY for Admin and Manager. NEVER for TL or Sales.
+  const canAllocate = (effectiveIsAdmin || effectiveIsManager) && !effectiveIsTL && !effectiveIsSales;
+
+  // Determine who the current user can assign to
+  const allowedAssignRoles: AllocationRole[] = effectiveIsAdmin
+    ? ['MANAGER', 'TEAM_LEADER', 'SALES_EXEC']
+    : ['TEAM_LEADER', 'SALES_EXEC'];
+
+  // Candidate roster suggestions based on assignToRole
+  const candidateSuggestions = useMemo(() => {
+    const list: string[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedRaw = localStorage.getItem('das_crm_user_dir_cache_v2');
+        if (cachedRaw) {
+          const cachedUsers: any[] = JSON.parse(cachedRaw);
+          cachedUsers.forEach((u: any) => {
+            const r = String(u.role || '').toUpperCase();
+            if (
+              (assignToRole === 'MANAGER' && r.includes('MANAGER')) ||
+              (assignToRole === 'TEAM_LEADER' && (r.includes('LEADER') || r.includes('TL'))) ||
+              (assignToRole === 'SALES_EXEC' && (r.includes('SALES') || r.includes('EXEC') || r.includes('REP')))
+            ) {
+              if (u.name && !list.includes(u.name)) {
+                list.push(u.name);
+              }
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    if (list.length === 0) {
+      if (assignToRole === 'MANAGER') list.push('Aditya Kumar Rai');
+      else if (assignToRole === 'TEAM_LEADER') list.push('Sachin Puri', 'Vikram Malhotra');
+      else if (assignToRole === 'SALES_EXEC') list.push('Nandini Sharma', 'Sulekha Roy', 'Sadhana Singh', 'Rajesh Verma');
+    }
+    return list;
+  }, [assignToRole]);
+
+  // Resolve actor who is performing the re-allocation
+  const resolveActor = (): { fromName: string; fromRole: AllocationRole } => {
+    if (effectiveIsAdmin) {
+      let adminName = 'Anurag Sharma (Admin)';
+      if (typeof window !== 'undefined') {
+        try {
+          const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+          if (u.name) adminName = u.name.includes('(') ? u.name : `${u.name} (Admin)`;
+        } catch (_) {}
+      }
+      return { fromName: adminName, fromRole: 'ADMIN' };
+    }
+
+    let mgrName = 'Aditya Kumar Rai (Manager)';
+    if (typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('das_crm_user') || '{}');
+        if (u.name) mgrName = u.name.includes('(') ? u.name : `${u.name} (Manager)`;
+      } catch (_) {}
+    }
+    return { fromName: mgrName, fromRole: 'MANAGER' };
+  };
+
+  // 2. Sanitize incoming trail if provided
   const cleanTrail = (trail && trail.length > 0)
     ? trail.filter(event => {
         if (!event) return false;
@@ -310,24 +391,15 @@ export function LeadAllocationTrail({
     ? (currentAssignee.includes('(') ? currentAssignee : `${currentAssignee} (${currentRoleMeta.label})`)
     : (lastEvent?.toName || 'Sachin Puri (Team Leader)');
 
-  const canAllocate = true;
-
-  // Determine who the current user can assign to
-  const allowedAssignRoles: AllocationRole[] = isAdmin
-    ? ['MANAGER', 'TEAM_LEADER', 'SALES_EXEC']
-    : isManager
-    ? ['TEAM_LEADER', 'SALES_EXEC']
-    : ['SALES_EXEC', 'TEAM_LEADER'];
-
   const handleSaveAllocation = () => {
     if (!assignToName.trim()) {
-      alert('Please enter the name of the person you are allocating this lead to.');
+      alert('Please enter or select the name of the person you are allocating this lead to.');
       return;
     }
 
-    const currentActor = getCurrentUserActor();
-    const cleanTarget = assignToName.trim();
-    const targetWithRole = cleanTarget.includes('(') ? cleanTarget : `${cleanTarget} (${ROLE_META[assignToRole].label})`;
+    const currentActor = resolveActor();
+    const cleanTarget = assignToName.trim().replace(/\s*\([^)]*\)/g, '');
+    const targetWithRole = `${cleanTarget} (${ROLE_META[assignToRole].label})`;
 
     const newEvent: AllocationEvent = {
       id: `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -554,6 +626,29 @@ export function LeadAllocationTrail({
               </div>
             </div>
 
+            {/* Quick Candidate Suggestions */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                Quick Select {ROLE_META[assignToRole].label}:
+              </label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {candidateSuggestions.map(cand => (
+                  <button
+                    key={cand}
+                    type="button"
+                    onClick={() => setAssignToName(cand)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                      assignToName.toLowerCase().includes(cand.toLowerCase()) || (cand.toLowerCase().includes(assignToName.toLowerCase()) && assignToName)
+                        ? 'bg-indigo-600/30 border-indigo-500 text-indigo-200 shadow-sm'
+                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    + {cand}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Assign To Name */}
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1">
@@ -562,7 +657,7 @@ export function LeadAllocationTrail({
               <input
                 type="text"
                 className="crm-input w-full text-sm font-semibold"
-                placeholder={`e.g. ${assignToRole === 'MANAGER' ? 'Department Manager A' : assignToRole === 'TEAM_LEADER' ? 'Team Leader A' : 'Sales Representative'}`}
+                placeholder={`Type or select ${ROLE_META[assignToRole].label} name...`}
                 value={assignToName}
                 onChange={e => setAssignToName(e.target.value)}
               />
