@@ -7,7 +7,7 @@ import { useWorkflowPipelineStages } from '@/lib/workflowService';
 
 export function DealsKanban() {
   const { currentUser } = useAuth();
-  const { stages } = useWorkflowPipelineStages();
+  const { stages = [] } = useWorkflowPipelineStages();
   const [allDeals, setAllDeals] = useState<Record<string, any[]>>({});
 
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
@@ -15,12 +15,16 @@ export function DealsKanban() {
 
   // Filter deals by owner if logged in as a Sales Executive
   const getScopedDeals = () => {
-    if (!isRep) return allDeals;
+    if (!isRep) return allDeals || {};
 
     const scoped: Record<string, any[]> = {};
-    Object.keys(allDeals).forEach((stageId) => {
+    Object.keys(allDeals || {}).forEach((stageId) => {
       scoped[stageId] = (allDeals[stageId] || []).filter(
-        (deal) => deal.ownerName === currentUser.name || deal.owner === currentUser.avatar || deal.ownerId === currentUser.id
+        (deal) => deal && (
+          deal.ownerName === currentUser?.name ||
+          deal.owner === currentUser?.avatar ||
+          deal.ownerId === currentUser?.id
+        )
       );
     });
     return scoped;
@@ -29,11 +33,13 @@ export function DealsKanban() {
   const scopedDeals = getScopedDeals();
 
   const getStageDeals = (stage: { id: string; name: string }) => {
-    return scopedDeals[stage.id] || scopedDeals[stage.name.toLowerCase().replace(/\s+/g, '_')] || [];
+    if (!stage) return [];
+    const stageKey = (stage.name || '').toLowerCase().replace(/\s+/g, '_');
+    return scopedDeals[stage.id] || scopedDeals[stageKey] || [];
   };
 
   const stageTotal = (stage: { id: string; name: string }) =>
-    getStageDeals(stage).reduce((s, d) => s + parseInt(String(d.value || 0).replace(/[₹,]/g, '') || '0'), 0);
+    getStageDeals(stage).reduce((s, d) => s + parseInt(String(d?.value || 0).replace(/[₹,]/g, '') || '0', 10), 0);
 
   return (
     <div className="space-y-4">
@@ -43,7 +49,7 @@ export function DealsKanban() {
           <div className="flex items-center gap-2">
             <Lock size={14} className="text-indigo-400" />
             <span>
-              Role Access Restriction (SALES_EXEC): Viewing assigned deals only for <strong>{currentUser.name}</strong>.
+              Role Access Restriction (SALES_EXEC): Viewing assigned deals only for <strong>{currentUser?.name || 'You'}</strong>.
             </span>
           </div>
           <span className="font-bold text-brand-400 px-2 py-0.5 rounded bg-brand/20 border border-brand/30">
@@ -60,7 +66,7 @@ export function DealsKanban() {
             gridTemplateColumns: `repeat(auto-fit, minmax(130px, 1fr))`,
           }}
         >
-          {stages.map((stage) => {
+          {(stages || []).map((stage) => {
             const total = stageTotal(stage);
             const count = getStageDeals(stage).length;
             return (
@@ -77,7 +83,7 @@ export function DealsKanban() {
 
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4 kanban-scroll-container" style={{ minHeight: '500px' }}>
-        {stages.map((stage) => {
+        {(stages || []).map((stage) => {
           const stageDeals = getStageDeals(stage);
           const total = stageTotal(stage);
           return (
@@ -111,38 +117,38 @@ export function DealsKanban() {
                   stageDeals.map((deal) => (
                     <div key={deal.id} className="kanban-card">
                       <div className="flex items-start justify-between mb-2">
-                        <p className="text-sm font-semibold leading-tight text-white">{deal.title}</p>
+                        <p className="text-sm font-semibold leading-tight text-white">{deal.title || 'Untitled Deal'}</p>
                         <button className="btn-ghost w-6 h-6 p-0 flex items-center justify-center rounded flex-shrink-0 ml-1">
                           <MoreHorizontal size={13} />
                         </button>
                       </div>
 
-                      <p className="text-xs text-muted mb-3">{deal.company}</p>
+                      <p className="text-xs text-muted mb-3">{deal.company || '—'}</p>
 
                       {/* Score bar */}
                       <div className="mb-3">
                         <div className="flex justify-between text-xs mb-1">
                           <span className="text-muted">Win probability</span>
                           <span className="font-semibold" style={{ color: stage.color }}>
-                            {deal.score}%
+                            {deal.score || 0}%
                           </span>
                         </div>
                         <div className="h-1.5 w-full bg-background rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${deal.score}%`, background: stage.color }} />
+                          <div className="h-full rounded-full" style={{ width: `${deal.score || 0}%`, background: stage.color }} />
                         </div>
                       </div>
 
                       {/* Card Footer */}
                       <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
-                        <span className="font-bold text-emerald-400">{deal.value}</span>
+                        <span className="font-bold text-emerald-400">{deal.value || '₹0'}</span>
                         <div className="flex items-center gap-1.5 text-muted">
                           <Calendar size={12} />
-                          <span>{deal.close}</span>
+                          <span>{deal.close || '—'}</span>
                           <div
                             className="avatar w-5 h-5 text-[9px] font-bold bg-brand/20 text-brand-400"
-                            title={`Owner: ${deal.ownerName}`}
+                            title={deal.ownerName ? `Owner: ${deal.ownerName}` : 'Deal Owner'}
                           >
-                            {deal.owner}
+                            {deal.owner || 'U'}
                           </div>
                         </div>
                       </div>

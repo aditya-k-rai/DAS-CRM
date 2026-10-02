@@ -254,12 +254,30 @@ export default function LeadPipelinePage() {
             })
             .map((l: any) => {
               const rawFile = l.customFields?.fileName || l.customFields?.filename || (l.source?.name || l.source) || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
-              const rawAllocated = l.customFields?.allocatedAt
-                ? new Date(l.customFields.allocatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                : (l.createdAt ? new Date(l.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM'));
+              
+              let rawAllocated = combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM';
+              if (l.customFields?.allocatedAt) {
+                try {
+                  const d = new Date(l.customFields.allocatedAt);
+                  rawAllocated = isNaN(d.getTime()) ? String(l.customFields.allocatedAt) : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                } catch (_) {}
+              } else if (l.createdAt) {
+                try {
+                  const d = new Date(l.createdAt);
+                  rawAllocated = isNaN(d.getTime()) ? String(l.createdAt) : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                } catch (_) {}
+              }
+
+              let createdDateStr = 'Today';
+              if (l.createdAt) {
+                try {
+                  const d = new Date(l.createdAt);
+                  createdDateStr = isNaN(d.getTime()) ? String(l.createdAt) : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                } catch (_) {}
+              }
 
               return {
-                id: String(l.id),
+                id: String(l.id || `lead_${Math.random()}`),
                 name: `${l.firstName || ''} ${l.lastName || ''}`.trim() || l.name || 'Lead Prospect',
                 fileName: rawFile,
                 allocatedAt: rawAllocated,
@@ -268,10 +286,10 @@ export default function LeadPipelinePage() {
                 company: l.company?.name || l.company || l.customFields?.company || 'Enterprise Client',
                 source: l.source?.name || l.source || 'Google Ads',
                 stage: l.status?.name || l.stage || 'Prospecting',
-                value: l.score || l.estimatedValue || 150000,
+                value: Number(l.score || l.estimatedValue || l.value || 150000) || 150000,
                 assignedRep: l.owner ? `${l.owner.firstName || ''} ${l.owner.lastName || ''}`.trim() : (l.assignedRep || 'Sachin Puri (Team Leader)'),
                 customFields: l.customFields || {},
-                createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today',
+                createdAt: createdDateStr,
               };
             });
         }
@@ -647,28 +665,32 @@ export default function LeadPipelinePage() {
   };
 
   const filteredLeadDirectory = leadDirectory.filter(lead => {
+    if (!lead) return false;
     if (!leadSearchQuery.trim()) return true;
     const q = leadSearchQuery.toLowerCase();
-    return lead.name.toLowerCase().includes(q) ||
-      lead.email.toLowerCase().includes(q) ||
-      lead.phone.toLowerCase().includes(q) ||
-      lead.company.toLowerCase().includes(q);
+    return (lead.name || '').toLowerCase().includes(q) ||
+      (lead.email || '').toLowerCase().includes(q) ||
+      (lead.phone || '').toLowerCase().includes(q) ||
+      (lead.company || '').toLowerCase().includes(q);
   });
 
   // ── Pagination State ────────────────────────────────────────────────────────
   const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset to page 1 whenever the search query or lead list changes
+  // Derived page boundaries (guaranteed strictly within valid bounds)
   const totalPages = Math.max(1, Math.ceil(filteredLeadDirectory.length / pageSize));
-  const safePage = Math.min(currentPage, totalPages);
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const startIdx = (safePage - 1) * pageSize;         // 0-based inclusive
   const endIdx   = Math.min(startIdx + pageSize, filteredLeadDirectory.length); // exclusive
   const pagedLeads = filteredLeadDirectory.slice(startIdx, endIdx);
 
-  // Keep safePage in sync (runs synchronously during render — safe because it
-  // only updates when currentPage drifts out of range after filtering)
-  if (currentPage !== safePage) setCurrentPage(safePage);
+  // Sync currentPage safely inside useEffect when filters/counts change
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   /** Page number buttons with ellipsis (up to 7 visible slots) */
   const buildPageWindows = (cur: number, total: number): (number | '...')[] => {
@@ -1210,7 +1232,7 @@ export default function LeadPipelinePage() {
                           );
                         }
                         if (col.id === 'value') {
-                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{lead.value.toLocaleString('en-IN')}</td>;
+                          return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{(Number(lead.value) || 0).toLocaleString('en-IN')}</td>;
                         }
                         if (col.id === 'assignedRep') {
                           const isLocked = isLeadContactedAndLocked({ status: lead.stage, stage: lead.stage });
@@ -1243,7 +1265,7 @@ export default function LeadPipelinePage() {
                                 }`}
                               >
                                 <option value="Unassigned">⚠️ Unassigned</option>
-                                {assignableReps.map(rep => (
+                                {(assignableReps || []).map(rep => (
                                   <option key={rep.id} value={rep.name}>
                                     {rep.name} ({rep.role})
                                   </option>
@@ -1256,7 +1278,7 @@ export default function LeadPipelinePage() {
                         // Custom Fields Cell
                         return (
                           <td key={col.id} className="p-3 text-indigo-300 font-medium border-r border-border/40 last:border-0">
-                            {lead.customFields[col.id] || '—'}
+                            {lead.customFields?.[col.id] || '—'}
                           </td>
                         );
                       })}
