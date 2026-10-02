@@ -91,7 +91,7 @@ export function getUserRoleFromName(nameOrRole?: string | null, fallbackRole: Al
   return fallbackRole;
 }
 
-export function getAllocatorInfo(leadCustomFields?: any): { fromName: string; fromRole: AllocationRole } {
+export function getHistoricalRootAllocator(leadCustomFields?: any): { fromName: string; fromRole: AllocationRole } {
   if (leadCustomFields?.allocatedBy) {
     const fromRole = getUserRoleFromName(leadCustomFields.allocatedByRole || leadCustomFields.allocatedBy, 'MANAGER');
     const name = leadCustomFields.allocatedBy;
@@ -101,16 +101,24 @@ export function getAllocatorInfo(leadCustomFields?: any): { fromName: string; fr
     };
   }
 
+  // Consistent Organizational Hierarchy Root Allocator (Aditya Kumar Rai - Manager)
+  return {
+    fromName: 'Aditya Kumar Rai (Manager)',
+    fromRole: 'MANAGER',
+  };
+}
+
+export function getCurrentUserActor(): { fromName: string; fromRole: AllocationRole } {
   if (typeof window !== 'undefined') {
     try {
       const uRaw = localStorage.getItem('das_crm_user');
       if (uRaw) {
         const u = JSON.parse(uRaw);
         if (u && (u.name || u.role)) {
-          const uRole = getUserRoleFromName(u.role || u.name, 'MANAGER');
-          const uName = u.name || (uRole === 'MANAGER' ? 'Aditya Kumar Rai' : 'Anurag Sharma');
+          const uRole = getUserRoleFromName(u.role || u.name, 'TEAM_LEADER');
+          const uName = u.name || 'Current User';
           return {
-            fromName: uName.includes('(') ? uName : `${uName} (${ROLE_META[uRole]?.label || 'Manager'})`,
+            fromName: uName.includes('(') ? uName : `${uName} (${ROLE_META[uRole]?.label || 'User'})`,
             fromRole: uRole,
           };
         }
@@ -119,14 +127,14 @@ export function getAllocatorInfo(leadCustomFields?: any): { fromName: string; fr
   }
 
   return {
-    fromName: 'Aditya Kumar Rai (Manager)',
-    fromRole: 'MANAGER',
+    fromName: 'Sachin Puri (Team Leader)',
+    fromRole: 'TEAM_LEADER',
   };
 }
 
 export function buildAllocationTrailForLead(
   assigneeName: string = 'Sachin Puri (Team Leader)',
-  sourceOrFileName: string = 'Spreadsheet Ingestion',
+  sourceOrFileName: string = 'Website Inbound',
   allocatedTimestamp: string = new Date().toISOString(),
   existingTrail?: AllocationEvent[],
   leadCustomFields?: any
@@ -136,7 +144,11 @@ export function buildAllocationTrailForLead(
       if (!step) return false;
       const fName = (step.fromName || '').toLowerCase();
       const tName = (step.toName || '').toLowerCase();
-      if (fName.includes('sachin') && tName.includes('sachin') && step.toRole === 'SALES_EXEC') {
+      // Remove any erroneous TL -> TL self-assignment
+      if (step.fromRole === 'TEAM_LEADER' && step.toRole === 'TEAM_LEADER') {
+        return false;
+      }
+      if (fName.includes('sachin') && tName.includes('sachin')) {
         return false;
       }
       return true;
@@ -145,15 +157,15 @@ export function buildAllocationTrailForLead(
   }
 
   const role = getUserRoleFromName(assigneeName, 'TEAM_LEADER');
-  const allocator = getAllocatorInfo(leadCustomFields);
+  const rootAllocator = getHistoricalRootAllocator(leadCustomFields);
   const cleanAssignee = assigneeName.replace(/\s*\([^)]*\)/g, '').trim() || 'Sachin Puri';
 
   if (role === 'TEAM_LEADER') {
     return [
       {
         id: `alloc_mgr_tl_${Date.now()}`,
-        fromRole: allocator.fromRole,
-        fromName: allocator.fromName,
+        fromRole: rootAllocator.fromRole,
+        fromName: rootAllocator.fromName,
         toRole: 'TEAM_LEADER',
         toName: cleanAssignee.includes('Team Leader') ? cleanAssignee : `${cleanAssignee} (Team Leader)`,
         action: 'ALLOCATED',
@@ -167,8 +179,8 @@ export function buildAllocationTrailForLead(
     return [
       {
         id: `alloc_mgr_tl_${Date.now()}`,
-        fromRole: allocator.fromRole,
-        fromName: allocator.fromName,
+        fromRole: rootAllocator.fromRole,
+        fromName: rootAllocator.fromName,
         toRole: 'TEAM_LEADER',
         toName: 'Sachin Puri (Team Leader)',
         action: 'ALLOCATED',
@@ -262,7 +274,7 @@ export function LeadAllocationTrail({
 }: LeadAllocationTrailProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignToRole, setAssignToRole] = useState<AllocationRole>('TEAM_LEADER');
+  const [assignToRole, setAssignToRole] = useState<AllocationRole>('SALES_EXEC');
   const [assignToName, setAssignToName] = useState('');
   const [assignNote, setAssignNote] = useState('');
 
@@ -272,7 +284,10 @@ export function LeadAllocationTrail({
         if (!event) return false;
         const fName = (event.fromName || '').toLowerCase();
         const tName = (event.toName || '').toLowerCase();
-        if (fName.includes('sachin') && tName.includes('sachin') && event.toRole === 'SALES_EXEC') {
+        if (event.fromRole === 'TEAM_LEADER' && event.toRole === 'TEAM_LEADER') {
+          return false;
+        }
+        if (fName.includes('sachin') && tName.includes('sachin')) {
           return false;
         }
         return true;
@@ -295,16 +310,14 @@ export function LeadAllocationTrail({
     ? (currentAssignee.includes('(') ? currentAssignee : `${currentAssignee} (${currentRoleMeta.label})`)
     : (lastEvent?.toName || 'Sachin Puri (Team Leader)');
 
-  const canAllocate = isAdmin || isManager || isTL;
+  const canAllocate = true;
 
   // Determine who the current user can assign to
   const allowedAssignRoles: AllocationRole[] = isAdmin
     ? ['MANAGER', 'TEAM_LEADER', 'SALES_EXEC']
     : isManager
     ? ['TEAM_LEADER', 'SALES_EXEC']
-    : isTL
-    ? ['SALES_EXEC']
-    : ['TEAM_LEADER', 'SALES_EXEC'];
+    : ['SALES_EXEC', 'TEAM_LEADER'];
 
   const handleSaveAllocation = () => {
     if (!assignToName.trim()) {
@@ -312,16 +325,19 @@ export function LeadAllocationTrail({
       return;
     }
 
-    const allocator = getAllocatorInfo();
+    const currentActor = getCurrentUserActor();
+    const cleanTarget = assignToName.trim();
+    const targetWithRole = cleanTarget.includes('(') ? cleanTarget : `${cleanTarget} (${ROLE_META[assignToRole].label})`;
+
     const newEvent: AllocationEvent = {
-      id: 'alloc-' + Date.now(),
-      fromRole: isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : isTL ? 'TEAM_LEADER' : allocator.fromRole,
-      fromName: allocator.fromName,
+      id: `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      fromRole: currentActor.fromRole,
+      fromName: currentActor.fromName,
       toRole: assignToRole,
-      toName: assignToName.trim().includes('(') ? assignToName.trim() : `${assignToName.trim()} (${ROLE_META[assignToRole].label})`,
-      action: assignToRole === 'SALES_EXEC' ? 'ASSIGNED' as any : 'ALLOCATED',
+      toName: targetWithRole,
+      action: 'REASSIGNED',
       assignedAt: new Date().toISOString(),
-      note: assignNote.trim() || undefined,
+      note: assignNote.trim() || `Re-allocated by ${currentActor.fromName} to ${targetWithRole}`,
     };
 
     if (onNewAllocation) onNewAllocation(newEvent);

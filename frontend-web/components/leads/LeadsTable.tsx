@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
-import { LeadAllocationTrail, AllocationEvent } from './LeadAllocationTrail';
+import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead } from './LeadAllocationTrail';
 import { AILeadScoreCell, generateMockAIScore, AIScoreData } from './AILeadScoreCell';
 import { useWorkflowLeadStatuses } from '@/lib/workflowService';
 import {
@@ -695,6 +695,29 @@ export function LeadsTable() {
         return;
       }
 
+      const targetLead = leadsList.find(l => l.id === leadId);
+      const fromRole = getUserRoleFromName(currentUser?.role || currentUser?.name || 'Manager', 'MANAGER');
+      const fromName = `${currentUser?.name || (fromRole === 'ADMIN' ? 'Anurag Sharma' : 'Aditya Kumar Rai')} (${fromRole === 'ADMIN' ? 'ADMIN' : fromRole === 'MANAGER' ? 'Manager' : fromRole === 'TEAM_LEADER' ? 'TL' : 'Sales Rep'})`;
+      const toRole = getUserRoleFromName(newOwner, 'SALES_EXEC');
+      const cleanNewOwner = newOwner.includes('(') ? newOwner : `${newOwner} (${toRole === 'SALES_EXEC' ? 'Sales Exec' : toRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'})`;
+
+      const newEvent: AllocationEvent = {
+        id: `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        fromRole,
+        fromName,
+        toRole,
+        toName: cleanNewOwner,
+        action: 'REASSIGNED',
+        assignedAt: new Date().toISOString(),
+        note: `Reassigned from table by ${fromName}`,
+      };
+
+      const existingTrail = targetLead?.allocationTrail && targetLead.allocationTrail.length > 0
+        ? targetLead.allocationTrail
+        : buildAllocationTrailForLead(targetLead?.owner || 'Sachin Puri (Team Leader)', targetLead?.source || 'Lead Pipeline');
+
+      const updatedTrail = [...existingTrail, newEvent];
+
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
 
@@ -708,20 +731,35 @@ export function LeadsTable() {
           body: JSON.stringify({
             mode: 'DIRECT_ASSIGN',
             leadIds: [leadId],
-            directAssign: { assigneeId: newOwner, assigneeName: newOwner },
+            directAssign: { assigneeId: cleanNewOwner, assigneeName: cleanNewOwner },
           }),
         });
       } catch (e) {
         console.warn('Backend allocation warning:', e);
       }
 
-      setLeadsList(prev => prev.map(item => item.id === leadId ? {
-        ...item,
-        owner: newOwner,
-        currentAssignee: newOwner,
-      } : item));
+      setLeadsList(prev => {
+        const updated = prev.map(item => item.id === leadId ? {
+          ...item,
+          owner: cleanNewOwner,
+          currentAssignee: cleanNewOwner,
+          allocationTrail: updatedTrail,
+        } : item);
 
-      showTableToast(`✓ Verified with Server: Lead allocated to ${newOwner}! Employee notified.`);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updated));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updated));
+            const updatedItem = updated.find(l => l.id === leadId);
+            if (updatedItem) {
+              sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
+            }
+          } catch (_) {}
+        }
+        return updated;
+      });
+
+      showTableToast(`✓ Verified with Server: Lead allocated to ${cleanNewOwner}! Recorded in history.`);
     } catch (err: any) {
       showTableToast(`⚠️ Allocation failed: ${err.message || 'Network error'}`);
     }

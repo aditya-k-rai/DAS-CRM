@@ -449,10 +449,22 @@ export function TeamLeaderRoleDashboard() {
   }, [teamLeads, activeLeadFilter]);
 
   // Lead Assignment Handler
-  const handleAssignLead = (leadId: string, repId: string) => {
+  const handleAssignLead = async (leadId: string, repId: string) => {
     const targetLead = unassignedQueue.find(l => l.id === leadId);
     const targetRep = members.find(m => m.id === repId);
     if (!targetLead || !targetRep) return;
+
+    const repTargetName = targetRep.name.includes('(') ? targetRep.name : `${targetRep.name} (Sales Exec)`;
+    const newEvent = {
+      id: `alloc-tl-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      fromRole: 'TEAM_LEADER' as const,
+      fromName: 'Sachin Puri (Team Leader)',
+      toRole: 'SALES_EXEC' as const,
+      toName: repTargetName,
+      action: 'ASSIGNED' as const,
+      assignedAt: new Date().toISOString(),
+      note: 'Assigned by Team Leader for sales outreach',
+    };
 
     // Remove from unassigned queue
     setUnassignedQueue(prev => prev.filter(l => l.id !== leadId));
@@ -478,7 +490,62 @@ export function TeamLeaderRoleDashboard() {
     // Update rep workload
     setMembers(prev => prev.map(m => m.id === repId ? { ...m, leadsAssigned: m.leadsAssigned + 1 } : m));
 
-    showToast(`✅ Lead "${targetLead.name}" assigned to ${targetRep.name}!`);
+    // Persist allocation trail to LocalStorage caches
+    if (typeof window !== 'undefined') {
+      try {
+        const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+        if (allLeadsRaw) {
+          const allLeads: any[] = JSON.parse(allLeadsRaw);
+          const updatedAll = allLeads.map((item: any) =>
+            String(item.id) === String(leadId) || (item.name && item.name === targetLead.name)
+              ? {
+                  ...item,
+                  owner: targetRep.name,
+                  currentAssignee: targetRep.name,
+                  allocationTrail: [...(item.allocationTrail || []), newEvent],
+                }
+              : item
+          );
+          localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+        }
+
+        const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+        if (dirLeadsRaw) {
+          const dirLeads: any[] = JSON.parse(dirLeadsRaw);
+          const updatedDir = dirLeads.map((item: any) =>
+            String(item.id) === String(leadId) || (item.name && item.name === targetLead.name)
+              ? {
+                  ...item,
+                  owner: targetRep.name,
+                  assignedRep: targetRep.name,
+                  allocationTrail: [...(item.allocationTrail || []), newEvent],
+                }
+              : item
+          );
+          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+        }
+      } catch (_) {}
+    }
+
+    // Dispatch to backend API
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          mode: 'DIRECT_ASSIGN',
+          leadIds: [leadId],
+          directAssign: { assigneeId: targetRep.id, assigneeName: targetRep.name },
+        }),
+      });
+    } catch (_) {}
+
+    showToast(`✅ Lead "${targetLead.name}" assigned to ${targetRep.name}! Recorded in allocation history.`);
     setAssignModalLead(null);
   };
 
@@ -489,8 +556,36 @@ export function TeamLeaderRoleDashboard() {
       return;
     }
     const count = unassignedQueue.length;
+    const nowIso = new Date().toISOString();
     const distributedLeads: TeamLead[] = unassignedQueue.map((lead, idx) => {
       const rep = members[idx % members.length];
+      const repTargetName = rep.name.includes('(') ? rep.name : `${rep.name} (Sales Exec)`;
+      const newEvent = {
+        id: `alloc-tl-${Date.now()}-${idx}`,
+        fromRole: 'TEAM_LEADER' as const,
+        fromName: 'Sachin Puri (Team Leader)',
+        toRole: 'SALES_EXEC' as const,
+        toName: repTargetName,
+        action: 'ASSIGNED' as const,
+        assignedAt: nowIso,
+        note: 'Distributed via Round-Robin by Team Leader',
+      };
+
+      if (typeof window !== 'undefined') {
+        try {
+          const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+          if (allLeadsRaw) {
+            const allLeads: any[] = JSON.parse(allLeadsRaw);
+            const updatedAll = allLeads.map((item: any) =>
+              String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+                ? { ...item, owner: rep.name, currentAssignee: rep.name, allocationTrail: [...(item.allocationTrail || []), newEvent] }
+                : item
+            );
+            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+          }
+        } catch (_) {}
+      }
+
       return {
         id: lead.id,
         name: lead.name,

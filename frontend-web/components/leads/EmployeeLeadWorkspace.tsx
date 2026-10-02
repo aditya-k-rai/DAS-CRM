@@ -663,13 +663,69 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               leadId={lead.id}
               isAdmin={false}
               isManager={true}
-              onNewAllocation={(newEvent) => {
-                setLead(prev => ({
-                  ...prev,
+              onNewAllocation={async (newEvent) => {
+                const updatedTrail = [...(lead.allocationTrail || []), newEvent];
+                const updatedLead = {
+                  ...lead,
                   owner: newEvent.toName,
-                  allocationTrail: [...(prev.allocationTrail || []), newEvent],
-                }));
-                showSyncNotification(`✓ Lead re-allocated to ${newEvent.toName}!`);
+                  allocationTrail: updatedTrail,
+                };
+                setLead(updatedLead);
+
+                // 1. Persist to Session Storage
+                if (typeof window !== 'undefined') {
+                  try {
+                    sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+                    sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
+
+                    // 2. Persist to LocalStorage caches
+                    const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+                    if (allLeadsRaw) {
+                      const allLeads: any[] = JSON.parse(allLeadsRaw);
+                      const updatedAll = allLeads.map((item: any) =>
+                        String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+                          ? { ...item, owner: newEvent.toName, currentAssignee: newEvent.toName, allocationTrail: updatedTrail }
+                          : item
+                      );
+                      localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+                    }
+
+                    const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+                    if (dirLeadsRaw) {
+                      const dirLeads: any[] = JSON.parse(dirLeadsRaw);
+                      const updatedDir = dirLeads.map((item: any) =>
+                        String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+                          ? { ...item, owner: newEvent.toName, assignedRep: newEvent.toName, allocationTrail: updatedTrail }
+                          : item
+                      );
+                      localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+                    }
+                  } catch (_) {}
+                }
+
+                // 3. Dispatch to backend API
+                try {
+                  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                  const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+                  const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  };
+
+                  await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                      mode: 'DIRECT_ASSIGN',
+                      leadIds: [lead.id],
+                      directAssign: { assigneeId: newEvent.toName, assigneeName: newEvent.toName },
+                    }),
+                  });
+                } catch (e) {
+                  console.warn('Backend allocation sync warning:', e);
+                }
+
+                showSyncNotification(`✓ Lead re-allocated to ${newEvent.toName}! Recorded in allocation history.`);
               }}
             />
           </div>
