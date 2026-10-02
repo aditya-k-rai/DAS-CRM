@@ -556,12 +556,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           ? `🏢 In-Person / Virtual Visit: ${lead.name} (${lead.company || lead.phone})`
           : `📞 Callback: ${lead.name} (${lead.phone})`;
 
+      const dueAtIso = `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`;
       const followUpPayload = {
         title: followUpTitle,
         followUpType: scheduledType,
         leadId: lead.id,
         scheduledDate: funnelScheduledDate,
         scheduledTime: funnelScheduledTime || '10:30',
+        dueAt: dueAtIso,
         priority: 'HIGH',
         purpose: callResponseNotes || `Call Funnel: ${dispositionSummaryTitle}`,
         reminderMinutes: enablePreAlert5Min ? 5 : 0,
@@ -583,7 +585,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             ...followUpPayload,
             createdAt: new Date().toISOString(),
             status: 'PENDING',
-            lead: { id: lead.id, name: lead.name, phone: lead.phone, company: lead.company },
+            lead: {
+              id: lead.id,
+              name: lead.name,
+              firstName: (lead as any).firstName || (lead.name ? lead.name.split(' ')[0] : ''),
+              lastName: (lead as any).lastName || (lead.name ? lead.name.split(' ').slice(1).join(' ') : ''),
+              phone: lead.phone,
+              email: lead.email,
+              company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
+              status: { name: targetStatus, color: '#3b82f6' },
+            },
           });
           localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(cachedTasks.slice(0, 100)));
           window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));

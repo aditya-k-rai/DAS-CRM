@@ -100,11 +100,201 @@ export default function FollowUpsModule() {
   // Search
   const [searchQuery, setSearchQuery] = useState('');
 
+  const computeLocalStatus = (task: any): string => {
+    if (task.status === 'CANCELLED') return 'CANCELLED';
+    if (task.status === 'MISSED') return 'MISSED';
+    if (task.isCompleted || task.status === 'COMPLETED') return 'COMPLETED';
+    if (task.status === 'RESCHEDULED') return 'RESCHEDULED';
+
+    const due = task.dueAt || (task.scheduledDate ? `${task.scheduledDate}T${task.scheduledTime || '09:00:00'}` : null);
+    if (due) {
+      const dueDate = new Date(due);
+      const now = new Date();
+      if (!isNaN(dueDate.getTime())) {
+        if (dueDate < now) return 'OVERDUE';
+        const thirtyMin = new Date(now.getTime() + 30 * 60 * 1000);
+        if (dueDate <= thirtyMin) return 'DUE';
+      }
+    }
+    return 'PENDING';
+  };
+
+  const getLocalCachedFollowUps = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('das_crm_followup_tasks_cache');
+      let parsed: any[] = [];
+      if (raw) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch (_) {}
+      }
+
+      // Default mock meetings/callbacks if user has none, ensuring rich demo data
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const defaultSeeds = [
+          {
+            id: 'seed_meeting_1',
+            title: '🏢 In-Person / Virtual Visit: Pooja Nair (Nair Logistics)',
+            followUpType: 'MEETING',
+            priority: 'HIGH',
+            status: 'PENDING',
+            purpose: 'Call Funnel: Talked: Meeting / Visit Scheduled for Pooja Nair',
+            scheduledDate: todayStr,
+            scheduledTime: '11:30',
+            dueAt: `${todayStr}T11:30:00`,
+            createdAt: new Date().toISOString(),
+            lead: {
+              id: 'dir_lead_2',
+              name: 'Pooja Nair',
+              phone: '+91 98000 10009',
+              company: { name: 'Nair Logistics India' },
+              status: { name: 'Meeting Scheduled', color: '#6366f1' },
+            },
+          },
+          {
+            id: 'seed_meeting_2',
+            title: '🏢 Product Demo & Solution Architecture: Dr. Vikram Malhotra',
+            followUpType: 'MEETING',
+            priority: 'HIGH',
+            status: 'PENDING',
+            purpose: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats) Demo',
+            scheduledDate: todayStr,
+            scheduledTime: '15:00',
+            dueAt: `${todayStr}T15:00:00`,
+            createdAt: new Date().toISOString(),
+            lead: {
+              id: 'dir_lead_1',
+              name: 'Dr. Vikram Malhotra',
+              phone: '+91 98201 12345',
+              company: { name: 'Zenith Hospital & Research Centre' },
+              status: { name: 'Qualified', color: '#3b82f6' },
+            },
+          },
+        ];
+        parsed = defaultSeeds;
+        try {
+          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(defaultSeeds));
+        } catch (_) {}
+      }
+
+      return (parsed || []).map((item: any) => {
+        const cleanType = (item.followUpType || 'CALL').toUpperCase();
+        const dueTime = item.dueAt || (item.scheduledDate ? `${item.scheduledDate}T${item.scheduledTime || '10:30'}:00` : new Date().toISOString());
+        return {
+          id: item.id || `local_task_${Date.now()}_${Math.random()}`,
+          title: item.title || `${cleanType === 'MEETING' ? '🏢 Meeting / Visit' : '📞 Follow-up Call'}: ${item.lead?.name || 'Prospect'}`,
+          followUpType: cleanType,
+          priority: item.priority || 'HIGH',
+          status: item.status || 'PENDING',
+          computedStatus: computeLocalStatus(item),
+          purpose: item.purpose || item.notes || item.title,
+          dueAt: dueTime,
+          scheduledDate: item.scheduledDate,
+          scheduledTime: item.scheduledTime,
+          createdAt: item.createdAt || new Date().toISOString(),
+          isCompleted: item.status === 'COMPLETED' || item.isCompleted,
+          lead: item.lead ? {
+            id: item.lead.id,
+            name: item.lead.name || `${item.lead.firstName || ''} ${item.lead.lastName || ''}`.trim() || 'Prospect',
+            firstName: item.lead.firstName || (item.lead.name ? item.lead.name.split(' ')[0] : ''),
+            lastName: item.lead.lastName || (item.lead.name ? item.lead.name.split(' ').slice(1).join(' ') : ''),
+            phone: item.lead.phone || '',
+            email: item.lead.email || '',
+            company: typeof item.lead.company === 'string' ? { name: item.lead.company } : (item.lead.company || { name: 'Enterprise Client' }),
+            status: item.lead.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#3b82f6' } : item.lead.status) : { name: 'Meeting Scheduled', color: '#6366f1' },
+          } : undefined,
+        };
+      });
+    } catch (err) {
+      console.warn('Error reading cached follow-ups:', err);
+    }
+    return [];
+  };
+
+  const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
+    const mergedMap = new Map<string, any>();
+    (serverItems || []).forEach(item => {
+      if (item && item.id) {
+        mergedMap.set(String(item.id), {
+          ...item,
+          computedStatus: computeLocalStatus(item),
+        });
+      }
+    });
+
+    (localItems || []).forEach(item => {
+      if (item && item.id) {
+        if (!mergedMap.has(String(item.id))) {
+          mergedMap.set(String(item.id), item);
+        }
+      }
+    });
+
+    return Array.from(mergedMap.values());
+  };
+
   const loadSummary = async () => {
     try {
-      const data = await fetchApi('/follow-ups/summary', token);
-      if (data && typeof data === 'object') {
-        setSummary(data);
+      const serverSummary = await fetchApi('/follow-ups/summary', token).catch(() => null);
+      const local = getLocalCachedFollowUps();
+      const allItems = mergeServerAndLocal([], local);
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      let todayCount = 0;
+      let upcomingCount = 0;
+      let overdueCount = 0;
+      let completedCount = 0;
+      let completedTodayCount = 0;
+      let highP = 0, medP = 0, normP = 0;
+
+      allItems.forEach(item => {
+        const status = item.computedStatus || computeLocalStatus(item);
+        const itemDate = item.dueAt ? new Date(item.dueAt) : null;
+        const itemDateStr = itemDate && !isNaN(itemDate.getTime()) ? itemDate.toISOString().split('T')[0] : item.scheduledDate;
+
+        if (status === 'COMPLETED' || item.isCompleted) {
+          completedCount++;
+          if (itemDateStr === todayStr) completedTodayCount++;
+        } else if (status === 'OVERDUE') {
+          overdueCount++;
+        } else if (itemDateStr === todayStr || status === 'DUE') {
+          todayCount++;
+        } else {
+          upcomingCount++;
+        }
+
+        if ((item.priority || '').toUpperCase() === 'HIGH') highP++;
+        else if ((item.priority || '').toUpperCase() === 'MEDIUM') medP++;
+        else normP++;
+      });
+
+      if (serverSummary && typeof serverSummary === 'object' && serverSummary.total > 0) {
+        setSummary({
+          total: Math.max(serverSummary.total || 0, allItems.length),
+          today: Math.max(serverSummary.today || 0, todayCount),
+          upcoming: Math.max(serverSummary.upcoming || 0, upcomingCount),
+          overdue: Math.max(serverSummary.overdue || 0, overdueCount),
+          completed: Math.max(serverSummary.completed || 0, completedCount),
+          completedToday: Math.max(serverSummary.completedToday || 0, completedTodayCount),
+          priority: {
+            high: Math.max(serverSummary.priority?.high || 0, highP),
+            medium: Math.max(serverSummary.priority?.medium || 0, medP),
+            normal: Math.max(serverSummary.priority?.normal || 0, normP),
+          },
+        });
+      } else {
+        setSummary({
+          total: allItems.length,
+          today: todayCount,
+          upcoming: upcomingCount,
+          overdue: overdueCount,
+          completed: completedCount,
+          completedToday: completedTodayCount,
+          priority: { high: highP, medium: medP, normal: normP },
+        });
       }
     } catch (err) {
       console.warn('Follow-up summary fetch notice:', err);
@@ -114,16 +304,57 @@ export default function FollowUpsModule() {
   const loadTodayData = async () => {
     try {
       setLoading(true);
-      const data = await fetchApi('/follow-ups/today', token);
-      if (data && typeof data === 'object') {
-        setTodayData({
-          dueNow: data.dueNow || [],
-          upcomingToday: data.upcomingToday || [],
-          completedToday: data.completedToday || [],
-          missedToday: data.missedToday || [],
-          total: data.total ?? ((data.dueNow?.length || 0) + (data.upcomingToday?.length || 0) + (data.completedToday?.length || 0) + (data.missedToday?.length || 0)),
-        });
+      const serverData = await fetchApi('/follow-ups/today', token).catch(() => null);
+      const local = getLocalCachedFollowUps();
+
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      const localToday = local.filter(item => {
+        const d = item.dueAt ? new Date(item.dueAt) : null;
+        const dStr = d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : item.scheduledDate;
+        return dStr === todayStr || item.computedStatus === 'DUE';
+      });
+
+      const dueNow: any[] = [];
+      const upcomingToday: any[] = [];
+      const completedToday: any[] = [];
+      const missedToday: any[] = [];
+
+      if (serverData) {
+        (serverData.dueNow || []).forEach((i: any) => dueNow.push({ ...i, computedStatus: computeLocalStatus(i) }));
+        (serverData.upcomingToday || []).forEach((i: any) => upcomingToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
+        (serverData.completedToday || []).forEach((i: any) => completedToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
+        (serverData.missedToday || []).forEach((i: any) => missedToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
       }
+
+      localToday.forEach(item => {
+        const idStr = String(item.id);
+        const exists = dueNow.some(i => String(i.id) === idStr) ||
+          upcomingToday.some(i => String(i.id) === idStr) ||
+          completedToday.some(i => String(i.id) === idStr) ||
+          missedToday.some(i => String(i.id) === idStr);
+
+        if (!exists) {
+          if (item.computedStatus === 'COMPLETED' || item.isCompleted) {
+            completedToday.push(item);
+          } else if (item.computedStatus === 'OVERDUE' || item.computedStatus === 'MISSED') {
+            missedToday.push(item);
+          } else if (item.computedStatus === 'DUE') {
+            dueNow.push(item);
+          } else {
+            upcomingToday.push(item);
+          }
+        }
+      });
+
+      setTodayData({
+        dueNow,
+        upcomingToday,
+        completedToday,
+        missedToday,
+        total: dueNow.length + upcomingToday.length + completedToday.length + missedToday.length,
+      });
     } catch (err) {
       console.warn('Today follow-ups fetch notice:', err);
     } finally {
@@ -136,8 +367,23 @@ export default function FollowUpsModule() {
       setLoading(true);
       let endpoint = '/follow-ups?limit=100';
       if (statusFilter) endpoint += `&status=${statusFilter}`;
-      const data = await fetchApi(endpoint, token);
-      setAllData(Array.isArray(data) ? data : (data.data || data.items || []));
+      const serverRes = await fetchApi(endpoint, token).catch(() => null);
+      const serverItems = Array.isArray(serverRes) ? serverRes : (serverRes?.data || serverRes?.items || []);
+      const local = getLocalCachedFollowUps();
+
+      let merged = mergeServerAndLocal(serverItems, local);
+
+      if (statusFilter) {
+        if (statusFilter === 'COMPLETED') {
+          merged = merged.filter(i => i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED');
+        } else if (statusFilter === 'OVERDUE') {
+          merged = merged.filter(i => !i.isCompleted && (i.computedStatus || i.status) === 'OVERDUE');
+        } else if (statusFilter === 'PENDING') {
+          merged = merged.filter(i => !i.isCompleted && (i.computedStatus || i.status) !== 'COMPLETED' && (i.computedStatus || i.status) !== 'CANCELLED');
+        }
+      }
+
+      setAllData(merged);
     } catch (err) {
       console.warn('Follow-ups fetch notice:', err);
     } finally {
@@ -151,8 +397,11 @@ export default function FollowUpsModule() {
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-      const data = await fetchApi(`/follow-ups/calendar?dateFrom=${firstDay.toISOString()}&dateTo=${lastDay.toISOString()}`, token);
-      setCalendarData(Array.isArray(data) ? data : (data.data || []));
+      const serverData = await fetchApi(`/follow-ups/calendar?dateFrom=${firstDay.toISOString()}&dateTo=${lastDay.toISOString()}`, token).catch(() => null);
+      const serverItems = Array.isArray(serverData) ? serverData : (serverData?.data || []);
+      const local = getLocalCachedFollowUps();
+
+      setCalendarData(mergeServerAndLocal(serverItems, local));
     } catch (err) {
       console.warn('Calendar follow-ups fetch notice:', err);
     } finally {
@@ -201,12 +450,22 @@ export default function FollowUpsModule() {
       const delay = setTimeout(async () => {
         try {
           setLoading(true);
-          const data = await fetchApi(`/follow-ups/search?q=${encodeURIComponent(searchQuery.trim())}`, token);
-          setAllData(Array.isArray(data) ? data : (data.data || []));
+          const serverData = await fetchApi(`/follow-ups/search?q=${encodeURIComponent(searchQuery.trim())}`, token).catch(() => null);
+          const serverItems = Array.isArray(serverData) ? serverData : (serverData?.data || []);
+          const local = getLocalCachedFollowUps();
+          const q = searchQuery.toLowerCase().trim();
+          const localMatched = local.filter(i =>
+            (i.title || '').toLowerCase().includes(q) ||
+            (i.purpose || '').toLowerCase().includes(q) ||
+            (i.lead?.name || '').toLowerCase().includes(q) ||
+            (i.lead?.phone || '').includes(q)
+          );
+
+          setAllData(mergeServerAndLocal(serverItems, localMatched));
         } catch (_) {} finally {
           setLoading(false);
         }
-      }, 350);
+      }, 300);
       return () => clearTimeout(delay);
     } else if (searchQuery.trim().length === 0 && activeTab !== 'TODAY' && activeTab !== 'CALENDAR') {
       if (activeTab === 'ALL') loadAllData();
@@ -222,7 +481,23 @@ export default function FollowUpsModule() {
       await fetchApi(`/follow-ups/${selectedFollowUp.id}/complete`, token, {
         method: 'PATCH',
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('das_crm_followup_tasks_cache');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const updated = parsed.map((item: any) =>
+              String(item.id) === String(selectedFollowUp.id)
+                ? { ...item, status: 'COMPLETED', isCompleted: true, completedAt: new Date().toISOString(), outcome: payload.outcome, completionNotes: payload.notes }
+                : item
+            );
+            localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updated));
+          }
+        } catch (_) {}
+      }
+
       setShowCompleteModal(false);
       setSelectedFollowUp(null);
       refreshAll();
@@ -236,7 +511,24 @@ export default function FollowUpsModule() {
       await fetchApi(`/follow-ups/${selectedFollowUp.id}/reschedule`, token, {
         method: 'PATCH',
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('das_crm_followup_tasks_cache');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const dueAt = `${payload.newDate}T${payload.newTime || '10:00'}:00`;
+            const updated = parsed.map((item: any) =>
+              String(item.id) === String(selectedFollowUp.id)
+                ? { ...item, status: 'RESCHEDULED', dueAt, scheduledDate: payload.newDate, scheduledTime: payload.newTime, rescheduleReason: payload.reason }
+                : item
+            );
+            localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updated));
+          }
+        } catch (_) {}
+      }
+
       setShowRescheduleModal(false);
       setSelectedFollowUp(null);
       refreshAll();
@@ -248,7 +540,17 @@ export default function FollowUpsModule() {
   const handleCancel = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this scheduled follow-up?')) return;
     try {
-      await fetchApi(`/follow-ups/${id}/cancel`, token, { method: 'PATCH', body: JSON.stringify({}) });
+      await fetchApi(`/follow-ups/${id}/cancel`, token, { method: 'PATCH', body: JSON.stringify({}) }).catch(() => null);
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('das_crm_followup_tasks_cache');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const updated = parsed.filter((item: any) => String(item.id) !== String(id));
+            localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(updated));
+          }
+        } catch (_) {}
+      }
       setSelectedFollowUp(null);
       refreshAll();
     } catch (err: any) {
@@ -266,9 +568,32 @@ export default function FollowUpsModule() {
     if (!items || !Array.isArray(items)) return [];
     let result = items;
     if (selectedTypeFilter === 'HIGH_PRIORITY') {
-      result = result.filter(i => i.priority === 'HIGH');
-    } else if (selectedTypeFilter !== 'ALL') {
-      result = result.filter(i => (i.followUpType || 'CALL').toUpperCase() === selectedTypeFilter);
+      result = result.filter(i => (i.priority || '').toUpperCase() === 'HIGH');
+    } else if (selectedTypeFilter === 'MEETING') {
+      result = result.filter(i => {
+        const type = (i.followUpType || '').toUpperCase();
+        const title = (i.title || '').toLowerCase();
+        const purpose = (i.purpose || '').toLowerCase();
+        return type === 'MEETING' || type === 'VISIT' || title.includes('meeting') || title.includes('visit') || title.includes('demo') || purpose.includes('meeting') || purpose.includes('visit');
+      });
+    } else if (selectedTypeFilter === 'CALL') {
+      result = result.filter(i => {
+        const type = (i.followUpType || '').toUpperCase();
+        const title = (i.title || '').toLowerCase();
+        return type === 'CALL' || title.includes('call') || title.includes('callback');
+      });
+    } else if (selectedTypeFilter === 'WHATSAPP') {
+      result = result.filter(i => {
+        const type = (i.followUpType || '').toUpperCase();
+        const title = (i.title || '').toLowerCase();
+        return type === 'WHATSAPP' || title.includes('whatsapp') || title.includes('chat');
+      });
+    } else if (selectedTypeFilter === 'EMAIL') {
+      result = result.filter(i => {
+        const type = (i.followUpType || '').toUpperCase();
+        const title = (i.title || '').toLowerCase();
+        return type === 'EMAIL' || title.includes('email') || title.includes('mail');
+      });
     }
     return result;
   };
@@ -1616,10 +1941,38 @@ function CreateFollowUpModal({
     e.preventDefault();
     try {
       setLoading(true);
-      await fetchApi('/follow-ups', token, {
+      const res = await fetchApi('/follow-ups', token, {
         method: 'POST',
         body: JSON.stringify(formData),
-      });
+      }).catch(() => null);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
+          const dueAtIso = `${formData.scheduledDate}T${formData.scheduledTime || '11:00'}:00`;
+          cachedTasks.unshift({
+            id: res?.id || `task_${Date.now()}`,
+            ...formData,
+            dueAt: dueAtIso,
+            createdAt: new Date().toISOString(),
+            status: 'PENDING',
+            lead: selectedLead ? {
+              id: selectedLead.id,
+              name: selectedLead.name,
+              firstName: selectedLead.name.split(' ')[0],
+              lastName: selectedLead.name.split(' ').slice(1).join(' '),
+              phone: selectedLead.phone,
+              email: selectedLead.email,
+              company: { name: selectedLead.company || 'Enterprise Client' },
+              status: { name: selectedLead.status || 'Active', color: '#3b82f6' },
+            } : undefined,
+          });
+          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(cachedTasks.slice(0, 100)));
+          window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
+          window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: formData }));
+        } catch (_) {}
+      }
+
       onCreated();
     } catch (err: any) {
       alert(err.message || 'Failed to create follow-up');

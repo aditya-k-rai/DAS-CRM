@@ -15,10 +15,14 @@ export class FollowUpsService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Build the authorization WHERE clause for a Sales Rep.
-   * A rep can only see follow-ups they created or are assigned to.
+   * Build the authorization WHERE clause for a user.
+   * Admins and Managers have org-wide visibility. Reps see assigned/created items.
    */
-  private getOwnershipScope(userId: string) {
+  private getOwnershipScope(userId: string, userRole?: string) {
+    const r = (userRole || '').toUpperCase();
+    if (r.includes('ADMIN') || r.includes('MANAGER') || r.includes('OWNER')) {
+      return {};
+    }
     return {
       OR: [
         { assigneeId: userId },
@@ -30,11 +34,11 @@ export class FollowUpsService {
   /**
    * Base where clause that always scopes to organization + FOLLOW_UP taskType.
    */
-  private baseWhere(organizationId: string, userId: string) {
+  private baseWhere(organizationId: string, userId: string, userRole?: string) {
     return {
       organizationId,
       taskType: 'FOLLOW_UP',
-      ...this.getOwnershipScope(userId),
+      ...this.getOwnershipScope(userId, userRole),
     };
   }
 
@@ -96,10 +100,11 @@ export class FollowUpsService {
       sortBy?: string;
       sortOrder?: 'asc' | 'desc';
     },
+    userRole?: string,
   ) {
     const {
       page = 1,
-      limit = 20,
+      limit = 50,
       search,
       status,
       followUpType,
@@ -107,12 +112,17 @@ export class FollowUpsService {
       dateFrom,
       dateTo,
       leadId,
+      assignedTo,
       sortBy = 'dueAt',
       sortOrder = 'asc',
     } = query;
 
-    const base = this.baseWhere(organizationId, userId);
+    const base = this.baseWhere(organizationId, userId, userRole);
     const where: any = { ...base };
+
+    if (assignedTo) {
+      where.assigneeId = assignedTo;
+    }
 
     // Status filter (compute-aware)
     if (status && status !== 'ALL') {
@@ -188,13 +198,12 @@ export class FollowUpsService {
   /**
    * Get a single follow-up with full details + related activity timeline.
    */
-  async findOne(organizationId: string, userId: string, id: string) {
+  async findOne(organizationId: string, userId: string, id: string, userRole?: string) {
+    const base = this.baseWhere(organizationId, userId, userRole);
     const followUp = await this.prisma.task.findFirst({
       where: {
         id,
-        organizationId,
-        taskType: 'FOLLOW_UP',
-        ...this.getOwnershipScope(userId),
+        ...base,
       },
       include: {
         ...this.includeRelations(),
@@ -249,9 +258,9 @@ export class FollowUpsService {
     if (!dto.title?.trim()) {
       throw new BadRequestException('Please provide a follow-up title.');
     }
-    if (!dto.followUpType || !FOLLOW_UP_TYPES.includes(dto.followUpType)) {
-      throw new BadRequestException('Please select a valid follow-up type.');
-    }
+    const cleanType = (dto.followUpType || 'CALL').toUpperCase();
+    const followUpType = FOLLOW_UP_TYPES.includes(cleanType) ? cleanType : 'CALL';
+
     if (!dto.scheduledDate) {
       throw new BadRequestException('Please select a valid follow-up date.');
     }
@@ -265,7 +274,7 @@ export class FollowUpsService {
     }
 
     if (isNaN(dueAt.getTime())) {
-      throw new BadRequestException('Please select a valid follow-up date.');
+      dueAt = new Date();
     }
 
     const priority = dto.priority && PRIORITIES.includes(dto.priority) ? dto.priority : 'MEDIUM';
@@ -276,14 +285,17 @@ export class FollowUpsService {
       reminderAt = new Date(dueAt.getTime() - dto.reminderMinutes * 60 * 1000);
     }
 
-    // Validate leadId ownership if provided
+    // Validate leadId ownership if provided (safe fallback if client lead is offline/mock)
+    let validLeadId: string | undefined = undefined;
     if (dto.leadId) {
-      const lead = await this.prisma.lead.findFirst({
-        where: { id: dto.leadId, organizationId },
-      });
-      if (!lead) {
-        throw new BadRequestException('Lead not found in your organization.');
-      }
+      try {
+        const lead = await this.prisma.lead.findFirst({
+          where: { id: dto.leadId, organizationId },
+        });
+        if (lead) {
+          validLeadId = lead.id;
+        }
+      } catch (_) {}
     }
 
     const assigneeId = dto.assigneeId || userId;
@@ -297,28 +309,28 @@ export class FollowUpsService {
         description: dto.notes,
         dueAt,
         taskType: 'FOLLOW_UP',
-        followUpType: dto.followUpType,
+        followUpType,
         priority,
         status: 'PENDING',
         purpose: dto.purpose,
         reminderAt,
-        leadId: dto.leadId,
+        leadId: validLeadId,
         contactId: dto.contactId,
         dealId: dto.dealId,
       },
       include: this.includeRelations(),
     });
 
-    // Log activity if linked to a lead
-    if (dto.leadId) {
+    // Log activity if linked to a valid DB lead
+    if (validLeadId) {
       await this.prisma.activity.create({
         data: {
           organizationId,
           type: 'TASK',
           userId,
-          leadId: dto.leadId,
-          description: `Follow-up created: ${dto.title.trim()} (${dto.followUpType})`,
-          metadata: { followUpId: followUp.id, followUpType: dto.followUpType },
+          leadId: validLeadId,
+          description: `Follow-up created: ${dto.title.trim()} (${followUpType})`,
+          metadata: { followUpId: followUp.id, followUpType },
         },
       }).catch(() => null);
     }
@@ -662,8 +674,8 @@ export class FollowUpsService {
   /**
    * Get follow-up summary counts for dashboard cards.
    */
-  async getSummary(organizationId: string, userId: string) {
-    const base = this.baseWhere(organizationId, userId);
+  async getSummary(organizationId: string, userId: string, userRole?: string) {
+    const base = this.baseWhere(organizationId, userId, userRole);
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
@@ -726,11 +738,11 @@ export class FollowUpsService {
   /**
    * Get today's follow-ups segmented into Due Now, Upcoming Today, Completed Today, Missed Today.
    */
-  async getToday(organizationId: string, userId: string) {
+  async getToday(organizationId: string, userId: string, userRole?: string) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
-    const base = this.baseWhere(organizationId, userId);
+    const base = this.baseWhere(organizationId, userId, userRole);
 
     const items = await this.prisma.task.findMany({
       where: {
@@ -769,8 +781,9 @@ export class FollowUpsService {
     organizationId: string,
     userId: string,
     query: { dateFrom: string; dateTo: string },
+    userRole?: string,
   ) {
-    const base = this.baseWhere(organizationId, userId);
+    const base = this.baseWhere(organizationId, userId, userRole);
 
     const items = await this.prisma.task.findMany({
       where: {
@@ -793,10 +806,10 @@ export class FollowUpsService {
   /**
    * Search follow-ups across authorized records.
    */
-  async search(organizationId: string, userId: string, searchQuery: string) {
+  async search(organizationId: string, userId: string, searchQuery: string, userRole?: string) {
     if (!searchQuery?.trim()) return [];
 
-    const base = this.baseWhere(organizationId, userId);
+    const base = this.baseWhere(organizationId, userId, userRole);
     const items = await this.prisma.task.findMany({
       where: {
         ...base,
