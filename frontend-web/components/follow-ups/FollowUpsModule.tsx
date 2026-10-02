@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -39,6 +40,7 @@ import {
   Tag,
   HelpCircle,
   Briefcase,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -1438,16 +1440,16 @@ function FollowUpCard({
     >
       {/* Top row: Title + Type + Status */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/5', typeIconColor)}>
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/5 mt-0.5', typeIconColor)}>
             <Icon size={14} />
           </div>
-          <div className="min-w-0">
-            <h4 className="text-xs font-bold text-white truncate leading-snug group-hover:text-indigo-300 transition-colors">
+          <div className="min-w-0 flex-1">
+            <h4 className="text-xs font-bold text-white break-words leading-snug group-hover:text-indigo-300 transition-colors">
               {item.title}
             </h4>
-            <p className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
-              <CalendarIcon size={10} className="text-slate-500" />
+            <p className="text-[10px] text-slate-400 flex items-center gap-1 font-mono mt-0.5">
+              <CalendarIcon size={10} className="text-slate-500 shrink-0" />
               <span>{dateFormatted}</span> • <span>{timeFormatted}</span>
             </p>
           </div>
@@ -1460,17 +1462,17 @@ function FollowUpCard({
 
       {/* Purpose note banner */}
       {item.purpose && (
-        <p className="text-[11px] text-slate-300 line-clamp-1 bg-slate-950/60 px-2.5 py-1 rounded-md border border-slate-800/50 font-sans">
+        <p className="text-[11px] text-slate-300 break-words line-clamp-2 bg-slate-950/60 px-2.5 py-1.5 rounded-md border border-slate-800/50 font-sans leading-relaxed">
           {item.purpose}
         </p>
       )}
 
       {/* WHOSE LEAD IS THAT & CONTACT INFO */}
       <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/60">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 truncate">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <Building2 size={11} className="text-indigo-400 shrink-0" />
-            <span className="font-bold text-white truncate">
+            <span className="font-bold text-white break-words">
               {item.lead?.name || 'General Prospect'}
             </span>
             {item.lead?.company?.name && (
@@ -1484,7 +1486,7 @@ function FollowUpCard({
         </div>
 
         {/* Visible Phone and Email in Card */}
-        <div className="flex items-center gap-2 text-[10px] font-mono truncate pt-1 border-t border-slate-800/40">
+        <div className="flex items-center gap-2 text-[10px] font-mono flex-wrap pt-1 border-t border-slate-800/40">
           {item.lead?.phone && (
             <span className="text-amber-400 font-medium flex items-center gap-1 shrink-0">
               <Phone size={10} className="text-amber-500" /> {item.lead.phone}
@@ -1492,7 +1494,7 @@ function FollowUpCard({
           )}
           {item.lead?.phone && item.lead?.email && <span className="text-slate-600">•</span>}
           {item.lead?.email && (
-            <span className="text-sky-300/90 truncate flex items-center gap-1">
+            <span className="text-sky-300/90 break-all flex items-center gap-1">
               <Mail size={10} className="text-sky-400 shrink-0" /> {item.lead.email}
             </span>
           )}
@@ -1500,12 +1502,12 @@ function FollowUpCard({
       </div>
 
       {/* WHO & WHEN SCHEDULED (Matching lead page timeline attribution) */}
-      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/50">
-        <div className="flex items-center gap-1.5 truncate" title={`Scheduled by ${creatorName} (${creatorRole}) on ${createdTimeFormatted}`}>
+      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/50 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1" title={`Scheduled by ${creatorName} (${creatorRole}) on ${createdTimeFormatted}`}>
           <div className="w-4 h-4 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[8px] font-black text-slate-300 shrink-0">
             {creatorName.charAt(0).toUpperCase()}
           </div>
-          <span className="truncate">
+          <span className="break-words">
             Scheduled by <strong className="text-slate-300 font-bold">{creatorName}</strong> ({creatorRole}) • {createdTimeFormatted}
           </span>
         </div>
@@ -1516,7 +1518,7 @@ function FollowUpCard({
               e.stopPropagation();
               onQuickComplete();
             }}
-            className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 transition-all flex items-center gap-1 shrink-0 ml-2"
+            className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 transition-all flex items-center gap-1 shrink-0 ml-2 cursor-pointer"
             title="Mark Complete"
           >
             <Check size={10} /> Done
@@ -1526,17 +1528,17 @@ function FollowUpCard({
 
       {/* Completed / Cancelled / Rescheduled action snippet */}
       {item.isCompleted && (
-        <div className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1 text-emerald-300 flex items-center gap-1 truncate">
+        <div className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1 text-emerald-300 flex items-center gap-1 break-words">
           <CheckCircle2 size={10} className="shrink-0 text-emerald-400" />
-          <span className="truncate">
+          <span>
             Done by {item.completedByName || 'Rep'}: &quot;{item.outcome || item.completionNotes || 'Completed'}&quot;
           </span>
         </div>
       )}
       {item.computedStatus === 'CANCELLED' && (
-        <div className="text-[10px] bg-rose-500/10 border border-rose-500/20 rounded px-2 py-1 text-rose-300 flex items-center gap-1 truncate">
+        <div className="text-[10px] bg-rose-500/10 border border-rose-500/20 rounded px-2 py-1 text-rose-300 flex items-center gap-1 break-words">
           <Ban size={10} className="shrink-0 text-rose-400" />
-          <span className="truncate">
+          <span>
             Cancelled by {item.cancelledByName || 'Rep'}: &quot;{item.cancelledReason || 'Cancelled'}&quot;
           </span>
         </div>
@@ -1558,6 +1560,8 @@ function FollowUpDetails({
   onReschedule: () => void;
   onCancel: () => void;
 }) {
+  const router = useRouter();
+
   const Icon =
     item.followUpType === 'CALL'
       ? Phone
@@ -1586,20 +1590,101 @@ function FollowUpDetails({
     ? new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
     : 'Recently';
 
+  // Navigate smoothly to lead profile page with hydrated session data
+  const handleNavigateToLead = (targetLead?: any) => {
+    const leadId = targetLead?.id || item.lead?.id || item.leadId || 'dir_lead_anjali';
+    const rawStatus = targetLead?.status?.name || (typeof targetLead?.status === 'string' ? targetLead.status : item.lead?.status?.name || 'Meeting Scheduled');
+    const comp = typeof targetLead?.company === 'string' ? targetLead.company : targetLead?.company?.name || companyName || 'Adorable Trading';
+    
+    const leadObj = {
+      id: String(leadId),
+      name: leadName,
+      email: leadEmail,
+      phone: leadPhone,
+      company: comp,
+      status: rawStatus,
+      owner: leadOwnerName,
+      assignedRep: leadOwnerName,
+      source: targetLead?.source || item.lead?.source || 'Referral',
+      requirement: item.purpose || 'Multi-Branch CRM Enterprise Suite',
+      city: targetLead?.city || item.lead?.city || 'Mumbai',
+      budget: targetLead?.budget || item.lead?.budget || '₹ 4,50,000',
+      createdAt: item.createdAt || new Date().toISOString(),
+      allocationTrail: [
+        {
+          action: 'Lead Ingestion & Verification',
+          actor: creatorName,
+          role: creatorRole,
+          timestamp: createdAtFormatted,
+          notes: `Follow-up / Meeting scheduled for ${scheduledDateFormatted}`,
+        },
+        {
+          action: 'Assigned to Sales Rep',
+          actor: leadOwnerName,
+          role: leadOwnerRole,
+          timestamp: createdAtFormatted,
+          notes: `Active owner managing follow-up outreach`,
+        },
+      ],
+      ...item.lead,
+      ...targetLead,
+    };
+
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('das_crm_active_lead', JSON.stringify(leadObj));
+        sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(leadObj));
+        
+        // Ensure present in local cache for instant lookup
+        const existing = localStorage.getItem('das_crm_all_leads_cache');
+        let arr = existing ? JSON.parse(existing) : [];
+        if (!Array.isArray(arr)) arr = [];
+        const idx = arr.findIndex((x: any) => String(x.id) === String(leadId) || (x.name && x.name.toLowerCase() === leadName.toLowerCase()));
+        if (idx >= 0) {
+          arr[idx] = { ...arr[idx], ...leadObj };
+        } else {
+          arr.unshift(leadObj);
+        }
+        localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(arr));
+      } catch (_) {}
+    }
+
+    router.push(`/leads/${encodeURIComponent(leadId)}`);
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* ── TOP HEADER WITH ACTIONS ────────────────────────────────────────── */}
-      <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <button onClick={onClose} className="lg:hidden p-1.5 bg-slate-800 rounded-lg text-slate-400 hover:text-white">
+      {/* ── TOP HEADER WITH ACTIONS & CLICKABLE HEADING ROUTE ───────────────── */}
+      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between bg-slate-900/80 gap-3 sm:gap-4">
+        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+          <button onClick={onClose} className="lg:hidden p-1.5 bg-slate-800 rounded-lg text-slate-400 hover:text-white shrink-0 mt-0.5 sm:mt-0">
             <ChevronLeft size={18} />
           </button>
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-inner">
+          
+          <div
+            onClick={() => handleNavigateToLead(item.lead)}
+            className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0 shadow-inner cursor-pointer hover:bg-indigo-500/30 hover:scale-105 transition-all"
+            title="Click to view Lead Profile"
+          >
             <Icon size={20} />
           </div>
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-black text-white truncate">{item.title}</h2>
-            <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+
+          {/* Interactive, full-width non-truncated Heading with Routing to Lead */}
+          <div
+            onClick={() => handleNavigateToLead(item.lead)}
+            className="min-w-0 flex-1 cursor-pointer group p-1.5 -ml-1.5 rounded-xl hover:bg-slate-800/60 border border-transparent hover:border-indigo-500/30 transition-all"
+            title="Click heading to open Lead Profile Workspace"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black text-white leading-tight break-words group-hover:text-indigo-300 transition-colors">
+                {item.title}
+              </h2>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 bg-indigo-500/10 group-hover:bg-indigo-500/25 px-2 py-0.5 rounded-md border border-indigo-500/30 transition-all shrink-0 shadow-sm">
+                <span>Open Lead Profile</span>
+                <ExternalLink size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap mt-1.5">
               <span className="font-bold text-slate-200">{scheduledDateFormatted}</span>
               <span>•</span>
               <span className="font-extrabold text-indigo-300">{item.followUpType || 'MEETING'}</span>
@@ -1621,7 +1706,7 @@ function FollowUpDetails({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
           {!item.isCompleted && item.computedStatus !== 'CANCELLED' ? (
             <>
               <button
@@ -1729,10 +1814,19 @@ function FollowUpDetails({
 
         {/* ── 2. LINKED PROSPECT DETAILS WITH VISIBLE PHONE & EMAIL ─────────── */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <User size={13} className="text-indigo-400" /> Linked Prospect Profile
-            </span>
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <User size={13} className="text-indigo-400" /> Linked Prospect Profile
+              </span>
+              <button
+                onClick={() => handleNavigateToLead(item.lead)}
+                className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-0.5 rounded-md border border-indigo-500/20 transition-all shadow-sm"
+              >
+                <span>View Full Lead Workspace</span>
+                <ExternalLink size={11} />
+              </button>
+            </div>
             {item.lead?.status?.name && (
               <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 {item.lead.status.name}
@@ -1741,14 +1835,20 @@ function FollowUpDetails({
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Prospect Identity & Contact Details */}
-            <div className="flex items-start gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600/30 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-black text-base shrink-0 shadow-md">
+            {/* Prospect Identity & Contact Details (Clickable to Lead Page) */}
+            <div 
+              onClick={() => handleNavigateToLead(item.lead)}
+              className="flex items-start gap-3.5 min-w-0 cursor-pointer group flex-1"
+              title="Click to view full lead profile"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600/30 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 font-black text-base shrink-0 shadow-md group-hover:scale-105 transition-transform">
                 {leadName.charAt(0).toUpperCase()}
               </div>
-              <div className="min-w-0 space-y-1.5">
+              <div className="min-w-0 space-y-1.5 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-base font-black text-white">{leadName}</h4>
+                  <h4 className="text-base font-black text-white group-hover:text-indigo-300 transition-colors break-words">
+                    {leadName}
+                  </h4>
                   {companyName && (
                     <span className="text-[11px] font-semibold text-slate-300 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 flex items-center gap-1">
                       <Building2 size={11} className="text-slate-400" /> {companyName}
@@ -1757,7 +1857,7 @@ function FollowUpDetails({
                 </div>
 
                 {/* VISIBLE PHONE & EMAIL PILLS WITH CLICK-TO-ACTION */}
-                <div className="flex items-center gap-2.5 flex-wrap text-xs pt-0.5">
+                <div className="flex items-center gap-2.5 flex-wrap text-xs pt-0.5" onClick={(e) => e.stopPropagation()}>
                   <a
                     href={`tel:${leadPhone}`}
                     className="inline-flex items-center gap-1.5 text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 transition-all font-mono font-bold group shadow-sm"
@@ -1773,7 +1873,7 @@ function FollowUpDetails({
                     title={`Click to send email to ${leadEmail}`}
                   >
                     <Mail size={12} className="text-sky-400 group-hover:scale-110 transition-transform" />
-                    <span className="truncate max-w-[260px]">{leadEmail}</span>
+                    <span className="break-all">{leadEmail}</span>
                   </a>
                 </div>
               </div>
@@ -1813,7 +1913,7 @@ function FollowUpDetails({
           <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <FileText size={12} className="text-indigo-400" /> Follow-up Agenda / Purpose
           </h3>
-          <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+          <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 break-words">
             {item.purpose || item.description || 'General touchpoint to review client interest, answer technical questions, and discuss proposal progression.'}
           </p>
         </div>
