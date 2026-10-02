@@ -171,55 +171,71 @@ export function ManagerRoleDashboard() {
     const fetchLeads = async () => {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      if (!token) return;
-      try {
-        const res = await fetch(`${apiBase}/leads?limit=1000`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-          if (items.length > 0) {
-            const colors = [
-              'from-emerald-500 to-teal-600',
-              'from-teal-500 to-cyan-600',
-              'from-purple-500 to-indigo-600',
-              'from-indigo-500 to-blue-600',
-              'from-amber-500 to-orange-600',
-            ];
-            const mapped: DepartmentLead[] = items.map((l: any, idx: number) => {
-              const norm = normalizeLead(l, idx);
-              return {
-                id: norm.id,
-                name: norm.name,
-                company: norm.company,
-                phone: norm.phone,
-                email: norm.email,
-                status: norm.status as any,
-                value: norm.value,
-                numericValue: norm.numericValue,
-                source: norm.source,
-                assignedRepName: norm.assignedRepName,
-                assignedRepRole: norm.assignedRepRole,
-                lastContact: norm.lastCalledAt || 'Recently updated',
-                requirement: norm.requirement,
-                avatarBg: colors[idx % colors.length],
-              };
-            });
-            const finalDeptLeads = mapped.length > 0 ? mapped : DEFAULT_DEPT_LEADS;
-            setDeptLeads(finalDeptLeads);
-            setCachedData('mgr_leads', finalDeptLeads);
-          } else {
-            setDeptLeads(DEFAULT_DEPT_LEADS);
+      let allFound: any[] = [];
+
+      // Check local cache first for instant hydration
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+          if (Array.isArray(cached) && cached.length > 0) {
+            allFound = cached;
           }
-        } else {
-          setDeptLeads(DEFAULT_DEPT_LEADS);
-        }
-      } catch (_) {
-        setDeptLeads(DEFAULT_DEPT_LEADS);
+        } catch (_) {}
+      }
+
+      if (token) {
+        try {
+          const res = await fetch(`${apiBase}/leads?limit=1000`, {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const items = Array.isArray(data) ? data : (data.leads || data.data || []);
+            if (Array.isArray(items) && items.length > 0) {
+              allFound = items;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (allFound.length > 0) {
+        const colors = [
+          'from-emerald-500 to-teal-600',
+          'from-teal-500 to-cyan-600',
+          'from-purple-500 to-indigo-600',
+          'from-indigo-500 to-blue-600',
+          'from-amber-500 to-orange-600',
+        ];
+        const mapped: DepartmentLead[] = allFound
+          .filter((l: any) => {
+            const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
+            const id = String(l.id || '');
+            return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+          })
+          .map((l: any, idx: number) => {
+            const norm = normalizeLead(l, idx);
+            return {
+              id: norm.id,
+              name: norm.name,
+              company: norm.company,
+              phone: norm.phone,
+              email: norm.email,
+              status: norm.status as any,
+              value: norm.value,
+              numericValue: norm.numericValue,
+              source: norm.source,
+              assignedRepName: norm.assignedRepName,
+              assignedRepRole: norm.assignedRepRole,
+              lastContact: norm.lastCalledAt || 'Recently updated',
+              requirement: norm.requirement,
+              avatarBg: colors[idx % colors.length],
+            };
+          });
+        setDeptLeads(mapped);
+        setCachedData('mgr_leads', mapped);
       }
     };
     fetchLeads();

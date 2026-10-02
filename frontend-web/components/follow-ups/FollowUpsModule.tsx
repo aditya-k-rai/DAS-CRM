@@ -192,7 +192,6 @@ export default function FollowUpsModule() {
     if (task.status === 'CANCELLED') return 'CANCELLED';
     if (task.status === 'MISSED') return 'MISSED';
     if (task.isCompleted || task.status === 'COMPLETED') return 'COMPLETED';
-    if (task.status === 'RESCHEDULED') return 'RESCHEDULED';
 
     const due = task.dueAt || (task.scheduledDate ? `${task.scheduledDate}T${task.scheduledTime || '09:00:00'}` : null);
     if (due) {
@@ -202,8 +201,10 @@ export default function FollowUpsModule() {
         if (dueDate < now) return 'OVERDUE';
         const thirtyMin = new Date(now.getTime() + 30 * 60 * 1000);
         if (dueDate <= thirtyMin) return 'DUE';
+        return 'PENDING';
       }
     }
+    if (task.status === 'RESCHEDULED') return 'RESCHEDULED';
     return 'PENDING';
   };
 
@@ -218,90 +219,19 @@ export default function FollowUpsModule() {
         } catch (_) {}
       }
 
-      // Default mock meetings/callbacks if user has none, ensuring rich demo data with complete attribution
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const defaultSeeds = [
-          {
-            id: 'seed_meeting_1',
-            title: '🏢 In-Person / Virtual Visit: Anjali Verma (Enterprise)',
-            followUpType: 'MEETING',
-            priority: 'HIGH',
-            status: 'PENDING',
-            purpose: 'Call Funnel: Talked: Meeting / Visit Scheduled for multi-branch solution demo & proposal review',
-            scheduledDate: todayStr,
-            scheduledTime: '10:30',
-            dueAt: `${todayStr}T10:30:00`,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
-            createdByName: 'Anurag Sharma',
-            createdByRole: 'ADMIN',
-            createdBy: { name: 'Anurag Sharma', role: 'ADMIN' },
-            assignee: { name: 'Sachin Puri', role: 'SALES_REP' },
-            lead: {
-              id: 'dir_lead_anjali',
-              name: 'Anjali Verma',
-              phone: '+91 98000 10007',
-              email: 'anjali.verma@example.com',
-              company: { name: 'Adorable Trading' },
-              status: { name: 'Meeting Scheduled', color: '#6366f1' },
-              owner: { name: 'Sachin Puri', role: 'SALES_REP' },
-            },
-          },
-          {
-            id: 'seed_meeting_2',
-            title: '🏢 In-Person / Virtual Visit: Pooja Nair (Nair Logistics)',
-            followUpType: 'MEETING',
-            priority: 'HIGH',
-            status: 'PENDING',
-            purpose: 'Call Funnel: Talked: Meeting / Visit Scheduled for Pooja Nair regarding Logistics CRM deployment',
-            scheduledDate: todayStr,
-            scheduledTime: '11:30',
-            dueAt: `${todayStr}T11:30:00`,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 5).toISOString(),
-            createdByName: 'Anurag Sharma',
-            createdByRole: 'ADMIN',
-            createdBy: { name: 'Anurag Sharma', role: 'ADMIN' },
-            assignee: { name: 'Sachin Puri', role: 'SALES_REP' },
-            lead: {
-              id: 'dir_lead_2',
-              name: 'Pooja Nair',
-              phone: '+91 98000 10009',
-              email: 'pooja.nair@nairlogistics.in',
-              company: { name: 'Nair Logistics India' },
-              status: { name: 'Meeting Scheduled', color: '#6366f1' },
-              owner: { name: 'Sachin Puri', role: 'SALES_REP' },
-            },
-          },
-          {
-            id: 'seed_meeting_3',
-            title: '🏢 Product Demo & Solution Architecture: Dr. Vikram Malhotra',
-            followUpType: 'MEETING',
-            priority: 'HIGH',
-            status: 'PENDING',
-            purpose: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats) Demo & quotation presentation',
-            scheduledDate: todayStr,
-            scheduledTime: '15:00',
-            dueAt: `${todayStr}T15:00:00`,
-            createdAt: new Date(Date.now() - 3600 * 1000 * 8).toISOString(),
-            createdByName: 'Anurag Sharma',
-            createdByRole: 'ADMIN',
-            createdBy: { name: 'Anurag Sharma', role: 'ADMIN' },
-            assignee: { name: 'Sachin Puri', role: 'SALES_REP' },
-            lead: {
-              id: 'dir_lead_1',
-              name: 'Dr. Vikram Malhotra',
-              phone: '+91 98201 12345',
-              email: 'vikram.malhotra@zenithhospital.org',
-              company: { name: 'Zenith Hospital & Research Centre' },
-              status: { name: 'Qualified', color: '#3b82f6' },
-              owner: { name: 'Sachin Puri', role: 'SALES_REP' },
-            },
-          },
-        ];
-        parsed = defaultSeeds;
-        try {
-          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(defaultSeeds));
-        } catch (_) {}
+      // Filter out legacy mock seeds so user only sees genuine real meetings and follow-ups
+      if (Array.isArray(parsed)) {
+        parsed = parsed.filter(
+          (item: any) =>
+            item &&
+            item.id &&
+            !String(item.id).startsWith('seed_') &&
+            !String(item.id).includes('seed') &&
+            !String(item.title || '').includes('Dr. Vikram Malhotra') &&
+            !String(item.title || '').includes('Pooja Nair (Nair Logistics)')
+        );
+      } else {
+        parsed = [];
       }
 
       return (parsed || []).map((item: any) => {
@@ -508,18 +438,18 @@ export default function FollowUpsModule() {
         else normP++;
       });
 
-      if (serverSummary && typeof serverSummary === 'object' && serverSummary.total > 0) {
+      if (serverSummary && typeof serverSummary === 'object' && typeof serverSummary.total === 'number') {
         setSummary({
-          total: Math.max(serverSummary.total || 0, allItems.length),
-          today: Math.max(serverSummary.today || 0, todayCount),
-          upcoming: Math.max(serverSummary.upcoming || 0, upcomingCount),
-          overdue: Math.max(serverSummary.overdue || 0, overdueCount),
-          completed: Math.max(serverSummary.completed || 0, completedCount),
-          completedToday: Math.max(serverSummary.completedToday || 0, completedTodayCount),
+          total: serverSummary.total,
+          today: serverSummary.today || 0,
+          upcoming: serverSummary.upcoming || 0,
+          overdue: serverSummary.overdue || 0,
+          completed: serverSummary.completed || 0,
+          completedToday: serverSummary.completedToday || 0,
           priority: {
-            high: Math.max(serverSummary.priority?.high || 0, highP),
-            medium: Math.max(serverSummary.priority?.medium || 0, medP),
-            normal: Math.max(serverSummary.priority?.normal || 0, normP),
+            high: serverSummary.priority?.high || 0,
+            medium: serverSummary.priority?.medium || 0,
+            normal: serverSummary.priority?.normal || 0,
           },
         });
       } else {

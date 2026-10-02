@@ -380,16 +380,43 @@ export function LeadsTable() {
       try {
         const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
         if (Array.isArray(cached) && cached.length > 0) {
-          const clean = cached.filter((l: any) => {
-            const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
-            const id = String(l.id || '');
-            return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-          });
+          const clean = cached
+            .filter((l: any) => {
+              const name = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
+              const id = String(l.id || '');
+              return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+            })
+            .map((l: any, idx: number) => {
+              const norm = normalizeLead(l, idx);
+              return {
+                id: norm.id,
+                name: norm.name,
+                email: norm.email,
+                phone: norm.phone,
+                status: norm.status,
+                statusColor: norm.statusColor,
+                source: norm.source,
+                score: norm.score,
+                aiScore: l.aiScore || undefined,
+                owner: norm.owner,
+                value: norm.value,
+                created: norm.created,
+                rawCreatedAt: norm.rawCreatedAt,
+                tags: norm.tags,
+                city: norm.city,
+                budget: norm.budget,
+                requirement: norm.requirement,
+                allocationTrail: norm.allocationTrail,
+                currentAssignee: norm.currentAssignee,
+                totalCalls: norm.totalCalls,
+                lastCalledAt: norm.lastCalledAt,
+              };
+            });
           if (clean.length > 0) return clean;
         }
       } catch (_) {}
     }
-    return DEFAULT_REAL_LEADS;
+    return DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
   });
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
@@ -967,10 +994,19 @@ export function LeadsTable() {
 
   const filtered = leadsList.filter((l) => {
     if (!l) return false;
-    const lOwner = (l.owner || '').toLowerCase();
-    const lAssignee = (l.currentAssignee || '').toLowerCase();
-    const lStatus = (l.status || '').toLowerCase();
-    const lName = (l.name || '').toLowerCase();
+    const lOwner = safeOwnerName(l.owner || (l as any).assignedRep || (l as any).currentAssignee || '').toLowerCase();
+    const lAssignee = safeOwnerName((l as any).currentAssignee || l.owner || '').toLowerCase();
+    const lStatus = safeStatus(l.status || '').toLowerCase();
+    const lName = safeString(l.name || '').toLowerCase();
+    const lCompany = safeCompany((l as any).company || '').toLowerCase();
+    const lEmail = safeString(l.email || '').toLowerCase();
+    const lPhone = safeString(l.phone || '').toLowerCase();
+    const lSource = safeSource(l.source || '').toLowerCase();
+    const lValue = safeString(l.value || '').toLowerCase();
+    const lCity = safeString(l.city || '').toLowerCase();
+    const lBudget = safeString(l.budget || '').toLowerCase();
+    const lRequirement = safeString(l.requirement || '').toLowerCase();
+    const lCreated = safeString(l.created || '').toLowerCase();
 
     // 🔒 Role-Based Data Isolation Scoping
     if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
@@ -984,7 +1020,7 @@ export function LeadsTable() {
     // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering
     if (filterTL !== 'ALL') {
       if (filterTL === 'UNASSIGNED') {
-        const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
+        const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
         if (!isUnassigned) return false;
       } else {
         const cleanTL = filterTL.toLowerCase().replace(/\s*\(team leader\)|\s*\(tl\)/g, '').trim();
@@ -1014,7 +1050,7 @@ export function LeadsTable() {
     // 👤 Person-Wise Filtering (Modal compatibility)
     if (filterPerson !== 'ALL') {
       if (filterPerson === 'UNASSIGNED') {
-        const isUnassigned = !l.owner || l.owner === 'Unassigned' || !l.currentAssignee || l.currentAssignee === 'Unassigned';
+        const isUnassigned = !l.owner || l.owner === 'Unassigned' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
         if (!isUnassigned) return false;
       } else {
         const pLower = filterPerson.toLowerCase();
@@ -1027,9 +1063,9 @@ export function LeadsTable() {
     // 🛡️ Role-Wise Filtering
     if (filterRole !== 'ALL') {
       if (filterRole === 'UNASSIGNED') {
-        if (l.currentAssigneeRole) return false;
+        if ((l as any).currentAssigneeRole) return false;
       } else {
-        if (l.currentAssigneeRole !== filterRole) return false;
+        if ((l as any).currentAssigneeRole !== filterRole) return false;
       }
     }
 
@@ -1046,16 +1082,14 @@ export function LeadsTable() {
           const t = leadDate.getTime();
           if (t < todayStart || t >= todayEnd) return false;
         } else {
-          const createdStr = (l.created || '').toLowerCase();
-          if (!createdStr.includes('today') && !createdStr.includes('aug 9')) return false;
+          if (!lCreated.includes('today') && !lCreated.includes('aug 9')) return false;
         }
       } else if (filterDate === 'YESTERDAY') {
         if (leadDate && !isNaN(leadDate.getTime())) {
           const t = leadDate.getTime();
           if (t < yesterdayStart || t >= todayStart) return false;
         } else {
-          const createdStr = (l.created || '').toLowerCase();
-          if (!createdStr.includes('yesterday') && !createdStr.includes('aug 8')) return false;
+          if (!lCreated.includes('yesterday') && !lCreated.includes('aug 8')) return false;
         }
       } else if (filterDate === 'THIS_MONTH') {
         const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -1063,7 +1097,7 @@ export function LeadsTable() {
           if (leadDate.getTime() < thisMonthStart) return false;
         } else {
           const monthShort = now.toLocaleString('en-US', { month: 'short' }).toLowerCase();
-          if (!(l.created || '').toLowerCase().includes(monthShort)) return false;
+          if (!lCreated.includes(monthShort)) return false;
         }
       } else if (filterDate === 'CUSTOM') {
         if (customDateFrom || customDateTo) {
@@ -1087,7 +1121,7 @@ export function LeadsTable() {
     }
 
     // Status tab filter
-    const matchStatusTab = activeStatus === 'All' || (l.status || '').toLowerCase() === activeStatus.toLowerCase();
+    const matchStatusTab = activeStatus === 'All' || lStatus === activeStatus.toLowerCase();
     if (!matchStatusTab) return false;
 
     // Multi-field search — works identically in BOTH Excel Grid & Standard Tab view
@@ -1095,16 +1129,18 @@ export function LeadsTable() {
       const q = search.toLowerCase().trim();
       const matchSearch =
         lName.includes(q) ||
-        (l.email || '').toLowerCase().includes(q) ||
-        (l.phone || '').toLowerCase().includes(q) ||
+        lCompany.includes(q) ||
+        lEmail.includes(q) ||
+        lPhone.includes(q) ||
         lStatus.includes(q) ||
-        (l.source || '').toLowerCase().includes(q) ||
+        lSource.includes(q) ||
         lOwner.includes(q) ||
-        (l.value || '').toLowerCase().includes(q) ||
-        (l.city || '').toLowerCase().includes(q) ||
-        (l.budget || '').toLowerCase().includes(q) ||
-        (l.requirement || '').toLowerCase().includes(q) ||
-        (l.created || '').toLowerCase().includes(q) ||
+        lAssignee.includes(q) ||
+        lValue.includes(q) ||
+        lCity.includes(q) ||
+        lBudget.includes(q) ||
+        lRequirement.includes(q) ||
+        lCreated.includes(q) ||
         (Array.isArray(l.tags) && l.tags.some(tag => tag && String(tag).toLowerCase().includes(q))) ||
         String(l.score || '').includes(q);
       if (!matchSearch) return false;
