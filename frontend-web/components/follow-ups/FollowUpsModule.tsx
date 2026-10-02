@@ -180,6 +180,20 @@ export default function FollowUpsModule() {
     else if (activeTab === 'OVERDUE') loadAllData('OVERDUE');
     else if (activeTab === 'COMPLETED') loadAllData('COMPLETED');
     else if (activeTab === 'CALENDAR') loadCalendarData();
+
+    const handleSync = () => {
+      refreshAll();
+    };
+
+    window.addEventListener('das_crm_followup_created', handleSync);
+    window.addEventListener('das_crm_workflow_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      window.removeEventListener('das_crm_followup_created', handleSync);
+      window.removeEventListener('das_crm_workflow_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [activeTab]);
 
   useEffect(() => {

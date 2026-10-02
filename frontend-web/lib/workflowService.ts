@@ -34,11 +34,115 @@ export interface WorkflowCustomField {
   required: boolean;
 }
 
+export type CallFunnelCategory = 'TALKED' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCH_OFF';
+
+export interface CallOutcomeStageMapping {
+  outcomeId: string;
+  outcomeLabel: string;
+  category: CallFunnelCategory;
+  targetStatus: string;           // Target Lead Status name (e.g. Qualified, Meeting Scheduled, Lost, Contacted)
+  autoCreateFollowUp: boolean;     // Automatically create follow-up task
+  defaultPriority: 'HIGH' | 'MEDIUM' | 'NORMAL';
+  description: string;
+}
+
 export const WORKFLOW_STATUSES_KEY = 'das_crm_lead_statuses_v2';
 export const WORKFLOW_STAGES_KEY = 'das_crm_pipeline_stages_v2';
 export const WORKFLOW_SOURCES_KEY = 'das_crm_lead_sources_v2';
 export const WORKFLOW_FIELDS_KEY = 'das_crm_custom_fields_v2';
+export const WORKFLOW_FUNNEL_MAPPINGS_KEY = 'das_crm_call_funnel_mappings_v2';
 export const WORKFLOW_UPDATE_EVENT = 'das_crm_workflow_updated';
+
+export const DEFAULT_CALL_FUNNEL_MAPPINGS: CallOutcomeStageMapping[] = [
+  // 1. TALKED (Call Connected)
+  {
+    outcomeId: 'talked_interested',
+    outcomeLabel: 'a - Interested in Product / Service',
+    category: 'TALKED',
+    targetStatus: 'Qualified',
+    autoCreateFollowUp: true,
+    defaultPriority: 'HIGH',
+    description: 'Lead expressed strong interest; select products / catalogue shared and advance to Qualified.',
+  },
+  {
+    outcomeId: 'talked_said_will_visit',
+    outcomeLabel: 'b - Said He Will Visit',
+    category: 'TALKED',
+    targetStatus: 'Meeting Scheduled',
+    autoCreateFollowUp: true,
+    defaultPriority: 'HIGH',
+    description: 'Prospect committed to in-person or virtual visit; sets 15-day meeting slot.',
+  },
+  {
+    outcomeId: 'talked_want_something_else',
+    outcomeLabel: 'c - Want Something Else',
+    category: 'TALKED',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'MEDIUM',
+    description: 'Needs other custom specifications; notes requirement and sets status to Contacted.',
+  },
+  {
+    outcomeId: 'talked_busy_later',
+    outcomeLabel: 'd - Busy Will Talk Later',
+    category: 'TALKED',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'MEDIUM',
+    description: 'Answered call but asked to callback later; schedules follow-up with 5-min pre-alert.',
+  },
+  {
+    outcomeId: 'talked_wrong_number',
+    outcomeLabel: 'e - Wrong Number',
+    category: 'TALKED',
+    targetStatus: 'Lost',
+    autoCreateFollowUp: false,
+    defaultPriority: 'NORMAL',
+    description: 'Invalid contact or wrong recipient; auto-marks as Lost / Invalid.',
+  },
+
+  // 2. NOT RESPONDING (Ringing but not picked)
+  {
+    outcomeId: 'not_responding_followup',
+    outcomeLabel: 'a - Follow-up Call Next (Custom Date & Time)',
+    category: 'NOT_RESPONDING',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'MEDIUM',
+    description: 'Ringing not answered; schedules next callback with 5-min alert.',
+  },
+  {
+    outcomeId: 'not_responding_tomorrow',
+    outcomeLabel: 'a.1 - Quick Pick: Follow-up Tomorrow (10:30 AM)',
+    category: 'NOT_RESPONDING',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'MEDIUM',
+    description: '1-tap shortcut to queue follow-up for next day morning.',
+  },
+
+  // 3. BUSY (Line Engaged)
+  {
+    outcomeId: 'busy_callback',
+    outcomeLabel: 'Busy / Line Engaged (Quick Chips: 30m / 1h / 2h / Tomorrow)',
+    category: 'BUSY',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'MEDIUM',
+    description: 'Recipient line busy; quick interval preset (30m, 1h, 2h, Tomorrow).',
+  },
+
+  // 4. SWITCHED OFF
+  {
+    outcomeId: 'switched_off_callback',
+    outcomeLabel: 'Switched Off / Unreachable (Quick Chips: 30m / 1h / 2h / Tomorrow)',
+    category: 'SWITCH_OFF',
+    targetStatus: 'Contacted',
+    autoCreateFollowUp: true,
+    defaultPriority: 'NORMAL',
+    description: 'Device switched off; quick callback chips with 5-min reminder.',
+  },
+];
 
 export const DEFAULT_LEAD_STATUSES: WorkflowLeadStatus[] = [
   { id: '1', name: 'New', color: '#6366f1', order: 0, isDefault: true, isWon: false, isLost: false },
@@ -148,6 +252,34 @@ export function getStoredCustomFields(): WorkflowCustomField[] {
     console.warn('Error reading stored custom fields:', err);
   }
   return DEFAULT_CUSTOM_FIELDS;
+}
+
+/** Retrieve cached Call Funnel mappings synchronously from localStorage or fallback */
+export function getStoredCallFunnelMappings(): CallOutcomeStageMapping[] {
+  if (typeof window === 'undefined') return DEFAULT_CALL_FUNNEL_MAPPINGS;
+  try {
+    const raw = localStorage.getItem(WORKFLOW_FUNNEL_MAPPINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.warn('Error reading stored call funnel mappings:', err);
+  }
+  return DEFAULT_CALL_FUNNEL_MAPPINGS;
+}
+
+/** Save Call Funnel mappings to localStorage and dispatch update event */
+export async function persistCallFunnelMappings(mappings: CallOutcomeStageMapping[]): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(WORKFLOW_FUNNEL_MAPPINGS_KEY, JSON.stringify(mappings));
+      window.dispatchEvent(new CustomEvent(WORKFLOW_UPDATE_EVENT, { detail: { type: 'funnel_mappings', mappings } }));
+    } catch (e) {
+      console.warn('localStorage error writing funnel mappings:', e);
+    }
+  }
+  return true;
 }
 
 /** Save lead statuses to localStorage and backend API */
@@ -409,5 +541,48 @@ export function useWorkflowCustomFields() {
   return {
     customFields,
     saveCustomFields,
+  };
+}
+
+/**
+ * React hook to consume and configure Call Funnel Outcome Mappings across the CRM.
+ */
+export function useWorkflowCallFunnel() {
+  const [funnelMappings, setFunnelMappings] = useState<CallOutcomeStageMapping[]>(() => getStoredCallFunnelMappings());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setFunnelMappings(getStoredCallFunnelMappings());
+    };
+
+    window.addEventListener(WORKFLOW_UPDATE_EVENT, handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
+    return () => {
+      window.removeEventListener(WORKFLOW_UPDATE_EVENT, handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const saveFunnelMappings = async (newMappings: CallOutcomeStageMapping[]) => {
+    setFunnelMappings(newMappings);
+    return persistCallFunnelMappings(newMappings);
+  };
+
+  /**
+   * Helper to look up the configured target lead status for a specific call disposition outcome.
+   */
+  const getTargetStatusForOutcome = useCallback(
+    (outcomeId: string, fallbackStatus: string = 'Contacted'): string => {
+      const match = funnelMappings.find((m) => m.outcomeId === outcomeId);
+      return match?.targetStatus || fallbackStatus;
+    },
+    [funnelMappings]
+  );
+
+  return {
+    funnelMappings,
+    saveFunnelMappings,
+    getTargetStatusForOutcome,
   };
 }

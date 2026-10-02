@@ -15,6 +15,9 @@ import {
   Sparkles,
   Save,
   RotateCcw,
+  PhoneCall,
+  Flame,
+  Check,
 } from 'lucide-react';
 import {
   WORKFLOW_PALETTE_COLORS,
@@ -22,16 +25,20 @@ import {
   useWorkflowPipelineStages,
   useWorkflowLeadSources,
   useWorkflowCustomFields,
+  useWorkflowCallFunnel,
   WorkflowLeadStatus,
   WorkflowPipelineStage,
   WorkflowLeadSource,
   WorkflowCustomField,
+  CallOutcomeStageMapping,
   DEFAULT_LEAD_STATUSES,
   DEFAULT_PIPELINE_STAGES,
+  DEFAULT_CALL_FUNNEL_MAPPINGS,
 } from '@/lib/workflowService';
 
 const TABS = [
   { id: 'statuses', label: 'Lead Statuses', icon: List, badge: 'Core' },
+  { id: 'funnel', label: 'Call Funnel Automation', icon: PhoneCall, badge: 'Funnel' },
   { id: 'pipeline', label: 'Pipeline Stages', icon: LayoutGrid, badge: 'Deals' },
   { id: 'sources', label: 'Lead Sources', icon: FileText, badge: 'Channels' },
   { id: 'fields', label: 'Custom Fields', icon: Settings, badge: 'Schema' },
@@ -46,12 +53,14 @@ export function AdminWorkflowBuilder() {
   const { stages, saveStages } = useWorkflowPipelineStages();
   const { sources, saveSources } = useWorkflowLeadSources();
   const { customFields, saveCustomFields } = useWorkflowCustomFields();
+  const { funnelMappings, saveFunnelMappings } = useWorkflowCallFunnel();
 
   // Local draft states
   const [localStatuses, setLocalStatuses] = useState<WorkflowLeadStatus[]>(statuses);
   const [localStages, setLocalStages] = useState<WorkflowPipelineStage[]>(stages);
   const [localSources, setLocalSources] = useState<WorkflowLeadSource[]>(sources);
   const [localFields, setLocalFields] = useState<WorkflowCustomField[]>(customFields);
+  const [localFunnel, setLocalFunnel] = useState<CallOutcomeStageMapping[]>(funnelMappings);
 
   // Keep local drafts synchronized if remote/hook updates
   useState(() => {
@@ -217,13 +226,22 @@ export function AdminWorkflowBuilder() {
     showToast('Custom field removed');
   };
 
+  // Call Funnel Handlers
+  const handleUpdateFunnelMapping = (outcomeId: string, field: keyof CallOutcomeStageMapping, value: any) => {
+    const updated = localFunnel.map((m) => (m.outcomeId === outcomeId ? { ...m, [field]: value } : m));
+    setLocalFunnel(updated);
+    saveFunnelMappings(updated);
+  };
+
   const handleResetToDefaults = () => {
-    if (confirm('Are you sure you want to reset Workflow Stages & Lead Statuses to system default templates?')) {
+    if (confirm('Are you sure you want to reset Workflow Stages, Lead Statuses & Call Funnel Mappings to system default templates?')) {
       setLocalStatuses(DEFAULT_LEAD_STATUSES);
       saveStatuses(DEFAULT_LEAD_STATUSES);
       setLocalStages(DEFAULT_PIPELINE_STAGES);
       saveStages(DEFAULT_PIPELINE_STAGES);
-      showToast('🔄 Reset to system default stages and statuses!');
+      setLocalFunnel(DEFAULT_CALL_FUNNEL_MAPPINGS);
+      saveFunnelMappings(DEFAULT_CALL_FUNNEL_MAPPINGS);
+      showToast('🔄 Reset all workflow stages & call funnel mappings to system defaults!');
     }
   };
 
@@ -273,7 +291,8 @@ export function AdminWorkflowBuilder() {
               saveStages(localStages);
               saveSources(localSources);
               saveCustomFields(localFields);
-              showToast('💾 All lifecycle stages and workflow schemas verified & saved!');
+              saveFunnelMappings(localFunnel);
+              showToast('💾 All lifecycle stages and call funnel automation rules verified & saved!');
             }}
             className="btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1.5 shadow-md shadow-indigo-500/20"
           >
@@ -308,6 +327,8 @@ export function AdminWorkflowBuilder() {
                   >
                     {tab.id === 'statuses'
                       ? localStatuses.length
+                      : tab.id === 'funnel'
+                      ? localFunnel.length
                       : tab.id === 'pipeline'
                       ? localStages.length
                       : tab.id === 'sources'
@@ -792,6 +813,168 @@ export function AdminWorkflowBuilder() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 5: CALL FUNNEL AUTOMATION */}
+          {activeTab === 'funnel' && (
+            <div className="crm-card p-5 space-y-6">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div>
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <PhoneCall size={16} className="text-emerald-400" /> Call Funnel Outcomes &amp; Lifecycle Automation Matrix
+                  </h3>
+                  <p className="text-xs text-muted mt-0.5">
+                    Configure the exact Lead Status transition, follow-up automation triggers, and task priorities for every call disposition outcome.
+                  </p>
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-lg font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                  {localFunnel.length} Dispositions Mapped
+                </span>
+              </div>
+
+              {/* Grouped Funnel Outcome Categories */}
+              {[
+                {
+                  catKey: 'TALKED',
+                  title: '1. Talked (Call Connected & Answered)',
+                  emoji: '🗣️',
+                  border: 'border-emerald-500/30',
+                  badgeBg: 'bg-emerald-500/15 text-emerald-300',
+                  subtitle: 'Outcomes when the prospect answers and an agent converses with them.',
+                },
+                {
+                  catKey: 'NOT_RESPONDING',
+                  title: '2. Not Responding (Ringing Not Picked)',
+                  emoji: '🔕',
+                  border: 'border-amber-500/30',
+                  badgeBg: 'bg-amber-500/15 text-amber-300',
+                  subtitle: 'Outcomes when the dialler rings but the prospect does not answer.',
+                },
+                {
+                  catKey: 'BUSY',
+                  title: '3. Busy (Line Engaged / Call Waiting)',
+                  emoji: '⏳',
+                  border: 'border-rose-500/30',
+                  badgeBg: 'bg-rose-500/15 text-rose-300',
+                  subtitle: 'Outcomes when the recipient’s line is busy or on another call.',
+                },
+                {
+                  catKey: 'SWITCH_OFF',
+                  title: '4. Switched Off / Out of Coverage',
+                  emoji: '📴',
+                  border: 'border-slate-700',
+                  badgeBg: 'bg-slate-800 text-slate-300',
+                  subtitle: 'Outcomes when the recipient’s mobile is switched off or network unreachable.',
+                },
+              ].map((category) => {
+                const categoryMappings = localFunnel.filter((m) => m.category === category.catKey);
+                return (
+                  <div key={category.catKey} className={`p-4 rounded-2xl border ${category.border} bg-slate-950/50 space-y-3`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{category.emoji}</span>
+                        <h4 className="font-extrabold text-white text-xs tracking-tight">{category.title}</h4>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${category.badgeBg}`}>
+                        {categoryMappings.length} Outcome{categoryMappings.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{category.subtitle}</p>
+
+                    <div className="space-y-2 pt-1">
+                      {categoryMappings.map((mapping) => {
+                        const currentStatusObj = localStatuses.find(
+                          (s) => s.name.toLowerCase() === mapping.targetStatus.toLowerCase()
+                        );
+                        return (
+                          <div
+                            key={mapping.outcomeId}
+                            className="p-3 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition-all grid grid-cols-1 lg:grid-cols-12 gap-3 items-center"
+                          >
+                            {/* Outcome Label & Description */}
+                            <div className="lg:col-span-5 space-y-0.5">
+                              <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                {mapping.outcomeLabel}
+                              </p>
+                              <p className="text-[10px] text-muted leading-tight">{mapping.description}</p>
+                            </div>
+
+                            {/* Destination Stage Selector */}
+                            <div className="lg:col-span-3 space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                Destination Stage
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <div
+                                  className="w-3 h-3 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: currentStatusObj?.color || '#6366f1' }}
+                                />
+                                <select
+                                  value={mapping.targetStatus}
+                                  onChange={(e) =>
+                                    handleUpdateFunnelMapping(mapping.outcomeId, 'targetStatus', e.target.value)
+                                  }
+                                  className="crm-input text-xs h-8 flex-1 font-semibold text-white bg-slate-950"
+                                >
+                                  {localStatuses.map((st) => (
+                                    <option key={st.id} value={st.name}>
+                                      {st.name} {st.isWon ? '🏆 (Won)' : st.isLost ? '❌ (Lost)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Auto Follow-Up Toggle */}
+                            <div className="lg:col-span-2 space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                Follow-up Task
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateFunnelMapping(
+                                    mapping.outcomeId,
+                                    'autoCreateFollowUp',
+                                    !mapping.autoCreateFollowUp
+                                  )
+                                }
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all border w-full justify-center ${
+                                  mapping.autoCreateFollowUp
+                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                                    : 'bg-slate-800 border-slate-700 text-slate-500'
+                                }`}
+                              >
+                                {mapping.autoCreateFollowUp ? '✓ Auto-Queue' : '✕ Disabled'}
+                              </button>
+                            </div>
+
+                            {/* Priority Level */}
+                            <div className="lg:col-span-2 space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                Priority Level
+                              </label>
+                              <select
+                                value={mapping.defaultPriority}
+                                onChange={(e) =>
+                                  handleUpdateFunnelMapping(mapping.outcomeId, 'defaultPriority', e.target.value)
+                                }
+                                className="crm-input text-xs h-8 w-full font-bold text-slate-200 bg-slate-950"
+                              >
+                                <option value="HIGH">🔥 High</option>
+                                <option value="MEDIUM">⚡ Medium</option>
+                                <option value="NORMAL">Normal</option>
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

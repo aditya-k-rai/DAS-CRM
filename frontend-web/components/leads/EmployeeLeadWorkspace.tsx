@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import {
   Phone, MessageSquare, Mail, Sparkles, Send, RefreshCw, CheckCircle2,
   Clock, AlertCircle, User, Building2, MapPin, Tag, FileText, Bot,
-  PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check, Wifi, WifiOff
+  PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check, Wifi, WifiOff,
+  Calendar, CalendarCheck, Package, Bell, BellRing, ArrowRight, Flame
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent, buildAllocationTrailForLead, getUserRoleFromName } from './LeadAllocationTrail';
-import { CallContactHistory } from './CallContactHistory';
+import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType } from './CallContactHistory';
+import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -357,12 +359,52 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // ── SECTION 2: SMART DIALLER STATE ──────────────────────────────────────
+  // ── WORKFLOW & CALL FUNNEL HOOKS ──────────────────────────────────────────
+  const { funnelMappings, getTargetStatusForOutcome } = useWorkflowCallFunnel();
+  const { statuses: workflowStatuses } = useWorkflowLeadStatuses();
+
+  // Contact History State (synchronized with CallContactHistory timeline & stats)
+  const [contactHistory, setContactHistory] = useState<ContactAttempt[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`das_crm_contact_history_${leadId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [];
+  });
+
+  // ── SECTION 2: SMART DIALLER & CALL FUNNEL STATE ───────────────────────────
   const [isCalling, setIsCalling] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [showCallCutModal, setShowCallCutModal] = useState(false);
-  const [selectedCallDisposition, setSelectedCallDisposition] = useState<DispositionOption>('Talked & Enter Response');
   const [callResponseNotes, setCallResponseNotes] = useState('');
+
+  // Call Funnel Category Selection (1. Talked, 2. Not Responding, 3. Busy, 4. Switched Off)
+  const [funnelPrimaryCat, setFunnelPrimaryCat] = useState<'TALKED' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCH_OFF'>('TALKED');
+
+  // 1. Talked Sub-Options (Interested, Said He Will Visit, Want Something Else, Busy will talk later, Wrong Number)
+  const [talkedSubOption, setTalkedSubOption] = useState<
+    'INTERESTED' | 'SAID_WILL_VISIT' | 'WANT_SOMETHING_ELSE' | 'BUSY_LATER' | 'WRONG_NUMBER'
+  >('INTERESTED');
+
+  // Product Selection for Interested
+  const [selectedProduct, setSelectedProduct] = useState<string>('DAS CRM Enterprise Suite');
+  const [customProductInput, setCustomProductInput] = useState<string>('');
+
+  // 15-Day Date Grid & Time Scheduling
+  const [funnelScheduledDate, setFunnelScheduledDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [funnelScheduledTime, setFunnelScheduledTime] = useState<string>('10:30');
+  const [funnelSelectedChip, setFunnelSelectedChip] = useState<string>('Tomorrow (10:30 AM)');
+  const [enablePreAlert5Min, setEnablePreAlert5Min] = useState<boolean>(true);
+  const [customWantElseRequirement, setCustomWantElseRequirement] = useState<string>('');
 
   useEffect(() => {
     let timer: any;
@@ -379,49 +421,234 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
   const handleHangupCall = () => {
     setIsCalling(false);
-    setShowCallCutModal(true); // Pops up Post-Call Cut Disposition Modal automatically!
+    setShowCallCutModal(true); // Pops up Post-Call Cut Funnel Modal automatically!
   };
 
-  const handleSaveCallDisposition = () => {
-    const newLog: SyncedActivityLog = {
-      id: Date.now().toString(),
-      section: 'DIALLER',
-      title: `Call Ended (Duration: ${Math.floor(callDuration / 60)}m ${callDuration % 60}s)`,
-      disposition: selectedCallDisposition,
-      notes: callResponseNotes || `Disposition: ${selectedCallDisposition}`,
-      timestamp: 'Just now',
-      user: lead.owner,
+  const handleSaveCallDisposition = async () => {
+    // 1. Determine outcomeId, ContactOutcome, and ContactType
+    let outcomeId = 'talked_interested';
+    let contactType: ContactType = 'CALL_OUT';
+    let contactOutcome: ContactOutcome = 'TALKED';
+    let scheduledType: 'CALL' | 'MEETING' = 'CALL';
+    let autoQueueFollowUp = false;
+    let dispositionSummaryTitle = '';
+    let productInterestLogged = '';
+
+    if (funnelPrimaryCat === 'TALKED') {
+      contactType = 'CALL_OUT';
+      if (talkedSubOption === 'INTERESTED') {
+        outcomeId = 'talked_interested';
+        contactOutcome = 'INTERESTED_MORE_INFO';
+        productInterestLogged = customProductInput.trim() || selectedProduct;
+        autoQueueFollowUp = true;
+        dispositionSummaryTitle = `Talked: Interested in ${productInterestLogged}`;
+      } else if (talkedSubOption === 'SAID_WILL_VISIT') {
+        outcomeId = 'talked_said_will_visit';
+        contactOutcome = 'FOLLOW_UP_SCHEDULED';
+        scheduledType = 'MEETING';
+        autoQueueFollowUp = true;
+        dispositionSummaryTitle = `Talked: Meeting / Visit Scheduled for ${funnelScheduledDate} at ${funnelScheduledTime}`;
+      } else if (talkedSubOption === 'WANT_SOMETHING_ELSE') {
+        outcomeId = 'talked_want_something_else';
+        contactOutcome = 'TALKED';
+        productInterestLogged = customWantElseRequirement.trim();
+        autoQueueFollowUp = true;
+        dispositionSummaryTitle = `Talked: Custom Requirement — ${customWantElseRequirement.trim() || 'Specified'}`;
+      } else if (talkedSubOption === 'BUSY_LATER') {
+        outcomeId = 'talked_busy_later';
+        contactOutcome = 'WILL_CALL_BACK';
+        autoQueueFollowUp = true;
+        dispositionSummaryTitle = `Talked: Busy, Scheduled Callback for ${funnelScheduledDate} at ${funnelScheduledTime}`;
+      } else if (talkedSubOption === 'WRONG_NUMBER') {
+        outcomeId = 'talked_wrong_number';
+        contactOutcome = 'WRONG_NUMBER';
+        autoQueueFollowUp = false;
+        dispositionSummaryTitle = 'Talked: Wrong Number / Invalid';
+      }
+    } else if (funnelPrimaryCat === 'NOT_RESPONDING') {
+      contactType = 'CALL_NOT_RESPONDING';
+      contactOutcome = 'NO_ANSWER';
+      autoQueueFollowUp = true;
+      if (funnelSelectedChip.includes('Tomorrow')) {
+        outcomeId = 'not_responding_tomorrow';
+        dispositionSummaryTitle = 'Not Responding: Queued Follow-up Tomorrow (10:30 AM)';
+      } else {
+        outcomeId = 'not_responding_followup';
+        dispositionSummaryTitle = `Not Responding: Scheduled Callback for ${funnelScheduledDate} at ${funnelScheduledTime}`;
+      }
+    } else if (funnelPrimaryCat === 'BUSY') {
+      contactType = 'CALL_BUSY';
+      contactOutcome = 'BUSY';
+      outcomeId = 'busy_callback';
+      autoQueueFollowUp = true;
+      dispositionSummaryTitle = `Line Busy: Scheduled Callback (${funnelSelectedChip}) for ${funnelScheduledDate} at ${funnelScheduledTime}`;
+    } else if (funnelPrimaryCat === 'SWITCH_OFF') {
+      contactType = 'CALL_SWITCH_OFF';
+      contactOutcome = 'SWITCH_OFF';
+      outcomeId = 'switched_off_callback';
+      autoQueueFollowUp = true;
+      dispositionSummaryTitle = `Switched Off: Scheduled Callback (${funnelSelectedChip}) for ${funnelScheduledDate} at ${funnelScheduledTime}`;
+    }
+
+    // 2. Resolve Target Lead Status from Admin Workflow Mappings
+    const targetStatus = getTargetStatusForOutcome(outcomeId, 'Contacted');
+
+    // 3. Update Lead in State
+    const updatedRequirement = productInterestLogged || lead.requirement;
+    const updatedLead = {
+      ...lead,
+      status: targetStatus,
+      requirement: updatedRequirement,
+    };
+    setLead(updatedLead);
+
+    // 4. Persist to Session & Local Caches
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+        sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
+
+        const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+        if (allLeadsRaw) {
+          const allLeads: any[] = JSON.parse(allLeadsRaw);
+          const updatedAll = allLeads.map((item: any) =>
+            String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+              ? { ...item, status: targetStatus, stage: targetStatus, requirement: updatedRequirement, productInterest: updatedRequirement }
+              : item
+          );
+          localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+        }
+
+        const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+        if (dirLeadsRaw) {
+          const dirLeads: any[] = JSON.parse(dirLeadsRaw);
+          const updatedDir = dirLeads.map((item: any) =>
+            String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+              ? { ...item, status: targetStatus, stage: targetStatus, requirement: updatedRequirement, productInterest: updatedRequirement }
+              : item
+          );
+          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+        }
+      } catch (_) {}
+    }
+
+    // 5. Update Status in Backend API
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const authHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    setSyncedActivities((prev) => [newLog, ...prev]);
+    fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({
+        statusId: targetStatus,
+        notes: `Call Funnel Disposition: ${dispositionSummaryTitle}. Notes: ${callResponseNotes || 'N/A'}`,
+      }),
+    }).catch(() => {});
 
-    // Update lead status if disposition specifies — verify with internet and backend
-    if (
-      selectedCallDisposition === 'Not Interested' ||
-      selectedCallDisposition === 'Talked & Enter Response' ||
-      selectedCallDisposition === 'Interested in Product & Product Shared'
-    ) {
-      const targetStatus = selectedCallDisposition === 'Not Interested' ? 'Lost' : 'Qualified';
-      if (!isBrowserOnline()) {
-        showSyncNotification('⚡ Internet Required: Cannot sync status change while offline. Connect to internet.');
-      } else {
-        setLead((prev) => ({ ...prev, status: targetStatus }));
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-        const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-        fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ statusId: targetStatus, notes: `Call disposition: ${selectedCallDisposition}` }),
-        }).catch(() => {});
+    // 6. Automatically Create Follow-up Task in Backend & Tasks Hub
+    if (autoQueueFollowUp && funnelScheduledDate) {
+      const followUpTitle =
+        scheduledType === 'MEETING'
+          ? `🏢 In-Person / Virtual Visit: ${lead.name} (${lead.company || lead.phone})`
+          : `📞 Callback: ${lead.name} (${lead.phone})`;
+
+      const followUpPayload = {
+        title: followUpTitle,
+        followUpType: scheduledType,
+        leadId: lead.id,
+        scheduledDate: funnelScheduledDate,
+        scheduledTime: funnelScheduledTime || '10:30',
+        priority: 'HIGH',
+        purpose: callResponseNotes || `Call Funnel: ${dispositionSummaryTitle}`,
+        reminderMinutes: enablePreAlert5Min ? 5 : 0,
+      };
+
+      // Push to backend
+      fetch(`${apiBase}/follow-ups`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify(followUpPayload),
+      }).catch((e) => console.warn('Follow-up create sync notice:', e));
+
+      // Local storage cache + live broadcast
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
+          cachedTasks.unshift({
+            id: `task_${Date.now()}`,
+            ...followUpPayload,
+            createdAt: new Date().toISOString(),
+            status: 'PENDING',
+            lead: { id: lead.id, name: lead.name, phone: lead.phone, company: lead.company },
+          });
+          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(cachedTasks.slice(0, 100)));
+          window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
+          window.dispatchEvent(new CustomEvent('das_crm_followup_created', { detail: followUpPayload }));
+        } catch (_) {}
       }
     }
 
+    // 7. Push to Contact History Timeline (CallContactHistory.tsx)
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const newContactAttempt: ContactAttempt = {
+      id: `attempt_${Date.now()}`,
+      type: contactType,
+      outcome: contactOutcome,
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      durationSeconds: callDuration,
+      notes: callResponseNotes || dispositionSummaryTitle,
+      productInterest: productInterestLogged || undefined,
+      followUpDate: autoQueueFollowUp ? funnelScheduledDate : undefined,
+      followUpTime: autoQueueFollowUp ? funnelScheduledTime : undefined,
+      audioRecordingAvailable: callDuration > 10,
+    };
+
+    const updatedHistory = [newContactAttempt, ...contactHistory];
+    setContactHistory(updatedHistory);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify(updatedHistory));
+      } catch (_) {}
+    }
+
+    // 8. Log to Lead Center Activity Stream
+    const newLog: SyncedActivityLog = {
+      id: Date.now().toString(),
+      section: 'DIALLER',
+      title: `Call Ended (${Math.floor(callDuration / 60)}m ${callDuration % 60}s) — ${dispositionSummaryTitle}`,
+      disposition: dispositionSummaryTitle as any,
+      notes: callResponseNotes || `Outcome: ${contactOutcome}`,
+      timestamp: 'Just now',
+      user: currentUser?.name || lead.owner,
+    };
+    setSyncedActivities((prev) => [newLog, ...prev]);
+
+    // Close Modal & Reset
     setShowCallCutModal(false);
     setCallResponseNotes('');
-    showSyncNotification(`✓ Call Disposition Synced & Verified with Server! (${selectedCallDisposition})`);
+    setCustomProductInput('');
+    setCustomWantElseRequirement('');
+    showSyncNotification(
+      `✓ Call Outcome Logged: Status set to "${targetStatus}" ${
+        autoQueueFollowUp
+          ? `| Follow-up scheduled for ${funnelScheduledDate} at ${funnelScheduledTime} (5-min pre-alert 🔔)`
+          : ''
+      }`
+    );
   };
 
   // ── SECTION 3: WHATSAPP CHAT DIRECT STATE ──────────────────────────────
@@ -758,7 +985,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
           {/* Right Column: Full Contact History & Call Timeline */}
           <div className="md:col-span-2 space-y-6">
-            <CallContactHistory leadName={lead.name} interestedProduct={lead.requirement} />
+            <CallContactHistory history={contactHistory} leadName={lead.name} interestedProduct={lead.requirement} />
           </div>
         </div>
       )}
@@ -794,7 +1021,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     onClick={handleHangupCall}
                     className="w-full py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-500/30 transition-all"
                   >
-                    <PhoneOff size={18} /> End Call (Call Cut) & Enter Disposition →
+                    <PhoneOff size={18} /> End Call (Call Cut) &amp; Enter Outcome →
                   </button>
                 </div>
               </div>
@@ -811,144 +1038,671 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             )}
           </div>
 
-          {/* ── POST-CALL CUT DISPOSITION MODAL ────────────────────────────────────── */}
+          {/* ── MULTI-TIERED POST-CALL CUT DISPOSITION MODAL ───────────────────────── */}
           {showCallCutModal && (
             <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-                <h4 className="font-extrabold text-white text-base flex items-center gap-2">
-                  <span>📱 Post-Call Outcome &amp; Lead Status Update</span>
-                </h4>
-                <p className="text-xs text-slate-400">
-                  Select outcome status for {lead.name} ({lead.phone}):
-                </p>
-
-                {/* Outcome Options Grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { key: 'Talked & Enter Response', label: '🗣️ Talked (Call Completed)' },
-                    { key: 'Will Talk Later', label: '⏰ Will Call Later' },
-                    { key: 'Said Will Visit', label: '🤝 Said He Will Visit' },
-                    { key: 'Interested in Product & Product Shared', label: '💡 Interested in Product & Product Shared' },
-                    { key: 'Not Responding', label: '📞 Not Responding' },
-                    { key: 'Busy', label: '⏳ Busy' },
-                    { key: 'Switch Off', label: '📴 Switched Off' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.key}
-                      onClick={() => setSelectedCallDisposition(opt.key as any)}
-                      className={`p-3 rounded-xl text-xs font-bold transition-all text-left border ${
-                        selectedCallDisposition === (opt.key as any)
-                          ? 'bg-emerald-500/25 border-emerald-500 text-emerald-600 dark:text-emerald-300 shadow-md'
-                          : 'bg-card border-border text-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {opt.label} {selectedCallDisposition === (opt.key as any) && '✓'}
-                    </button>
-                  ))}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto text-left animate-in fade-in zoom-in-95 duration-200">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                      📞 Post-Call Outcome Engine
+                    </span>
+                    <h4 className="font-extrabold text-white text-base mt-1 flex items-center gap-2">
+                      <span>Log Call Outcome &amp; Auto-Sync CRM</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {lead.name} ({lead.phone}) · Duration: <strong className="text-slate-200">{Math.floor(callDuration / 60)}m {callDuration % 60}s</strong>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCallCutModal(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                {/* Conditional Sub-Selectors */}
-                {/* ⏰ WILL CALL LATER: 15-Day Date Grid & Time Slots */}
-                {selectedCallDisposition === ('Will Talk Later' as any) && (
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
-                    <label className="text-xs text-amber-400 font-bold block">📅 Select Callback Date (Next 15 Days):</label>
-                    <div className="flex gap-1.5 overflow-x-auto pb-1">
-                      {Array.from({ length: 15 }, (_, i) => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + i);
-                        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
-                        return (
-                          <button
-                            key={i}
-                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:border-amber-500 whitespace-nowrap"
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <label className="text-xs text-amber-400 font-bold block pt-1">⏰ Select Callback Time Slot:</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['09:30 AM', '11:00 AM', '02:00 PM', '04:30 PM', '06:00 PM'].map((slot) => (
-                        <span key={slot} className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer">
-                          {slot}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 🤝 SAID WILL VISIT: Expected Visit Date Grid */}
-                {selectedCallDisposition === ('Said Will Visit' as any) && (
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <label className="text-xs text-indigo-400 font-bold block">🏢 Expected Visit Date (Next 15 Days):</label>
-                    <div className="flex gap-1.5 overflow-x-auto pb-1">
-                      {Array.from({ length: 15 }, (_, i) => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + i);
-                        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
-                        return (
-                          <button
-                            key={i}
-                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:border-indigo-500 whitespace-nowrap"
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* 💡 INTERESTED IN PRODUCT & PRODUCT SHARED: Product Selection Box */}
-                {(selectedCallDisposition === ('Interested in Product & Product Shared' as any) ||
-                  selectedCallDisposition === ('Interested Product' as any) ||
-                  selectedCallDisposition === ('Catalogue Shared' as any)) && (
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                    <label className="text-xs text-emerald-400 font-bold block">💡 Select Interested Product / Shared Catalogue:</label>
-                    <div className="space-y-1.5">
-                      {[
-                        { name: 'DAS CRM Enterprise Suite', tier: '₹49,999 / yr' },
-                        { name: 'AI Lead Scoring Engine Pro', tier: '₹14,999 / mo' },
-                        { name: 'WhatsApp Automation Bot Engine', tier: '₹8,999 / mo' },
-                        { name: 'Cloud Telemetry License', tier: '₹4,999 / mo' },
-                      ].map((prod) => (
-                        <div
-                          key={prod.name}
-                          onClick={() => {
-                            setCallResponseNotes((prev) =>
-                              prev ? `${prev} | Product Discussed & Shared: ${prod.name}` : `Product Discussed & Shared: ${prod.name}`
-                            );
-                          }}
-                          className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors"
-                        >
-                          <span className="text-xs font-bold text-white">{prod.name}</span>
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">{prod.tier}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom Response Notes Box */}
+                {/* ── STEP 1: PRIMARY OUTCOME CATEGORY (4 Core Funnels) ──────────── */}
                 <div>
-                  <label className="text-xs text-slate-300 font-bold block mb-1">📝 Custom Response &amp; Follow-up Notes:</label>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                    Select Primary Call Disposition Category *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        key: 'TALKED',
+                        label: '1. Talked (Call Connected)',
+                        emoji: '🗣️',
+                        color: 'emerald',
+                        desc: 'Spoke with prospect / answered',
+                      },
+                      {
+                        key: 'NOT_RESPONDING',
+                        label: '2. Not Responding',
+                        emoji: '🔕',
+                        color: 'amber',
+                        desc: 'Ringing but not picked',
+                      },
+                      {
+                        key: 'BUSY',
+                        label: '3. Busy',
+                        emoji: '⏳',
+                        color: 'rose',
+                        desc: 'Line engaged / waiting',
+                      },
+                      {
+                        key: 'SWITCH_OFF',
+                        label: '4. Switched Off',
+                        emoji: '📴',
+                        color: 'slate',
+                        desc: 'Unreachable / off',
+                      },
+                    ].map((cat) => {
+                      const isSelected = funnelPrimaryCat === cat.key;
+                      return (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => {
+                            setFunnelPrimaryCat(cat.key as any);
+                            if (cat.key === 'NOT_RESPONDING' || cat.key === 'BUSY' || cat.key === 'SWITCH_OFF') {
+                              const d = new Date();
+                              d.setDate(d.getDate() + 1);
+                              setFunnelScheduledDate(d.toISOString().split('T')[0]);
+                              setFunnelScheduledTime('10:30');
+                              setFunnelSelectedChip('Tomorrow (10:30 AM)');
+                            }
+                          }}
+                          className={`p-3 rounded-xl text-left border transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-500/50'
+                              : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:bg-slate-850 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black flex items-center gap-1.5">
+                              <span>{cat.emoji}</span> {cat.label}
+                            </span>
+                            {isSelected && <span className="text-indigo-400 font-bold text-xs">✓</span>}
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">{cat.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ── STEP 2: CATEGORY-SPECIFIC SUB-OPTIONS & CONTROLS ─────────── */}
+
+                {/* 1. TALKED (CALL CONNECTED) SUB-OPTIONS */}
+                {funnelPrimaryCat === 'TALKED' && (
+                  <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/30 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <span>🗣️ Talked Sub-Option:</span>
+                      </label>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-300">
+                        {talkedSubOption === 'INTERESTED'
+                          ? 'Auto Stage: Qualified'
+                          : talkedSubOption === 'SAID_WILL_VISIT'
+                          ? 'Auto Stage: Meeting Scheduled'
+                          : talkedSubOption === 'WANT_SOMETHING_ELSE'
+                          ? 'Auto Stage: Contacted'
+                          : talkedSubOption === 'BUSY_LATER'
+                          ? 'Auto Stage: Contacted'
+                          : 'Auto Stage: Lost'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { key: 'INTERESTED', label: 'a - Interested (product or service)', emoji: '💡' },
+                        { key: 'SAID_WILL_VISIT', label: 'b - Said He Will Visit', emoji: '🤝' },
+                        { key: 'WANT_SOMETHING_ELSE', label: 'c - Want Something Else', emoji: '🔄' },
+                        { key: 'BUSY_LATER', label: 'd - Busy will talk later', emoji: '⏰' },
+                        { key: 'WRONG_NUMBER', label: 'e - Wrong Number', emoji: '⚠️' },
+                      ].map((sub) => {
+                        const isSelected = talkedSubOption === sub.key;
+                        return (
+                          <button
+                            key={sub.key}
+                            type="button"
+                            onClick={() => setTalkedSubOption(sub.key as any)}
+                            className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-md'
+                                : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="mr-1.5">{sub.emoji}</span> {sub.label} {isSelected && '✓'}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Sub-Option A: INTERESTED -> Product Catalogue Selection */}
+                    {talkedSubOption === 'INTERESTED' && (
+                      <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-2.5 animate-in fade-in duration-150">
+                        <label className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                          <Package size={13} className="text-emerald-400" /> Select Interested Product / Catalogue Shared:
+                        </label>
+                        <div className="space-y-1.5">
+                          {[
+                            { name: 'DAS CRM Enterprise Suite', tier: '₹49,999 / yr' },
+                            { name: 'AI Lead Scoring Engine Pro', tier: '₹14,999 / mo' },
+                            { name: 'WhatsApp Automation Bot Engine', tier: '₹8,999 / mo' },
+                            { name: 'Cloud Telemetry License', tier: '₹4,999 / mo' },
+                            { name: 'Custom ERP Integration Package', tier: '₹75,000 one-time' },
+                          ].map((prod) => {
+                            const isProdSelected = selectedProduct === prod.name && !customProductInput.trim();
+                            return (
+                              <div
+                                key={prod.name}
+                                onClick={() => {
+                                  setSelectedProduct(prod.name);
+                                  setCustomProductInput('');
+                                }}
+                                className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
+                                  isProdSelected
+                                    ? 'bg-emerald-500/25 border-emerald-400 text-white'
+                                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                                }`}
+                              >
+                                <span className="text-xs font-bold">{prod.name}</span>
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+                                  {prod.tier}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Or Enter Other Custom Product / Service Name:
+                          </label>
+                          <input
+                            type="text"
+                            className="crm-input text-xs h-8"
+                            placeholder="e.g. Healthcare Multi-Branch Module..."
+                            value={customProductInput}
+                            onChange={(e) => setCustomProductInput(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-Option B: SAID HE WILL VISIT -> 15-Day Date & Time Meeting Scheduler */}
+                    {talkedSubOption === 'SAID_WILL_VISIT' && (
+                      <div className="p-3 rounded-xl bg-slate-900 border border-indigo-500/40 space-y-2.5 animate-in fade-in duration-150">
+                        <label className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5">
+                          <CalendarCheck size={13} className="text-indigo-400" /> Select Expected Visit / Demo Date (Next 15 Days):
+                        </label>
+                        <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                          {Array.from({ length: 15 }, (_, i) => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + i);
+                            const isoDate = d.toISOString().split('T')[0];
+                            const label =
+                              i === 0
+                                ? 'Today'
+                                : i === 1
+                                ? 'Tomorrow'
+                                : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                            const isSelected = funnelScheduledDate === isoDate;
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setFunnelScheduledDate(isoDate)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
+                                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-indigo-500'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">Time Slot:</label>
+                            <div className="flex flex-wrap gap-1">
+                              {['10:00 AM', '11:30 AM', '02:30 PM', '04:00 PM', '06:00 PM'].map((slot) => {
+                                const isTime = funnelScheduledTime === slot;
+                                return (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    onClick={() => setFunnelScheduledTime(slot)}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                      isTime
+                                        ? 'bg-indigo-500/30 border-indigo-400 text-indigo-200'
+                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    {slot}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">Custom Time:</label>
+                            <input
+                              type="time"
+                              className="crm-input text-xs h-8 [color-scheme:dark]"
+                              value={funnelScheduledTime.includes(':') && !funnelScheduledTime.includes('M') ? funnelScheduledTime : '11:30'}
+                              onChange={(e) => setFunnelScheduledTime(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enablePreAlert5Min}
+                            onChange={(e) => setEnablePreAlert5Min(e.target.checked)}
+                            className="rounded border-slate-700 text-indigo-600 bg-slate-950"
+                          />
+                          <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                            <Bell size={12} className="text-amber-400" /> Pre-alert notification (5 mins before scheduled visit)
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Sub-Option C: WANT SOMETHING ELSE -> Custom Requirement Box */}
+                    {talkedSubOption === 'WANT_SOMETHING_ELSE' && (
+                      <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/30 space-y-2 animate-in fade-in duration-150">
+                        <label className="text-[11px] font-bold text-amber-300 block">
+                          📝 Capture Client's Custom Requirement / Needed Specs:
+                        </label>
+                        <textarea
+                          rows={2}
+                          className="crm-input text-xs w-full"
+                          placeholder="e.g. Client needs custom multi-currency invoicing and Shopify API sync..."
+                          value={customWantElseRequirement}
+                          onChange={(e) => setCustomWantElseRequirement(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {/* Sub-Option D: BUSY WILL TALK LATER -> 15-Day Date & Time Callback Scheduler */}
+                    {talkedSubOption === 'BUSY_LATER' && (
+                      <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/30 space-y-2.5 animate-in fade-in duration-150">
+                        <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                          <Clock size={13} className="text-amber-400" /> Select Callback Date (Next 15 Days):
+                        </label>
+                        <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                          {Array.from({ length: 15 }, (_, i) => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + i);
+                            const isoDate = d.toISOString().split('T')[0];
+                            const label =
+                              i === 0
+                                ? 'Today'
+                                : i === 1
+                                ? 'Tomorrow'
+                                : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                            const isSelected = funnelScheduledDate === isoDate;
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setFunnelScheduledDate(isoDate)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border ${
+                                  isSelected
+                                    ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-amber-500'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">Callback Slot:</label>
+                            <div className="flex flex-wrap gap-1">
+                              {['09:30 AM', '11:00 AM', '02:00 PM', '04:30 PM', '06:00 PM'].map((slot) => {
+                                const isTime = funnelScheduledTime === slot;
+                                return (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    onClick={() => setFunnelScheduledTime(slot)}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                      isTime
+                                        ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    {slot}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">Custom Time:</label>
+                            <input
+                              type="time"
+                              className="crm-input text-xs h-8 [color-scheme:dark]"
+                              value={funnelScheduledTime.includes(':') && !funnelScheduledTime.includes('M') ? funnelScheduledTime : '10:30'}
+                              onChange={(e) => setFunnelScheduledTime(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={enablePreAlert5Min}
+                            onChange={(e) => setEnablePreAlert5Min(e.target.checked)}
+                            className="rounded border-slate-700 text-amber-600 bg-slate-950"
+                          />
+                          <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                            <Bell size={12} className="text-amber-400" /> Pre-alert notification (5 mins before callback)
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Sub-Option E: WRONG NUMBER */}
+                    {talkedSubOption === 'WRONG_NUMBER' && (
+                      <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-200 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <AlertCircle size={14} className="text-rose-400" /> Mark Lead as Lost (Wrong Number)
+                        </p>
+                        <p className="text-[11px] text-rose-300/80">
+                          This action will auto-transition this prospect to the Lost stage in accordance with tenant lifecycle rules.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. NOT RESPONDING (RINGING NOT PICKED) */}
+                {funnelPrimaryCat === 'NOT_RESPONDING' && (
+                  <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                        <Clock size={13} className="text-amber-400" /> Follow-up Call Scheduling Options:
+                      </label>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300">
+                        Auto Stage: Contacted
+                      </span>
+                    </div>
+
+                    {/* 1-Tap Quick Action: Tomorrow 10:30 AM */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + 1);
+                        setFunnelScheduledDate(d.toISOString().split('T')[0]);
+                        setFunnelScheduledTime('10:30');
+                        setFunnelSelectedChip('Tomorrow (10:30 AM)');
+                      }}
+                      className={`w-full p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                        funnelSelectedChip === 'Tomorrow (10:30 AM)'
+                          ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-md'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-amber-500/50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>a.1 - Quick Pick: Followup Tomorrow (10:30 AM)</span>
+                      </span>
+                      {funnelSelectedChip === 'Tomorrow (10:30 AM)' && <span className="text-amber-300 font-black">✓ Selected</span>}
+                    </button>
+
+                    {/* Custom 15-Day Date & Time Grid */}
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                      <label className="text-[11px] font-bold text-slate-300 block">
+                        a - Or Choose Custom Date (Next 15 Days):
+                      </label>
+                      <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                        {Array.from({ length: 15 }, (_, i) => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + i);
+                          const isoDate = d.toISOString().split('T')[0];
+                          const label =
+                            i === 0
+                              ? 'Today'
+                              : i === 1
+                              ? 'Tomorrow'
+                              : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+                          const isSelected = funnelScheduledDate === isoDate && funnelSelectedChip !== 'Tomorrow (10:30 AM)';
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setFunnelScheduledDate(isoDate);
+                                setFunnelSelectedChip('Custom Date');
+                              }}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all border ${
+                                isSelected
+                                  ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-amber-500'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">Time Slot:</label>
+                          <div className="flex flex-wrap gap-1">
+                            {['10:00 AM', '12:00 PM', '03:00 PM', '05:30 PM'].map((slot) => (
+                              <button
+                                key={slot}
+                                type="button"
+                                onClick={() => {
+                                  setFunnelScheduledTime(slot);
+                                  setFunnelSelectedChip('Custom Date');
+                                }}
+                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                  funnelScheduledTime === slot
+                                    ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {slot}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">Custom Time:</label>
+                          <input
+                            type="time"
+                            className="crm-input text-xs h-8 [color-scheme:dark]"
+                            value={funnelScheduledTime.includes(':') && !funnelScheduledTime.includes('M') ? funnelScheduledTime : '10:30'}
+                            onChange={(e) => {
+                              setFunnelScheduledTime(e.target.value);
+                              setFunnelSelectedChip('Custom Date');
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enablePreAlert5Min}
+                          onChange={(e) => setEnablePreAlert5Min(e.target.checked)}
+                          className="rounded border-slate-700 text-amber-600 bg-slate-950"
+                        />
+                        <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                          <Bell size={12} className="text-amber-400" /> Pre-alert notification (5 mins before scheduled time in Follow-ups)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. BUSY (LINE ENGAGED) & 4. SWITCHED OFF CHIPS */}
+                {(funnelPrimaryCat === 'BUSY' || funnelPrimaryCat === 'SWITCH_OFF') && (
+                  <div
+                    className={`p-3.5 rounded-2xl bg-slate-950 border ${
+                      funnelPrimaryCat === 'BUSY' ? 'border-rose-500/30' : 'border-slate-700'
+                    } space-y-3`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Clock size={13} className={funnelPrimaryCat === 'BUSY' ? 'text-rose-400' : 'text-slate-400'} />
+                        Select Quick Callback Preset:
+                      </label>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-800 text-slate-300">
+                        Auto Stage: Contacted
+                      </span>
+                    </div>
+
+                    {/* Quick Callback Interval Chips */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { label: '30 Mins', delayMins: 30 },
+                        { label: '1 Hour', delayMins: 60 },
+                        { label: '2 Hours', delayMins: 120 },
+                        { label: 'Tomorrow (10:30 AM)', delayDays: 1, time: '10:30' },
+                        { label: 'Custom Date/Time', isCustom: true },
+                      ].map((chip) => {
+                        const isChipSelected = funnelSelectedChip === chip.label;
+                        return (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={() => {
+                              setFunnelSelectedChip(chip.label);
+                              if (chip.delayMins) {
+                                const now = new Date();
+                                const target = new Date(now.getTime() + chip.delayMins * 60 * 1000);
+                                setFunnelScheduledDate(target.toISOString().split('T')[0]);
+                                setFunnelScheduledTime(
+                                  `${target.getHours().toString().padStart(2, '0')}:${target.getMinutes().toString().padStart(2, '0')}`
+                                );
+                              } else if (chip.delayDays) {
+                                const d = new Date();
+                                d.setDate(d.getDate() + chip.delayDays);
+                                setFunnelScheduledDate(d.toISOString().split('T')[0]);
+                                setFunnelScheduledTime(chip.time || '10:30');
+                              }
+                            }}
+                            className={`p-2 rounded-xl text-center text-xs font-bold transition-all border ${
+                              isChipSelected
+                                ? 'bg-indigo-600/30 border-indigo-400 text-white shadow-md'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                            }`}
+                          >
+                            ⚡ {chip.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Date/Time input if selected */}
+                    {funnelSelectedChip === 'Custom Date/Time' && (
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 animate-in fade-in duration-150">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">Date:</label>
+                          <input
+                            type="date"
+                            className="crm-input text-xs h-8 [color-scheme:dark]"
+                            value={funnelScheduledDate}
+                            onChange={(e) => setFunnelScheduledDate(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">Time:</label>
+                          <input
+                            type="time"
+                            className="crm-input text-xs h-8 [color-scheme:dark]"
+                            value={funnelScheduledTime}
+                            onChange={(e) => setFunnelScheduledTime(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enablePreAlert5Min}
+                        onChange={(e) => setEnablePreAlert5Min(e.target.checked)}
+                        className="rounded border-slate-700 text-indigo-600 bg-slate-950"
+                      />
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                        <Bell size={12} className="text-amber-400" /> Pre-alert notification (5 mins before scheduled callback)
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {/* ── STEP 3: CONVERSATION REMARKS & NOTES ─────────────────────── */}
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">
+                    📝 Call Notes &amp; Conversation Remarks:
+                  </label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     className="crm-input text-xs w-full"
-                    placeholder="Enter custom notes e.g. Client agreed to review demo with team tomorrow..."
+                    placeholder="Enter discussion summary or callback instructions..."
                     value={callResponseNotes}
                     onChange={(e) => setCallResponseNotes(e.target.value)}
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
+                {/* ── LIVE STAGE TRANSITION SUMMARY PREVIEW ───────────────────── */}
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted">Target Stage:</span>
+                    <span className="font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                      {funnelPrimaryCat === 'TALKED' && talkedSubOption === 'INTERESTED'
+                        ? 'Qualified'
+                        : funnelPrimaryCat === 'TALKED' && talkedSubOption === 'SAID_WILL_VISIT'
+                        ? 'Meeting Scheduled'
+                        : funnelPrimaryCat === 'TALKED' && talkedSubOption === 'WRONG_NUMBER'
+                        ? 'Lost'
+                        : 'Contacted'}
+                    </span>
+                  </div>
+
+                  {funnelPrimaryCat !== 'TALKED' || talkedSubOption !== 'WRONG_NUMBER' ? (
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <Calendar size={12} className="text-indigo-400" />
+                      <span>{funnelScheduledDate} at {funnelScheduledTime}</span>
+                      {enablePreAlert5Min && <span className="text-amber-400">🔔 5m</span>}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* ── SUBMIT BUTTONS ─────────────────────────────────────────── */}
+                <div className="flex justify-end gap-2 pt-1 border-t border-slate-800">
                   <button
-                    onClick={handleSaveCallDisposition}
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/25"
+                    type="button"
+                    onClick={() => setShowCallCutModal(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
                   >
-                    Save & Auto-Sync To Lead Center →
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCallDisposition}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <CheckCircle2 size={15} /> Save Outcome &amp; Auto-Sync CRM →
                   </button>
                 </div>
               </div>
