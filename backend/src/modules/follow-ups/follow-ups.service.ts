@@ -65,16 +65,41 @@ export class FollowUpsService {
   private includeRelations() {
     return {
       assignee: {
-        select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          role: { select: { id: true, name: true } },
+        },
       },
       createdBy: {
-        select: { id: true, firstName: true, lastName: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          role: { select: { id: true, name: true } },
+        },
       },
       lead: {
         select: {
-          id: true, firstName: true, lastName: true, email: true, phone: true,
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
           company: { select: { id: true, name: true } },
           status: { select: { id: true, name: true, color: true } },
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              role: { select: { id: true, name: true } },
+            },
+          },
         },
       },
     };
@@ -622,6 +647,24 @@ export class FollowUpsService {
       },
       include: this.includeRelations(),
     });
+
+    // Log activity
+    if (existing.leadId) {
+      await this.prisma.activity.create({
+        data: {
+          organizationId,
+          type: 'TASK',
+          userId,
+          leadId: existing.leadId,
+          description: `Follow-up cancelled: ${existing.title}. Reason: ${dto.reason || 'N/A'}`,
+          metadata: {
+            followUpId: id,
+            cancelledBy: userId,
+            reason: dto.reason,
+          },
+        },
+      }).catch(() => null);
+    }
 
     return { ...updated, computedStatus: 'CANCELLED' };
   }

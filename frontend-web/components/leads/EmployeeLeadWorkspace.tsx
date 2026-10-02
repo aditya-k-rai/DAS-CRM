@@ -580,11 +580,29 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       if (typeof window !== 'undefined') {
         try {
           const cachedTasks = JSON.parse(localStorage.getItem('das_crm_followup_tasks_cache') || '[]');
+          const repName = lead.owner || (lead as any).assignedRep || 'Sachin Puri';
           cachedTasks.unshift({
             id: `task_${Date.now()}`,
             ...followUpPayload,
             createdAt: new Date().toISOString(),
             status: 'PENDING',
+            createdById: currentUser?.id || 'admin_user',
+            createdByName: currentUser?.name || 'Anurag Sharma',
+            createdByRole: currentUser?.role || 'ADMIN',
+            createdBy: {
+              id: currentUser?.id,
+              name: currentUser?.name || 'Anurag Sharma',
+              firstName: currentUser?.name ? currentUser.name.split(' ')[0] : 'Anurag',
+              lastName: currentUser?.name ? currentUser.name.split(' ').slice(1).join(' ') : 'Sharma',
+              role: currentUser?.role || 'ADMIN',
+            },
+            assignee: {
+              id: currentUser?.id,
+              name: repName,
+              firstName: repName.split(' ')[0],
+              lastName: repName.split(' ').slice(1).join(' '),
+              role: 'SALES_REP',
+            },
             lead: {
               id: lead.id,
               name: lead.name,
@@ -592,6 +610,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               lastName: (lead as any).lastName || (lead.name ? lead.name.split(' ').slice(1).join(' ') : ''),
               phone: lead.phone,
               email: lead.email,
+              owner: {
+                name: repName,
+                firstName: repName.split(' ')[0],
+                lastName: repName.split(' ').slice(1).join(' '),
+                role: 'SALES_REP',
+              },
               company: typeof lead.company === 'string' ? { name: lead.company } : (lead.company || { name: 'Enterprise' }),
               status: { name: targetStatus, color: '#3b82f6' },
             },
