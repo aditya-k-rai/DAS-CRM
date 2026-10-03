@@ -533,7 +533,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSeatExceeded = subscription.userSeatsUsed > subscription.userSeatsAllocated;
 
-  const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription) => {
+  const setAuthSession = (user: UserProfile, newTok: string, sub?: CompanySubscription, refreshToken?: string) => {
     let userPhone = user.phone;
     if (!userPhone && typeof window !== 'undefined') {
       try {

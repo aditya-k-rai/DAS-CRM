@@ -84,6 +84,8 @@ function mapServerActivitiesToContactHistory(
         : rawRole.includes('LEAD') || rawRole.includes('TL') ? 'TEAM_LEADER'
         : 'SALES_EXEC';
 
+      const actTime = act.createdAt ? (typeof act.createdAt === 'string' ? act.createdAt : new Date(act.createdAt).toISOString()) : new Date().toISOString();
+
       if (typeStr === 'CALL' || metaType.startsWith('CALL')) {
         const cType: ContactType = (['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(metaType) ? metaType : 'CALL_OUT') as ContactType;
         const durSecs = meta.durationSeconds ?? (meta.durationMin ? meta.durationMin * 60 : 0);
@@ -93,7 +95,7 @@ function mapServerActivitiesToContactHistory(
           outcome: (meta.outcome || (durSecs > 0 ? 'TALKED' : 'BUSY')) as ContactOutcome,
           by: userName,
           byRole: cleanRole,
-          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          timestamp: actTime,
           durationSeconds: durSecs,
           notes: act.description || meta.notes || 'Outbound phone call',
           productInterest: meta.productInterest || leadInfo.requirement,
@@ -109,7 +111,7 @@ function mapServerActivitiesToContactHistory(
           outcome: (meta.outcome || 'EMAIL_SENT') as ContactOutcome,
           by: userName,
           byRole: cleanRole,
-          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          timestamp: actTime,
           notes: act.description || meta.subject || 'Email Dispatched',
           sentMessage: meta.subject || meta.notes,
         });
@@ -121,7 +123,7 @@ function mapServerActivitiesToContactHistory(
           outcome: (meta.outcome || 'WA_SENT') as ContactOutcome,
           by: userName,
           byRole: cleanRole,
-          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          timestamp: actTime,
           notes: act.description || 'WhatsApp communication',
           sentMessage: meta.sentMessage || act.description,
         });
@@ -141,18 +143,20 @@ function mapServerActivitiesToContactHistory(
         if (!seenIds.has(taskId)) {
           const isMeeting = t.followUpType === 'MEETING' || (t.title && t.title.includes('Visit'));
           const prodMatch = purpose.match(/product:\s*([^,\.]+)/i) || purpose.match(/interested in\s*([^,\.]+)/i);
+          const dueIso = t.dueAt ? (typeof t.dueAt === 'string' ? t.dueAt : new Date(t.dueAt).toISOString()) : '';
+          const taskTime = t.createdAt ? (typeof t.createdAt === 'string' ? t.createdAt : new Date(t.createdAt).toISOString()) : new Date().toISOString();
           attempts.push({
             id: taskId,
             type: 'CALL_OUT',
             outcome: isMeeting ? 'TALKED' : 'FOLLOW_UP_SCHEDULED',
             by: leadInfo.owner || 'Anurag Sharma',
             byRole: 'ADMIN',
-            timestamp: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+            timestamp: taskTime,
             durationSeconds: 45,
             notes: purpose || t.title || 'Call Funnel outreach',
             productInterest: prodMatch ? prodMatch[1].trim() : (leadInfo.requirement || undefined),
-            followUpDate: t.dueAt ? t.dueAt.split('T')[0] : undefined,
-            followUpTime: t.dueAt && t.dueAt.includes('T') ? t.dueAt.split('T')[1].slice(0, 5) : undefined,
+            followUpDate: dueIso ? dueIso.split('T')[0] : undefined,
+            followUpTime: dueIso && dueIso.includes('T') ? dueIso.split('T')[1].slice(0, 5) : undefined,
             audioRecordingAvailable: false,
           });
           seenIds.add(taskId);
@@ -315,13 +319,43 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               source: norm.source || '—',
               allocationTrail: norm.allocationTrail || [],
             });
+
+            // Optimistic hydration of contact history if cached or present in session
+            if (Array.isArray(sessionMatch.activities) || Array.isArray(sessionMatch.tasks)) {
+              const optAttempts = mapServerActivitiesToContactHistory(sessionMatch.activities, sessionMatch.tasks, {
+                owner: ownerName,
+                requirement: norm.requirement,
+              });
+              if (optAttempts.length > 0) {
+                setContactHistory(optAttempts);
+              }
+            } else {
+              const cachedDirect = localStorage.getItem(`das_crm_contact_history_${norm.id}`) || localStorage.getItem(`das_crm_contact_history_${leadId}`);
+              if (cachedDirect) {
+                try {
+                  const parsed = JSON.parse(cachedDirect);
+                  if (Array.isArray(parsed) && parsed.length > 0) setContactHistory(parsed);
+                } catch (_) {}
+              }
+            }
           }
         } catch (_) {}
       }
 
       // 3. ALWAYS FETCH AUTHORITATIVE DATABASE STATE FROM BACKEND API
       try {
-        const res = await apiFetch(`/leads/${encodeURIComponent(leadId)}`);
+        let res = await apiFetch(`/leads/${encodeURIComponent(leadId)}`);
+        // If not ok and we have a concrete lead ID from sessionMatch, retry
+        if (!res.ok && typeof window !== 'undefined') {
+          const directSession = sessionStorage.getItem(`das_crm_lead_${leadId}`);
+          const activeSession = sessionStorage.getItem('das_crm_active_lead');
+          const candidate = directSession ? JSON.parse(directSession) : activeSession ? JSON.parse(activeSession) : null;
+          if (candidate && candidate.id && candidate.id !== leadId) {
+            const retryRes = await apiFetch(`/leads/${encodeURIComponent(candidate.id)}`);
+            if (retryRes.ok) res = retryRes;
+          }
+        }
+
         if (res.ok) {
           const l = await res.json();
           if (l && isMounted) {

@@ -291,15 +291,43 @@ export class LeadsService {
 
   async findOne(organizationId: string, id: string, userId?: string) {
     const hierarchyScope = await this.getHierarchyScope(organizationId, userId);
+    const cleanId = decodeURIComponent(id || '').trim();
+    const cleanName = cleanId.replace(/[-_]/g, ' ').trim();
+    const nameParts = cleanName.split(/\s+/).filter(Boolean);
+
+    const orClauses: any[] = [
+      { id: cleanId },
+      { id },
+      { firstName: { contains: cleanId, mode: 'insensitive' } },
+      { lastName: { contains: cleanId, mode: 'insensitive' } },
+      { email: { contains: cleanId, mode: 'insensitive' } },
+      { phone: { contains: cleanId } },
+    ];
+
+    const withoutCountry = cleanId.replace(/^\+?91[\s-]*/, '').trim();
+    if (withoutCountry.length >= 5) {
+      orClauses.push({ phone: { contains: withoutCountry } });
+    }
+
+    if (cleanName !== cleanId) {
+      orClauses.push(
+        { firstName: { contains: cleanName, mode: 'insensitive' } },
+        { lastName: { contains: cleanName, mode: 'insensitive' } },
+      );
+    }
+
+    if (nameParts.length >= 2) {
+      orClauses.push({
+        AND: [
+          { firstName: { contains: nameParts[0], mode: 'insensitive' } },
+          { lastName: { contains: nameParts.slice(1).join(' '), mode: 'insensitive' } },
+        ],
+      });
+    }
+
     const whereConditions: any[] = [
       { organizationId },
-      {
-        OR: [
-          { id },
-          { firstName: { contains: id, mode: 'insensitive' } },
-          { email: { contains: id, mode: 'insensitive' } },
-        ],
-      },
+      { OR: orClauses },
     ];
     if (hierarchyScope && Object.keys(hierarchyScope).length > 0) {
       whereConditions.push(hierarchyScope);
