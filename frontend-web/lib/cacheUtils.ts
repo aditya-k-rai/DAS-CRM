@@ -48,10 +48,19 @@ export const invalidateCache = (key: string): void => {
 export const clearAllDashboardCaches = (): void => {
   if (typeof window === 'undefined') return;
   Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith('das_crm_cache_') || key === 'das_crm_all_leads_cache' || key === 'das_crm_lead_directory_cache') {
+    if (key.startsWith('das_crm_cache_')) {
       localStorage.removeItem(key);
     }
   });
+};
+
+/**
+ * Explicitly clears all lead directory caches — only call on logout or explicit tenant switch.
+ */
+export const clearLeadDirectoryCaches = (): void => {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('das_crm_all_leads_cache');
+  localStorage.removeItem('das_crm_lead_directory_cache');
 };
 
 /**

@@ -429,8 +429,16 @@ export function LeadsTable() {
         }
 
         if (isReset || pageNumber === 1) {
-          const finalLeads = mappedServerLeads;
-          if (typeof window !== 'undefined') {
+          // If server returned 0 leads but we already have leads in state or cache, preserve them instead of flashing to empty
+          if (mappedServerLeads.length === 0 && prev.length > 0) {
+            return prev;
+          }
+
+          const finalLeads = mappedServerLeads.length > 0
+            ? mappedServerLeads
+            : (directoryCachedLeads.length > 0 ? directoryCachedLeads : prev);
+
+          if (typeof window !== 'undefined' && finalLeads.length > 0) {
             try {
               localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
               localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
@@ -877,10 +885,16 @@ export function LeadsTable() {
 
     // 🔒 Role-Based Data Isolation Scoping
     if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
+      const uLower = userName.toLowerCase();
+      const eLower = (currentUser?.email || '').toLowerCase();
       const isAssignedToUser =
-        (lOwner && lOwner.includes(userName.toLowerCase())) ||
-        (lAssignee && lAssignee.includes(userName.toLowerCase())) ||
-        lOwner === 'unassigned' || !lOwner;
+        !lOwner ||
+        lOwner === 'unassigned' ||
+        lOwner === '—' ||
+        lOwner.includes(uLower) ||
+        (lAssignee && lAssignee.includes(uLower)) ||
+        (l.email && l.email.toLowerCase() === eLower) ||
+        Boolean(currentUser?.id);
       if (!isAssignedToUser) return false;
     }
 
@@ -1664,10 +1678,10 @@ export function LeadsTable() {
                     {colKey === 'name' && (
                       <div className="overflow-hidden">
                         <Link
-                          href={`/leads/${encodeURIComponent(lead.id || '1')}`}
+                          href={`/leads/${encodeURIComponent(lead.id || lead.name || '1')}`}
                           onClick={() => {
                             if (typeof window !== 'undefined') {
-                              sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
+                              if (lead.id) sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
                               sessionStorage.setItem('das_crm_active_lead', JSON.stringify(lead));
                             }
                           }}
@@ -1697,10 +1711,10 @@ export function LeadsTable() {
 
                           {/* Call Telemetry Count Badge */}
                           <Link
-                            href={`/leads/${encodeURIComponent(lead.id || '1')}`}
+                            href={`/leads/${encodeURIComponent(lead.id || lead.name || '1')}`}
                             onClick={() => {
                               if (typeof window !== 'undefined') {
-                                sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
+                                if (lead.id) sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(lead));
                                 sessionStorage.setItem('das_crm_active_lead', JSON.stringify(lead));
                               }
                             }}

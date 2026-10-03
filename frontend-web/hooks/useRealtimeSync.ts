@@ -55,8 +55,29 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
             const parsed = JSON.parse(event.data);
             if (parsed.type === 'heartbeat') return;
 
-            // Invalidate client caches to force authoritative database read
+            // Invalidate query caches to force authoritative database read
             clearAllDashboardCaches();
+
+            // Live-patch lead status/changes into local caches if specified
+            if (parsed.leadId && parsed.changes && typeof window !== 'undefined') {
+              try {
+                const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+                if (allLeadsRaw) {
+                  const allLeads = JSON.parse(allLeadsRaw);
+                  if (Array.isArray(allLeads)) {
+                    const idx = allLeads.findIndex((l: any) => String(l.id) === String(parsed.leadId));
+                    if (idx >= 0) {
+                      allLeads[idx] = { ...allLeads[idx], ...parsed.changes };
+                      if (parsed.changes.status) {
+                        allLeads[idx].status = parsed.changes.status;
+                        allLeads[idx].stage = parsed.changes.status;
+                      }
+                      localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(allLeads));
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
 
             // Dispatch global UI events for all open views & components
             window.dispatchEvent(

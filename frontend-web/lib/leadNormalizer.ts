@@ -201,6 +201,8 @@ const DEFAULT_STATUS_COLORS: Record<string, string> = {
   lost: '#ef4444',
   'unqualified / lost': '#ef4444',
   'not interested': '#ef4444',
+  'meeting scheduled': '#8b5cf6',
+  'visit scheduled': '#8b5cf6',
 };
 
 export function getStatusColor(statusStr: string, defaultColor = '#6366f1'): string {

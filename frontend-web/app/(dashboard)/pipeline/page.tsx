@@ -298,13 +298,8 @@ export default function LeadPipelinePage() {
             localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(serverLeads));
           } catch (_) {}
         }
-      } else {
-        setLeadDirectory([]);
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify([]));
-          } catch (_) {}
-        }
+      } else if (existingCached.length > 0) {
+        setLeadDirectory(existingCached);
       }
     } catch (err) {
       console.warn('Error fetching audit logs and leads:', err);

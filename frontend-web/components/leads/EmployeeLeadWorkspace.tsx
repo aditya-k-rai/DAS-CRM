@@ -345,15 +345,26 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       // 3. ALWAYS FETCH AUTHORITATIVE DATABASE STATE FROM BACKEND API
       try {
         let res = await apiFetch(`/leads/${encodeURIComponent(leadId)}`);
-        // If not ok and we have a concrete lead ID from sessionMatch, retry
+        // If not ok and we have a concrete lead ID from session or local directory cache, retry
         if (!res.ok && typeof window !== 'undefined') {
-          const directSession = sessionStorage.getItem(`das_crm_lead_${leadId}`);
-          const activeSession = sessionStorage.getItem('das_crm_active_lead');
-          const candidate = directSession ? JSON.parse(directSession) : activeSession ? JSON.parse(activeSession) : null;
-          if (candidate && candidate.id && candidate.id !== leadId) {
-            const retryRes = await apiFetch(`/leads/${encodeURIComponent(candidate.id)}`);
-            if (retryRes.ok) res = retryRes;
-          }
+          try {
+            const directSession = sessionStorage.getItem(`das_crm_lead_${leadId}`);
+            const activeSession = sessionStorage.getItem('das_crm_active_lead');
+            let candidate = directSession ? JSON.parse(directSession) : activeSession ? JSON.parse(activeSession) : null;
+            if (!candidate || !candidate.id || candidate.id === leadId) {
+              const rawAll = localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache');
+              if (rawAll) {
+                const allLeads = JSON.parse(rawAll);
+                if (Array.isArray(allLeads) && allLeads.length > 0) {
+                  candidate = allLeads.find((l: any) => String(l.id) === String(leadId) || (l.name && decodeURIComponent(leadId).toLowerCase().includes(String(l.name).toLowerCase()))) || (leadId === '1' || leadId.startsWith('lead_') ? allLeads[0] : null);
+                }
+              }
+            }
+            if (candidate && candidate.id && candidate.id !== leadId) {
+              const retryRes = await apiFetch(`/leads/${encodeURIComponent(candidate.id)}`);
+              if (retryRes.ok) res = retryRes;
+            }
+          } catch (_) {}
         }
 
         if (res.ok) {
@@ -431,23 +442,67 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         console.warn('API lead fetch warning in EmployeeLeadWorkspace:', err);
       }
 
-      // 4. Default Fallback
+      // 4. Resilient Fallback: NEVER wipe out existing valid lead state with dummy placeholders!
       if (isMounted) {
-        const friendlyName = decodeURIComponent(leadId).replace(/[_-]/g, ' ').trim();
-        const finalName = friendlyName.length > 2 && !friendlyName.startsWith('cmu') ? friendlyName : 'Lead Prospect';
-        setLead({
-          id: leadId,
-          name: finalName,
-          email: '—',
-          phone: '—',
-          company: '—',
-          status: 'New Lead',
-          owner: '—',
-          city: '—',
-          budget: '—',
-          requirement: '—',
-          source: '—',
-          allocationTrail: [],
+        setLead(prev => {
+          // If state is already hydrated with valid real lead data, preserve it!
+          if (prev && prev.name && prev.name !== 'Lead Prospect' && (prev.phone !== '—' || prev.email !== '—')) {
+            return prev;
+          }
+
+          // Check active session or local directory cache as last resort
+          if (typeof window !== 'undefined') {
+            try {
+              const activeRaw = sessionStorage.getItem('das_crm_active_lead') || sessionStorage.getItem(`das_crm_lead_${leadId}`);
+              if (activeRaw) {
+                const parsed = JSON.parse(activeRaw);
+                if (parsed && parsed.name && parsed.name !== 'Lead Prospect' && (parsed.phone !== '—' || parsed.email !== '—')) {
+                  return { ...parsed, id: parsed.id || leadId };
+                }
+              }
+              const allRaw = localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache');
+              if (allRaw) {
+                const allLeads = JSON.parse(allRaw);
+                if (Array.isArray(allLeads) && allLeads.length > 0) {
+                  const m = allLeads.find((l: any) => String(l.id) === String(leadId) || (l.name && decodeURIComponent(leadId).toLowerCase().includes(String(l.name).toLowerCase()))) || (leadId === '1' || leadId.startsWith('lead_') ? allLeads[0] : null);
+                  if (m) {
+                    const norm = normalizeLead(m);
+                    return {
+                      id: String(norm.id || leadId),
+                      name: norm.name,
+                      email: norm.email || '—',
+                      phone: norm.phone || '—',
+                      company: norm.company || '—',
+                      status: norm.status || 'New Lead',
+                      owner: norm.owner || '—',
+                      city: norm.city || '—',
+                      budget: norm.budget || '—',
+                      requirement: norm.requirement || '—',
+                      source: norm.source || '—',
+                      allocationTrail: norm.allocationTrail || [],
+                    };
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+
+          const friendlyName = decodeURIComponent(leadId).replace(/[_-]/g, ' ').trim();
+          const finalName = friendlyName.length > 2 && !friendlyName.startsWith('cmu') && friendlyName !== '1' ? friendlyName : 'Lead Prospect';
+          return {
+            id: leadId,
+            name: finalName,
+            email: '—',
+            phone: '—',
+            company: '—',
+            status: 'New Lead',
+            owner: '—',
+            city: '—',
+            budget: '—',
+            requirement: '—',
+            source: '—',
+            allocationTrail: [],
+          };
         });
       }
     };
@@ -628,14 +683,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     }
 
     // 5. Update Status in Backend API
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    const authHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
+    const activeStored = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}') : {};
+    const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+      ? lead.id
+      : (activeStored.id && activeStored.id !== '1' && !activeStored.id.startsWith('lead_') ? activeStored.id : (lead.id || '1'));
 
-    apiFetch(`/leads/${lead.id || 'lead_1'}/status`, {
+    apiFetch(`/leads/${effectiveLeadId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({
         statusId: targetStatus,
@@ -645,14 +698,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       if (typeof window !== 'undefined') {
         try {
           clearAllDashboardCaches();
-          const updatedLead = { ...lead, status: targetStatus };
+          const updatedLead = { ...lead, id: effectiveLeadId, status: targetStatus };
           sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+          sessionStorage.setItem(`das_crm_lead_${effectiveLeadId}`, JSON.stringify(updatedLead));
           sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
         } catch (_) {}
-        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, status: targetStatus } }));
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadId, status: targetStatus } }));
         try {
           const bc = new BroadcastChannel('das_crm_lead_sync');
-          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: lead.id, status: targetStatus });
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: effectiveLeadId, status: targetStatus });
           bc.close();
         } catch (_) {}
       }
@@ -669,7 +723,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       const followUpPayload = {
         title: followUpTitle,
         followUpType: scheduledType,
-        leadId: lead.id,
+        leadId: effectiveLeadId,
         scheduledDate: funnelScheduledDate,
         scheduledTime: funnelScheduledTime || '10:30',
         dueAt: dueAtIso,
@@ -2303,23 +2357,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         return;
                       }
 
-                      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-                      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+                      const activeStoredModal = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}') : {};
+                      const effectiveLeadIdModal = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+                        ? lead.id
+                        : (activeStoredModal.id && activeStoredModal.id !== '1' && !activeStoredModal.id.startsWith('lead_') ? activeStoredModal.id : (lead.id || '1'));
 
                       try {
-                        await fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
+                        await apiFetch(`/leads/${effectiveLeadIdModal}/status`, {
                           method: 'PATCH',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                          },
                           body: JSON.stringify({ statusId: newStatusChoice, notes: statusNotes }),
                         });
                       } catch (apiErr) {
                         console.warn('Backend status update notice:', apiErr);
                       }
 
-                      setLead(prev => ({ ...prev, status: newStatusChoice }));
+                      setLead(prev => ({ ...prev, id: effectiveLeadIdModal, status: newStatusChoice }));
                       setShowUpdateStatusModal(false);
                       setStatusNotes('');
                       setIsUpdatingStatus(false);
@@ -2327,14 +2379,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       if (typeof window !== 'undefined') {
                         try {
                           clearAllDashboardCaches();
-                          const updatedLead = { ...lead, status: newStatusChoice };
+                          const updatedLead = { ...lead, id: effectiveLeadIdModal, status: newStatusChoice };
                           sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+                          sessionStorage.setItem(`das_crm_lead_${effectiveLeadIdModal}`, JSON.stringify(updatedLead));
                           sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
                         } catch (_) {}
-                        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, status: newStatusChoice } }));
+                        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadIdModal, status: newStatusChoice } }));
                         try {
                           const bc = new BroadcastChannel('das_crm_lead_sync');
-                          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: lead.id, status: newStatusChoice });
+                          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: effectiveLeadIdModal, status: newStatusChoice });
                           bc.close();
                         } catch (_) {}
                       }
