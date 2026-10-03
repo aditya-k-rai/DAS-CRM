@@ -278,7 +278,7 @@ interface AuthContextType {
   canAccessFeature: (feat: keyof CompanySubscription['features']) => boolean;
   canAccessAIFeature: (feature: 'lead-scoring' | 'chat-instructions' | 'templates' | 'automation' | 'analytics') => boolean;
   isSeatExceeded: boolean;
-  setAuthSession: (user: UserProfile, token: string, sub?: CompanySubscription) => void;
+  setAuthSession: (user: UserProfile, token: string, sub?: CompanySubscription, refreshToken?: string) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   logout: () => void;
   setRoleLockState: (lock: RoleTransitionLock | null) => void;
@@ -569,6 +569,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     localStorage.setItem('das_crm_user', JSON.stringify(normalizedUser));
     localStorage.setItem('das_crm_token', newTok);
+    if (refreshToken) {
+      localStorage.setItem('das_crm_refresh_token', refreshToken);
+    }
     localStorage.setItem('das_crm_active_role', normalizedUser.role);
     localStorage.setItem('das_crm_subscription', JSON.stringify(effectiveSub));
   };
@@ -599,6 +602,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear all session storage keys
     localStorage.removeItem('das_crm_user');
     localStorage.removeItem('das_crm_token');
+    localStorage.removeItem('das_crm_refresh_token');
     localStorage.removeItem('das_crm_active_role');
     localStorage.removeItem('das_crm_subscription');
 

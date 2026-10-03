@@ -8,6 +8,7 @@ import { RoleTransitionBanner } from '@/components/role-transition/RoleTransitio
 import { RoleTransitionModal } from '@/components/role-transition/RoleTransitionModal';
 import { SidebarProvider, useSidebar } from '@/context/SidebarContext';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useState } from 'react';
 
 const ROUTE_TO_MODULE_KEY: Record<string, string> = {
@@ -143,6 +144,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
+  useRealtimeSync();
   const { collapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);

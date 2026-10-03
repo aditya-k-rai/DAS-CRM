@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ActivityType } from '@prisma/client';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class ActivitiesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private realtimeService?: RealtimeService,
+  ) {}
 
   async log(
     organizationId: string,
@@ -25,16 +29,28 @@ export class ActivitiesService {
       subject?: string;
       notes: string;
       durationMin?: number;
+      durationSeconds?: number;
       outcome?: string;
       nextAction?: string;
       nextActionDate?: Date;
+      metadata?: Record<string, any>;
     },
   ) {
     const typeEnum = Object.values(ActivityType).includes(dto.activityType)
       ? dto.activityType
       : 'NOTE';
 
-    return this.prisma.activity.create({
+    const mergedMetadata = {
+      ...(dto.metadata || {}),
+      subject: dto.subject || dto.metadata?.subject,
+      durationMin: dto.durationMin ?? (dto.durationSeconds ? Math.ceil(dto.durationSeconds / 60) : undefined) ?? dto.metadata?.durationMin,
+      durationSeconds: dto.durationSeconds ?? dto.metadata?.durationSeconds,
+      outcome: dto.outcome || dto.metadata?.outcome,
+      nextAction: dto.nextAction || dto.metadata?.nextAction,
+      nextActionDate: dto.nextActionDate || dto.metadata?.nextActionDate,
+    };
+
+    const activity = await this.prisma.activity.create({
       data: {
         organizationId,
         userId,
@@ -43,13 +59,7 @@ export class ActivitiesService {
         contactId: dto.contactId,
         dealId: dto.dealId,
         description: dto.notes,
-        metadata: {
-          subject: dto.subject,
-          durationMin: dto.durationMin,
-          outcome: dto.outcome,
-          nextAction: dto.nextAction,
-          nextActionDate: dto.nextActionDate,
-        },
+        metadata: mergedMetadata,
       },
       include: {
         user: {
@@ -58,10 +68,31 @@ export class ActivitiesService {
             firstName: true,
             lastName: true,
             avatarUrl: true,
+            role: true,
           },
         },
       },
     });
+
+    if (dto.leadId) {
+      await this.prisma.lead.update({
+        where: { id: dto.leadId },
+        data: { lastActivityAt: new Date() },
+      }).catch(() => {});
+    }
+
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.updated',
+        organizationId,
+        leadId: dto.leadId,
+        actorId: userId,
+        changes: { activity: typeEnum, description: dto.notes },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return activity;
   }
 
   async getTimeline(

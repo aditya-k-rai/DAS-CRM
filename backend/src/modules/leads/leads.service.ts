@@ -10,6 +10,7 @@ import { FirestoreStorageService } from '../firestore/firestore-storage.service'
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { LeadQueryDto } from './dto/lead-query.dto';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class LeadsService {
@@ -17,6 +18,7 @@ export class LeadsService {
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
     @Optional() private firestoreStorageService?: FirestoreStorageService,
+    @Optional() private realtimeService?: RealtimeService,
   ) {}
 
   async getDownstreamUserIds(organizationId: string, managerId: string): Promise<Set<string>> {
@@ -484,6 +486,17 @@ export class LeadsService {
       },
     });
 
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.created',
+        organizationId,
+        leadId: lead.id,
+        actorId: createdById,
+        changes: { status: lead.status?.name, ownerId: lead.ownerId },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return lead;
   }
 
@@ -564,6 +577,17 @@ export class LeadsService {
       },
     });
 
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.updated',
+        organizationId,
+        leadId: lead.id,
+        actorId: userId,
+        changes: { statusId: lead.statusId, ownerId: lead.ownerId },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return lead;
   }
 
@@ -625,6 +649,17 @@ export class LeadsService {
         },
       }),
     ]);
+
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.status_changed',
+        organizationId,
+        leadId: id,
+        actorId: userId,
+        changes: { status: status.name, statusId: status.id },
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // Notify lead owner if status was changed by a different user
     if (lead.ownerId && lead.ownerId !== userId) {
@@ -1094,6 +1129,16 @@ export class LeadsService {
       channels: ['IN_APP', 'PUSH'],
     }).catch(() => {});
 
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.allocated',
+        organizationId,
+        actorId: managerId,
+        changes: { leadIds: dto.leadIds, targetUserId: dto.targetUserId },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return {
       success: true,
       verified: true,
@@ -1543,6 +1588,16 @@ export class LeadsService {
           fileName: dto.fileName,
         },
       }).catch(() => {});
+    }
+
+    if (this.realtimeService) {
+      this.realtimeService.emitDomainEvent({
+        event: 'lead.allocated',
+        organizationId,
+        actorId: allocatorId,
+        changes: { totalAllocated: totalAllocated || totalLeads, mode: dto.mode },
+        timestamp: now.toISOString(),
+      });
     }
 
     return {

@@ -5,6 +5,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
 import { clearAllDashboardCaches } from '@/lib/cacheUtils';
+import { apiFetch } from '@/lib/apiClient';
 import {
   Users, Target, CheckCircle2, ArrowRight, UserCheck, Shield,
   Send, AlertCircle, RefreshCw, Sparkles, Filter, Check,
@@ -63,8 +64,8 @@ export default function TeamLeaderLeadAssignmentPage() {
 
     try {
       const [leadsRes, usersRes] = await Promise.allSettled([
-        fetch(`${apiBase}/leads?limit=500`, { headers }),
-        fetch(`${apiBase}/users`, { headers }),
+        apiFetch('/leads?limit=500'),
+        apiFetch('/users'),
       ]);
 
       let loadedLeads: LeadItem[] = [];
@@ -197,15 +198,9 @@ export default function TeamLeaderLeadAssignmentPage() {
     const repName = rep?.name || 'Assigned Rep';
 
     setIsSubmitting(true);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-
     try {
-      const res = await fetch(`${apiBase}/leads/distribution/manager-allocate`, {
+      const res = await apiFetch('/leads/distribution/manager-allocate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({
           leadIds: leadIdsToAssign,
           targetUserId: targetRepId,

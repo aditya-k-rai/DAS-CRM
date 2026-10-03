@@ -35,6 +35,7 @@ import { EmailModule } from './modules/email/email.module';
 import { AIScoringModule } from './modules/ai-scoring/ai-scoring.module';
 import { DataRetentionModule } from './modules/data-retention/data-retention.module';
 import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { FollowUpsModule } from './modules/follow-ups/follow-ups.module';
     AIScoringModule,
     DataRetentionModule,
     FollowUpsModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [

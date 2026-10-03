@@ -15,6 +15,7 @@ import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowSe
 import { DEFAULT_REAL_LEADS } from './LeadsTable';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement } from '@/lib/leadNormalizer';
 import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
+import { apiFetch } from '@/lib/apiClient';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -53,6 +54,115 @@ interface LeadWorkspaceProps {
     source?: string;
     allocationTrail?: AllocationEvent[];
   };
+}
+
+function mapServerActivitiesToContactHistory(
+  activities: any[] = [],
+  tasks: any[] = [],
+  leadInfo: { owner?: string; requirement?: string } = {}
+): ContactAttempt[] {
+  const attempts: ContactAttempt[] = [];
+  const seenIds = new Set<string>();
+
+  // 1. Process explicit Activity records from PostgreSQL
+  if (Array.isArray(activities)) {
+    for (const act of activities) {
+      if (!act || !act.type) continue;
+      const meta = typeof act.metadata === 'object' && act.metadata !== null ? act.metadata : {};
+      const typeStr = (act.type || '').toUpperCase();
+      const metaType = (meta.type || '').toUpperCase();
+      const channel = (meta.channel || '').toUpperCase();
+
+      const userName = act.user
+        ? `${act.user.firstName || ''} ${act.user.lastName || ''}`.trim()
+        : (meta.by || leadInfo.owner || 'Sales Rep');
+
+      const rawRole = act.user?.role?.name || (typeof act.user?.role === 'string' ? act.user.role : '') || meta.byRole || 'SALES_EXEC';
+      const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' =
+        rawRole.includes('ADMIN') ? 'ADMIN'
+        : rawRole.includes('MANAGER') ? 'MANAGER'
+        : rawRole.includes('LEAD') || rawRole.includes('TL') ? 'TEAM_LEADER'
+        : 'SALES_EXEC';
+
+      if (typeStr === 'CALL' || metaType.startsWith('CALL')) {
+        const cType: ContactType = (['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(metaType) ? metaType : 'CALL_OUT') as ContactType;
+        const durSecs = meta.durationSeconds ?? (meta.durationMin ? meta.durationMin * 60 : 0);
+        attempts.push({
+          id: act.id,
+          type: cType,
+          outcome: (meta.outcome || (durSecs > 0 ? 'TALKED' : 'BUSY')) as ContactOutcome,
+          by: userName,
+          byRole: cleanRole,
+          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          durationSeconds: durSecs,
+          notes: act.description || meta.notes || 'Outbound phone call',
+          productInterest: meta.productInterest || leadInfo.requirement,
+          followUpDate: meta.followUpDate,
+          followUpTime: meta.followUpTime,
+          audioRecordingAvailable: Boolean(meta.audioRecordingAvailable || durSecs > 10),
+        });
+        seenIds.add(act.id);
+      } else if (typeStr === 'EMAIL' || metaType === 'EMAIL' || channel === 'EMAIL') {
+        attempts.push({
+          id: act.id,
+          type: 'EMAIL',
+          outcome: (meta.outcome || 'EMAIL_SENT') as ContactOutcome,
+          by: userName,
+          byRole: cleanRole,
+          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          notes: act.description || meta.subject || 'Email Dispatched',
+          sentMessage: meta.subject || meta.notes,
+        });
+        seenIds.add(act.id);
+      } else if (typeStr === 'NOTE' && (metaType === 'WHATSAPP' || channel === 'WHATSAPP' || (act.description && act.description.toLowerCase().includes('whatsapp')))) {
+        attempts.push({
+          id: act.id,
+          type: 'WHATSAPP',
+          outcome: (meta.outcome || 'WA_SENT') as ContactOutcome,
+          by: userName,
+          byRole: cleanRole,
+          timestamp: act.createdAt ? new Date(act.createdAt).toISOString() : new Date().toISOString(),
+          notes: act.description || 'WhatsApp communication',
+          sentMessage: meta.sentMessage || act.description,
+        });
+        seenIds.add(act.id);
+      }
+    }
+  }
+
+  // 2. Synthesize call funnel scheduled follow-ups/meetings into call attempts if not already covered
+  if (Array.isArray(tasks)) {
+    for (const t of tasks) {
+      if (!t) continue;
+      const purpose = t.purpose || '';
+      const isFromCallFunnel = purpose.toLowerCase().includes('call funnel') || (t.title && t.title.includes('In-Person / Virtual Visit'));
+      if (isFromCallFunnel) {
+        const taskId = `task-call-${t.id}`;
+        if (!seenIds.has(taskId)) {
+          const isMeeting = t.followUpType === 'MEETING' || (t.title && t.title.includes('Visit'));
+          const prodMatch = purpose.match(/product:\s*([^,\.]+)/i) || purpose.match(/interested in\s*([^,\.]+)/i);
+          attempts.push({
+            id: taskId,
+            type: 'CALL_OUT',
+            outcome: isMeeting ? 'TALKED' : 'FOLLOW_UP_SCHEDULED',
+            by: leadInfo.owner || 'Anurag Sharma',
+            byRole: 'ADMIN',
+            timestamp: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+            durationSeconds: 45,
+            notes: purpose || t.title || 'Call Funnel outreach',
+            productInterest: prodMatch ? prodMatch[1].trim() : (leadInfo.requirement || undefined),
+            followUpDate: t.dueAt ? t.dueAt.split('T')[0] : undefined,
+            followUpTime: t.dueAt && t.dueAt.includes('T') ? t.dueAt.split('T')[1].slice(0, 5) : undefined,
+            audioRecordingAvailable: false,
+          });
+          seenIds.add(taskId);
+        }
+      }
+    }
+  }
+
+  // Sort descending by timestamp
+  return attempts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
 export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceProps) {
@@ -105,6 +215,42 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       allocationTrail: norm.allocationTrail || [],
     };
   });
+
+  // Contact History State (synchronized with CallContactHistory timeline & stats)
+  const [contactHistory, setContactHistory] = useState<ContactAttempt[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`das_crm_contact_history_${leadId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [];
+  });
+
+  // Synced Activity Stream (Real-Time Auto-Synced to Lead Center)
+  const [syncedActivities, setSyncedActivities] = useState<SyncedActivityLog[]>([]);
+
+  // Toast Notification
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Modals & Status State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
+  const [newStatusChoice, setNewStatusChoice] = useState('Qualified');
+  const [statusNotes, setStatusNotes] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const showSyncNotification = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  // ── WORKFLOW & CALL FUNNEL HOOKS ──────────────────────────────────────────
+  const { funnelMappings, getTargetStatusForOutcome } = useWorkflowCallFunnel();
+  const { statuses: workflowStatuses } = useWorkflowLeadStatuses();
 
   // Asynchronously fetch lead details from Backend API, Directory Cache, or Pre-Allocated Rosters
   useEffect(() => {
@@ -174,15 +320,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       }
 
       // 3. ALWAYS FETCH AUTHORITATIVE DATABASE STATE FROM BACKEND API
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
       try {
-        const res = await fetch(`${apiBase}/leads/${encodeURIComponent(leadId)}`, { headers });
+        const res = await apiFetch(`/leads/${encodeURIComponent(leadId)}`);
         if (res.ok) {
           const l = await res.json();
           if (l && isMounted) {
@@ -199,6 +338,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               l.customFields
             );
 
+            // Synthesize contact history from PostgreSQL activities & tasks
+            const serverAttempts = mapServerActivitiesToContactHistory(l.activities, l.tasks, {
+              owner: ownerName,
+              requirement: norm.requirement,
+            });
+
+            const resolvedProduct = (norm.requirement && norm.requirement !== '—' && norm.requirement.trim())
+              ? norm.requirement
+              : (serverAttempts.find(a => a.productInterest)?.productInterest || '—');
+
             const serverLead = {
               id: String(norm.id || leadId),
               name: norm.name,
@@ -209,17 +358,35 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               owner: ownerName,
               city: norm.city || '—',
               budget: norm.budget || '—',
-              requirement: norm.requirement || '—',
+              requirement: resolvedProduct,
               source: norm.source || '—',
               allocationTrail: serverTrail,
             };
 
             setLead(serverLead);
 
+            if (serverAttempts.length > 0) {
+              setContactHistory(prev => {
+                const combined = [...serverAttempts];
+                const seen = new Set(serverAttempts.map(a => a.id));
+                for (const p of prev) {
+                  if (!seen.has(p.id)) combined.push(p);
+                }
+                return combined;
+              });
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(serverAttempts));
+                  localStorage.setItem(`das_crm_contact_history_${serverLead.id}`, JSON.stringify(serverAttempts));
+                } catch (_) {}
+              }
+            }
+
             // Reconcile and update session and local caches with fresh server data
             if (typeof window !== 'undefined') {
               try {
                 sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(serverLead));
+                sessionStorage.setItem(`das_crm_lead_${serverLead.id}`, JSON.stringify(serverLead));
                 sessionStorage.setItem('das_crm_active_lead', JSON.stringify(serverLead));
               } catch (_) {}
             }
@@ -230,9 +397,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         console.warn('API lead fetch warning in EmployeeLeadWorkspace:', err);
       }
 
-      // 7. Default Fallback
+      // 4. Default Fallback
       if (isMounted) {
-        // If the leadId is a named slug like "Anjali Verma"
         const friendlyName = decodeURIComponent(leadId).replace(/[_-]/g, ' ').trim();
         const finalName = friendlyName.length > 2 && !friendlyName.startsWith('cmu') ? friendlyName : 'Lead Prospect';
         setLead({
@@ -254,46 +420,23 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     loadLeadDetails();
 
+    const handleUpdate = () => {
+      loadLeadDetails();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+    }
+
     return () => {
       isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+      }
     };
   }, [leadId, leadData]);
-
-  // Synced Activity Stream (Real-Time Auto-Synced to Lead Center)
-  const [syncedActivities, setSyncedActivities] = useState<SyncedActivityLog[]>([]);
-
-  // Toast Notification
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-
-  // Modals & Status State
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showUpdateStatusModal, setShowUpdateStatusModal] = useState(false);
-  const [newStatusChoice, setNewStatusChoice] = useState('Qualified');
-  const [statusNotes, setStatusNotes] = useState('');
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-
-  const showSyncNotification = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
-  };
-
-  // ── WORKFLOW & CALL FUNNEL HOOKS ──────────────────────────────────────────
-  const { funnelMappings, getTargetStatusForOutcome } = useWorkflowCallFunnel();
-  const { statuses: workflowStatuses } = useWorkflowLeadStatuses();
-
-  // Contact History State (synchronized with CallContactHistory timeline & stats)
-  const [contactHistory, setContactHistory] = useState<ContactAttempt[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(`das_crm_contact_history_${leadId}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (_) {}
-    }
-    return [];
-  });
 
   // ── SECTION 2: SMART DIALLER & CALL FUNNEL STATE ───────────────────────────
   const [isCalling, setIsCalling] = useState(false);
@@ -458,9 +601,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    fetch(`${apiBase}/leads/${lead.id || 'lead_1'}/status`, {
+    apiFetch(`/leads/${lead.id || 'lead_1'}/status`, {
       method: 'PATCH',
-      headers: authHeaders,
       body: JSON.stringify({
         statusId: targetStatus,
         notes: `Call Funnel Disposition: ${dispositionSummaryTitle}. Notes: ${callResponseNotes || 'N/A'}`,
@@ -503,9 +645,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       };
 
       // Push to backend
-      fetch(`${apiBase}/follow-ups`, {
+      apiFetch('/follow-ups', {
         method: 'POST',
-        headers: authHeaders,
         body: JSON.stringify(followUpPayload),
       }).catch((e) => console.warn('Follow-up create sync notice:', e));
 
@@ -590,7 +731,37 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify(updatedHistory));
+        localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(updatedHistory));
       } catch (_) {}
+    }
+
+    // Persist to PostgreSQL Activity Table via Backend API
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'CALL',
+        leadId: lead.id,
+        notes: callResponseNotes || dispositionSummaryTitle,
+        durationSeconds: callDuration,
+        durationMin: Math.ceil(callDuration / 60),
+        outcome: contactOutcome,
+        metadata: {
+          type: contactType,
+          outcome: contactOutcome,
+          durationSeconds: callDuration,
+          productInterest: productInterestLogged,
+          notes: callResponseNotes || dispositionSummaryTitle,
+          by: currentUser?.name || lead.owner || 'Sales Rep',
+          byRole: cleanRole,
+          followUpDate: autoQueueFollowUp ? funnelScheduledDate : undefined,
+          followUpTime: autoQueueFollowUp ? funnelScheduledTime : undefined,
+          audioRecordingAvailable: callDuration > 10,
+        },
+      }),
+    }).catch(e => console.warn('Could not persist call activity:', e));
+
+    if (productInterestLogged) {
+      setLead(prev => ({ ...prev, requirement: productInterestLogged }));
     }
 
     // 8. Log to Lead Center Activity Stream
@@ -617,6 +788,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           : ''
       }`
     );
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
+    }
   };
 
   // ── SECTION 3: WHATSAPP CHAT DIRECT STATE ──────────────────────────────
@@ -625,6 +799,53 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   const [waDirectNotes, setWaDirectNotes] = useState('');
 
   const handleSendWaDirect = () => {
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const newContactAttempt: ContactAttempt = {
+      id: `attempt_wa_${Date.now()}`,
+      type: 'WHATSAPP',
+      outcome: 'WA_SENT',
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      notes: `Template: ${waDirectTemplate} • ${waDirectNotes || waDirectDisposition}`,
+      sentMessage: waDirectNotes || `Template: ${waDirectTemplate}`,
+    };
+
+    setContactHistory(prev => [newContactAttempt, ...prev]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+        localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+      } catch (_) {}
+    }
+
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'NOTE',
+        leadId: lead.id,
+        notes: `WhatsApp Direct (${waDirectTemplate}): ${waDirectNotes || waDirectDisposition}`,
+        metadata: {
+          channel: 'WHATSAPP',
+          type: 'WHATSAPP',
+          outcome: 'WA_SENT',
+          template: waDirectTemplate,
+          disposition: waDirectDisposition,
+          sentMessage: waDirectNotes,
+          by: currentUser?.name || lead.owner,
+          byRole: cleanRole,
+        },
+      }),
+    }).catch(() => {});
+
     const newLog: SyncedActivityLog = {
       id: Date.now().toString(),
       section: 'WA_DIRECT',
@@ -638,6 +859,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     setSyncedActivities((prev) => [newLog, ...prev]);
     showSyncNotification(`✓ WhatsApp Direct Message & Disposition Synced to Lead Center!`);
     setWaDirectNotes('');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
+    }
   };
 
   // ── SECTION 4: WHATSAPP CLOUD CHAT + AI HUMANIZE STATE ───────────────────
@@ -659,6 +883,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
   const handleSendWaCloud = () => {
     if (!waCloudInput.trim()) return;
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
     const newMsg = {
       id: Date.now().toString(),
       from: 'rep',
@@ -667,6 +900,42 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     };
 
     setWaCloudMessages((prev) => [...prev, newMsg]);
+
+    const newContactAttempt: ContactAttempt = {
+      id: `attempt_wacloud_${Date.now()}`,
+      type: 'WHATSAPP',
+      outcome: 'WA_SENT',
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      notes: `WhatsApp Cloud: ${waCloudInput}`,
+      sentMessage: waCloudInput,
+    };
+
+    setContactHistory(prev => [newContactAttempt, ...prev]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+        localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+      } catch (_) {}
+    }
+
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'NOTE',
+        leadId: lead.id,
+        notes: `WhatsApp Cloud: ${waCloudInput}`,
+        metadata: {
+          channel: 'WHATSAPP',
+          type: 'WHATSAPP',
+          outcome: 'WA_SENT',
+          sentMessage: waCloudInput,
+          by: currentUser?.name || lead.owner,
+          byRole: cleanRole,
+        },
+      }),
+    }).catch(() => {});
 
     const newLog: SyncedActivityLog = {
       id: Date.now().toString(),
@@ -680,6 +949,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     setSyncedActivities((prev) => [newLog, ...prev]);
     setWaCloudInput('');
     showSyncNotification('✓ WhatsApp Cloud Message Synced to Lead Center!');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
+    }
   };
 
   // ── SECTION 5: EMAIL MARKETING STATE ──────────────────────────────────
@@ -690,6 +962,53 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   );
 
   const handleSendEmail = () => {
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const newContactAttempt: ContactAttempt = {
+      id: `attempt_email_${Date.now()}`,
+      type: 'EMAIL',
+      outcome: 'EMAIL_SENT',
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      notes: `Email (${emailTemplate}): ${emailSubject}`,
+      sentMessage: emailSubject,
+    };
+
+    setContactHistory(prev => [newContactAttempt, ...prev]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+        localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify([newContactAttempt, ...contactHistory]));
+      } catch (_) {}
+    }
+
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'EMAIL',
+        leadId: lead.id,
+        subject: emailSubject,
+        notes: `Email (${emailTemplate}): ${emailSubject}`,
+        metadata: {
+          channel: 'EMAIL',
+          type: 'EMAIL',
+          outcome: 'EMAIL_SENT',
+          subject: emailSubject,
+          template: emailTemplate,
+          by: currentUser?.name || lead.owner,
+          byRole: cleanRole,
+        },
+      }),
+    }).catch(() => {});
+
     const newLog: SyncedActivityLog = {
       id: Date.now().toString(),
       section: 'EMAIL',
@@ -701,6 +1020,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     setSyncedActivities((prev) => [newLog, ...prev]);
     showSyncNotification('✓ Email Dispatched & Synced to Lead Center!');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id } }));
+    }
   };
 
   return (
@@ -941,16 +1263,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
                 // 3. Dispatch to backend API with accurate target user ID
                 try {
-                  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-                  const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-                  const headers: Record<string, string> = {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  };
-
-                  await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+                  await apiFetch('/leads/distribution/allocate-verify', {
                     method: 'POST',
-                    headers,
                     body: JSON.stringify({
                       mode: 'DIRECT_ASSIGN',
                       leadIds: [lead.id],

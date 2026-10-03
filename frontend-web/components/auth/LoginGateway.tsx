@@ -513,7 +513,8 @@ export function LoginGateway() {
             roleNotAssigned: false,
           },
           data.accessToken,
-          subData
+          subData,
+          data.refreshToken
         );
         setLoading(false);
         navigateToRoute(redirectUrl);
@@ -659,7 +660,7 @@ export function LoginGateway() {
         } catch (_) {}
 
         invalidateUserDirectoryCache();
-        setAuthSession(unassignedUser, data.accessToken);
+        setAuthSession(unassignedUser, data.accessToken, undefined, data.refreshToken);
         setLoading(false);
         router.push('/dashboard');
         return;

@@ -25,6 +25,7 @@ import {
   getStatusColor,
 } from '@/lib/leadNormalizer';
 import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
+import { apiFetch } from '@/lib/apiClient';
 
 export type SortOptionKey =
   | 'created_desc'
@@ -323,16 +324,19 @@ export function LeadsTable() {
     try {
       const url = `${apiBase}/leads?limit=${pageSize}&page=${pageNumber}&sortBy=${activeSort.sortBy}&sortOrder=${activeSort.sortOrder}`;
       const [leadsRes, usersRes] = await Promise.allSettled([
-        fetch(url, { headers }),
-        pageNumber === 1 ? fetch(`${apiBase}/users`, { headers }) : Promise.resolve(null as any),
+        apiFetch(url),
+        pageNumber === 1 ? apiFetch(`${apiBase}/users`) : Promise.resolve(null as any),
       ]);
 
       let mappedServerLeads: LeadDataWeb[] = [];
+      let isServerSuccess = false;
+
       if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
         const leadsData = await leadsRes.value.json();
         const items = Array.isArray(leadsData) ? leadsData : (leadsData.data || leadsData.leads || []);
         const total = leadsData.meta?.total ?? (Array.isArray(items) ? items.length : 0);
         setTotalServerCount(total);
+        isServerSuccess = true;
 
         if (Array.isArray(items) && items.length > 0) {
           mappedServerLeads = items
@@ -419,6 +423,11 @@ export function LeadsTable() {
       }
 
       setLeadsList(prev => {
+        // If the server request failed or was unauthorized, never wipe existing leads
+        if (!isServerSuccess) {
+          return prev;
+        }
+
         if (isReset || pageNumber === 1) {
           const finalLeads = mappedServerLeads;
           if (typeof window !== 'undefined') {
@@ -528,16 +537,9 @@ export function LeadsTable() {
         return;
       }
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-
       try {
-        await fetch(`${apiBase}/leads/${leadId}/status`, {
+        await apiFetch(`/leads/${leadId}/status`, {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
           body: JSON.stringify({ statusId: newStatus }),
         });
       } catch (e) {
@@ -620,16 +622,9 @@ export function LeadsTable() {
 
       const updatedTrail = [...existingTrail, newEvent];
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-
       try {
-        await fetch(`${apiBase}/leads/distribution/allocate-verify`, {
+        await apiFetch('/leads/distribution/allocate-verify', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
           body: JSON.stringify({
             mode: 'DIRECT_ASSIGN',
             leadIds: [leadId],

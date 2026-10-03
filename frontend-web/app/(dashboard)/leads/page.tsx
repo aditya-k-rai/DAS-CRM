@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { Target, Sliders, Plus, Upload, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { clearAllDashboardCaches } from '@/lib/cacheUtils';
+import { apiFetch } from '@/lib/apiClient';
 
 export default function LeadsPage() {
   const { currentUser } = useAuth();
@@ -55,12 +56,8 @@ export default function LeadsPage() {
     };
 
     try {
-      const res = await fetch(`${apiBase}/leads`, {
+      const res = await apiFetch('/leads', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify(payload),
       });
 
