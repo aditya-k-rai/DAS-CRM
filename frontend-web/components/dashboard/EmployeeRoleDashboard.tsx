@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Target, Sparkles, Clock, Calendar, Briefcase, Phone, Mail,
@@ -311,29 +311,28 @@ export function EmployeeRoleDashboard() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Sync leads from backend API and company caches on mount
-  useEffect(() => {
-    const syncData = async () => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
+  // Real-time synchronization of leads for logged-in Sales Representative
+  const syncData = useCallback(async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
 
-      let fetchedServerLeads: any[] = [];
-      try {
-        const res = await fetch(`${apiBase}/leads?limit=1000`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-          if (Array.isArray(items) && items.length > 0) {
-            fetchedServerLeads = items;
-          }
+    let fetchedServerLeads: any[] = [];
+    try {
+      const res = await fetch(`${apiBase}/leads?limit=1000`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.leads || data.data || []);
+        if (Array.isArray(items) && items.length > 0) {
+          fetchedServerLeads = items;
         }
-      } catch (err) {
-        console.warn('API lead sync error in Sales Dashboard:', err);
       }
+    } catch (err) {
+      console.warn('API lead sync error in Sales Dashboard:', err);
+    }
 
       // Check localStorage caches
       let cachedAll: any[] = [];
@@ -480,10 +479,35 @@ export function EmployeeRoleDashboard() {
         };
       });
       setOpportunities(mappedOpportunities);
+  }, [currentUser]);
+
+  useEffect(() => {
+    syncData();
+
+    // Listen for cross-component lead re-allocation and ingestion updates
+    const handleUpdate = () => {
+      syncData();
     };
 
-    syncData();
-  }, [currentUser]);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          syncData();
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
+  }, [syncData]);
 
   // Quick Action Handlers
   const toggleFollowUp = (id: string, leadName: string) => {

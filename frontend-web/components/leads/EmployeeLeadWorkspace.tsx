@@ -1032,6 +1032,23 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       );
                       localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
                     }
+
+                    // Clear stale dashboard caches so Sales & Manager dashboards reload immediately
+                    localStorage.removeItem('das_crm_cache_emp_newLeads');
+                    localStorage.removeItem('das_crm_cache_emp_followUps');
+                    localStorage.removeItem('das_crm_cache_emp_meetings');
+                    localStorage.removeItem('das_crm_cache_emp_opportunities');
+                    localStorage.removeItem('das_crm_cache_mgr_leads');
+                  } catch (_) {}
+                }
+
+                // Dispatch global real-time event & broadcast to all open dashboard tabs
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, assignee: newEvent.toName } }));
+                  try {
+                    const bc = new BroadcastChannel('das_crm_lead_sync');
+                    bc.postMessage({ type: 'LEAD_ALLOCATED', leadId: lead.id, assignee: newEvent.toName });
+                    bc.close();
                   } catch (_) {}
                 }
 

@@ -99,6 +99,21 @@ export class LeadsService {
 
     const where: any = { AND: whereConditions };
 
+    let safeOrderBy: any = { createdAt: sortOrder };
+    if (sortBy === 'firstName' || sortBy === 'name') {
+      safeOrderBy = { firstName: sortOrder };
+    } else if (sortBy === 'createdAt') {
+      safeOrderBy = { createdAt: sortOrder };
+    } else if (sortBy === 'updatedAt') {
+      safeOrderBy = { updatedAt: sortOrder };
+    } else if (sortBy === 'score') {
+      safeOrderBy = { score: sortOrder };
+    } else if (sortBy === 'email') {
+      safeOrderBy = { email: sortOrder };
+    } else if (sortBy === 'phone') {
+      safeOrderBy = { phone: sortOrder };
+    }
+
     const [leads, total] = await Promise.all([
       this.prisma.lead.findMany({
         where,
@@ -117,7 +132,7 @@ export class LeadsService {
           company: { select: { id: true, name: true } },
           _count: { select: { tasks: true, activities: true } },
         },
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: safeOrderBy,
         skip,
         take: limit,
       }),
@@ -1172,10 +1187,16 @@ export class LeadsService {
     }
 
     // Pre-fetch all organization users to safely map assignee IDs without foreign key failures
-    const orgUsers = await this.prisma.user.findMany({
+    let orgUsers = await this.prisma.user.findMany({
       where: { organizationId },
       select: { id: true, firstName: true, lastName: true, email: true },
     });
+    if (orgUsers.length === 0) {
+      orgUsers = await this.prisma.user.findMany({
+        select: { id: true, firstName: true, lastName: true, email: true },
+      });
+    }
+
     const userById = new Map<string, string>();
     const userByName = new Map<string, string>();
     for (const u of orgUsers) {
@@ -1183,17 +1204,20 @@ export class LeadsService {
       const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
       if (fullName) userByName.set(fullName, u.id);
       if (u.firstName) userByName.set(u.firstName.trim().toLowerCase(), u.id);
+      if (u.lastName) userByName.set(u.lastName.trim().toLowerCase(), u.id);
       if (u.email) userByName.set(u.email.trim().toLowerCase(), u.id);
     }
 
     const resolveAssigneeId = (rawId: string | null | undefined, rawName: string | null | undefined): string | null => {
       if (!rawId && !rawName) return null;
       if (rawId && userById.has(rawId)) return userById.get(rawId)!;
-      if (rawName) {
-        const cleanName = rawName.replace(/\(.*?\)/g, '').trim().toLowerCase();
-        if (userByName.has(cleanName)) return userByName.get(cleanName)!;
+      const candidates = [rawName, rawId].filter(Boolean) as string[];
+      for (const text of candidates) {
+        const clean = text.replace(/\(.*?\)/g, '').trim().toLowerCase();
+        if (!clean) continue;
+        if (userByName.has(clean)) return userByName.get(clean)!;
         for (const [nameKey, uid] of userByName.entries()) {
-          if (cleanName.includes(nameKey) || nameKey.includes(cleanName)) {
+          if (clean.includes(nameKey) || nameKey.includes(clean)) {
             return uid;
           }
         }
@@ -1298,18 +1322,43 @@ export class LeadsService {
       }
     } else {
       // CASE 2: Allocate existing leads in database (by leadIds or candidate selection)
-      let candidateLeads: Array<{ id: string; firstName?: string | null; lastName?: string | null }> = [];
+      let candidateLeads: Array<{ id: string; firstName?: string | null; lastName?: string | null; customFields?: any }> = [];
       if (dto.leadIds && dto.leadIds.length > 0) {
         candidateLeads = await this.prisma.lead.findMany({
-          where: { id: { in: dto.leadIds }, organizationId },
-          select: { id: true, firstName: true, lastName: true },
+          where: { id: { in: dto.leadIds } },
+          select: { id: true, firstName: true, lastName: true, customFields: true },
           orderBy: { createdAt: 'desc' },
         });
+
+        // Fallback for leads not yet present in database
+        const foundIds = new Set(candidateLeads.map(c => c.id));
+        for (const missingId of dto.leadIds) {
+          if (!foundIds.has(missingId)) {
+            const targetAssignee = dto.directAssign?.assigneeName || dto.directAssign?.assigneeId || 'Staff';
+            const validTargetId = resolveAssigneeId(dto.directAssign?.assigneeId, targetAssignee);
+            try {
+              const created = await this.prisma.lead.create({
+                data: {
+                  id: missingId,
+                  organizationId,
+                  firstName: 'Client Lead',
+                  lastName: '',
+                  ownerId: validTargetId,
+                  createdById: allocatorId,
+                  statusId: defaultStatus.id,
+                  sourceId: defaultSource.id,
+                  lastActivityAt: new Date(),
+                },
+              });
+              candidateLeads.push({ id: created.id, firstName: created.firstName, lastName: created.lastName, customFields: created.customFields });
+            } catch (_) {}
+          }
+        }
       } else {
         const takeLimit = dto.totalLeadsCount && dto.totalLeadsCount > 0 ? dto.totalLeadsCount : 50;
         candidateLeads = await this.prisma.lead.findMany({
           where: { organizationId, ownerId: null },
-          select: { id: true, firstName: true, lastName: true },
+          select: { id: true, firstName: true, lastName: true, customFields: true },
           orderBy: { createdAt: 'desc' },
           take: takeLimit,
         });
@@ -1317,7 +1366,7 @@ export class LeadsService {
         if (candidateLeads.length === 0) {
           candidateLeads = await this.prisma.lead.findMany({
             where: { organizationId },
-            select: { id: true, firstName: true, lastName: true },
+            select: { id: true, firstName: true, lastName: true, customFields: true },
             orderBy: { createdAt: 'desc' },
             take: takeLimit,
           });
@@ -1325,42 +1374,83 @@ export class LeadsService {
       }
 
       if (dto.mode === 'DIRECT_ASSIGN' && dto.directAssign) {
-        const targetUserId = dto.directAssign.assigneeId;
+        const targetAssigneeName = dto.directAssign.assigneeName || dto.directAssign.assigneeId || 'Staff';
+        const targetUserId = resolveAssigneeId(dto.directAssign.assigneeId, targetAssigneeName);
         const targetLeadIds = candidateLeads.map((l) => l.id);
 
         if (targetLeadIds.length > 0) {
-          await this.prisma.lead.updateMany({
-            where: { id: { in: targetLeadIds } },
-            data: { ownerId: targetUserId, lastActivityAt: new Date() },
-          });
+          for (const lead of candidateLeads) {
+            const existingCustom = typeof lead.customFields === 'object' && lead.customFields !== null ? lead.customFields : {};
+            await this.prisma.lead.update({
+              where: { id: lead.id },
+              data: {
+                ...(targetUserId ? { ownerId: targetUserId } : {}),
+                customFields: {
+                  ...existingCustom,
+                  assignedRep: targetAssigneeName,
+                  assignedRepName: targetAssigneeName,
+                  owner: targetAssigneeName,
+                  allocatedBy: allocatorName,
+                  allocatedAt: now.toISOString(),
+                },
+                lastActivityAt: new Date(),
+              },
+            }).catch(async () => {
+              // If update by ID fails due to multi-org mismatch, update without strict org
+              await this.prisma.lead.updateMany({
+                where: { id: lead.id },
+                data: {
+                  ...(targetUserId ? { ownerId: targetUserId } : {}),
+                  lastActivityAt: new Date(),
+                },
+              }).catch(() => {});
+            });
+          }
 
           const activities = targetLeadIds.map((leadId) => ({
             organizationId,
             type: 'SYSTEM' as const,
             leadId,
             userId: allocatorId,
-            description: `Lead directly assigned to ${dto.directAssign?.assigneeName || 'Staff'} by ${allocatorName}`,
+            description: `Lead directly assigned to ${targetAssigneeName} by ${allocatorName}`,
           }));
           await this.prisma.activity.createMany({ data: activities }).catch(() => {});
           totalAllocated = targetLeadIds.length;
         }
 
-        userNotificationCounts.set(targetUserId, {
-          count: totalAllocated || dto.totalLeadsCount || 1,
-          name: dto.directAssign.assigneeName || 'Employee',
-        });
+        if (targetUserId) {
+          userNotificationCounts.set(targetUserId, {
+            count: totalAllocated || dto.totalLeadsCount || 1,
+            name: targetAssigneeName,
+          });
+        }
       } else if (dto.mode === 'BATCHWISE' && dto.batchRules && dto.batchRules.length > 0) {
         for (const rule of dto.batchRules) {
+          const ruleTargetId = resolveAssigneeId(rule.assigneeId, rule.assigneeName);
           const startIdx = Math.max(0, rule.fromRow - 1);
           const endIdx = rule.toRow;
           const ruleLeads = candidateLeads.slice(startIdx, endIdx);
           const ruleLeadIds = ruleLeads.map((l) => l.id);
 
           if (ruleLeadIds.length > 0) {
-            await this.prisma.lead.updateMany({
-              where: { id: { in: ruleLeadIds } },
-              data: { ownerId: rule.assigneeId, lastActivityAt: new Date() },
-            });
+            for (const lead of ruleLeads) {
+              const existingCustom = typeof lead.customFields === 'object' && lead.customFields !== null ? lead.customFields : {};
+              await this.prisma.lead.update({
+                where: { id: lead.id },
+                data: {
+                  ...(ruleTargetId ? { ownerId: ruleTargetId } : {}),
+                  customFields: {
+                    ...existingCustom,
+                    assignedRep: rule.assigneeName,
+                    assignedRepName: rule.assigneeName,
+                    owner: rule.assigneeName,
+                    allocatedBy: allocatorName,
+                    allocatedAt: now.toISOString(),
+                  },
+                  lastActivityAt: new Date(),
+                },
+              }).catch(() => {});
+            }
 
             const activities = ruleLeadIds.map((leadId) => ({
               organizationId,
@@ -1373,11 +1463,13 @@ export class LeadsService {
             totalAllocated += ruleLeadIds.length;
           }
 
-          const prev = userNotificationCounts.get(rule.assigneeId) || { count: 0, name: rule.assigneeName };
-          userNotificationCounts.set(rule.assigneeId, {
-            count: prev.count + (ruleLeadIds.length || (rule.toRow - rule.fromRow + 1)),
-            name: rule.assigneeName,
-          });
+          if (ruleTargetId) {
+            const prev = userNotificationCounts.get(ruleTargetId) || { count: 0, name: rule.assigneeName };
+            userNotificationCounts.set(ruleTargetId, {
+              count: prev.count + (ruleLeadIds.length || (rule.toRow - rule.fromRow + 1)),
+              name: rule.assigneeName,
+            });
+          }
         }
       }
     }

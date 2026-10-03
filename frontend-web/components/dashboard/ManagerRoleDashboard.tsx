@@ -166,80 +166,128 @@ export function ManagerRoleDashboard() {
     };
   }, [loadDirectory]);
 
-  // Fetch real leads if available
-  useEffect(() => {
-    const fetchLeads = async () => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      let allFound: any[] = [];
+  // Fetch real leads with live sync
+  const fetchLeads = useCallback(async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    let cachedLeads: any[] = [];
+    let serverLeads: any[] = [];
 
-      // Check local cache first for instant hydration
-      if (typeof window !== 'undefined') {
-        try {
-          const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-          if (Array.isArray(cached) && cached.length > 0) {
-            allFound = cached;
+    // 1. Check local cache first for instant hydration
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) {
+          cachedLeads = cached;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fetch from backend API
+    if (token) {
+      try {
+        const res = await fetch(`${apiBase}/leads?limit=1000`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data.leads || data.data || []);
+          if (Array.isArray(items) && items.length > 0) {
+            serverLeads = items;
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
+    }
 
-      if (token) {
-        try {
-          const res = await fetch(`${apiBase}/leads?limit=1000`, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-            if (Array.isArray(items) && items.length > 0) {
-              allFound = items;
-            }
-          }
-        } catch (_) {}
+    // 3. Merge Server & Local Caches (Preserve real-time local allocation overrides)
+    const leadMap = new Map<string, any>();
+    serverLeads.forEach(l => leadMap.set(String(l.id), l));
+    cachedLeads.forEach(l => {
+      const existing = leadMap.get(String(l.id));
+      if (!existing) {
+        leadMap.set(String(l.id), l);
+      } else {
+        leadMap.set(String(l.id), {
+          ...existing,
+          ...l,
+          owner: l.owner || existing.owner,
+          assignedRep: l.assignedRep || existing.assignedRep,
+          currentAssignee: l.currentAssignee || existing.currentAssignee,
+          allocationTrail: l.allocationTrail || existing.allocationTrail,
+        });
       }
+    });
 
-      if (allFound.length > 0) {
-        const colors = [
-          'from-emerald-500 to-teal-600',
-          'from-teal-500 to-cyan-600',
-          'from-purple-500 to-indigo-600',
-          'from-indigo-500 to-blue-600',
-          'from-amber-500 to-orange-600',
-        ];
-        const mapped: DepartmentLead[] = allFound
-          .filter((l: any) => {
-            const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
-            const id = String(l.id || '');
-            return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-          })
-          .map((l: any, idx: number) => {
-            const norm = normalizeLead(l, idx);
-            return {
-              id: norm.id,
-              name: norm.name,
-              company: norm.company,
-              phone: norm.phone,
-              email: norm.email,
-              status: norm.status as any,
-              value: norm.value,
-              numericValue: norm.numericValue,
-              source: norm.source,
-              assignedRepName: norm.assignedRepName,
-              assignedRepRole: norm.assignedRepRole,
-              lastContact: norm.lastCalledAt || 'Recently updated',
-              requirement: norm.requirement,
-              avatarBg: colors[idx % colors.length],
-            };
-          });
-        setDeptLeads(mapped);
-        setCachedData('mgr_leads', mapped);
-      }
-    };
-    fetchLeads();
+    const allFound = Array.from(leadMap.values());
+
+    if (allFound.length > 0) {
+      const colors = [
+        'from-emerald-500 to-teal-600',
+        'from-teal-500 to-cyan-600',
+        'from-purple-500 to-indigo-600',
+        'from-indigo-500 to-blue-600',
+        'from-amber-500 to-orange-600',
+      ];
+      const mapped: DepartmentLead[] = allFound
+        .filter((l: any) => {
+          const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
+          const id = String(l.id || '');
+          return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+        })
+        .map((l: any, idx: number) => {
+          const norm = normalizeLead(l, idx);
+          return {
+            id: norm.id,
+            name: norm.name,
+            company: norm.company,
+            phone: norm.phone,
+            email: norm.email,
+            status: norm.status as any,
+            value: norm.value,
+            numericValue: norm.numericValue,
+            source: norm.source,
+            assignedRepName: norm.assignedRepName,
+            assignedRepRole: norm.assignedRepRole,
+            lastContact: norm.lastCalledAt || 'Recently updated',
+            requirement: norm.requirement,
+            avatarBg: colors[idx % colors.length],
+          };
+        });
+      setDeptLeads(mapped);
+      setCachedData('mgr_leads', mapped);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLeads();
+
+    // Listen for live lead allocation updates across tabs and components
+    const handleUpdate = () => {
+      fetchLeads();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          fetchLeads();
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
+  }, [fetchLeads]);
 
   const handleManualRefresh = async () => {
     invalidateUserDirectoryCache();

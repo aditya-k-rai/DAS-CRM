@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff, ArrowDownUp, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead, sanitizeAllocationEvent, getSafeRoleMeta } from './LeadAllocationTrail';
@@ -24,6 +24,35 @@ import {
   safeSource,
   getStatusColor,
 } from '@/lib/leadNormalizer';
+
+export type SortOptionKey =
+  | 'created_desc'
+  | 'created_asc'
+  | 'name_asc'
+  | 'name_desc'
+  | 'value_desc'
+  | 'value_asc'
+  | 'score_desc'
+  | 'score_asc'
+  | 'status_asc';
+
+export const SORT_OPTIONS: Array<{
+  key: SortOptionKey;
+  label: string;
+  icon: string;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+}> = [
+  { key: 'created_desc', label: 'Date Created: Newest First', icon: '🕒', sortBy: 'createdAt', sortOrder: 'desc' },
+  { key: 'created_asc', label: 'Date Created: Oldest First', icon: '🕒', sortBy: 'createdAt', sortOrder: 'asc' },
+  { key: 'name_asc', label: 'Lead Name: A → Z', icon: '🔤', sortBy: 'firstName', sortOrder: 'asc' },
+  { key: 'name_desc', label: 'Lead Name: Z → A', icon: '🔤', sortBy: 'firstName', sortOrder: 'desc' },
+  { key: 'value_desc', label: 'Deal Value: Highest First', icon: '💰', sortBy: 'value', sortOrder: 'desc' },
+  { key: 'value_asc', label: 'Deal Value: Lowest First', icon: '💰', sortBy: 'value', sortOrder: 'asc' },
+  { key: 'score_desc', label: 'AI Score: Highest First', icon: '⚡', sortBy: 'score', sortOrder: 'desc' },
+  { key: 'score_asc', label: 'AI Score: Lowest First', icon: '⚡', sortBy: 'score', sortOrder: 'asc' },
+  { key: 'status_asc', label: 'Pipeline Status: A → Z', icon: '📌', sortBy: 'status', sortOrder: 'asc' },
+];
 
 interface LeadDataWeb {
   id: string;
@@ -440,6 +469,20 @@ export function LeadsTable() {
   const [isExcelMode, setIsExcelMode] = useState(true);
   const [expandedTrailLeadId, setExpandedTrailLeadId] = useState<string | null>(null);
 
+  // Sorting & 500 Default Restriction Pagination States
+  const [sortOption, setSortOption] = useState<SortOptionKey>('created_desc');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(500); // 500 leads default restriction
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [totalServerCount, setTotalServerCount] = useState<number | null>(null);
+  const scrollBottomRef = useRef<HTMLDivElement | null>(null);
+
+  const activeSort = useMemo(() => {
+    return SORT_OPTIONS.find(o => o.key === sortOption) || SORT_OPTIONS[0];
+  }, [sortOption]);
+
   // Synchronize real team users from User Directory Cache
   useEffect(() => {
     let isMounted = true;
@@ -530,35 +573,87 @@ export function LeadsTable() {
     }
   }, [searchParams, statusTabs]);
 
-  useEffect(() => {
-    const fetchLeadsAndTeam = async () => {
-      setIsLoading(true);
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
+  const fetchLeadsPage = useCallback(async (pageNumber: number, isReset = false) => {
+    if (pageNumber === 1) setIsLoading(true);
+    else setIsLoadingMore(true);
 
-      try {
-        const [leadsRes, usersRes] = await Promise.allSettled([
-          fetch(`${apiBase}/leads?limit=1000`, { headers }),
-          fetch(`${apiBase}/users`, { headers }),
-        ]);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
 
-        let mappedServerLeads: LeadDataWeb[] = [];
-        if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
-          const leadsData = await leadsRes.value.json();
-          const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
-          if (Array.isArray(items) && items.length > 0) {
-            mappedServerLeads = items
-              .filter((l: any) => {
-                const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
-                const id = String(l.id || '');
-                return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+    try {
+      const url = `${apiBase}/leads?limit=${pageSize}&page=${pageNumber}&sortBy=${activeSort.sortBy}&sortOrder=${activeSort.sortOrder}`;
+      const [leadsRes, usersRes] = await Promise.allSettled([
+        fetch(url, { headers }),
+        pageNumber === 1 ? fetch(`${apiBase}/users`, { headers }) : Promise.resolve(null as any),
+      ]);
+
+      let mappedServerLeads: LeadDataWeb[] = [];
+      if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+        const leadsData = await leadsRes.value.json();
+        const items = Array.isArray(leadsData) ? leadsData : (leadsData.data || leadsData.leads || []);
+        const total = leadsData.meta?.total ?? (Array.isArray(items) ? items.length : 0);
+        setTotalServerCount(total);
+
+        if (Array.isArray(items) && items.length > 0) {
+          mappedServerLeads = items
+            .filter((l: any) => {
+              const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
+              const id = String(l.id || '');
+              return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+            })
+            .map((l: any, idx: number) => {
+              const norm = normalizeLead(l, (pageNumber - 1) * pageSize + idx);
+              return {
+                id: norm.id,
+                name: norm.name,
+                email: norm.email,
+                phone: norm.phone,
+                status: norm.status,
+                statusColor: norm.statusColor,
+                source: norm.source,
+                score: norm.score,
+                aiScore: l.aiScore || undefined,
+                owner: norm.owner,
+                value: norm.value,
+                created: norm.created,
+                rawCreatedAt: norm.rawCreatedAt,
+                tags: norm.tags,
+                city: norm.city,
+                budget: norm.budget,
+                requirement: norm.requirement,
+                allocationTrail: Array.isArray(norm.allocationTrail) && norm.allocationTrail.length > 0
+                  ? norm.allocationTrail.map((e: any, i: number) => sanitizeAllocationEvent(e, i))
+                  : buildAllocationTrailForLead(norm.owner || 'Sachin Puri (Team Leader)', norm.source || 'Website'),
+                currentAssignee: norm.currentAssignee,
+                totalCalls: norm.totalCalls,
+                lastCalledAt: norm.lastCalledAt,
+              };
+            });
+        }
+
+        const totalPages = leadsData.meta?.totalPages || Math.ceil(total / pageSize);
+        setHasMore(pageNumber < totalPages && items.length >= pageSize);
+        setPage(pageNumber);
+      }
+
+      // Synchronize ingested leads from Lead Directory cache if page 1
+      let directoryCachedLeads: LeadDataWeb[] = [];
+      if (pageNumber === 1 && typeof window !== 'undefined') {
+        try {
+          const cached = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
+          if (Array.isArray(cached) && cached.length > 0) {
+            directoryCachedLeads = cached
+              .filter((c: any) => {
+                const name = safeString(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
+                const id = String(c.id || '');
+                return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
               })
-              .map((l: any, idx: number) => {
-                const norm = normalizeLead(l, idx);
+              .map((c: any, idx: number) => {
+                const norm = normalizeLead(c, idx);
                 return {
                   id: norm.id,
                   name: norm.name,
@@ -568,7 +663,7 @@ export function LeadsTable() {
                   statusColor: norm.statusColor,
                   source: norm.source,
                   score: norm.score,
-                  aiScore: l.aiScore || undefined,
+                  aiScore: undefined,
                   owner: norm.owner,
                   value: norm.value,
                   created: norm.created,
@@ -584,107 +679,87 @@ export function LeadsTable() {
                 };
               });
           }
-        }
-
-        // Synchronize ingested leads from Lead Directory cache
-        let directoryCachedLeads: LeadDataWeb[] = [];
-        if (typeof window !== 'undefined') {
-          try {
-            const cached = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-            if (Array.isArray(cached) && cached.length > 0) {
-              directoryCachedLeads = cached
-                .filter((c: any) => {
-                  const name = safeString(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
-                  const id = String(c.id || '');
-                  return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-                })
-                .map((c: any, idx: number) => {
-                  const norm = normalizeLead(c, idx);
-                  return {
-                    id: norm.id,
-                    name: norm.name,
-                    email: norm.email,
-                    phone: norm.phone,
-                    status: norm.status,
-                    statusColor: norm.statusColor,
-                    source: norm.source,
-                    score: norm.score,
-                    aiScore: undefined,
-                    owner: norm.owner,
-                    value: norm.value,
-                    created: norm.created,
-                    rawCreatedAt: norm.rawCreatedAt,
-                    tags: norm.tags,
-                    city: norm.city,
-                    budget: norm.budget,
-                    requirement: norm.requirement,
-                    allocationTrail: norm.allocationTrail,
-                    currentAssignee: norm.currentAssignee,
-                    totalCalls: norm.totalCalls,
-                    lastCalledAt: norm.lastCalledAt,
-                  };
-                });
-            }
-          } catch (_) {}
-        }
-
-        // Merge sources seamlessly (server leads + directory cache leads)
-        const leadMap = new Map<string, LeadDataWeb>();
-        mappedServerLeads.forEach(l => leadMap.set(l.id, l));
-        directoryCachedLeads.forEach(l => {
-          if (!leadMap.has(l.id)) leadMap.set(l.id, l);
-        });
-
-        let finalLeads = Array.from(leadMap.values());
-        if (finalLeads.length === 0) {
-          finalLeads = DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
-        }
-
-        // Clean out any dummy test leads and ensure sanitized allocation trails
-        finalLeads = finalLeads
-          .filter(l => l && !safeString(l.name).includes('(Test Lead)') && l.id !== 'demo-lead-test-01' && l.id !== 'lead-test-demo-01')
-          .map((l, idx) => {
-            const norm = normalizeLead(l, idx);
-            return {
-              ...norm,
-              allocationTrail: Array.isArray(norm.allocationTrail) && norm.allocationTrail.length > 0
-                ? norm.allocationTrail.map((e: any, i: number) => sanitizeAllocationEvent(e, i))
-                : buildAllocationTrailForLead(norm.owner || 'Sachin Puri (Team Leader)', norm.source || 'Website'),
-            };
-          });
-
-        setLeadsList(finalLeads);
-
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
-            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
-            finalLeads.forEach(item => {
-              sessionStorage.setItem(`das_crm_lead_${item.id}`, JSON.stringify(item));
-            });
-          } catch (_) {}
-        }
-
-        if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
-          const usersData = await usersRes.value.json();
-          if (Array.isArray(usersData) && usersData.length > 0) {
-            setTeamUsers(usersData.map((u: any) => ({
-              id: u.id,
-              name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-              role: u.role?.name || u.role || 'Sales Rep',
-            })));
-          }
-        }
-      } catch (err) {
-        console.warn('Error fetching leads or team:', err);
-        setLeadsList(DEFAULT_REAL_LEADS);
-      } finally {
-        setIsLoading(false);
+        } catch (_) {}
       }
-    };
 
-    fetchLeadsAndTeam();
-  }, []);
+      setLeadsList(prev => {
+        if (isReset || pageNumber === 1) {
+          const leadMap = new Map<string, LeadDataWeb>();
+          mappedServerLeads.forEach(l => leadMap.set(l.id, l));
+          directoryCachedLeads.forEach(l => {
+            if (!leadMap.has(l.id)) leadMap.set(l.id, l);
+          });
+          let finalLeads = Array.from(leadMap.values());
+          if (finalLeads.length === 0) {
+            finalLeads = DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
+          }
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
+              localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(finalLeads));
+              finalLeads.forEach(item => {
+                sessionStorage.setItem(`das_crm_lead_${item.id}`, JSON.stringify(item));
+              });
+            } catch (_) {}
+          }
+          return finalLeads;
+        } else {
+          // Append next batch of 500 leads
+          const leadMap = new Map<string, LeadDataWeb>();
+          prev.forEach(l => leadMap.set(l.id, l));
+          mappedServerLeads.forEach(l => leadMap.set(l.id, l));
+          const merged = Array.from(leadMap.values());
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(merged));
+              localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(merged));
+            } catch (_) {}
+          }
+          return merged;
+        }
+      });
+
+      if (usersRes && usersRes.status === 'fulfilled' && usersRes.value && usersRes.value.ok) {
+        const usersData = await usersRes.value.json();
+        const uItems = Array.isArray(usersData) ? usersData : (usersData.users || usersData.items || []);
+        if (Array.isArray(uItems) && uItems.length > 0) {
+          setTeamUsers(uItems.map((u: any) => ({
+            id: u.id,
+            name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+            role: u.role?.name || u.role || 'Sales Rep',
+          })));
+        }
+      }
+    } catch (err) {
+      console.warn('Error fetching leads page:', err);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [pageSize, activeSort]);
+
+  // Initial fetch and fetch when sort option changes
+  useEffect(() => {
+    fetchLeadsPage(1, true);
+  }, [fetchLeadsPage]);
+
+  // Infinite Scroll Intersection Observer on scrollBottomRef
+  useEffect(() => {
+    const target = scrollBottomRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
+          fetchLeadsPage(page + 1, false);
+        }
+      },
+      { threshold: 0.1, rootMargin: '300px' }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, isLoadingMore, page, fetchLeadsPage]);
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
     if (!isBrowserOnline()) {
@@ -798,6 +873,21 @@ export function LeadsTable() {
             if (updatedItem) {
               sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
             }
+
+            // Clear stale dashboard caches
+            localStorage.removeItem('das_crm_cache_emp_newLeads');
+            localStorage.removeItem('das_crm_cache_emp_followUps');
+            localStorage.removeItem('das_crm_cache_emp_meetings');
+            localStorage.removeItem('das_crm_cache_emp_opportunities');
+            localStorage.removeItem('das_crm_cache_mgr_leads');
+          } catch (_) {}
+
+          // Dispatch global real-time event & broadcast to all open dashboard tabs
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, assignee: cleanNewOwner } }));
+          try {
+            const bc = new BroadcastChannel('das_crm_lead_sync');
+            bc.postMessage({ type: 'LEAD_ALLOCATED', leadId, assignee: cleanNewOwner });
+            bc.close();
           } catch (_) {}
         }
         return updated;
@@ -1149,6 +1239,49 @@ export function LeadsTable() {
     return true;
   });
 
+  const sortedAndFiltered = useMemo(() => {
+    const list = [...filtered];
+    list.sort((a, b) => {
+      if (sortOption === 'created_desc') {
+        const ta = a.rawCreatedAt ? new Date(a.rawCreatedAt).getTime() : 0;
+        const tb = b.rawCreatedAt ? new Date(b.rawCreatedAt).getTime() : 0;
+        return tb - ta;
+      }
+      if (sortOption === 'created_asc') {
+        const ta = a.rawCreatedAt ? new Date(a.rawCreatedAt).getTime() : 0;
+        const tb = b.rawCreatedAt ? new Date(b.rawCreatedAt).getTime() : 0;
+        return ta - tb;
+      }
+      if (sortOption === 'name_asc') {
+        return safeString(a.name).localeCompare(safeString(b.name));
+      }
+      if (sortOption === 'name_desc') {
+        return safeString(b.name).localeCompare(safeString(a.name));
+      }
+      if (sortOption === 'value_desc') {
+        const va = parseFloat(String(a.value || '0').replace(/[^0-9.]/g, '')) || 0;
+        const vb = parseFloat(String(b.value || '0').replace(/[^0-9.]/g, '')) || 0;
+        return vb - va;
+      }
+      if (sortOption === 'value_asc') {
+        const va = parseFloat(String(a.value || '0').replace(/[^0-9.]/g, '')) || 0;
+        const vb = parseFloat(String(b.value || '0').replace(/[^0-9.]/g, '')) || 0;
+        return va - vb;
+      }
+      if (sortOption === 'score_desc') {
+        return (b.score || 0) - (a.score || 0);
+      }
+      if (sortOption === 'score_asc') {
+        return (a.score || 0) - (b.score || 0);
+      }
+      if (sortOption === 'status_asc') {
+        return safeStatus(a.status).localeCompare(safeStatus(b.status));
+      }
+      return 0;
+    });
+    return list;
+  }, [filtered, sortOption]);
+
   const activeFilterCount =
     (filterTL !== 'ALL' ? 1 : 0) +
     (filterSales !== 'ALL' ? 1 : 0) +
@@ -1345,6 +1478,71 @@ export function LeadsTable() {
                 <RotateCcw size={13} className="text-amber-400" />
                 <span>↺ Reset to Default</span>
               </button>
+
+              {/* 🔀 Sort By Dropdown Selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all shadow-sm ${
+                    sortOption !== 'created_desc'
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-600/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  }`}
+                  title="Sort leads by creation date, name, deal value, AI score, or status"
+                >
+                  <ArrowDownUp size={13} className="text-cyan-400" />
+                  <span className="truncate max-w-[150px]">
+                    Sort: {activeSort.label.split(':')[0]}
+                  </span>
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${isSortDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isSortDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsSortDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-64 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-2.5 py-1.5 border-b border-slate-800 mb-1 flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                          Sort Leads By
+                        </span>
+                        <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                          500/batch
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 max-h-72 overflow-y-auto">
+                        {SORT_OPTIONS.map((opt) => {
+                          const isSelected = sortOption === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() => {
+                                setSortOption(opt.key);
+                                setIsSortDropdownOpen(false);
+                              }}
+                              className={`w-full px-2.5 py-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors text-left ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white font-bold'
+                                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{opt.icon}</span>
+                                <span>{opt.label}</span>
+                              </div>
+                              {isSelected && <Check size={14} className="text-white stroke-[3]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1465,11 +1663,11 @@ export function LeadsTable() {
           {search.trim() && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                filtered.length > 0
+                sortedAndFiltered.length > 0
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
                   : 'bg-red-500/15 border-red-500/30 text-red-300'
               }`}>
-                {filtered.length > 0 ? `✓ ${filtered.length} match${filtered.length !== 1 ? 'es' : ''}` : '✗ No results'}
+                {sortedAndFiltered.length > 0 ? `✓ ${sortedAndFiltered.length} match${sortedAndFiltered.length !== 1 ? 'es' : ''}` : '✗ No results'}
               </span>
             </div>
           )}
@@ -1497,8 +1695,8 @@ export function LeadsTable() {
                 <div className="flex items-center justify-between px-1">
                   <input
                     type="checkbox"
-                    onChange={(e) => setSelected(e.target.checked ? filtered.map((l) => l.id) : [])}
-                    checked={selected.length === filtered.length && filtered.length > 0}
+                    onChange={(e) => setSelected(e.target.checked ? sortedAndFiltered.map((l) => l.id) : [])}
+                    checked={selected.length === sortedAndFiltered.length && sortedAndFiltered.length > 0}
                     className="cursor-pointer"
                     title="Select all"
                   />
@@ -1576,7 +1774,7 @@ export function LeadsTable() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {sortedAndFiltered.length === 0 ? (
               <tr>
                 <td colSpan={columnOrder.length + 2} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
@@ -1622,7 +1820,7 @@ export function LeadsTable() {
                 </td>
               </tr>
             ) : (
-            filtered.map((lead, idx) => (
+            sortedAndFiltered.map((lead, idx) => (
               <React.Fragment key={lead.id}>
               <tr className={`hover:bg-slate-900/50 transition-colors ${selected.includes(lead.id) ? 'bg-brand/5' : ''}`}>
                 {/* Checkbox, Big AI Score Circle, and Serial Number */}
@@ -1922,6 +2120,45 @@ export function LeadsTable() {
           </tbody>
         </table>
       </div>
+
+      {/* 🚀 Infinite Scroll Sentinel & Batch Fetch Status Bar (500 Leads / batch restriction) */}
+      <div className="border-t border-slate-800/80 bg-slate-950/40 px-4 py-3 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold text-slate-400">
+            Showing <strong className="text-white font-mono">{sortedAndFiltered.length}</strong> of{' '}
+            <strong className="text-indigo-400 font-mono">{totalServerCount ?? sortedAndFiltered.length}</strong> leads
+          </span>
+          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60">
+            Batch size: 500 leads
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isLoadingMore ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold animate-pulse">
+              <RefreshCw size={13} className="animate-spin" />
+              <span>Fetching next 500 leads from database...</span>
+            </div>
+          ) : hasMore ? (
+            <button
+              type="button"
+              onClick={() => fetchLeadsPage(page + 1, false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-indigo-500/40 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white transition-all shadow-sm"
+              title="Scroll table or click to load next batch of 500 leads"
+            >
+              <span>⚡ Load More (+500)</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+              <Check size={13} className="text-emerald-400" />
+              <span>All leads loaded</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Invisible scroll bottom sentinel for auto infinite loading */}
+      <div ref={scrollBottomRef} className="h-2 w-full pointer-events-none opacity-0" />
 
       {/* Header Title Editor Modal */}
       {editingColKey && (

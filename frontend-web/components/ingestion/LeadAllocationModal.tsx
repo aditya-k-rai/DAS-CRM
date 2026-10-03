@@ -723,6 +723,24 @@ export const LeadAllocationModal: React.FC<LeadAllocationModalProps> = ({
 
   const handleDoneSuccessModal = () => {
     setAllocationSuccessModalOpen(false);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('das_crm_cache_emp_newLeads');
+        localStorage.removeItem('das_crm_cache_emp_followUps');
+        localStorage.removeItem('das_crm_cache_emp_meetings');
+        localStorage.removeItem('das_crm_cache_emp_opportunities');
+        localStorage.removeItem('das_crm_cache_mgr_leads');
+      } catch (_) {}
+
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { mode, assignedUser: selectedUser?.name } }));
+      try {
+        const bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.postMessage({ type: 'LEAD_ALLOCATED', mode, assignee: selectedUser?.name });
+        bc.close();
+      } catch (_) {}
+    }
+
     onAllocationComplete?.({
       mode,
       batchRules: mode === 'BATCHWISE' ? batchRules.map(r => ({
