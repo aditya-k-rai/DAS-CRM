@@ -210,7 +210,7 @@ export function LeadsTable() {
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(500); // 500 leads default restriction
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalServerCount, setTotalServerCount] = useState<number | null>(null);
   const scrollBottomRef = useRef<HTMLDivElement | null>(null);
@@ -505,7 +505,7 @@ export function LeadsTable() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore) {
+        if (entries[0].isIntersecting && hasMore && !isLoading && !isLoadingMore && totalServerCount !== null && totalServerCount > 0) {
           fetchLeadsPage(page + 1, false);
         }
       },
@@ -514,7 +514,7 @@ export function LeadsTable() {
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, isLoading, isLoadingMore, page, fetchLeadsPage]);
+  }, [hasMore, isLoading, isLoadingMore, page, totalServerCount, fetchLeadsPage]);
 
   const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
     if (!isBrowserOnline()) {
@@ -593,10 +593,14 @@ export function LeadsTable() {
       }
 
       const targetLead = leadsList.find(l => l.id === leadId);
+      const targetUser = teamUsers.find(u => u.name.toLowerCase() === newOwner.toLowerCase() || u.id === newOwner);
+      const targetUserId = targetUser?.id || '';
+      const cleanTargetName = targetUser?.name || newOwner.replace(/\s*\([^)]*\)/g, '').trim();
+
       const fromRole = getUserRoleFromName(currentUser?.role || currentUser?.name || 'Manager', 'MANAGER');
       const fromName = `${currentUser?.name || (fromRole === 'ADMIN' ? 'Anurag Sharma' : 'Aditya Kumar Rai')} (${fromRole === 'ADMIN' ? 'ADMIN' : fromRole === 'MANAGER' ? 'Manager' : fromRole === 'TEAM_LEADER' ? 'TL' : 'Sales Rep'})`;
-      const toRole = getUserRoleFromName(newOwner, 'SALES_EXEC');
-      const cleanNewOwner = newOwner.includes('(') ? newOwner : `${newOwner} (${toRole === 'SALES_EXEC' ? 'Sales Exec' : toRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'})`;
+      const toRole = getUserRoleFromName(targetUser?.role || newOwner, 'SALES_EXEC');
+      const cleanNewOwner = `${cleanTargetName} (${toRole === 'SALES_EXEC' ? 'Sales Exec' : toRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'})`;
 
       const newEvent: AllocationEvent = {
         id: `alloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -604,6 +608,7 @@ export function LeadsTable() {
         fromName,
         toRole,
         toName: cleanNewOwner,
+        assigneeId: targetUserId || undefined,
         action: 'REASSIGNED',
         assignedAt: new Date().toISOString(),
         note: `Reassigned from table by ${fromName}`,
@@ -611,7 +616,7 @@ export function LeadsTable() {
 
       const existingTrail = targetLead?.allocationTrail && targetLead.allocationTrail.length > 0
         ? targetLead.allocationTrail
-        : buildAllocationTrailForLead(targetLead?.owner || 'Sachin Puri (Team Leader)', targetLead?.source || 'Lead Pipeline');
+        : (cleanNewOwner.toLowerCase().includes('unassigned') ? [] : buildAllocationTrailForLead(targetLead?.owner || cleanNewOwner, targetLead?.source || 'Lead Pipeline'));
 
       const updatedTrail = [...existingTrail, newEvent];
 
@@ -628,7 +633,10 @@ export function LeadsTable() {
           body: JSON.stringify({
             mode: 'DIRECT_ASSIGN',
             leadIds: [leadId],
-            directAssign: { assigneeId: cleanNewOwner, assigneeName: cleanNewOwner },
+            directAssign: {
+              assigneeId: targetUserId || cleanTargetName,
+              assigneeName: cleanTargetName,
+            },
           }),
         });
       } catch (e) {
@@ -652,19 +660,15 @@ export function LeadsTable() {
               sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
             }
 
-            // Clear stale dashboard caches
-            localStorage.removeItem('das_crm_cache_emp_newLeads');
-            localStorage.removeItem('das_crm_cache_emp_followUps');
-            localStorage.removeItem('das_crm_cache_emp_meetings');
-            localStorage.removeItem('das_crm_cache_emp_opportunities');
-            localStorage.removeItem('das_crm_cache_mgr_leads');
+            // Clear all role dashboard caches so other views refresh fresh
+            clearAllDashboardCaches();
           } catch (_) {}
 
           // Dispatch global real-time event & broadcast to all open dashboard tabs
-          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, assignee: cleanNewOwner } }));
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, assignee: cleanNewOwner, assigneeId: targetUserId } }));
           try {
             const bc = new BroadcastChannel('das_crm_lead_sync');
-            bc.postMessage({ type: 'LEAD_ALLOCATED', leadId, assignee: cleanNewOwner });
+            bc.postMessage({ type: 'LEAD_ALLOCATED', leadId, assignee: cleanNewOwner, assigneeId: targetUserId });
             bc.close();
           } catch (_) {}
         }

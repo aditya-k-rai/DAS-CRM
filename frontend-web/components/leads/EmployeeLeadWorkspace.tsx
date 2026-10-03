@@ -884,11 +884,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               isManager={isUserManager}
               isTL={isUserTL}
               isSales={isUserSales}
-              onNewAllocation={async (newEvent) => {
+              onNewAllocation={async (newEvent, assigneeId, assigneeName) => {
+                const finalAssigneeId = assigneeId || newEvent.assigneeId || '';
+                const finalAssigneeName = assigneeName || newEvent.toName || 'Assigned Rep';
                 const updatedTrail = [...(lead.allocationTrail || []), newEvent];
                 const updatedLead = {
                   ...lead,
-                  owner: newEvent.toName,
+                  owner: finalAssigneeName,
                   allocationTrail: updatedTrail,
                 };
                 setLead(updatedLead);
@@ -905,7 +907,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       const allLeads: any[] = JSON.parse(allLeadsRaw);
                       const updatedAll = allLeads.map((item: any) =>
                         String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                          ? { ...item, owner: newEvent.toName, currentAssignee: newEvent.toName, allocationTrail: updatedTrail }
+                          ? { ...item, owner: finalAssigneeName, currentAssignee: finalAssigneeName, allocationTrail: updatedTrail }
                           : item
                       );
                       localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
@@ -916,32 +918,28 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       const dirLeads: any[] = JSON.parse(dirLeadsRaw);
                       const updatedDir = dirLeads.map((item: any) =>
                         String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
-                          ? { ...item, owner: newEvent.toName, assignedRep: newEvent.toName, allocationTrail: updatedTrail }
+                          ? { ...item, owner: finalAssigneeName, assignedRep: finalAssigneeName, allocationTrail: updatedTrail }
                           : item
                       );
                       localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
                     }
 
-                    // Clear stale dashboard caches so Sales & Manager dashboards reload immediately
-                    localStorage.removeItem('das_crm_cache_emp_newLeads');
-                    localStorage.removeItem('das_crm_cache_emp_followUps');
-                    localStorage.removeItem('das_crm_cache_emp_meetings');
-                    localStorage.removeItem('das_crm_cache_emp_opportunities');
-                    localStorage.removeItem('das_crm_cache_mgr_leads');
+                    // Purge all role dashboard caches so Manager, TL, and Sales dashboards reload immediately
+                    clearAllDashboardCaches();
                   } catch (_) {}
                 }
 
                 // Dispatch global real-time event & broadcast to all open dashboard tabs
                 if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, assignee: newEvent.toName } }));
+                  window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, assignee: finalAssigneeName, assigneeId: finalAssigneeId } }));
                   try {
                     const bc = new BroadcastChannel('das_crm_lead_sync');
-                    bc.postMessage({ type: 'LEAD_ALLOCATED', leadId: lead.id, assignee: newEvent.toName });
+                    bc.postMessage({ type: 'LEAD_ALLOCATED', leadId: lead.id, assignee: finalAssigneeName, assigneeId: finalAssigneeId });
                     bc.close();
                   } catch (_) {}
                 }
 
-                // 3. Dispatch to backend API
+                // 3. Dispatch to backend API with accurate target user ID
                 try {
                   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
                   const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
@@ -956,14 +954,17 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                     body: JSON.stringify({
                       mode: 'DIRECT_ASSIGN',
                       leadIds: [lead.id],
-                      directAssign: { assigneeId: newEvent.toName, assigneeName: newEvent.toName },
+                      directAssign: {
+                        assigneeId: finalAssigneeId || finalAssigneeName,
+                        assigneeName: finalAssigneeName,
+                      },
                     }),
                   });
                 } catch (e) {
                   console.warn('Backend allocation sync warning:', e);
                 }
 
-                showSyncNotification(`✓ Lead re-allocated to ${newEvent.toName}! Recorded in allocation history.`);
+                showSyncNotification(`✓ Lead allocated to ${finalAssigneeName}! Recorded in allocation history.`);
               }}
             />
           </div>

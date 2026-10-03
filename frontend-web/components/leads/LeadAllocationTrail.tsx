@@ -34,6 +34,7 @@ export interface AllocationEvent {
   fromName: string;
   toRole: AllocationRole;
   toName: string;
+  assigneeId?: string;
   action: 'ALLOCATED' | 'REASSIGNED';       // Admin→Manager or Manager→TL = ALLOCATED; TL/Manager→Sales = ASSIGNED
   assignedAt: string;                        // ISO timestamp
   note?: string;
@@ -215,9 +216,14 @@ export function buildAllocationTrailForLead(
     if (sanitized.length > 0) return sanitized;
   }
 
+  // Never fabricate a synthetic assignment trail for unassigned leads
+  const cleanAssignee = (assigneeName || '').replace(/\s*\([^)]*\)/g, '').trim();
+  if (!cleanAssignee || cleanAssignee === '—' || cleanAssignee === '-' || cleanAssignee.toLowerCase().includes('unassign')) {
+    return [];
+  }
+
   const role = getUserRoleFromName(assigneeName, 'TEAM_LEADER');
   const rootAllocator = getHistoricalRootAllocator(leadCustomFields);
-  const cleanAssignee = assigneeName.replace(/\s*\([^)]*\)/g, '').trim() || 'Sachin Puri';
 
   if (role === 'TEAM_LEADER') {
     return [
@@ -324,7 +330,7 @@ interface LeadAllocationTrailProps {
   isTL?: boolean;
   isSales?: boolean;
   leadId?: string;
-  onNewAllocation?: (event: AllocationEvent) => void;
+  onNewAllocation?: (event: AllocationEvent, assigneeId?: string, assigneeName?: string) => void;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -494,21 +500,25 @@ export function LeadAllocationTrail({
       })
     : [];
 
+  const isCurrentlyUnassigned = !currentAssignee || currentAssignee === '—' || currentAssignee === '-' || currentAssignee.toLowerCase().includes('unassign') || currentAssignee === 'Assigned Rep';
+
   const effectiveTrail: AllocationEvent[] = cleanTrail.length > 0
     ? cleanTrail
-    : buildAllocationTrailForLead(
-        currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep' ? currentAssignee : 'Sachin Puri (Team Leader)',
+    : (isCurrentlyUnassigned ? [] : buildAllocationTrailForLead(
+        currentAssignee,
         'Website / Lead Pipeline'
-      );
+      ));
 
   const lastEvent = effectiveTrail[effectiveTrail.length - 1];
-  const resolvedRole = getUserRoleFromName(currentAssignee, (currentRole || lastEvent?.toRole || 'TEAM_LEADER'));
+  const resolvedRole = isCurrentlyUnassigned ? null : getUserRoleFromName(currentAssignee, (currentRole || lastEvent?.toRole || 'TEAM_LEADER'));
   const displayRole = (resolvedRole || lastEvent?.toRole || currentRole || 'TEAM_LEADER') as AllocationRole;
-  const currentRoleMeta = ROLE_META[displayRole] || ROLE_META.TEAM_LEADER;
+  const currentRoleMeta = isCurrentlyUnassigned
+    ? { label: 'Unassigned', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)', icon: AlertCircle }
+    : (ROLE_META[displayRole] || ROLE_META.TEAM_LEADER);
 
-  const displayAssignee = (currentAssignee && currentAssignee !== 'Unassigned' && currentAssignee !== 'Assigned Rep')
-    ? (currentAssignee.includes('(') ? currentAssignee : `${currentAssignee} (${currentRoleMeta.label})`)
-    : (lastEvent?.toName || 'Sachin Puri (Team Leader)');
+  const displayAssignee = isCurrentlyUnassigned
+    ? 'Unassigned'
+    : (currentAssignee.includes('(') ? currentAssignee : `${currentAssignee} (${currentRoleMeta.label})`);
 
   const handleSaveAllocation = () => {
     if (!assignToName.trim()) {
@@ -527,12 +537,13 @@ export function LeadAllocationTrail({
       fromName: currentActor.fromName,
       toRole: assignToRole,
       toName: targetWithRole,
+      assigneeId: selectedUser?.id || undefined,
       action: 'REASSIGNED',
       assignedAt: new Date().toISOString(),
       note: assignNote.trim() || `Re-allocated by ${currentActor.fromName} to ${targetWithRole}`,
     };
 
-    if (onNewAllocation) onNewAllocation(newEvent);
+    if (onNewAllocation) onNewAllocation(newEvent, selectedUser?.id, cleanTarget);
     setShowAssignModal(false);
     setAssignToName('');
     setAssignNote('');

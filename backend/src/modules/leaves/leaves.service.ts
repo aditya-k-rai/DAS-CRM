@@ -88,7 +88,7 @@ export class LeavesService {
   ) {
     const roleName = typeof user.role === 'string' ? user.role : user.role?.name || '';
     const isCompanyWide = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'HR'].includes(roleName);
-    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName);
+    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(roleName);
 
     let userFilter: any = undefined;
 
@@ -135,7 +135,7 @@ export class LeavesService {
   async approveLeave(organizationId: string, approverUser: any, requestId: string) {
     const roleName = typeof approverUser.role === 'string' ? approverUser.role : approverUser.role?.name || '';
     const isCompanyWide = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'HR'].includes(roleName);
-    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName);
+    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(roleName);
 
     if (!isCompanyWide && !isManager) {
       throw new ForbiddenException('⛔ Access Denied: You do not have permission to approve leaves.');
@@ -179,7 +179,7 @@ export class LeavesService {
   ) {
     const roleName = typeof approverUser.role === 'string' ? approverUser.role : approverUser.role?.name || '';
     const isCompanyWide = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'HR'].includes(roleName);
-    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName);
+    const isManager = ['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(roleName);
 
     if (!isCompanyWide && !isManager) {
       throw new ForbiddenException('⛔ Access Denied: You do not have permission to reject leaves.');

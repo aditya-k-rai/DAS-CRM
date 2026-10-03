@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Topbar } from '@/components/layout/Topbar';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { useAuth } from '@/context/AuthContext';
+import { clearAllDashboardCaches } from '@/lib/cacheUtils';
 import {
   Users, Target, CheckCircle2, ArrowRight, UserCheck, Shield,
   Send, AlertCircle, RefreshCw, Sparkles, Filter, Check,
@@ -52,7 +53,7 @@ export default function TeamLeaderLeadAssignmentPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
   // Load leads and team members
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
     setIsLoading(true);
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
     const headers: Record<string, string> = {
@@ -62,7 +63,7 @@ export default function TeamLeaderLeadAssignmentPage() {
 
     try {
       const [leadsRes, usersRes] = await Promise.allSettled([
-        fetch(`${apiBase}/leads`, { headers }),
+        fetch(`${apiBase}/leads?limit=500`, { headers }),
         fetch(`${apiBase}/users`, { headers }),
       ]);
 
@@ -117,11 +118,34 @@ export default function TeamLeaderLeadAssignmentPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [apiBase, selectedRepId]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    const handleUpdate = () => {
+      fetchData();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          fetchData();
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
+  }, [fetchData]);
 
   // Filtered Leads
   const filteredLeads = useMemo(() => {
@@ -206,7 +230,7 @@ export default function TeamLeaderLeadAssignmentPage() {
         );
         setSelectedLeadIds([]);
       } else {
-        showToast(`✅ Allocated ${leadIdsToAssign.length} lead(s) to ${repName} (Saved).`);
+        showToast(`✅ Allocated ${leadIdsToAssign.length} lead(s) to ${repName}.`);
         setLeads((prev) =>
           prev.map((l) =>
             leadIdsToAssign.includes(l.id)
@@ -215,6 +239,19 @@ export default function TeamLeaderLeadAssignmentPage() {
           )
         );
         setSelectedLeadIds([]);
+      }
+
+      // Purge all stale dashboard caches and notify all open tabs/dashboards
+      if (typeof window !== 'undefined') {
+        clearAllDashboardCaches();
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', {
+          detail: { leadIds: leadIdsToAssign, assigneeId: targetRepId, assigneeName: repName }
+        }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_ALLOCATED', leadIds: leadIdsToAssign, assigneeId: targetRepId, assigneeName: repName });
+          bc.close();
+        } catch (_) {}
       }
     } catch (_) {
       showToast(`✅ Allocated ${leadIdsToAssign.length} lead(s) to ${repName}.`);
@@ -226,6 +263,10 @@ export default function TeamLeaderLeadAssignmentPage() {
         )
       );
       setSelectedLeadIds([]);
+      if (typeof window !== 'undefined') {
+        clearAllDashboardCaches();
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated'));
+      }
     } finally {
       setIsSubmitting(false);
     }

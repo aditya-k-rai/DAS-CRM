@@ -512,7 +512,7 @@ export class LeadsService {
       });
       const roleName = user?.role?.name || '';
       const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName);
-      if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName)) {
+      if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(roleName)) {
         throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can reassign lead owners.');
       }
       if (!isGlobalAdmin && dto.ownerId) {
@@ -1063,7 +1063,7 @@ export class LeadsService {
     });
     const roleName = manager?.role?.name || '';
     const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(roleName);
-    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(roleName)) {
+    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(roleName)) {
       throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can allocate leads.');
     }
 
@@ -1139,7 +1139,7 @@ export class LeadsService {
     const rawRole = allocator?.role?.name || (typeof allocator?.role === 'string' ? allocator.role : '') || '';
     const allocatorRole = rawRole.toUpperCase() || 'ADMIN';
     const isGlobalAdmin = ['ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(allocatorRole);
-    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD'].includes(allocatorRole)) {
+    if (!isGlobalAdmin && !['MANAGER', 'DEPT_MANAGER', 'TL', 'TEAM_LEAD', 'TEAM_LEADER'].includes(allocatorRole)) {
       throw new ForbiddenException('⛔ Access Denied: Only Admins, Managers, and Team Leads can allocate leads.');
     }
 
@@ -1214,7 +1214,7 @@ export class LeadsService {
       const candidates = [rawName, rawId].filter(Boolean) as string[];
       for (const text of candidates) {
         const clean = text.replace(/\(.*?\)/g, '').trim().toLowerCase();
-        if (!clean) continue;
+        if (!clean || clean === '—' || clean === '-' || clean === 'unassigned') return null;
         if (userByName.has(clean)) return userByName.get(clean)!;
         for (const [nameKey, uid] of userByName.entries()) {
           if (clean.includes(nameKey) || nameKey.includes(clean)) {
@@ -1222,7 +1222,7 @@ export class LeadsService {
           }
         }
       }
-      return orgUsers.length > 0 ? orgUsers[0].id : null;
+      return null;
     };
 
     const allocationResults: Array<{
@@ -1381,10 +1381,11 @@ export class LeadsService {
         if (targetLeadIds.length > 0) {
           for (const lead of candidateLeads) {
             const existingCustom = typeof lead.customFields === 'object' && lead.customFields !== null ? lead.customFields : {};
+            const isUnassigning = targetAssigneeName.toLowerCase().includes('unassigned') || targetAssigneeName === '—';
             await this.prisma.lead.update({
               where: { id: lead.id },
               data: {
-                ...(targetUserId ? { ownerId: targetUserId } : {}),
+                ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
                 customFields: {
                   ...existingCustom,
                   assignedRep: targetAssigneeName,
@@ -1400,7 +1401,7 @@ export class LeadsService {
               await this.prisma.lead.updateMany({
                 where: { id: lead.id },
                 data: {
-                  ...(targetUserId ? { ownerId: targetUserId } : {}),
+                  ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
                   lastActivityAt: new Date(),
                 },
               }).catch(() => {});
