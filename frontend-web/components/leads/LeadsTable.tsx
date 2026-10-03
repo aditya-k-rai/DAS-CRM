@@ -24,6 +24,7 @@ import {
   safeSource,
   getStatusColor,
 } from '@/lib/leadNormalizer';
+import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 
 export type SortOptionKey =
   | 'created_desc'
@@ -134,272 +135,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   created: 120,
 };
 
-export const DEFAULT_REAL_LEADS: LeadDataWeb[] = [
-  {
-    id: 'cmuojhbtg0001ikm41xg7dsja',
-    name: 'Rohan Deshmukh',
-    email: 'rohan.deshmukh@example.com',
-    phone: '+91 98000 10000',
-    status: 'New',
-    statusColor: '#6366f1',
-    source: 'Website',
-    score: 88,
-    owner: 'Sachin Puri',
-    value: '₹3,50,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Website Lead', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sachin Puri',
-    currentAssigneeRole: 'TEAM_LEADER',
-    totalCalls: 1,
-    lastCalledAt: '10m ago',
-  },
-  {
-    id: 'cmuojhbzn0003ikm4ktdu50et',
-    name: 'Priya Patel',
-    email: 'priya.patel@example.com',
-    phone: '+91 98000 10001',
-    status: 'Contacted',
-    statusColor: '#f59e0b',
-    source: 'Referral',
-    score: 92,
-    owner: 'Sachin Puri',
-    value: '₹5,20,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Referral', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sachin Puri',
-    currentAssigneeRole: 'TEAM_LEADER',
-    totalCalls: 2,
-    lastCalledAt: '25m ago',
-  },
-  {
-    id: 'cmuojhc6s0005ikm47cen8ztl',
-    name: 'Vikram Malhotra',
-    email: 'vikram.malhotra@example.com',
-    phone: '+91 98000 10002',
-    status: 'Qualified',
-    statusColor: '#3b82f6',
-    source: 'Trade Show',
-    score: 95,
-    owner: 'Sachin Puri',
-    value: '₹8,50,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Trade Show', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sachin Puri',
-    currentAssigneeRole: 'TEAM_LEADER',
-    totalCalls: 3,
-    lastCalledAt: '40m ago',
-  },
-  {
-    id: 'cmuojhcda0007ikm4vgzakxe0',
-    name: 'Neha Sharma',
-    email: 'neha.sharma@example.com',
-    phone: '+91 98000 10003',
-    status: 'Proposal',
-    statusColor: '#8b5cf6',
-    source: 'Website',
-    score: 84,
-    owner: 'Nandini Rastogi',
-    value: '₹4,80,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Website Lead', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Nandini Rastogi',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 2,
-    lastCalledAt: '1h ago',
-  },
-  {
-    id: 'cmuojhcjd0009ikm4x926jy1e',
-    name: 'Arjun Reddy',
-    email: 'arjun.reddy@example.com',
-    phone: '+91 98000 10004',
-    status: 'Negotiation',
-    statusColor: '#ec4899',
-    source: 'Referral',
-    score: 91,
-    owner: 'Nandini Rastogi',
-    value: '₹6,00,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Referral', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Nandini Rastogi',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 4,
-    lastCalledAt: '2h ago',
-  },
-  {
-    id: 'cmuojhcpg000bikm48s7m0x7m',
-    name: 'Kavita Singh',
-    email: 'kavita.singh@example.com',
-    phone: '+91 98000 10005',
-    status: 'Won',
-    statusColor: '#10b981',
-    source: 'Trade Show',
-    score: 98,
-    owner: 'Nandini Rastogi',
-    value: '₹12,00,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Trade Show', 'WON DEAL 🎉'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Nandini Rastogi',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 5,
-    lastCalledAt: '3h ago',
-  },
-  {
-    id: 'cmuojhcye000dikm4bhj05gvt',
-    name: 'Siddharth Mehta',
-    email: 'siddharth.mehta@example.com',
-    phone: '+91 98000 10006',
-    status: 'Lost',
-    statusColor: '#ef4444',
-    source: 'Website',
-    score: 62,
-    owner: 'Sulekha Tomar',
-    value: '₹2,50,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Website Lead', 'FOLLOW UP'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sulekha Tomar',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 1,
-    lastCalledAt: '4h ago',
-  },
-  {
-    id: 'cmuojhd74000fikm4jlvsvc7y',
-    name: 'Anjali Verma',
-    email: 'anjali.verma@example.com',
-    phone: '+91 98000 10007',
-    status: 'New',
-    statusColor: '#6366f1',
-    source: 'Referral',
-    score: 87,
-    owner: 'Sulekha Tomar',
-    value: '₹3,80,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Referral', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sulekha Tomar',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 1,
-    lastCalledAt: '30m ago',
-  },
-  {
-    id: 'cmuojhdbz000hikm4mcilkcbh',
-    name: 'Rahul Kapoor',
-    email: 'rahul.kapoor@example.com',
-    phone: '+91 98000 10008',
-    status: 'Contacted',
-    statusColor: '#f59e0b',
-    source: 'Trade Show',
-    score: 89,
-    owner: 'Sadhana',
-    value: '₹5,50,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Trade Show', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sadhana',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 2,
-    lastCalledAt: '50m ago',
-  },
-  {
-    id: 'cmuojhdgu000jikm4z3gs6v5r',
-    name: 'Pooja Nair',
-    email: 'pooja.nair@example.com',
-    phone: '+91 98000 10009',
-    status: 'Qualified',
-    statusColor: '#3b82f6',
-    source: 'Website',
-    score: 94,
-    owner: 'Sadhana',
-    value: '₹7,20,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Website Lead', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sadhana',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 3,
-    lastCalledAt: '15m ago',
-  },
-  {
-    id: 'sample-lead-11',
-    name: 'Sneha Kapoor',
-    email: 'sneha.kapoor@example.com',
-    phone: '+91 98201 54321',
-    status: 'Proposal',
-    statusColor: '#8b5cf6',
-    source: 'Google Ads',
-    score: 93,
-    owner: 'Sadhana',
-    value: '₹6,80,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Google Ads', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sadhana',
-    currentAssigneeRole: 'SALES_EXEC',
-    totalCalls: 2,
-    lastCalledAt: '1h ago',
-  },
-  {
-    id: 'sample-lead-12',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@example.com',
-    phone: '+91 98201 65432',
-    status: 'New',
-    statusColor: '#6366f1',
-    source: 'Google Ads',
-    score: 86,
-    owner: 'Sachin Puri',
-    value: '₹4,10,000',
-    created: 'Today',
-    rawCreatedAt: new Date().toISOString(),
-    tags: ['Google Ads', 'ALLOCATED ✓'],
-    city: '—',
-    budget: '—',
-    requirement: '—',
-    currentAssignee: 'Sachin Puri',
-    currentAssigneeRole: 'TEAM_LEADER',
-    totalCalls: 1,
-    lastCalledAt: '20m ago',
-  },
-];
+export const DEFAULT_REAL_LEADS: LeadDataWeb[] = [];
 
 export function LeadsTable() {
   const { statuses: workflowStatuses, statusNames, statusTabs, statusColorMap } = useWorkflowLeadStatuses();
@@ -445,7 +181,7 @@ export function LeadsTable() {
         }
       } catch (_) {}
     }
-    return DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
+    return [];
   });
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; name: string; role: string; assignedManager?: string; managerId?: string | null }>>(() => {
     try {
@@ -684,15 +420,7 @@ export function LeadsTable() {
 
       setLeadsList(prev => {
         if (isReset || pageNumber === 1) {
-          const leadMap = new Map<string, LeadDataWeb>();
-          mappedServerLeads.forEach(l => leadMap.set(l.id, l));
-          directoryCachedLeads.forEach(l => {
-            if (!leadMap.has(l.id)) leadMap.set(l.id, l);
-          });
-          let finalLeads = Array.from(leadMap.values());
-          if (finalLeads.length === 0) {
-            finalLeads = DEFAULT_REAL_LEADS.map((l, idx) => normalizeLead(l, idx));
-          }
+          const finalLeads = mappedServerLeads;
           if (typeof window !== 'undefined') {
             try {
               localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(finalLeads));
@@ -743,6 +471,33 @@ export function LeadsTable() {
     fetchLeadsPage(1, true);
   }, [fetchLeadsPage]);
 
+  // Listen for realtime cross-tab and cross-component updates
+  useEffect(() => {
+    clearStaleCaches();
+    const handleUpdate = () => {
+      fetchLeadsPage(1, true);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          fetchLeadsPage(1, true);
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
+  }, [fetchLeadsPage]);
+
   // Infinite Scroll Intersection Observer on scrollBottomRef
   useEffect(() => {
     const target = scrollBottomRef.current;
@@ -789,11 +544,34 @@ export function LeadsTable() {
         console.warn('Backend status update warning:', e);
       }
 
-      setLeadsList(prev => prev.map(item => item.id === leadId ? {
-        ...item,
-        status: newStatus,
-        statusColor: statusColorMap[newStatus] || statusColorMap[newStatus.toLowerCase()] || '#6366f1',
-      } : item));
+      setLeadsList(prev => {
+        const updated = prev.map(item => item.id === leadId ? {
+          ...item,
+          status: newStatus,
+          statusColor: statusColorMap[newStatus] || statusColorMap[newStatus.toLowerCase()] || '#6366f1',
+        } : item);
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updated));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updated));
+            const updatedItem = updated.find(l => l.id === leadId);
+            if (updatedItem) {
+              sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(updatedItem));
+            }
+            clearAllDashboardCaches();
+          } catch (_) {}
+
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, status: newStatus } }));
+          try {
+            const bc = new BroadcastChannel('das_crm_lead_sync');
+            bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId, status: newStatus });
+            bc.close();
+          } catch (_) {}
+        }
+
+        return updated;
+      });
 
       showTableToast(`✓ Verified with Server: Lead status updated to "${newStatus}"!`);
     } catch (err: any) {

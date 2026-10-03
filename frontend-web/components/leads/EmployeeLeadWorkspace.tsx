@@ -14,6 +14,7 @@ import { CallContactHistory, ContactAttempt, ContactOutcome, ContactType } from 
 import { useWorkflowCallFunnel, useWorkflowLeadStatuses } from '@/lib/workflowService';
 import { DEFAULT_REAL_LEADS } from './LeadsTable';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource, safeRequirement } from '@/lib/leadNormalizer';
+import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 
 export type DispositionOption =
   | 'Not Responding'
@@ -91,12 +92,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     const norm = normalizeLead(leadData || { id: leadId });
     return {
       id: norm.id || leadId,
-      name: norm.name || 'Dr. Vikram Malhotra',
-      email: norm.email || 'vikram.malhotra@zenithhospital.in',
-      phone: norm.phone || '+91 98201 12345',
-      company: norm.company || 'Zenith Hospital & Research Centre',
+      name: norm.name || (leadData ? 'Lead Details' : 'Loading Lead...'),
+      email: norm.email && norm.email !== '—' ? norm.email : '—',
+      phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
+      company: norm.company && norm.company !== '—' ? norm.company : '—',
       status: norm.status || 'New Lead',
-      owner: norm.owner || 'Sachin Puri (Team Leader)',
+      owner: norm.owner || '—',
       city: norm.city || '—',
       budget: norm.budget || '—',
       requirement: norm.requirement || '—',
@@ -113,7 +114,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       // 1. If leadData is provided directly via props and is populated, use it
       if (leadData && leadData.name && leadData.name !== 'Prospect Lead' && leadData.phone) {
         const norm = normalizeLead(leadData);
-        const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
+        const ownerName = norm.owner || '—';
         const defaultTrail = buildAllocationTrailForLead(
           ownerName,
           norm.source || 'Lead Ingestion',
@@ -135,10 +136,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           source: norm.source || '—',
           allocationTrail: defaultTrail,
         });
-        return;
       }
 
-      // 2. Check Session Storage (Instant zero-latency hydration from table click)
+      // 2. Check Session Storage / LocalStorage for initial optimistic render (DO NOT return early!)
       if (typeof window !== 'undefined') {
         try {
           const directSession = sessionStorage.getItem(`das_crm_lead_${leadId}`);
@@ -154,18 +154,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           }
           if (sessionMatch && isMounted) {
             const norm = normalizeLead(sessionMatch);
-            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
-            const allocatedTimestamp = sessionMatch.allocatedAt || sessionMatch.createdAt || norm.rawCreatedAt || new Date().toISOString();
-            const fileName = sessionMatch.fileName || (sessionMatch.tags && sessionMatch.tags[0]) || norm.source || 'Lead Ingestion';
-
-            const sessionTrail = buildAllocationTrailForLead(
-              ownerName,
-              fileName,
-              allocatedTimestamp,
-              norm.allocationTrail,
-              sessionMatch.customFields
-            );
-
+            const ownerName = norm.owner || '—';
             setLead({
               id: String(norm.id || leadId),
               name: norm.name,
@@ -177,62 +166,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               city: norm.city || '—',
               budget: norm.budget || '—',
               requirement: norm.requirement || '—',
-              source: norm.source || fileName,
-              allocationTrail: sessionTrail,
+              source: norm.source || '—',
+              allocationTrail: norm.allocationTrail || [],
             });
-            return;
           }
         } catch (_) {}
       }
 
-      // 3. Check All Leads Cache in LocalStorage
-      if (typeof window !== 'undefined') {
-        try {
-          const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
-          if (allLeadsRaw) {
-            const allLeads: any[] = JSON.parse(allLeadsRaw);
-            const decodedId = decodeURIComponent(leadId).toLowerCase().trim();
-            const matched = allLeads.find((item: any) =>
-              String(item.id) === String(leadId) ||
-              (item.name && String(item.name).toLowerCase() === decodedId) ||
-              (item.name && decodedId.includes(String(item.name).toLowerCase())) ||
-              (item.name && String(item.name).toLowerCase().includes(decodedId))
-            );
-            if (matched && isMounted) {
-              const norm = normalizeLead(matched);
-              const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
-              const allocatedTimestamp = matched.rawCreatedAt || matched.createdAt || new Date().toISOString();
-              const fileName = (matched.tags && matched.tags[0]) || norm.source || 'Lead Ingestion';
-
-              const matchedTrail = buildAllocationTrailForLead(
-                ownerName,
-                fileName,
-                allocatedTimestamp,
-                norm.allocationTrail,
-                matched.customFields
-              );
-
-              setLead({
-                id: String(norm.id || leadId),
-                name: norm.name,
-                email: norm.email && norm.email !== '—' ? norm.email : '—',
-                phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
-                company: norm.company || '—',
-                status: norm.status || 'New Lead',
-                owner: ownerName,
-                city: norm.city || '—',
-                budget: norm.budget || '—',
-                requirement: norm.requirement || '—',
-                source: norm.source || fileName,
-                allocationTrail: matchedTrail,
-              });
-              return;
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 4. Try fetching from Authoritative Backend Database
+      // 3. ALWAYS FETCH AUTHORITATIVE DATABASE STATE FROM BACKEND API
       const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
       const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
       const headers: Record<string, string> = {
@@ -246,7 +187,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           const l = await res.json();
           if (l && isMounted) {
             const norm = normalizeLead(l);
-            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
+            const ownerName = norm.owner || '—';
             const allocatedTimestamp = l.customFields?.allocatedAt || l.createdAt || new Date().toISOString();
             const fileName = l.customFields?.fileName || l.customFields?.platform || 'Lead Ingestion';
 
@@ -258,7 +199,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               l.customFields
             );
 
-            setLead({
+            const serverLead = {
               id: String(norm.id || leadId),
               name: norm.name,
               email: norm.email || '—',
@@ -271,89 +212,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               requirement: norm.requirement || '—',
               source: norm.source || '—',
               allocationTrail: serverTrail,
-            });
+            };
+
+            setLead(serverLead);
+
+            // Reconcile and update session and local caches with fresh server data
+            if (typeof window !== 'undefined') {
+              try {
+                sessionStorage.setItem(`das_crm_lead_${leadId}`, JSON.stringify(serverLead));
+                sessionStorage.setItem('das_crm_active_lead', JSON.stringify(serverLead));
+              } catch (_) {}
+            }
             return;
           }
         }
-      } catch (_) {}
-
-      // 5. Check DEFAULT_REAL_LEADS & Standard Fallbacks
-      const decodedLower = decodeURIComponent(leadId).toLowerCase().trim();
-      const defaultMatched = (DEFAULT_REAL_LEADS || []).find((l) =>
-        String(l.id).toLowerCase() === decodedLower ||
-        (l.name && String(l.name).toLowerCase() === decodedLower) ||
-        (l.name && decodedLower.includes(String(l.name).toLowerCase())) ||
-        (decodedLower.includes('anjali') && String(l.name).toLowerCase().includes('anjali')) ||
-        (decodedLower.includes('pooja') && String(l.name).toLowerCase().includes('pooja')) ||
-        (decodedLower.includes('vikram') && String(l.name).toLowerCase().includes('vikram')) ||
-        (decodedLower.includes('rohan') && String(l.name).toLowerCase().includes('rohan')) ||
-        (decodedLower.includes('priya') && String(l.name).toLowerCase().includes('priya')) ||
-        (decodedLower.includes('neha') && String(l.name).toLowerCase().includes('neha')) ||
-        (decodedLower.includes('arjun') && String(l.name).toLowerCase().includes('arjun')) ||
-        (decodedLower.includes('kavita') && String(l.name).toLowerCase().includes('kavita'))
-      );
-
-      if (defaultMatched && isMounted) {
-        const norm = normalizeLead(defaultMatched);
-        const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
-        setLead({
-          id: norm.id || leadId,
-          name: norm.name,
-          email: norm.email || '—',
-          phone: norm.phone || '—',
-          company: norm.city !== '—' ? norm.city : 'Enterprise Client',
-          status: norm.status || 'New Lead',
-          owner: ownerName,
-          city: norm.city || 'Mumbai',
-          budget: norm.budget || '₹ 4,50,000',
-          requirement: norm.requirement || 'Enterprise CRM',
-          source: norm.source || 'Website',
-          allocationTrail: norm.allocationTrail && norm.allocationTrail.length > 0 ? norm.allocationTrail : buildAllocationTrailForLead(ownerName, norm.source || 'Website'),
-        });
-        return;
-      }
-
-      // 6. Fallback to Local Ingestion & Directory Cache (Pipeline Sync)
-      if (typeof window !== 'undefined') {
-        try {
-          const cachedAll: any[] = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
-          const cachedDir: any[] = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-          const combined = [...cachedAll, ...cachedDir];
-          const matched = combined.find((c: any) =>
-            String(c.id) === String(leadId) ||
-            (c.name && decodeURIComponent(leadId).toLowerCase().includes(String(c.name).toLowerCase()))
-          );
-          if (matched && isMounted) {
-            const norm = normalizeLead(matched);
-            const ownerName = norm.owner || 'Sachin Puri (Team Leader)';
-            const allocatedTimestamp = matched.allocatedAt || matched.createdAt || new Date().toISOString();
-            const fileName = matched.fileName || norm.source || 'Lead Ingestion';
-
-            const cachedTrail = buildAllocationTrailForLead(
-              ownerName,
-              fileName,
-              allocatedTimestamp,
-              norm.allocationTrail,
-              matched.customFields
-            );
-
-            setLead({
-              id: String(norm.id || leadId),
-              name: norm.name,
-              email: norm.email && norm.email !== '—' ? norm.email : '—',
-              phone: norm.phone && norm.phone !== '—' ? norm.phone : '—',
-              company: norm.company || '—',
-              status: norm.status || 'New Lead',
-              owner: ownerName,
-              city: norm.city || '—',
-              budget: norm.budget || '—',
-              requirement: norm.requirement || '—',
-              source: norm.source || fileName,
-              allocationTrail: cachedTrail,
-            });
-            return;
-          }
-        } catch (_) {}
+      } catch (err) {
+        console.warn('API lead fetch warning in EmployeeLeadWorkspace:', err);
       }
 
       // 7. Default Fallback
@@ -368,12 +242,12 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
           phone: '—',
           company: '—',
           status: 'New Lead',
-          owner: 'Sachin Puri (Team Leader)',
+          owner: '—',
           city: '—',
           budget: '—',
           requirement: '—',
           source: '—',
-          allocationTrail: buildAllocationTrailForLead('Sachin Puri (Team Leader)', 'Lead Record'),
+          allocationTrail: [],
         });
       }
     };
@@ -591,6 +465,21 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         statusId: targetStatus,
         notes: `Call Funnel Disposition: ${dispositionSummaryTitle}. Notes: ${callResponseNotes || 'N/A'}`,
       }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        try {
+          clearAllDashboardCaches();
+          const updatedLead = { ...lead, status: targetStatus };
+          sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+          sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
+        } catch (_) {}
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, status: targetStatus } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: lead.id, status: targetStatus });
+          bc.close();
+        } catch (_) {}
+      }
     }).catch(() => {});
 
     // 6. Automatically Create Follow-up Task in Backend & Tasks Hub
@@ -2085,6 +1974,22 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                       setShowUpdateStatusModal(false);
                       setStatusNotes('');
                       setIsUpdatingStatus(false);
+
+                      if (typeof window !== 'undefined') {
+                        try {
+                          clearAllDashboardCaches();
+                          const updatedLead = { ...lead, status: newStatusChoice };
+                          sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+                          sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
+                        } catch (_) {}
+                        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: lead.id, status: newStatusChoice } }));
+                        try {
+                          const bc = new BroadcastChannel('das_crm_lead_sync');
+                          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: lead.id, status: newStatusChoice });
+                          bc.close();
+                        } catch (_) {}
+                      }
+
                       showSyncNotification(`✓ Verified with Server: Lead status updated to "${newStatusChoice}"!`);
 
                       if (newStatusChoice === 'In Negotiation') {

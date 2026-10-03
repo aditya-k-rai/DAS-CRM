@@ -10,7 +10,7 @@ import {
   Sparkles, Send, Check, Mail, Building2, Filter, Search, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getCachedData, setCachedData, clearAllDashboardCaches } from '@/lib/cacheUtils';
+import { getCachedData, setCachedData, clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import {
   getUserDirectory,
   subscribeUserDirectory,
@@ -80,231 +80,8 @@ interface TeamFollowUp {
   avatarBg: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// High-Fidelity Seed Data (Scoped to Team Leader Unit)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const DEFAULT_MEMBERS: TeamMember[] = [
-  {
-    id: 'rep-01',
-    name: 'Rajesh Kumar',
-    email: 'rajesh.rep@acme.com',
-    role: 'Senior Sales Executive',
-    status: 'ACTIVE',
-    leadsAssigned: 14,
-    contactedCount: 11,
-    dealsWon: 4,
-    revenueClosed: '₹5,20,000',
-    clockInTime: '09:12 AM',
-    avatarBg: 'from-blue-600 to-indigo-700',
-  },
-  {
-    id: 'rep-02',
-    name: 'Sneha Sharma',
-    email: 'sneha.s@acme.com',
-    role: 'Sales Representative',
-    status: 'ACTIVE',
-    leadsAssigned: 11,
-    contactedCount: 8,
-    dealsWon: 3,
-    revenueClosed: '₹3,80,000',
-    clockInTime: '09:18 AM',
-    avatarBg: 'from-purple-600 to-pink-600',
-  },
-  {
-    id: 'rep-03',
-    name: 'Amit Verma',
-    email: 'amit.v@acme.com',
-    role: 'Enterprise Closer',
-    status: 'ACTIVE',
-    leadsAssigned: 9,
-    contactedCount: 7,
-    dealsWon: 2,
-    revenueClosed: '₹2,40,000',
-    clockInTime: '09:25 AM',
-    avatarBg: 'from-emerald-600 to-teal-700',
-  },
-  {
-    id: 'rep-04',
-    name: 'Pooja Singh',
-    email: 'pooja.s@acme.com',
-    role: 'Inbound Specialist',
-    status: 'MEETING',
-    leadsAssigned: 8,
-    contactedCount: 6,
-    dealsWon: 2,
-    revenueClosed: '₹1,90,000',
-    clockInTime: '09:05 AM',
-    avatarBg: 'from-amber-600 to-orange-700',
-  },
-  {
-    id: 'rep-05',
-    name: 'Vikram Rao',
-    email: 'vikram.r@acme.com',
-    role: 'Junior Sales Exec',
-    status: 'FIELD',
-    leadsAssigned: 5,
-    contactedCount: 3,
-    dealsWon: 1,
-    revenueClosed: '₹95,000',
-    clockInTime: '09:30 AM',
-    avatarBg: 'from-sky-600 to-blue-800',
-  },
-];
-
-const DEFAULT_TEAM_LEADS: TeamLead[] = [
-  {
-    id: 'tl-lead-01',
-    name: 'Rohan Deshmukh',
-    company: 'Apex Innovations Pvt Ltd',
-    phone: '+91 98201 44521',
-    email: 'rohan.d@apexinnovations.in',
-    status: 'New',
-    value: '₹3,20,000',
-    source: 'Website Inbound',
-    assignedRepName: 'Rajesh Kumar',
-    lastContact: 'Assigned 25m ago',
-    requirement: 'Enterprise CRM Suite · 30 Sales Seats',
-    avatarBg: 'from-emerald-500 to-teal-600',
-  },
-  {
-    id: 'tl-lead-02',
-    name: 'Priya Patel',
-    company: 'Zenith Global Healthcare',
-    phone: '+91 97112 88304',
-    email: 'priya.patel@zenithhealth.org',
-    status: 'Contacted',
-    value: '₹1,85,000',
-    source: 'WhatsApp Campaign',
-    assignedRepName: 'Sneha Sharma',
-    lastContact: 'Call held 1h ago',
-    requirement: 'Patient Telemetry & Lead Routing Portal',
-    avatarBg: 'from-teal-500 to-cyan-600',
-  },
-  {
-    id: 'tl-lead-03',
-    name: 'Kavita Reddy',
-    company: 'CloudScale Systems',
-    phone: '+91 98230 77112',
-    email: 'kavita.r@cloudscale.io',
-    status: 'Qualified',
-    value: '₹4,80,000',
-    source: 'Referral',
-    assignedRepName: 'Amit Verma',
-    lastContact: 'Quotation sent yesterday',
-    requirement: 'Cloud ERP Migration & Dedicated API SLA',
-    avatarBg: 'from-purple-500 to-indigo-600',
-  },
-  {
-    id: 'tl-lead-04',
-    name: 'Anand Gupta',
-    company: 'Bharat Retail Hub',
-    phone: '+91 98103 44556',
-    email: 'anand.g@bharatretail.in',
-    status: 'Qualified',
-    value: '₹3,60,000',
-    source: 'Google Search Ads',
-    assignedRepName: 'Rajesh Kumar',
-    lastContact: 'Discovery call held',
-    requirement: 'Omnichannel POS & Multi-Store Inventory',
-    avatarBg: 'from-indigo-500 to-blue-600',
-  },
-  {
-    id: 'tl-lead-05',
-    name: 'Dr. Meera Nambiar',
-    company: 'MediCare Diagnostics Group',
-    phone: '+91 99001 22341',
-    email: 'meera.n@medicarediag.com',
-    status: 'Lost',
-    value: '₹1,50,000',
-    source: 'Trade Expo',
-    assignedRepName: 'Pooja Singh',
-    lastContact: 'Competitor chosen',
-    requirement: 'Budget mismatch for on-prem deployment',
-    avatarBg: 'from-rose-500 to-red-600',
-  },
-];
-
-const DEFAULT_UNASSIGNED_QUEUE: UnassignedLead[] = [
-  {
-    id: 'unassigned-01',
-    name: 'Siddharth Jain',
-    company: 'FinTech Matrix Solutions',
-    phone: '+91 98765 22310',
-    email: 'siddharth@fintechmatrix.com',
-    source: 'Website Inbound',
-    value: '₹2,90,000',
-    age: '12m ago',
-    requirement: 'Payment Gateway Integration & CRM Bridge',
-    avatarBg: 'from-rose-500 to-orange-500',
-  },
-  {
-    id: 'unassigned-02',
-    name: 'Neha Kulkarni',
-    company: 'SmartGrid Energy Corp',
-    phone: '+91 98330 99441',
-    email: 'neha.k@smartgridenergy.in',
-    source: 'WhatsApp Campaign',
-    value: '₹4,10,000',
-    age: '40m ago',
-    requirement: 'Field Technician Task Dispatch & Analytics',
-    avatarBg: 'from-amber-500 to-red-500',
-  },
-  {
-    id: 'unassigned-03',
-    name: 'Manish Tiwari',
-    company: 'Apex FastTrack Logistics',
-    phone: '+91 97660 55122',
-    email: 'manish.t@fasttracklog.com',
-    source: 'Google Ads',
-    value: '₹2,20,000',
-    age: '1h 30m ago',
-    requirement: 'Fleet Sales Quota Tracker & Quotation Engine',
-    avatarBg: 'from-orange-500 to-rose-600',
-  },
-];
-
-const DEFAULT_TEAM_FOLLOW_UPS: TeamFollowUp[] = [
-  {
-    id: 'tf-01',
-    leadName: 'Rohan Deshmukh',
-    company: 'Apex Innovations',
-    repName: 'Rajesh Kumar',
-    phone: '+91 98201 44521',
-    dueTime: '11:30 AM',
-    dueDate: 'Today',
-    isOverdue: false,
-    objective: 'Follow up on revised SLA clauses & custom quote',
-    isCompleted: false,
-    avatarBg: 'from-emerald-500 to-teal-600',
-  },
-  {
-    id: 'tf-02',
-    leadName: 'Priya Patel',
-    company: 'Zenith Global Healthcare',
-    repName: 'Sneha Sharma',
-    phone: '+91 97112 88304',
-    dueTime: '02:30 PM',
-    dueDate: 'Today',
-    isOverdue: false,
-    objective: 'Check compliance review for patient telemetry portal',
-    isCompleted: false,
-    avatarBg: 'from-teal-500 to-cyan-600',
-  },
-  {
-    id: 'tf-03',
-    leadName: 'Vikram Joshi',
-    company: 'Metro Infra',
-    repName: 'Amit Verma',
-    phone: '+91 97720 33412',
-    dueTime: '10:00 AM',
-    dueDate: 'Yesterday',
-    isOverdue: true,
-    objective: 'Touch base on delayed quotation sign-off',
-    isCompleted: false,
-    avatarBg: 'from-rose-500 to-red-600',
-  },
-];
+// NOTE: All hardcoded demo/default data has been removed.
+// Dashboard now exclusively shows real data from PostgreSQL via API.
 
 function getInitials(name: string): string {
   if (!name) return 'TL';
@@ -317,17 +94,20 @@ export function TeamLeaderRoleDashboard() {
   const { currentUser } = useAuth();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Team Leader';
 
-  // Live Module States (Initialized from Cache or Defaults)
+  // Live Module States (Initialized from TTL-checked Cache or Empty)
   const [members, setMembers] = useState<TeamMember[]>(() => getCachedData('tl_members') || []);
   const [teamLeads, setTeamLeads] = useState<TeamLead[]>(() => getCachedData('tl_leads') || []);
   const [unassignedQueue, setUnassignedQueue] = useState<UnassignedLead[]>(() => getCachedData('tl_unassigned') || []);
   const [followUps, setFollowUps] = useState<TeamFollowUp[]>(() => getCachedData('tl_followups') || []);
 
-  // Sync state mutations to Cache automatically
-  useEffect(() => { setCachedData('tl_members', members); }, [members]);
-  useEffect(() => { setCachedData('tl_leads', teamLeads); }, [teamLeads]);
-  useEffect(() => { setCachedData('tl_unassigned', unassignedQueue); }, [unassignedQueue]);
-  useEffect(() => { setCachedData('tl_followups', followUps); }, [followUps]);
+  // Clear stale caches on mount
+  useEffect(() => { clearStaleCaches(); }, []);
+
+  // Sync state mutations to Cache automatically (only save if non-empty)
+  useEffect(() => { if (members.length > 0) setCachedData('tl_members', members); }, [members]);
+  useEffect(() => { if (teamLeads.length > 0) setCachedData('tl_leads', teamLeads); }, [teamLeads]);
+  useEffect(() => { if (unassignedQueue.length > 0) setCachedData('tl_unassigned', unassignedQueue); }, [unassignedQueue]);
+  useEffect(() => { if (followUps.length > 0) setCachedData('tl_followups', followUps); }, [followUps]);
 
   // Active Filters & Interactive Selection
   const [activeLeadFilter, setActiveLeadFilter] = useState<'ALL' | 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST'>('ALL');
@@ -392,52 +172,129 @@ export function TeamLeaderRoleDashboard() {
     return () => unsub();
   }, [currentUser]);
 
-  // Sync leads from backend API
-  useEffect(() => {
-    const fetchData = async () => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      try {
-        const leadsRes = await fetch(`${apiBase}/leads`, { headers });
-        if (leadsRes.ok) {
-          const leadsData = await leadsRes.json();
-          const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
-          if (items.length > 0) {
-            const mappedLeads: TeamLead[] = items.slice(0, 10).map((l: any, idx: number) => {
-              const norm = normalizeLead(l, idx);
-              return {
-                id: String(norm.id),
-                name: norm.name,
-                company: norm.company,
-                phone: norm.phone,
-                email: norm.email,
-                status: norm.status as any,
-                value: norm.value,
-                source: norm.source,
-                assignedRepName: norm.owner,
-                lastContact: norm.lastCalledAt || 'Recently updated',
-                requirement: norm.requirement,
-                avatarBg: idx % 2 === 0 ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-blue-600',
-              };
-            });
-
-            if (mappedLeads.length > 0) {
-              setTeamLeads(mappedLeads);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('TL dashboard lead fetch fallback:', err);
-      }
+  // Sync leads, unassigned queue, and follow-ups from backend API
+  const fetchData = React.useCallback(async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    fetchData();
+    try {
+      const leadsRes = await fetch(`${apiBase}/leads?limit=500`, { headers });
+      if (leadsRes.ok) {
+        const leadsData = await leadsRes.json();
+        const items = Array.isArray(leadsData) ? leadsData : (leadsData.leads || leadsData.data || []);
+        
+        // 1. Team Leads (Assigned leads)
+        const mappedLeads: TeamLead[] = items.slice(0, 50).map((l: any, idx: number) => {
+          const norm = normalizeLead(l, idx);
+          return {
+            id: String(norm.id),
+            name: norm.name,
+            company: norm.company,
+            phone: norm.phone,
+            email: norm.email,
+            status: norm.status as any,
+            value: norm.value,
+            source: norm.source,
+            assignedRepName: norm.owner,
+            lastContact: norm.lastCalledAt || 'Recently updated',
+            requirement: norm.requirement,
+            avatarBg: idx % 2 === 0 ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-blue-600',
+          };
+        });
+        setTeamLeads(mappedLeads);
+
+        // 2. Unassigned Leads Queue
+        const unassigned = items.filter((l: any) => {
+          const owner = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee);
+          return !l.ownerId && (!owner || owner === '—' || owner.toLowerCase().includes('unassign'));
+        });
+        const mappedUnassigned: UnassignedLead[] = unassigned.map((l: any, idx: number) => {
+          const norm = normalizeLead(l, idx);
+          return {
+            id: String(norm.id),
+            name: norm.name,
+            company: norm.company,
+            phone: norm.phone,
+            email: norm.email,
+            source: norm.source,
+            value: norm.value,
+            age: norm.created || 'Today',
+            requirement: norm.requirement || 'Lead Acquisition',
+            avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+          };
+        });
+        setUnassignedQueue(mappedUnassigned);
+      }
+    } catch (err) {
+      console.warn('TL dashboard lead fetch error:', err);
+    }
+
+    // 3. Team Follow-ups from API
+    try {
+      const fuRes = await fetch(`${apiBase}/follow-ups/today`, { headers });
+      if (fuRes.ok) {
+        const fuData = await fuRes.json();
+        const allFollowUps = [
+          ...(fuData.dueNow || []),
+          ...(fuData.upcoming || []),
+          ...(fuData.completed || []),
+          ...(fuData.missed || []),
+        ];
+        const fuItems = allFollowUps.length > 0 ? allFollowUps : (Array.isArray(fuData) ? fuData : (fuData.items || fuData.data || []));
+        const mappedFollowUps: TeamFollowUp[] = fuItems.map((fu: any, idx: number) => {
+          const leadName = fu.lead ? `${fu.lead.firstName || ''} ${fu.lead.lastName || ''}`.trim() : (fu.leadName || 'Lead');
+          const dueAt = fu.dueAt ? new Date(fu.dueAt) : null;
+          return {
+            id: fu.id || `tl-fu-${idx}`,
+            leadName,
+            company: safeCompany(fu.lead?.company || fu.company),
+            repName: safeOwnerName(fu.assignee?.name || fu.assigneeName || fu.owner),
+            phone: safeString(fu.lead?.phone || fu.phone, '—'),
+            dueTime: dueAt ? dueAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+            dueDate: dueAt ? (dueAt.toDateString() === new Date().toDateString() ? 'Today' : dueAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })) : '—',
+            isOverdue: dueAt ? dueAt.getTime() < Date.now() && !fu.isCompleted : false,
+            objective: fu.purpose || fu.title || fu.description || `Follow up with ${leadName}`,
+            isCompleted: fu.isCompleted || fu.status === 'COMPLETED',
+            avatarBg: idx % 2 === 0 ? 'from-blue-600 to-indigo-700' : 'from-indigo-600 to-purple-700',
+          };
+        });
+        setFollowUps(mappedFollowUps);
+      }
+    } catch (err) {
+      console.warn('TL follow-ups fetch error:', err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+
+    const handleUpdate = () => {
+      fetchData();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          fetchData();
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
+  }, [fetchData]);
 
   // Filtered Leads by Accordion Tab
   const filteredTeamLeads = useMemo(() => {
@@ -548,6 +405,16 @@ export function TeamLeaderRoleDashboard() {
         }),
       });
     } catch (_) {}
+
+    if (typeof window !== 'undefined') {
+      clearAllDashboardCaches();
+      window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId, assigneeId: targetRep.id } }));
+      try {
+        const bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.postMessage({ type: 'LEAD_ALLOCATED', leadId, assigneeId: targetRep.id });
+        bc.close();
+      } catch (_) {}
+    }
 
     showToast(`✅ Lead "${targetLead.name}" assigned to ${targetRep.name}! Recorded in allocation history.`);
     setAssignModalLead(null);

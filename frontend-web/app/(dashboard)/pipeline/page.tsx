@@ -24,6 +24,7 @@ import {
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeSource } from '@/lib/leadNormalizer';
+import { clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 
 interface DashboardLeadRecord {
   id: string;
@@ -297,111 +298,11 @@ export default function LeadPipelinePage() {
             localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(serverLeads));
           } catch (_) {}
         }
-      } else if (existingCached.length > 0) {
-        // Keep cached leads
-        setLeadDirectory(existingCached);
-      } else if (combinedLogs.length > 0) {
-        // Reconstruct directory leads directly from uploaded audit logs so directory is never empty when audit files exist
-        const reconstructed: DashboardLeadRecord[] = [];
-        const defaultNames = [
-          'Aarav Sharma', 'Priya Patel', 'Rohan Mehta', 'Sneha Kapoor',
-          'Vikram Malhotra', 'Ananya Deshmukh', 'Kabir Verma', 'Neha Joshi',
-          'Siddharth Singhania', 'Rhea Chakraborty', 'Karan Oberoi', 'Divya Nair'
-        ];
-        const defaultCompanies = [
-          'Zenith Tech Solutions', 'Apex Industrial Corp', 'Om Logistics Ltd', 'Shreeji Automobiles',
-          'Global Impex India', 'Horizon Infra Pvt Ltd', 'Nexus Retail Chains', 'Vanguard BioPharma',
-          'Paramount Solar Energy', 'Kalyan Jewellers Group', 'Supreme Packaging', 'Silverline Hospitality'
-        ];
-        const defaultReps = [
-          'Sachin Puri (Team Leader)', 'Sachin Puri (Team Leader)', 'Sachin Puri (Team Leader)',
-          'Nandini Rastogi (Sales Exec)', 'Nandini Rastogi (Sales Exec)', 'Nandini Rastogi (Sales Exec)',
-          'Sulekha Tomar (Sales Exec)', 'Sulekha Tomar (Sales Exec)', 'Sulekha Tomar (Sales Exec)',
-          'Sadhana (Sales Exec)', 'Sadhana (Sales Exec)', 'Sadhana (Sales Exec)'
-        ];
-
-        combinedLogs.forEach((log, logIdx) => {
-          const count = log.leadsCount || log.rowsCount || 12;
-          for (let i = 0; i < count; i++) {
-            const rep = defaultReps[i % defaultReps.length];
-            reconstructed.push({
-              id: `log_lead_${logIdx}_${i}_${Date.now()}`,
-              name: defaultNames[i % defaultNames.length],
-              fileName: log.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx',
-              allocatedAt: log.injectedAt || log.uploadedAt || 'Oct 2, 2026, 05:03 AM',
-              email: `${defaultNames[i % defaultNames.length].toLowerCase().replace(/\s+/g, '.')}@example.com`,
-              phone: `+91 ${9820000000 + (i * 11111) % 9000000}`,
-              company: defaultCompanies[i % defaultCompanies.length],
-              source: log.platform || log.sourcePlatform || 'Google Ads',
-              stage: i % 3 === 0 ? 'Qualified' : i % 3 === 1 ? 'Contacted' : 'Prospecting',
-              value: 120000 + (i * 45000),
-              assignedRep: rep,
-              customFields: {
-                col_city: '—',
-                col_budget: '—',
-                col_rating: ['Hot Lead 🔥', 'Warm Lead ⚡', 'Cold Lead ❄️'][i % 3],
-                col_requirement: '—',
-              },
-              createdAt: 'Oct 2, 2026',
-            });
-          }
-        });
-
-        if (reconstructed.length > 0) {
-          setLeadDirectory(reconstructed);
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(reconstructed));
-            } catch (_) {}
-          }
-        }
       } else {
-        const defaultRoster: DashboardLeadRecord[] = [
-          {
-            id: 'dir_lead_1',
-            name: 'Dr. Vikram Malhotra',
-            fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
-            allocatedAt: 'Oct 2, 2026, 05:03 AM',
-            email: 'vikram.malhotra@zenithhospital.in',
-            phone: '+91 98201 12345',
-            company: 'Zenith Hospital & Research Centre',
-            source: 'Google Ads',
-            stage: 'Prospecting',
-            value: 450000,
-            assignedRep: 'Sachin Puri (Team Leader)',
-            customFields: {
-              col_city: 'Mumbai',
-              col_budget: '₹4.5 Lakhs',
-              col_rating: 'Hot Lead 🔥',
-              col_requirement: 'Enterprise Multi-Branch Medical CRM Suite (30 Seats)',
-            },
-            createdAt: 'Just now',
-          },
-          {
-            id: 'dir_lead_2',
-            name: 'Pooja Nair',
-            fileName: 'Test_Data_2026-10-01_04-41-22.xlsx',
-            allocatedAt: 'Oct 2, 2026, 05:03 AM',
-            email: 'pooja.nair@example.com',
-            phone: '+91 98000 10009',
-            company: 'Nair Logistics India',
-            source: 'Website',
-            stage: 'Qualified',
-            value: 720000,
-            assignedRep: 'Sadhana (Sales Exec)',
-            customFields: {
-              col_city: 'Kochi',
-              col_budget: '₹10 - 25 Lakhs',
-              col_rating: 'Hot Lead 🔥',
-              col_requirement: 'Enterprise Multi-Branch Logistics CRM & Telemetry Suite',
-            },
-            createdAt: 'Just now',
-          }
-        ];
-        setLeadDirectory(defaultRoster);
+        setLeadDirectory([]);
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(defaultRoster));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify([]));
           } catch (_) {}
         }
       }
@@ -411,7 +312,31 @@ export default function LeadPipelinePage() {
   };
 
   useEffect(() => {
+    clearStaleCaches();
     fetchAuditLogsAndLeads();
+
+    const handleUpdate = () => {
+      fetchAuditLogsAndLeads();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        bc = new BroadcastChannel('das_crm_lead_sync');
+        bc.onmessage = () => {
+          fetchAuditLogsAndLeads();
+        };
+      } catch (_) {}
+
+      return () => {
+        window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+        if (bc) bc.close();
+      };
+    }
   }, [currentUser]);
 
   // Dynamic Custom Columns & Excel Table Config State
@@ -552,37 +477,59 @@ export default function LeadPipelinePage() {
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
 
   // Handle Single Lead Insertion
-  const handleInsertSingleLead = () => {
+  const handleInsertSingleLead = async () => {
     if (!newLeadName.trim() || !newLeadPhone.trim()) {
       alert('Please enter Lead Name and Phone Number');
       return;
     }
-    const created: DashboardLeadRecord = {
-      id: `lead_${Date.now()}`,
-      name: newLeadName.trim(),
-      fileName: 'Direct Manual Entry',
-      allocatedAt: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      email: newLeadEmail.trim() || '—',
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+
+    const parts = newLeadName.trim().split(/\s+/);
+    const firstName = parts[0] || 'Lead';
+    const lastName = parts.slice(1).join(' ') || undefined;
+
+    const payload = {
+      firstName,
+      lastName,
       phone: newLeadPhone.trim(),
-      company: newLeadCompany.trim() || 'Individual Lead',
-      source: newLeadSource,
-      stage: 'Prospecting',
-      value: parseFloat(newLeadValue) || 0,
-      assignedRep: newLeadAssignedRep,
-      customFields: {},
-      createdAt: 'Just now',
+      email: newLeadEmail.trim() || undefined,
+      companyName: newLeadCompany.trim() || undefined,
+      estimatedValue: newLeadValue ? parseFloat(newLeadValue.replace(/[^0-9.]/g, '')) || undefined : undefined,
+      source: newLeadSource || 'Manual Entry',
     };
-    setLeadDirectory(prev => {
-      const updated = [created, ...prev];
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updated));
-        } catch (_) {}
+
+    try {
+      const res = await fetch(`${apiBase}/leads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (typeof window !== 'undefined') {
+          clearAllDashboardCaches();
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated'));
+          try {
+            const bc = new BroadcastChannel('das_crm_lead_sync');
+            bc.postMessage({ type: 'LEAD_CREATED' });
+            bc.close();
+          } catch (_) {}
+        }
+        await fetchAuditLogsAndLeads();
+        setInsertLeadModalOpen(false);
+        setNewLeadName(''); setNewLeadEmail(''); setNewLeadPhone(''); setNewLeadCompany('');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to save lead: ${err.message || res.statusText}`);
       }
-      return updated;
-    });
-    setInsertLeadModalOpen(false);
-    setNewLeadName(''); setNewLeadEmail(''); setNewLeadPhone(''); setNewLeadCompany('');
+    } catch (err: any) {
+      alert(`Network error saving lead: ${err.message || 'Check connection'}`);
+    }
   };
 
   // Handle Custom Column Addition / Edit

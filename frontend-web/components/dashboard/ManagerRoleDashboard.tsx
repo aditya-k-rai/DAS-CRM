@@ -16,7 +16,7 @@ import {
   invalidateUserDirectoryCache,
   CachedEmployee,
 } from '@/lib/userDirectoryCache';
-import { getCachedData, setCachedData } from '@/lib/cacheUtils';
+import { getCachedData, setCachedData, clearStaleCaches } from '@/lib/cacheUtils';
 import { normalizeLead, safeString } from '@/lib/leadNormalizer';
 
 interface DepartmentLead {
@@ -36,72 +36,8 @@ interface DepartmentLead {
   avatarBg: string;
 }
 
-const DEFAULT_DEPT_LEADS: DepartmentLead[] = [
-  {
-    id: 'mgr-lead-01',
-    name: 'Rohan Deshmukh',
-    company: 'Apex Innovations Pvt Ltd',
-    phone: '+91 98201 44521',
-    email: 'rohan.d@apexinnovations.in',
-    status: 'Qualified',
-    value: '₹3,20,000',
-    numericValue: 320000,
-    source: 'Website Inbound',
-    assignedRepName: 'Sachin Puri',
-    assignedRepRole: 'Team Leader',
-    lastContact: '15m ago',
-    requirement: 'Enterprise CRM Suite · 30 Sales Seats',
-    avatarBg: 'from-emerald-500 to-teal-600',
-  },
-  {
-    id: 'mgr-lead-02',
-    name: 'Priya Patel',
-    company: 'Zenith Global Healthcare',
-    phone: '+91 97112 88304',
-    email: 'priya.patel@zenithhealth.org',
-    status: 'Proposal',
-    value: '₹4,85,000',
-    numericValue: 485000,
-    source: 'WhatsApp Campaign',
-    assignedRepName: 'Nandini Rastogi',
-    assignedRepRole: 'Sales Exec',
-    lastContact: '1h ago',
-    requirement: 'Patient Telemetry & Lead Routing Portal',
-    avatarBg: 'from-teal-500 to-cyan-600',
-  },
-  {
-    id: 'mgr-lead-03',
-    name: 'Kavita Reddy',
-    company: 'CloudScale Systems',
-    phone: '+91 98230 77112',
-    email: 'kavita.r@cloudscale.io',
-    status: 'Negotiation',
-    value: '₹6,40,000',
-    numericValue: 640000,
-    source: 'Referral',
-    assignedRepName: 'Sulekha Tomar',
-    assignedRepRole: 'Sales Exec',
-    lastContact: 'Yesterday',
-    requirement: 'Cloud ERP Migration & Dedicated API SLA',
-    avatarBg: 'from-purple-500 to-indigo-600',
-  },
-  {
-    id: 'mgr-lead-04',
-    name: 'Anand Gupta',
-    company: 'Bharat Retail Hub',
-    phone: '+91 98103 44556',
-    email: 'anand.g@bharatretail.in',
-    status: 'Won',
-    value: '₹5,50,000',
-    numericValue: 550000,
-    source: 'Google Search Ads',
-    assignedRepName: 'Sadhana',
-    assignedRepRole: 'Sales Exec',
-    lastContact: 'Closed Won',
-    requirement: 'Omnichannel POS & Multi-Store Inventory',
-    avatarBg: 'from-indigo-500 to-blue-600',
-  },
-];
+// NOTE: All hardcoded demo/default data has been removed.
+// Dashboard now exclusively shows real data from PostgreSQL via API.
 
 function getInitials(name: string): string {
   if (!name) return 'EMP';
@@ -166,27 +102,18 @@ export function ManagerRoleDashboard() {
     };
   }, [loadDirectory]);
 
-  // Fetch real leads with live sync
+  // Clear stale caches on mount
+  useEffect(() => { clearStaleCaches(); }, []);
+
+  // Fetch real leads from backend API (authoritative source of truth)
   const fetchLeads = useCallback(async () => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
-    let cachedLeads: any[] = [];
-    let serverLeads: any[] = [];
 
-    // 1. Check local cache first for instant hydration
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-        if (Array.isArray(cached) && cached.length > 0) {
-          cachedLeads = cached;
-        }
-      } catch (_) {}
-    }
-
-    // 2. Fetch from backend API
+    // Fetch from backend API — this is the single source of truth
     if (token) {
       try {
-        const res = await fetch(`${apiBase}/leads?limit=1000`, {
+        const res = await fetch(`${apiBase}/leads?limit=500`, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -195,69 +122,44 @@ export function ManagerRoleDashboard() {
         if (res.ok) {
           const data = await res.json();
           const items = Array.isArray(data) ? data : (data.leads || data.data || []);
-          if (Array.isArray(items) && items.length > 0) {
-            serverLeads = items;
+          if (Array.isArray(items)) {
+            const colors = [
+              'from-emerald-500 to-teal-600',
+              'from-teal-500 to-cyan-600',
+              'from-purple-500 to-indigo-600',
+              'from-indigo-500 to-blue-600',
+              'from-amber-500 to-orange-600',
+            ];
+            const mapped: DepartmentLead[] = items
+              .filter((l: any) => {
+                const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
+                const id = String(l.id || '');
+                return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+              })
+              .map((l: any, idx: number) => {
+                const norm = normalizeLead(l, idx);
+                return {
+                  id: norm.id,
+                  name: norm.name,
+                  company: norm.company,
+                  phone: norm.phone,
+                  email: norm.email,
+                  status: norm.status as any,
+                  value: norm.value,
+                  numericValue: norm.numericValue,
+                  source: norm.source,
+                  assignedRepName: norm.assignedRepName,
+                  assignedRepRole: norm.assignedRepRole,
+                  lastContact: norm.lastCalledAt || 'Recently updated',
+                  requirement: norm.requirement,
+                  avatarBg: colors[idx % colors.length],
+                };
+              });
+            setDeptLeads(mapped);
+            setCachedData('mgr_leads', mapped);
           }
         }
       } catch (_) {}
-    }
-
-    // 3. Merge Server & Local Caches (Preserve real-time local allocation overrides)
-    const leadMap = new Map<string, any>();
-    serverLeads.forEach(l => leadMap.set(String(l.id), l));
-    cachedLeads.forEach(l => {
-      const existing = leadMap.get(String(l.id));
-      if (!existing) {
-        leadMap.set(String(l.id), l);
-      } else {
-        leadMap.set(String(l.id), {
-          ...existing,
-          ...l,
-          owner: l.owner || existing.owner,
-          assignedRep: l.assignedRep || existing.assignedRep,
-          currentAssignee: l.currentAssignee || existing.currentAssignee,
-          allocationTrail: l.allocationTrail || existing.allocationTrail,
-        });
-      }
-    });
-
-    const allFound = Array.from(leadMap.values());
-
-    if (allFound.length > 0) {
-      const colors = [
-        'from-emerald-500 to-teal-600',
-        'from-teal-500 to-cyan-600',
-        'from-purple-500 to-indigo-600',
-        'from-indigo-500 to-blue-600',
-        'from-amber-500 to-orange-600',
-      ];
-      const mapped: DepartmentLead[] = allFound
-        .filter((l: any) => {
-          const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
-          const id = String(l.id || '');
-          return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-        })
-        .map((l: any, idx: number) => {
-          const norm = normalizeLead(l, idx);
-          return {
-            id: norm.id,
-            name: norm.name,
-            company: norm.company,
-            phone: norm.phone,
-            email: norm.email,
-            status: norm.status as any,
-            value: norm.value,
-            numericValue: norm.numericValue,
-            source: norm.source,
-            assignedRepName: norm.assignedRepName,
-            assignedRepRole: norm.assignedRepRole,
-            lastContact: norm.lastCalledAt || 'Recently updated',
-            requirement: norm.requirement,
-            avatarBg: colors[idx % colors.length],
-          };
-        });
-      setDeptLeads(mapped);
-      setCachedData('mgr_leads', mapped);
     }
   }, []);
 

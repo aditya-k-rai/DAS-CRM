@@ -9,7 +9,7 @@ import {
   UserCheck, Radio, Bell, Check, ExternalLink, BarChart3, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getCachedData, setCachedData, clearAllDashboardCaches } from '@/lib/cacheUtils';
+import { getCachedData, setCachedData, clearAllDashboardCaches, clearStaleCaches } from '@/lib/cacheUtils';
 import { normalizeLead, safeString, safeStatus, safeOwnerName, safeCompany, safeRequirement, safeSource } from '@/lib/leadNormalizer';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,204 +83,8 @@ interface SyncedOpportunity {
 // Default High-Fidelity Synced Data (scoped to Sales Rep)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Real Enterprise Lead Roster for Sales Workspace
-// ─────────────────────────────────────────────────────────────────────────────
-
-const DEFAULT_REAL_COMPANY_LEADS = [
-  {
-    id: 'cmuojhcda0007ikm4vgzakxe0',
-    name: 'Neha Sharma',
-    email: 'neha.sharma@example.com',
-    phone: '+91 98000 10003',
-    company: 'Nexus Retail Chains Pvt Ltd',
-    designation: 'VP of Commercial Strategy',
-    status: 'Proposal',
-    owner: 'Nandini Rastogi',
-    assignedRep: 'Nandini Rastogi',
-    value: '₹4,80,000',
-    estimatedValue: 480000,
-    requirement: '—',
-    source: 'Website Lead',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhcjd0009ikm4x926jy1e',
-    name: 'Arjun Reddy',
-    email: 'arjun.reddy@example.com',
-    phone: '+91 98000 10004',
-    company: 'Vanguard BioPharma',
-    designation: 'Head of Clinical Procurement',
-    status: 'Negotiation',
-    owner: 'Nandini Rastogi',
-    assignedRep: 'Nandini Rastogi',
-    value: '₹6,00,000',
-    estimatedValue: 600000,
-    requirement: '—',
-    source: 'Referral',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhcpg000bikm48s7m0x7m',
-    name: 'Kavita Singh',
-    email: 'kavita.singh@example.com',
-    phone: '+91 98000 10005',
-    company: 'Paramount Solar Energy',
-    designation: 'Managing Director',
-    status: 'Won',
-    owner: 'Nandini Rastogi',
-    assignedRep: 'Nandini Rastogi',
-    value: '₹12,00,000',
-    estimatedValue: 1200000,
-    requirement: '—',
-    source: 'Trade Show',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhbtg0001ikm41xg7dsja',
-    name: 'Rohan Deshmukh',
-    email: 'rohan.deshmukh@example.com',
-    phone: '+91 98000 10000',
-    company: 'Zenith Tech Solutions',
-    designation: 'VP Technology & Procurement',
-    status: 'New',
-    owner: 'Sachin Puri',
-    assignedRep: 'Sachin Puri',
-    value: '₹3,50,000',
-    estimatedValue: 350000,
-    requirement: '—',
-    source: 'Website',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhbzn0003ikm4ktdu50et',
-    name: 'Priya Patel',
-    email: 'priya.patel@example.com',
-    phone: '+91 98000 10001',
-    company: 'Apex Industrial Corp',
-    designation: 'Director of Operations',
-    status: 'Contacted',
-    owner: 'Sachin Puri',
-    assignedRep: 'Sachin Puri',
-    value: '₹5,20,000',
-    estimatedValue: 520000,
-    requirement: '—',
-    source: 'Referral',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhc6s0005ikm47cen8ztl',
-    name: 'Vikram Malhotra',
-    email: 'vikram.malhotra@example.com',
-    phone: '+91 98000 10002',
-    company: 'Om Logistics Ltd',
-    designation: 'Chief Commercial Officer',
-    status: 'Qualified',
-    owner: 'Sachin Puri',
-    assignedRep: 'Sachin Puri',
-    value: '₹8,50,000',
-    estimatedValue: 850000,
-    requirement: '—',
-    source: 'Trade Show',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhcye000dikm4bhj05gvt',
-    name: 'Siddharth Mehta',
-    email: 'siddharth.mehta@example.com',
-    phone: '+91 98000 10006',
-    company: 'Global Impex India',
-    designation: 'Senior General Manager',
-    status: 'Lost',
-    owner: 'Sulekha Tomar',
-    assignedRep: 'Sulekha Tomar',
-    value: '₹2,50,000',
-    estimatedValue: 250000,
-    requirement: '—',
-    source: 'Website',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhd74000fikm4jlvsvc7y',
-    name: 'Anjali Verma',
-    email: 'anjali.verma@example.com',
-    phone: '+91 98000 10007',
-    company: 'Horizon Infra Pvt Ltd',
-    designation: 'VP Infrastructure Projects',
-    status: 'New',
-    owner: 'Sulekha Tomar',
-    assignedRep: 'Sulekha Tomar',
-    value: '₹3,80,000',
-    estimatedValue: 380000,
-    requirement: '—',
-    source: 'Referral',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhdbz000hikm4mcilkcbh',
-    name: 'Rahul Kapoor',
-    email: 'rahul.kapoor@example.com',
-    phone: '+91 98000 10008',
-    company: 'Kalyan Jewellers Group',
-    designation: 'Head of Regional Operations',
-    status: 'Contacted',
-    owner: 'Sadhana',
-    assignedRep: 'Sadhana',
-    value: '₹5,50,000',
-    estimatedValue: 550000,
-    requirement: '—',
-    source: 'Trade Show',
-    created: 'Today',
-  },
-  {
-    id: 'cmuojhdgu000jikm4z3gs6v5r',
-    name: 'Pooja Nair',
-    email: 'pooja.nair@example.com',
-    phone: '+91 98000 10009',
-    company: 'Supreme Packaging',
-    designation: 'Logistics & Supply Director',
-    status: 'Qualified',
-    owner: 'Sadhana',
-    assignedRep: 'Sadhana',
-    value: '₹7,20,000',
-    estimatedValue: 720000,
-    requirement: '—',
-    source: 'Website',
-    created: 'Today',
-  },
-  {
-    id: 'sample-lead-11',
-    name: 'Sneha Kapoor',
-    email: 'sneha.kapoor@example.com',
-    phone: '+91 98201 54321',
-    company: 'Silverline Hospitality',
-    designation: 'Operations Director',
-    status: 'Proposal',
-    owner: 'Sadhana',
-    assignedRep: 'Sadhana',
-    value: '₹6,80,000',
-    estimatedValue: 680000,
-    requirement: '—',
-    source: 'Google Ads',
-    created: 'Today',
-  },
-  {
-    id: 'sample-lead-12',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@example.com',
-    phone: '+91 98201 65432',
-    company: 'Shreeji Automobiles',
-    designation: 'VP Fleet Procurement',
-    status: 'New',
-    owner: 'Sachin Puri',
-    assignedRep: 'Sachin Puri',
-    value: '₹4,10,000',
-    estimatedValue: 410000,
-    requirement: '—',
-    source: 'Google Ads',
-    created: 'Today',
-  },
-];
+// NOTE: All hardcoded demo/default data has been removed.
+// Dashboards now exclusively show real data from PostgreSQL via API.
 
 function getInitials(name: string): string {
   if (!name) return 'LD';
@@ -293,18 +97,22 @@ export function EmployeeRoleDashboard() {
   const { currentUser } = useAuth();
   const firstName = currentUser?.name?.split(' ')?.[0] || 'Rep';
 
-  // Synced States (Initialized from Cache or Defaults)
+  // Synced States — initialized from TTL-checked cache (5 min), empty if stale
   const [newLeads, setNewLeads] = useState<SyncedLead[]>(() => getCachedData('emp_newLeads') || []);
   const [followUps, setFollowUps] = useState<SyncedFollowUp[]>(() => getCachedData('emp_followUps') || []);
   const [meetings, setMeetings] = useState<SyncedMeeting[]>(() => getCachedData('emp_meetings') || []);
   const [opportunities, setOpportunities] = useState<SyncedOpportunity[]>(() => getCachedData('emp_opportunities') || []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Clear stale caches on mount
+  useEffect(() => { clearStaleCaches(); }, []);
 
   // Sync state mutations to Cache automatically
-  useEffect(() => { setCachedData('emp_newLeads', newLeads); }, [newLeads]);
-  useEffect(() => { setCachedData('emp_followUps', followUps); }, [followUps]);
-  useEffect(() => { setCachedData('emp_meetings', meetings); }, [meetings]);
-  useEffect(() => { setCachedData('emp_opportunities', opportunities); }, [opportunities]);
+  useEffect(() => { if (newLeads.length > 0) setCachedData('emp_newLeads', newLeads); }, [newLeads]);
+  useEffect(() => { if (followUps.length > 0) setCachedData('emp_followUps', followUps); }, [followUps]);
+  useEffect(() => { if (meetings.length > 0) setCachedData('emp_meetings', meetings); }, [meetings]);
+  useEffect(() => { if (opportunities.length > 0) setCachedData('emp_opportunities', opportunities); }, [opportunities]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -313,6 +121,7 @@ export function EmployeeRoleDashboard() {
 
   // Real-time synchronization of leads for logged-in Sales Representative
   const syncData = useCallback(async () => {
+    setIsLoading(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
     const headers: Record<string, string> = {
@@ -320,165 +129,182 @@ export function EmployeeRoleDashboard() {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    let fetchedServerLeads: any[] = [];
+    // ── 1. Fetch leads from backend API (authoritative source of truth) ──
+    let serverLeads: any[] = [];
     try {
-      const res = await fetch(`${apiBase}/leads?limit=1000`, { headers });
+      const res = await fetch(`${apiBase}/leads?limit=500`, { headers });
       if (res.ok) {
         const data = await res.json();
         const items = Array.isArray(data) ? data : (data.leads || data.data || []);
         if (Array.isArray(items) && items.length > 0) {
-          fetchedServerLeads = items;
+          serverLeads = items;
         }
       }
     } catch (err) {
       console.warn('API lead sync error in Sales Dashboard:', err);
     }
 
-      // Check localStorage caches
-      let cachedAll: any[] = [];
-      let cachedDir: any[] = [];
-      if (typeof window !== 'undefined') {
-        try {
-          cachedAll = JSON.parse(localStorage.getItem('das_crm_all_leads_cache') || '[]');
-        } catch (_) {}
-        try {
-          cachedDir = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
-        } catch (_) {}
-      }
+    // Use only server data. NO fallback to demo data or stale cache.
+    // If server returned nothing, show empty state.
+    const allLeads = serverLeads.filter(l => {
+      const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
+      const id = String(l.id || '');
+      return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+    });
 
-      // Merge and clean leads
-      const leadMap = new Map<string, any>();
-      fetchedServerLeads.forEach(l => leadMap.set(String(l.id), l));
-      cachedAll.forEach(l => { if (!leadMap.has(String(l.id))) leadMap.set(String(l.id), l); });
-      cachedDir.forEach(l => { if (!leadMap.has(String(l.id))) leadMap.set(String(l.id), l); });
+    // ── 2. Filter leads belonging to the logged-in Sales Representative ──
+    // Primary: use ownerId (database authoritative)
+    // Fallback: fuzzy name match (only when ownerId is not available)
+    const repId = currentUser?.id;
+    const repName = (currentUser?.name || '').toLowerCase().trim();
 
-      let allLeads = Array.from(leadMap.values()).filter(l => {
-        const name = l.name || `${l.firstName || ''} ${l.lastName || ''}`;
-        const id = String(l.id || '');
-        return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-      });
-
-      if (allLeads.length === 0) {
-        allLeads = DEFAULT_REAL_COMPANY_LEADS;
-      }
-
-      // Filter leads belonging to the logged-in Sales Representative
-      const repName = (currentUser?.name || '').toLowerCase().trim();
-      const repEmail = (currentUser?.email || '').toLowerCase().trim();
-      const repId = currentUser?.id;
-
-      const myAssignedLeads = allLeads.filter(l => {
-        const owner = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee || l.assignedRepName).toLowerCase();
-        const leadOwnerId = l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : undefined);
-        if (repId && leadOwnerId && leadOwnerId === repId) return true;
-        if (repName && owner && (owner.includes(repName) || repName.includes(owner))) return true;
+    const myAssignedLeads = allLeads.filter(l => {
+      // Primary: match by ownerId (authoritative database field)
+      const leadOwnerId = l.ownerId || (typeof l.owner === 'object' && l.owner?.id ? l.owner.id : undefined);
+      if (repId && leadOwnerId && leadOwnerId === repId) return true;
+      // Fallback: fuzzy name match for leads where ownerId is missing
+      if (!leadOwnerId && repName) {
+        const ownerStr = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee).toLowerCase();
+        if (ownerStr && repName && (ownerStr.includes(repName) || repName.includes(ownerStr))) return true;
         const first = repName.split(' ')[0];
-        if (first && first.length > 2 && owner.includes(first)) return true;
-        if (repEmail.includes('nandini') && owner.includes('nandini')) return true;
-        if (repEmail.includes('sulekha') && owner.includes('sulekha')) return true;
-        if (repEmail.includes('sadhana') && owner.includes('sadhana')) return true;
-        if (repEmail.includes('sachin') && owner.includes('sachin')) return true;
-        return false;
-      });
+        if (first && first.length > 2 && ownerStr.includes(first)) return true;
+      }
+      return false;
+    });
 
-      const effectiveLeads = myAssignedLeads.length > 0 ? myAssignedLeads : allLeads;
+    // Show only my assigned leads. If I have none, show empty state (not all leads).
+    const effectiveLeads = myAssignedLeads;
 
-      const colors = [
-        'from-emerald-500 to-teal-600',
-        'from-teal-500 to-cyan-600',
-        'from-emerald-600 to-emerald-800',
-        'from-indigo-500 to-purple-600',
-        'from-purple-500 to-indigo-600',
-      ];
+    const colors = [
+      'from-emerald-500 to-teal-600',
+      'from-teal-500 to-cyan-600',
+      'from-emerald-600 to-emerald-800',
+      'from-indigo-500 to-purple-600',
+      'from-purple-500 to-indigo-600',
+    ];
 
-      // 1. Synced Leads for Sales Rep
-      const mappedNewLeads: SyncedLead[] = effectiveLeads.map((l: any, idx: number) => {
-        const norm = normalizeLead(l, idx);
-        return {
-          id: String(norm.id),
-          name: norm.name,
-          company: norm.company,
-          designation: l.jobTitle || l.customFields?.designation || 'Decision Maker',
-          phone: norm.phone,
-          email: norm.email,
-          status: norm.status as any,
-          value: norm.value,
-          rawEstimatedValue: norm.numericValue,
-          assignedTime: norm.created,
-          source: norm.source,
-          requirement: norm.requirement,
-          avatarBg: colors[idx % colors.length],
-        };
-      });
-      setNewLeads(mappedNewLeads);
+    // Map leads to SyncedLead format
+    const mappedNewLeads: SyncedLead[] = effectiveLeads.map((l: any, idx: number) => {
+      const norm = normalizeLead(l, idx);
+      return {
+        id: String(norm.id),
+        name: norm.name,
+        company: norm.company,
+        designation: l.jobTitle || l.customFields?.designation || 'Decision Maker',
+        phone: norm.phone,
+        email: norm.email,
+        status: norm.status as any,
+        value: norm.value,
+        rawEstimatedValue: norm.numericValue,
+        assignedTime: norm.created,
+        source: norm.source,
+        requirement: norm.requirement,
+        avatarBg: colors[idx % colors.length],
+      };
+    });
+    setNewLeads(mappedNewLeads);
 
-      // 2. Synced Follow-ups
-      const mappedFollowUps: SyncedFollowUp[] = effectiveLeads.map((l: any, idx: number) => {
-        const norm = normalizeLead(l, idx);
-        return {
-          id: `flw-${norm.id}`,
-          leadId: String(norm.id),
-          leadName: norm.name,
-          company: norm.company,
-          phone: norm.phone,
-          email: norm.email,
-          dueTime: idx === 0 ? '11:30 AM' : idx === 1 ? '02:30 PM' : '04:45 PM',
-          dueDate: 'Today',
-          objective: norm.requirement && norm.requirement !== '—'
-            ? `Follow up with ${norm.name.split(' ')[0]} regarding ${norm.requirement} (${norm.status})`
-            : `Follow up with ${norm.name.split(' ')[0]} (${norm.status})`,
-          priority: idx === 0 ? 'HIGH' : 'MEDIUM',
-          isCompleted: false,
-          avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
-        };
-      });
-      setFollowUps(mappedFollowUps);
+    // ── 3. Fetch REAL follow-ups from backend API ──
+    try {
+      const fuRes = await fetch(`${apiBase}/follow-ups/today`, { headers });
+      if (fuRes.ok) {
+        const fuData = await fuRes.json();
+        // follow-ups/today returns segmented data: { dueNow, upcoming, completed, missed }
+        const allFollowUps = [
+          ...(fuData.dueNow || []),
+          ...(fuData.upcoming || []),
+          ...(fuData.completed || []),
+          ...(fuData.missed || []),
+        ];
+        // Also accept flat array response
+        const fuItems = allFollowUps.length > 0 ? allFollowUps : (Array.isArray(fuData) ? fuData : (fuData.items || fuData.data || []));
 
-      // 3. Synced Meetings
-      const mappedMeetings: SyncedMeeting[] = effectiveLeads.slice(0, 3).map((l: any, idx: number) => {
-        const norm = normalizeLead(l, idx);
-        return {
-          id: `mtg-${norm.id}`,
-          leadId: String(norm.id),
-          leadName: norm.name,
-          company: norm.company,
-          phone: norm.phone,
-          email: norm.email,
-          title: `Discussion with ${norm.name}${norm.company !== '—' ? ` (${norm.company})` : ''}`,
-          time: idx === 0 ? '03:00 PM' : idx === 1 ? '05:30 PM' : '06:15 PM',
-          date: 'Today',
-          duration: '45 mins',
-          platform: (idx % 2 === 0 ? 'Google Meet' : 'Zoom') as any,
-          meetUrl: 'https://meet.google.com/das-crm-demo',
-          isCompleted: false,
-          avatarBg: idx % 2 === 0 ? 'from-sky-500 to-blue-600' : 'from-blue-600 to-indigo-600',
-        };
-      });
-      setMeetings(mappedMeetings);
+        const mappedFollowUps: SyncedFollowUp[] = fuItems.map((fu: any, idx: number) => {
+          const leadName = fu.lead ? `${fu.lead.firstName || ''} ${fu.lead.lastName || ''}`.trim() : (fu.leadName || 'Lead');
+          const dueAt = fu.dueAt ? new Date(fu.dueAt) : null;
+          return {
+            id: fu.id || `flw-${idx}`,
+            leadId: fu.leadId || '',
+            leadName,
+            company: safeCompany(fu.lead?.company || fu.company),
+            phone: safeString(fu.lead?.phone || fu.phone, '—'),
+            email: safeString(fu.lead?.email || fu.email),
+            dueTime: dueAt ? dueAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+            dueDate: dueAt ? (dueAt.toDateString() === new Date().toDateString() ? 'Today' : dueAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })) : '—',
+            objective: fu.purpose || fu.title || fu.description || `Follow up with ${leadName}`,
+            priority: (fu.priority || 'MEDIUM').toUpperCase() as any,
+            isCompleted: fu.isCompleted || fu.status === 'COMPLETED',
+            avatarBg: idx % 2 === 0 ? 'from-amber-500 to-orange-600' : 'from-orange-500 to-amber-600',
+          };
+        });
+        setFollowUps(mappedFollowUps);
+      }
+    } catch (err) {
+      console.warn('Follow-ups API fetch error:', err);
+    }
 
-      // 4. Synced Opportunities
-      const mappedOpportunities: SyncedOpportunity[] = effectiveLeads.map((l: any, idx: number) => {
-        const norm = normalizeLead(l, idx);
-        const isWon = norm.status.toLowerCase().includes('won');
-        const isNeg = norm.status.toLowerCase().includes('negotiat');
-        const isProp = norm.status.toLowerCase().includes('proposal');
-        const prob = isWon ? 100 : isNeg ? 85 : isProp ? 65 : 45;
-        return {
-          id: `opp-${norm.id}`,
-          leadId: String(norm.id),
-          leadName: norm.name,
-          company: norm.company,
-          phone: norm.phone,
-          dealTitle: `${norm.requirement !== '—' ? norm.requirement : 'Enterprise CRM Suite License'} (${norm.company})`,
-          value: norm.value,
-          stage: norm.status,
-          probability: prob,
-          expectedClose: 'Oct 25, 2026',
-          nextStep: isWon ? 'Contract signed · Cloud onboarding initiated' : isNeg ? 'Finalizing commercial SLA terms & payment schedule' : 'Submitted custom enterprise proposal for review',
-          avatarBg: colors[idx % colors.length],
-        };
-      });
-      setOpportunities(mappedOpportunities);
+    // ── 4. Fetch REAL meetings/tasks from backend API ──
+    try {
+      const mtgRes = await fetch(`${apiBase}/tasks?taskType=MEETING&limit=10`, { headers });
+      if (mtgRes.ok) {
+        const mtgData = await mtgRes.json();
+        const mtgItems = Array.isArray(mtgData) ? mtgData : (mtgData.items || mtgData.data || []);
+
+        const mappedMeetings: SyncedMeeting[] = mtgItems.map((t: any, idx: number) => {
+          const leadName = t.lead ? `${t.lead.firstName || ''} ${t.lead.lastName || ''}`.trim() : 'Meeting';
+          const dueAt = t.dueAt ? new Date(t.dueAt) : null;
+          return {
+            id: t.id || `mtg-${idx}`,
+            leadId: t.leadId || '',
+            leadName,
+            company: safeCompany(t.lead?.company),
+            phone: safeString(t.lead?.phone, '—'),
+            email: safeString(t.lead?.email),
+            title: t.title || `Meeting with ${leadName}`,
+            time: dueAt ? dueAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+            date: dueAt ? (dueAt.toDateString() === new Date().toDateString() ? 'Today' : dueAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })) : '—',
+            duration: t.description?.match(/(\d+\s*min)/i)?.[1] || '30 mins',
+            platform: (t.followUpType === 'VISIT' ? 'In-Person' : t.followUpType === 'CALL' ? 'Phone Call' : 'Google Meet') as any,
+            meetUrl: t.metadata?.meetUrl || undefined,
+            isCompleted: t.isCompleted || t.status === 'COMPLETED',
+            avatarBg: idx % 2 === 0 ? 'from-sky-500 to-blue-600' : 'from-blue-600 to-indigo-600',
+          };
+        });
+        setMeetings(mappedMeetings);
+      }
+    } catch (err) {
+      console.warn('Meetings API fetch error:', err);
+    }
+
+    // ── 5. Build opportunities from qualified/proposal/negotiation leads ──
+    const qualifiedLeads = effectiveLeads.filter((l: any) => {
+      const s = safeStatus(l.status || l.stage).toLowerCase();
+      return s.includes('qualif') || s.includes('proposal') || s.includes('negot') || s.includes('won');
+    });
+    const mappedOpportunities: SyncedOpportunity[] = qualifiedLeads.map((l: any, idx: number) => {
+      const norm = normalizeLead(l, idx);
+      const isWon = norm.status.toLowerCase().includes('won');
+      const isNeg = norm.status.toLowerCase().includes('negotiat');
+      const isProp = norm.status.toLowerCase().includes('proposal');
+      const prob = isWon ? 100 : isNeg ? 85 : isProp ? 65 : 45;
+      return {
+        id: `opp-${norm.id}`,
+        leadId: String(norm.id),
+        leadName: norm.name,
+        company: norm.company,
+        phone: norm.phone,
+        dealTitle: `${norm.requirement !== '—' ? norm.requirement : 'Enterprise CRM Suite License'} (${norm.company})`,
+        value: norm.value,
+        stage: norm.status,
+        probability: prob,
+        expectedClose: norm.customFields?.expectedClose || '—',
+        nextStep: isWon ? 'Contract signed · Cloud onboarding initiated' : isNeg ? 'Finalizing commercial SLA terms & payment schedule' : 'Submitted custom enterprise proposal for review',
+        avatarBg: colors[idx % colors.length],
+      };
+    });
+    setOpportunities(mappedOpportunities);
+
+    setIsLoading(false);
   }, [currentUser]);
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import { LeadFunnelDistribution } from '@/components/leads/LeadFunnelDistributio
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { Target, Sliders, Plus, Upload, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 export default function LeadsPage() {
   const { currentUser } = useAuth();
@@ -15,6 +16,7 @@ export default function LeadsPage() {
   // Modals state
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [newLeadName, setNewLeadName] = useState('');
@@ -28,19 +30,65 @@ export default function LeadsPage() {
   const rawRole = (currentUser?.role || '').toString().trim().toUpperCase();
   const canAccessFunnel = rawRole === 'ADMIN' || rawRole === 'SUPER_ADMIN' || rawRole === 'MANAGER' || rawRole === 'OWNER';
 
-  const handleCreateNewLead = (e: React.FormEvent) => {
+  const handleCreateNewLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadName.trim() || !newLeadPhone.trim()) {
       alert('Please enter lead name and phone number.');
       return;
     }
-    alert(`✅ New Lead Registered!\nName: ${newLeadName}\nPhone: ${newLeadPhone}\nCompany: ${newLeadCompany || 'N/A'}`);
-    setNewLeadName('');
-    setNewLeadPhone('');
-    setNewLeadCompany('');
-    setNewLeadEmail('');
-    setNewLeadValue('');
-    setShowNewLeadModal(false);
+    setIsSubmitting(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+
+    const parts = newLeadName.trim().split(/\s+/);
+    const firstName = parts[0] || 'Lead';
+    const lastName = parts.slice(1).join(' ') || undefined;
+
+    const payload = {
+      firstName,
+      lastName,
+      phone: newLeadPhone.trim(),
+      email: newLeadEmail.trim() || undefined,
+      companyName: newLeadCompany.trim() || undefined,
+      estimatedValue: newLeadValue ? parseFloat(newLeadValue.replace(/[^0-9.]/g, '')) || undefined : undefined,
+      source: 'Direct Manual Entry',
+    };
+
+    try {
+      const res = await fetch(`${apiBase}/leads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        if (typeof window !== 'undefined') {
+          clearAllDashboardCaches();
+          window.dispatchEvent(new CustomEvent('das_crm_leads_updated'));
+          try {
+            const bc = new BroadcastChannel('das_crm_lead_sync');
+            bc.postMessage({ type: 'LEAD_CREATED' });
+            bc.close();
+          } catch (_) {}
+        }
+        setNewLeadName('');
+        setNewLeadPhone('');
+        setNewLeadCompany('');
+        setNewLeadEmail('');
+        setNewLeadValue('');
+        setShowNewLeadModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to create lead: ${err.message || res.statusText}`);
+      }
+    } catch (err: any) {
+      alert(`Network error creating lead: ${err.message || 'Check connection'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleImportCsv = (e: React.FormEvent) => {

@@ -37,6 +37,19 @@ Welcome to the official, end-to-end technical documentation for **DAS CRM** — 
    - [In-App APK Auto-Update Launcher](#in-app-apk-auto-update-launcher)
 9. [Cross-Platform Feature Parity Matrix](#9-cross-platform-feature-parity-matrix)
 10. [Local Development, Environment Variables & Build Guide](#10-local-development-environment-variables--build-guide)
+11. [Authoritative Data Consistency, Cache Strategy & Realtime Architecture](#11-authoritative-data-consistency-cache-strategy--realtime-architecture)
+   - [Authoritative Source of Truth & Layer Boundaries](#111-authoritative-source-of-truth--layer-boundaries)
+   - [Complete Caching Architecture & Tier Hierarchy](#112-complete-caching-architecture--tier-hierarchy)
+   - [Cache Policy Matrix & Invalidation Triggers](#113-cache-policy-matrix--invalidation-triggers)
+   - [End-to-End Operational Workflows & Sequence Diagrams](#114-end-to-end-operational-workflows--sequence-diagrams)
+     - [Flow A: Lead Creation & Ingestion Dataflow](#flow-a-lead-creation--ingestion-dataflow)
+     - [Flow B: Lead Status Mutation & Cache Invalidation Dataflow](#flow-b-lead-status-mutation--cache-invalidation-dataflow)
+     - [Flow C: Browser Refresh (F5) & Direct Database Rehydration Flow](#flow-c-browser-refresh-f5--direct-database-rehydration-flow)
+     - [Flow D: Lead Assignment & Queue Rebalancing Flow](#flow-d-lead-assignment--queue-rebalancing-flow)
+     - [Flow E: Multi-Tab & Cross-Component Realtime Broadcast Flow](#flow-e-multi-tab--cross-component-realtime-broadcast-flow)
+     - [Flow F: Offline Network Disconnection & Error Safeguard Flow](#flow-f-offline-network-disconnection--error-safeguard-flow)
+   - [Local Storage, Session Storage & Cookies Audit](#115-local-storage-session-storage--cookies-audit)
+   - [Tenant Isolation & RBAC Security Guarantees](#116-tenant-isolation--rbac-security-guarantees)
 
 ---
 
@@ -756,4 +769,347 @@ cd android && npx tsc --noEmit
 
 ---
 
+## 11. Authoritative Data Consistency, Cache Strategy & Realtime Architecture
+
+### 11.1 Authoritative Source of Truth & Layer Boundaries
+
+The DAS CRM data persistence hierarchy is governed by a strict unidirectional authority model:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      POSTGRESQL DATABASE                               │
+│            🌟 THE SINGLE AUTHORITATIVE SOURCE OF TRUTH                │
+│       (All business state, transactions, audit logs, and ACLs)         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        BACKEND SERVICE LAYER                           │
+│           (NestJS REST API Gateway, Prisma ORM, Bull Queues)           │
+│       • Enforces Tenant Isolation (`organizationId` from JWT)          │
+│       • Executes Database Transactions & Domain Validations            │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  ▼                                   ▼
+┌───────────────────────────────────┐   ┌────────────────────────────────┐
+│      REDIS CACHE / TASK QUEUE     │   │     CLIENT COMPONENT STATE     │
+│   (Bull Queue Jobs, Throttling)   │   │  (React State, Query Caches)   │
+│   • Asynchronous dispatch tasks   │   │  • Transient server-state mirr │
+│   • Ephemeral rate limits         │   │  • Refetched on stale events   │
+└───────────────────────────────────┘   └─────────────┬──────────────────┘
+                                                      │
+                                                      ▼
+                                        ┌────────────────────────────────┐
+                                        │   BROWSER LOCALSTORAGE CACHE   │
+                                        │  (5-Min TTL, Secondary Cache)  │
+                                        │  • Evicted on any mutation     │
+                                        │  • NEVER overrides PostgreSQL  │
+                                        └────────────────────────────────┘
+```
+
+1. **PostgreSQL (Authoritative)**: Canonical store for leads, employees, attendance, products, quotations, audit records, and security locks.
+2. **Server State (React / Component State)**: Transient client-side mirror. Only updated from verified backend responses or patched temporarily pending authoritative confirmation.
+3. **Redis (`backend/`)**: Dedicated to background job processing (Bull queues for WhatsApp dispatch, email campaigns, retention purges). It is **not** used as permanent business storage.
+4. **Browser `localStorage`**: Confined to non-sensitive UI preferences (such as `das_crm_theme`) and temporary read-through caches with strict 5-minute TTLs.
+5. **IndexedDB**: Not utilized as a primary source of truth. Offline transactional CRM writes are explicitly disabled to prevent unvalidated or out-of-order mutations.
+
+---
+
+### 11.2 Complete Caching Architecture & Tier Hierarchy
+
+To ensure instantaneous UI responsiveness without displaying stale records across sessions, DAS CRM operates a multi-tier cache coordination layer:
+
+```mermaid
+flowchart TD
+    subgraph Tier1["Tier 1: Canonical Storage"]
+        DB[("🐘 PostgreSQL Database<br/>Authoritative Source of Truth")]
+    end
+
+    subgraph Tier2["Tier 2: Backend API & Queue"]
+        BE["NestJS REST API Gateway<br/>(Prisma ORM & JWT Tenant Isolation)"]
+        RD[("⚡ Redis Queue<br/>Bull Job Queues & Rate Limits")]
+    end
+
+    subgraph Tier3["Tier 3: Client Memory & Sync Bus"]
+        RM["React State / Memory Cache<br/>(Component-level Viewport State)"]
+        BC["BroadcastChannel: 'das_crm_lead_sync'<br/>Cross-Tab Inter-Process Bus"]
+        CE["CustomEvent: 'das_crm_leads_updated'<br/>In-Tab Reactive Event Bus"]
+    end
+
+    subgraph Tier4["Tier 4: Browser Persistent Storage"]
+        LS["localStorage / sessionStorage<br/>(Max 5-Min TTL & Version Guard)"]
+    end
+
+    DB <-->|Prisma Transactions| BE
+    BE <-->|Job Dispatch| RD
+    BE -->|Authoritative JSON Response| RM
+    RM -->|Write-Through with TTL Timestamp| LS
+    LS -.->|Initial Render Stub Only| RM
+    BC -.->|Invalidate & Trigger Refetch| RM
+    CE -.->|Rerender Active View| RM
+```
+
+---
+
+### 11.3 Cache Policy Matrix & Invalidation Triggers
+
+All persistent storage keys used across `frontend-web` are strictly registered, bound to maximum age limits (TTLs), and tied to automated eviction events:
+
+| Storage Key | Storage Type | Scope | TTL (Max-Age) | Authority Level | Eviction / Invalidation Triggers |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `das_crm_all_leads_cache` | `localStorage` | All Leads Directory | **5 Minutes** | Secondary Cache | `clearAllDashboardCaches()`, Lead Created, Status Changed, Lead Reassigned |
+| `das_crm_lead_directory_cache` | `localStorage` | Table Filter View | **5 Minutes** | Secondary Cache | Status Change, Filter Modification, Cross-Tab Invalidation Signal |
+| `das_crm_mgr_dept_leads` | `localStorage` | Manager Dashboard | **5 Minutes** | Secondary Cache | `clearAllDashboardCaches()`, Department Quota Mutation, Lead Reassignment |
+| `das_crm_tl_team_leads` | `localStorage` | Team Leader View | **5 Minutes** | Secondary Cache | Lead Grab, Speed Claim, Rep Allocation, `clearAllDashboardCaches()` |
+| `das_crm_emp_assigned_leads` | `localStorage` | Employee Workspace | **5 Minutes** | Secondary Cache | Status Change, Call Funnel Disposition, Follow-up Scheduled |
+| `das_crm_active_lead` | `sessionStorage`| Active Workspace Lead | **Session** | Visual Stub Only | Reconciled immediately against `GET /api/v1/leads/:id` on page mount |
+| `das_crm_selected_lead` | `localStorage` | Last Selected Lead | **5 Minutes** | Visual Stub Only | Overwritten on fresh API response; never prevents network refetch |
+| `token` / `auth_token` | `localStorage` | Authenticated Session | Token Expiry | Auth Credential | User Logout, Session Invalidation (401 Unauthorized) |
+| `das_crm_theme` | `localStorage` | UI Theme Mode | Persistent | User Preference | User toggles Light / Dark mode switch |
+
+---
+
+### 11.4 End-to-End Operational Workflows & Sequence Diagrams
+
+#### Flow A: Lead Creation & Ingestion Dataflow
+Governs how new sales leads are ingested via the UI or external hooks, written to PostgreSQL, and synchronized across all active dashboards:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Rep as Sales Representative / Admin
+    participant UI as Leads Page / Modal
+    participant API as Backend API (/api/v1/leads)
+    participant DB as PostgreSQL (Prisma)
+    participant Cache as Client Cache (localStorage)
+    participant Bus as BroadcastChannel ('das_crm_lead_sync')
+    actor Mgr as Manager / Team Leader Dashboard
+
+    Rep->>UI: Submit "+ New Lead" Form
+    UI->>API: POST /api/v1/leads (Bearer JWT)
+    API->>API: Verify Token & Extract organizationId
+    API->>DB: INSERT INTO "Lead" (name, phone, status: 'NEW', orgId, ownerId)
+    DB-->>API: 201 Created (Authoritative Lead Record)
+    API-->>UI: 201 Created + Canonical JSON
+
+    rect rgb(240, 248, 255)
+        Note over UI,Bus: Cache Eviction & Event Fanout
+        UI->>Cache: clearAllDashboardCaches()
+        UI->>Bus: postMessage({ type: 'LEAD_CREATED', leadId: lead.id })
+        UI->>UI: window.dispatchEvent('das_crm_leads_updated')
+    end
+
+    Bus-->>Mgr: Receive 'LEAD_CREATED' Message
+    Mgr->>Mgr: clearAllDashboardCaches()
+    Mgr->>API: GET /api/v1/leads (Background Revalidation)
+    API->>DB: SELECT * FROM "Lead" WHERE organizationId = ?
+    DB-->>API: Fresh Lead Set
+    API-->>Mgr: 200 OK
+    Mgr->>Mgr: Update Pipeline Metrics & Lead Table
+```
+
+---
+
+#### Flow B: Lead Status Mutation & Cache Invalidation Dataflow
+Governs how status changes (e.g. `NEW` → `CONTACTED` → `PROPOSAL_SENT` → `WON`) update PostgreSQL, evict secondary caches, and notify other views:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Rep as Sales Executive
+    participant Workspace as EmployeeLeadWorkspace / LeadsTable
+    participant API as Backend API (/api/v1/leads/:id/status)
+    participant DB as PostgreSQL
+    participant Bus as BroadcastChannel ('das_crm_lead_sync')
+    actor TL as Team Leader Dashboard
+
+    Rep->>Workspace: Select New Status ('CONTACTED')
+    Workspace->>API: PATCH /api/v1/leads/:id/status { status: 'CONTACTED' }
+    API->>API: Validate Status Transition & User Permissions
+    API->>DB: UPDATE "Lead" SET status = 'CONTACTED', updatedAt = NOW()
+    DB-->>API: Canonical Updated Record
+    API-->>Workspace: 200 OK + Updated Lead
+
+    rect rgb(245, 255, 245)
+        Note over Workspace,Bus: Evict Caches & Broadcast Realtime Signal
+        Workspace->>Workspace: clearAllDashboardCaches()
+        Workspace->>Bus: postMessage({ type: 'LEAD_STATUS_CHANGED', leadId, status: 'CONTACTED' })
+        Workspace->>Workspace: window.dispatchEvent('das_crm_leads_updated')
+    end
+
+    Bus-->>TL: Receive 'LEAD_STATUS_CHANGED'
+    TL->>TL: clearAllDashboardCaches()
+    TL->>API: GET /api/v1/leads (Background Revalidation)
+    API->>DB: Query Latest Team Leads & Conversion KPIs
+    DB-->>API: Authoritative State
+    TL->>TL: Rerender Team Leader Counters & Stage Badges
+```
+
+---
+
+#### Flow C: Browser Refresh (F5) & Direct Database Rehydration Flow
+Governs how page reloads retrieve fresh database state, eliminating the historical bug where stale `sessionStorage` hijacked the execution path:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as CRM User
+    participant Browser as Browser Window (Press F5 / Ctrl+R)
+    participant Workspace as EmployeeLeadWorkspace (React Lifecycle)
+    participant Storage as localStorage / sessionStorage
+    participant API as Backend API (/api/v1/leads/:id)
+    participant DB as PostgreSQL
+
+    User->>Browser: Press Refresh (F5)
+    Browser->>Workspace: Initialize React Component Tree
+    Workspace->>Storage: Read Cached Lead (Used ONLY for Immediate Skeleton Paint)
+    
+    rect rgb(255, 250, 240)
+        Note over Workspace,DB: Direct Network Rehydration (NO EARLY RETURN)
+        Workspace->>API: GET /api/v1/leads/:id (Bearer JWT)
+        API->>DB: SELECT * FROM "Lead" WHERE id = :id AND orgId = :orgId
+        DB-->>API: Current Database Record
+        API-->>Workspace: 200 OK + Authoritative Lead
+    end
+
+    Workspace->>Workspace: Reconcile React State with Authoritative Database State
+    Workspace->>Storage: Update Cache with Fresh Timestamp
+    Workspace->>User: Display Verified Canonical Server State
+```
+
+---
+
+#### Flow D: Lead Assignment & Queue Rebalancing Flow
+Governs how unassigned leads are allocated by Team Leaders to sales reps or claimed from the pool:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor TL as Team Leader
+    participant Dashboard as TeamLeaderRoleDashboard
+    participant API as Backend API (/api/v1/leads/:id/assign)
+    participant DB as PostgreSQL
+    participant Bus as BroadcastChannel ('das_crm_lead_sync')
+    actor Rep as Sales Representative Workspace
+
+    TL->>Dashboard: Select Lead & Assign to Rep
+    Dashboard->>API: PATCH /api/v1/leads/:id { ownerId: repId, teamId: teamId }
+    API->>API: Verify Team Leader Departmental Scope
+    API->>DB: UPDATE "Lead" SET ownerId = repId, teamId = teamId
+    DB-->>API: 200 OK (Updated Lead)
+    API-->>Dashboard: 200 OK
+
+    rect rgb(240, 255, 250)
+        Dashboard->>Dashboard: clearAllDashboardCaches()
+        Dashboard->>Bus: postMessage({ type: 'LEAD_ASSIGNED', leadId, ownerId: repId })
+        Dashboard->>Dashboard: window.dispatchEvent('das_crm_leads_updated')
+    end
+
+    Bus-->>Rep: Receive 'LEAD_ASSIGNED' Message
+    Rep->>Rep: clearAllDashboardCaches()
+    Rep->>API: GET /api/v1/leads (Background Fetch)
+    API->>DB: SELECT * FROM "Lead" WHERE ownerId = repId
+    DB-->>API: Updated Assigned Leads
+    Rep->>Rep: New Lead Instantly Appears in Rep Workspace
+```
+
+---
+
+#### Flow E: Multi-Tab & Cross-Component Realtime Broadcast Flow
+Governs how multiple open browser tabs communicate instantaneously without network overhead:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant TabA as Tab A: Representative Workspace
+    participant BC as BroadcastChannel: 'das_crm_lead_sync'
+    participant TabB as Tab B: Leads Directory Table
+    participant TabC as Tab C: Manager Dashboard
+
+    TabA->>TabA: User modifies lead disposition
+    TabA->>BC: postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: '123' })
+    
+    par Concurrent Broadcast Delivery
+        BC-->>TabB: onmessage(event)
+        TabB->>TabB: clearAllDashboardCaches()
+        TabB->>TabB: Trigger Background Refetch (GET /api/v1/leads)
+    and
+        BC-->>TabC: onmessage(event)
+        TabC->>TabC: clearAllDashboardCaches()
+        TabC->>TabC: Trigger Background Refetch (GET /api/v1/leads)
+    end
+    
+    TabB->>TabB: Table Row Status Badge Updates in Realtime
+    TabC->>TabC: KPI Pipeline Count & Conversion Rate Rerender
+```
+
+---
+
+#### Flow F: Offline Network Disconnection & Error Safeguard Flow
+Governs how network interruptions are handled safely without corrupting the authoritative database:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Sales Representative
+    participant UI as Lead Workspace / Form
+    participant Net as Network Monitor (navigator.onLine)
+    participant API as Backend API Gateway
+    participant Toast as User Notification Center
+
+    User->>UI: Attempt Lead Mutation (Offline / No Connection)
+    UI->>Net: Check Connection Status
+    alt Device Offline
+        UI->>Toast: Display "Network Disconnected — Please Reconnect"
+        Note over UI: Action blocked; no unvalidated offline mutation queued
+    else Device Online, API Returns Error (500 / 409 / 401)
+        UI->>API: PATCH /api/v1/leads/:id/status
+        API-->>UI: 409 Conflict / 500 Network Failure
+        UI->>UI: Rollback Optimistic UI Changes
+        UI->>Toast: Display Error Alert with Authoritative Retry
+        UI->>API: GET /api/v1/leads/:id (Re-sync with Canonical State)
+    end
+```
+
+---
+
+### 11.5 Local Storage, Session Storage & Cookies Audit
+
+The following table provides the exhaustive security and authority audit of all browser storage items:
+
+| Storage Type | Storage Key | Content Type | Sensitive Data? | Canonical Authority? | TTL / Expiry | Cleared on Logout? |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `localStorage` | `das_crm_all_leads_cache` | JSON Lead Array | No (Sanitized) | No (Secondary Cache) | 5 Minutes | Yes |
+| `localStorage` | `das_crm_lead_directory_cache` | JSON Lead Array | No (Sanitized) | No (Secondary Cache) | 5 Minutes | Yes |
+| `localStorage` | `das_crm_mgr_dept_leads` | JSON Department Leads | No (Sanitized) | No (Secondary Cache) | 5 Minutes | Yes |
+| `localStorage` | `das_crm_tl_team_leads` | JSON Team Leads | No (Sanitized) | No (Secondary Cache) | 5 Minutes | Yes |
+| `localStorage` | `das_crm_emp_assigned_leads` | JSON Assigned Leads | No (Sanitized) | No (Secondary Cache) | 5 Minutes | Yes |
+| `sessionStorage` | `das_crm_active_lead` | JSON Active Lead | No (Sanitized) | No (Layout Stub Only)| Window Close | Yes |
+| `localStorage` | `das_crm_selected_lead` | JSON Selected Lead | No (Sanitized) | No (Layout Stub Only)| 5 Minutes | Yes |
+| `localStorage` | `token` / `auth_token` | JWT Bearer Token | Yes (Standard JWT) | Yes (Auth Session) | JWT Expiration | Yes |
+| `localStorage` | `das_crm_theme` | `'light'` \| `'dark'` | No | Yes (UI Setting) | Indefinite | No |
+| `document.cookie` | `refreshToken` | HTTP-Only Refresh Token| Yes (Encrypted) | Yes (Auth Session) | 7 Days | Yes |
+
+---
+
+### 11.6 Tenant Isolation & RBAC Security Guarantees
+
+1. **Server-Side Token Extraction**: The backend never accepts `organizationId` or `tenantId` from client query strings or request body payloads. All database queries extract the tenant identity strictly from `req.user.organizationId` via the validated Bearer JWT.
+2. **Prisma Query Enclosure**: Every database query is automatically scoped to the calling organization:
+   ```typescript
+   const lead = await this.prisma.lead.findFirst({
+     where: {
+       id: leadId,
+       organizationId: user.organizationId, // Enforces absolute tenant isolation
+     },
+   });
+   ```
+3. **Departmental Ownership**: Managers and Team Leaders can only access records matching their assigned department or team IDs. Sales Executives are restricted to leads where `ownerId === user.id` or unclaimed leads in the open grab pool.
+4. **Broadcast Isolation**: In-browser `BroadcastChannel` communication is confined to the same origin (`window.origin`) and browser profile, physically preventing cross-tenant event leakage across different users or browser containers.
+
+---
+
 *Documentation compiled, audited, and verified for the DAS CRM Enterprise Ecosystem v2.5.0.*
+
+

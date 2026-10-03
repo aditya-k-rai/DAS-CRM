@@ -2611,24 +2611,7 @@ interface LeadOption {
   owner?: string;
 }
 
-const DEFAULT_FALLBACK_LEADS: LeadOption[] = [
-  { id: 'lead_anjali_01', name: 'Anjali Verma', company: 'Adorable Trading', phone: '+91 98000 10007', email: 'anjali.verma@example.com', status: 'Meeting Scheduled', owner: 'Sachin Puri' },
-  { id: 'lead_pooja_02', name: 'Pooja Nair', company: 'Nair Logistics India', phone: '+91 98000 10009', email: 'pooja.nair@nairlogistics.in', status: 'Meeting Scheduled', owner: 'Sachin Puri' },
-  { id: 'lead_vikram_03', name: 'Dr. Vikram Malhotra', company: 'Zenith Hospital & Research Centre', phone: '+91 98201 12345', email: 'vikram.malhotra@zenithhospital.org', status: 'Qualified', owner: 'Sachin Puri' },
-  { id: 'lead_rohan_04', name: 'Rohan Deshmukh', company: 'TechVista Enterprises', phone: '+91 98000 10000', email: 'rohan.deshmukh@example.com', status: 'New', owner: 'Sachin Puri' },
-  { id: 'lead_priya_05', name: 'Priya Patel', company: 'Patel Consultancies', phone: '+91 98000 10001', email: 'priya.patel@example.com', status: 'Contacted', owner: 'Sachin Puri' },
-  { id: 'lead_neha_06', name: 'Neha Sharma', company: 'Sharma Innovations', phone: '+91 98000 10003', email: 'neha.sharma@example.com', status: 'Proposal', owner: 'Nandini Rastogi' },
-  { id: 'lead_arjun_07', name: 'Arjun Reddy', company: 'Reddy Logistics', phone: '+91 98000 10004', email: 'arjun.reddy@example.com', status: 'Negotiation', owner: 'Nandini Rastogi' },
-  { id: 'lead_kavita_08', name: 'Kavita Singh', company: 'Singh Global Exports', phone: '+91 98000 10005', email: 'kavita.singh@example.com', status: 'Won', owner: 'Nandini Rastogi' },
-  { id: 'lead_siddharth_09', name: 'Siddharth Mehta', company: 'Mehta Textiles', phone: '+91 98000 10006', email: 'siddharth.mehta@example.com', status: 'Follow Up', owner: 'Sulekha Tomar' },
-  { id: 'lead_rahul_10', name: 'Rahul Kapoor', company: 'Kapoor Auto Corp', phone: '+91 98000 10008', email: 'rahul.kapoor@example.com', status: 'Contacted', owner: 'Sadhana' },
-  { id: 'lead_rajesh_11', name: 'Rajesh Khanna', company: 'Khanna Exports Ltd', phone: '+91 98111 22334', email: 'rajesh@khannaexports.com', status: 'Qualified', owner: 'Sachin Puri' },
-  { id: 'lead_sunita_12', name: 'Sunita Gupta', company: 'Apex Healthcare Pvt Ltd', phone: '+91 98222 33445', email: 'sunita@apexhealth.in', status: 'New', owner: 'Nandini Rastogi' },
-  { id: 'lead_suresh_13', name: 'Suresh Patel', company: 'Gujarat Textiles Hub', phone: '+91 98333 44556', email: 'suresh@gujarattextiles.com', status: 'Contacted', owner: 'Sachin Puri' },
-  { id: 'lead_amit_14', name: 'Amit Shah', company: 'Skyline Infra Ventures', phone: '+91 98444 55667', email: 'amit@skylineinfra.com', status: 'Proposal', owner: 'Nandini Rastogi' },
-  { id: 'lead_sneha_15', name: 'Sneha Reddy', company: 'Cloud Nine Systems', phone: '+91 98555 66778', email: 'sneha@cloudninesys.com', status: 'Negotiation', owner: 'Sachin Puri' },
-  { id: 'lead_anurag_16', name: 'Anurag Enterprises', company: 'Anurag Tech Hub', phone: '+91 98765 43210', email: 'contact@anuragenterprises.com', status: 'Active', owner: 'Aditya Kumar Rai' },
-];
+const DEFAULT_FALLBACK_LEADS: LeadOption[] = [];
 
 function getAggregatedLeadOptions(extraServerLeads: any[] = []): LeadOption[] {
   const map = new Map<string, LeadOption>();
