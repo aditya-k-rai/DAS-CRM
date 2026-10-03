@@ -27,6 +27,7 @@ export class FollowUpsService {
       OR: [
         { assigneeId: userId },
         { createdById: userId },
+        { lead: { ownerId: userId } },
       ],
     };
   }

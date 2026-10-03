@@ -16,21 +16,38 @@ export class TasksService {
       page?: number;
       limit?: number;
     },
+    userRole?: any,
   ) {
     const { assignedToMe, status, taskType, dueDate, page = 1, limit = 30 } = opts;
     const now = new Date();
 
+    const rawRole = (typeof userRole === 'string' ? userRole : userRole?.name || '').toUpperCase();
+    const isAdminOrManager = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'DEPT_MANAGER'].includes(rawRole);
+
+    const userScope = isAdminOrManager
+      ? []
+      : [
+          {
+            OR: [
+              { assigneeId: userId },
+              { createdById: userId },
+              { lead: { ownerId: userId } },
+            ],
+          },
+        ];
+
+    const typeCondition = taskType
+      ? taskType.toUpperCase() === 'MEETING'
+        ? [{ OR: [{ taskType: 'MEETING' }, { followUpType: 'MEETING' }] }]
+        : [{ taskType: taskType.toUpperCase() }]
+      : [];
+
     const where: any = {
       organizationId,
       AND: [
-        {
-          OR: [
-            { assigneeId: userId },
-            { createdById: userId },
-          ],
-        },
+        ...userScope,
+        ...typeCondition,
       ],
-      ...(taskType && { taskType: taskType.toUpperCase() }),
       ...(status === 'OVERDUE'
         ? { isCompleted: false, dueAt: { lt: now } }
         : status === 'COMPLETED'
@@ -59,7 +76,17 @@ export class TasksService {
               avatarUrl: true,
             },
           },
-          lead: { select: { id: true, firstName: true, lastName: true } },
+          lead: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              email: true,
+              ownerId: true,
+              company: { select: { id: true, name: true } },
+            },
+          },
         },
         orderBy: [{ dueAt: 'asc' }],
         skip: (page - 1) * limit,

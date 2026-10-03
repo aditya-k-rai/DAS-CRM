@@ -322,10 +322,10 @@ export function LeadsTable() {
     };
 
     try {
-      const url = `${apiBase}/leads?limit=${pageSize}&page=${pageNumber}&sortBy=${activeSort.sortBy}&sortOrder=${activeSort.sortOrder}`;
+      const path = `/leads?limit=${pageSize}&page=${pageNumber}&sortBy=${activeSort.sortBy}&sortOrder=${activeSort.sortOrder}`;
       const [leadsRes, usersRes] = await Promise.allSettled([
-        apiFetch(url),
-        pageNumber === 1 ? apiFetch(`${apiBase}/users`) : Promise.resolve(null as any),
+        apiFetch(path),
+        pageNumber === 1 ? apiFetch('/users') : Promise.resolve(null as any),
       ]);
 
       let mappedServerLeads: LeadDataWeb[] = [];
@@ -378,6 +378,12 @@ export function LeadsTable() {
         const totalPages = leadsData.meta?.totalPages || Math.ceil(total / pageSize);
         setHasMore(pageNumber < totalPages && items.length >= pageSize);
         setPage(pageNumber);
+      } else {
+        if (leadsRes.status === 'rejected') {
+          console.warn('Leads fetch rejected in LeadsTable:', leadsRes.reason);
+        } else if (leadsRes.status === 'fulfilled') {
+          console.warn('Leads fetch non-200 in LeadsTable:', leadsRes.value.status, leadsRes.value.statusText);
+        }
       }
 
       // Synchronize ingested leads from Lead Directory cache if page 1
@@ -885,21 +891,23 @@ export function LeadsTable() {
 
     // 🔒 Role-Based Data Isolation Scoping
     if (isSalesExec && !userRole.includes('ADMIN') && !userRole.includes('MANAGER') && !userRole.includes('LEADER') && !userRole.includes('TL')) {
-      const uLower = userName.toLowerCase();
-      const eLower = (currentUser?.email || '').toLowerCase();
+      const uLower = userName.toLowerCase().trim();
+      const eLower = (currentUser?.email || '').toLowerCase().trim();
+      const uFirst = uLower.split(' ')[0];
+      const lOwnerId = (l as any).ownerId || (typeof (l as any).owner === 'object' ? (l as any).owner?.id : undefined);
+      const lOwnerEmail = (typeof (l as any).owner === 'object' && (l as any).owner?.email ? (l as any).owner.email : '').toLowerCase().trim();
+
       const isAssignedToUser =
-        !lOwner ||
-        lOwner === 'unassigned' ||
-        lOwner === '—' ||
-        lOwner.includes(uLower) ||
-        (lAssignee && lAssignee.includes(uLower)) ||
-        (l.email && l.email.toLowerCase() === eLower) ||
-        Boolean(currentUser?.id);
+        (currentUser?.id && lOwnerId && lOwnerId === currentUser.id) ||
+        (eLower && lOwnerEmail && eLower === lOwnerEmail) ||
+        (uLower && (lOwner.includes(uLower) || lAssignee.includes(uLower))) ||
+        (uFirst && uFirst.length >= 3 && (lOwner.includes(uFirst) || lAssignee.includes(uFirst)));
+
       if (!isAssignedToUser) return false;
     }
 
-    // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering
-    if (filterTL !== 'ALL') {
+    // 👑 Team Leader & 🎯 Sales Executive Two-Tier Filtering (only applies to Team Leaders / Managers / Admins)
+    if (!isSalesExec && filterTL !== 'ALL') {
       if (filterTL === 'UNASSIGNED') {
         const isUnassigned = !l.owner || l.owner === 'Unassigned' || l.owner === '—' || !(l as any).currentAssignee || (l as any).currentAssignee === 'Unassigned';
         if (!isUnassigned) return false;
@@ -919,7 +927,7 @@ export function LeadsTable() {
           if (!matchesTL && !matchesSubRep) return false;
         }
       }
-    } else {
+    } else if (!isSalesExec) {
       // filterTL === 'ALL'
       if (filterSales !== 'ALL') {
         const cleanSales = filterSales.toLowerCase().replace(/\s*\(sales exec\)|\s*\(sales rep\)|\s*\(rep\)/g, '').trim();

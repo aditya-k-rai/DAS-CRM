@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { clearLeadDirectoryCaches, clearAllDashboardCaches } from '@/lib/cacheUtils';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'HR' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' | 'UNASSIGNED';
 export type PlanType = 'FREE_TRIAL' | 'GROW' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | 'PRO' | 'MAX' | 'STARTER' | 'BASIC' | 'PRO_50' | 'PRO_MAX';
@@ -605,6 +606,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('das_crm_refresh_token');
     localStorage.removeItem('das_crm_active_role');
     localStorage.removeItem('das_crm_subscription');
+
+    // Invalidate and purge stale lead and dashboard caches to prevent cross-account sticking
+    clearLeadDirectoryCaches();
+    clearAllDashboardCaches();
 
     // Clear saved login credentials so they don't auto-fill on the next visit
     localStorage.removeItem('das_crm_login_v2');

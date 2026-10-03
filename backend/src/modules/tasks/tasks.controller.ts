@@ -24,7 +24,7 @@ export class TasksController {
   @Get()
   @ApiOperation({ summary: 'List tasks with status, due date, and pagination filters' })
   findAll(@CurrentUser() user: any, @Query() query: any) {
-    return this.tasksService.findAll(user.organizationId, user.id, query || {});
+    return this.tasksService.findAll(user.organizationId, user.id, query || {}, user.role);
   }
 
   @Post()
