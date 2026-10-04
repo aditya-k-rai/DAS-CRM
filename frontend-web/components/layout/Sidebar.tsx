@@ -88,10 +88,11 @@ const adminNavigation: NavItem[] = [
   { label: 'Tasks & Follow-ups', href: '/follow-ups', icon: Clock, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Employees', href: '/hr/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Admin Control Center', href: '/admin/control-center', icon: Shield, roles: ['ADMIN', 'SUPER_ADMIN' as any] },
+  { label: 'Lead Assignment & Distribution', href: '/tl/lead-assignment', icon: Share2, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Product Catalogue', href: '/products', icon: Package, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Quotations & Invoices', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER'] },
   { label: 'WhatsApp Cloud', href: '/comms', icon: MessageSquare, roles: ['ADMIN', 'MANAGER'] },
-  { label: 'WhatsApp Direct Template', href: '/whatsapp-templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
+  { label: 'WhatsApp Direct Templates', href: '/whatsapp-templates', icon: MessageCircle, roles: ['ADMIN', 'MANAGER'] },
   { label: 'Email Marketing', href: '/emails', icon: Mail, dividerAfter: true, roles: ['ADMIN', 'MANAGER'] },
   { label: 'AI Customization', href: '/admin/ai', icon: Sparkles, roles: ['ADMIN', 'MANAGER'] },
   { label: 'PDF Catalogue', href: '/pdf-catalogue', icon: FileText, roles: ['ADMIN', 'MANAGER'] },
@@ -167,9 +168,48 @@ export function Sidebar() {
       } catch (_) {}
     };
     loadPolicies();
+
+    // Fetch latest policies from backend
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
+    }
+
+    if (token) {
+      const fetchUrl = compId
+        ? `${apiBase}/users/module-policies?organizationId=${compId}`
+        : `${apiBase}/users/module-policies`;
+
+      fetch(fetchUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(compId ? { 'x-organization-id': compId } : {}),
+        },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.policies && Object.keys(data.policies).length > 0) {
+            setPolicies(prev => {
+              const merged = { ...data.policies, ...prev };
+              try { localStorage.setItem('@das_crm_module_policies_v1', JSON.stringify(merged)); } catch (_) {}
+              return merged;
+            });
+          }
+        })
+        .catch(() => null);
+    }
+
+    const handleCustomUpdate = () => loadPolicies();
     window.addEventListener('storage', loadPolicies);
-    return () => window.removeEventListener('storage', loadPolicies);
-  }, []);
+    window.addEventListener('das-crm-module-policy-updated', handleCustomUpdate);
+    return () => {
+      window.removeEventListener('storage', loadPolicies);
+      window.removeEventListener('das-crm-module-policy-updated', handleCustomUpdate);
+    };
+  }, [currentUser?.companyId]);
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
@@ -252,7 +292,7 @@ export function Sidebar() {
   }
 
   // Filter based on Admin Control Center user policies and role defaults
-  const filteredNav: NavItem[] = baseNavList.filter(item => {
+  const baseFilteredNav: NavItem[] = baseNavList.filter(item => {
     if (item.href === '/admin/control-center') {
       return isAdmin;
     }
@@ -267,12 +307,15 @@ export function Sidebar() {
     const modKey = item.moduleKey || HREF_TO_MODULE_KEY[basePath] || HREF_TO_MODULE_KEY[item.href];
 
     if (modKey) {
-      // Check explicit policy override for this user
-      if (currentUser?.id) {
-        const userPolicyKey = `${currentUser.id}:${modKey}`;
-        if (policies[userPolicyKey] !== undefined) {
-          return Boolean(policies[userPolicyKey].active);
-        }
+      // Check explicit policy override for this user by ID or by Email
+      const keyId = currentUser?.id ? `${currentUser.id}:${modKey}` : null;
+      const keyEmail = currentUser?.email ? `${currentUser.email.toLowerCase().trim()}:${modKey}` : null;
+
+      if (keyId && policies[keyId] !== undefined) {
+        return Boolean(policies[keyId].active);
+      }
+      if (keyEmail && policies[keyEmail] !== undefined) {
+        return Boolean(policies[keyEmail].active);
       }
 
       // Fresh user without override: follow role defaults
@@ -284,6 +327,23 @@ export function Sidebar() {
     const normalizedItemRoles = item.roles.map(r => normalizeRoleStr(r));
     return normalizedItemRoles.includes(currentNormalizedRole);
   });
+
+  // Also include any non-default modules from adminNavigation that have been explicitly turned ON for this user by Admin
+  const extraActiveItems: NavItem[] = [];
+  adminNavigation.forEach(adminItem => {
+    if (baseFilteredNav.some(n => n.href === adminItem.href)) return;
+    const basePath = adminItem.href.split('?')[0];
+    const modKey = adminItem.moduleKey || HREF_TO_MODULE_KEY[basePath] || HREF_TO_MODULE_KEY[adminItem.href];
+    if (!modKey) return;
+    const keyId = currentUser?.id ? `${currentUser.id}:${modKey}` : null;
+    const keyEmail = currentUser?.email ? `${currentUser.email.toLowerCase().trim()}:${modKey}` : null;
+    const isExplicitlyOn = (keyId && policies[keyId]?.active === true) || (keyEmail && policies[keyEmail]?.active === true);
+    if (isExplicitlyOn) {
+      extraActiveItems.push(adminItem);
+    }
+  });
+
+  const filteredNav: NavItem[] = [...baseFilteredNav, ...extraActiveItems];
 
   return (
     <>

@@ -148,24 +148,70 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setTimeout(() => setToastMessage(null), 3200);
   };
 
-  // Load Policies & Audit logs
+  // Load Policies & Audit logs from localStorage & backend
   useEffect(() => {
+    let localPolicies: Record<string, ModulePermission> = {};
     try {
       const rawPol = localStorage.getItem(STORAGE_KEY);
       if (rawPol) {
-        const parsed = JSON.parse(rawPol);
-        if (currentUser?.id) {
-          Object.keys(parsed).forEach(k => {
-            if (k.startsWith(`${currentUser.id}:`)) delete parsed[k];
-          });
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-        }
-        setPolicies(parsed);
+        localPolicies = JSON.parse(rawPol);
+        setPolicies(localPolicies);
       }
       const rawAud = localStorage.getItem(AUDIT_STORAGE_KEY);
       if (rawAud) setAuditLogs(JSON.parse(rawAud));
     } catch (_) {}
-  }, [currentUser?.id]);
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
+    }
+
+    const requestHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(compId ? { 'x-organization-id': compId } : {}),
+    };
+
+    const fetchUrl = compId
+      ? `${apiBase}/users/module-policies?organizationId=${compId}`
+      : `${apiBase}/users/module-policies`;
+
+    fetch(fetchUrl, { headers: requestHeaders })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.policies && Object.keys(data.policies).length > 0) {
+          setPolicies(prev => {
+            const merged = { ...data.policies, ...prev };
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch (_) {}
+            return merged;
+          });
+        } else if (Object.keys(localPolicies).length > 0) {
+          // If server is empty but local has policies, seed to server
+          fetch(`${apiBase}/users/module-policies`, {
+            method: 'PATCH',
+            headers: requestHeaders,
+            body: JSON.stringify({
+              organizationId: compId,
+              policies: localPolicies,
+            }),
+          }).catch(() => null);
+        }
+
+        if (data?.auditLogs && Array.isArray(data.auditLogs) && data.auditLogs.length > 0) {
+          setAuditLogs(prev => {
+            const map = new Map<string, AuditLogEntry>();
+            data.auditLogs.forEach((a: AuditLogEntry) => map.set(a.id, a));
+            prev.forEach((a: AuditLogEntry) => { if (!map.has(a.id)) map.set(a.id, a); });
+            const mergedAudit = Array.from(map.values()).slice(0, 100);
+            try { localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(mergedAudit)); } catch (_) {}
+            return mergedAudit;
+          });
+        }
+      })
+      .catch(() => null);
+  }, [currentUser?.id, currentUser?.companyId]);
 
   // ── Load Workspace Users ──────────────────────────────────────────────────
 
@@ -390,22 +436,70 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     return managedUsers.find(u => u.id === selectedUserId) || (managedUsers.length > 0 ? managedUsers[0] : null);
   }, [managedUsers, selectedUserId]);
 
+  const syncPolicyToBackend = async (
+    userId: string,
+    userEmail: string | undefined,
+    moduleKey: string,
+    permission: ModulePermission,
+    auditEntry: AuditLogEntry,
+    allPolicies: Record<string, ModulePermission>,
+  ) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
+    }
+
+    const requestHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(compId ? { 'x-organization-id': compId } : {}),
+    };
+
+    try {
+      const url = compId
+        ? `${apiBase}/users/module-policies?organizationId=${compId}`
+        : `${apiBase}/users/module-policies`;
+
+      await fetch(url, {
+        method: 'PATCH',
+        headers: requestHeaders,
+        body: JSON.stringify({
+          organizationId: compId,
+          userId,
+          userEmail,
+          moduleKey,
+          permission,
+          auditEntry,
+          policies: allPolicies,
+        }),
+      });
+    } catch (e) {
+      console.warn('Failed to sync module policy to server:', e);
+    }
+  };
+
   // Get the effective On/Off status of a module for a user
-  const isModuleOn = (userId: string, userRole: string, moduleKey: string): boolean => {
+  const isModuleOn = (userId: string, userRole: string, moduleKey: string, userEmail?: string): boolean => {
     const normalizedRole = (userRole || '').toUpperCase();
     if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'OWNER' || normalizedRole === 'TENANT_ADMIN' || normalizedRole.includes('ADMIN') || (currentUser?.id && userId === currentUser.id)) return true;
     const key = `${userId}:${moduleKey}`;
+    const emailKey = userEmail ? `${userEmail.toLowerCase().trim()}:${moduleKey}` : null;
     if (policies[key] !== undefined) return Boolean(policies[key].active);
+    if (emailKey && policies[emailKey] !== undefined) return Boolean(policies[emailKey].active);
     // Fresh user default: only default modules for their assigned role are active/visible
     return Boolean((DEFAULT_MODULE_KEYS_BY_ROLE[normalizedRole] || []).includes(moduleKey));
   };
 
   // Get the edit permission for a module
-  const canEditModule = (userId: string, userRole: string, moduleKey: string): boolean => {
+  const canEditModule = (userId: string, userRole: string, moduleKey: string, userEmail?: string): boolean => {
     const normalizedRole = (userRole || '').toUpperCase();
     if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN' || normalizedRole.includes('ADMIN')) return true;
     const key = `${userId}:${moduleKey}`;
+    const emailKey = userEmail ? `${userEmail.toLowerCase().trim()}:${moduleKey}` : null;
     if (policies[key]) return Boolean(policies[key].canEdit);
+    if (emailKey && policies[emailKey]) return Boolean(policies[emailKey].canEdit);
     // Default edit rights by role
     const editableRoles: Record<string, string[]> = {
       MANAGER:     ['QUOTES', 'PRODUCTS', 'LEADS', 'PIPELINE', 'DEALS', 'GOALS'],
@@ -435,12 +529,17 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     }
 
     const key = `${userId}:${moduleKey}`;
+    const emailKey = selectedUser.email ? `${selectedUser.email.toLowerCase().trim()}:${moduleKey}` : null;
     const nextOn = !currentlyOn;
     const updatedPerm: ModulePermission = nextOn
-      ? { active: true, canView: true, canShare: true, canEdit: canEditModule(userId, selectedUser.role, moduleKey) }
+      ? { active: true, canView: true, canShare: true, canEdit: canEditModule(userId, selectedUser.role, moduleKey, selectedUser.email) }
       : { active: false, canView: false, canShare: false, canEdit: false };
 
-    const nextPolicies = { ...policies, [key]: updatedPerm };
+    const nextPolicies = {
+      ...policies,
+      [key]: updatedPerm,
+      ...(emailKey ? { [emailKey]: updatedPerm } : {}),
+    };
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
     window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
@@ -458,15 +557,22 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
     showToast(`✓ ${moduleLabel} is now ${nextOn ? '🟢 Visible' : '🔴 Hidden'} for ${selectedUser.name}`);
+
+    syncPolicyToBackend(userId, selectedUser.email, moduleKey, updatedPerm, auditEntry, nextPolicies);
   };
 
   // Toggle Edit permission (only for QUOTES and PRODUCTS)
   const handleToggleEdit = (userId: string, moduleKey: string, moduleLabel: string, currentEdit: boolean) => {
     if (!selectedUser) return;
     const key = `${userId}:${moduleKey}`;
-    const currentOn = isModuleOn(userId, selectedUser.role, moduleKey);
+    const emailKey = selectedUser.email ? `${selectedUser.email.toLowerCase().trim()}:${moduleKey}` : null;
+    const currentOn = isModuleOn(userId, selectedUser.role, moduleKey, selectedUser.email);
     const updatedPerm: ModulePermission = { active: currentOn, canView: currentOn, canShare: currentOn, canEdit: !currentEdit };
-    const nextPolicies = { ...policies, [key]: updatedPerm };
+    const nextPolicies = {
+      ...policies,
+      [key]: updatedPerm,
+      ...(emailKey ? { [emailKey]: updatedPerm } : {}),
+    };
     setPolicies(nextPolicies);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextPolicies));
     window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
@@ -479,6 +585,8 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
     showToast(`✓ Edit for ${moduleLabel} ${!currentEdit ? 'enabled' : 'disabled'} for ${selectedUser.name}`);
+
+    syncPolicyToBackend(userId, selectedUser.email, moduleKey, updatedPerm, auditEntry, nextPolicies);
   };
 
   // Bulk Presets
@@ -491,16 +599,24 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     }
 
     const nextPolicies = { ...policies };
+    const emailLower = selectedUser.email ? selectedUser.email.toLowerCase().trim() : null;
+
     ALL_WEB_MODULES.forEach(mod => {
       const key = `${selectedUser.id}:${mod.key}`;
+      const emailKey = emailLower ? `${emailLower}:${mod.key}` : null;
       const isDefault = isDefaultModule(selectedUser.role, mod.key);
       if (isDefault) return; // Never touch default modules
       if (preset === 'SHOW_ALL') {
-        nextPolicies[key] = { active: true, canView: true, canShare: true, canEdit: mod.hasEditControl ? true : canEditModule(selectedUser.id, selectedUser.role, mod.key) };
+        const perm = { active: true, canView: true, canShare: true, canEdit: mod.hasEditControl ? true : canEditModule(selectedUser.id, selectedUser.role, mod.key, selectedUser.email) };
+        nextPolicies[key] = perm;
+        if (emailKey) nextPolicies[emailKey] = perm;
       } else if (preset === 'HIDE_ALL') {
-        nextPolicies[key] = { active: false, canView: false, canShare: false, canEdit: false };
+        const perm = { active: false, canView: false, canShare: false, canEdit: false };
+        nextPolicies[key] = perm;
+        if (emailKey) nextPolicies[emailKey] = perm;
       } else if (preset === 'RESET_DEFAULTS') {
         delete nextPolicies[key];
+        if (emailKey) delete nextPolicies[emailKey];
       }
     });
 
@@ -517,6 +633,8 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     setAuditLogs(nextAudit);
     localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(nextAudit));
     showToast(`✓ Applied "${preset.replace('_', ' ')}" to ${selectedUser.name}`);
+
+    syncPolicyToBackend(selectedUser.id, selectedUser.email, 'ALL', { active: true, canView: true, canShare: true, canEdit: false }, auditEntry, nextPolicies);
   };
 
   const filteredModules = useMemo(() => {
@@ -839,8 +957,8 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                     {configurableModules.map(mod => {
                       const Icon = mod.icon;
                       const catStyle = CATEGORY_STYLES[mod.category] || CATEGORY_STYLES.SALES;
-                      const isOn = isModuleOn(selectedUser.id, selectedUser.role, mod.key);
-                      const editAllowed = mod.hasEditControl ? canEditModule(selectedUser.id, selectedUser.role, mod.key) : null;
+                      const isOn = isModuleOn(selectedUser.id, selectedUser.role, mod.key, selectedUser.email);
+                      const editAllowed = mod.hasEditControl ? canEditModule(selectedUser.id, selectedUser.role, mod.key, selectedUser.email) : null;
 
                       return (
                         <div key={mod.key} className={`p-3.5 rounded-xl border transition-all ${isOn ? 'bg-slate-950/90 border-slate-800 hover:border-slate-700' : 'bg-slate-950/40 border-slate-900 opacity-60'}`}>

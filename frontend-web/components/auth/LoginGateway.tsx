@@ -516,6 +516,27 @@ export function LoginGateway() {
           subData,
           data.refreshToken
         );
+
+        // Pre-fetch module policies so user's dashboard and sidebar immediately have custom module access
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+        fetch(`${apiBase}/users/module-policies?organizationId=${compId}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${data.accessToken}`,
+            'x-organization-id': compId,
+          },
+        })
+          .then(res => res.ok ? res.json() : null)
+          .then(polData => {
+            if (polData?.policies) {
+              try {
+                localStorage.setItem('@das_crm_module_policies_v1', JSON.stringify(polData.policies));
+                window.dispatchEvent(new CustomEvent('das-crm-module-policy-updated'));
+              } catch (_) {}
+            }
+          })
+          .catch(() => null);
+
         setLoading(false);
         navigateToRoute(redirectUrl);
         return;

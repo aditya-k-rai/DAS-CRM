@@ -1041,4 +1041,89 @@ export class UsersService {
       },
     };
   }
+
+  /**
+   * Get module visibility and feature policies for an organization
+   */
+  async getModulePolicies(organizationId: string) {
+    if (!organizationId) {
+      return { policies: {}, auditLogs: [] };
+    }
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    const settings = (org?.settings as any) || {};
+    return {
+      policies: settings.modulePolicies || {},
+      auditLogs: settings.moduleAuditLogs || [],
+    };
+  }
+
+  /**
+   * Update module visibility and feature policies for users in the organization
+   */
+  async updateModulePolicy(
+    organizationId: string,
+    adminUserId: string,
+    data: {
+      userId?: string;
+      userEmail?: string;
+      moduleKey?: string;
+      permission?: any;
+      auditEntry?: any;
+      policies?: Record<string, any>;
+    },
+  ) {
+    if (!organizationId) {
+      throw new BadRequestException('Organization ID is required');
+    }
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { settings: true },
+    });
+
+    const settings = (org?.settings as any) || {};
+    const currentPolicies = { ...(settings.modulePolicies || {}) };
+    const currentAudit = Array.isArray(settings.moduleAuditLogs) ? [...settings.moduleAuditLogs] : [];
+
+    if (data.policies && typeof data.policies === 'object') {
+      Object.assign(currentPolicies, data.policies);
+    }
+
+    if (data.userId && data.moduleKey && data.permission) {
+      currentPolicies[`${data.userId}:${data.moduleKey}`] = data.permission;
+      if (data.userEmail) {
+        currentPolicies[`${data.userEmail.toLowerCase().trim()}:${data.moduleKey}`] = data.permission;
+      }
+    } else if (data.userEmail && data.moduleKey && data.permission) {
+      currentPolicies[`${data.userEmail.toLowerCase().trim()}:${data.moduleKey}`] = data.permission;
+    }
+
+    let nextAudit = currentAudit;
+    if (data.auditEntry && typeof data.auditEntry === 'object') {
+      nextAudit = [data.auditEntry, ...currentAudit.filter((a: any) => a.id !== data.auditEntry.id)].slice(0, 150);
+    }
+
+    const updatedSettings = {
+      ...settings,
+      modulePolicies: currentPolicies,
+      moduleAuditLogs: nextAudit,
+    };
+
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { settings: updatedSettings },
+    });
+
+    return {
+      success: true,
+      policies: currentPolicies,
+      auditLogs: nextAudit,
+    };
+  }
 }
+

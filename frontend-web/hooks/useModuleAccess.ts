@@ -49,7 +49,7 @@ export function useModuleAccess() {
 
   const isAdmin = normalizedRole === 'ADMIN';
 
-  // Load policies from localStorage & listen for storage changes
+  // Load policies from localStorage & backend & listen for storage changes
   useEffect(() => {
     const loadPolicies = () => {
       try {
@@ -59,9 +59,48 @@ export function useModuleAccess() {
     };
 
     loadPolicies();
+
+    // Fetch latest from backend
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('das_crm_token') || localStorage.getItem('token')) : null;
+    let compId = currentUser?.companyId || (typeof window !== 'undefined' ? (localStorage.getItem('das_crm_org_id') || localStorage.getItem('companyId') || '') : '');
+    if (compId === 'comp_das' || compId === 'comp_default' || compId === 'platform_system') {
+      compId = '';
+    }
+
+    if (token) {
+      const fetchUrl = compId
+        ? `${apiBase}/users/module-policies?organizationId=${compId}`
+        : `${apiBase}/users/module-policies`;
+
+      fetch(fetchUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(compId ? { 'x-organization-id': compId } : {}),
+        },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.policies && Object.keys(data.policies).length > 0) {
+            setPolicies(prev => {
+              const merged = { ...prev, ...data.policies };
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch (_) {}
+              return merged;
+            });
+          }
+        })
+        .catch(() => null);
+    }
+
+    const handleCustomUpdate = () => loadPolicies();
     window.addEventListener('storage', loadPolicies);
-    return () => window.removeEventListener('storage', loadPolicies);
-  }, []);
+    window.addEventListener('das-crm-module-policy-updated', handleCustomUpdate);
+    return () => {
+      window.removeEventListener('storage', loadPolicies);
+      window.removeEventListener('das-crm-module-policy-updated', handleCustomUpdate);
+    };
+  }, [currentUser?.companyId]);
 
   const getPermission = useCallback((moduleKey: string): ModulePermission => {
     // Admin / Head always has permanent full access to every module
@@ -70,11 +109,16 @@ export function useModuleAccess() {
     }
 
     const userId = currentUser?.id || '';
+    const userEmail = (currentUser?.email || '').toLowerCase().trim();
     const key = `${userId}:${moduleKey}`;
+    const emailKey = `${userEmail}:${moduleKey}`;
 
-    // Check specific policy override
+    // Check specific policy override by ID or Email
     if (policies[key] !== undefined) {
       return policies[key];
+    }
+    if (userEmail && policies[emailKey] !== undefined) {
+      return policies[emailKey];
     }
 
     // Fresh user without explicit override: strictly whitelist role's permanent default modules
@@ -87,7 +131,7 @@ export function useModuleAccess() {
 
     const base = ROLE_DEFAULT_PERMISSIONS[normalizedRole] || ROLE_DEFAULT_PERMISSIONS.SALES_EXEC;
     return { ...base };
-  }, [isAdmin, currentUser?.id, policies, normalizedRole]);
+  }, [isAdmin, currentUser?.id, currentUser?.email, policies, normalizedRole]);
 
   const hasAccess = useCallback((moduleKey: string): boolean => {
     return getPermission(moduleKey).active;

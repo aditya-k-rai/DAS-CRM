@@ -63,6 +63,35 @@ export class UsersController {
     return this.usersService.getCompanyKey(orgId);
   }
 
+  @Get('module-policies')
+  @ApiOperation({ summary: 'Get workspace module visibility policies and audit trail' })
+  async getModulePolicies(
+    @CurrentUser() user: any,
+    @Query('organizationId') queryOrgId?: string,
+  ) {
+    const orgId = this.getAuthorizedOrgId(user, queryOrgId);
+    return this.usersService.getModulePolicies(orgId);
+  }
+
+  @Patch('module-policies')
+  @ApiOperation({ summary: 'Update module visibility policies and audit trail' })
+  async updateModulePolicy(
+    @CurrentUser() adminUser: any,
+    @Body()
+    body: {
+      userId?: string;
+      userEmail?: string;
+      moduleKey?: string;
+      permission?: any;
+      auditEntry?: any;
+      policies?: Record<string, any>;
+      organizationId?: string;
+    },
+  ) {
+    const orgId = this.getAuthorizedOrgId(adminUser, body.organizationId);
+    return this.usersService.updateModulePolicy(orgId, adminUser.id, body);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Admin directly adds an employee or unassigned user to the company workspace' })
   async createUser(

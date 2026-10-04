@@ -30,12 +30,14 @@ const ROUTE_TO_MODULE_KEY: Record<string, string> = {
   '/goals': 'GOALS',
   '/hr/interviews': 'INTERVIEWS',
   '/communicate': 'UPCOMING_COMMS',
+  '/notice-board': 'UPCOMING_COMMS',
   '/settings': 'SETTINGS',
   '/profile': 'PROFILE',
   '/help': 'SUPPORT',
   '/about': 'SUPPORT',
   '/tl/lead-assignment': 'LEAD_ASSIGNMENT',
   '/tasks': 'TASKS',
+  '/follow-ups': 'TASKS',
 };
 
 const ROLE_DEFAULT_MODULES: Record<string, string[]> = {
@@ -193,9 +195,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       try {
         const rawPolicies = localStorage.getItem('@das_crm_module_policies_v1');
         const policies = rawPolicies ? JSON.parse(rawPolicies) : {};
-        const policyKey = `${currentUser?.id}:${modKey}`;
-        if (policies[policyKey] !== undefined) {
-          hasAccess = Boolean(policies[policyKey].active);
+        const policyKeyId = currentUser?.id ? `${currentUser.id}:${modKey}` : null;
+        const policyKeyEmail = currentUser?.email ? `${currentUser.email.toLowerCase().trim()}:${modKey}` : null;
+
+        if (policyKeyId && policies[policyKeyId] !== undefined) {
+          hasAccess = Boolean(policies[policyKeyId].active);
+        } else if (policyKeyEmail && policies[policyKeyEmail] !== undefined) {
+          hasAccess = Boolean(policies[policyKeyEmail].active);
         } else {
           // Fresh user: strictly permitted only to their role defaults
           const defaults = ROLE_DEFAULT_MODULES[normalizedRole] || [];
@@ -210,7 +216,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         router.replace('/dashboard');
       }
     }
-  }, [pathname, isAdmin, isUnassigned, normalizedRole, currentUser?.id, router]);
+  }, [pathname, isAdmin, isUnassigned, normalizedRole, currentUser?.id, currentUser?.email, router]);
 
   return (
     <div className="flex min-h-screen relative overflow-x-hidden">
