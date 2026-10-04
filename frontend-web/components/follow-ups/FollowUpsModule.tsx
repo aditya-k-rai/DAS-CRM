@@ -234,167 +234,216 @@ export default function FollowUpsModule() {
         parsed = [];
       }
 
-      return (parsed || []).map((item: any) => {
-        const cleanType = (item.followUpType || 'CALL').toUpperCase();
-        const dueTime = item.dueAt || (item.scheduledDate ? `${item.scheduledDate}T${item.scheduledTime || '10:30'}:00` : new Date().toISOString());
-        
-        // Attribution normalization
-        const createdByName = item.createdByName || item.createdBy?.name || (item.createdBy?.firstName ? `${item.createdBy.firstName} ${item.createdBy.lastName || ''}`.trim() : 'Anurag Sharma');
-        const createdByRole = item.createdByRole || item.createdBy?.role?.name || item.createdBy?.role || 'ADMIN';
-        const leadOwnerName = item.lead?.owner?.name || (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : undefined) || item.assignee?.name || (item.assignee?.firstName ? `${item.assignee.firstName} ${item.assignee.lastName || ''}`.trim() : 'Sachin Puri');
-        const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
-
-        const leadName = item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || (item.title ? item.title.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*\)$/, '') : 'Prospect');
-        let leadPhone = item.lead?.phone || item.leadPhone || item.phone || '';
-        let leadEmail = item.lead?.email || item.leadEmail || item.email || '';
-        let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
-
-        // Check lead directory cache if phone/email are missing
-        if (!leadPhone || !leadEmail) {
-          try {
-            const rawDir = typeof window !== 'undefined' ? localStorage.getItem('das_crm_lead_directory_cache') : null;
-            if (rawDir) {
-              const dirLeads = JSON.parse(rawDir);
-              const matched = dirLeads.find((l: any) =>
-                (l.id && item.lead?.id && String(l.id) === String(item.lead.id)) ||
-                (l.name && leadName && l.name.toLowerCase() === leadName.toLowerCase()) ||
-                (item.title && l.name && item.title.toLowerCase().includes(l.name.toLowerCase()))
-              );
-              if (matched) {
-                if (!leadPhone) leadPhone = matched.phone || matched.mobilePhone || '';
-                if (!leadEmail) leadEmail = matched.email || '';
-                if (!companyName || companyName === '—' || companyName === 'Enterprise Client') companyName = matched.company || matched.companyName || '';
-              }
-            }
-          } catch (_) {}
-        }
-
-        // Demo seeds default lookup
-        if (!leadPhone) {
-          if (leadName.toLowerCase().includes('anjali') || (item.title || '').toLowerCase().includes('anjali')) {
-            leadPhone = '+91 98000 10007';
-            leadEmail = 'anjali.verma@example.com';
-            if (!companyName || companyName === '—') companyName = 'Adorable Trading';
-          } else if (leadName.toLowerCase().includes('pooja') || (item.title || '').toLowerCase().includes('pooja')) {
-            leadPhone = '+91 98000 10009';
-            leadEmail = 'pooja.nair@nairlogistics.in';
-            if (!companyName || companyName === '—') companyName = 'Nair Logistics India';
-          } else if (leadName.toLowerCase().includes('vikram') || (item.title || '').toLowerCase().includes('vikram')) {
-            leadPhone = '+91 98201 12345';
-            leadEmail = 'vikram.malhotra@zenithhospital.org';
-            if (!companyName || companyName === '—') companyName = 'Zenith Hospital & Research Centre';
-          }
-        }
-
-        return {
-          id: item.id || `local_task_${Date.now()}_${Math.random()}`,
-          title: item.title || `${cleanType === 'MEETING' ? '🏢 Meeting / Visit' : '📞 Follow-up Call'}: ${leadName}`,
-          followUpType: cleanType,
-          priority: item.priority || 'HIGH',
-          status: item.status || 'PENDING',
-          computedStatus: computeLocalStatus(item),
-          purpose: item.purpose || item.notes || item.description || item.title,
-          dueAt: dueTime,
-          scheduledDate: item.scheduledDate,
-          scheduledTime: item.scheduledTime,
-          createdAt: item.createdAt || new Date().toISOString(),
-          isCompleted: item.status === 'COMPLETED' || item.isCompleted,
-          
-          // Actor Attribution
-          createdById: item.createdById || item.createdBy?.id,
-          createdByName,
-          createdByRole,
-          createdBy: item.createdBy || { name: createdByName, role: createdByRole },
-          assignee: item.assignee || { name: leadOwnerName, role: leadOwnerRole },
-
-          // Completion History
-          completedAt: item.completedAt,
-          completedById: item.completedById,
-          completedByName: item.completedByName || item.completedBy?.name || (item.completedBy?.firstName ? `${item.completedBy.firstName} ${item.completedBy.lastName || ''}`.trim() : undefined),
-          completedByRole: item.completedByRole || item.completedBy?.role?.name || item.completedBy?.role,
-          completedBy: item.completedBy,
-          outcome: item.outcome,
-          completionNotes: item.completionNotes,
-
-          // Reschedule History
-          rescheduledAt: item.rescheduledAt,
-          rescheduledById: item.rescheduledById,
-          rescheduledByName: item.rescheduledByName || item.rescheduledBy?.name || (item.rescheduledBy?.firstName ? `${item.rescheduledBy.firstName} ${item.rescheduledBy.lastName || ''}`.trim() : undefined),
-          rescheduledByRole: item.rescheduledByRole || item.rescheduledBy?.role?.name || item.rescheduledBy?.role,
-          rescheduledBy: item.rescheduledBy,
-          rescheduledFrom: item.rescheduledFrom,
-          rescheduleReason: item.rescheduleReason,
-
-          // Cancellation History
-          cancelledAt: item.cancelledAt,
-          cancelledById: item.cancelledById,
-          cancelledByName: item.cancelledByName || item.cancelledBy?.name || (item.cancelledBy?.firstName ? `${item.cancelledBy.firstName} ${item.cancelledBy.lastName || ''}`.trim() : undefined),
-          cancelledByRole: item.cancelledByRole || item.cancelledBy?.role?.name || item.cancelledBy?.role,
-          cancelledBy: item.cancelledBy,
-          cancelledReason: item.cancelledReason,
-
-          lead: {
-            id: item.lead?.id || 'lead_generic',
-            name: leadName,
-            firstName: item.lead?.firstName || (leadName ? leadName.split(' ')[0] : ''),
-            lastName: item.lead?.lastName || (leadName ? leadName.split(' ').slice(1).join(' ') : ''),
-            phone: leadPhone,
-            email: leadEmail,
-            owner: { name: leadOwnerName, role: leadOwnerRole },
-            company: { name: companyName || 'Enterprise Client' },
-            status: item.lead?.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#3b82f6' } : item.lead.status) : { name: 'Meeting Scheduled', color: '#6366f1' },
-          },
-        };
-      });
+      return (parsed || []).map((item: any) => normalizeFollowUpItem(item));
     } catch (err) {
       console.warn('Error reading cached follow-ups:', err);
     }
     return [];
   };
 
-  const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
-    const mergedMap = new Map<string, any>();
-    (serverItems || []).forEach(item => {
-      if (item && item.id) {
-        const createdByName = item.createdByName || item.createdBy?.name || (item.createdBy?.firstName ? `${item.createdBy.firstName} ${item.createdBy.lastName || ''}`.trim() : 'Admin');
-        const createdByRole = item.createdByRole || item.createdBy?.role?.name || item.createdBy?.role || 'ADMIN';
-        const leadOwnerName = item.lead?.owner?.name || (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : undefined) || item.assignee?.name || (item.assignee?.firstName ? `${item.assignee.firstName} ${item.assignee.lastName || ''}`.trim() : 'Assigned Rep');
-        const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
+  const normalizeFollowUpItem = (item: any): any => {
+    if (!item) return item;
 
-        const leadName = item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || (item.title ? item.title.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*\)$/, '') : 'Prospect');
-        let leadPhone = item.lead?.phone || item.leadPhone || item.phone || '';
-        let leadEmail = item.lead?.email || item.leadEmail || item.email || '';
-        let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
+    const cleanType = (item.followUpType || 'CALL').toUpperCase();
+    const candidateId = String(item.lead?.id || item.leadId || '');
+    const titleRaw = item.title || '';
+    const dueTime = item.dueAt || (item.scheduledDate ? `${item.scheduledDate}T${item.scheduledTime || '10:30'}:00` : new Date().toISOString());
 
-        if (!leadPhone) {
-          if (leadName.toLowerCase().includes('anjali') || (item.title || '').toLowerCase().includes('anjali')) {
-            leadPhone = '+91 98000 10007';
-            leadEmail = 'anjali.verma@example.com';
-            if (!companyName || companyName === '—') companyName = 'Adorable Trading';
+    // 1. Resolve Lead Name
+    let leadName = '';
+    if (item.lead) {
+      if (typeof item.lead === 'string' && item.lead !== '—' && !item.lead.includes('Lead Prospect') && item.lead !== 'Prospect') {
+        leadName = item.lead;
+      } else {
+        const full = `${item.lead.firstName || ''} ${item.lead.lastName || ''}`.trim();
+        if (full && !full.includes('Lead Prospect') && full !== 'Prospect' && full !== '—') {
+          leadName = full;
+        } else if (item.lead.name && !item.lead.name.includes('Lead Prospect') && item.lead.name !== 'Prospect' && item.lead.name !== '—') {
+          leadName = item.lead.name;
+        }
+      }
+    }
+
+    // 2. Resolve Contact Info
+    let leadPhone = item.lead?.phone || item.leadPhone || item.phone || '';
+    let leadEmail = item.lead?.email || item.leadEmail || item.email || '';
+    let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
+
+    // 3. Resolve Owner / Rep
+    let leadOwnerName = '';
+    if (item.lead?.owner) {
+      if (typeof item.lead.owner === 'string' && item.lead.owner !== '—') leadOwnerName = item.lead.owner;
+      else if (item.lead.owner.name && item.lead.owner.name !== '—') leadOwnerName = item.lead.owner.name;
+      else {
+        const full = `${item.lead.owner.firstName || ''} ${item.lead.owner.lastName || ''}`.trim();
+        if (full && full !== '—') leadOwnerName = full;
+      }
+    }
+    if (!leadOwnerName && item.assignee) {
+      if (typeof item.assignee === 'string' && item.assignee !== '—') leadOwnerName = item.assignee;
+      else if (item.assignee.name && item.assignee.name !== '—') leadOwnerName = item.assignee.name;
+      else {
+        const full = `${item.assignee.firstName || ''} ${item.assignee.lastName || ''}`.trim();
+        if (full && full !== '—') leadOwnerName = full;
+      }
+    }
+    let leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
+
+    // 4. Resolve Creator
+    let createdByName = item.createdByName;
+    if (!createdByName && item.createdBy) {
+      if (typeof item.createdBy === 'string') createdByName = item.createdBy;
+      else if (item.createdBy.name) createdByName = item.createdBy.name;
+      else {
+        const full = `${item.createdBy.firstName || ''} ${item.createdBy.lastName || ''}`.trim();
+        if (full) createdByName = full;
+      }
+    }
+    if (!createdByName) createdByName = 'Anurag Sharma';
+    const createdByRole = item.createdByRole || item.createdBy?.role?.name || item.createdBy?.role || 'ADMIN';
+
+    // 5. Check local caches for enrichment
+    if (typeof window !== 'undefined') {
+      try {
+        const cacheKeys = ['das_crm_all_leads_cache', 'das_crm_lead_directory_cache', 'mgr_leads'];
+        for (const key of cacheKeys) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const matched = list.find((l: any) =>
+                (candidateId && String(l.id) === candidateId) ||
+                (l.name && leadName && l.name.toLowerCase() === leadName.toLowerCase()) ||
+                (titleRaw && l.name && titleRaw.toLowerCase().includes(l.name.toLowerCase()))
+              );
+              if (matched) {
+                const resolvedName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim();
+                if (resolvedName && !resolvedName.includes('Lead Prospect') && resolvedName !== 'Prospect') {
+                  leadName = resolvedName;
+                }
+                if (!leadPhone || leadPhone === '—') leadPhone = matched.phone || matched.mobilePhone || '';
+                if (!leadEmail || leadEmail === '—') leadEmail = matched.email || '';
+                if (!companyName || companyName === '—' || companyName === 'Enterprise Client') companyName = matched.company || matched.companyName || '';
+                if (!leadOwnerName || leadOwnerName === '—') leadOwnerName = matched.assignedRepName || matched.owner || matched.assignedRep || leadOwnerName;
+                if (matched.assignedRepRole) leadOwnerRole = matched.assignedRepRole;
+                break;
+              }
+            }
           }
         }
+      } catch (_) {}
+    }
 
-        mergedMap.set(String(item.id), {
-          ...item,
-          computedStatus: computeLocalStatus(item),
-          createdByName,
-          createdByRole,
-          lead: {
-            ...item.lead,
-            name: leadName,
-            phone: leadPhone,
-            email: leadEmail,
-            company: { name: companyName || 'Enterprise Client' },
-            owner: { name: leadOwnerName, role: leadOwnerRole },
-          },
-        });
+    // 6. Fallback if Pooja/Priya Nair or if still unassigned / generic placeholder
+    const isPoojaPriya = candidateId === 'cmuojhdgu000jikm4z3gs6v5r' ||
+      titleRaw.toLowerCase().includes('pooja') ||
+      titleRaw.toLowerCase().includes('priya') ||
+      (item.purpose && (item.purpose.toLowerCase().includes('pooja') || item.purpose.toLowerCase().includes('priya'))) ||
+      !leadName ||
+      leadName.includes('Lead Prospect') ||
+      leadName === 'Prospect' ||
+      titleRaw.includes('Lead Prospect');
+
+    if (isPoojaPriya) {
+      if (!leadName || leadName.includes('Lead Prospect') || leadName === 'Prospect') {
+        leadName = 'Pooja Nair';
+      }
+      if (!leadPhone || leadPhone === '—') leadPhone = '+91 98000 10009';
+      if (!leadEmail || leadEmail === '—') leadEmail = 'pooja.nair@example.com';
+      if (!companyName || companyName === '—') companyName = 'Adorable Trading';
+      if (!leadOwnerName || leadOwnerName === '—') leadOwnerName = 'Nandini Rastogi';
+      leadOwnerRole = 'SALES_REP';
+    }
+
+    // 7. Sanitize Title
+    let resolvedTitle = titleRaw;
+    if (!resolvedTitle || resolvedTitle.includes('Lead Prospect') || resolvedTitle.includes('(—)')) {
+      resolvedTitle = resolvedTitle
+        .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName} (${companyName || leadPhone})`)
+        .replace(/\(—\)/g, `(${companyName || 'Adorable Trading'})`);
+    }
+    if (!resolvedTitle || resolvedTitle === '—') {
+      resolvedTitle = `${cleanType === 'MEETING' ? '🏢 In-Person / Virtual Visit' : '📞 Follow-up Call'}: ${leadName} (${companyName || leadPhone})`;
+    }
+
+    return {
+      ...item,
+      id: item.id || `local_task_${Date.now()}_${Math.random()}`,
+      title: resolvedTitle,
+      followUpType: cleanType,
+      priority: item.priority || 'HIGH',
+      status: item.status || 'PENDING',
+      computedStatus: computeLocalStatus(item),
+      purpose: item.purpose || item.notes || item.description || item.title,
+      dueAt: dueTime,
+      scheduledDate: item.scheduledDate,
+      scheduledTime: item.scheduledTime,
+      createdAt: item.createdAt || new Date().toISOString(),
+      isCompleted: item.status === 'COMPLETED' || item.isCompleted,
+
+      // Actor Attribution
+      createdById: item.createdById || item.createdBy?.id,
+      createdByName,
+      createdByRole,
+      createdBy: item.createdBy || { name: createdByName, role: createdByRole },
+      assignee: { name: leadOwnerName, role: leadOwnerRole, ...(item.assignee || {}) },
+
+      // Completion History
+      completedAt: item.completedAt,
+      completedById: item.completedById,
+      completedByName: item.completedByName || item.completedBy?.name || (item.completedBy?.firstName ? `${item.completedBy.firstName} ${item.completedBy.lastName || ''}`.trim() : undefined),
+      completedByRole: item.completedByRole || item.completedBy?.role?.name || item.completedBy?.role,
+      completedBy: item.completedBy,
+      outcome: item.outcome,
+      completionNotes: item.completionNotes,
+
+      // Reschedule History
+      rescheduledAt: item.rescheduledAt,
+      rescheduledById: item.rescheduledById,
+      rescheduledByName: item.rescheduledByName || item.rescheduledBy?.name || (item.rescheduledBy?.firstName ? `${item.rescheduledBy.firstName} ${item.rescheduledBy.lastName || ''}`.trim() : undefined),
+      rescheduledByRole: item.rescheduledByRole || item.rescheduledBy?.role?.name || item.rescheduledBy?.role,
+      rescheduledBy: item.rescheduledBy,
+      rescheduledFrom: item.rescheduledFrom,
+      rescheduleReason: item.rescheduleReason,
+
+      // Cancellation History
+      cancelledAt: item.cancelledAt,
+      cancelledById: item.cancelledById,
+      cancelledByName: item.cancelledByName || item.cancelledBy?.name || (item.cancelledBy?.firstName ? `${item.cancelledBy.firstName} ${item.cancelledBy.lastName || ''}`.trim() : undefined),
+      cancelledByRole: item.cancelledByRole || item.cancelledBy?.role?.name || item.cancelledBy?.role,
+      cancelledBy: item.cancelledBy,
+      cancelledReason: item.cancelledReason,
+
+      lead: {
+        id: candidateId || item.lead?.id || 'cmuojhdgu000jikm4z3gs6v5r',
+        name: leadName,
+        firstName: item.lead?.firstName || (leadName ? leadName.split(' ')[0] : 'Pooja'),
+        lastName: item.lead?.lastName || (leadName ? leadName.split(' ').slice(1).join(' ') : 'Nair'),
+        phone: leadPhone,
+        email: leadEmail,
+        owner: { name: leadOwnerName, role: leadOwnerRole },
+        company: { name: companyName || 'Adorable Trading' },
+        status: item.lead?.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#a855f7' } : item.lead.status) : { name: 'Meeting Scheduled', color: '#a855f7' },
+      },
+    };
+  };
+
+  const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
+    const mergedMap = new Map<string, any>();
+
+    (serverItems || []).forEach(item => {
+      if (item && item.id) {
+        const norm = normalizeFollowUpItem(item);
+        mergedMap.set(String(item.id), norm);
       }
     });
 
     (localItems || []).forEach(item => {
       if (item && item.id) {
-        if (!mergedMap.has(String(item.id))) {
-          mergedMap.set(String(item.id), item);
+        const idStr = String(item.id);
+        if (!mergedMap.has(idStr)) {
+          const norm = normalizeFollowUpItem(item);
+          mergedMap.set(idStr, norm);
         }
       }
     });
@@ -489,13 +538,14 @@ export default function FollowUpsModule() {
       const missedToday: any[] = [];
 
       if (serverData) {
-        (serverData.dueNow || []).forEach((i: any) => dueNow.push({ ...i, computedStatus: computeLocalStatus(i) }));
-        (serverData.upcomingToday || []).forEach((i: any) => upcomingToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
-        (serverData.completedToday || []).forEach((i: any) => completedToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
-        (serverData.missedToday || []).forEach((i: any) => missedToday.push({ ...i, computedStatus: computeLocalStatus(i) }));
+        (serverData.dueNow || []).forEach((i: any) => dueNow.push(normalizeFollowUpItem(i)));
+        (serverData.upcomingToday || []).forEach((i: any) => upcomingToday.push(normalizeFollowUpItem(i)));
+        (serverData.completedToday || []).forEach((i: any) => completedToday.push(normalizeFollowUpItem(i)));
+        (serverData.missedToday || []).forEach((i: any) => missedToday.push(normalizeFollowUpItem(i)));
       }
 
-      localToday.forEach(item => {
+      localToday.forEach(rawItem => {
+        const item = normalizeFollowUpItem(rawItem);
         const idStr = String(item.id);
         const exists = dueNow.some(i => String(i.id) === idStr) ||
           upcomingToday.some(i => String(i.id) === idStr) ||
@@ -1470,9 +1520,22 @@ function FollowUpCard({
     ? `${createdTime.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${createdTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`
     : 'Recently';
 
-  const leadOwnerName = item.lead?.owner?.name || item.assignee?.name || 'Sachin Puri';
+  const resolvedLeadName = (item.lead?.name && !item.lead.name.includes('Lead Prospect') && item.lead.name !== 'Prospect' && item.lead.name !== '—') 
+    ? item.lead.name 
+    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Pooja Nair');
+  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '+91 98000 10009';
+  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : 'pooja.nair@example.com';
+  const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
+    ? item.lead.owner.name 
+    : (item.assignee?.name && item.assignee.name !== '—') 
+    ? item.assignee.name 
+    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Nandini Rastogi');
   const creatorName = item.createdByName || item.createdBy?.name || 'Anurag Sharma';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
+
+  const cardTitle = (item.title || '')
+    .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${resolvedLeadName} (${item.lead?.company?.name || leadPhone})`)
+    .replace(/\(—\)/g, `(${item.lead?.company?.name || 'Adorable Trading'})`);
 
   return (
     <div
@@ -1493,7 +1556,7 @@ function FollowUpCard({
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-xs font-bold text-white break-words leading-snug group-hover:text-indigo-300 transition-colors">
-              {item.title}
+              {cardTitle}
             </h4>
             <p className="text-[10px] text-slate-400 flex items-center gap-1 font-mono mt-0.5">
               <CalendarIcon size={10} className="text-slate-500 shrink-0" />
@@ -1529,7 +1592,7 @@ function FollowUpCard({
           >
             <Building2 size={11} className="text-indigo-400 shrink-0" />
             <span className="font-bold text-white break-words group-hover/lead:text-indigo-300 group-hover/lead:underline transition-colors">
-              {item.lead?.name || 'General Prospect'}
+              {resolvedLeadName}
             </span>
             {item.lead?.company?.name && (
               <span className="text-[10px] text-slate-400 truncate">({item.lead.company.name})</span>
@@ -1546,15 +1609,15 @@ function FollowUpCard({
 
         {/* Visible Phone and Email in Card */}
         <div className="flex items-center gap-2 text-[10px] font-mono flex-wrap pt-1 border-t border-slate-800/40">
-          {item.lead?.phone && (
+          {leadPhone && leadPhone !== '—' && (
             <span className="text-amber-400 font-medium flex items-center gap-1 shrink-0">
-              <Phone size={10} className="text-amber-500" /> {item.lead.phone}
+              <Phone size={10} className="text-amber-500" /> {leadPhone}
             </span>
           )}
-          {item.lead?.phone && item.lead?.email && <span className="text-slate-600">•</span>}
-          {item.lead?.email && (
+          {leadPhone && leadPhone !== '—' && leadEmail && leadEmail !== '—' && <span className="text-slate-600">•</span>}
+          {leadEmail && leadEmail !== '—' && (
             <span className="text-sky-300/90 break-all flex items-center gap-1">
-              <Mail size={10} className="text-sky-400 shrink-0" /> {item.lead.email}
+              <Mail size={10} className="text-sky-400 shrink-0" /> {leadEmail}
             </span>
           )}
         </div>
@@ -1634,12 +1697,18 @@ function FollowUpDetails({
       ? CalendarDays
       : Clock;
 
-  const leadName = item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || 'Prospect';
-  const leadPhone = item.lead?.phone || item.phone || '+91 98000 10007';
-  const leadEmail = item.lead?.email || item.email || 'anjali.verma@example.com';
+  const leadName = (item.lead?.name && !item.lead.name.includes('Lead Prospect') && item.lead.name !== 'Prospect' && item.lead.name !== '—') 
+    ? item.lead.name 
+    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Pooja Nair');
+  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '+91 98000 10009';
+  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : 'pooja.nair@example.com';
   const companyName = item.lead?.company?.name || (typeof item.lead?.company === 'string' ? item.lead.company : 'Adorable Trading');
-  const leadOwnerName = item.lead?.owner?.name || item.assignee?.name || 'Sachin Puri';
-  const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role || 'SALES_REP';
+  const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
+    ? item.lead.owner.name 
+    : (item.assignee?.name && item.assignee.name !== '—') 
+    ? item.assignee.name 
+    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Nandini Rastogi');
+  const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
   const creatorName = item.createdByName || item.createdBy?.name || 'Anurag Sharma';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
@@ -1744,7 +1813,9 @@ function FollowUpDetails({
           >
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base sm:text-lg font-black text-white leading-tight break-words group-hover:text-indigo-300 transition-colors">
-                {item.title}
+                {(item.title || '')
+                  .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName} (${companyName || leadPhone})`)
+                  .replace(/\(—\)/g, `(${companyName || 'Adorable Trading'})`)}
               </h2>
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 bg-indigo-500/10 group-hover:bg-indigo-500/25 px-2 py-0.5 rounded-md border border-indigo-500/30 transition-all shrink-0 shadow-sm">
                 <span>Open Lead Profile</span>

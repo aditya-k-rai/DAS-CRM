@@ -19,6 +19,7 @@ export type ContactOutcome =
   | 'INTERESTED_MORE_INFO'
   | 'DEAL_CLOSED'
   | 'FOLLOW_UP_SCHEDULED'
+  | 'MEETING_SCHEDULED'
   | 'BUSY'
   | 'NO_ANSWER'
   | 'SWITCH_OFF'
@@ -31,6 +32,7 @@ export interface ContactAttempt {
   id: string;
   type: ContactType;
   outcome: ContactOutcome;
+  scheduledType?: 'CALL' | 'MEETING';
   by: string;                    // Rep name who made the contact
   byRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
   timestamp: string;             // Full ISO timestamp
@@ -114,6 +116,7 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
   INTERESTED_MORE_INFO: { emoji: '🔥', color: '#f97316', label: 'Interested — Wants More Info' },
   DEAL_CLOSED: { emoji: '🎉', color: '#22c55e', label: 'Deal Closed!' },
   FOLLOW_UP_SCHEDULED: { emoji: '📅', color: '#38bdf8', label: 'Follow-up Scheduled' },
+  MEETING_SCHEDULED: { emoji: '🏢', color: '#a855f7', label: 'Meeting Scheduled' },
   BUSY: { emoji: '🔴', color: '#f59e0b', label: 'Line Busy' },
   NO_ANSWER: { emoji: '🔕', color: '#94a3b8', label: 'No Answer' },
   SWITCH_OFF: { emoji: '📴', color: '#6b7280', label: 'Switched Off' },
@@ -139,12 +142,13 @@ export function CallContactHistory({
   interestedProduct = '—',
 }: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'ALL' | ContactType>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | ContactType>('ALL');
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = history.length;
   const connectedCalls = history.filter(h => ['CALL_OUT', 'CALL_IN'].includes(h.type) && h.durationSeconds && h.durationSeconds > 0).length;
   const missedOrNoAnswer = history.filter(h => ['CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(h.type) || h.outcome === 'NO_ANSWER' || h.outcome === 'BUSY').length;
+  const meetingCount = history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes))).length;
   const waCount = history.filter(h => h.type === 'WHATSAPP').length;
   const emailCount = history.filter(h => h.type === 'EMAIL').length;
   const totalTalkSecs = history.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
@@ -155,7 +159,11 @@ export function CallContactHistory({
     : (history.find(h => h.productInterest)?.productInterest || '—');
 
   // ── Filter ──────────────────────────────────────────────────────────────────
-  const filtered = filterType === 'ALL' ? history : history.filter(h => h.type === filterType);
+  const filtered = filterType === 'ALL'
+    ? history
+    : filterType === 'MEETING'
+    ? history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
+    : history.filter(h => h.type === filterType);
   const grouped = groupByDate(filtered);
 
   return (
@@ -171,9 +179,16 @@ export function CallContactHistory({
             <p className="text-[11px] text-slate-400">Every call, WhatsApp & email — with outcome, rep, duration & notes</p>
           </div>
         </div>
-        <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-full">
-          {totalAttempts} Total Contact Attempts
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {meetingCount > 0 && (
+            <span className="text-[11px] font-extrabold text-purple-300 bg-purple-500/15 border border-purple-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <span>🏢</span> {meetingCount} Meeting{meetingCount > 1 ? 's' : ''} Scheduled
+            </span>
+          )}
+          <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-full">
+            {totalAttempts} Total Contact Attempts
+          </span>
+        </div>
       </div>
 
       {/* ── Stats Summary Grid ────────────────────────────────────────────────── */}
@@ -205,18 +220,18 @@ export function CallContactHistory({
 
       {/* ── Filter Chips ──────────────────────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
-        {(['ALL', 'CALL_OUT', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
+        {(['ALL', 'MEETING', 'CALL_OUT', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilterType(f)}
-            className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all"
+            className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
             style={{
-              background: filterType === f ? 'rgba(99,102,241,0.25)' : 'rgba(15,23,42,0.8)',
-              borderColor: filterType === f ? 'rgba(99,102,241,0.5)' : 'rgb(30,41,59)',
-              color: filterType === f ? '#818cf8' : '#94a3b8',
+              background: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : 'rgba(99,102,241,0.25)') : 'rgba(15,23,42,0.8)',
+              borderColor: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : 'rgba(99,102,241,0.5)') : 'rgb(30,41,59)',
+              color: filterType === f ? (f === 'MEETING' ? '#c084fc' : '#818cf8') : '#94a3b8',
             }}
           >
-            {f === 'ALL' ? `All (${totalAttempts})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
+            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
           </button>
         ))}
       </div>
@@ -242,10 +257,20 @@ export function CallContactHistory({
 
               {items.map((attempt, idx) => {
                 const typeMeta = (attempt?.type && TYPE_META[attempt.type]) || TYPE_META.CALL_OUT;
-                const outcomeMeta = (attempt?.outcome && OUTCOME_META[attempt.outcome]) || OUTCOME_META.TALKED;
+                
+                // Intelligently detect if this outreach record represents a scheduled meeting / visit
+                const isMeeting =
+                  attempt?.outcome === 'MEETING_SCHEDULED' ||
+                  attempt?.scheduledType === 'MEETING' ||
+                  Boolean(attempt?.notes && /meeting|visit|in-person/i.test(attempt.notes));
+
+                const outcomeMeta = isMeeting
+                  ? OUTCOME_META.MEETING_SCHEDULED
+                  : (attempt?.outcome && OUTCOME_META[attempt.outcome]) || OUTCOME_META.TALKED;
+
                 const { time, date } = formatTimestamp(attempt?.timestamp);
                 const isExpanded = expandedId === attempt?.id;
-                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '');
+                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'MEETING_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '') || isMeeting;
                 const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER'].includes(attempt?.outcome || '');
 
                 return (
@@ -253,16 +278,27 @@ export function CallContactHistory({
                     {/* Timeline Node */}
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center border-2 flex-shrink-0 z-10 mt-0.5"
-                      style={{ background: typeMeta.bg, borderColor: typeMeta.border }}
+                      style={{
+                        background: isMeeting ? 'rgba(168,85,247,0.15)' : typeMeta.bg,
+                        borderColor: isMeeting ? 'rgba(168,85,247,0.45)' : typeMeta.border,
+                      }}
                     >
-                      <span style={{ color: typeMeta.color }}>{typeMeta.icon}</span>
+                      <span style={{ color: isMeeting ? '#c084fc' : typeMeta.color }}>
+                        {isMeeting ? <Calendar size={13} className="text-purple-400" /> : typeMeta.icon}
+                      </span>
                     </div>
 
                     {/* Card */}
-                    <div className="flex-1 rounded-2xl border overflow-hidden" style={{ borderColor: isPositive ? typeMeta.border : 'rgb(30,41,59)', background: 'rgba(15,23,42,0.7)' }}>
+                    <div
+                      className="flex-1 rounded-2xl border overflow-hidden"
+                      style={{
+                        borderColor: isMeeting ? 'rgba(168,85,247,0.4)' : isPositive ? typeMeta.border : 'rgb(30,41,59)',
+                        background: isMeeting ? 'rgba(26,16,43,0.7)' : 'rgba(15,23,42,0.7)',
+                      }}
+                    >
                       {/* Card Header — Always Visible */}
                       <button
-                        className="w-full text-left p-3 flex items-start gap-3 hover:bg-slate-900/40 transition-colors"
+                        className="w-full text-left p-3 flex items-start gap-3 hover:bg-slate-900/40 transition-colors cursor-pointer"
                         onClick={() => setExpandedId(isExpanded ? null : attempt.id)}
                       >
                         <div className="flex-1 min-w-0">
@@ -274,8 +310,15 @@ export function CallContactHistory({
                             >
                               {typeMeta.icon} {typeMeta.label}
                             </span>
-                            <span className="text-[11px] font-extrabold" style={{ color: outcomeMeta.color }}>
-                              {outcomeMeta.emoji} {outcomeMeta.label}
+                            <span
+                              className="text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1"
+                              style={{
+                                color: outcomeMeta.color,
+                                background: isMeeting ? 'rgba(168,85,247,0.15)' : 'transparent',
+                                border: isMeeting ? '1px solid rgba(168,85,247,0.3)' : 'none',
+                              }}
+                            >
+                              <span>{outcomeMeta.emoji}</span> <span>{outcomeMeta.label}</span>
                             </span>
                             {attempt.durationSeconds !== undefined && attempt.durationSeconds > 0 && (
                               <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
@@ -340,23 +383,43 @@ export function CallContactHistory({
                             </div>
                           )}
 
-                          {/* Follow-up scheduled */}
+                          {/* Follow-up OR Meeting scheduled (Differentiated with distinct styling & label) */}
                           {attempt.followUpDate && (
-                            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25">
-                              <Calendar size={13} className="text-sky-400 flex-shrink-0" />
-                              <div>
-                                <p className="text-[10px] font-extrabold text-slate-400 uppercase">Follow-Up / Callback Scheduled</p>
-                                <p className="text-xs font-extrabold text-sky-300">
-                                  {(() => {
-                                    const d = new Date(attempt.followUpDate);
-                                    return !isNaN(d.getTime())
-                                      ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                      : attempt.followUpDate;
-                                  })()}
-                                  {attempt.followUpTime && <span className="ml-2">at {attempt.followUpTime}</span>}
-                                </p>
+                            isMeeting ? (
+                              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-500/12 border border-purple-500/35">
+                                <Calendar size={15} className="text-purple-400 flex-shrink-0" />
+                                <div>
+                                  <p className="text-[10px] font-black text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>🏢</span> IN-PERSON / VIRTUAL MEETING SCHEDULED
+                                  </p>
+                                  <p className="text-xs font-extrabold text-purple-200 mt-0.5">
+                                    {(() => {
+                                      const d = new Date(attempt.followUpDate);
+                                      return !isNaN(d.getTime())
+                                        ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : attempt.followUpDate;
+                                    })()}
+                                    {attempt.followUpTime && <span className="ml-2 font-black text-white">at {attempt.followUpTime}</span>}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25">
+                                <Calendar size={13} className="text-sky-400 flex-shrink-0" />
+                                <div>
+                                  <p className="text-[10px] font-extrabold text-slate-400 uppercase">Follow-Up / Callback Scheduled</p>
+                                  <p className="text-xs font-extrabold text-sky-300">
+                                    {(() => {
+                                      const d = new Date(attempt.followUpDate);
+                                      return !isNaN(d.getTime())
+                                        ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : attempt.followUpDate;
+                                    })()}
+                                    {attempt.followUpTime && <span className="ml-2">at {attempt.followUpTime}</span>}
+                                  </p>
+                                </div>
+                              </div>
+                            )
                           )}
 
                           {/* Full timestamp */}

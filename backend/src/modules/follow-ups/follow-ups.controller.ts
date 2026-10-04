@@ -22,40 +22,46 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class FollowUpsController {
   constructor(private readonly followUpsService: FollowUpsService) {}
 
+  private extractRole(user: any): string {
+    if (!user) return '';
+    if (typeof user.role === 'string') return user.role;
+    return user.role?.name || '';
+  }
+
   @Get()
   @ApiOperation({ summary: 'List follow-ups with filters, search, sort, pagination' })
   findAll(@CurrentUser() user: any, @Query() query: any) {
-    return this.followUpsService.findAll(user.organizationId, user.id, query, user.role);
+    return this.followUpsService.findAll(user.organizationId, user.id, query, this.extractRole(user));
   }
 
   @Get('summary')
   @ApiOperation({ summary: 'Get follow-up summary counts for dashboard cards' })
   getSummary(@CurrentUser() user: any) {
-    return this.followUpsService.getSummary(user.organizationId, user.id, user.role);
+    return this.followUpsService.getSummary(user.organizationId, user.id, this.extractRole(user));
   }
 
   @Get('today')
   @ApiOperation({ summary: 'Get today follow-ups segmented into Due Now, Upcoming, Completed, Missed' })
   getToday(@CurrentUser() user: any) {
-    return this.followUpsService.getToday(user.organizationId, user.id, user.role);
+    return this.followUpsService.getToday(user.organizationId, user.id, this.extractRole(user));
   }
 
   @Get('calendar')
   @ApiOperation({ summary: 'Get follow-ups for a date range (calendar view)' })
   getCalendar(@CurrentUser() user: any, @Query() query: { dateFrom: string; dateTo: string }) {
-    return this.followUpsService.getCalendar(user.organizationId, user.id, query, user.role);
+    return this.followUpsService.getCalendar(user.organizationId, user.id, query, this.extractRole(user));
   }
 
   @Get('search')
   @ApiOperation({ summary: 'Search follow-ups across authorized records' })
   search(@CurrentUser() user: any, @Query('q') q: string) {
-    return this.followUpsService.search(user.organizationId, user.id, q, user.role);
+    return this.followUpsService.search(user.organizationId, user.id, q, this.extractRole(user));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single follow-up with full details and timeline' })
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.followUpsService.findOne(user.organizationId, user.id, id, user.role);
+    return this.followUpsService.findOne(user.organizationId, user.id, id, this.extractRole(user));
   }
 
   @Post()

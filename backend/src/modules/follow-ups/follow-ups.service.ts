@@ -18,9 +18,10 @@ export class FollowUpsService {
    * Build the authorization WHERE clause for a user.
    * Admins and Managers have org-wide visibility. Reps see assigned/created items.
    */
-  private getOwnershipScope(userId: string, userRole?: string) {
-    const r = (userRole || '').toUpperCase();
-    if (r.includes('ADMIN') || r.includes('MANAGER') || r.includes('OWNER')) {
+  private getOwnershipScope(userId: string, userRole?: string | any) {
+    const rawRole = typeof userRole === 'string' ? userRole : (userRole?.name || '');
+    const r = (rawRole || '').toUpperCase();
+    if (r.includes('ADMIN') || r.includes('MANAGER') || r.includes('OWNER') || r.includes('SUPER_ADMIN')) {
       return {};
     }
     return {

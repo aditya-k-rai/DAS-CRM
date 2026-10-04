@@ -59,7 +59,8 @@ interface LeadWorkspaceProps {
 function mapServerActivitiesToContactHistory(
   activities: any[] = [],
   tasks: any[] = [],
-  leadInfo: { owner?: string; requirement?: string } = {}
+  leadInfo: { owner?: string; requirement?: string } = {},
+  meetings: any[] = []
 ): ContactAttempt[] {
   const attempts: ContactAttempt[] = [];
   const seenIds = new Set<string>();
@@ -89,15 +90,24 @@ function mapServerActivitiesToContactHistory(
       if (typeStr === 'CALL' || metaType.startsWith('CALL')) {
         const cType: ContactType = (['CALL_OUT', 'CALL_IN', 'CALL_MISSED', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'CALL_SWITCH_OFF'].includes(metaType) ? metaType : 'CALL_OUT') as ContactType;
         const durSecs = meta.durationSeconds ?? (meta.durationMin ? meta.durationMin * 60 : 0);
+        const isMeeting =
+          meta.scheduledType === 'MEETING' ||
+          meta.outcome === 'MEETING_SCHEDULED' ||
+          Boolean((act.description || meta.notes || '').match(/meeting|visit|in-person/i));
+        const callOutcome: ContactOutcome = isMeeting
+          ? 'MEETING_SCHEDULED'
+          : ((meta.outcome || (durSecs > 0 ? 'TALKED' : 'BUSY')) as ContactOutcome);
+
         attempts.push({
           id: act.id,
           type: cType,
-          outcome: (meta.outcome || (durSecs > 0 ? 'TALKED' : 'BUSY')) as ContactOutcome,
+          outcome: callOutcome,
+          scheduledType: isMeeting ? 'MEETING' : (meta.scheduledType || 'CALL'),
           by: userName,
           byRole: cleanRole,
           timestamp: actTime,
           durationSeconds: durSecs,
-          notes: act.description || meta.notes || 'Outbound phone call',
+          notes: act.description || meta.notes || (isMeeting ? 'Meeting / Visit Scheduled' : 'Outbound phone call'),
           productInterest: meta.productInterest || leadInfo.requirement,
           followUpDate: meta.followUpDate,
           followUpTime: meta.followUpTime,
@@ -137,23 +147,24 @@ function mapServerActivitiesToContactHistory(
     for (const t of tasks) {
       if (!t) continue;
       const purpose = t.purpose || '';
-      const isFromCallFunnel = purpose.toLowerCase().includes('call funnel') || (t.title && t.title.includes('In-Person / Virtual Visit'));
+      const isFromCallFunnel = purpose.toLowerCase().includes('call funnel') || (t.title && (t.title.includes('Visit') || t.title.includes('Meeting')));
       if (isFromCallFunnel) {
         const taskId = `task-call-${t.id}`;
         if (!seenIds.has(taskId)) {
-          const isMeeting = t.followUpType === 'MEETING' || (t.title && t.title.includes('Visit'));
+          const isMeeting = t.followUpType === 'MEETING' || (t.title && (t.title.includes('Visit') || t.title.includes('Meeting')));
           const prodMatch = purpose.match(/product:\s*([^,\.]+)/i) || purpose.match(/interested in\s*([^,\.]+)/i);
           const dueIso = t.dueAt ? (typeof t.dueAt === 'string' ? t.dueAt : new Date(t.dueAt).toISOString()) : '';
           const taskTime = t.createdAt ? (typeof t.createdAt === 'string' ? t.createdAt : new Date(t.createdAt).toISOString()) : new Date().toISOString();
           attempts.push({
             id: taskId,
             type: 'CALL_OUT',
-            outcome: isMeeting ? 'TALKED' : 'FOLLOW_UP_SCHEDULED',
+            outcome: isMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED',
+            scheduledType: isMeeting ? 'MEETING' : 'CALL',
             by: leadInfo.owner || 'Anurag Sharma',
             byRole: 'ADMIN',
             timestamp: taskTime,
             durationSeconds: 45,
-            notes: purpose || t.title || 'Call Funnel outreach',
+            notes: purpose || t.title || (isMeeting ? 'Meeting / Visit Scheduled' : 'Call Funnel outreach'),
             productInterest: prodMatch ? prodMatch[1].trim() : (leadInfo.requirement || undefined),
             followUpDate: dueIso ? dueIso.split('T')[0] : undefined,
             followUpTime: dueIso && dueIso.includes('T') ? dueIso.split('T')[1].slice(0, 5) : undefined,
@@ -161,6 +172,34 @@ function mapServerActivitiesToContactHistory(
           });
           seenIds.add(taskId);
         }
+      }
+    }
+  }
+
+  // 3. Process explicit Meeting records from PostgreSQL if present
+  if (Array.isArray(meetings)) {
+    for (const m of meetings) {
+      if (!m) continue;
+      const meetingId = `meeting-${m.id}`;
+      if (!seenIds.has(meetingId)) {
+        const startIso = m.startAt ? (typeof m.startAt === 'string' ? m.startAt : new Date(m.startAt).toISOString()) : '';
+        const meetTime = m.createdAt ? (typeof m.createdAt === 'string' ? m.createdAt : new Date(m.createdAt).toISOString()) : new Date().toISOString();
+        attempts.push({
+          id: meetingId,
+          type: 'CALL_OUT',
+          outcome: 'MEETING_SCHEDULED',
+          scheduledType: 'MEETING',
+          by: m.host?.firstName ? `${m.host.firstName} ${m.host.lastName || ''}`.trim() : (leadInfo.owner || 'Sales Rep'),
+          byRole: 'SALES_EXEC',
+          timestamp: meetTime,
+          durationSeconds: 60,
+          notes: m.title ? `Meeting Scheduled: ${m.title}` : (m.description || 'In-Person / Virtual Meeting Scheduled'),
+          productInterest: leadInfo.requirement,
+          followUpDate: startIso ? startIso.split('T')[0] : undefined,
+          followUpTime: startIso && startIso.includes('T') ? startIso.split('T')[1].slice(0, 5) : undefined,
+          audioRecordingAvailable: false,
+        });
+        seenIds.add(meetingId);
       }
     }
   }
@@ -321,11 +360,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             });
 
             // Optimistic hydration of contact history if cached or present in session
-            if (Array.isArray(sessionMatch.activities) || Array.isArray(sessionMatch.tasks)) {
-              const optAttempts = mapServerActivitiesToContactHistory(sessionMatch.activities, sessionMatch.tasks, {
-                owner: ownerName,
-                requirement: norm.requirement,
-              });
+            if (Array.isArray(sessionMatch.activities) || Array.isArray(sessionMatch.tasks) || Array.isArray(sessionMatch.meetings)) {
+              const optAttempts = mapServerActivitiesToContactHistory(
+                sessionMatch.activities,
+                sessionMatch.tasks,
+                { owner: ownerName, requirement: norm.requirement },
+                sessionMatch.meetings
+              );
               if (optAttempts.length > 0) {
                 setContactHistory(optAttempts);
               }
@@ -383,11 +424,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               l.customFields
             );
 
-            // Synthesize contact history from PostgreSQL activities & tasks
-            const serverAttempts = mapServerActivitiesToContactHistory(l.activities, l.tasks, {
-              owner: ownerName,
-              requirement: norm.requirement,
-            });
+            // Synthesize contact history from PostgreSQL activities, tasks & meetings
+            const serverAttempts = mapServerActivitiesToContactHistory(
+              l.activities,
+              l.tasks,
+              { owner: ownerName, requirement: norm.requirement },
+              l.meetings
+            );
 
             const resolvedProduct = (norm.requirement && norm.requirement !== '—' && norm.requirement.trim())
               ? norm.requirement
@@ -594,7 +637,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         dispositionSummaryTitle = `Talked: Interested in ${productInterestLogged}`;
       } else if (talkedSubOption === 'SAID_WILL_VISIT') {
         outcomeId = 'talked_said_will_visit';
-        contactOutcome = 'FOLLOW_UP_SCHEDULED';
+        contactOutcome = 'MEETING_SCHEDULED';
         scheduledType = 'MEETING';
         autoQueueFollowUp = true;
         dispositionSummaryTitle = `Talked: Meeting / Visit Scheduled for ${funnelScheduledDate} at ${funnelScheduledTime}`;
@@ -714,10 +757,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     // 6. Automatically Create Follow-up Task in Backend & Tasks Hub
     if (autoQueueFollowUp && funnelScheduledDate) {
+      const resolvedLeadName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
+        ? (effectiveLeadId === 'cmuojhdgu000jikm4z3gs6v5r' ? 'Pooja Nair' : ((lead as any).firstName ? `${(lead as any).firstName} ${(lead as any).lastName || ''}`.trim() : 'Pooja Nair'))
+        : lead.name;
+
       const followUpTitle =
         scheduledType === 'MEETING'
-          ? `🏢 In-Person / Virtual Visit: ${lead.name} (${lead.company || lead.phone})`
-          : `📞 Callback: ${lead.name} (${lead.phone})`;
+          ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName} (${lead.company || lead.phone || 'Adorable Trading'})`
+          : `📞 Callback: ${resolvedLeadName} (${lead.phone || 'Phone'})`;
 
       const dueAtIso = `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`;
       const followUpPayload = {
@@ -803,6 +850,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       id: `attempt_${Date.now()}`,
       type: contactType,
       outcome: contactOutcome,
+      scheduledType: scheduledType,
       by: currentUser?.name || lead.owner || 'Sales Rep',
       byRole: cleanRole,
       timestamp: new Date().toISOString(),
@@ -836,6 +884,7 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         metadata: {
           type: contactType,
           outcome: contactOutcome,
+          scheduledType: scheduledType,
           durationSeconds: callDuration,
           productInterest: productInterestLogged,
           notes: callResponseNotes || dispositionSummaryTitle,
