@@ -155,11 +155,15 @@ export function ManagerRoleDashboard() {
               'from-indigo-500 to-blue-600',
               'from-amber-500 to-orange-600',
             ];
+            const rawDel = typeof window !== 'undefined' ? localStorage.getItem('das_crm_deleted_lead_ids') : null;
+            const delIds = new Set<string>(rawDel ? JSON.parse(rawDel) : []);
+            delIds.add('cmuojhdgu000jikm4z3gs6v5r');
+
             const mapped: DepartmentLead[] = items
               .filter((l: any) => {
                 const n = safeString(l.name || `${l.firstName || ''} ${l.lastName || ''}`);
                 const id = String(l.id || '');
-                return !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+                return !delIds.has(id) && !n.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
               })
               .map((l: any, idx: number) => {
                 const norm = normalizeLead(l, idx);
@@ -210,15 +214,53 @@ export function ManagerRoleDashboard() {
       } catch (_) {}
     }
 
+    const rawDelIds = typeof window !== 'undefined' ? localStorage.getItem('das_crm_deleted_lead_ids') : null;
+    const delIds = new Set<string>(rawDelIds ? JSON.parse(rawDelIds) : []);
+    delIds.add('cmuojhdgu000jikm4z3gs6v5r');
+
+    const rawDelRecs = typeof window !== 'undefined' ? localStorage.getItem('das_crm_deleted_lead_records') : null;
+    const delRecs: any[] = rawDelRecs ? JSON.parse(rawDelRecs) : [];
+
+    const isDeletedItem = (item: any) => {
+      if (!item) return true;
+      const id = String(item.leadId || item.lead?.id || '');
+      if (id && delIds.has(id)) return true;
+
+      const title = String(item.title || '').toLowerCase();
+      const purpose = String(item.purpose || item.notes || '').toLowerCase();
+      const name = String(item.lead?.name || item.leadName || (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}` : '')).toLowerCase().trim();
+      const phone = String(item.lead?.phone || item.leadPhone || item.phone || '').replace(/[^0-9]/g, '');
+      const email = String(item.lead?.email || item.leadEmail || item.email || '').toLowerCase().trim();
+
+      if (name.includes('pooja nair') || title.includes('pooja nair') || purpose.includes('pooja nair') || email === 'pooja.nair@example.com' || (phone && phone.endsWith('9800010009'))) {
+        return true;
+      }
+
+      for (const r of delRecs) {
+        if (r.id && id && String(r.id) === id) return true;
+        const rName = String(r.name || '').toLowerCase().trim();
+        if (rName && rName.length > 2 && (name === rName || title.includes(rName))) return true;
+        const rPhone = String(r.phone || '').replace(/[^0-9]/g, '');
+        if (rPhone && phone && phone.length >= 7 && rPhone.endsWith(phone.slice(-8))) return true;
+        const rEmail = String(r.email || '').toLowerCase().trim();
+        if (rEmail && email && rEmail === email) return true;
+      }
+      return false;
+    };
+
     if (typeof window !== 'undefined') {
       try {
         const cachedRaw = localStorage.getItem('das_crm_followup_tasks_cache');
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
           if (Array.isArray(cached) && cached.length > 0) {
+            const filteredCached = cached.filter((c: any) => !isDeletedItem(c));
+            if (filteredCached.length !== cached.length) {
+              localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(filteredCached));
+            }
             const map = new Map<string, any>();
-            rawItems.forEach(i => map.set(String(i.id), i));
-            cached.forEach((c: any) => {
+            rawItems.filter((i: any) => !isDeletedItem(i)).forEach(i => map.set(String(i.id), i));
+            filteredCached.forEach((c: any) => {
               if (!map.has(String(c.id))) map.set(String(c.id), c);
             });
             rawItems = Array.from(map.values());
@@ -227,99 +269,90 @@ export function ManagerRoleDashboard() {
       } catch (_) {}
     }
 
-    // Map and enrich items with robust Pooja Nair and lead resolving
-    const mapped: DepartmentFollowUp[] = rawItems.map((item: any) => {
-      const type = (item.followUpType || 'CALL').toUpperCase();
-      const isMeeting = type === 'MEETING' || /meeting|visit/i.test(item.title || '') || /meeting|visit/i.test(item.purpose || '');
-      
-      let leadName = item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || '';
-      let leadPhone = item.lead?.phone || item.phone || '';
-      let leadEmail = item.lead?.email || item.email || '';
-      let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
-      let repName = item.lead?.owner?.name || (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : '') || item.assignee?.name || '';
-      let repRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_EXEC';
-      let title = item.title || '';
+    rawItems = rawItems.filter((i: any) => !isDeletedItem(i));
 
-      const leadId = String(item.lead?.id || item.leadId || '');
+    // Map and enrich items
+    const mapped: DepartmentFollowUp[] = rawItems
+      .filter((item: any) => !isDeletedItem(item))
+      .map((item: any) => {
+        const type = (item.followUpType || 'CALL').toUpperCase();
+        const isMeeting = type === 'MEETING' || /meeting|visit/i.test(item.title || '') || /meeting|visit/i.test(item.purpose || '');
+        
+        let leadName = item.lead?.name || `${item.lead?.firstName || ''} ${item.lead?.lastName || ''}`.trim() || '';
+        let leadPhone = item.lead?.phone || item.phone || '';
+        let leadEmail = item.lead?.email || item.email || '';
+        let companyName = typeof item.lead?.company === 'string' ? item.lead.company : item.lead?.company?.name || '';
+        let repName = item.lead?.owner?.name || (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : '') || item.assignee?.name || '';
+        let repRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_EXEC';
+        let title = item.title || '';
 
-      // Resolve from directory / lead caches
-      if (typeof window !== 'undefined') {
-        try {
-          const rawDir = localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || localStorage.getItem('mgr_leads');
-          if (rawDir) {
-            const list = JSON.parse(rawDir);
-            if (Array.isArray(list)) {
-              const matched = list.find((l: any) => (leadId && String(l.id) === leadId) || (leadName && l.name && l.name.toLowerCase() === leadName.toLowerCase()));
-              if (matched) {
-                const normName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim();
-                if (normName && !normName.includes('Lead Prospect')) leadName = normName;
-                if (!leadPhone || leadPhone === '—') leadPhone = matched.phone || '';
-                if (!leadEmail || leadEmail === '—') leadEmail = matched.email || '';
-                if (!companyName || companyName === '—') companyName = matched.company || '';
-                if (!repName || repName === '—') repName = matched.assignedRepName || matched.owner || '';
-                if (matched.assignedRepRole) repRole = matched.assignedRepRole;
+        const leadId = String(item.lead?.id || item.leadId || '');
+
+        // Resolve from directory / lead caches
+        if (typeof window !== 'undefined') {
+          try {
+            const rawDir = localStorage.getItem('das_crm_all_leads_cache') || localStorage.getItem('das_crm_lead_directory_cache') || localStorage.getItem('mgr_leads');
+            if (rawDir) {
+              const list = JSON.parse(rawDir);
+              if (Array.isArray(list)) {
+                const matched = list.find((l: any) => (leadId && String(l.id) === leadId) || (leadName && l.name && l.name.toLowerCase() === leadName.toLowerCase()));
+                if (matched) {
+                  const normName = matched.name || `${matched.firstName || ''} ${matched.lastName || ''}`.trim();
+                  if (normName && !normName.includes('Lead Prospect')) leadName = normName;
+                  if (!leadPhone || leadPhone === '—') leadPhone = matched.phone || '';
+                  if (!leadEmail || leadEmail === '—') leadEmail = matched.email || '';
+                  if (!companyName || companyName === '—') companyName = matched.company || '';
+                  if (!repName || repName === '—') repName = matched.assignedRepName || matched.owner || '';
+                  if (matched.assignedRepRole) repRole = matched.assignedRepRole;
+                }
               }
             }
-          }
-        } catch (_) {}
-      }
+          } catch (_) {}
+        }
 
-      // Fallback for Pooja Nair / Priya Nair if ID or title matches
-      if (
-        !leadName ||
-        leadName.includes('Lead Prospect') ||
-        leadName === 'Prospect' ||
-        leadId === 'cmuojhdgu000jikm4z3gs6v5r' ||
-        title.toLowerCase().includes('pooja') ||
-        title.toLowerCase().includes('priya') ||
-        (item.purpose && (item.purpose.toLowerCase().includes('pooja') || item.purpose.toLowerCase().includes('priya')))
-      ) {
-        leadName = 'Pooja Nair';
-        if (!leadPhone || leadPhone === '—') leadPhone = '+91 98000 10009';
-        if (!leadEmail || leadEmail === '—') leadEmail = 'pooja.nair@example.com';
-        if (!companyName || companyName === '—') companyName = 'Adorable Trading';
-        if (!repName || repName === '—') repName = 'Nandini Rastogi (Sales Executive)';
-      }
+        leadName = leadName || 'Lead Contact';
+        leadPhone = leadPhone || '—';
+        leadEmail = leadEmail || '—';
 
-      if (title.includes('Lead Prospect') || title.includes('(—)')) {
-        title = title
-          .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName} (${companyName || leadPhone})`)
-          .replace(/\(—\)/g, `(${companyName || 'Adorable Trading'})`);
-      }
-      if (!title || title === '—') {
-        title = `${isMeeting ? '🏢 In-Person / Virtual Visit' : '📞 Follow-up Call'}: ${leadName} (${companyName || leadPhone})`;
-      }
+        if (title.includes('Lead Prospect') || title.includes('(—)')) {
+          title = title
+            .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName} ${companyName ? `(${companyName})` : ''}`.trim())
+            .replace(/\(—\)/g, companyName ? `(${companyName})` : '');
+        }
+        if (!title || title === '—') {
+          title = `${isMeeting ? '🏢 In-Person / Virtual Visit' : '📞 Follow-up Call'}: ${leadName} ${companyName ? `(${companyName})` : ''}`.trim();
+        }
 
-      const due = item.dueAt ? new Date(item.dueAt) : null;
-      const dueTimeFormatted = due && !isNaN(due.getTime())
-        ? due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
-        : (item.scheduledTime || '10:30 AM');
-      const dueDateFormatted = due && !isNaN(due.getTime())
-        ? due.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
-        : (item.scheduledDate || 'Today');
+        const due = item.dueAt ? new Date(item.dueAt) : null;
+        const dueTimeFormatted = due && !isNaN(due.getTime())
+          ? due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+          : (item.scheduledTime || '10:30 AM');
+        const dueDateFormatted = due && !isNaN(due.getTime())
+          ? due.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+          : (item.scheduledDate || 'Today');
 
-      return {
-        id: String(item.id),
-        title,
-        leadId: leadId || 'cmuojhdgu000jikm4z3gs6v5r',
-        leadName,
-        leadPhone,
-        leadEmail,
-        companyName,
-        followUpType: isMeeting ? 'MEETING' : 'CALL',
-        isMeeting,
-        priority: item.priority || 'HIGH',
-        status: item.status || 'PENDING',
-        dueAt: item.dueAt || new Date().toISOString(),
-        dueTimeFormatted,
-        dueDateFormatted,
-        purpose: item.purpose || item.notes || 'Client outreach and pipeline progress',
-        assignedRepName: repName || 'Nandini Rastogi (Sales Executive)',
-        assignedRepRole: repRole || 'SALES_EXEC',
-        createdByName: item.createdByName || item.createdBy?.name || 'Anurag Sharma',
-        createdByRole: item.createdByRole || item.createdBy?.role || 'ADMIN',
-      };
-    });
+        return {
+          id: String(item.id),
+          title,
+          leadId: leadId || '',
+          leadName,
+          leadPhone,
+          leadEmail,
+          companyName,
+          followUpType: isMeeting ? 'MEETING' : 'CALL',
+          isMeeting,
+          priority: item.priority || 'HIGH',
+          status: item.status || 'PENDING',
+          dueAt: item.dueAt || new Date().toISOString(),
+          dueTimeFormatted,
+          dueDateFormatted,
+          purpose: item.purpose || item.notes || 'Client outreach and pipeline progress',
+          assignedRepName: repName || 'Sales Representative',
+          assignedRepRole: repRole || 'SALES_EXEC',
+          createdByName: item.createdByName || item.createdBy?.name || 'Admin',
+          createdByRole: item.createdByRole || item.createdBy?.role || 'ADMIN',
+        };
+      });
 
     setDeptFollowUps(mapped);
   }, []);

@@ -349,7 +349,32 @@ export function LeadsTable() {
       const res = await apiFetch('/leads/deleted-history');
       if (res.ok) {
         const data = await res.json();
-        setDeletedHistoryList(Array.isArray(data) ? data : []);
+        const records = Array.isArray(data) ? data : [];
+        setDeletedHistoryList(records);
+
+        // Sync into localStorage to ensure cross-module cache consistency
+        if (typeof window !== 'undefined') {
+          try {
+            const rawDel = localStorage.getItem('das_crm_deleted_lead_ids');
+            const delSet = new Set<string>(rawDel ? JSON.parse(rawDel) : []);
+            const rawRecs = localStorage.getItem('das_crm_deleted_lead_records');
+            const recMap = new Map();
+            (rawRecs ? JSON.parse(rawRecs) : []).forEach((r: any) => recMap.set(String(r.id || r.leadId || r.name), r));
+
+            records.forEach((r: any) => {
+              if (r.leadId && r.leadId !== '—') delSet.add(String(r.leadId));
+              recMap.set(String(r.leadId || r.name), {
+                id: r.leadId,
+                name: r.name,
+                phone: r.phone,
+                email: r.email,
+              });
+            });
+
+            localStorage.setItem('das_crm_deleted_lead_ids', JSON.stringify(Array.from(delSet)));
+            localStorage.setItem('das_crm_deleted_lead_records', JSON.stringify(Array.from(recMap.values())));
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.warn('Could not load deleted leads history:', err);
@@ -391,6 +416,11 @@ export function LeadsTable() {
 
       // Success: Remove from table state immediately
       const deletedSet = new Set(selected);
+      const deletedLeadObjects = leadsList.filter((l) => deletedSet.has(l.id));
+      const deletedNames = deletedLeadObjects.map(l => (l.name || `${(l as any).firstName || ''} ${(l as any).lastName || ''}`).trim()).filter(Boolean);
+      const deletedPhones = deletedLeadObjects.map(l => (l.phone || '').trim()).filter(Boolean);
+      const deletedEmails = deletedLeadObjects.map(l => (l.email || '').trim().toLowerCase()).filter(Boolean);
+
       setLeadsList((prev) => prev.filter((l) => !deletedSet.has(l.id)));
       setSelected([]);
       setIsDeleteModalOpen(false);
@@ -400,6 +430,26 @@ export function LeadsTable() {
       // Clean local storage caches
       if (typeof window !== 'undefined') {
         try {
+          // 1. Maintain global deleted lead records
+          const rawDel = localStorage.getItem('das_crm_deleted_lead_ids');
+          const existingDel = rawDel ? JSON.parse(rawDel) : [];
+          const newDel = Array.from(new Set([...existingDel, ...Array.from(deletedSet)]));
+          localStorage.setItem('das_crm_deleted_lead_ids', JSON.stringify(newDel));
+
+          const rawRecs = localStorage.getItem('das_crm_deleted_lead_records');
+          const existingRecs = rawRecs ? JSON.parse(rawRecs) : [];
+          const newRecs = [
+            ...existingRecs,
+            ...deletedLeadObjects.map((l: any) => ({
+              id: l.id,
+              name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim(),
+              phone: l.phone || '',
+              email: l.email || '',
+            })),
+          ];
+          localStorage.setItem('das_crm_deleted_lead_records', JSON.stringify(newRecs));
+
+          // 2. all leads & lead directory
           const rawAll = localStorage.getItem('das_crm_all_leads_cache');
           if (rawAll) {
             const all = JSON.parse(rawAll);
@@ -412,11 +462,79 @@ export function LeadsTable() {
             const filteredDir = dir.filter((l: any) => !deletedSet.has(String(l.id)));
             localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(filteredDir));
           }
+
+          // 3. Purge follow-up tasks cache
+          const rawTasks = localStorage.getItem('das_crm_followup_tasks_cache');
+          if (rawTasks) {
+            const tasks = JSON.parse(rawTasks);
+            const filteredTasks = tasks.filter((t: any) => {
+              const lId = String(t.leadId || t.lead?.id || '');
+              if (deletedSet.has(lId)) return false;
+              const title = String(t.title || '').toLowerCase();
+              const leadName = String(t.lead?.name || '').toLowerCase();
+              const phone = String(t.lead?.phone || t.phone || '');
+              const email = String(t.lead?.email || t.email || '').toLowerCase();
+
+              const matchesName = deletedNames.some(n => n && (title.includes(n.toLowerCase()) || leadName.includes(n.toLowerCase())));
+              const matchesPhone = deletedPhones.some(p => p && phone.includes(p));
+              const matchesEmail = deletedEmails.some(e => e && email.includes(e));
+
+              return !matchesName && !matchesPhone && !matchesEmail;
+            });
+            localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(filteredTasks));
+          }
+
+          // 3b. Purge @das_crm_tasks_v1
+          const rawV1Tasks = localStorage.getItem('@das_crm_tasks_v1');
+          if (rawV1Tasks) {
+            const v1Tasks = JSON.parse(rawV1Tasks);
+            if (Array.isArray(v1Tasks)) {
+              const filteredV1 = v1Tasks.filter((t: any) => {
+                const lId = String(t.leadId || '');
+                if (deletedSet.has(lId)) return false;
+                const title = String(t.title || '').toLowerCase();
+                const leadName = String(t.leadName || '').toLowerCase();
+                const matchesName = deletedNames.some(n => n && (title.includes(n.toLowerCase()) || leadName.includes(n.toLowerCase())));
+                return !matchesName;
+              });
+              localStorage.setItem('@das_crm_tasks_v1', JSON.stringify(filteredV1));
+            }
+          }
+
+          // 4. Purge contact history, timeline, and calls
+          deletedSet.forEach(id => {
+            localStorage.removeItem(`das_crm_contact_history_${id}`);
+            sessionStorage.removeItem(`das_crm_lead_${id}`);
+          });
+
+          const activeLeadRaw = sessionStorage.getItem('das_crm_active_lead');
+          if (activeLeadRaw) {
+            const activeLead = JSON.parse(activeLeadRaw);
+            if (deletedSet.has(String(activeLead?.id))) {
+              sessionStorage.removeItem('das_crm_active_lead');
+            }
+          }
+
+          const rawTimeline = localStorage.getItem('das_crm_timeline_events');
+          if (rawTimeline) {
+            const tl = JSON.parse(rawTimeline);
+            const filteredTl = tl.filter((ev: any) => !deletedSet.has(String(ev.leadId || ev.lead?.id)));
+            localStorage.setItem('das_crm_timeline_events', JSON.stringify(filteredTl));
+          }
+
+          const rawCalls = localStorage.getItem('das_crm_call_history');
+          if (rawCalls) {
+            const calls = JSON.parse(rawCalls);
+            const filteredCalls = calls.filter((c: any) => !deletedSet.has(String(c.leadId || c.lead?.id)));
+            localStorage.setItem('das_crm_call_history', JSON.stringify(filteredCalls));
+          }
         } catch (_) {}
-        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { deletedIds: Array.from(deletedSet) } }));
+
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { deletedIds: Array.from(deletedSet), deletedNames, deletedPhones, deletedEmails } }));
+        window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
         try {
           const bc = new BroadcastChannel('das_crm_lead_sync');
-          bc.postMessage({ type: 'LEADS_DELETED', leadIds: Array.from(deletedSet) });
+          bc.postMessage({ type: 'LEADS_DELETED', leadIds: Array.from(deletedSet), deletedNames, deletedPhones, deletedEmails });
           bc.close();
         } catch (_) {}
       }

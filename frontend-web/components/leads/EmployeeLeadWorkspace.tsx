@@ -739,13 +739,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
     // 6. Automatically Create Follow-up Task in Backend & Tasks Hub
     if (autoQueueFollowUp && funnelScheduledDate) {
       const resolvedLeadName = (!lead.name || lead.name.includes('Lead Prospect') || lead.name === 'Prospect' || lead.name === '—')
-        ? (effectiveLeadId === 'cmuojhdgu000jikm4z3gs6v5r' ? 'Pooja Nair' : ((lead as any).firstName ? `${(lead as any).firstName} ${(lead as any).lastName || ''}`.trim() : 'Pooja Nair'))
+        ? ((lead as any).firstName ? `${(lead as any).firstName} ${(lead as any).lastName || ''}`.trim() : 'Lead Contact')
         : lead.name;
 
+      const compText = typeof lead.company === 'string' ? lead.company : ((lead as any)?.company?.name || '');
       const followUpTitle =
         scheduledType === 'MEETING'
-          ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName} (${lead.company || lead.phone || 'Adorable Trading'})`
-          : `📞 Callback: ${resolvedLeadName} (${lead.phone || 'Phone'})`;
+          ? `🏢 In-Person / Virtual Visit: ${resolvedLeadName}${compText ? ` (${compText})` : (lead.phone ? ` (${lead.phone})` : '')}`
+          : `📞 Callback: ${resolvedLeadName}${lead.phone ? ` (${lead.phone})` : ''}`;
 
       const dueAtIso = `${funnelScheduledDate}T${funnelScheduledTime || '10:30'}:00`;
       const followUpPayload = {

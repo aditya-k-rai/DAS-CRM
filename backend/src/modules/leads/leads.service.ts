@@ -1101,8 +1101,32 @@ export class LeadsService {
       await tx.leadAIScore.deleteMany({ where: { leadId: { in: actualIds } } });
       await tx.leadStatusHistory.deleteMany({ where: { leadId: { in: actualIds } } });
       await tx.activity.deleteMany({ where: { leadId: { in: actualIds } } });
-      await tx.task.deleteMany({ where: { leadId: { in: actualIds } } });
-      await tx.meeting.deleteMany({ where: { leadId: { in: actualIds } } });
+
+      const nameConditions = leadsToDelete
+        .map((l) => `${l.firstName || ''} ${l.lastName || ''}`.trim())
+        .filter((n) => n.length > 2)
+        .map((name) => ({ title: { contains: name, mode: 'insensitive' as const } }));
+
+      await tx.task.deleteMany({
+        where: {
+          organizationId,
+          OR: [
+            { leadId: { in: actualIds } },
+            ...(nameConditions.length > 0 ? nameConditions : []),
+          ],
+        },
+      });
+
+      await tx.meeting.deleteMany({
+        where: {
+          organizationId,
+          OR: [
+            { leadId: { in: actualIds } },
+            ...(nameConditions.length > 0 ? nameConditions : []),
+          ],
+        },
+      });
+
       await tx.note.deleteMany({ where: { leadId: { in: actualIds } } });
 
       const quotations = await tx.quotation.findMany({

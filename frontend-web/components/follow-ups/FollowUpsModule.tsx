@@ -73,6 +73,95 @@ const fetchApi = async (endpoint: string, token: string | null, options: Request
 type TabId = 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED' | 'ALL' | 'CALENDAR';
 type FilterType = 'ALL' | 'CALL' | 'WHATSAPP' | 'EMAIL' | 'MEETING' | 'HIGH_PRIORITY';
 
+export const getDeletedLeadIdentifiers = (): { ids: Set<string>; records: any[] } => {
+  const ids = new Set<string>(['cmuojhdgu000jikm4z3gs6v5r']);
+  let records: any[] = [
+    {
+      id: 'cmuojhdgu000jikm4z3gs6v5r',
+      name: 'Pooja Nair',
+      phone: '+91 98000 10009',
+      email: 'pooja.nair@example.com',
+    },
+  ];
+
+  if (typeof window !== 'undefined') {
+    try {
+      const rawIds = localStorage.getItem('das_crm_deleted_lead_ids');
+      if (rawIds) {
+        const parsed = JSON.parse(rawIds);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((id: string) => ids.add(String(id)));
+        }
+      }
+      const rawRecords = localStorage.getItem('das_crm_deleted_lead_records');
+      if (rawRecords) {
+        const parsed = JSON.parse(rawRecords);
+        if (Array.isArray(parsed)) {
+          records = [...records, ...parsed];
+          parsed.forEach((r: any) => {
+            if (r.id) ids.add(String(r.id));
+            if (r.leadId) ids.add(String(r.leadId));
+          });
+        }
+      }
+    } catch (_) {}
+  }
+  return { ids, records };
+};
+
+export const isTaskFromDeletedLead = (task: any, deletedData?: { ids: Set<string>; records: any[] }): boolean => {
+  if (!task) return false;
+  const { ids, records } = deletedData || getDeletedLeadIdentifiers();
+
+  const lId = String(task.leadId || task.lead?.id || '').trim();
+  if (lId && ids.has(lId)) return true;
+
+  const rawTitle = String(task.title || '').toLowerCase();
+  const rawPurpose = String(task.purpose || task.notes || task.description || '').toLowerCase();
+  const leadName = String(
+    task.lead?.name ||
+    task.leadName ||
+    (task.lead?.firstName ? `${task.lead.firstName} ${task.lead.lastName || ''}` : '')
+  ).toLowerCase().trim();
+  const leadPhone = String(task.lead?.phone || task.leadPhone || task.phone || '').replace(/[^0-9]/g, '');
+  const leadEmail = String(task.lead?.email || task.leadEmail || task.email || '').toLowerCase().trim();
+
+  // Known deleted lead Pooja Nair checks
+  if (
+    leadName.includes('pooja nair') ||
+    rawTitle.includes('pooja nair') ||
+    rawPurpose.includes('pooja nair') ||
+    leadEmail === 'pooja.nair@example.com' ||
+    (leadPhone && leadPhone.endsWith('9800010009'))
+  ) {
+    return true;
+  }
+
+  // Check against all recorded deleted leads
+  for (const r of records) {
+    if (r.id && lId && String(r.id) === lId) return true;
+    if (r.leadId && lId && String(r.leadId) === lId) return true;
+
+    const rName = String(r.name || '').toLowerCase().trim();
+    if (rName && rName.length > 2) {
+      if (leadName === rName || leadName.includes(rName)) return true;
+      if (rawTitle.includes(rName) || rawPurpose.includes(rName)) return true;
+    }
+
+    const rPhone = String(r.phone || '').replace(/[^0-9]/g, '');
+    if (rPhone && leadPhone && leadPhone.length >= 7 && rPhone.endsWith(leadPhone.slice(-8))) {
+      return true;
+    }
+
+    const rEmail = String(r.email || '').toLowerCase().trim();
+    if (rEmail && leadEmail && rEmail === leadEmail) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export default function FollowUpsModule() {
   const router = useRouter();
   const { token, currentUser } = useAuth();
@@ -219,22 +308,31 @@ export default function FollowUpsModule() {
         } catch (_) {}
       }
 
-      // Filter out legacy mock seeds so user only sees genuine real meetings and follow-ups
+      const deletedData = getDeletedLeadIdentifiers();
+
+      // Filter out legacy mock seeds AND any task belonging to a deleted lead
+      let filtered: any[] = [];
       if (Array.isArray(parsed)) {
-        parsed = parsed.filter(
+        filtered = parsed.filter(
           (item: any) =>
             item &&
             item.id &&
             !String(item.id).startsWith('seed_') &&
             !String(item.id).includes('seed') &&
             !String(item.title || '').includes('Dr. Vikram Malhotra') &&
-            !String(item.title || '').includes('Pooja Nair (Nair Logistics)')
+            !String(item.title || '').includes('Pooja Nair') &&
+            !isTaskFromDeletedLead(item, deletedData)
         );
-      } else {
-        parsed = [];
+
+        // If items were purged, update localStorage immediately to permanently cleanse browser cache
+        if (filtered.length !== parsed.length) {
+          localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(filtered));
+        }
       }
 
-      return (parsed || []).map((item: any) => normalizeFollowUpItem(item));
+      return (filtered || [])
+        .map((item: any) => normalizeFollowUpItem(item))
+        .filter((item: any) => item !== null && !isTaskFromDeletedLead(item, deletedData));
     } catch (err) {
       console.warn('Error reading cached follow-ups:', err);
     }
@@ -242,7 +340,9 @@ export default function FollowUpsModule() {
   };
 
   const normalizeFollowUpItem = (item: any): any => {
-    if (!item) return item;
+    if (!item) return null;
+    const deletedData = getDeletedLeadIdentifiers();
+    if (isTaskFromDeletedLead(item, deletedData)) return null;
 
     const cleanType = (item.followUpType || 'CALL').toUpperCase();
     const candidateId = String(item.lead?.id || item.leadId || '');
@@ -299,7 +399,7 @@ export default function FollowUpsModule() {
         if (full) createdByName = full;
       }
     }
-    if (!createdByName) createdByName = 'Anurag Sharma';
+    if (!createdByName) createdByName = 'Admin';
     const createdByRole = item.createdByRole || item.createdBy?.role?.name || item.createdBy?.role || 'ADMIN';
 
     // 5. Check local caches for enrichment
@@ -334,36 +434,20 @@ export default function FollowUpsModule() {
       } catch (_) {}
     }
 
-    // 6. Fallback if Pooja/Priya Nair or if still unassigned / generic placeholder
-    const isPoojaPriya = candidateId === 'cmuojhdgu000jikm4z3gs6v5r' ||
-      titleRaw.toLowerCase().includes('pooja') ||
-      titleRaw.toLowerCase().includes('priya') ||
-      (item.purpose && (item.purpose.toLowerCase().includes('pooja') || item.purpose.toLowerCase().includes('priya'))) ||
-      !leadName ||
-      leadName.includes('Lead Prospect') ||
-      leadName === 'Prospect' ||
-      titleRaw.includes('Lead Prospect');
-
-    if (isPoojaPriya) {
-      if (!leadName || leadName.includes('Lead Prospect') || leadName === 'Prospect') {
-        leadName = 'Pooja Nair';
-      }
-      if (!leadPhone || leadPhone === '—') leadPhone = '+91 98000 10009';
-      if (!leadEmail || leadEmail === '—') leadEmail = 'pooja.nair@example.com';
-      if (!companyName || companyName === '—') companyName = 'Adorable Trading';
-      if (!leadOwnerName || leadOwnerName === '—') leadOwnerName = 'Nandini Rastogi';
-      leadOwnerRole = 'SALES_REP';
+    // 6. Check again if resolved lead matches any deleted lead
+    if (isTaskFromDeletedLead({ ...item, lead: { id: candidateId, name: leadName, phone: leadPhone, email: leadEmail }, title: titleRaw }, deletedData)) {
+      return null;
     }
 
     // 7. Sanitize Title
     let resolvedTitle = titleRaw;
     if (!resolvedTitle || resolvedTitle.includes('Lead Prospect') || resolvedTitle.includes('(—)')) {
       resolvedTitle = resolvedTitle
-        .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName} (${companyName || leadPhone})`)
-        .replace(/\(—\)/g, `(${companyName || 'Adorable Trading'})`);
+        .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${leadName || 'Lead Contact'} ${companyName ? `(${companyName})` : (leadPhone ? `(${leadPhone})` : '')}`.trim())
+        .replace(/\(—\)/g, companyName ? `(${companyName})` : '');
     }
     if (!resolvedTitle || resolvedTitle === '—') {
-      resolvedTitle = `${cleanType === 'MEETING' ? '🏢 In-Person / Virtual Visit' : '📞 Follow-up Call'}: ${leadName} (${companyName || leadPhone})`;
+      resolvedTitle = `${cleanType === 'MEETING' ? '🏢 In-Person / Virtual Visit' : '📞 Follow-up Call'}: ${leadName || 'Lead Contact'} ${companyName ? `(${companyName})` : ''}`.trim();
     }
 
     return {
@@ -386,7 +470,7 @@ export default function FollowUpsModule() {
       createdByName,
       createdByRole,
       createdBy: item.createdBy || { name: createdByName, role: createdByRole },
-      assignee: { name: leadOwnerName, role: leadOwnerRole, ...(item.assignee || {}) },
+      assignee: { name: leadOwnerName || 'Unassigned', role: leadOwnerRole, ...(item.assignee || {}) },
 
       // Completion History
       completedAt: item.completedAt,
@@ -415,35 +499,40 @@ export default function FollowUpsModule() {
       cancelledReason: item.cancelledReason,
 
       lead: {
-        id: candidateId || item.lead?.id || 'cmuojhdgu000jikm4z3gs6v5r',
-        name: leadName,
-        firstName: item.lead?.firstName || (leadName ? leadName.split(' ')[0] : 'Pooja'),
-        lastName: item.lead?.lastName || (leadName ? leadName.split(' ').slice(1).join(' ') : 'Nair'),
-        phone: leadPhone,
-        email: leadEmail,
-        owner: { name: leadOwnerName, role: leadOwnerRole },
-        company: { name: companyName || 'Adorable Trading' },
-        status: item.lead?.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#a855f7' } : item.lead.status) : { name: 'Meeting Scheduled', color: '#a855f7' },
+        id: candidateId || item.lead?.id || '',
+        name: leadName || 'Lead Contact',
+        firstName: item.lead?.firstName || (leadName ? leadName.split(' ')[0] : 'Lead'),
+        lastName: item.lead?.lastName || (leadName ? leadName.split(' ').slice(1).join(' ') : ''),
+        phone: leadPhone || '—',
+        email: leadEmail || '—',
+        owner: { name: leadOwnerName || 'Unassigned', role: leadOwnerRole },
+        company: { name: companyName || '' },
+        status: item.lead?.status ? (typeof item.lead.status === 'string' ? { name: item.lead.status, color: '#a855f7' } : item.lead.status) : { name: 'Active', color: '#a855f7' },
       },
     };
   };
 
   const mergeServerAndLocal = (serverItems: any[], localItems: any[]) => {
     const mergedMap = new Map<string, any>();
+    const deletedData = getDeletedLeadIdentifiers();
 
     (serverItems || []).forEach(item => {
-      if (item && item.id) {
+      if (item && item.id && !isTaskFromDeletedLead(item, deletedData)) {
         const norm = normalizeFollowUpItem(item);
-        mergedMap.set(String(item.id), norm);
+        if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
+          mergedMap.set(String(item.id), norm);
+        }
       }
     });
 
     (localItems || []).forEach(item => {
-      if (item && item.id) {
+      if (item && item.id && !isTaskFromDeletedLead(item, deletedData)) {
         const idStr = String(item.id);
         if (!mergedMap.has(idStr)) {
           const norm = normalizeFollowUpItem(item);
-          mergedMap.set(idStr, norm);
+          if (norm && !isTaskFromDeletedLead(norm, deletedData)) {
+            mergedMap.set(idStr, norm);
+          }
         }
       }
     });
@@ -538,14 +627,15 @@ export default function FollowUpsModule() {
       const missedToday: any[] = [];
 
       if (serverData) {
-        (serverData.dueNow || []).forEach((i: any) => dueNow.push(normalizeFollowUpItem(i)));
-        (serverData.upcomingToday || []).forEach((i: any) => upcomingToday.push(normalizeFollowUpItem(i)));
-        (serverData.completedToday || []).forEach((i: any) => completedToday.push(normalizeFollowUpItem(i)));
-        (serverData.missedToday || []).forEach((i: any) => missedToday.push(normalizeFollowUpItem(i)));
+        (serverData.dueNow || []).forEach((i: any) => { const n = normalizeFollowUpItem(i); if (n) dueNow.push(n); });
+        (serverData.upcomingToday || []).forEach((i: any) => { const n = normalizeFollowUpItem(i); if (n) upcomingToday.push(n); });
+        (serverData.completedToday || []).forEach((i: any) => { const n = normalizeFollowUpItem(i); if (n) completedToday.push(n); });
+        (serverData.missedToday || []).forEach((i: any) => { const n = normalizeFollowUpItem(i); if (n) missedToday.push(n); });
       }
 
       localToday.forEach(rawItem => {
         const item = normalizeFollowUpItem(rawItem);
+        if (!item) return;
         const idStr = String(item.id);
         const exists = dueNow.some(i => String(i.id) === idStr) ||
           upcomingToday.some(i => String(i.id) === idStr) ||
@@ -592,15 +682,15 @@ export default function FollowUpsModule() {
 
       if (statusFilter) {
         if (statusFilter === 'COMPLETED') {
-          merged = merged.filter(i => i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED');
+          merged = merged.filter(i => i && (i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED'));
         } else if (statusFilter === 'OVERDUE') {
-          merged = merged.filter(i => !i.isCompleted && (i.computedStatus || i.status) === 'OVERDUE');
+          merged = merged.filter(i => i && !i.isCompleted && (i.computedStatus || i.status) === 'OVERDUE');
         } else if (statusFilter === 'PENDING') {
-          merged = merged.filter(i => !i.isCompleted && (i.computedStatus || i.status) !== 'COMPLETED' && (i.computedStatus || i.status) !== 'CANCELLED');
+          merged = merged.filter(i => i && !i.isCompleted && (i.computedStatus || i.status) !== 'COMPLETED' && (i.computedStatus || i.status) !== 'CANCELLED');
         }
       }
 
-      setAllData(merged);
+      setAllData(merged.filter(Boolean));
     } catch (err) {
       console.warn('Follow-ups fetch notice:', err);
     } finally {
@@ -618,7 +708,7 @@ export default function FollowUpsModule() {
       const serverItems = Array.isArray(serverData) ? serverData : (serverData?.data || []);
       const local = getLocalCachedFollowUps();
 
-      setCalendarData(mergeServerAndLocal(serverItems, local));
+      setCalendarData(mergeServerAndLocal(serverItems, local).filter(Boolean));
     } catch (err) {
       console.warn('Calendar follow-ups fetch notice:', err);
     } finally {
@@ -638,6 +728,54 @@ export default function FollowUpsModule() {
     setRefreshing(false);
   };
 
+  // Synchronize deleted leads history from server audit logs on mount
+  useEffect(() => {
+    const syncDeletedHistory = async () => {
+      try {
+        const res = await fetchApi('/leads/deleted-history', token).catch(() => null);
+        if (Array.isArray(res) && res.length > 0) {
+          const rawIds = localStorage.getItem('das_crm_deleted_lead_ids');
+          const currentIds: string[] = rawIds ? JSON.parse(rawIds) : [];
+          const idSet = new Set(currentIds);
+
+          const rawRecs = localStorage.getItem('das_crm_deleted_lead_records');
+          const currentRecs: any[] = rawRecs ? JSON.parse(rawRecs) : [];
+          const recMap = new Map();
+          currentRecs.forEach(r => recMap.set(String(r.id || r.leadId || r.name), r));
+
+          res.forEach((log: any) => {
+            if (log.leadId && log.leadId !== '—') idSet.add(String(log.leadId));
+            const recKey = String(log.leadId || log.name);
+            recMap.set(recKey, {
+              id: log.leadId,
+              name: log.name,
+              phone: log.phone,
+              email: log.email,
+            });
+          });
+
+          localStorage.setItem('das_crm_deleted_lead_ids', JSON.stringify(Array.from(idSet)));
+          localStorage.setItem('das_crm_deleted_lead_records', JSON.stringify(Array.from(recMap.values())));
+
+          // Purge tasks cache with latest deleted history
+          const cachedRaw = localStorage.getItem('das_crm_followup_tasks_cache');
+          if (cachedRaw) {
+            const cached = JSON.parse(cachedRaw);
+            if (Array.isArray(cached)) {
+              const purged = cached.filter((t: any) => !isTaskFromDeletedLead(t, { ids: idSet, records: Array.from(recMap.values()) }));
+              if (purged.length !== cached.length) {
+                localStorage.setItem('das_crm_followup_tasks_cache', JSON.stringify(purged));
+                refreshAll();
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    };
+
+    syncDeletedHistory();
+  }, [token]);
+
   useEffect(() => {
     loadSummary();
     if (activeTab === 'TODAY') loadTodayData();
@@ -653,12 +791,29 @@ export default function FollowUpsModule() {
 
     window.addEventListener('das_crm_followup_created', handleSync);
     window.addEventListener('das_crm_workflow_updated', handleSync);
+    window.addEventListener('das_crm_leads_updated', handleSync);
+    window.addEventListener('das_crm_lead_deleted', handleSync);
     window.addEventListener('storage', handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('das_crm_lead_sync');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'LEADS_DELETED' || event.data?.type === 'LEAD_DELETED') {
+          refreshAll();
+        }
+      };
+    } catch (_) {}
 
     return () => {
       window.removeEventListener('das_crm_followup_created', handleSync);
       window.removeEventListener('das_crm_workflow_updated', handleSync);
+      window.removeEventListener('das_crm_leads_updated', handleSync);
+      window.removeEventListener('das_crm_lead_deleted', handleSync);
       window.removeEventListener('storage', handleSync);
+      if (bc) {
+        try { bc.close(); } catch (_) {}
+      }
     };
   }, [activeTab]);
 
@@ -1522,20 +1677,20 @@ function FollowUpCard({
 
   const resolvedLeadName = (item.lead?.name && !item.lead.name.includes('Lead Prospect') && item.lead.name !== 'Prospect' && item.lead.name !== '—') 
     ? item.lead.name 
-    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Pooja Nair');
-  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '+91 98000 10009';
-  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : 'pooja.nair@example.com';
+    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Lead Contact');
+  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '—';
+  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : '—';
   const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
     ? item.lead.owner.name 
     : (item.assignee?.name && item.assignee.name !== '—') 
     ? item.assignee.name 
-    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Nandini Rastogi');
-  const creatorName = item.createdByName || item.createdBy?.name || 'Anurag Sharma';
+    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep');
+  const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
   const cardTitle = (item.title || '')
-    .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${resolvedLeadName} (${item.lead?.company?.name || leadPhone})`)
-    .replace(/\(—\)/g, `(${item.lead?.company?.name || 'Adorable Trading'})`);
+    .replace(/Lead Prospect\s*(\([^\)]*\))?/gi, `${resolvedLeadName} ${item.lead?.company?.name ? `(${item.lead?.company?.name})` : (leadPhone && leadPhone !== '—' ? `(${leadPhone})` : '')}`.trim())
+    .replace(/\(—\)/g, item.lead?.company?.name ? `(${item.lead?.company?.name})` : '');
 
   return (
     <div
@@ -1699,17 +1854,17 @@ function FollowUpDetails({
 
   const leadName = (item.lead?.name && !item.lead.name.includes('Lead Prospect') && item.lead.name !== 'Prospect' && item.lead.name !== '—') 
     ? item.lead.name 
-    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Pooja Nair');
-  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '+91 98000 10009';
-  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : 'pooja.nair@example.com';
-  const companyName = item.lead?.company?.name || (typeof item.lead?.company === 'string' ? item.lead.company : 'Adorable Trading');
+    : (item.lead?.firstName ? `${item.lead.firstName} ${item.lead.lastName || ''}`.trim() : 'Lead Contact');
+  const leadPhone = (item.lead?.phone && item.lead.phone !== '—') ? item.lead.phone : (item.phone && item.phone !== '—') ? item.phone : '—';
+  const leadEmail = (item.lead?.email && item.lead.email !== '—') ? item.lead.email : (item.email && item.email !== '—') ? item.email : '—';
+  const companyName = item.lead?.company?.name || (typeof item.lead?.company === 'string' ? item.lead.company : '');
   const leadOwnerName = (item.lead?.owner?.name && item.lead.owner.name !== '—') 
     ? item.lead.owner.name 
     : (item.assignee?.name && item.assignee.name !== '—') 
     ? item.assignee.name 
-    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Nandini Rastogi');
+    : (item.lead?.owner?.firstName ? `${item.lead.owner.firstName} ${item.lead.owner.lastName || ''}`.trim() : 'Assigned Rep');
   const leadOwnerRole = item.lead?.owner?.role?.name || item.lead?.owner?.role || item.assignee?.role?.name || item.assignee?.role || 'SALES_REP';
-  const creatorName = item.createdByName || item.createdBy?.name || 'Anurag Sharma';
+  const creatorName = item.createdByName || item.createdBy?.name || 'Admin';
   const creatorRole = item.createdByRole || item.createdBy?.role || 'ADMIN';
 
   const scheduledDateFormatted = item.dueAt
@@ -1722,9 +1877,13 @@ function FollowUpDetails({
 
   // Navigate smoothly to lead profile page with hydrated session data
   const handleNavigateToLead = (targetLead?: any) => {
-    const leadId = targetLead?.id || item.lead?.id || item.leadId || 'dir_lead_anjali';
+    const leadId = targetLead?.id || item.lead?.id || item.leadId;
+    if (!leadId || getDeletedLeadIdentifiers().ids.has(String(leadId))) {
+      alert('This lead has been deleted and its profile is no longer available.');
+      return;
+    }
     const rawStatus = targetLead?.status?.name || (typeof targetLead?.status === 'string' ? targetLead.status : item.lead?.status?.name || 'Meeting Scheduled');
-    const comp = typeof targetLead?.company === 'string' ? targetLead.company : targetLead?.company?.name || companyName || 'Adorable Trading';
+    const comp = typeof targetLead?.company === 'string' ? targetLead.company : targetLead?.company?.name || companyName || '';
     
     const leadObj = {
       id: String(leadId),
