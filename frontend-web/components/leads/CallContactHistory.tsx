@@ -363,12 +363,12 @@ export function CallContactHistory({
                           )}
 
                           {/* Product Interest */}
-                          {attempt.productInterest && (
+                          {Boolean(attempt.productInterest && typeof attempt.productInterest === 'string' && attempt.productInterest.trim()) && (
                             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25">
                               <Package size={13} className="text-indigo-400 flex-shrink-0" />
                               <div>
                                 <p className="text-[10px] font-extrabold text-slate-400 uppercase">Product Discussed</p>
-                                <p className="text-xs font-bold text-indigo-300">{attempt.productInterest}</p>
+                                <p className="text-xs font-bold text-indigo-300">{attempt.productInterest!.trim()}</p>
                               </div>
                             </div>
                           )}

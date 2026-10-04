@@ -98,6 +98,10 @@ function mapServerActivitiesToContactHistory(
           ? 'MEETING_SCHEDULED'
           : ((meta.outcome || (durSecs > 0 ? 'TALKED' : 'BUSY')) as ContactOutcome);
 
+        const trimmedProduct = (meta.productInterest && typeof meta.productInterest === 'string' && meta.productInterest.trim())
+          ? meta.productInterest.trim()
+          : undefined;
+
         attempts.push({
           id: act.id,
           type: cType,
@@ -108,7 +112,7 @@ function mapServerActivitiesToContactHistory(
           timestamp: actTime,
           durationSeconds: durSecs,
           notes: act.description || meta.notes || (isMeeting ? 'Meeting / Visit Scheduled' : 'Outbound phone call'),
-          productInterest: meta.productInterest || leadInfo.requirement,
+          productInterest: trimmedProduct,
           followUpDate: meta.followUpDate,
           followUpTime: meta.followUpTime,
           audioRecordingAvailable: Boolean(meta.audioRecordingAvailable || durSecs > 10),
@@ -142,41 +146,7 @@ function mapServerActivitiesToContactHistory(
     }
   }
 
-  // 2. Synthesize call funnel scheduled follow-ups/meetings into call attempts if not already covered
-  if (Array.isArray(tasks)) {
-    for (const t of tasks) {
-      if (!t) continue;
-      const purpose = t.purpose || '';
-      const isFromCallFunnel = purpose.toLowerCase().includes('call funnel') || (t.title && (t.title.includes('Visit') || t.title.includes('Meeting')));
-      if (isFromCallFunnel) {
-        const taskId = `task-call-${t.id}`;
-        if (!seenIds.has(taskId)) {
-          const isMeeting = t.followUpType === 'MEETING' || (t.title && (t.title.includes('Visit') || t.title.includes('Meeting')));
-          const prodMatch = purpose.match(/product:\s*([^,\.]+)/i) || purpose.match(/interested in\s*([^,\.]+)/i);
-          const dueIso = t.dueAt ? (typeof t.dueAt === 'string' ? t.dueAt : new Date(t.dueAt).toISOString()) : '';
-          const taskTime = t.createdAt ? (typeof t.createdAt === 'string' ? t.createdAt : new Date(t.createdAt).toISOString()) : new Date().toISOString();
-          attempts.push({
-            id: taskId,
-            type: 'CALL_OUT',
-            outcome: isMeeting ? 'MEETING_SCHEDULED' : 'FOLLOW_UP_SCHEDULED',
-            scheduledType: isMeeting ? 'MEETING' : 'CALL',
-            by: leadInfo.owner || 'Anurag Sharma',
-            byRole: 'ADMIN',
-            timestamp: taskTime,
-            durationSeconds: 45,
-            notes: purpose || t.title || (isMeeting ? 'Meeting / Visit Scheduled' : 'Call Funnel outreach'),
-            productInterest: prodMatch ? prodMatch[1].trim() : (leadInfo.requirement || undefined),
-            followUpDate: dueIso ? dueIso.split('T')[0] : undefined,
-            followUpTime: dueIso && dueIso.includes('T') ? dueIso.split('T')[1].slice(0, 5) : undefined,
-            audioRecordingAvailable: false,
-          });
-          seenIds.add(taskId);
-        }
-      }
-    }
-  }
-
-  // 3. Process explicit Meeting records from PostgreSQL if present
+  // 2. Process explicit Meeting records from PostgreSQL if present
   if (Array.isArray(meetings)) {
     for (const m of meetings) {
       if (!m) continue;
@@ -184,6 +154,9 @@ function mapServerActivitiesToContactHistory(
       if (!seenIds.has(meetingId)) {
         const startIso = m.startAt ? (typeof m.startAt === 'string' ? m.startAt : new Date(m.startAt).toISOString()) : '';
         const meetTime = m.createdAt ? (typeof m.createdAt === 'string' ? m.createdAt : new Date(m.createdAt).toISOString()) : new Date().toISOString();
+        const meetProduct = (m.productInterest && typeof m.productInterest === 'string' && m.productInterest.trim())
+          ? m.productInterest.trim()
+          : undefined;
         attempts.push({
           id: meetingId,
           type: 'CALL_OUT',
@@ -194,7 +167,7 @@ function mapServerActivitiesToContactHistory(
           timestamp: meetTime,
           durationSeconds: 60,
           notes: m.title ? `Meeting Scheduled: ${m.title}` : (m.description || 'In-Person / Virtual Meeting Scheduled'),
-          productInterest: leadInfo.requirement,
+          productInterest: meetProduct,
           followUpDate: startIso ? startIso.split('T')[0] : undefined,
           followUpTime: startIso && startIso.includes('T') ? startIso.split('T')[1].slice(0, 5) : undefined,
           audioRecordingAvailable: false,
@@ -266,7 +239,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         const cached = localStorage.getItem(`das_crm_contact_history_${leadId}`);
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((a: any) => a && !String(a.id || '').startsWith('task-call-'));
+          }
         }
       } catch (_) {}
     }
@@ -375,7 +350,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               if (cachedDirect) {
                 try {
                   const parsed = JSON.parse(cachedDirect);
-                  if (Array.isArray(parsed) && parsed.length > 0) setContactHistory(parsed);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    setContactHistory(parsed.filter((a: any) => a && !String(a.id || '').startsWith('task-call-')));
+                  }
                 } catch (_) {}
               }
             }
@@ -455,10 +432,14 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
             if (serverAttempts.length > 0) {
               setContactHistory(prev => {
+                const cleanPrev = prev.filter(p => p && !String(p.id || '').startsWith('task-call-'));
                 const combined = [...serverAttempts];
                 const seen = new Set(serverAttempts.map(a => a.id));
-                for (const p of prev) {
-                  if (!seen.has(p.id)) combined.push(p);
+                for (const p of cleanPrev) {
+                  // Only preserve recent pending optimistic attempts not yet in server list
+                  if (!seen.has(p.id) && String(p.id || '').startsWith('attempt_')) {
+                    combined.push(p);
+                  }
                 }
                 return combined;
               });
