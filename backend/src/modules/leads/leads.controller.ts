@@ -226,6 +226,48 @@ export class LeadsController {
     return this.leadsService.create(user.organizationId, user.id, dto);
   }
 
+  // ── Lead Deletion & Audit History Endpoints ──
+
+  @Get('settings/delete-permissions')
+  @ApiOperation({ summary: 'Get lead deletion permissions and manager toggle status' })
+  getDeletePermissions(@CurrentUser() user: any) {
+    return this.leadsService.getDeletePermissions(user.organizationId, user.id);
+  }
+
+  @Patch('settings/manager-delete-permission')
+  @ApiOperation({ summary: 'Admin toggle for Manager lead deletion permission' })
+  updateManagerDeletePermission(
+    @CurrentUser() user: any,
+    @Body() body: { allowManagerLeadDelete: boolean },
+  ) {
+    return this.leadsService.updateManagerDeletePermission(
+      user.organizationId,
+      user.id,
+      body.allowManagerLeadDelete,
+    );
+  }
+
+  @Get('deleted-history')
+  @ApiOperation({ summary: 'Get deleted leads audit history' })
+  getDeletedHistory(@CurrentUser() user: any) {
+    return this.leadsService.getDeletedHistory(user.organizationId, user.id);
+  }
+
+  @Post('delete-batch')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Permanently delete leads and all properties with Company Key confirmation' })
+  deleteBatch(
+    @CurrentUser() user: any,
+    @Body() body: { leadIds: string[]; companyKey: string },
+  ) {
+    return this.leadsService.deleteBatch(
+      user.organizationId,
+      user.id,
+      body.leadIds,
+      body.companyKey,
+    );
+  }
+
   // ── Parametrized Lead Endpoints (Must be after all static routes) ──
 
   @Get(':id')

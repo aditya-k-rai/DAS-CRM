@@ -431,11 +431,31 @@ export function CallContactHistory({
                             <span
                               className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full"
                               style={{
-                                background: attempt.byRole === 'SALES_EXEC' ? 'rgba(52,211,153,0.12)' : attempt.byRole === 'TEAM_LEADER' ? 'rgba(56,189,248,0.12)' : 'rgba(129,140,248,0.12)',
-                                color: attempt.byRole === 'SALES_EXEC' ? '#34d399' : attempt.byRole === 'TEAM_LEADER' ? '#38bdf8' : '#818cf8',
+                                background:
+                                  attempt.byRole === 'ADMIN'
+                                    ? 'rgba(239,68,68,0.15)'
+                                    : attempt.byRole === 'MANAGER'
+                                    ? 'rgba(129,140,248,0.15)'
+                                    : attempt.byRole === 'TEAM_LEADER'
+                                    ? 'rgba(56,189,248,0.15)'
+                                    : 'rgba(52,211,153,0.15)',
+                                color:
+                                  attempt.byRole === 'ADMIN'
+                                    ? '#f87171'
+                                    : attempt.byRole === 'MANAGER'
+                                    ? '#818cf8'
+                                    : attempt.byRole === 'TEAM_LEADER'
+                                    ? '#38bdf8'
+                                    : '#34d399',
                               }}
                             >
-                              {attempt.byRole === 'SALES_EXEC' ? 'Sales Rep' : attempt.byRole === 'TEAM_LEADER' ? 'Team Leader' : 'Manager'}
+                              {attempt.byRole === 'ADMIN'
+                                ? 'Admin'
+                                : attempt.byRole === 'MANAGER'
+                                ? 'Manager'
+                                : attempt.byRole === 'TEAM_LEADER'
+                                ? 'Team Leader'
+                                : 'Sales Rep'}
                             </span>
                           </div>
                         </div>

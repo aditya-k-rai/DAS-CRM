@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff, ArrowDownUp, RefreshCw } from 'lucide-react';
+import { Search, ChevronDown, Phone, Mail, MoreHorizontal, ExternalLink, Star, Shield, Lock, ArrowLeftRight, Edit3, MoveLeft, MoveRight, Maximize2, Table, LayoutList, GitBranch, Brain, Filter, User, UserCheck, Calendar, RotateCcw, Check, X, Wifi, WifiOff, ArrowDownUp, RefreshCw, Trash2, AlertTriangle, AlertCircle, History } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
 import { LeadAllocationTrail, AllocationEvent, getUserRoleFromName, buildAllocationTrailForLead, sanitizeAllocationEvent, getSafeRoleMeta } from './LeadAllocationTrail';
@@ -268,6 +268,164 @@ export function LeadsTable() {
   const showTableToast = (msg: string) => {
     setTableToast(msg);
     setTimeout(() => setTableToast(null), 3800);
+  };
+
+  // ── Role Scoping for Lead Deletion ──
+  const currentRoleStr = (currentUser?.role || (typeof window !== 'undefined' ? (() => {
+    try {
+      return String(JSON.parse(localStorage.getItem('das_crm_user') || '{}').role || '').toUpperCase();
+    } catch (_) {
+      return '';
+    }
+  })() : '')).toUpperCase();
+
+  const isUserAdmin = currentRoleStr.includes('ADMIN') || currentRoleStr.includes('OWNER') || currentRoleStr.includes('SUPER');
+  const isUserManager = currentRoleStr.includes('MANAGER');
+
+  // ── Lead Deletion & Audit History State ──
+  const [canDeleteLeads, setCanDeleteLeads] = useState<boolean>(isUserAdmin);
+  const [allowManagerLeadDelete, setAllowManagerLeadDelete] = useState<boolean>(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [deleteCompanyKeyInput, setDeleteCompanyKeyInput] = useState<string>('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [deletedHistoryList, setDeletedHistoryList] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [historySearch, setHistorySearch] = useState<string>('');
+
+  // Fetch deletion permissions and manager toggle status from server
+  useEffect(() => {
+    let isMounted = true;
+    apiFetch('/leads/settings/delete-permissions')
+      .then(async (res) => {
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setCanDeleteLeads(Boolean(data.canDeleteLeads));
+          setAllowManagerLeadDelete(Boolean(data.allowManagerLeadDelete));
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch lead delete permissions:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  // Admin Toggle for Manager Lead Deletion Permission
+  const handleToggleManagerDelete = async () => {
+    const nextVal = !allowManagerLeadDelete;
+    try {
+      const res = await apiFetch('/leads/settings/manager-delete-permission', {
+        method: 'PATCH',
+        body: JSON.stringify({ allowManagerLeadDelete: nextVal }),
+      });
+      if (res.ok) {
+        setAllowManagerLeadDelete(nextVal);
+        if (isUserManager && !isUserAdmin) {
+          setCanDeleteLeads(nextVal);
+        }
+        showTableToast(
+          nextVal
+            ? '✓ Manager Delete Permission ENABLED: Managers can now delete leads with Company Key confirmation.'
+            : '✓ Manager Delete Permission DISABLED: Managers can no longer delete leads.'
+        );
+      } else {
+        const err = await res.json();
+        showTableToast(`⚠️ Failed to update permission: ${err.message || 'Error'}`);
+      }
+    } catch (err: any) {
+      showTableToast(`⚠️ Network error: ${err.message || 'Could not update permission'}`);
+    }
+  };
+
+  // Open Deleted Leads History Modal & load records from server
+  const handleOpenDeletedHistory = async () => {
+    setIsHistoryModalOpen(true);
+    setIsLoadingHistory(true);
+    try {
+      const res = await apiFetch('/leads/deleted-history');
+      if (res.ok) {
+        const data = await res.json();
+        setDeletedHistoryList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.warn('Could not load deleted leads history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Confirm and execute batch lead deletion with Company Key
+  const handleConfirmDeleteBatch = async () => {
+    const key = deleteCompanyKeyInput.trim();
+    if (!key) {
+      setDeleteError('Please enter your Company Key to confirm deletion.');
+      return;
+    }
+    if (selected.length === 0) {
+      setDeleteError('No leads selected.');
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await apiFetch('/leads/delete-batch', {
+        method: 'POST',
+        body: JSON.stringify({
+          leadIds: selected,
+          companyKey: key,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.message || 'Company Key verification failed.');
+        setIsDeleting(false);
+        return;
+      }
+
+      // Success: Remove from table state immediately
+      const deletedSet = new Set(selected);
+      setLeadsList((prev) => prev.filter((l) => !deletedSet.has(l.id)));
+      setSelected([]);
+      setIsDeleteModalOpen(false);
+      setDeleteCompanyKeyInput('');
+      setIsDeleting(false);
+
+      // Clean local storage caches
+      if (typeof window !== 'undefined') {
+        try {
+          const rawAll = localStorage.getItem('das_crm_all_leads_cache');
+          if (rawAll) {
+            const all = JSON.parse(rawAll);
+            const filtered = all.filter((l: any) => !deletedSet.has(String(l.id)));
+            localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(filtered));
+          }
+          const rawDir = localStorage.getItem('das_crm_lead_directory_cache');
+          if (rawDir) {
+            const dir = JSON.parse(rawDir);
+            const filteredDir = dir.filter((l: any) => !deletedSet.has(String(l.id)));
+            localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(filteredDir));
+          }
+        } catch (_) {}
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { deletedIds: Array.from(deletedSet) } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEADS_DELETED', leadIds: Array.from(deletedSet) });
+          bc.close();
+        } catch (_) {}
+      }
+
+      showTableToast(`✓ Successfully deleted ${data.count || deletedSet.size} lead(s) and all their properties from the database.`);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Server error deleting leads.');
+      setIsDeleting(false);
+    }
   };
 
   const searchParams = useSearchParams();
@@ -1342,6 +1500,41 @@ export function LeadsTable() {
                   </>
                 )}
               </div>
+
+              {/* 🛡️ Admin Toggle for Manager Lead Deletion */}
+              {isUserAdmin && (
+                <button
+                  type="button"
+                  onClick={handleToggleManagerDelete}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all shadow-sm ${
+                    allowManagerLeadDelete
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
+                  }`}
+                  title="Admin Control: Toggle whether Managers have permission to permanently delete leads (Requires Company Key)"
+                >
+                  <Shield size={13} className={allowManagerLeadDelete ? 'text-amber-400' : 'text-slate-500'} />
+                  <span>Manager Delete:</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
+                    allowManagerLeadDelete ? 'bg-amber-400 text-black' : 'bg-slate-700 text-slate-300'
+                  }`}>
+                    {allowManagerLeadDelete ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              )}
+
+              {/* 🗑️ Deleted Leads History Button (Admin & Manager) */}
+              {(isUserAdmin || isUserManager) && (
+                <button
+                  type="button"
+                  onClick={handleOpenDeletedHistory}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all shadow-sm"
+                  title="View history of all permanently deleted leads with name, phone, email, and who deleted"
+                >
+                  <Trash2 size={13} className="text-rose-400" />
+                  <span>Deleted History</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1476,6 +1669,27 @@ export function LeadsTable() {
             <div className="flex items-center gap-2 text-sm flex-wrap" style={{ color: 'rgb(var(--muted-foreground))' }}>
               <span className="font-medium" style={{ color: 'rgb(var(--brand-400))' }}>{selected.length} selected</span>
               <button className="btn-secondary text-xs py-1 px-3" onClick={() => setSelected([])}>Clear Selection</button>
+
+              {/* Delete Selected Leads Button */}
+              {canDeleteLeads ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteCompanyKeyInput('');
+                    setDeleteError(null);
+                    setIsDeleteModalOpen(true);
+                  }}
+                  className="px-3 py-1 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-1.5 shadow-md shadow-rose-950/40 transition-all border border-rose-500/50"
+                  title="Permanently delete selected leads and all their properties (Requires Company Key)"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete ({selected.length})</span>
+                </button>
+              ) : isUserManager ? (
+                <span className="text-[11px] text-slate-500 italic px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1">
+                  <Lock size={10} /> Delete disabled by Admin
+                </span>
+              ) : null}
             </div>
           )}
         </div>
@@ -2307,6 +2521,210 @@ export function LeadsTable() {
                 className="btn-primary text-xs py-2 px-5 font-bold shadow-lg"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 🗑️ CONFIRM PERMANENT LEAD DELETION MODAL (COMPANY KEY CONFIRMATION) ── */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-rose-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-white">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Confirm Permanent Deletion</h3>
+                  <p className="text-[11px] text-slate-400">Security Verification Required</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (!isDeleting) setIsDeleteModalOpen(false);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-950/30 border border-rose-500/25 space-y-2">
+              <p className="text-xs text-rose-200 font-medium leading-relaxed">
+                You are about to permanently delete <strong className="text-white font-bold">{selected.length} lead(s)</strong> and all their associated records from the database:
+              </p>
+              <ul className="text-[11px] text-rose-300/80 space-y-1 list-disc list-inside">
+                <li>Call history & timeline entries</li>
+                <li>Scheduled tasks & visit reminders</li>
+                <li>Activities, notes, and quotations</li>
+                <li>Deals and AI lead scoring data</li>
+              </ul>
+              <p className="text-[10px] text-rose-400 font-black tracking-wider uppercase pt-1">
+                ⚠️ THIS ACTION CANNOT BE UNDONE.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 block">
+                Enter Company Key to Confirm:
+              </label>
+              <input
+                type="text"
+                className="w-full bg-slate-950 border border-slate-700 focus:border-rose-500 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white placeholder-slate-600 focus:outline-none uppercase tracking-wider"
+                placeholder="e.g. ADOR-EC-7187"
+                value={deleteCompanyKeyInput}
+                onChange={(e) => {
+                  setDeleteCompanyKeyInput(e.target.value.toUpperCase());
+                  setDeleteError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isDeleting) handleConfirmDeleteBatch();
+                }}
+                disabled={isDeleting}
+                autoFocus
+              />
+              {deleteError && (
+                <p className="text-[11px] text-rose-400 font-medium flex items-center gap-1 mt-1">
+                  <AlertCircle size={12} /> {deleteError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting || !deleteCompanyKeyInput.trim()}
+                onClick={handleConfirmDeleteBatch}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-lg shadow-rose-950/50 transition-colors"
+              >
+                {isDeleting ? 'Verifying & Deleting...' : `Delete ${selected.length} Lead(s) →`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 📋 DELETED LEADS AUDIT HISTORY MODAL ── */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4 text-white max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                  <History size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>🗑️ Deleted Leads History</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                      {deletedHistoryList.length} records
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Permanent deletion audit log: lead contact details and who executed the deletion</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Search Filter Inside History Modal */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search deleted leads by name, phone, email, or who deleted..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* History Table */}
+            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-xl">
+              {isLoadingHistory ? (
+                <div className="py-12 text-center text-slate-400 text-xs">Loading deletion records from server...</div>
+              ) : deletedHistoryList.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center mx-auto text-xl">🗑️</div>
+                  <p className="text-xs font-bold text-slate-300">No deleted leads on record</p>
+                  <p className="text-[11px] text-slate-500">When leads are permanently deleted with Company Key confirmation, they will appear here.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950/80 sticky top-0 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th className="py-2.5 px-3">Lead Name</th>
+                      <th className="py-2.5 px-3">Phone Number</th>
+                      <th className="py-2.5 px-3">Email Address</th>
+                      <th className="py-2.5 px-3">Deleted By</th>
+                      <th className="py-2.5 px-3">Deleted Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {deletedHistoryList
+                      .filter((item) => {
+                        if (!historySearch.trim()) return true;
+                        const q = historySearch.toLowerCase();
+                        return (
+                          (item.name || '').toLowerCase().includes(q) ||
+                          (item.phone || '').toLowerCase().includes(q) ||
+                          (item.email || '').toLowerCase().includes(q) ||
+                          (item.deletedBy || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="py-2.5 px-3 font-bold text-white">{item.name}</td>
+                          <td className="py-2.5 px-3 font-mono text-emerald-400">{item.phone}</td>
+                          <td className="py-2.5 px-3 text-slate-300">{item.email}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-200">{item.deletedBy}</span>
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded ${
+                                item.deletedByRole === 'ADMIN'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                  : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                              }`}>
+                                {item.deletedByRole}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                            {new Date(item.deletedAt).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsHistoryModalOpen(false)}
+                className="btn-secondary text-xs py-2 px-5 font-bold"
+              >
+                Close
               </button>
             </div>
           </div>
