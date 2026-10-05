@@ -45,6 +45,12 @@ export class ActivitiesController {
     return this.activitiesService.log(user.organizationId, user.id, dto);
   }
 
+  @Get('today-summary')
+  @ApiOperation({ summary: "Get today's sales, operations, and telemetry summary for dashboard" })
+  getTodaySummary(@CurrentUser() user: any) {
+    return this.activitiesService.getTodaySummary(user.organizationId);
+  }
+
   @Get('lead/:leadId')
   @ApiOperation({ summary: 'Get all contact activities and timeline for a lead' })
   getLeadTimeline(

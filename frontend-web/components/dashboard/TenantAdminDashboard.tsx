@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useAuth, UserRole, getPlanSeatQuota, formatPlanName } from '@/context/AuthContext';
 import { AdminControlCenterView } from '@/components/admin/AdminControlCenterView';
+import { apiFetch } from '@/lib/apiClient';
+import { normalizeLead } from '@/lib/leadNormalizer';
 
 interface DashboardLeadRecord {
   id: string;
@@ -142,6 +144,202 @@ export function TenantAdminDashboard() {
   // LEAD INTEGRATION & TABLE ADJUSTMENT HUB STATE
   // ============================================================
   const [leadsList, setLeadsList] = useState<DashboardLeadRecord[]>([]);
+
+  // Real-time Today's Sales & Activity Telemetry State
+  const [telemetry, setTelemetry] = useState({
+    salesToday: 0,
+    totalSalesWon: 0,
+    activePipeline: 0,
+    todayLeads: 0,
+    totalLeads: 0,
+    todayCalls: 0,
+    todayMsgs: 0,
+    wonLeads: 0,
+    conversionRate: 0,
+  });
+  const [telemetryLoading, setTelemetryLoading] = useState(false);
+
+  const fetchTelemetryAndLeads = async () => {
+    try {
+      setTelemetryLoading(true);
+      const [summaryRes, leadsRes] = await Promise.allSettled([
+        apiFetch('/activities/today-summary'),
+        apiFetch('/leads?limit=500'),
+      ]);
+
+      let summaryData: any = null;
+      if (summaryRes.status === 'fulfilled' && summaryRes.value.ok) {
+        try {
+          summaryData = await summaryRes.value.json();
+        } catch (_) {}
+      }
+
+      let leadsData: any = null;
+      if (leadsRes.status === 'fulfilled' && leadsRes.value.ok) {
+        try {
+          leadsData = await leadsRes.value.json();
+        } catch (_) {}
+      }
+
+      // Calculate any local contact attempts from today across localStorage
+      let localTodayCalls = 0;
+      let localTodayMsgs = 0;
+      const todayIsoDate = new Date().toISOString().slice(0, 10);
+      const todayDateStr = new Date().toDateString();
+
+      if (typeof window !== 'undefined') {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('das_crm_contact_history_')) {
+              try {
+                const hist = JSON.parse(localStorage.getItem(key) || '[]');
+                if (Array.isArray(hist)) {
+                  for (const att of hist) {
+                    const timeStr = att.timestamp || att.createdAt || att.time || '';
+                    const isToday =
+                      (typeof timeStr === 'string' && timeStr.includes(todayIsoDate)) ||
+                      (timeStr ? new Date(timeStr).toDateString() === todayDateStr : false);
+                    if (isToday) {
+                      const type = String(att.type || '').toUpperCase();
+                      if (type === 'CALL') {
+                        localTodayCalls++;
+                      } else if (['WHATSAPP', 'EMAIL', 'SMS'].includes(type) || att.channel === 'WHATSAPP') {
+                        localTodayMsgs++;
+                      }
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Process Leads from backend
+      let parsedLeads: DashboardLeadRecord[] = [];
+      let calculatedWonRevenue = 0;
+      let calculatedPipeline = 0;
+      let calculatedWonLeads = 0;
+      let calculatedTodayLeads = 0;
+
+      if (leadsData) {
+        const rawItems = Array.isArray(leadsData)
+          ? leadsData
+          : (leadsData.leads || leadsData.data || []);
+
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+          parsedLeads = rawItems.map((l: any, idx: number) => {
+            const norm = normalizeLead(l, idx);
+            const isWon =
+              norm.status.toLowerCase().includes('won') ||
+              norm.status.toLowerCase() === 'closed won';
+            const isLost =
+              norm.status.toLowerCase().includes('lost') ||
+              norm.status.toLowerCase() === 'unqualified';
+
+            if (isWon) {
+              calculatedWonLeads++;
+              calculatedWonRevenue += norm.numericValue;
+            } else if (!isLost) {
+              calculatedPipeline += norm.numericValue;
+            }
+
+            const rawDate = l.createdAt || l.createdDate || norm.created;
+            const isLeadCreatedToday =
+              (typeof rawDate === 'string' && rawDate.includes(todayIsoDate)) ||
+              (rawDate ? new Date(rawDate).toDateString() === todayDateStr : false);
+            if (isLeadCreatedToday) {
+              calculatedTodayLeads++;
+            }
+
+            return {
+              id: norm.id,
+              name: norm.name,
+              email: norm.email,
+              phone: norm.phone,
+              company: norm.company,
+              source: norm.source,
+              stage: norm.status,
+              value: norm.numericValue,
+              assignedRep: norm.assignedRepName,
+              customFields: {
+                City: norm.city || '',
+                Budget: norm.budget || '',
+                Requirement: norm.requirement || '',
+                ...(l.customFields || {}),
+              },
+              createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : norm.created,
+            };
+          });
+
+          setLeadsList(parsedLeads);
+        }
+      }
+
+      const totalLeadsCount = summaryData?.totalLeads ?? (parsedLeads.length || 0);
+      const wonCount = summaryData?.wonLeads ?? calculatedWonLeads;
+      const effectiveCalls = Math.max(summaryData?.todayCalls ?? 0, localTodayCalls);
+      const effectiveMsgs = Math.max(summaryData?.todayMsgs ?? 0, localTodayMsgs);
+      const effectiveTodayLeads = Math.max(summaryData?.todayLeads ?? 0, calculatedTodayLeads);
+      const effectiveWonRevenue =
+        summaryData?.totalSalesWon && summaryData.totalSalesWon > 0
+          ? summaryData.totalSalesWon
+          : calculatedWonRevenue;
+      const effectivePipeline =
+        summaryData?.activePipeline && summaryData.activePipeline > 0
+          ? summaryData.activePipeline
+          : calculatedPipeline;
+      const effectiveSalesToday = summaryData?.salesToday ?? 0;
+      const effectiveConversion =
+        totalLeadsCount > 0
+          ? parseFloat(((wonCount / totalLeadsCount) * 100).toFixed(1))
+          : (summaryData?.conversionRate ?? 0);
+
+      setTelemetry({
+        salesToday: effectiveSalesToday,
+        totalSalesWon: effectiveWonRevenue,
+        activePipeline: effectivePipeline,
+        todayLeads: effectiveTodayLeads,
+        totalLeads: totalLeadsCount,
+        todayCalls: effectiveCalls,
+        todayMsgs: effectiveMsgs,
+        wonLeads: wonCount,
+        conversionRate: effectiveConversion,
+      });
+    } catch (err) {
+      console.error('[TenantAdminDashboard] Failed to fetch telemetry and leads:', err);
+    } finally {
+      setTelemetryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTelemetryAndLeads();
+
+    const handleSync = () => {
+      fetchTelemetryAndLeads();
+    };
+
+    window.addEventListener('das_crm_lead_sync', handleSync);
+    window.addEventListener('das_crm_followups_updated', handleSync);
+    window.addEventListener('das_crm_workflow_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchTelemetryAndLeads();
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('das_crm_lead_sync', handleSync);
+      window.removeEventListener('das_crm_followups_updated', handleSync);
+      window.removeEventListener('das_crm_workflow_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      clearInterval(interval);
+    };
+  }, [currentUser?.id]);
 
   // Column Visibility Picker State
   const [columnVisibility, setColumnVisibility] = useState({
@@ -611,8 +809,12 @@ export function TenantAdminDashboard() {
             <span>Revenue (Won)</span>
             <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">₹0</p>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80 font-bold mt-1">Ready for closed deals</p>
+          <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+            ₹{telemetry.totalSalesWon.toLocaleString('en-IN')}
+          </p>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80 font-bold mt-1">
+            {telemetry.wonLeads > 0 ? `${telemetry.wonLeads} Closed Won ${telemetry.wonLeads === 1 ? 'Deal' : 'Deals'}` : 'Ready for closed deals'}
+          </p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-indigo-500/40 transition-all">
@@ -620,8 +822,12 @@ export function TenantAdminDashboard() {
             <span>Active Pipeline</span>
             <TrendingUp size={14} className="text-indigo-500 dark:text-indigo-400" />
           </div>
-          <p className="text-xl font-extrabold text-foreground">₹0</p>
-          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">0 Open Deals</p>
+          <p className="text-xl font-extrabold text-foreground">
+            ₹{telemetry.activePipeline.toLocaleString('en-IN')}
+          </p>
+          <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">
+            {Math.max(0, (telemetry.totalLeads || leadsList.length) - telemetry.wonLeads)} Open Leads / Pipeline
+          </p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-blue-500/40 transition-all">
@@ -629,8 +835,12 @@ export function TenantAdminDashboard() {
             <span>Total Leads</span>
             <Target size={14} className="text-blue-500 dark:text-blue-400" />
           </div>
-          <p className="text-xl font-extrabold text-blue-600 dark:text-blue-300">{leadsList.length}</p>
-          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">Fresh Ingestion Queue</p>
+          <p className="text-xl font-extrabold text-blue-600 dark:text-blue-300">
+            {telemetry.totalLeads || leadsList.length}
+          </p>
+          <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">
+            {telemetry.todayLeads > 0 ? `+${telemetry.todayLeads} Ingested Today` : 'Fresh Ingestion Queue'}
+          </p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-purple-500/40 transition-all">
@@ -638,8 +848,12 @@ export function TenantAdminDashboard() {
             <span>Conversion Rate</span>
             <Activity size={14} className="text-purple-500 dark:text-purple-400" />
           </div>
-          <p className="text-xl font-extrabold text-purple-600 dark:text-purple-300">0.0%</p>
-          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Baseline Rate</p>
+          <p className="text-xl font-extrabold text-purple-600 dark:text-purple-300">
+            {telemetry.conversionRate}%
+          </p>
+          <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">
+            {telemetry.wonLeads} of {telemetry.totalLeads || leadsList.length} Converted
+          </p>
         </div>
 
         <div className="crm-card p-4 border border-border/70 hover:border-amber-500/40 transition-all">
@@ -689,11 +903,13 @@ export function TenantAdminDashboard() {
             <span className="text-emerald-700 dark:text-emerald-300 font-bold">Today's Sales &amp; Activity</span>
             <DollarSign size={14} className="text-emerald-500 dark:text-emerald-400" />
           </div>
-          <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">₹0 Today</p>
+          <p className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300">
+            ₹{telemetry.salesToday.toLocaleString('en-IN')} Today
+          </p>
           <div className="grid grid-cols-3 gap-1 mt-1 pt-1 border-t border-border/40 text-[9px] text-muted-foreground font-medium">
-            <div>Leads: <span className="text-blue-600 dark:text-blue-300 font-bold">0</span></div>
-            <div>Calls: <span className="text-indigo-600 dark:text-indigo-300 font-bold">0</span></div>
-            <div>Msgs: <span className="text-emerald-600 dark:text-emerald-300 font-bold">0</span></div>
+            <div>Leads: <span className="text-blue-600 dark:text-blue-300 font-bold">{telemetry.todayLeads}</span></div>
+            <div>Calls: <span className="text-indigo-600 dark:text-indigo-300 font-bold">{telemetry.todayCalls}</span></div>
+            <div>Msgs: <span className="text-emerald-600 dark:text-emerald-300 font-bold">{telemetry.todayMsgs}</span></div>
           </div>
         </div>
       </div>

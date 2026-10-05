@@ -155,4 +155,128 @@ export class ActivitiesService {
 
     return { activities, byType, total: activities.length };
   }
+
+  /**
+   * Get today's sales, calls, messages, and pipeline telemetry for dashboard.
+   */
+  async getTodaySummary(organizationId: string) {
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDateStr = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+    const todayStart = new Date(`${istDateStr}T00:00:00.000+05:30`);
+    const todayEnd = new Date(`${istDateStr}T23:59:59.999+05:30`);
+
+    const [todayCalls, todayMsgs, todayLeads, totalLeads, wonLeads, allDeals] = await Promise.all([
+      // Calls today
+      this.prisma.activity.count({
+        where: {
+          organizationId,
+          createdAt: { gte: todayStart, lte: todayEnd },
+          OR: [
+            { type: 'CALL' },
+            { description: { contains: 'call', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      // Messages today (WhatsApp, Email)
+      this.prisma.activity.count({
+        where: {
+          organizationId,
+          createdAt: { gte: todayStart, lte: todayEnd },
+          OR: [
+            { type: 'EMAIL' },
+            { description: { contains: 'whatsapp', mode: 'insensitive' } },
+            { description: { contains: 'email', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      // Leads created today
+      this.prisma.lead.count({
+        where: {
+          organizationId,
+          createdAt: { gte: todayStart, lte: todayEnd },
+        },
+      }),
+      // Total leads
+      this.prisma.lead.count({
+        where: { organizationId },
+      }),
+      // Won leads
+      this.prisma.lead.count({
+        where: {
+          organizationId,
+          status: { name: { equals: 'Won', mode: 'insensitive' } },
+        },
+      }),
+      // Deals for pipeline & sales
+      this.prisma.deal.findMany({
+        where: { organizationId },
+        select: { id: true, value: true, status: true, updatedAt: true, stage: { select: { name: true } } },
+      }),
+    ]);
+
+    let totalSalesWon = 0;
+    let salesToday = 0;
+    let activePipeline = 0;
+
+    allDeals.forEach((deal) => {
+      const val = Number(deal.value) || 0;
+      const isWon = (deal as any).status === 'WON' || deal.stage?.name?.toUpperCase() === 'WON';
+      const isLost = (deal as any).status === 'LOST' || deal.stage?.name?.toUpperCase() === 'LOST';
+      if (isWon) {
+        totalSalesWon += val;
+        if (deal.updatedAt >= todayStart && deal.updatedAt <= todayEnd) {
+          salesToday += val;
+        }
+      } else if (!isLost) {
+        activePipeline += val;
+      }
+    });
+
+    if (totalSalesWon === 0 && wonLeads > 0) {
+      const wonLeadRecords = await this.prisma.lead.findMany({
+        where: { organizationId, status: { name: { equals: 'Won', mode: 'insensitive' } } },
+        select: { customFields: true, updatedAt: true },
+      });
+      wonLeadRecords.forEach((l) => {
+        const cf = (l.customFields as any) || {};
+        const bStr = cf.Budget || cf.budget || cf.value || '0';
+        const num = parseFloat(String(bStr).replace(/[^0-9.]/g, '')) || 0;
+        totalSalesWon += num;
+        if (l.updatedAt >= todayStart && l.updatedAt <= todayEnd) {
+          salesToday += num;
+        }
+      });
+    }
+
+    if (activePipeline === 0) {
+      const activeLeads = await this.prisma.lead.findMany({
+        where: {
+          organizationId,
+          status: { name: { notIn: ['Won', 'Lost'] } },
+        },
+        select: { customFields: true },
+      });
+      activeLeads.forEach((l) => {
+        const cf = (l.customFields as any) || {};
+        const bStr = cf.Budget || cf.budget || cf.value || '0';
+        const num = parseFloat(String(bStr).replace(/[^0-9.]/g, '')) || 0;
+        activePipeline += num;
+      });
+    }
+
+    const conversionRate = totalLeads > 0 ? parseFloat(((wonLeads / totalLeads) * 100).toFixed(1)) : 0;
+
+    return {
+      salesToday,
+      totalSalesWon,
+      activePipeline,
+      todayLeads,
+      totalLeads,
+      todayCalls,
+      todayMsgs,
+      wonLeads,
+      conversionRate,
+    };
+  }
 }
