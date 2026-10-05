@@ -47,6 +47,15 @@ export class FollowUpsService {
   /**
    * Compute the effective status of a follow-up based on its state and time.
    */
+  private parseScheduledDueAt(dateStr: string, timeStr?: string): Date {
+    const rawTime = (timeStr || '09:00:00').trim();
+    const formattedTime = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
+    const hasTz = formattedTime.includes('+') || formattedTime.includes('Z') || (formattedTime.includes('-') && formattedTime.length > 8);
+    const fullIso = hasTz ? `${dateStr}T${formattedTime}` : `${dateStr}T${formattedTime}+05:30`;
+    const d = new Date(fullIso);
+    return isNaN(d.getTime()) ? new Date(`${dateStr}T${formattedTime}`) : d;
+  }
+
   private computeStatus(task: any): string {
     if (task.status === 'CANCELLED') return 'CANCELLED';
     if (task.status === 'MISSED') return 'MISSED';
@@ -155,15 +164,17 @@ export class FollowUpsService {
     }
 
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istDateStr = new Date(now.getTime() + istOffset).toISOString().split('T')[0];
+    const todayStart = new Date(`${istDateStr}T00:00:00.000+05:30`);
+    const todayEnd = new Date(`${istDateStr}T23:59:59.999+05:30`);
 
     // Status filter (compute-aware)
     if (status && status !== 'ALL') {
       if (status === 'OVERDUE') {
         where.isCompleted = false;
         where.status = { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] };
-        where.dueAt = { lt: todayStart };
+        where.dueAt = { lt: now };
       } else if (status === 'TODAY') {
         where.dueAt = { gte: todayStart, lte: todayEnd };
       } else if (status === 'UPCOMING' || status === 'PENDING') {
@@ -307,9 +318,9 @@ export class FollowUpsService {
     // Parse scheduled date + time
     let dueAt: Date;
     if (dto.scheduledTime) {
-      dueAt = new Date(`${dto.scheduledDate}T${dto.scheduledTime}`);
+      dueAt = this.parseScheduledDueAt(dto.scheduledDate, dto.scheduledTime);
     } else {
-      dueAt = new Date(`${dto.scheduledDate}T09:00:00`);
+      dueAt = this.parseScheduledDueAt(dto.scheduledDate, '09:00:00');
     }
 
     if (isNaN(dueAt.getTime())) {
@@ -430,8 +441,7 @@ export class FollowUpsService {
     if (dto.dealId !== undefined) data.dealId = dto.dealId || null;
 
     if (dto.scheduledDate) {
-      const time = dto.scheduledTime || '09:00:00';
-      const dueAt = new Date(`${dto.scheduledDate}T${time}`);
+      const dueAt = this.parseScheduledDueAt(dto.scheduledDate, dto.scheduledTime);
       if (!isNaN(dueAt.getTime())) {
         data.dueAt = dueAt;
       }
@@ -523,8 +533,7 @@ export class FollowUpsService {
     // Create next follow-up if requested
     let nextFollowUp: any = null;
     if (dto.createNextFollowUp && dto.nextFollowUpDate) {
-      const nextTime = dto.nextFollowUpTime || '09:00:00';
-      const nextDueAt = new Date(`${dto.nextFollowUpDate}T${nextTime}`);
+      const nextDueAt = this.parseScheduledDueAt(dto.nextFollowUpDate, dto.nextFollowUpTime);
       if (!isNaN(nextDueAt.getTime())) {
         nextFollowUp = await this.prisma.task.create({
           data: {
@@ -587,8 +596,7 @@ export class FollowUpsService {
       throw new BadRequestException('Please select a valid new date.');
     }
 
-    const newTime = dto.newTime || '09:00:00';
-    const newDueAt = new Date(`${dto.newDate}T${newTime}`);
+    const newDueAt = this.parseScheduledDueAt(dto.newDate, dto.newTime);
     if (isNaN(newDueAt.getTime())) {
       throw new BadRequestException('Please select a valid new date.');
     }
@@ -744,7 +752,12 @@ export class FollowUpsService {
       await Promise.all([
         this.prisma.task.count({ where: base }),
         this.prisma.task.count({
-          where: { ...base, dueAt: { gte: todayStart, lte: todayEnd } },
+          where: {
+            ...base,
+            isCompleted: false,
+            status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
+            dueAt: { gte: now, lte: todayEnd },
+          },
         }),
         this.prisma.task.count({
           where: {
@@ -759,7 +772,7 @@ export class FollowUpsService {
             ...base,
             isCompleted: false,
             status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
-            dueAt: { lt: todayStart },
+            dueAt: { lt: now },
           },
         }),
         this.prisma.task.count({

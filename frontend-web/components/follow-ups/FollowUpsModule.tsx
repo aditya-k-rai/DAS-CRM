@@ -492,7 +492,7 @@ export default function FollowUpsModule() {
       followUpType: cleanType,
       priority: item.priority || 'HIGH',
       status: item.status || 'PENDING',
-      computedStatus: computeLocalStatus(item),
+      computedStatus: computeLocalStatus({ ...item, dueAt: dueTime }),
       purpose: item.purpose || item.notes || item.description || item.title,
       dueAt: dueTime,
       scheduledDate: item.scheduledDate,
@@ -598,9 +598,9 @@ export default function FollowUpsModule() {
         if (status === 'COMPLETED' || item.isCompleted) {
           completedCount++;
           if (itemDateStr === todayStr) completedTodayCount++;
-        } else if (status === 'OVERDUE') {
+        } else if (status === 'OVERDUE' || (itemDate && itemDate < now)) {
           overdueCount++;
-        } else if (itemDateStr === todayStr || status === 'DUE') {
+        } else if ((itemDateStr === todayStr && itemDate && itemDate >= now) || status === 'DUE') {
           todayCount++;
         } else if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
           upcomingCount++;
@@ -612,17 +612,18 @@ export default function FollowUpsModule() {
       });
 
       if (serverSummary && typeof serverSummary === 'object' && typeof serverSummary.total === 'number') {
+        const finalOverdue = Math.max(serverSummary.overdue ?? 0, overdueCount);
         setSummary({
-          total: serverSummary.total,
-          today: serverSummary.today || 0,
-          upcoming: serverSummary.upcoming || 0,
-          overdue: serverSummary.overdue || 0,
-          completed: serverSummary.completed || 0,
-          completedToday: serverSummary.completedToday || 0,
+          total: Math.max(serverSummary.total ?? 0, allItems.length),
+          today: serverSummary.today ?? todayCount,
+          upcoming: serverSummary.upcoming ?? upcomingCount,
+          overdue: finalOverdue,
+          completed: serverSummary.completed ?? completedCount,
+          completedToday: serverSummary.completedToday ?? completedTodayCount,
           priority: {
-            high: serverSummary.priority?.high || 0,
-            medium: serverSummary.priority?.medium || 0,
-            normal: serverSummary.priority?.normal || 0,
+            high: serverSummary.priority?.high ?? highP,
+            medium: serverSummary.priority?.medium ?? medP,
+            normal: serverSummary.priority?.normal ?? normP,
           },
         });
       } else {
@@ -719,7 +720,14 @@ export default function FollowUpsModule() {
         if (statusFilter === 'COMPLETED') {
           merged = merged.filter(i => i && (i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED'));
         } else if (statusFilter === 'OVERDUE') {
-          merged = merged.filter(i => i && !i.isCompleted && (i.computedStatus || i.status) === 'OVERDUE');
+          merged = merged.filter(i => {
+            if (!i || i.isCompleted) return false;
+            const st = i.computedStatus || i.status;
+            if (st === 'COMPLETED' || st === 'CANCELLED') return false;
+            if (st === 'OVERDUE' || st === 'MISSED') return true;
+            const d = i.dueAt ? new Date(i.dueAt) : null;
+            return Boolean(d && !isNaN(d.getTime()) && d < new Date());
+          });
         } else if (statusFilter === 'UPCOMING' || statusFilter === 'PENDING') {
           const todayIso = new Date().toISOString().split('T')[0];
           merged = merged.filter(i => {
@@ -839,6 +847,13 @@ export default function FollowUpsModule() {
     window.addEventListener('das_crm_lead_deleted', handleSync);
     window.addEventListener('storage', handleSync);
 
+    // Live interval to automatically transition expired follow-ups to overdue in real-time
+    const liveTimer = setInterval(() => {
+      loadSummary();
+      if (activeTab === 'TODAY') loadTodayData();
+      else if (activeTab === 'OVERDUE') loadAllData('OVERDUE');
+    }, 30000);
+
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('das_crm_lead_sync');
@@ -850,6 +865,7 @@ export default function FollowUpsModule() {
     } catch (_) {}
 
     return () => {
+      clearInterval(liveTimer);
       window.removeEventListener('das_crm_followups_updated', handleSync);
       window.removeEventListener('das_crm_followup_created', handleSync);
       window.removeEventListener('das_crm_workflow_updated', handleSync);
