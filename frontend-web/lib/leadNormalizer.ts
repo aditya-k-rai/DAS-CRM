@@ -109,15 +109,16 @@ export function safeCompany(val: any, fallback = '—'): string {
   return fallback;
 }
 
-export function safeSource(val: any, fallback = 'Website'): string {
+export function safeSource(val: any, fallback = 'Google Ads'): string {
   if (val === null || val === undefined) return fallback;
   if (typeof val === 'string') {
     const trimmed = val.trim();
     return trimmed.length > 0 ? trimmed : fallback;
   }
   if (typeof val === 'object') {
-    if (typeof val.name === 'string' && val.name.trim()) return val.name.trim();
     if (typeof val.platform === 'string' && val.platform.trim()) return val.platform.trim();
+    if (typeof val.sourcePlatform === 'string' && val.sourcePlatform.trim()) return val.sourcePlatform.trim();
+    if (typeof val.name === 'string' && val.name.trim()) return val.name.trim();
     if (typeof val.fileName === 'string' && val.fileName.trim()) return val.fileName.trim();
   }
   return fallback;
@@ -249,7 +250,13 @@ export function normalizeLead(l: any, idx = 0): NormalizedLead {
   const rawOwner = safeOwnerName(l.owner || l.assignedRep || l.currentAssignee || l.assignedRepName);
   const rawOwnerRole = safeOwnerRole(l.owner || l.assignedRepRole);
   const rawCompany = safeCompany(l.company || l.customFields?.company);
-  const rawSource = safeSource(l.source || l.customFields?.platform || l.customFields?.fileName);
+  const rawSource = safeSource(
+    l.customFields?.platform ||
+    l.customFields?.sourcePlatform ||
+    l.source ||
+    l.customFields?.source ||
+    'Google Ads'
+  );
   const rawReq = safeRequirement(l.requirement || l.productInterest || l.notes || l.customFields?.col_requirement || l.customFields?.requirement || l.customFields?.productInterest);
   const rawCity = safeCity(l.city || l.customFields?.col_city || l.customFields?.city || l.customFields?.City);
   const rawBudget = safeString(l.budget || l.customFields?.col_budget || l.customFields?.budget || l.customFields?.Budget, '—');

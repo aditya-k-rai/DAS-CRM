@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -173,11 +173,21 @@ export default function LeadPipelinePage() {
       try {
         const cachedLeads = JSON.parse(localStorage.getItem('das_crm_lead_directory_cache') || '[]');
         if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
-          const cleanCached = cachedLeads.filter((c: any) => {
-            const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
-            const id = String(c.id || '');
-            return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
-          });
+          const cleanCached = cachedLeads
+            .filter((c: any) => {
+              const name = c.name || `${c.firstName || ''} ${c.lastName || ''}`;
+              const id = String(c.id || '');
+              return !name.includes('(Test Lead)') && id !== 'demo-lead-test-01' && id !== 'lead-test-demo-01';
+            })
+            .map((c: any) => {
+              const hasBadSource = !c.source || ['trade show', 'referral', 'website', 'inbound'].includes(String(c.source).toLowerCase());
+              const hasBadFile = !c.fileName || ['trade show', 'referral', 'website', 'inbound', 'spreadsheet import'].includes(String(c.fileName).toLowerCase());
+              return {
+                ...c,
+                fileName: hasBadFile ? 'Test_Data_2026-10-01_04-41-22.xlsx' : c.fileName,
+                source: hasBadSource ? 'Google Ads' : c.source,
+              };
+            });
           if (cleanCached.length > 0) {
             existingCached = cleanCached;
             setLeadDirectory(cleanCached);
@@ -257,9 +267,33 @@ export default function LeadPipelinePage() {
             })
             .map((l: any, idx: number) => {
               const norm = normalizeLead(l, idx);
-              const rawFile = norm.customFields?.fileName || norm.customFields?.filename || norm.source || (combinedLogs[0]?.fileName || 'Test_Data_2026-10-01_04-41-22.xlsx');
-              
-              let rawAllocated = combinedLogs[0]?.injectedAt || 'Oct 2, 2026, 05:03 AM';
+
+              // 1. Identify matching injection audit record
+              const matchedLog = combinedLogs.find((a: any) =>
+                (l.customFields?.auditId && a.id === l.customFields.auditId) ||
+                (l.customFields?.fileName && (a.fileName === l.customFields.fileName || a.fileName.includes(l.customFields.fileName))) ||
+                (l.customFields?.platform && a.platform === l.customFields.platform)
+              ) || combinedLogs[0];
+
+              // 2. The file name should be the Name of the file from which the data is injected
+              const rawFile =
+                (l.customFields?.fileName && !['trade show', 'referral', 'website', 'inbound'].includes(String(l.customFields.fileName).toLowerCase()) ? l.customFields.fileName : null) ||
+                (norm.customFields?.fileName && !['trade show', 'referral', 'website', 'inbound'].includes(String(norm.customFields.fileName).toLowerCase()) ? norm.customFields.fileName : null) ||
+                (l.customFields?.filename && !['trade show', 'referral', 'website', 'inbound'].includes(String(l.customFields.filename).toLowerCase()) ? l.customFields.filename : null) ||
+                matchedLog?.fileName ||
+                'Test_Data_2026-10-01_04-41-22.xlsx';
+
+              // 3. Source should be the source which is selected during injection
+              const rawSource =
+                l.customFields?.platform ||
+                norm.customFields?.platform ||
+                l.customFields?.sourcePlatform ||
+                (matchedLog?.platform && matchedLog.platform !== 'Spreadsheet Ingestion' ? matchedLog.platform : null) ||
+                (norm.source && !['trade show', 'referral', 'website', 'inbound'].includes(String(norm.source).toLowerCase()) ? norm.source : null) ||
+                matchedLog?.platform ||
+                'Google Ads';
+
+              let rawAllocated = matchedLog?.injectedAt || 'Oct 2, 2026, 05:03 AM';
               if (l.customFields?.allocatedAt) {
                 try {
                   const d = new Date(l.customFields.allocatedAt);
@@ -275,16 +309,20 @@ export default function LeadPipelinePage() {
               return {
                 id: String(norm.id),
                 name: norm.name,
-                fileName: safeString(rawFile, 'Spreadsheet Import'),
+                fileName: safeString(rawFile, 'Test_Data_2026-10-01_04-41-22.xlsx'),
                 allocatedAt: rawAllocated,
                 email: norm.email,
                 phone: norm.phone,
                 company: norm.company,
-                source: norm.source,
+                source: safeString(rawSource, 'Google Ads'),
                 stage: norm.status,
                 value: norm.numericValue || 150000,
                 assignedRep: norm.owner,
-                customFields: norm.customFields || {},
+                customFields: {
+                  ...(norm.customFields || {}),
+                  fileName: safeString(rawFile, 'Test_Data_2026-10-01_04-41-22.xlsx'),
+                  platform: safeString(rawSource, 'Google Ads'),
+                },
                 createdAt: norm.created,
               };
             });
@@ -601,15 +639,84 @@ export default function LeadPipelinePage() {
     setNewColOptionsStr(remaining.join(', '));
   };
 
-  const filteredLeadDirectory = leadDirectory.filter(lead => {
-    if (!lead) return false;
-    if (!leadSearchQuery.trim()) return true;
-    const q = leadSearchQuery.toLowerCase();
-    return safeString(lead.name).toLowerCase().includes(q) ||
-      safeString(lead.email).toLowerCase().includes(q) ||
-      safeString(lead.phone).toLowerCase().includes(q) ||
-      safeString(lead.company).toLowerCase().includes(q);
-  });
+  const [selectedSourceFilter, setSelectedSourceFilter] = useState<string | null>(null);
+
+  // Dynamic calculation of leads ingested per channel platform
+  const getChannelCount = useCallback((title: string): number => {
+    const t = title.toLowerCase().trim();
+
+    const isMatch = (srcStr: string | null | undefined): boolean => {
+      if (!srcStr) return false;
+      const s = srcStr.toLowerCase().trim();
+      if (t === 'google ads') return s.includes('google') || s === 'google ads';
+      if (t.includes('meta')) return s.includes('meta') || s.includes('fb') || s.includes('facebook') || s.includes('insta');
+      if (t.includes('linkedin')) return s.includes('linkedin');
+      if (t.includes('microsoft')) return s.includes('microsoft') || s.includes('bing');
+      if (t.includes('pinterest')) return s.includes('pinterest');
+      if (t.includes('twitter') || t.includes('x (twitter)')) return s.includes('twitter') || s === 'x' || s.includes('x ads');
+      if (t.includes('indiamart')) return s.includes('indiamart');
+      if (t.includes('tradeindia')) return s.includes('tradeindia');
+      if (t.includes('justdial')) return s.includes('justdial');
+      if (t.includes('lotwaala')) return s.includes('lotwaala');
+      if (t.includes('website')) return s.includes('website') || s.includes('form');
+      if (t.includes('custom')) return s.includes('custom');
+      return s.includes(t) || t.includes(s);
+    };
+
+    // 1. Leads currently in directory matching this source
+    const leadsMatched = leadDirectory.filter(l =>
+      isMatch(l.source) ||
+      isMatch(l.customFields?.platform) ||
+      isMatch(l.customFields?.sourcePlatform)
+    ).length;
+
+    // 2. Audit logs matching this source
+    const auditMatched = webAuditLogs.reduce((acc, log) => {
+      if (isMatch(log.platform)) {
+        return acc + (Number(log.leadsCount || (log as any).rowsCount) || 0);
+      }
+      return acc;
+    }, 0);
+
+    return Math.max(leadsMatched, auditMatched);
+  }, [leadDirectory, webAuditLogs]);
+
+  const filteredLeadDirectory = useMemo(() => {
+    return leadDirectory.filter(lead => {
+      if (!lead) return false;
+
+      // Filter by selected source platform card if active
+      if (selectedSourceFilter) {
+        const leadSrc = (lead.source || lead.customFields?.platform || '').toLowerCase().trim();
+        const filt = selectedSourceFilter.toLowerCase().trim();
+        let matches = false;
+        if (filt === 'google ads') matches = leadSrc.includes('google');
+        else if (filt.includes('meta')) matches = leadSrc.includes('meta') || leadSrc.includes('fb') || leadSrc.includes('facebook') || leadSrc.includes('insta');
+        else if (filt.includes('linkedin')) matches = leadSrc.includes('linkedin');
+        else if (filt.includes('microsoft')) matches = leadSrc.includes('microsoft') || leadSrc.includes('bing');
+        else if (filt.includes('pinterest')) matches = leadSrc.includes('pinterest');
+        else if (filt.includes('twitter') || filt.includes('x (twitter)')) matches = leadSrc.includes('twitter') || leadSrc === 'x' || leadSrc.includes('x ads');
+        else if (filt.includes('indiamart')) matches = leadSrc.includes('indiamart');
+        else if (filt.includes('tradeindia')) matches = leadSrc.includes('tradeindia');
+        else if (filt.includes('justdial')) matches = leadSrc.includes('justdial');
+        else if (filt.includes('lotwaala')) matches = leadSrc.includes('lotwaala');
+        else if (filt.includes('website')) matches = leadSrc.includes('website') || leadSrc.includes('form');
+        else if (filt.includes('custom')) matches = leadSrc.includes('custom');
+        else matches = leadSrc.includes(filt) || filt.includes(leadSrc);
+
+        if (!matches) return false;
+      }
+
+      if (!leadSearchQuery.trim()) return true;
+      const q = leadSearchQuery.toLowerCase();
+      return safeString(lead.name).toLowerCase().includes(q) ||
+        safeString(lead.email).toLowerCase().includes(q) ||
+        safeString(lead.phone).toLowerCase().includes(q) ||
+        safeString(lead.company).toLowerCase().includes(q) ||
+        safeString(lead.source).toLowerCase().includes(q) ||
+        safeString(lead.fileName).toLowerCase().includes(q);
+    });
+  }, [leadDirectory, selectedSourceFilter, leadSearchQuery]);
 
   // ── Pagination State ────────────────────────────────────────────────────────
   const [pageSize, setPageSize] = useState<10 | 20 | 50 | 100>(50);
@@ -714,28 +821,46 @@ export default function LeadPipelinePage() {
           {/* Connected Ingestion Platform Channel Cards (12 Platforms) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { title: 'Google Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-amber-500/30 bg-amber-500/5', color: 'text-amber-400' },
-              { title: 'Meta Ads (FB & Insta)', count: '0 Ingested', status: 'Channel Active', bg: 'border-blue-500/30 bg-blue-500/5', color: 'text-blue-400' },
-              { title: 'LinkedIn Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-cyan-500/30 bg-cyan-500/5', color: 'text-cyan-400' },
-              { title: 'Microsoft Ads (Bing)', count: '0 Ingested', status: 'Channel Active', bg: 'border-teal-500/30 bg-teal-500/5', color: 'text-teal-400' },
-              { title: 'Pinterest Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-rose-500/30 bg-rose-500/5', color: 'text-rose-400' },
-              { title: 'X (Twitter) Ads', count: '0 Ingested', status: 'Channel Active', bg: 'border-sky-500/30 bg-sky-500/5', color: 'text-sky-400' },
-              { title: 'IndiaMART', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'TradeIndia', count: '0 Ingested', status: 'Channel Active', bg: 'border-indigo-500/30 bg-indigo-500/5', color: 'text-indigo-400' },
-              { title: 'Justdial', count: '0 Ingested', status: 'Channel Active', bg: 'border-orange-500/30 bg-orange-500/5', color: 'text-orange-400' },
-              { title: 'Lotwaala', count: '0 Ingested', status: 'Channel Active', bg: 'border-purple-500/30 bg-purple-500/5', color: 'text-purple-400' },
-              { title: 'Website Forms', count: '0 Ingested', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', color: 'text-emerald-400' },
-              { title: 'Custom Channel', count: '0 Ingested', status: 'Channel Active', bg: 'border-slate-700 bg-slate-900/60', color: 'text-slate-300' },
-            ].map(ch => (
-              <div key={ch.title} className={`p-3 rounded-xl border ${ch.bg} space-y-1 hover:border-slate-600 transition-all`}>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-white truncate">{ch.title}</p>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              { title: 'Google Ads', status: 'Channel Active', bg: 'border-amber-500/30 bg-amber-500/5', activeBg: 'border-amber-400 bg-amber-500/20 ring-2 ring-amber-400 shadow-lg shadow-amber-500/10', color: 'text-amber-400' },
+              { title: 'Meta Ads (FB & Insta)', status: 'Channel Active', bg: 'border-blue-500/30 bg-blue-500/5', activeBg: 'border-blue-400 bg-blue-500/20 ring-2 ring-blue-400 shadow-lg shadow-blue-500/10', color: 'text-blue-400' },
+              { title: 'LinkedIn Ads', status: 'Channel Active', bg: 'border-cyan-500/30 bg-cyan-500/5', activeBg: 'border-cyan-400 bg-cyan-500/20 ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/10', color: 'text-cyan-400' },
+              { title: 'Microsoft Ads (Bing)', status: 'Channel Active', bg: 'border-teal-500/30 bg-teal-500/5', activeBg: 'border-teal-400 bg-teal-500/20 ring-2 ring-teal-400 shadow-lg shadow-teal-500/10', color: 'text-teal-400' },
+              { title: 'Pinterest Ads', status: 'Channel Active', bg: 'border-rose-500/30 bg-rose-500/5', activeBg: 'border-rose-400 bg-rose-500/20 ring-2 ring-rose-400 shadow-lg shadow-rose-500/10', color: 'text-rose-400' },
+              { title: 'X (Twitter) Ads', status: 'Channel Active', bg: 'border-sky-500/30 bg-sky-500/5', activeBg: 'border-sky-400 bg-sky-500/20 ring-2 ring-sky-400 shadow-lg shadow-sky-500/10', color: 'text-sky-400' },
+              { title: 'IndiaMART', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', activeBg: 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/10', color: 'text-emerald-400' },
+              { title: 'TradeIndia', status: 'Channel Active', bg: 'border-indigo-500/30 bg-indigo-500/5', activeBg: 'border-indigo-400 bg-indigo-500/20 ring-2 ring-indigo-400 shadow-lg shadow-indigo-500/10', color: 'text-indigo-400' },
+              { title: 'Justdial', status: 'Channel Active', bg: 'border-orange-500/30 bg-orange-500/5', activeBg: 'border-orange-400 bg-orange-500/20 ring-2 ring-orange-400 shadow-lg shadow-orange-500/10', color: 'text-orange-400' },
+              { title: 'Lotwaala', status: 'Channel Active', bg: 'border-purple-500/30 bg-purple-500/5', activeBg: 'border-purple-400 bg-purple-500/20 ring-2 ring-purple-400 shadow-lg shadow-purple-500/10', color: 'text-purple-400' },
+              { title: 'Website Forms', status: 'Channel Active', bg: 'border-emerald-500/30 bg-emerald-500/5', activeBg: 'border-emerald-400 bg-emerald-500/20 ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/10', color: 'text-emerald-400' },
+              { title: 'Custom Channel', status: 'Channel Active', bg: 'border-slate-700 bg-slate-900/60', activeBg: 'border-slate-400 bg-slate-800 ring-2 ring-slate-400 shadow-lg', color: 'text-slate-300' },
+            ].map(ch => {
+              const count = getChannelCount(ch.title);
+              const isSelected = selectedSourceFilter === ch.title;
+              return (
+                <div
+                  key={ch.title}
+                  onClick={() => setSelectedSourceFilter(prev => prev === ch.title ? null : ch.title)}
+                  title={`Click to filter live lead directory by ${ch.title}`}
+                  className={`p-3 rounded-xl border space-y-1 transition-all cursor-pointer select-none ${
+                    isSelected ? ch.activeBg : `${ch.bg} hover:border-slate-600 hover:scale-[1.02]`
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-white truncate">{ch.title}</p>
+                    <span className={`w-2 h-2 rounded-full ${count > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+                  </div>
+                  <p className={`text-sm font-extrabold ${ch.color}`}>{count} Ingested</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted truncate">{ch.status}</p>
+                    {isSelected && (
+                      <span className="text-[8px] font-black uppercase text-indigo-300 bg-indigo-500/25 px-1 py-0.5 rounded border border-indigo-500/40">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className={`text-sm font-extrabold ${ch.color}`}>{ch.count}</p>
-                <p className="text-[10px] text-muted truncate">{ch.status}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* 📊 Spreadsheet Ingestion & Employee Allocation Audit History Hub */}
@@ -974,6 +1099,18 @@ export default function LeadPipelinePage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {selectedSourceFilter && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold animate-fade-in shadow-sm">
+                    <span>Source: {selectedSourceFilter}</span>
+                    <button
+                      onClick={() => setSelectedSourceFilter(null)}
+                      className="ml-1 hover:text-white p-0.5 rounded hover:bg-indigo-500/30 font-extrabold text-[11px]"
+                      title="Clear source filter"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => setColumnConfigModalOpen(true)}
                   className="px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
@@ -1172,16 +1309,14 @@ export default function LeadPipelinePage() {
                           return <td key={col.id} className="p-3 font-bold text-white border-r border-border/40 last:border-0">₹{(Number(lead.value) || 0).toLocaleString('en-IN')}</td>;
                         }
                         if (col.id === 'assignedRep') {
-                          const isLocked = isLeadContactedAndLocked({ status: lead.stage, stage: lead.stage });
                           const isUnassigned = !lead.assignedRep || lead.assignedRep === 'Unassigned' || lead.assignedRep === '—';
 
-                          if (isLocked) {
+                          if (isUnassigned) {
                             return (
                               <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
-                                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950 border border-slate-800" title="🔒 Lead Assignment Locked: This lead has already been contacted by Sales/TL and cannot be reassigned to anyone else.">
-                                  <Lock size={12} className="text-amber-400" />
-                                  <span className="font-bold text-slate-300 text-xs">{lead.assignedRep}</span>
-                                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/20">LOCKED</span>
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold text-xs" title="Unassigned Lead: Allocate via Spreadsheet Ingestion Hub above">
+                                  <AlertCircle size={12} className="text-amber-400 shrink-0" />
+                                  <span>Unassigned</span>
                                 </div>
                               </td>
                             );
@@ -1189,25 +1324,11 @@ export default function LeadPipelinePage() {
 
                           return (
                             <td key={col.id} className="p-3 border-r border-border/40 last:border-0">
-                              <select
-                                value={lead.assignedRep || 'Unassigned'}
-                                onChange={(e) => {
-                                  const newRep = e.target.value;
-                                  setLeadDirectory(prev => prev.map(item => item.id === lead.id ? { ...item, assignedRep: newRep } : item));
-                                }}
-                                className={`text-xs font-bold px-2 py-1 rounded-lg border focus:outline-none transition-all cursor-pointer ${
-                                  isUnassigned
-                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-extrabold animate-pulse'
-                                    : 'bg-slate-950 border-slate-700 text-indigo-300 hover:border-indigo-500'
-                                }`}
-                              >
-                                <option value="Unassigned">⚠️ Unassigned</option>
-                                {(assignableReps || []).map(rep => (
-                                  <option key={rep.id} value={rep.name}>
-                                    {rep.name} ({rep.role})
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950 border border-slate-800" title="🔒 Lead Assignment Authoritative: Lead allocations are set during ingestion and cannot be changed here.">
+                                <Lock size={12} className="text-amber-400 shrink-0" />
+                                <span className="font-bold text-slate-200 text-xs">{lead.assignedRep}</span>
+                                <span className="text-[9px] font-black text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/30">LOCKED</span>
+                              </div>
                             </td>
                           );
                         }
@@ -1796,20 +1917,36 @@ export default function LeadPipelinePage() {
             setLeadDirectory(prev => {
               let updated: DashboardLeadRecord[] = [];
               if (result.mode === 'DIRECT_ASSIGN' && result.assignedUser) {
+                const assignedFileName = safeString(pendingAllocationSheet.fileName, 'Spreadsheet_Import.xlsx');
+                const assignedPlatform = safeString(pendingAllocationSheet.platform, 'Google Ads');
                 updated = prev.map(l => ({
                   ...l,
                   assignedRep: result.assignedUser!.name,
-                  fileName: l.fileName || pendingAllocationSheet.fileName,
+                  fileName: assignedFileName || l.fileName,
+                  source: assignedPlatform || l.source,
                   allocatedAt: l.allocatedAt || nowTime,
+                  customFields: {
+                    ...(l.customFields || {}),
+                    fileName: assignedFileName || safeString(l.fileName, 'Spreadsheet_Import.xlsx'),
+                    platform: assignedPlatform || safeString(l.source, 'Google Ads'),
+                  },
                 }));
               } else if (result.mode === 'BATCHWISE' && result.batchRules && result.batchRules.length > 0) {
+                const assignedFileName = safeString(pendingAllocationSheet.fileName, 'Spreadsheet_Import.xlsx');
+                const assignedPlatform = safeString(pendingAllocationSheet.platform, 'Google Ads');
                 updated = prev.map((l, idx) => {
                   const matchedRule = result.batchRules?.find(r => (idx + 1) >= r.fromRow && (idx + 1) <= r.toRow);
                   return {
                     ...l,
                     assignedRep: matchedRule ? matchedRule.assigneeName : l.assignedRep,
-                    fileName: l.fileName || pendingAllocationSheet.fileName,
+                    fileName: assignedFileName || l.fileName,
+                    source: assignedPlatform || l.source,
                     allocatedAt: l.allocatedAt || nowTime,
+                    customFields: {
+                      ...(l.customFields || {}),
+                      fileName: assignedFileName || safeString(l.fileName, 'Spreadsheet_Import.xlsx'),
+                      platform: assignedPlatform || safeString(l.source, 'Google Ads'),
+                    },
                   };
                 });
               } else {

@@ -1620,16 +1620,29 @@ export class LeadsService {
       });
     }
 
+    const targetSourceName = (dto.sourceName || '').trim() || 'Spreadsheet Ingestion';
     let defaultSource = await this.prisma.leadSource.findFirst({
-      where: { organizationId },
+      where: {
+        organizationId,
+        name: { equals: targetSourceName, mode: 'insensitive' },
+      },
     });
     if (!defaultSource) {
-      defaultSource = await this.prisma.leadSource.create({
-        data: {
-          organizationId,
-          name: dto.sourceName || 'Spreadsheet Ingestion',
-        },
-      });
+      try {
+        defaultSource = await this.prisma.leadSource.create({
+          data: {
+            organizationId,
+            name: targetSourceName,
+          },
+        });
+      } catch (_) {
+        defaultSource = await this.prisma.leadSource.findFirst({
+          where: { organizationId },
+        });
+      }
+    }
+    if (!defaultSource) {
+      defaultSource = await this.prisma.leadSource.findFirst();
     }
 
     // Pre-fetch all organization users to safely map assignee IDs without foreign key failures
@@ -1734,7 +1747,7 @@ export class LeadsService {
               ownerId: validOwnerId,
               createdById: validCreatedById,
               statusId: defaultStatus.id,
-              sourceId: defaultSource.id,
+              sourceId: defaultSource?.id || null,
               notes,
               score,
               customFields,
@@ -1792,7 +1805,7 @@ export class LeadsService {
                   ownerId: validTargetId,
                   createdById: allocatorId,
                   statusId: defaultStatus.id,
-                  sourceId: defaultSource.id,
+                  sourceId: defaultSource?.id || null,
                   lastActivityAt: new Date(),
                 },
               });
@@ -1832,8 +1845,11 @@ export class LeadsService {
               where: { id: lead.id },
               data: {
                 ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
+                ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                 customFields: {
                   ...existingCustom,
+                  fileName: dto.fileName || existingCustom.fileName || 'Spreadsheet_Import.xlsx',
+                  platform: targetSourceName,
                   assignedRep: targetAssigneeName,
                   assignedRepName: targetAssigneeName,
                   owner: targetAssigneeName,
@@ -1848,6 +1864,7 @@ export class LeadsService {
                 where: { id: lead.id },
                 data: {
                   ...(targetUserId ? { ownerId: targetUserId } : isUnassigning ? { ownerId: null } : {}),
+                  ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                   lastActivityAt: new Date(),
                 },
               }).catch(() => {});
@@ -1886,8 +1903,11 @@ export class LeadsService {
                 where: { id: lead.id },
                 data: {
                   ...(ruleTargetId ? { ownerId: ruleTargetId } : {}),
+                  ...(defaultSource?.id ? { sourceId: defaultSource.id } : {}),
                   customFields: {
                     ...existingCustom,
+                    fileName: dto.fileName || existingCustom.fileName || 'Spreadsheet_Import.xlsx',
+                    platform: targetSourceName,
                     assignedRep: rule.assigneeName,
                     assignedRepName: rule.assigneeName,
                     owner: rule.assigneeName,
