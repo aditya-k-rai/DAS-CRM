@@ -8,11 +8,12 @@ import {
   MessageSquare, MessageCircle, Mail, FileText, BarChart3, Database,
   Calendar, Briefcase, TrendingUp, Radio, Building2, HelpCircle, Info,
   ArrowRight, RefreshCw, Copy, Send, ToggleLeft, ToggleRight, Edit3,
-  Eye, EyeOff, Share2, Clock
+  Eye, EyeOff, Share2, Clock, Trash2
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/context/AuthContext';
 import Link from 'next/link';
 import { subscribeUserDirectory, invalidateUserDirectoryCache } from '@/lib/userDirectoryCache';
+import { apiFetch } from '@/lib/apiClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,11 +143,25 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [companyKey, setCompanyKey] = useState<string>('ADOR-EC-7187');
   const [copiedKey, setCopiedKey] = useState(false);
+  const [allowManagerLeadDelete, setAllowManagerLeadDelete] = useState<boolean>(false);
+  const [togglingManagerDelete, setTogglingManagerDelete] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3200);
   };
+
+  // Fetch initial Manager lead deletion permission status
+  useEffect(() => {
+    apiFetch('/leads/settings/delete-permissions')
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          setAllowManagerLeadDelete(Boolean(data.allowManagerLeadDelete));
+        }
+      })
+      .catch(() => null);
+  }, []);
 
   // Load Policies & Audit logs from localStorage & backend
   useEffect(() => {
@@ -637,6 +652,59 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
     syncPolicyToBackend(selectedUser.id, selectedUser.email, 'ALL', { active: true, canView: true, canShare: true, canEdit: false }, auditEntry, nextPolicies);
   };
 
+  // Admin Toggle for Manager Lead Deletion Authority (Manager Roles Only)
+  const handleToggleManagerDelete = async () => {
+    const nextVal = !allowManagerLeadDelete;
+    setTogglingManagerDelete(true);
+    try {
+      const res = await apiFetch('/leads/settings/manager-delete-permission', {
+        method: 'PATCH',
+        body: JSON.stringify({ allowManagerLeadDelete: nextVal }),
+      });
+      if (res.ok) {
+        setAllowManagerLeadDelete(nextVal);
+        try {
+          localStorage.setItem('das_crm_allow_manager_delete', String(nextVal));
+        } catch (_) {}
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('das_crm_permissions_updated', {
+              detail: { allowManagerLeadDelete: nextVal },
+            })
+          );
+        }
+
+        const newAudit: AuditLogEntry = {
+          id: `aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          ts: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          adminName: currentUser?.name || currentUser?.email || 'Admin',
+          targetName: 'Manager Role (All Managers)',
+          targetRole: 'MANAGER',
+          moduleLabel: 'Lead Permanent Deletion Authority',
+          action: nextVal ? 'GRANTED: Manager Lead Deletion Enabled (Company Key Required)' : 'REVOKED: Manager Lead Deletion Disabled',
+        };
+        setAuditLogs(prev => {
+          const updated = [newAudit, ...prev].slice(0, 100);
+          try { localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(updated)); } catch (_) {}
+          return updated;
+        });
+
+        showToast(
+          nextVal
+            ? '✓ Manager Delete Permission ENABLED: Managers can now delete leads with Company Key confirmation.'
+            : '✓ Manager Delete Permission DISABLED: Managers can no longer delete leads.'
+        );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(`⚠️ Failed to update permission: ${err.message || 'Error'}`);
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Error: ${err.message || 'Network error'}`);
+    } finally {
+      setTogglingManagerDelete(false);
+    }
+  };
+
   const filteredModules = useMemo(() => {
     return ALL_WEB_MODULES.filter(m => categoryFilter === 'ALL' || m.category === categoryFilter);
   }, [categoryFilter]);
@@ -868,6 +936,65 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                 </div>
               </div>
 
+              {/* 🛡️ Manager Lead Permanent Deletion Authority (Manager Roles Only) */}
+              {(selectedUser.role === 'MANAGER' || roleFilter === 'MANAGER') && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-amber-950/30 border border-purple-500/40 space-y-3 shadow-xl animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md">
+                        <Trash2 size={18} className="text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-black text-white">Manager Lead Permanent Deletion Control</h4>
+                          <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                            MANAGER ROLES ONLY
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black border ${
+                            allowManagerLeadDelete
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          }`}>
+                            {allowManagerLeadDelete ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          Authorize Manager accounts to select and permanently delete leads and their records. Every deletion strictly requires <strong>Company Key confirmation</strong> on every request.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleManagerDelete}
+                      disabled={togglingManagerDelete}
+                      className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 border transition-all cursor-pointer shadow-md self-start sm:self-center flex-shrink-0 ${
+                        allowManagerLeadDelete
+                          ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400 shadow-purple-600/30'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                      }`}
+                      title="Admin Control: Toggle whether Managers have permission to permanently delete leads (Requires Company Key)"
+                    >
+                      {togglingManagerDelete ? (
+                        <RefreshCw size={14} className="animate-spin text-white" />
+                      ) : allowManagerLeadDelete ? (
+                        <ToggleRight size={16} className="text-emerald-300" />
+                      ) : (
+                        <ToggleLeft size={16} className="text-slate-500" />
+                      )}
+                      <span>Manager Delete: {allowManagerLeadDelete ? 'ON (Allowed)' : 'OFF (Blocked)'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[10px] text-slate-400 bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
+                    <span className="flex items-center gap-1.5 text-amber-300 font-semibold">
+                      <Lock size={11} /> High Security Action: Requires Company Key ({companyKey || 'Configured'}) confirmation
+                    </span>
+                    <span className="text-slate-500">Applies exclusively to workspace Manager accounts</span>
+                  </div>
+                </div>
+              )}
+
               {/* Unassigned Quick Verification */}
               {(selectedUser.role === 'UNASSIGNED' || !selectedUser.isVerified) && (
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
@@ -1053,6 +1180,38 @@ export function AdminControlCenterView({ onClose, isModal = false }: AdminContro
                     target="_blank" rel="noreferrer" className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
                     <Send size={12} /><span>Invite via WhatsApp</span>
                   </a>
+                </div>
+              </div>
+
+              {/* Global Manager Role Lead Deletion Switch (Fallback when no staff selected) */}
+              <div className="p-4 bg-slate-950/80 border border-purple-500/30 rounded-2xl max-w-md mx-auto text-left space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Trash2 size={15} className="text-purple-400" />
+                    <span className="text-xs font-black text-white">Manager Lead Deletion Authority</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40">Manager Only</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Enable or disable lead deletion permission for all Managers in this workspace (Requires Company Key).
+                </p>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                  <span className={`text-xs font-bold ${allowManagerLeadDelete ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    Status: {allowManagerLeadDelete ? 'ENABLED (ON)' : 'DISABLED (OFF)'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleManagerDelete}
+                    disabled={togglingManagerDelete}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                      allowManagerLeadDelete
+                        ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {togglingManagerDelete ? <RefreshCw size={12} className="animate-spin" /> : allowManagerLeadDelete ? <ToggleRight size={14} className="text-emerald-300" /> : <ToggleLeft size={14} className="text-slate-400" />}
+                    <span>{allowManagerLeadDelete ? 'Turn OFF' : 'Turn ON'}</span>
+                  </button>
                 </div>
               </div>
             </div>

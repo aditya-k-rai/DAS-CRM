@@ -298,21 +298,49 @@ export function LeadsTable() {
   // Fetch deletion permissions and manager toggle status from server
   useEffect(() => {
     let isMounted = true;
-    apiFetch('/leads/settings/delete-permissions')
-      .then(async (res) => {
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          setCanDeleteLeads(Boolean(data.canDeleteLeads));
-          setAllowManagerLeadDelete(Boolean(data.allowManagerLeadDelete));
+
+    const fetchPermissions = () => {
+      apiFetch('/leads/settings/delete-permissions')
+        .then(async (res) => {
+          if (res.ok && isMounted) {
+            const data = await res.json();
+            const allowed = Boolean(data.allowManagerLeadDelete);
+            setAllowManagerLeadDelete(allowed);
+            if (isUserManager && !isUserAdmin) {
+              setCanDeleteLeads(allowed);
+            } else {
+              setCanDeleteLeads(Boolean(data.canDeleteLeads));
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not fetch lead delete permissions:', err);
+        });
+    };
+
+    fetchPermissions();
+
+    const handlePermissionSync = (e: any) => {
+      if (e?.detail?.allowManagerLeadDelete !== undefined) {
+        const allowed = Boolean(e.detail.allowManagerLeadDelete);
+        setAllowManagerLeadDelete(allowed);
+        if (isUserManager && !isUserAdmin) {
+          setCanDeleteLeads(allowed);
         }
-      })
-      .catch((err) => {
-        console.warn('Could not fetch lead delete permissions:', err);
-      });
+      } else {
+        fetchPermissions();
+      }
+    };
+
+    window.addEventListener('das_crm_permissions_updated', handlePermissionSync);
+    window.addEventListener('storage', handlePermissionSync);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('das_crm_permissions_updated', handlePermissionSync);
+      window.removeEventListener('storage', handlePermissionSync);
     };
-  }, [currentUser]);
+  }, [currentUser, isUserManager, isUserAdmin]);
 
   // Admin Toggle for Manager Lead Deletion Permission
   const handleToggleManagerDelete = async () => {
@@ -1618,28 +1646,6 @@ export function LeadsTable() {
                   </>
                 )}
               </div>
-
-              {/* 🛡️ Admin Toggle for Manager Lead Deletion */}
-              {isUserAdmin && (
-                <button
-                  type="button"
-                  onClick={handleToggleManagerDelete}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all shadow-sm ${
-                    allowManagerLeadDelete
-                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'
-                  }`}
-                  title="Admin Control: Toggle whether Managers have permission to permanently delete leads (Requires Company Key)"
-                >
-                  <Shield size={13} className={allowManagerLeadDelete ? 'text-amber-400' : 'text-slate-500'} />
-                  <span>Manager Delete:</span>
-                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
-                    allowManagerLeadDelete ? 'bg-amber-400 text-black' : 'bg-slate-700 text-slate-300'
-                  }`}>
-                    {allowManagerLeadDelete ? 'ON' : 'OFF'}
-                  </span>
-                </button>
-              )}
 
               {/* 🗑️ Deleted Leads History Button (Admin & Manager) */}
               {(isUserAdmin || isUserManager) && (
