@@ -59,7 +59,7 @@ interface LeadWorkspaceProps {
 function mapServerActivitiesToContactHistory(
   activities: any[] = [],
   tasks: any[] = [],
-  leadInfo: { owner?: string; requirement?: string } = {},
+  leadInfo: { owner?: string; requirement?: string; leadId?: string; phone?: string; name?: string } = {},
   meetings: any[] = []
 ): ContactAttempt[] {
   const attempts: ContactAttempt[] = [];
@@ -142,6 +142,120 @@ function mapServerActivitiesToContactHistory(
           sentMessage: meta.sentMessage || act.description,
         });
         seenIds.add(act.id);
+      } else if (
+        typeStr === 'TASK' ||
+        typeStr === 'FOLLOW_UP' ||
+        typeStr === 'FOLLOWUP' ||
+        metaType.includes('TASK') ||
+        metaType.includes('FOLLOWUP') ||
+        (act.description && (act.description.toLowerCase().includes('follow-up') || act.description.toLowerCase().includes('callback') || act.description.toLowerCase().includes('rescheduled')))
+      ) {
+        // ── Follow-up / Task Lifecycle Activity ────────────────────────────
+        let targetDateStr: string | undefined = undefined;
+        let targetTimeStr: string | undefined = undefined;
+        if (meta.newDate) {
+          const nd = new Date(meta.newDate);
+          if (!isNaN(nd.getTime())) {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            targetDateStr = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}-${pad(nd.getDate())}`;
+            targetTimeStr = `${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+          }
+        } else if (meta.dueAt) {
+          const nd = new Date(meta.dueAt);
+          if (!isNaN(nd.getTime())) {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            targetDateStr = `${nd.getFullYear()}-${pad(nd.getMonth() + 1)}-${pad(nd.getDate())}`;
+            targetTimeStr = `${pad(nd.getHours())}:${pad(nd.getMinutes())}`;
+          }
+        } else if (meta.followUpDate) {
+          targetDateStr = meta.followUpDate;
+          targetTimeStr = meta.followUpTime;
+        }
+
+        const isRescheduled = Boolean(
+          (act.description && act.description.toLowerCase().includes('rescheduled')) ||
+          meta.action === 'RESCHEDULED' ||
+          meta.reason ||
+          meta.rescheduleReason ||
+          meta.originalDate
+        );
+        const isCompleted = Boolean(
+          (act.description && act.description.toLowerCase().includes('completed')) ||
+          meta.action === 'COMPLETED' ||
+          meta.outcome
+        );
+        const isCancelled = Boolean(
+          (act.description && act.description.toLowerCase().includes('cancelled')) ||
+          meta.action === 'CANCELLED' ||
+          meta.cancelledReason
+        );
+
+        if (isRescheduled) {
+          attempts.push({
+            id: act.id,
+            type: 'FOLLOWUP_RESCHEDULED',
+            outcome: 'FOLLOW_UP_RESCHEDULED',
+            scheduledType: (meta.followUpType || 'CALL') as any,
+            by: userName,
+            byRole: cleanRole,
+            timestamp: actTime,
+            notes: act.description || `Follow-up rescheduled to ${targetDateStr || ''}`,
+            followUpDate: targetDateStr,
+            followUpTime: targetTimeStr,
+            isRescheduled: true,
+            rescheduledAt: actTime,
+            rescheduledFrom: meta.originalDate ? (typeof meta.originalDate === 'string' ? meta.originalDate : new Date(meta.originalDate).toISOString()) : undefined,
+            rescheduledByName: userName,
+            rescheduledByRole: cleanRole,
+            rescheduleReason: meta.reason || meta.rescheduleReason || 'Requested alternate time slot',
+          });
+          seenIds.add(act.id);
+        } else if (isCompleted) {
+          attempts.push({
+            id: act.id,
+            type: 'FOLLOWUP_COMPLETED',
+            outcome: 'FOLLOW_UP_COMPLETED',
+            by: userName,
+            byRole: cleanRole,
+            timestamp: actTime,
+            notes: act.description || 'Follow-up touchpoint completed',
+            isCompleted: true,
+            completedAt: actTime,
+            completedByName: userName,
+            completedByRole: cleanRole,
+            completionNotes: meta.completionNotes || meta.notes || act.description,
+          });
+          seenIds.add(act.id);
+        } else if (isCancelled) {
+          attempts.push({
+            id: act.id,
+            type: 'FOLLOWUP_CANCELLED',
+            outcome: 'FOLLOW_UP_CANCELLED',
+            by: userName,
+            byRole: cleanRole,
+            timestamp: actTime,
+            notes: act.description || 'Follow-up cancelled',
+            isCancelled: true,
+            cancelledAt: actTime,
+            cancelledByName: userName,
+            cancelledReason: meta.reason || meta.cancelledReason || act.description,
+          });
+          seenIds.add(act.id);
+        } else {
+          attempts.push({
+            id: act.id,
+            type: 'FOLLOWUP_SCHEDULED',
+            outcome: 'FOLLOW_UP_SCHEDULED',
+            scheduledType: (meta.followUpType || 'CALL') as any,
+            by: userName,
+            byRole: cleanRole,
+            timestamp: actTime,
+            notes: act.description || 'Follow-up touchpoint scheduled',
+            followUpDate: targetDateStr,
+            followUpTime: targetTimeStr,
+          });
+          seenIds.add(act.id);
+        }
       }
     }
   }
@@ -173,6 +287,196 @@ function mapServerActivitiesToContactHistory(
           audioRecordingAvailable: false,
         });
         seenIds.add(meetingId);
+      }
+    }
+  }
+
+  // 3. Process PostgreSQL Tasks & Local Follow-up Cache to ensure lifecycle sync
+  const allTasksMap = new Map<string, any>();
+  if (Array.isArray(tasks)) {
+    for (const t of tasks) {
+      if (t && t.id) allTasksMap.set(String(t.id), t);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const cachedRaw = localStorage.getItem('das_crm_followup_tasks_cache');
+      if (cachedRaw) {
+        const cachedList = JSON.parse(cachedRaw);
+        if (Array.isArray(cachedList)) {
+          for (const item of cachedList) {
+            if (!item) continue;
+            const matchesLead =
+              (leadInfo.leadId && String(item.leadId) === String(leadInfo.leadId)) ||
+              (leadInfo.phone && item.leadPhone && item.leadPhone.replace(/\D/g, '') === leadInfo.phone.replace(/\D/g, '')) ||
+              (leadInfo.name && item.leadName && item.leadName.toLowerCase() === leadInfo.name.toLowerCase());
+            if (matchesLead && item.id) {
+              const existing = allTasksMap.get(String(item.id));
+              allTasksMap.set(String(item.id), { ...(existing || {}), ...item });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  const tasksList = Array.from(allTasksMap.values());
+  for (const task of tasksList) {
+    if (!task) continue;
+
+    let taskDateStr: string | undefined = undefined;
+    let taskTimeStr: string | undefined = undefined;
+    if (task.dueAt) {
+      const td = new Date(task.dueAt);
+      if (!isNaN(td.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        taskDateStr = `${td.getFullYear()}-${pad(td.getMonth() + 1)}-${pad(td.getDate())}`;
+        taskTimeStr = `${pad(td.getHours())}:${pad(td.getMinutes())}`;
+      }
+    }
+    if (task.scheduledDate) taskDateStr = task.scheduledDate;
+    if (task.scheduledTime) taskTimeStr = task.scheduledTime;
+
+    const taskActor = task.rescheduledByName ||
+      (task.createdBy?.firstName ? `${task.createdBy.firstName} ${task.createdBy.lastName || ''}`.trim() :
+      (task.assignee?.firstName ? `${task.assignee.firstName} ${task.assignee.lastName || ''}`.trim() : (leadInfo.owner || 'Anurag Sharma')));
+
+    const taskRawRole = task.rescheduledByRole || task.createdBy?.role?.name || task.createdBy?.role || task.assignee?.role?.name || task.assignee?.role || 'ADMIN';
+    const taskRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' =
+      taskRawRole.includes('ADMIN') ? 'ADMIN'
+      : taskRawRole.includes('MANAGER') ? 'MANAGER'
+      : taskRawRole.includes('LEAD') || taskRawRole.includes('TL') ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const isTaskRescheduled = task.status === 'RESCHEDULED' || Boolean(task.rescheduleReason) || Boolean(task.rescheduledFrom);
+    const isTaskCompleted = task.isCompleted || task.status === 'COMPLETED';
+    const isTaskCancelled = task.status === 'CANCELLED' || Boolean(task.cancelledReason);
+
+    // Cross-link with any existing call attempt
+    if (isTaskRescheduled) {
+      for (const attempt of attempts) {
+        if (
+          attempt.type.startsWith('CALL') &&
+          (attempt.followUpDate || attempt.outcome === 'WILL_CALL_BACK' || attempt.outcome === 'BUSY' || (attempt.notes && attempt.notes.toLowerCase().includes('callback')))
+        ) {
+          attempt.isRescheduled = true;
+          if (taskDateStr) attempt.followUpDate = taskDateStr;
+          if (taskTimeStr) attempt.followUpTime = taskTimeStr;
+          attempt.rescheduledAt = task.rescheduledAt || task.updatedAt ? new Date(task.rescheduledAt || task.updatedAt).toISOString() : new Date().toISOString();
+          attempt.rescheduledFrom = task.rescheduledFrom ? (typeof task.rescheduledFrom === 'string' ? task.rescheduledFrom : new Date(task.rescheduledFrom).toISOString()) : attempt.rescheduledFrom;
+          attempt.rescheduledByName = taskActor;
+          attempt.rescheduledByRole = taskRole;
+          attempt.rescheduleReason = task.rescheduleReason || attempt.rescheduleReason || 'Client requested different time — Kal hogi meeting';
+        }
+      }
+
+      // Ensure explicit timeline card for reschedule exists
+      const hasReschedCard = attempts.some(a => a.type === 'FOLLOWUP_RESCHEDULED');
+      if (!hasReschedCard) {
+        const reschedId = `resched-task-${task.id}`;
+        if (!seenIds.has(reschedId)) {
+          attempts.push({
+            id: reschedId,
+            type: 'FOLLOWUP_RESCHEDULED',
+            outcome: 'FOLLOW_UP_RESCHEDULED',
+            scheduledType: (task.followUpType || 'CALL') as any,
+            by: taskActor,
+            byRole: taskRole,
+            timestamp: task.rescheduledAt || task.updatedAt || new Date().toISOString(),
+            notes: task.rescheduleReason ? `Rescheduled: ${task.rescheduleReason}` : `Follow-up rescheduled to ${taskDateStr || ''}`,
+            followUpDate: taskDateStr,
+            followUpTime: taskTimeStr,
+            isRescheduled: true,
+            rescheduledAt: task.rescheduledAt || task.updatedAt || new Date().toISOString(),
+            rescheduledFrom: task.rescheduledFrom ? (typeof task.rescheduledFrom === 'string' ? task.rescheduledFrom : new Date(task.rescheduledFrom).toISOString()) : undefined,
+            rescheduledByName: taskActor,
+            rescheduledByRole: taskRole,
+            rescheduleReason: task.rescheduleReason || 'Requested alternate time slot',
+          });
+          seenIds.add(reschedId);
+        }
+      }
+    } else if (isTaskCompleted) {
+      for (const attempt of attempts) {
+        if (attempt.type.startsWith('CALL') && attempt.followUpDate) {
+          attempt.isCompleted = true;
+          attempt.completedAt = task.completedAt || task.updatedAt ? new Date(task.completedAt || task.updatedAt).toISOString() : new Date().toISOString();
+          attempt.completedByName = task.completedByName || taskActor;
+          attempt.completedByRole = task.completedByRole || taskRole;
+          attempt.completionNotes = task.completionNotes || task.outcome;
+        }
+      }
+      const hasCompCard = attempts.some(a => a.type === 'FOLLOWUP_COMPLETED');
+      if (!hasCompCard) {
+        const compId = `comp-task-${task.id}`;
+        if (!seenIds.has(compId)) {
+          attempts.push({
+            id: compId,
+            type: 'FOLLOWUP_COMPLETED',
+            outcome: 'FOLLOW_UP_COMPLETED',
+            by: task.completedByName || taskActor,
+            byRole: task.completedByRole || taskRole,
+            timestamp: task.completedAt || task.updatedAt || new Date().toISOString(),
+            notes: task.completionNotes || task.outcome || 'Follow-up marked as completed',
+            isCompleted: true,
+            completedAt: task.completedAt || task.updatedAt || new Date().toISOString(),
+            completedByName: task.completedByName || taskActor,
+            completedByRole: task.completedByRole || taskRole,
+            completionNotes: task.completionNotes,
+          });
+          seenIds.add(compId);
+        }
+      }
+    } else if (isTaskCancelled) {
+      for (const attempt of attempts) {
+        if (attempt.type.startsWith('CALL') && attempt.followUpDate) {
+          attempt.isCancelled = true;
+          attempt.cancelledAt = task.cancelledAt || task.updatedAt ? new Date(task.cancelledAt || task.updatedAt).toISOString() : new Date().toISOString();
+          attempt.cancelledByName = task.cancelledByName || taskActor;
+          attempt.cancelledReason = task.cancelledReason;
+        }
+      }
+      const hasCancelCard = attempts.some(a => a.type === 'FOLLOWUP_CANCELLED');
+      if (!hasCancelCard) {
+        const cancelId = `cancel-task-${task.id}`;
+        if (!seenIds.has(cancelId)) {
+          attempts.push({
+            id: cancelId,
+            type: 'FOLLOWUP_CANCELLED',
+            outcome: 'FOLLOW_UP_CANCELLED',
+            by: task.cancelledByName || taskActor,
+            byRole: task.cancelledByRole || taskRole,
+            timestamp: task.cancelledAt || task.updatedAt || new Date().toISOString(),
+            notes: task.cancelledReason || 'Follow-up cancelled',
+            isCancelled: true,
+            cancelledAt: task.cancelledAt || task.updatedAt || new Date().toISOString(),
+            cancelledByName: task.cancelledByName || taskActor,
+            cancelledReason: task.cancelledReason,
+          });
+          seenIds.add(cancelId);
+        }
+      }
+    } else {
+      // General scheduled follow-up
+      const hasDirectCard = attempts.some(a => a.followUpDate === taskDateStr);
+      if (!hasDirectCard) {
+        const schedId = `sched-task-${task.id}`;
+        if (!seenIds.has(schedId)) {
+          attempts.push({
+            id: schedId,
+            type: 'FOLLOWUP_SCHEDULED',
+            outcome: 'FOLLOW_UP_SCHEDULED',
+            scheduledType: (task.followUpType || 'CALL') as any,
+            by: taskActor,
+            byRole: taskRole,
+            timestamp: task.createdAt ? (typeof task.createdAt === 'string' ? task.createdAt : new Date(task.createdAt).toISOString()) : new Date().toISOString(),
+            notes: task.purpose || task.description || task.title || 'Follow-up touchpoint scheduled',
+            followUpDate: taskDateStr,
+            followUpTime: taskTimeStr,
+          });
+          seenIds.add(schedId);
+        }
       }
     }
   }
@@ -339,7 +643,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
               const optAttempts = mapServerActivitiesToContactHistory(
                 sessionMatch.activities,
                 sessionMatch.tasks,
-                { owner: ownerName, requirement: norm.requirement },
+                {
+                  owner: ownerName,
+                  requirement: norm.requirement,
+                  leadId: String(norm.id || leadId),
+                  phone: norm.phone,
+                  name: norm.name,
+                },
                 sessionMatch.meetings
               );
               if (optAttempts.length > 0) {
@@ -405,7 +715,13 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
             const serverAttempts = mapServerActivitiesToContactHistory(
               l.activities,
               l.tasks,
-              { owner: ownerName, requirement: norm.requirement },
+              {
+                owner: ownerName,
+                requirement: norm.requirement,
+                leadId: String(norm.id || leadId),
+                phone: norm.phone,
+                name: norm.name,
+              },
               l.meetings
             );
 
@@ -539,6 +855,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
     if (typeof window !== 'undefined') {
       window.addEventListener('das_crm_leads_updated', handleUpdate);
+      window.addEventListener('das_crm_workflow_updated', handleUpdate);
+      window.addEventListener('das_crm_followups_updated', handleUpdate);
+      window.addEventListener('das_crm_contact_history_updated', handleUpdate);
       window.addEventListener('storage', handleUpdate);
     }
 
@@ -546,6 +865,9 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       isMounted = false;
       if (typeof window !== 'undefined') {
         window.removeEventListener('das_crm_leads_updated', handleUpdate);
+        window.removeEventListener('das_crm_workflow_updated', handleUpdate);
+        window.removeEventListener('das_crm_followups_updated', handleUpdate);
+        window.removeEventListener('das_crm_contact_history_updated', handleUpdate);
         window.removeEventListener('storage', handleUpdate);
       }
     };

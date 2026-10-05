@@ -351,9 +351,29 @@ export class LeadsService {
         team: true,
         source: true,
         company: true,
-        deals: { include: { stage: true, pipeline: true } },
-        tasks: { orderBy: { dueAt: 'asc' } },
-        meetings: { orderBy: { startAt: 'asc' } },
+        tasks: {
+          include: {
+            assignee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+                role: true,
+              },
+            },
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: { dueAt: 'asc' },
+        },
         statusHistory: {
           include: { status: true },
           orderBy: { changedAt: 'desc' },
@@ -401,7 +421,29 @@ export class LeadsService {
           source: true,
           company: true,
           deals: { include: { stage: true, pipeline: true } },
-          tasks: { orderBy: { dueAt: 'asc' } },
+          tasks: {
+            include: {
+              assignee: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatarUrl: true,
+                  role: true,
+                },
+              },
+              createdBy: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatarUrl: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { dueAt: 'asc' },
+          },
           meetings: { orderBy: { startAt: 'asc' } },
           statusHistory: {
             include: { status: true },

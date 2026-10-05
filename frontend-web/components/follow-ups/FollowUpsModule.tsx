@@ -936,6 +936,143 @@ export default function FollowUpsModule() {
 
   // ── ACTION HANDLERS WITH FULL ACTOR ATTRIBUTION & REASON RECORDING ──────────
 
+  const syncFollowUpLifecycleToContactHistory = (
+    followUp: any,
+    action: 'RESCHEDULE' | 'COMPLETE' | 'CANCEL',
+    payload: any,
+    actor: { id: string; name: string; role: string; nowIso: string }
+  ) => {
+    if (typeof window === 'undefined' || !followUp) return;
+    const leadId = followUp.leadId || followUp.lead?.id;
+    if (!leadId) return;
+
+    try {
+      const keysToUpdate = [
+        `das_crm_contact_history_${leadId}`,
+        followUp.lead?.id ? `das_crm_contact_history_${followUp.lead.id}` : null,
+      ].filter(Boolean) as string[];
+
+      for (const key of keysToUpdate) {
+        const raw = localStorage.getItem(key);
+        let history: any[] = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(history)) history = [];
+
+        if (action === 'RESCHEDULE') {
+          // 1. Update any existing call attempt linked with callback
+          history = history.map((item: any) => {
+            if (item && item.type && item.type.startsWith('CALL')) {
+              return {
+                ...item,
+                isRescheduled: true,
+                followUpDate: payload.newDate || item.followUpDate,
+                followUpTime: payload.newTime || item.followUpTime || '10:00',
+                rescheduledAt: actor.nowIso,
+                rescheduledFrom: item.followUpDate || followUp.dueAt,
+                rescheduledById: actor.id,
+                rescheduledByName: actor.name,
+                rescheduledByRole: actor.role,
+                rescheduleReason: payload.reason,
+              };
+            }
+            return item;
+          });
+
+          // 2. Add an explicit timeline event for RESCHEDULED
+          const hasReschedCard = history.some((a: any) => a.type === 'FOLLOWUP_RESCHEDULED');
+          if (!hasReschedCard) {
+            history.unshift({
+              id: `resched-${followUp.id}-${Date.now()}`,
+              type: 'FOLLOWUP_RESCHEDULED',
+              outcome: 'FOLLOW_UP_RESCHEDULED',
+              scheduledType: followUp.followUpType || 'CALL',
+              by: actor.name,
+              byRole: actor.role,
+              timestamp: actor.nowIso,
+              notes: payload.reason ? `Rescheduled: ${payload.reason}` : `Follow-up rescheduled to ${payload.newDate}`,
+              followUpDate: payload.newDate,
+              followUpTime: payload.newTime || '10:00',
+              isRescheduled: true,
+              rescheduledAt: actor.nowIso,
+              rescheduledFrom: followUp.dueAt,
+              rescheduledById: actor.id,
+              rescheduledByName: actor.name,
+              rescheduledByRole: actor.role,
+              rescheduleReason: payload.reason,
+            });
+          }
+        } else if (action === 'COMPLETE') {
+          history = history.map((item: any) => {
+            if (item && item.type && item.type.startsWith('CALL')) {
+              return {
+                ...item,
+                isCompleted: true,
+                completedAt: actor.nowIso,
+                completedById: actor.id,
+                completedByName: actor.name,
+                completedByRole: actor.role,
+                completionNotes: payload.completionNotes || payload.notes,
+              };
+            }
+            return item;
+          });
+
+          history.unshift({
+            id: `comp-${followUp.id}-${Date.now()}`,
+            type: 'FOLLOWUP_COMPLETED',
+            outcome: 'FOLLOW_UP_COMPLETED',
+            by: actor.name,
+            byRole: actor.role,
+            timestamp: actor.nowIso,
+            notes: payload.completionNotes || payload.notes || 'Follow-up marked as completed',
+            isCompleted: true,
+            completedAt: actor.nowIso,
+            completedById: actor.id,
+            completedByName: actor.name,
+            completedByRole: actor.role,
+            completionNotes: payload.completionNotes || payload.notes,
+          });
+        } else if (action === 'CANCEL') {
+          history = history.map((item: any) => {
+            if (item && item.type && item.type.startsWith('CALL')) {
+              return {
+                ...item,
+                isCancelled: true,
+                cancelledAt: actor.nowIso,
+                cancelledById: actor.id,
+                cancelledByName: actor.name,
+                cancelledByRole: actor.role,
+                cancelledReason: payload.reason,
+              };
+            }
+            return item;
+          });
+
+          history.unshift({
+            id: `cancel-${followUp.id}-${Date.now()}`,
+            type: 'FOLLOWUP_CANCELLED',
+            outcome: 'FOLLOW_UP_CANCELLED',
+            by: actor.name,
+            byRole: actor.role,
+            timestamp: actor.nowIso,
+            notes: payload.reason || 'Follow-up cancelled',
+            isCancelled: true,
+            cancelledAt: actor.nowIso,
+            cancelledById: actor.id,
+            cancelledByName: actor.name,
+            cancelledByRole: actor.role,
+            cancelledReason: payload.reason,
+          });
+        }
+
+        localStorage.setItem(key, JSON.stringify(history));
+      }
+
+      window.dispatchEvent(new CustomEvent('das_crm_contact_history_updated', { detail: { leadId } }));
+      window.dispatchEvent(new CustomEvent('das_crm_followups_updated', { detail: { leadId } }));
+      window.dispatchEvent(new CustomEvent('das_crm_workflow_updated'));
+    } catch (_) {}
+  };
+
   const handleComplete = async (payload: any) => {
     try {
       const actorName = currentUser?.name || 'Anurag Sharma';
@@ -979,6 +1116,13 @@ export default function FollowUpsModule() {
           }
         } catch (_) {}
       }
+
+      syncFollowUpLifecycleToContactHistory(selectedFollowUp, 'COMPLETE', payload, {
+        id: actorId,
+        name: actorName,
+        role: actorRole,
+        nowIso,
+      });
 
       setShowCompleteModal(false);
       setSelectedFollowUp(null);
@@ -1034,6 +1178,13 @@ export default function FollowUpsModule() {
         } catch (_) {}
       }
 
+      syncFollowUpLifecycleToContactHistory(selectedFollowUp, 'RESCHEDULE', payload, {
+        id: actorId,
+        name: actorName,
+        role: actorRole,
+        nowIso,
+      });
+
       setShowRescheduleModal(false);
       setSelectedFollowUp(null);
       refreshAll();
@@ -1082,6 +1233,13 @@ export default function FollowUpsModule() {
           }
         } catch (_) {}
       }
+
+      syncFollowUpLifecycleToContactHistory(selectedFollowUp, 'CANCEL', payload, {
+        id: actorId,
+        name: actorName,
+        role: actorRole,
+        nowIso,
+      });
 
       setShowCancelModal(false);
       setSelectedFollowUp(null);

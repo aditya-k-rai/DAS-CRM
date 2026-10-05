@@ -10,7 +10,19 @@ import {
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-export type ContactType = 'CALL_OUT' | 'CALL_IN' | 'WHATSAPP' | 'EMAIL' | 'CALL_MISSED' | 'CALL_BUSY' | 'CALL_NOT_RESPONDING' | 'CALL_SWITCH_OFF';
+export type ContactType =
+  | 'CALL_OUT'
+  | 'CALL_IN'
+  | 'WHATSAPP'
+  | 'EMAIL'
+  | 'CALL_MISSED'
+  | 'CALL_BUSY'
+  | 'CALL_NOT_RESPONDING'
+  | 'CALL_SWITCH_OFF'
+  | 'FOLLOWUP_SCHEDULED'
+  | 'FOLLOWUP_RESCHEDULED'
+  | 'FOLLOWUP_COMPLETED'
+  | 'FOLLOWUP_CANCELLED';
 
 export type ContactOutcome =
   | 'TALKED'
@@ -19,6 +31,9 @@ export type ContactOutcome =
   | 'INTERESTED_MORE_INFO'
   | 'DEAL_CLOSED'
   | 'FOLLOW_UP_SCHEDULED'
+  | 'FOLLOW_UP_RESCHEDULED'
+  | 'FOLLOW_UP_COMPLETED'
+  | 'FOLLOW_UP_CANCELLED'
   | 'MEETING_SCHEDULED'
   | 'BUSY'
   | 'NO_ANSWER'
@@ -33,7 +48,7 @@ export interface ContactAttempt {
   type: ContactType;
   outcome: ContactOutcome;
   scheduledType?: 'CALL' | 'MEETING';
-  by: string;                    // Rep name who made the contact
+  by: string;                    // Rep name who made the contact or took action
   byRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC';
   timestamp: string;             // Full ISO timestamp
   durationSeconds?: number;      // Call duration in seconds
@@ -43,6 +58,29 @@ export interface ContactAttempt {
   followUpTime?: string;
   sentMessage?: string;          // WA/Email message snippet
   audioRecordingAvailable?: boolean;
+
+  // Follow-up lifecycle synchronization fields
+  isRescheduled?: boolean;
+  rescheduledAt?: string;
+  rescheduledFrom?: string;
+  rescheduledById?: string;
+  rescheduledByName?: string;
+  rescheduledByRole?: string;
+  rescheduleReason?: string;
+
+  isCompleted?: boolean;
+  completedAt?: string;
+  completedById?: string;
+  completedByName?: string;
+  completedByRole?: string;
+  completionNotes?: string;
+
+  isCancelled?: boolean;
+  cancelledAt?: string;
+  cancelledById?: string;
+  cancelledByName?: string;
+  cancelledByRole?: string;
+  cancelledReason?: string;
 }
 
 // ─── Rich Sample Data ──────────────────────────────────────────────────────────
@@ -107,6 +145,10 @@ const TYPE_META: Record<ContactType, { icon: React.ReactNode; color: string; bg:
   CALL_SWITCH_OFF: { icon: <PhoneOff size={12} />, color: '#6b7280', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.3)', label: 'Switch Off' },
   WHATSAPP: { icon: <MessageSquare size={12} />, color: '#4ade80', bg: 'rgba(74,222,128,0.15)', border: 'rgba(74,222,128,0.35)', label: 'WhatsApp' },
   EMAIL: { icon: <Mail size={12} />, color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.35)', label: 'Email' },
+  FOLLOWUP_SCHEDULED: { icon: <Calendar size={12} />, color: '#38bdf8', bg: 'rgba(56,189,248,0.15)', border: 'rgba(56,189,248,0.35)', label: 'Follow-Up Scheduled' },
+  FOLLOWUP_RESCHEDULED: { icon: <Clock size={12} />, color: '#0ea5e9', bg: 'rgba(14,165,233,0.2)', border: 'rgba(14,165,233,0.45)', label: 'Follow-Up Rescheduled' },
+  FOLLOWUP_COMPLETED: { icon: <CheckCircle2 size={12} />, color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.35)', label: 'Follow-Up Completed' },
+  FOLLOWUP_CANCELLED: { icon: <XCircle size={12} />, color: '#f43f5e', bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.35)', label: 'Follow-Up Cancelled' },
 };
 
 const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label: string }> = {
@@ -116,6 +158,9 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
   INTERESTED_MORE_INFO: { emoji: '🔥', color: '#f97316', label: 'Interested — Wants More Info' },
   DEAL_CLOSED: { emoji: '🎉', color: '#22c55e', label: 'Deal Closed!' },
   FOLLOW_UP_SCHEDULED: { emoji: '📅', color: '#38bdf8', label: 'Follow-up Scheduled' },
+  FOLLOW_UP_RESCHEDULED: { emoji: '⏱️', color: '#0ea5e9', label: 'Follow-up Rescheduled' },
+  FOLLOW_UP_COMPLETED: { emoji: '✅', color: '#10b981', label: 'Follow-up Done' },
+  FOLLOW_UP_CANCELLED: { emoji: '🚫', color: '#f43f5e', label: 'Follow-up Cancelled' },
   MEETING_SCHEDULED: { emoji: '🏢', color: '#a855f7', label: 'Meeting Scheduled' },
   BUSY: { emoji: '🔴', color: '#f59e0b', label: 'Line Busy' },
   NO_ANSWER: { emoji: '🔕', color: '#94a3b8', label: 'No Answer' },
@@ -142,7 +187,7 @@ export function CallContactHistory({
   interestedProduct = '—',
 }: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | ContactType>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | 'FOLLOW_UP' | ContactType>('ALL');
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = history.length;
@@ -151,6 +196,7 @@ export function CallContactHistory({
   const meetingCount = history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes))).length;
   const waCount = history.filter(h => h.type === 'WHATSAPP').length;
   const emailCount = history.filter(h => h.type === 'EMAIL').length;
+  const followUpCount = history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled)).length;
   const totalTalkSecs = history.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
   
   // Resolve Interested Product / Service (from lead profile or logged history)
@@ -163,6 +209,8 @@ export function CallContactHistory({
     ? history
     : filterType === 'MEETING'
     ? history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
+    : filterType === 'FOLLOW_UP'
+    ? history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled))
     : history.filter(h => h.type === filterType);
   const grouped = groupByDate(filtered);
 
@@ -183,6 +231,11 @@ export function CallContactHistory({
           {meetingCount > 0 && (
             <span className="text-[11px] font-extrabold text-purple-300 bg-purple-500/15 border border-purple-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
               <span>🏢</span> {meetingCount} Meeting{meetingCount > 1 ? 's' : ''} Scheduled
+            </span>
+          )}
+          {followUpCount > 0 && (
+            <span className="text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <Clock size={11} className="text-sky-400" /> {followUpCount} Follow-Up Action{followUpCount > 1 ? 's' : ''}
             </span>
           )}
           <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-full">
@@ -220,18 +273,18 @@ export function CallContactHistory({
 
       {/* ── Filter Chips ──────────────────────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
-        {(['ALL', 'MEETING', 'CALL_OUT', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
+        {(['ALL', 'MEETING', 'CALL_OUT', 'FOLLOW_UP', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilterType(f)}
             className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
             style={{
-              background: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : 'rgba(99,102,241,0.25)') : 'rgba(15,23,42,0.8)',
-              borderColor: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : 'rgba(99,102,241,0.5)') : 'rgb(30,41,59)',
-              color: filterType === f ? (f === 'MEETING' ? '#c084fc' : '#818cf8') : '#94a3b8',
+              background: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.25)' : 'rgba(99,102,241,0.25)') : 'rgba(15,23,42,0.8)',
+              borderColor: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.5)' : 'rgba(99,102,241,0.5)') : 'rgb(30,41,59)',
+              color: filterType === f ? (f === 'MEETING' ? '#c084fc' : f === 'FOLLOW_UP' ? '#38bdf8' : '#818cf8') : '#94a3b8',
             }}
           >
-            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
+            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'FOLLOW_UP' ? `⏱️ Follow-ups (${followUpCount})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
           </button>
         ))}
       </div>
@@ -264,14 +317,16 @@ export function CallContactHistory({
                   attempt?.scheduledType === 'MEETING' ||
                   Boolean(attempt?.notes && /meeting|visit|in-person/i.test(attempt.notes));
 
+                const isFollowUpAction = attempt?.type?.startsWith('FOLLOWUP_') || attempt?.outcome?.startsWith('FOLLOW_UP_');
+
                 const outcomeMeta = isMeeting
                   ? OUTCOME_META.MEETING_SCHEDULED
                   : (attempt?.outcome && OUTCOME_META[attempt.outcome]) || OUTCOME_META.TALKED;
 
                 const { time, date } = formatTimestamp(attempt?.timestamp);
                 const isExpanded = expandedId === attempt?.id;
-                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'MEETING_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '') || isMeeting;
-                const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER'].includes(attempt?.outcome || '');
+                const isPositive = ['TALKED', 'INTERESTED_MORE_INFO', 'DEAL_CLOSED', 'FOLLOW_UP_SCHEDULED', 'FOLLOW_UP_RESCHEDULED', 'FOLLOW_UP_COMPLETED', 'MEETING_SCHEDULED', 'WA_SENT', 'EMAIL_SENT'].includes(attempt?.outcome || '') || isMeeting || isFollowUpAction;
+                const isNegative = ['NOT_INTERESTED', 'NO_ANSWER', 'BUSY', 'SWITCH_OFF', 'WRONG_NUMBER', 'FOLLOW_UP_CANCELLED'].includes(attempt?.outcome || '') || attempt?.type === 'FOLLOWUP_CANCELLED';
 
                 return (
                   <div key={attempt?.id || `attempt-${idx}`} className="flex gap-3 relative">
@@ -279,12 +334,12 @@ export function CallContactHistory({
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center border-2 flex-shrink-0 z-10 mt-0.5"
                       style={{
-                        background: isMeeting ? 'rgba(168,85,247,0.15)' : typeMeta.bg,
-                        borderColor: isMeeting ? 'rgba(168,85,247,0.45)' : typeMeta.border,
+                        background: isMeeting ? 'rgba(168,85,247,0.15)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.2)' : typeMeta.bg,
+                        borderColor: isMeeting ? 'rgba(168,85,247,0.45)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.5)' : typeMeta.border,
                       }}
                     >
-                      <span style={{ color: isMeeting ? '#c084fc' : typeMeta.color }}>
-                        {isMeeting ? <Calendar size={13} className="text-purple-400" /> : typeMeta.icon}
+                      <span style={{ color: isMeeting ? '#c084fc' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? '#38bdf8' : typeMeta.color }}>
+                        {isMeeting ? <Calendar size={13} className="text-purple-400" /> : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? <Clock size={13} className="text-sky-400" /> : typeMeta.icon}
                       </span>
                     </div>
 
@@ -292,8 +347,8 @@ export function CallContactHistory({
                     <div
                       className="flex-1 rounded-2xl border overflow-hidden"
                       style={{
-                        borderColor: isMeeting ? 'rgba(168,85,247,0.4)' : isPositive ? typeMeta.border : 'rgb(30,41,59)',
-                        background: isMeeting ? 'rgba(26,16,43,0.7)' : 'rgba(15,23,42,0.7)',
+                        borderColor: isMeeting ? 'rgba(168,85,247,0.4)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.45)' : isPositive ? typeMeta.border : 'rgb(30,41,59)',
+                        background: isMeeting ? 'rgba(26,16,43,0.7)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(12,25,44,0.75)' : 'rgba(15,23,42,0.7)',
                       }}
                     >
                       {/* Card Header — Always Visible */}
@@ -314,12 +369,17 @@ export function CallContactHistory({
                               className="text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1"
                               style={{
                                 color: outcomeMeta.color,
-                                background: isMeeting ? 'rgba(168,85,247,0.15)' : 'transparent',
-                                border: isMeeting ? '1px solid rgba(168,85,247,0.3)' : 'none',
+                                background: isMeeting ? 'rgba(168,85,247,0.15)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? 'rgba(14,165,233,0.15)' : 'transparent',
+                                border: isMeeting ? '1px solid rgba(168,85,247,0.3)' : attempt?.type === 'FOLLOWUP_RESCHEDULED' ? '1px solid rgba(14,165,233,0.3)' : 'none',
                               }}
                             >
                               <span>{outcomeMeta.emoji}</span> <span>{outcomeMeta.label}</span>
                             </span>
+                            {attempt.isRescheduled && attempt.type !== 'FOLLOWUP_RESCHEDULED' && (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                                🔄 Callback Rescheduled
+                              </span>
+                            )}
                             {attempt.durationSeconds !== undefined && attempt.durationSeconds > 0 && (
                               <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
                                 <Mic size={9} /> {formatDuration(attempt.durationSeconds)}
@@ -333,13 +393,22 @@ export function CallContactHistory({
                           </div>
 
                           {/* Rep + timestamp */}
-                          <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
                             <User size={10} className="text-slate-500" />
                             <span className="font-bold text-slate-300">{attempt.by}</span>
                             <span>·</span>
                             <Clock size={10} />
                             <span>{time}</span>
-                            {attempt.notes && <span className="text-slate-600 text-[10px] italic truncate max-w-[200px] hidden md:block">— {attempt.notes.substring(0, 60)}...</span>}
+                            {attempt.rescheduleReason && (
+                              <span className="text-sky-300/90 text-[10px] font-semibold truncate max-w-[260px] hidden md:inline-block">
+                                — Reason: {attempt.rescheduleReason}
+                              </span>
+                            )}
+                            {!attempt.rescheduleReason && attempt.notes && (
+                              <span className="text-slate-500 text-[10px] italic truncate max-w-[200px] hidden md:block">
+                                — {attempt.notes.substring(0, 60)}...
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -352,13 +421,83 @@ export function CallContactHistory({
                       {/* Expanded Details */}
                       {isExpanded && (
                         <div className="px-4 pb-4 space-y-3 border-t border-slate-800/60">
-                          {/* Full Notes */}
-                          {attempt.notes && (
+                          {/* Full Notes / Summary */}
+                          {attempt.notes && attempt.type !== 'FOLLOWUP_RESCHEDULED' && (
                             <div className="mt-3 p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1">
                               <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                <FileText size={10} /> Call Notes / Outcome Details
+                                <FileText size={10} /> {attempt.type.startsWith('CALL') ? 'Call Notes / Outcome Details' : 'Activity Notes & Details'}
                               </p>
                               <p className="text-xs text-slate-200 leading-relaxed italic">"{attempt.notes}"</p>
+                            </div>
+                          )}
+
+                          {/* 🔄 ACTION & DECISION TRAIL FOR FOLLOW-UP RESCHEDULED */}
+                          {attempt.type === 'FOLLOWUP_RESCHEDULED' && (
+                            <div className="mt-3 p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/35 space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-extrabold text-sky-300 flex items-center gap-1.5">
+                                  <Clock size={13} className="text-sky-400" />
+                                  Rescheduled by {attempt.rescheduledByName || attempt.by} {attempt.rescheduledByRole ? `(${attempt.rescheduledByRole})` : ''}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {attempt.timestamp ? new Date(attempt.timestamp).toLocaleString('en-IN') : 'Updated'}
+                                </span>
+                              </div>
+                              {attempt.rescheduleReason && (
+                                <div className="text-[11px] bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-slate-200 leading-relaxed">
+                                  <strong className="text-sky-300">Reason:</strong> {attempt.rescheduleReason}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between pt-1 text-xs flex-wrap gap-2">
+                                <p className="text-sky-200 font-extrabold flex items-center gap-1.5">
+                                  <Calendar size={13} className="text-sky-400" />
+                                  Moved to: <span>{(() => {
+                                    const d = new Date(attempt.followUpDate || '');
+                                    return !isNaN(d.getTime()) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (attempt.followUpDate || 'New Slot');
+                                  })()} {attempt.followUpTime ? `at ${attempt.followUpTime}` : ''}</span>
+                                </p>
+                                {attempt.rescheduledFrom && (
+                                  <span className="text-[10px] text-slate-500">
+                                    Original slot: {attempt.rescheduledFrom}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ✅ ACTION & DECISION TRAIL FOR FOLLOW-UP COMPLETED */}
+                          {attempt.type === 'FOLLOWUP_COMPLETED' && (
+                            <div className="mt-3 p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-extrabold text-emerald-300 flex items-center gap-1.5">
+                                  <CheckCircle2 size={13} className="text-emerald-400" />
+                                  Marked Complete by {attempt.completedByName || attempt.by} {attempt.completedByRole ? `(${attempt.completedByRole})` : ''}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {attempt.completedAt || attempt.timestamp ? new Date(attempt.completedAt || attempt.timestamp).toLocaleString('en-IN') : 'Completed'}
+                                </span>
+                              </div>
+                              {attempt.outcome && (
+                                <p className="text-xs text-emerald-300 font-semibold"><strong className="text-emerald-400">Outcome:</strong> {attempt.outcome}</p>
+                              )}
+                              {attempt.completionNotes && (
+                                <p className="text-xs text-slate-200 italic"><strong className="text-emerald-400">Notes:</strong> "{attempt.completionNotes}"</p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ❌ ACTION & DECISION TRAIL FOR FOLLOW-UP CANCELLED */}
+                          {attempt.type === 'FOLLOWUP_CANCELLED' && (
+                            <div className="mt-3 p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-extrabold text-rose-300 flex items-center gap-1.5">
+                                  <XCircle size={13} className="text-rose-400" />
+                                  Cancelled by {attempt.cancelledByName || attempt.by} {attempt.cancelledByRole ? `(${attempt.cancelledByRole})` : ''}
+                                </span>
+                              </div>
+                              {attempt.cancelledReason && (
+                                <p className="text-xs text-slate-200"><strong className="text-rose-400">Reason:</strong> {attempt.cancelledReason}</p>
+                              )}
                             </div>
                           )}
 
@@ -404,20 +543,53 @@ export function CallContactHistory({
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/25">
-                                <Calendar size={13} className="text-sky-400 flex-shrink-0" />
-                                <div>
-                                  <p className="text-[10px] font-extrabold text-slate-400 uppercase">Follow-Up / Callback Scheduled</p>
-                                  <p className="text-xs font-extrabold text-sky-300">
-                                    {(() => {
-                                      const d = new Date(attempt.followUpDate);
-                                      return !isNaN(d.getTime())
-                                        ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                        : attempt.followUpDate;
-                                    })()}
-                                    {attempt.followUpTime && <span className="ml-2">at {attempt.followUpTime}</span>}
-                                  </p>
+                              <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <Calendar size={13} className="text-sky-400" />
+                                    <p className="text-[10px] font-extrabold text-slate-300 uppercase">
+                                      {attempt.isRescheduled ? 'Follow-Up / Callback (Rescheduled)' : 'Follow-Up / Callback Scheduled'}
+                                    </p>
+                                  </div>
+                                  {attempt.isRescheduled && (
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                                      🔄 Rescheduled
+                                    </span>
+                                  )}
                                 </div>
+
+                                <p className="text-xs font-extrabold text-sky-300">
+                                  {(() => {
+                                    const d = new Date(attempt.followUpDate);
+                                    return !isNaN(d.getTime())
+                                      ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                      : attempt.followUpDate;
+                                  })()}
+                                  {attempt.followUpTime && <span className="ml-2 font-black text-white">at {attempt.followUpTime}</span>}
+                                </p>
+
+                                {attempt.isRescheduled && (
+                                  <div className="text-[11px] bg-sky-950/70 p-2.5 rounded-lg border border-sky-500/30 text-slate-200 space-y-1">
+                                    <div className="flex items-center justify-between text-[10px]">
+                                      <span className="font-bold text-sky-300">
+                                        Rescheduled by {attempt.rescheduledByName || attempt.by} {attempt.rescheduledByRole ? `(${attempt.rescheduledByRole})` : ''}
+                                      </span>
+                                      <span className="text-slate-400 font-mono">
+                                        {attempt.rescheduledAt ? new Date(attempt.rescheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Updated'}
+                                      </span>
+                                    </div>
+                                    {attempt.rescheduleReason && (
+                                      <p className="text-[11px] text-slate-200">
+                                        <strong className="text-sky-300">Reason:</strong> {attempt.rescheduleReason}
+                                      </p>
+                                    )}
+                                    {attempt.rescheduledFrom && (
+                                      <p className="text-[10px] text-slate-400">
+                                        Original Slot: {attempt.rescheduledFrom}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )
                           )}
