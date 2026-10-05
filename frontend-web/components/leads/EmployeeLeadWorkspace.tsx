@@ -5,7 +5,8 @@ import {
   Phone, MessageSquare, Mail, Sparkles, Send, RefreshCw, CheckCircle2,
   Clock, AlertCircle, User, Building2, MapPin, Tag, FileText, Bot,
   PhoneOff, Mic, Play, Pause, ChevronRight, Zap, Shield, HelpCircle, Layers, Check, Wifi, WifiOff,
-  Calendar, CalendarCheck, Package, Bell, BellRing, ArrowRight, Flame
+  Calendar, CalendarCheck, Package, Bell, BellRing, ArrowRight, Flame,
+  Receipt, Search, ExternalLink, X
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { verifyInternetConnection, isBrowserOnline } from '@/lib/networkService';
@@ -882,10 +883,389 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
   // Call Funnel Category Selection (1. Talked, 2. Not Responding, 3. Busy, 4. Switched Off)
   const [funnelPrimaryCat, setFunnelPrimaryCat] = useState<'TALKED' | 'NOT_RESPONDING' | 'BUSY' | 'SWITCH_OFF'>('TALKED');
 
-  // 1. Talked Sub-Options (Interested, Said He Will Visit, Want Something Else, Busy will talk later, Wrong Number)
+  // 1. Talked Sub-Options (Interested, Said He Will Visit, Want Something Else, Busy will talk later, Wrong Number, Quotation/Invoice Shared)
   const [talkedSubOption, setTalkedSubOption] = useState<
-    'INTERESTED' | 'SAID_WILL_VISIT' | 'WANT_SOMETHING_ELSE' | 'BUSY_LATER' | 'WRONG_NUMBER'
+    'INTERESTED' | 'SAID_WILL_VISIT' | 'WANT_SOMETHING_ELSE' | 'BUSY_LATER' | 'WRONG_NUMBER' | 'QUOTE_INVOICE_SHARED'
   >('INTERESTED');
+
+  // Quotation & Invoice Selection and Sharing Flow State
+  const [showQuoteInvoiceModal, setShowQuoteInvoiceModal] = useState<boolean>(false);
+  const [isLoadingQuotesInvoices, setIsLoadingQuotesInvoices] = useState<boolean>(false);
+  const [availableQuotesInvoices, setAvailableQuotesInvoices] = useState<any[]>([]);
+  const [quoteInvoiceSearchTerm, setQuoteInvoiceSearchTerm] = useState<string>('');
+  const [quoteInvoiceFilterTab, setQuoteInvoiceFilterTab] = useState<'ALL' | 'QUOTATION' | 'INVOICE'>('ALL');
+  const [selectedQuoteInvoice, setSelectedQuoteInvoice] = useState<any | null>(null);
+
+  // Sharing method selection: 'ALREADY_SHARED' vs 'SHARE_NOW'
+  const [quoteSharingMode, setQuoteSharingMode] = useState<'ALREADY_SHARED' | 'SHARE_NOW'>('SHARE_NOW');
+  // If Already Shared:
+  const [alreadySharedMedium, setAlreadySharedMedium] = useState<'WHATSAPP' | 'EMAIL' | 'IN_PERSON' | 'DIRECT_SMS'>('WHATSAPP');
+  const [alreadySharedNotes, setAlreadySharedNotes] = useState<string>('Quotation/Invoice shared previously via WhatsApp');
+  // If Share Now:
+  const [shareNowChannel, setShareNowChannel] = useState<'WHATSAPP_DIRECT' | 'EMAIL'>('WHATSAPP_DIRECT');
+  const [shareNowPhone, setShareNowPhone] = useState<string>('');
+  const [shareNowEmail, setShareNowEmail] = useState<string>('');
+  const [shareNowCustomNote, setShareNowCustomNote] = useState<string>(
+    'Hi, please find attached the quotation/invoice for your review. Let us know if you have any questions!'
+  );
+
+  useEffect(() => {
+    if (lead?.phone && !shareNowPhone) setShareNowPhone(lead.phone);
+    if (lead?.email && !shareNowEmail) setShareNowEmail(lead.email);
+  }, [lead]);
+
+  const fetchQuotesAndInvoices = async () => {
+    setIsLoadingQuotesInvoices(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      let fetchedQuotes: any[] = [];
+      if (token) {
+        try {
+          const res = await fetch(`${apiBase}/quotations`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              fetchedQuotes = data;
+            }
+          }
+        } catch (e) {
+          console.warn('API fetch quotations failed, falling back to local cache:', e);
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        const localSaved = localStorage.getItem('das_crm_saved_quotes');
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) {
+              const existingIds = new Set(fetchedQuotes.map((q: any) => q.id || q.quoteNumber || q.docNo));
+              for (const item of parsed) {
+                const identifier = item.id || item.quoteNumber || item.docNo;
+                if (!existingIds.has(identifier)) {
+                  fetchedQuotes.push(item);
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (fetchedQuotes.length === 0) {
+        fetchedQuotes = [
+          {
+            id: 'quote_mock_1',
+            docNo: 'EST-2026-4401',
+            quoteNumber: 'EST-2026-4401',
+            docType: 'QUOTATION',
+            partyName: lead.name || 'Enterprise Client',
+            companyName: 'DAS Technology Corp',
+            totalAmount: 49999,
+            status: 'SENT',
+            sentVia: 'WHATSAPP_DIRECT',
+            sentToLead: lead.name,
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 'quote_mock_2',
+            docNo: 'INV-2026-8802',
+            quoteNumber: 'INV-2026-8802',
+            docType: 'PROFORMA_INVOICE',
+            partyName: lead.name || 'Enterprise Client',
+            companyName: 'DAS Technology Corp',
+            totalAmount: 118000,
+            status: 'SENT',
+            sentVia: 'EMAIL',
+            sentToLead: lead.name,
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+          },
+          {
+            id: 'quote_mock_3',
+            docNo: 'EST-2026-1029',
+            quoteNumber: 'EST-2026-1029',
+            docType: 'QUOTATION',
+            partyName: 'TechCorp Solutions',
+            companyName: 'DAS Technology Corp',
+            totalAmount: 25000,
+            status: 'DRAFT',
+            createdAt: new Date(Date.now() - 172800000).toISOString(),
+          }
+        ];
+      }
+
+      setAvailableQuotesInvoices(fetchedQuotes);
+      const matching = fetchedQuotes.find((q: any) => 
+        (q.partyName && lead.name && q.partyName.toLowerCase().includes(lead.name.toLowerCase())) ||
+        (q.clientName && lead.name && q.clientName.toLowerCase().includes(lead.name.toLowerCase())) ||
+        (q.sentToLead && lead.name && q.sentToLead.toLowerCase().includes(lead.name.toLowerCase()))
+      );
+      if (matching && !selectedQuoteInvoice) {
+        setSelectedQuoteInvoice(matching);
+      } else if (!selectedQuoteInvoice && fetchedQuotes.length > 0) {
+        setSelectedQuoteInvoice(fetchedQuotes[0]);
+      }
+    } catch (err) {
+      console.warn('Error fetching quotes/invoices:', err);
+    } finally {
+      setIsLoadingQuotesInvoices(false);
+    }
+  };
+
+  const handleShareViaWhatsAppDirect = (doc: any) => {
+    const docNo = doc?.docNo || doc?.quoteNumber || 'DOC-001';
+    const isInvoice = (doc?.docType || '').includes('INVOICE');
+    const docTypeLabel = isInvoice ? 'Tax Invoice' : 'Commercial Quotation';
+    const clientName = lead.name || doc?.partyName || doc?.clientName || 'Valued Client';
+    const amountFormatted = `₹${Number(doc?.totalAmount || 0).toLocaleString('en-IN')}`;
+    const targetPhone = (shareNowPhone || lead.phone || '').replace(/[^0-9]/g, '');
+
+    const noteText = shareNowCustomNote.trim() 
+      ? `\n\n📝 *Note from Representative:*\n"${shareNowCustomNote.trim()}"` 
+      : '';
+
+    const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dascrm.com';
+    const message = encodeURIComponent(
+      `Hello *${clientName}*,\n\n` +
+      `Here is your official *${docTypeLabel} #${docNo}* from *DAS CRM*.\n\n` +
+      `📋 *Document Summary:*\n` +
+      `• Document Type: ${docTypeLabel}\n` +
+      `• Reference #: *${docNo}*\n` +
+      `• Total Amount: *${amountFormatted}*\n` +
+      `• Issue Date: ${new Date().toLocaleDateString('en-IN')}\n` +
+      `• Status: Shared & In Negotiation` +
+      `${noteText}\n\n` +
+      `📎 *PDF Attachment & Verification Link:*\n` +
+      `${originUrl}/quotes?doc=${encodeURIComponent(docNo)}&type=${encodeURIComponent(doc?.docType || 'QUOTATION')}\n\n` +
+      `Generated & Verified securely via *DAS CRM* (www.dascrm.com)`
+    );
+
+    window.open(`https://wa.me/${targetPhone ? targetPhone : ''}?text=${message}`, '_blank');
+  };
+
+  const handleShareViaEmail = (doc: any) => {
+    const docNo = doc?.docNo || doc?.quoteNumber || 'DOC-001';
+    const isInvoice = (doc?.docType || '').includes('INVOICE');
+    const docTypeLabel = isInvoice ? 'Tax Invoice' : 'Commercial Quotation';
+    const clientName = lead.name || doc?.partyName || doc?.clientName || 'Valued Client';
+    const amountFormatted = `₹${Number(doc?.totalAmount || 0).toLocaleString('en-IN')}`;
+    const targetEmail = shareNowEmail || lead.email || '';
+    const originUrl = typeof window !== 'undefined' ? window.location.origin : 'https://dascrm.com';
+
+    const subject = encodeURIComponent(`${docTypeLabel} #${docNo} — ${lead.company || 'Enterprise Suite'} [DAS CRM]`);
+    const body = encodeURIComponent(
+      `Dear ${clientName},\n\n` +
+      `Please find attached the official ${docTypeLabel} #${docNo} for total amount ${amountFormatted}.\n\n` +
+      `Document Details:\n` +
+      `- Document #: ${docNo}\n` +
+      `- Total Amount: ${amountFormatted}\n` +
+      `- Issued to: ${clientName} (${lead.company || 'Enterprise'})\n` +
+      `- Date: ${new Date().toLocaleDateString('en-IN')}\n\n` +
+      (shareNowCustomNote.trim() ? `Note: ${shareNowCustomNote.trim()}\n\n` : '') +
+      `View Document Online:\n${originUrl}/quotes?doc=${encodeURIComponent(docNo)}\n\n` +
+      `Best regards,\n${currentUser?.name || lead.owner || 'Sales Team'}\nDAS CRM`
+    );
+
+    window.open(`mailto:${targetEmail}?subject=${subject}&body=${body}`, '_blank');
+  };
+
+  const handleConfirmQuoteInvoiceShare = async () => {
+    if (!selectedQuoteInvoice) {
+      alert('Please select a quotation or invoice first.');
+      return;
+    }
+
+    const docNo = selectedQuoteInvoice.docNo || selectedQuoteInvoice.quoteNumber || 'DOC-001';
+    const isInvoice = (selectedQuoteInvoice.docType || '').includes('INVOICE');
+    const docTypeLabel = isInvoice ? 'Invoice' : 'Quotation';
+    const amountFormatted = `₹${Number(selectedQuoteInvoice.totalAmount || 0).toLocaleString('en-IN')}`;
+    const sharingMediumLabel = quoteSharingMode === 'ALREADY_SHARED'
+      ? (alreadySharedMedium === 'WHATSAPP' ? 'WhatsApp' : alreadySharedMedium === 'EMAIL' ? 'Email' : alreadySharedMedium === 'IN_PERSON' ? 'In-Person' : 'Direct SMS')
+      : (shareNowChannel === 'WHATSAPP_DIRECT' ? 'WhatsApp Direct' : 'Email');
+
+    // 1. Advance lead to Negotiation
+    const targetStatus = 'Negotiation';
+    const updatedLead = {
+      ...lead,
+      status: targetStatus,
+    };
+    setLead(updatedLead);
+
+    // 2. Persist to session and local storage
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(updatedLead));
+        sessionStorage.setItem('das_crm_active_lead', JSON.stringify(updatedLead));
+
+        const allLeadsRaw = localStorage.getItem('das_crm_all_leads_cache');
+        if (allLeadsRaw) {
+          const allLeads: any[] = JSON.parse(allLeadsRaw);
+          const updatedAll = allLeads.map((item: any) =>
+            String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+              ? { ...item, status: targetStatus, stage: targetStatus }
+              : item
+          );
+          localStorage.setItem('das_crm_all_leads_cache', JSON.stringify(updatedAll));
+        }
+
+        const dirLeadsRaw = localStorage.getItem('das_crm_lead_directory_cache');
+        if (dirLeadsRaw) {
+          const dirLeads: any[] = JSON.parse(dirLeadsRaw);
+          const updatedDir = dirLeads.map((item: any) =>
+            String(item.id) === String(lead.id) || (item.name && item.name === lead.name)
+              ? { ...item, status: targetStatus, stage: targetStatus }
+              : item
+          );
+          localStorage.setItem('das_crm_lead_directory_cache', JSON.stringify(updatedDir));
+        }
+      } catch (_) {}
+    }
+
+    // 3. Update Status in Backend API
+    const activeStored = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('das_crm_active_lead') || '{}') : {};
+    const effectiveLeadId = (lead.id && lead.id !== '1' && !lead.id.startsWith('lead_'))
+      ? lead.id
+      : (activeStored.id && activeStored.id !== '1' && !activeStored.id.startsWith('lead_') ? activeStored.id : (lead.id || '1'));
+
+    apiFetch(`/leads/${effectiveLeadId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        statusId: targetStatus,
+        notes: `${docTypeLabel} #${docNo} (${amountFormatted}) shared via ${sharingMediumLabel}. Mode: ${quoteSharingMode}`,
+      }),
+    }).then(() => {
+      if (typeof window !== 'undefined') {
+        try {
+          clearAllDashboardCaches();
+          const syncLead = { ...lead, id: effectiveLeadId, status: targetStatus };
+          sessionStorage.setItem(`das_crm_lead_${lead.id}`, JSON.stringify(syncLead));
+          sessionStorage.setItem(`das_crm_lead_${effectiveLeadId}`, JSON.stringify(syncLead));
+          sessionStorage.setItem('das_crm_active_lead', JSON.stringify(syncLead));
+        } catch (_) {}
+        window.dispatchEvent(new CustomEvent('das_crm_leads_updated', { detail: { leadId: effectiveLeadId, status: targetStatus } }));
+        try {
+          const bc = new BroadcastChannel('das_crm_lead_sync');
+          bc.postMessage({ type: 'LEAD_STATUS_CHANGED', leadId: effectiveLeadId, status: targetStatus });
+          bc.close();
+        } catch (_) {}
+      }
+    }).catch((e) => console.warn('Status patch failed:', e));
+
+    // 4. Update the Quotation in Backend & LocalStorage so it records which lead it is shared to
+    const token = typeof window !== 'undefined' ? localStorage.getItem('das_crm_token') : null;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    if (token && selectedQuoteInvoice.id) {
+      try {
+        await fetch(`${apiBase}/quotations/${selectedQuoteInvoice.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            leadId: effectiveLeadId,
+            partyName: lead.name || selectedQuoteInvoice.partyName,
+            status: 'SENT',
+            payload: {
+              ...(selectedQuoteInvoice.payload || {}),
+              sentToLead: lead.name,
+              sentVia: sharingMediumLabel,
+              leadId: effectiveLeadId,
+            },
+          }),
+        });
+      } catch (err) {
+        console.warn('Backend quote update notice:', err);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const localSaved = localStorage.getItem('das_crm_saved_quotes');
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (Array.isArray(parsed)) {
+            const updatedQuotes = parsed.map((q: any) =>
+              (q.id === selectedQuoteInvoice.id || q.docNo === docNo)
+                ? {
+                    ...q,
+                    status: 'GENERATED_SENT',
+                    sentVia: sharingMediumLabel,
+                    sentToLead: lead.name,
+                    leadId: effectiveLeadId,
+                  }
+                : q
+            );
+            localStorage.setItem('das_crm_saved_quotes', JSON.stringify(updatedQuotes));
+          }
+        }
+        window.dispatchEvent(new CustomEvent('das_crm_quotations_updated'));
+      } catch (_) {}
+    }
+
+    // 5. Append to Full Contact History & Call Timeline
+    const userRoleStr = (currentUser?.role || 'SALES_EXEC').toUpperCase();
+    const cleanRole: 'ADMIN' | 'MANAGER' | 'TEAM_LEADER' | 'SALES_EXEC' = userRoleStr.includes('ADMIN')
+      ? 'ADMIN'
+      : userRoleStr.includes('MANAGER')
+      ? 'MANAGER'
+      : userRoleStr.includes('LEAD') || userRoleStr.includes('TL')
+      ? 'TEAM_LEADER'
+      : 'SALES_EXEC';
+
+    const noteDetails = quoteSharingMode === 'ALREADY_SHARED'
+      ? (alreadySharedNotes.trim() || `Already shared earlier via ${sharingMediumLabel}`)
+      : (shareNowCustomNote.trim() || `Shared directly via ${sharingMediumLabel}`);
+
+    const newContactAttempt: ContactAttempt = {
+      id: `doc_attempt_${Date.now()}`,
+      type: isInvoice ? 'INVOICE' : 'QUOTATION',
+      outcome: isInvoice ? 'INVOICE_SHARED' : 'QUOTATION_SHARED',
+      by: currentUser?.name || lead.owner || 'Sales Rep',
+      byRole: cleanRole,
+      timestamp: new Date().toISOString(),
+      durationSeconds: callDuration || 0,
+      notes: `${docTypeLabel} #${docNo} (${amountFormatted}) shared via ${sharingMediumLabel}. Note: ${noteDetails}`,
+      docNo: docNo,
+      docType: isInvoice ? 'INVOICE' : 'QUOTATION',
+      docAmount: Number(selectedQuoteInvoice.totalAmount || 0),
+      sharingMedium: sharingMediumLabel,
+      sharingMode: quoteSharingMode,
+    };
+
+    const updatedHistory = [newContactAttempt, ...contactHistory];
+    setContactHistory(updatedHistory);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`das_crm_contact_history_${lead.id}`, JSON.stringify(updatedHistory));
+        localStorage.setItem(`das_crm_contact_history_${leadId}`, JSON.stringify(updatedHistory));
+      } catch (_) {}
+    }
+
+    // Persist activity
+    apiFetch('/activities', {
+      method: 'POST',
+      body: JSON.stringify({
+        activityType: 'DOCUMENT',
+        leadId: lead.id,
+        notes: `${docTypeLabel} #${docNo} (${amountFormatted}) shared via ${sharingMediumLabel}`,
+        outcome: isInvoice ? 'INVOICE_SHARED' : 'QUOTATION_SHARED',
+        metadata: {
+          docNo,
+          docType: isInvoice ? 'INVOICE' : 'QUOTATION',
+          totalAmount: selectedQuoteInvoice.totalAmount,
+          sharingMedium: sharingMediumLabel,
+          sharingMode: quoteSharingMode,
+          by: currentUser?.name || lead.owner,
+        },
+      }),
+    }).catch((e) => console.warn('Activity log sync notice:', e));
+
+    setShowQuoteInvoiceModal(false);
+    showSyncNotification(`✓ ${docTypeLabel} #${docNo} shared via ${sharingMediumLabel}! Lead status auto-advanced to Negotiation.`);
+  };
 
   // Product Selection for Interested
   const [selectedProduct, setSelectedProduct] = useState<string>('DAS CRM Enterprise Suite');
@@ -960,6 +1340,15 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
         contactOutcome = 'WRONG_NUMBER';
         autoQueueFollowUp = false;
         dispositionSummaryTitle = 'Talked: Wrong Number / Invalid';
+      } else if (talkedSubOption === 'QUOTE_INVOICE_SHARED') {
+        outcomeId = 'talked_quote_invoice_shared';
+        const isInvoice = (selectedQuoteInvoice?.docType || '').includes('INVOICE');
+        contactType = isInvoice ? 'INVOICE' : 'QUOTATION';
+        contactOutcome = isInvoice ? 'INVOICE_SHARED' : 'QUOTATION_SHARED';
+        autoQueueFollowUp = true;
+        const docNo = selectedQuoteInvoice?.docNo || selectedQuoteInvoice?.quoteNumber || 'Document';
+        const amountStr = selectedQuoteInvoice?.totalAmount ? ` (₹${Number(selectedQuoteInvoice.totalAmount).toLocaleString('en-IN')})` : '';
+        dispositionSummaryTitle = `Talked: ${isInvoice ? 'Invoice' : 'Quotation'} Shared #${docNo}${amountStr}`;
       }
     } else if (funnelPrimaryCat === 'NOT_RESPONDING') {
       contactType = 'CALL_NOT_RESPONDING';
@@ -1164,6 +1553,11 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
       followUpDate: autoQueueFollowUp ? funnelScheduledDate : undefined,
       followUpTime: autoQueueFollowUp ? funnelScheduledTime : undefined,
       audioRecordingAvailable: callDuration > 10,
+      docNo: selectedQuoteInvoice?.docNo || selectedQuoteInvoice?.quoteNumber,
+      docType: selectedQuoteInvoice ? ((selectedQuoteInvoice.docType || '').includes('INVOICE') ? 'INVOICE' : 'QUOTATION') : undefined,
+      docAmount: selectedQuoteInvoice?.totalAmount ? Number(selectedQuoteInvoice.totalAmount) : undefined,
+      sharingMedium: quoteSharingMode === 'ALREADY_SHARED' ? alreadySharedMedium : shareNowChannel,
+      sharingMode: quoteSharingMode,
     };
 
     const updatedHistory = [newContactAttempt, ...contactHistory];
@@ -1777,7 +2171,16 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
 
           {/* Right Column: Full Contact History & Call Timeline */}
           <div className="md:col-span-2 space-y-6">
-            <CallContactHistory history={contactHistory} leadName={lead.name} interestedProduct={lead.requirement} />
+            <CallContactHistory
+              history={contactHistory}
+              leadName={lead.name}
+              interestedProduct={lead.requirement}
+              leadPhone={lead.phone}
+              onOpenShareQuoteInvoice={() => {
+                fetchQuotesAndInvoices();
+                setShowQuoteInvoiceModal(true);
+              }}
+            />
           </div>
         </div>
       )}
@@ -1943,6 +2346,8 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                           ? 'Auto Stage: Contacted'
                           : talkedSubOption === 'BUSY_LATER'
                           ? 'Auto Stage: Contacted'
+                          : talkedSubOption === 'QUOTE_INVOICE_SHARED'
+                          ? 'Auto Stage: Negotiation'
                           : 'Auto Stage: Lost'}
                       </span>
                     </div>
@@ -1954,13 +2359,20 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         { key: 'WANT_SOMETHING_ELSE', label: 'c - Want Something Else', emoji: '🔄' },
                         { key: 'BUSY_LATER', label: 'd - Busy will talk later', emoji: '⏰' },
                         { key: 'WRONG_NUMBER', label: 'e - Wrong Number', emoji: '⚠️' },
+                        { key: 'QUOTE_INVOICE_SHARED', label: 'f - Quotation / Invoice Shared', emoji: '📄' },
                       ].map((sub) => {
                         const isSelected = talkedSubOption === sub.key;
                         return (
                           <button
                             key={sub.key}
                             type="button"
-                            onClick={() => setTalkedSubOption(sub.key as any)}
+                            onClick={() => {
+                              setTalkedSubOption(sub.key as any);
+                              if (sub.key === 'QUOTE_INVOICE_SHARED') {
+                                fetchQuotesAndInvoices();
+                                setShowQuoteInvoiceModal(true);
+                              }
+                            }}
                             className={`p-2.5 rounded-xl text-left border text-xs font-bold transition-all ${
                               isSelected
                                 ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-md'
@@ -2216,6 +2628,84 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                         <p className="text-[11px] text-rose-300/80">
                           This action will auto-transition this prospect to the Lost stage in accordance with tenant lifecycle rules.
                         </p>
+                      </div>
+                    )}
+
+                    {/* Sub-Option F: QUOTATION / INVOICE SHARED -> Search & Select Document Preview */}
+                    {talkedSubOption === 'QUOTE_INVOICE_SHARED' && (
+                      <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 space-y-3 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Receipt size={16} className="text-emerald-400" />
+                            <span className="text-xs font-bold text-white">Quotation &amp; Invoice Attachment</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              fetchQuotesAndInvoices();
+                              setShowQuoteInvoiceModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all"
+                          >
+                            <Search size={12} /> {selectedQuoteInvoice ? 'Change / Configure' : 'Search & Select Document'}
+                          </button>
+                        </div>
+
+                        {selectedQuoteInvoice ? (
+                          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  (selectedQuoteInvoice.docType || '').includes('INVOICE')
+                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                }`}>
+                                  {(selectedQuoteInvoice.docType || '').includes('INVOICE') ? '🧾 INVOICE' : '📄 QUOTATION'}
+                                </span>
+                                <span className="text-xs font-bold text-white">#{selectedQuoteInvoice.docNo || selectedQuoteInvoice.quoteNumber}</span>
+                              </div>
+                              <span className="text-xs font-extrabold text-emerald-400">
+                                ₹{Number(selectedQuoteInvoice.totalAmount || 0).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-300 flex items-center justify-between">
+                              <span>Client: {selectedQuoteInvoice.partyName || selectedQuoteInvoice.clientName || lead.name}</span>
+                              <span className="text-slate-400">
+                                Mode: {quoteSharingMode === 'ALREADY_SHARED' ? `Already Shared (${alreadySharedMedium})` : `Share Now (${shareNowChannel === 'WHATSAPP_DIRECT' ? 'WhatsApp Direct' : 'Email'})`}
+                              </span>
+                            </div>
+                            <div className="pt-1 flex gap-2">
+                              {quoteSharingMode === 'SHARE_NOW' && shareNowChannel === 'WHATSAPP_DIRECT' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareViaWhatsAppDirect(selectedQuoteInvoice)}
+                                  className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                >
+                                  <Send size={12} /> Send via WhatsApp Direct Now
+                                </button>
+                              )}
+                              {quoteSharingMode === 'SHARE_NOW' && shareNowChannel === 'EMAIL' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareViaEmail(selectedQuoteInvoice)}
+                                  className="flex-1 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                >
+                                  <Mail size={12} /> Send via Email Now
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => {
+                              fetchQuotesAndInvoices();
+                              setShowQuoteInvoiceModal(true);
+                            }}
+                            className="p-3 rounded-lg border border-dashed border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer text-center text-xs text-emerald-300 font-semibold transition-all"
+                          >
+                            + Click here to search and select a Quotation or Invoice to share
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2870,6 +3360,469 @@ export function EmployeeLeadWorkspace({ leadId = '1', leadData }: LeadWorkspaceP
                 <p className="text-xs font-bold text-indigo-300 flex items-center gap-2">⏳ Waiting / Client Reviewing</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Awaiting client review. Status: IN NEGOTIATION</p>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QUOTATION & INVOICE SHARING POPUP MODAL ───────────────────────── */}
+      {showQuoteInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-emerald-950/20 to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <Receipt size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    Share Quotation or Invoice
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Auto-Advances to Negotiation
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Lead: <span className="text-slate-200 font-semibold">{lead.name}</span> • {lead.phone || 'No phone'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuoteInvoiceModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+              {/* Step 1: Search & Select Document */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Search size={14} className="text-emerald-400" />
+                    <span>1. Search &amp; Select Quotation or Invoice:</span>
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    {availableQuotesInvoices.length} document{availableQuotesInvoices.length !== 1 ? 's' : ''} available
+                  </span>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by quote/inv #, client name, or amount..."
+                      value={quoteInvoiceSearchTerm}
+                      onChange={(e) => setQuoteInvoiceSearchTerm(e.target.value)}
+                      className="crm-input pl-9 text-xs h-9 w-full"
+                    />
+                  </div>
+                  <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setQuoteInvoiceFilterTab('ALL')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        quoteInvoiceFilterTab === 'ALL'
+                          ? 'bg-slate-800 text-white shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuoteInvoiceFilterTab('QUOTATION')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        quoteInvoiceFilterTab === 'QUOTATION'
+                          ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      📄 Quotes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuoteInvoiceFilterTab('INVOICE')}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        quoteInvoiceFilterTab === 'INVOICE'
+                          ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40 shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      🧾 Invoices
+                    </button>
+                  </div>
+                </div>
+
+                {/* Document List */}
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 border border-slate-800/80 rounded-2xl p-2 bg-slate-950/60">
+                  {isLoadingQuotesInvoices ? (
+                    <div className="p-4 text-center text-xs text-slate-400">Loading documents...</div>
+                  ) : (
+                    availableQuotesInvoices
+                      .filter((doc: any) => {
+                        const isInvoice = (doc.docType || '').includes('INVOICE');
+                        if (quoteInvoiceFilterTab === 'QUOTATION' && isInvoice) return false;
+                        if (quoteInvoiceFilterTab === 'INVOICE' && !isInvoice) return false;
+                        if (!quoteInvoiceSearchTerm.trim()) return true;
+                        const term = quoteInvoiceSearchTerm.toLowerCase();
+                        const no = (doc.docNo || doc.quoteNumber || '').toLowerCase();
+                        const party = (doc.partyName || doc.clientName || '').toLowerCase();
+                        const amount = String(doc.totalAmount || '');
+                        return no.includes(term) || party.includes(term) || amount.includes(term);
+                      })
+                      .map((doc: any) => {
+                        const isInvoice = (doc.docType || '').includes('INVOICE');
+                        const isSelected = selectedQuoteInvoice?.id === doc.id || (selectedQuoteInvoice?.docNo && selectedQuoteInvoice?.docNo === (doc.docNo || doc.quoteNumber));
+                        const docNo = doc.docNo || doc.quoteNumber || 'DOC-001';
+                        const client = doc.partyName || doc.clientName || lead.name;
+                        const amount = Number(doc.totalAmount || 0);
+
+                        return (
+                          <div
+                            key={doc.id || docNo}
+                            onClick={() => setSelectedQuoteInvoice(doc)}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              isSelected
+                                ? isInvoice
+                                  ? 'bg-purple-950/30 border-purple-500 text-white shadow-md'
+                                  : 'bg-emerald-950/30 border-emerald-500 text-white shadow-md'
+                                : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${
+                                isInvoice ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'
+                              }`}>
+                                {isInvoice ? <Receipt size={16} /> : <FileText size={16} />}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-xs text-white">#{docNo}</span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                    isInvoice ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'
+                                  }`}>
+                                    {isInvoice ? 'INVOICE' : 'QUOTATION'}
+                                  </span>
+                                  {doc.sentToLead && (
+                                    <span className="text-[9px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                                      Linked: {doc.sentToLead}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Client: {client} {doc.savedAt ? `• ${doc.savedAt}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-extrabold text-emerald-400">
+                                ₹{amount.toLocaleString('en-IN')}
+                              </p>
+                              {isSelected ? (
+                                <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 justify-end mt-0.5">
+                                  <Check size={12} /> Selected
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Click to select</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+
+              {/* Step 2: Already Shared OR Share Now */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <Send size={14} className="text-indigo-400" />
+                  <span>2. Is this document Already Shared or Share Now?</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuoteSharingMode('SHARE_NOW')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all ${
+                      quoteSharingMode === 'SHARE_NOW'
+                        ? 'bg-gradient-to-br from-indigo-950/40 to-slate-900 border-indigo-500 text-white shadow-lg'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-extrabold text-indigo-300 flex items-center gap-1.5">
+                        <Send size={14} /> 📢 Share Now
+                      </span>
+                      {quoteSharingMode === 'SHARE_NOW' && <span className="text-indigo-400 font-bold text-xs">✓ Active</span>}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Deliver right now via WhatsApp Direct or Email with attached PDF and personalized note.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuoteSharingMode('ALREADY_SHARED')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all ${
+                      quoteSharingMode === 'ALREADY_SHARED'
+                        ? 'bg-gradient-to-br from-emerald-950/40 to-slate-900 border-emerald-500 text-white shadow-lg'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} /> ✅ Already Shared
+                      </span>
+                      {quoteSharingMode === 'ALREADY_SHARED' && <span className="text-emerald-400 font-bold text-xs">✓ Active</span>}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Record that the document was already provided to the prospect via a specific medium.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 3A: ALREADY SHARED MEDIUM DETAILS */}
+              {quoteSharingMode === 'ALREADY_SHARED' && (
+                <div className="p-4 rounded-2xl bg-slate-950 border border-emerald-500/30 space-y-3 animate-in fade-in duration-150">
+                  <label className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <span>Select Medium Used:</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { key: 'WHATSAPP', label: 'WhatsApp', icon: MessageSquare, color: 'text-emerald-400' },
+                      { key: 'EMAIL', label: 'Email', icon: Mail, color: 'text-blue-400' },
+                      { key: 'IN_PERSON', label: 'In-Person', icon: User, color: 'text-amber-400' },
+                      { key: 'DIRECT_SMS', label: 'Direct / SMS', icon: Phone, color: 'text-purple-400' },
+                    ].map((med) => {
+                      const isMed = alreadySharedMedium === med.key;
+                      const IconComp = med.icon;
+                      return (
+                        <button
+                          key={med.key}
+                          type="button"
+                          onClick={() => setAlreadySharedMedium(med.key as any)}
+                          className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all ${
+                            isMed
+                              ? 'bg-emerald-500/20 border-emerald-500 text-white shadow'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <IconComp size={16} className={med.color} />
+                          <span>{med.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                      Sharing Notes / Reference:
+                    </label>
+                    <input
+                      type="text"
+                      className="crm-input text-xs h-8"
+                      value={alreadySharedNotes}
+                      onChange={(e) => setAlreadySharedNotes(e.target.value)}
+                      placeholder="e.g. Shared PDF during demo call on 10:30 AM..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3B: SHARE NOW DETAILS (WhatsApp Direct or Email) */}
+              {quoteSharingMode === 'SHARE_NOW' && (
+                <div className="p-4 rounded-2xl bg-slate-950 border border-indigo-500/30 space-y-3 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <span>Select Sharing Channel:</span>
+                    </label>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShareNowChannel('WHATSAPP_DIRECT')}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          shareNowChannel === 'WHATSAPP_DIRECT'
+                            ? 'bg-emerald-600 text-white shadow'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <MessageSquare size={13} /> WhatsApp Direct
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShareNowChannel('EMAIL')}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          shareNowChannel === 'EMAIL'
+                            ? 'bg-blue-600 text-white shadow'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <Mail size={13} /> Email
+                      </button>
+                    </div>
+                  </div>
+
+                  {shareNowChannel === 'WHATSAPP_DIRECT' && (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Recipient WhatsApp Phone Number:
+                          </label>
+                          <input
+                            type="text"
+                            className="crm-input text-xs h-8"
+                            value={shareNowPhone}
+                            onChange={(e) => setShareNowPhone(e.target.value)}
+                            placeholder="+91 98000 00000"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Recipient Name:
+                          </label>
+                          <input
+                            type="text"
+                            readOnly
+                            className="crm-input text-xs h-8 bg-slate-900/50 text-slate-300"
+                            value={lead.name}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                          Personalized Accompanying Note:
+                        </label>
+                        <textarea
+                          rows={2}
+                          className="crm-input text-xs w-full"
+                          value={shareNowCustomNote}
+                          onChange={(e) => setShareNowCustomNote(e.target.value)}
+                          placeholder="Add a small note attached to the PDF quotation/invoice..."
+                        />
+                      </div>
+
+                      {/* WhatsApp Message Preview & Trigger */}
+                      <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                            <Sparkles size={11} /> WhatsApp Message &amp; PDF Verification
+                          </span>
+                          <span className="text-[10px] text-slate-400">Opens wa.me</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed font-mono bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
+                          {selectedQuoteInvoice
+                            ? `Hello ${lead.name}, here is your official ${((selectedQuoteInvoice.docType || '').includes('INVOICE') ? 'Tax Invoice' : 'Commercial Quotation')} #${selectedQuoteInvoice.docNo || selectedQuoteInvoice.quoteNumber} (₹${Number(selectedQuoteInvoice.totalAmount || 0).toLocaleString('en-IN')}) with PDF attachment and verification link.`
+                            : 'Select a document above to generate the WhatsApp preview.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedQuoteInvoice) {
+                              alert('Please select a quotation or invoice first.');
+                              return;
+                            }
+                            handleShareViaWhatsAppDirect(selectedQuoteInvoice);
+                          }}
+                          className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all"
+                        >
+                          <MessageSquare size={14} /> Open WhatsApp Direct &amp; Send Now →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {shareNowChannel === 'EMAIL' && (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Recipient Email Address:
+                          </label>
+                          <input
+                            type="email"
+                            className="crm-input text-xs h-8"
+                            value={shareNowEmail}
+                            onChange={(e) => setShareNowEmail(e.target.value)}
+                            placeholder="client@company.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                            Recipient Name:
+                          </label>
+                          <input
+                            type="text"
+                            readOnly
+                            className="crm-input text-xs h-8 bg-slate-900/50 text-slate-300"
+                            value={lead.name}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 block mb-1">
+                          Email Accompanying Note:
+                        </label>
+                        <textarea
+                          rows={2}
+                          className="crm-input text-xs w-full"
+                          value={shareNowCustomNote}
+                          onChange={(e) => setShareNowCustomNote(e.target.value)}
+                          placeholder="Add instructions or terms for the client..."
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedQuoteInvoice) {
+                            alert('Please select a quotation or invoice first.');
+                            return;
+                          }
+                          handleShareViaEmail(selectedQuoteInvoice);
+                        }}
+                        className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+                      >
+                        <Mail size={14} /> Open Email Client &amp; Send Document →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[11px] text-slate-300">
+                  Status Auto-Update: Moving to <strong className="text-pink-400">Negotiation</strong> stage
+                </span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowQuoteInvoiceModal(false)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-800 hover:bg-slate-900 text-xs font-bold text-slate-300 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmQuoteInvoiceShare}
+                  className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 transition-all"
+                >
+                  <CheckCircle2 size={14} /> Confirm &amp; Advance Lead to Negotiation
+                </button>
+              </div>
             </div>
           </div>
         </div>

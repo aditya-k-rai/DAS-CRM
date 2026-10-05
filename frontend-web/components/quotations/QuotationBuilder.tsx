@@ -200,7 +200,7 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
   const [savedQuotes, setSavedQuotes] = useState<SavedQuoteRecord[]>(INITIAL_SAVED_QUOTES);
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState<boolean>(false);
   const [historySearch, setHistorySearch] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'GENERATED_SENT'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'GENERATED_SENT' | 'QUOTATIONS' | 'INVOICES' | 'SHARED_LEADS'>('ALL');
 
   useEffect(() => {
     if (externalOpenHistory) {
@@ -230,6 +230,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               savedAt: q.createdAt ? new Date(q.createdAt).toLocaleString('en-IN') : 'Recently',
               totalAmount: Number(q.totalAmount || 0),
               status: q.status === 'SENT' ? 'GENERATED_SENT' : 'DRAFT',
+              sentVia: q.sentVia || q.payload?.sentVia,
+              sentToLead: q.sentToLead || (q.clientName && q.clientName !== 'Client' ? q.clientName : undefined),
+              createdByName: q.createdByName,
+              createdByRole: q.createdByRole,
               itemsCount: q.itemsCount || (q.items ? q.items.length : 0),
               payload: q.payload || {
                 items: q.items || [],
@@ -3525,8 +3529,10 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                 {[
                   { id: 'ALL', label: `All (${savedQuotes.length})` },
+                  { id: 'QUOTATIONS', label: `Quotations (${savedQuotes.filter(q => !q.docType.includes('INVOICE')).length})` },
+                  { id: 'INVOICES', label: `Invoices (${savedQuotes.filter(q => q.docType.includes('INVOICE')).length})` },
+                  { id: 'SHARED_LEADS', label: `Shared to Leads (${savedQuotes.filter(q => Boolean(q.sentToLead)).length})` },
                   { id: 'DRAFT', label: `Drafts (${savedQuotes.filter(q => q.status === 'DRAFT').length})` },
-                  { id: 'GENERATED_SENT', label: `Generated & Sent (${savedQuotes.filter(q => q.status === 'GENERATED_SENT' || q.status === 'SENT').length})` },
                 ].map(filter => (
                   <button
                     key={filter.id}
@@ -3549,6 +3555,9 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                 .filter(record => {
                   if (statusFilter === 'DRAFT' && record.status !== 'DRAFT') return false;
                   if (statusFilter === 'GENERATED_SENT' && (record.status !== 'GENERATED_SENT' && record.status !== 'SENT')) return false;
+                  if (statusFilter === 'QUOTATIONS' && record.docType.includes('INVOICE')) return false;
+                  if (statusFilter === 'INVOICES' && !record.docType.includes('INVOICE')) return false;
+                  if (statusFilter === 'SHARED_LEADS' && !record.sentToLead) return false;
 
                   if (!historySearch.trim()) return true;
                   const term = historySearch.toLowerCase().trim();
@@ -3599,13 +3608,30 @@ export function QuotationBuilder({ externalOpenHistory, onExternalOpenHistoryHan
                             </p>
                           </div>
 
+                          {/* 👤 SHARED TO LEAD BADGE (HIGHLIGHTED FOR INVOICES & QUOTATIONS) */}
+                          {record.sentToLead && (
+                            <div className={`inline-flex items-center gap-1.5 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border mt-1.5 ${
+                              record.docType.includes('INVOICE')
+                                ? 'bg-sky-500/15 border-sky-500/40 text-sky-200 shadow-sm'
+                                : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 shadow-sm'
+                            }`}>
+                              <span>{record.docType.includes('INVOICE') ? '🧾 Invoice Shared to Lead:' : '📄 Quotation Shared to Lead:'}</span>
+                              <strong className="text-white font-black">{record.sentToLead}</strong>
+                              {record.sentVia && (
+                                <span className="text-[10px] font-semibold text-slate-300 ml-1">
+                                  ({record.sentVia === 'EMAIL' ? '📧 Email' : record.sentVia === 'WHATSAPP_DIRECT' ? '💬 WhatsApp Direct' : '💬 WhatsApp'})
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           {/* 📧 / 💬 SENT VIA CHANNEL BADGE */}
-                          {isSent && (
+                          {isSent && !record.sentToLead && (
                             <div className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-300 mt-1">
                               {record.sentVia === 'EMAIL' ? (
-                                <><span>📧</span> Sent via Email {record.sentToLead ? `to ${record.sentToLead}` : ''}</>
+                                <><span>📧</span> Sent via Email</>
                               ) : record.sentVia === 'WHATSAPP_DIRECT' ? (
-                                <><span>💬</span> Sent via WhatsApp Direct {record.sentToLead ? `to ${record.sentToLead}` : ''}</>
+                                <><span>💬</span> Sent via WhatsApp Direct</>
                               ) : (
                                 <><span>☁️</span> Sent via WhatsApp Cloud</>
                               )}

@@ -5,7 +5,7 @@ import {
   Phone, PhoneOff, PhoneMissed, PhoneIncoming, MessageSquare,
   Mail, Clock, User, Mic, Calendar, ChevronDown, ChevronUp,
   Activity, TrendingUp, CheckCircle2, XCircle, AlertCircle,
-  Package, FileText, BarChart2, ArrowRight
+  Package, FileText, BarChart2, ArrowRight, Receipt, ExternalLink, Send
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -22,7 +22,9 @@ export type ContactType =
   | 'FOLLOWUP_SCHEDULED'
   | 'FOLLOWUP_RESCHEDULED'
   | 'FOLLOWUP_COMPLETED'
-  | 'FOLLOWUP_CANCELLED';
+  | 'FOLLOWUP_CANCELLED'
+  | 'QUOTATION'
+  | 'INVOICE';
 
 export type ContactOutcome =
   | 'TALKED'
@@ -41,7 +43,9 @@ export type ContactOutcome =
   | 'WRONG_NUMBER'
   | 'WA_SENT'
   | 'EMAIL_SENT'
-  | 'VOICEMAIL';
+  | 'VOICEMAIL'
+  | 'QUOTATION_SHARED'
+  | 'INVOICE_SHARED';
 
 export interface ContactAttempt {
   id: string;
@@ -58,6 +62,15 @@ export interface ContactAttempt {
   followUpTime?: string;
   sentMessage?: string;          // WA/Email message snippet
   audioRecordingAvailable?: boolean;
+
+  // Quotation & Invoice tracking fields
+  docNo?: string;
+  docType?: string;
+  docAmount?: number;
+  docId?: string;
+  sharingMedium?: 'WHATSAPP' | 'EMAIL' | 'IN_PERSON' | 'DIRECT' | 'WHATSAPP_DIRECT' | string;
+  sharingMode?: 'ALREADY_SHARED' | 'SHARED_NOW' | 'SHARE_NOW' | string;
+  pdfUrl?: string;
 
   // Follow-up lifecycle synchronization fields
   isRescheduled?: boolean;
@@ -149,6 +162,8 @@ const TYPE_META: Record<ContactType, { icon: React.ReactNode; color: string; bg:
   FOLLOWUP_RESCHEDULED: { icon: <Clock size={12} />, color: '#0ea5e9', bg: 'rgba(14,165,233,0.2)', border: 'rgba(14,165,233,0.45)', label: 'Follow-Up Rescheduled' },
   FOLLOWUP_COMPLETED: { icon: <CheckCircle2 size={12} />, color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.35)', label: 'Follow-Up Completed' },
   FOLLOWUP_CANCELLED: { icon: <XCircle size={12} />, color: '#f43f5e', bg: 'rgba(244,63,94,0.15)', border: 'rgba(244,63,94,0.35)', label: 'Follow-Up Cancelled' },
+  QUOTATION: { icon: <FileText size={12} />, color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.35)', label: 'Quotation Shared' },
+  INVOICE: { icon: <Receipt size={12} />, color: '#38bdf8', bg: 'rgba(56,189,248,0.15)', border: 'rgba(56,189,248,0.35)', label: 'Invoice Shared' },
 };
 
 const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label: string }> = {
@@ -169,6 +184,8 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
   WA_SENT: { emoji: '💬', color: '#4ade80', label: 'WhatsApp Sent' },
   EMAIL_SENT: { emoji: '📧', color: '#818cf8', label: 'Email Dispatched' },
   VOICEMAIL: { emoji: '📼', color: '#a78bfa', label: 'Voicemail Left' },
+  QUOTATION_SHARED: { emoji: '📄', color: '#818cf8', label: 'Quotation Shared' },
+  INVOICE_SHARED: { emoji: '🧾', color: '#38bdf8', label: 'Invoice Shared' },
 };
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
@@ -176,7 +193,9 @@ const OUTCOME_META: Record<ContactOutcome, { emoji: string; color: string; label
 interface CallContactHistoryProps {
   history?: ContactAttempt[];
   leadName?: string;
+  leadPhone?: string;
   interestedProduct?: string;
+  onOpenShareQuoteInvoice?: () => void;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -184,10 +203,12 @@ interface CallContactHistoryProps {
 export function CallContactHistory({
   history = SAMPLE_CONTACT_HISTORY,
   leadName = 'Lead',
+  leadPhone = '',
   interestedProduct = '—',
+  onOpenShareQuoteInvoice,
 }: CallContactHistoryProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | 'FOLLOW_UP' | ContactType>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'MEETING' | 'FOLLOW_UP' | 'QUOTATION' | 'INVOICE' | ContactType>('ALL');
 
   // ── Computed Stats ──────────────────────────────────────────────────────────
   const totalAttempts = history.length;
@@ -197,6 +218,8 @@ export function CallContactHistory({
   const waCount = history.filter(h => h.type === 'WHATSAPP').length;
   const emailCount = history.filter(h => h.type === 'EMAIL').length;
   const followUpCount = history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled)).length;
+  const quotationCount = history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes))).length;
+  const invoiceCount = history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes))).length;
   const totalTalkSecs = history.reduce((acc, h) => acc + (h.durationSeconds || 0), 0);
   
   // Resolve Interested Product / Service (from lead profile or logged history)
@@ -211,6 +234,10 @@ export function CallContactHistory({
     ? history.filter(h => h.outcome === 'MEETING_SCHEDULED' || h.scheduledType === 'MEETING' || Boolean(h.notes && /meeting|visit|in-person/i.test(h.notes)))
     : filterType === 'FOLLOW_UP'
     ? history.filter(h => h.type.startsWith('FOLLOWUP_') || Boolean(h.followUpDate) || Boolean(h.isRescheduled))
+    : filterType === 'QUOTATION'
+    ? history.filter(h => h.type === 'QUOTATION' || h.outcome === 'QUOTATION_SHARED' || (h.docType && !h.docType.includes('INVOICE')) || Boolean(h.notes && /quotation/i.test(h.notes)))
+    : filterType === 'INVOICE'
+    ? history.filter(h => h.type === 'INVOICE' || h.outcome === 'INVOICE_SHARED' || (h.docType && h.docType.includes('INVOICE')) || Boolean(h.notes && /invoice/i.test(h.notes)))
     : history.filter(h => h.type === filterType);
   const grouped = groupByDate(filtered);
 
@@ -224,19 +251,38 @@ export function CallContactHistory({
           </div>
           <div>
             <h3 className="text-sm font-extrabold text-white">Full Contact History & Call Timeline</h3>
-            <p className="text-[11px] text-slate-400">Every call, WhatsApp & email — with outcome, rep, duration & notes</p>
+            <p className="text-[11px] text-slate-400">Every call, WhatsApp, email, quotation & invoice — with outcome, rep & notes</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {quotationCount > 0 && (
+            <span className="text-[11px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <span>📄</span> {quotationCount} Quotation{quotationCount > 1 ? 's' : ''}
+            </span>
+          )}
+          {invoiceCount > 0 && (
+            <span className="text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+              <span>🧾</span> {invoiceCount} Invoice{invoiceCount > 1 ? 's' : ''}
+            </span>
+          )}
           {meetingCount > 0 && (
             <span className="text-[11px] font-extrabold text-purple-300 bg-purple-500/15 border border-purple-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-              <span>🏢</span> {meetingCount} Meeting{meetingCount > 1 ? 's' : ''} Scheduled
+              <span>🏢</span> {meetingCount} Meeting{meetingCount > 1 ? 's' : ''}
             </span>
           )}
           {followUpCount > 0 && (
             <span className="text-[11px] font-extrabold text-sky-300 bg-sky-500/15 border border-sky-500/35 px-3 py-1.5 rounded-full flex items-center gap-1.5">
-              <Clock size={11} className="text-sky-400" /> {followUpCount} Follow-Up Action{followUpCount > 1 ? 's' : ''}
+              <Clock size={11} className="text-sky-400" /> {followUpCount} Follow-Up{followUpCount > 1 ? 's' : ''}
             </span>
+          )}
+          {onOpenShareQuoteInvoice && (
+            <button
+              onClick={onOpenShareQuoteInvoice}
+              className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 px-3 py-1.5 rounded-full flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              title="Share Quotation or Invoice with Lead"
+            >
+              <span>📄</span> + Share Quote / Invoice
+            </button>
           )}
           <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-full">
             {totalAttempts} Total Contact Attempts
@@ -273,18 +319,24 @@ export function CallContactHistory({
 
       {/* ── Filter Chips ──────────────────────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
-        {(['ALL', 'MEETING', 'CALL_OUT', 'FOLLOW_UP', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
+        {(['ALL', 'MEETING', 'CALL_OUT', 'FOLLOW_UP', 'QUOTATION', 'INVOICE', 'CALL_BUSY', 'CALL_NOT_RESPONDING', 'WHATSAPP', 'EMAIL'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilterType(f)}
             className="text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer"
             style={{
-              background: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.25)' : 'rgba(99,102,241,0.25)') : 'rgba(15,23,42,0.8)',
-              borderColor: filterType === f ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.5)' : 'rgba(99,102,241,0.5)') : 'rgb(30,41,59)',
-              color: filterType === f ? (f === 'MEETING' ? '#c084fc' : f === 'FOLLOW_UP' ? '#38bdf8' : '#818cf8') : '#94a3b8',
+              background: filterType === f 
+                ? (f === 'MEETING' ? 'rgba(168,85,247,0.25)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.25)' : f === 'QUOTATION' ? 'rgba(129,140,248,0.25)' : f === 'INVOICE' ? 'rgba(56,189,248,0.25)' : 'rgba(99,102,241,0.25)') 
+                : 'rgba(15,23,42,0.8)',
+              borderColor: filterType === f 
+                ? (f === 'MEETING' ? 'rgba(168,85,247,0.5)' : f === 'FOLLOW_UP' ? 'rgba(14,165,233,0.5)' : f === 'QUOTATION' ? 'rgba(129,140,248,0.5)' : f === 'INVOICE' ? 'rgba(56,189,248,0.5)' : 'rgba(99,102,241,0.5)') 
+                : 'rgb(30,41,59)',
+              color: filterType === f 
+                ? (f === 'MEETING' ? '#c084fc' : f === 'FOLLOW_UP' ? '#38bdf8' : f === 'QUOTATION' ? '#a5b4fc' : f === 'INVOICE' ? '#7dd3fc' : '#818cf8') 
+                : '#94a3b8',
             }}
           >
-            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'FOLLOW_UP' ? `⏱️ Follow-ups (${followUpCount})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
+            {f === 'ALL' ? `All (${totalAttempts})` : f === 'MEETING' ? `🏢 Meetings (${meetingCount})` : f === 'CALL_OUT' ? `📞 Calls (${history.filter(h=>['CALL_OUT','CALL_IN'].includes(h.type)).length})` : f === 'FOLLOW_UP' ? `⏱️ Follow-ups (${followUpCount})` : f === 'QUOTATION' ? `📄 Quotations (${quotationCount})` : f === 'INVOICE' ? `🧾 Invoices (${invoiceCount})` : f === 'CALL_BUSY' ? `🔴 Busy/Missed (${missedOrNoAnswer})` : f === 'CALL_NOT_RESPONDING' ? `🔕 No Response` : f === 'WHATSAPP' ? `💬 WhatsApp (${waCount})` : `📧 Email (${emailCount})`}
           </button>
         ))}
       </div>
@@ -498,6 +550,68 @@ export function CallContactHistory({
                               {attempt.cancelledReason && (
                                 <p className="text-xs text-slate-200"><strong className="text-rose-400">Reason:</strong> {attempt.cancelledReason}</p>
                               )}
+                            </div>
+                          )}
+
+                          {/* 📄 / 🧾 QUOTATION OR INVOICE SHARED CARD */}
+                          {(attempt.type === 'QUOTATION' || attempt.type === 'INVOICE' || attempt.outcome === 'QUOTATION_SHARED' || attempt.outcome === 'INVOICE_SHARED' || attempt.docNo) && (
+                            <div className="p-3 rounded-xl bg-gradient-to-r from-slate-900 to-indigo-950/40 border border-indigo-500/30 space-y-2.5">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{attempt.type === 'INVOICE' || attempt.outcome === 'INVOICE_SHARED' || (attempt.docType && attempt.docType.includes('INVOICE')) ? '🧾' : '📄'}</span>
+                                  <div>
+                                    <span className="text-xs font-mono font-black text-indigo-300">
+                                      {attempt.docNo ? `#${attempt.docNo}` : (attempt.type === 'INVOICE' ? 'Invoice Document' : 'Quotation Document')}
+                                    </span>
+                                    {attempt.docType && (
+                                      <span className="ml-2 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                        {attempt.docType.replace('_', ' ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {attempt.docAmount !== undefined && attempt.docAmount > 0 && (
+                                  <span className="text-xs font-black font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                                    ₹{Number(attempt.docAmount).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Medium and sharing mode badge */}
+                              <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold border border-slate-700 flex items-center gap-1">
+                                  {attempt.sharingMedium === 'WHATSAPP' || (attempt.sharingMedium as any) === 'WHATSAPP_DIRECT' ? (
+                                    <><span>💬</span> Via WhatsApp Direct</>
+                                  ) : attempt.sharingMedium === 'EMAIL' ? (
+                                    <><span>📧</span> Via Email</>
+                                  ) : attempt.sharingMedium === 'IN_PERSON' ? (
+                                    <><span>🤝</span> In-Person / Handover</>
+                                  ) : (
+                                    <><span>🚀</span> Direct Share</>
+                                  )}
+                                </span>
+                                {attempt.sharingMode && (
+                                  <span className="px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-bold border border-indigo-500/30">
+                                    {attempt.sharingMode === 'ALREADY_SHARED' ? '✓ Already Shared' : '⚡ Shared Direct'}
+                                  </span>
+                                )}
+                                <a
+                                  href="/quotes"
+                                  className="px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 font-bold border border-indigo-500/40 flex items-center gap-1 transition-colors"
+                                >
+                                  <ExternalLink size={10} /> View in Quotes Module
+                                </a>
+                                {leadPhone && (
+                                  <a
+                                    href={`https://wa.me/${leadPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hello ${leadName}, following up regarding your ${attempt.docType ? attempt.docType.replace('_', ' ') : 'Quotation'} #${attempt.docNo || ''}.`)}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40 flex items-center gap-1 transition-colors"
+                                  >
+                                    <MessageSquare size={10} /> Re-open on WhatsApp
+                                  </a>
+                                )}
+                              </div>
                             </div>
                           )}
 

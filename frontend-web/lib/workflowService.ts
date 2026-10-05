@@ -100,6 +100,15 @@ export const DEFAULT_CALL_FUNNEL_MAPPINGS: CallOutcomeStageMapping[] = [
     defaultPriority: 'NORMAL',
     description: 'Invalid contact or wrong recipient; auto-marks as Lost / Invalid.',
   },
+  {
+    outcomeId: 'talked_quote_invoice_shared',
+    outcomeLabel: 'f - Quotation / Invoice Shared',
+    category: 'TALKED',
+    targetStatus: 'Negotiation',
+    autoCreateFollowUp: true,
+    defaultPriority: 'HIGH',
+    description: 'Quotation or Invoice shared with lead; automatically updates lead into Negotiation stage.',
+  },
 
   // 2. NOT RESPONDING (Ringing but not picked)
   {

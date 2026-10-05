@@ -12,6 +12,12 @@ export interface QuotationItemDto {
   validUntil?: string;
   itemsCount: number;
   docType?: string;
+  sentToLead?: string;
+  sentVia?: string;
+  leadId?: string;
+  leadName?: string;
+  createdByName?: string;
+  createdByRole?: string;
   notes?: string;
   items?: any[];
   payload?: any;
@@ -30,14 +36,17 @@ export class QuotationsService {
     if (!organizationId) return [];
 
     try {
-      const dbQuotes = await this.prisma.quotation.findMany({
+      const dbQuotes: any[] = await (this.prisma.quotation as any).findMany({
         where: { organizationId },
-        include: { items: true },
+        include: {
+          items: true,
+          lead: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }).catch(() => []);
 
       if (dbQuotes && dbQuotes.length > 0) {
-        return dbQuotes.map((q) => {
+        return dbQuotes.map((q: any) => {
           let parsedNotes: any = {};
           try {
             if (q.notes && (q.notes.startsWith('{') || q.notes.startsWith('['))) {
@@ -45,10 +54,13 @@ export class QuotationsService {
             }
           } catch (_) {}
 
+          const leadDisplayName = q.lead ? `${q.lead.firstName || ''} ${q.lead.lastName || ''}`.trim() : '';
+          const resolvedLeadName = parsedNotes.sentToLead || (leadDisplayName ? `${leadDisplayName}${q.lead.phone ? ` (${q.lead.phone})` : ''}` : undefined);
+
           return {
             id: q.id,
             quoteNumber: q.number,
-            clientName: parsedNotes.partyName || parsedNotes.clientName || 'Client',
+            clientName: parsedNotes.partyName || parsedNotes.clientName || leadDisplayName || 'Client',
             clientCompany: parsedNotes.companyName || parsedNotes.clientCompany || 'Company',
             totalAmount: Number(q.grandTotal || q.subtotal || 0),
             currency: q.currency || 'INR',
@@ -56,11 +68,17 @@ export class QuotationsService {
             validUntil: q.validUntil ? q.validUntil.toISOString() : undefined,
             itemsCount: q.items ? q.items.length : (parsedNotes.itemsCount || 0),
             docType: q.title || parsedNotes.docType || 'QUOTATION',
+            sentToLead: resolvedLeadName,
+            sentVia: parsedNotes.sentVia,
+            leadId: q.leadId || parsedNotes.leadId || undefined,
+            leadName: parsedNotes.leadName || leadDisplayName || undefined,
+            createdByName: parsedNotes.createdByName,
+            createdByRole: parsedNotes.createdByRole,
             notes: q.notes || '',
             payload: parsedNotes.payload || undefined,
             createdAt: q.createdAt.toISOString(),
             updatedAt: q.updatedAt.toISOString(),
-            items: q.items ? q.items.map((it) => ({
+            items: q.items ? q.items.map((it: any) => ({
               id: it.id,
               productName: it.name,
               description: it.description,
@@ -83,9 +101,12 @@ export class QuotationsService {
   // ─── GET SINGLE QUOTATION BY ID ──────────────────────────────────────────────
   async getQuotationById(organizationId: string, id: string): Promise<QuotationItemDto> {
     try {
-      const dbQuote = await this.prisma.quotation.findFirst({
+      const dbQuote: any = await (this.prisma.quotation as any).findFirst({
         where: { id, organizationId },
-        include: { items: true },
+        include: {
+          items: true,
+          lead: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+        },
       }).catch(() => null);
 
       if (dbQuote) {
@@ -96,10 +117,13 @@ export class QuotationsService {
           }
         } catch (_) {}
 
+        const leadDisplayName = dbQuote.lead ? `${dbQuote.lead.firstName || ''} ${dbQuote.lead.lastName || ''}`.trim() : '';
+        const resolvedLeadName = parsedNotes.sentToLead || (leadDisplayName ? `${leadDisplayName}${dbQuote.lead.phone ? ` (${dbQuote.lead.phone})` : ''}` : undefined);
+
         return {
           id: dbQuote.id,
           quoteNumber: dbQuote.number,
-          clientName: parsedNotes.partyName || parsedNotes.clientName || 'Client',
+          clientName: parsedNotes.partyName || parsedNotes.clientName || leadDisplayName || 'Client',
           clientCompany: parsedNotes.companyName || parsedNotes.clientCompany || 'Company',
           totalAmount: Number(dbQuote.grandTotal || dbQuote.subtotal || 0),
           currency: dbQuote.currency || 'INR',
@@ -107,11 +131,17 @@ export class QuotationsService {
           validUntil: dbQuote.validUntil ? dbQuote.validUntil.toISOString() : undefined,
           itemsCount: dbQuote.items ? dbQuote.items.length : (parsedNotes.itemsCount || 0),
           docType: dbQuote.title || parsedNotes.docType || 'QUOTATION',
+          sentToLead: resolvedLeadName,
+          sentVia: parsedNotes.sentVia,
+          leadId: dbQuote.leadId || parsedNotes.leadId || undefined,
+          leadName: parsedNotes.leadName || leadDisplayName || undefined,
+          createdByName: parsedNotes.createdByName,
+          createdByRole: parsedNotes.createdByRole,
           notes: dbQuote.notes || '',
           payload: parsedNotes.payload || undefined,
           createdAt: dbQuote.createdAt.toISOString(),
           updatedAt: dbQuote.updatedAt.toISOString(),
-          items: dbQuote.items ? dbQuote.items.map((it) => ({
+          items: dbQuote.items ? dbQuote.items.map((it: any) => ({
             id: it.id,
             productName: it.name,
             description: it.description,
@@ -147,6 +177,10 @@ export class QuotationsService {
       docType: dto.docType || 'QUOTATION',
       sentVia: dto.sentVia,
       sentToLead: dto.sentToLead,
+      leadId: dto.leadId,
+      leadName: dto.leadName,
+      createdByName: dto.createdByName,
+      createdByRole: dto.createdByRole,
       itemsCount: dto.itemsCount || (dto.items ? dto.items.length : 0),
       payload: dto.payload,
     };
@@ -157,6 +191,8 @@ export class QuotationsService {
           organizationId,
           number: quoteNumber,
           title: dto.docType || dto.title || 'QUOTATION',
+          leadId: dto.leadId || undefined,
+          dealId: dto.dealId || undefined,
           status: status as any,
           subtotal: subtotal,
           grandTotal: grandTotal,
@@ -194,11 +230,17 @@ export class QuotationsService {
           validUntil: dbQuote.validUntil?.toISOString(),
           itemsCount: dbQuote.items ? dbQuote.items.length : 0,
           docType: dbQuote.title || 'QUOTATION',
+          sentToLead: metadata.sentToLead,
+          sentVia: metadata.sentVia,
+          leadId: dbQuote.leadId || undefined,
+          leadName: metadata.leadName,
+          createdByName: metadata.createdByName,
+          createdByRole: metadata.createdByRole,
           notes: dbQuote.notes || '',
           payload: metadata.payload,
           createdAt: dbQuote.createdAt.toISOString(),
           updatedAt: dbQuote.updatedAt.toISOString(),
-          items: dbQuote.items ? dbQuote.items.map((it) => ({
+          items: dbQuote.items ? dbQuote.items.map((it: any) => ({
             id: it.id,
             productName: it.name,
             description: it.description,
@@ -226,6 +268,12 @@ export class QuotationsService {
       validUntil: dto.validUntil,
       itemsCount: dto.items ? dto.items.length : 0,
       docType: metadata.docType,
+      sentToLead: metadata.sentToLead,
+      sentVia: metadata.sentVia,
+      leadId: dto.leadId,
+      leadName: dto.leadName,
+      createdByName: dto.createdByName,
+      createdByRole: dto.createdByRole,
       notes: JSON.stringify(metadata),
       payload: metadata.payload,
       createdAt: new Date().toISOString(),
@@ -257,15 +305,20 @@ export class QuotationsService {
           ...(dto.docType && { docType: dto.docType }),
           ...(dto.sentVia && { sentVia: dto.sentVia }),
           ...(dto.sentToLead && { sentToLead: dto.sentToLead }),
+          ...(dto.leadId && { leadId: dto.leadId }),
+          ...(dto.leadName && { leadName: dto.leadName }),
+          ...(dto.createdByName && { createdByName: dto.createdByName }),
+          ...(dto.createdByRole && { createdByRole: dto.createdByRole }),
           ...(dto.payload && { payload: dto.payload }),
         };
 
         const updated = await this.prisma.quotation.update({
           where: { id },
           data: {
-            ...(dto.status && { status: dto.status === 'GENERATED_SENT' ? 'SENT' : dto.status }),
+            ...(dto.leadId !== undefined && { leadId: dto.leadId || null }),
+            ...(dto.status && { status: (dto.status === 'GENERATED_SENT' || dto.status === 'SENT') ? 'SENT' : dto.status }),
             ...(dto.totalAmount !== undefined && { grandTotal: Number(dto.totalAmount) }),
-            ...(dto.title && { title: dto.title }),
+            ...(dto.title && { title: dto.title || dto.docType }),
             notes: JSON.stringify(updatedMetadata),
           },
           include: { items: true },
