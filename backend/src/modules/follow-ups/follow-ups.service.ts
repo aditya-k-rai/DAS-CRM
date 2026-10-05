@@ -144,6 +144,9 @@ export class FollowUpsService {
       sortOrder = 'asc',
     } = query;
 
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(String(limit), 10) || 50));
+
     const base = this.baseWhere(organizationId, userId, userRole);
     const where: any = { ...base };
 
@@ -151,18 +154,27 @@ export class FollowUpsService {
       where.assigneeId = assignedTo;
     }
 
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+
     // Status filter (compute-aware)
     if (status && status !== 'ALL') {
       if (status === 'OVERDUE') {
         where.isCompleted = false;
         where.status = { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] };
-        where.dueAt = { lt: new Date() };
-      } else if (status === 'COMPLETED') {
-        where.isCompleted = true;
-      } else if (status === 'PENDING') {
+        where.dueAt = { lt: todayStart };
+      } else if (status === 'TODAY') {
+        where.dueAt = { gte: todayStart, lte: todayEnd };
+      } else if (status === 'UPCOMING' || status === 'PENDING') {
         where.isCompleted = false;
         where.status = { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] };
-        where.dueAt = { gte: new Date() };
+        where.dueAt = { gt: todayEnd };
+      } else if (status === 'COMPLETED') {
+        where.OR = [
+          { isCompleted: true },
+          { status: 'COMPLETED' },
+        ];
       } else {
         where.status = status;
       }
@@ -205,8 +217,8 @@ export class FollowUpsService {
         where,
         include: this.includeRelations(),
         orderBy: { [orderField]: sortOrder },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
       }),
     ]);
 
@@ -218,7 +230,7 @@ export class FollowUpsService {
 
     return {
       data: enriched,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     };
   }
 
@@ -736,7 +748,7 @@ export class FollowUpsService {
             ...base,
             isCompleted: false,
             status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
-            dueAt: { gt: now },
+            dueAt: { gt: todayEnd },
           },
         }),
         this.prisma.task.count({
@@ -744,27 +756,36 @@ export class FollowUpsService {
             ...base,
             isCompleted: false,
             status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] },
-            dueAt: { lt: now },
+            dueAt: { lt: todayStart },
           },
         }),
         this.prisma.task.count({
-          where: { ...base, isCompleted: true },
+          where: {
+            ...base,
+            OR: [
+              { isCompleted: true },
+              { status: 'COMPLETED' },
+            ],
+          },
         }),
         this.prisma.task.count({
-          where: { ...base, priority: 'HIGH', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED'] } },
+          where: { ...base, priority: 'HIGH', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] } },
         }),
         this.prisma.task.count({
-          where: { ...base, priority: 'MEDIUM', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED'] } },
+          where: { ...base, priority: 'MEDIUM', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] } },
         }),
         this.prisma.task.count({
-          where: { ...base, priority: 'NORMAL', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED'] } },
+          where: { ...base, priority: 'NORMAL', isCompleted: false, status: { notIn: ['CANCELLED', 'MISSED', 'COMPLETED'] } },
         }),
       ]);
 
     const completedToday = await this.prisma.task.count({
       where: {
         ...base,
-        isCompleted: true,
+        OR: [
+          { isCompleted: true },
+          { status: 'COMPLETED' },
+        ],
         completedAt: { gte: todayStart, lte: todayEnd },
       },
     });

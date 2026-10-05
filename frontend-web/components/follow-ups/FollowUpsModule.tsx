@@ -567,7 +567,7 @@ export default function FollowUpsModule() {
           overdueCount++;
         } else if (itemDateStr === todayStr || status === 'DUE') {
           todayCount++;
-        } else if (status !== 'CANCELLED') {
+        } else if (itemDateStr && itemDateStr > todayStr && status !== 'CANCELLED') {
           upcomingCount++;
         }
 
@@ -685,8 +685,16 @@ export default function FollowUpsModule() {
           merged = merged.filter(i => i && (i.isCompleted || (i.computedStatus || i.status) === 'COMPLETED'));
         } else if (statusFilter === 'OVERDUE') {
           merged = merged.filter(i => i && !i.isCompleted && (i.computedStatus || i.status) === 'OVERDUE');
-        } else if (statusFilter === 'PENDING') {
-          merged = merged.filter(i => i && !i.isCompleted && (i.computedStatus || i.status) !== 'COMPLETED' && (i.computedStatus || i.status) !== 'CANCELLED');
+        } else if (statusFilter === 'UPCOMING' || statusFilter === 'PENDING') {
+          const todayIso = new Date().toISOString().split('T')[0];
+          merged = merged.filter(i => {
+            if (!i || i.isCompleted) return false;
+            const st = i.computedStatus || i.status;
+            if (st === 'COMPLETED' || st === 'CANCELLED') return false;
+            const d = i.dueAt ? new Date(i.dueAt) : null;
+            const dStr = d && !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : i.scheduledDate;
+            return dStr ? dStr > todayIso : false;
+          });
         }
       }
 
@@ -722,7 +730,7 @@ export default function FollowUpsModule() {
     if (activeTab === 'TODAY') await loadTodayData();
     else if (activeTab === 'CALENDAR') await loadCalendarData();
     else if (activeTab === 'ALL') await loadAllData();
-    else if (activeTab === 'UPCOMING') await loadAllData('PENDING');
+    else if (activeTab === 'UPCOMING') await loadAllData('UPCOMING');
     else if (activeTab === 'OVERDUE') await loadAllData('OVERDUE');
     else if (activeTab === 'COMPLETED') await loadAllData('COMPLETED');
     setRefreshing(false);
@@ -780,7 +788,7 @@ export default function FollowUpsModule() {
     loadSummary();
     if (activeTab === 'TODAY') loadTodayData();
     else if (activeTab === 'ALL') loadAllData();
-    else if (activeTab === 'UPCOMING') loadAllData('PENDING');
+    else if (activeTab === 'UPCOMING') loadAllData('UPCOMING');
     else if (activeTab === 'OVERDUE') loadAllData('OVERDUE');
     else if (activeTab === 'COMPLETED') loadAllData('COMPLETED');
     else if (activeTab === 'CALENDAR') loadCalendarData();
@@ -843,7 +851,7 @@ export default function FollowUpsModule() {
       return () => clearTimeout(delay);
     } else if (searchQuery.trim().length === 0 && activeTab !== 'TODAY' && activeTab !== 'CALENDAR') {
       if (activeTab === 'ALL') loadAllData();
-      else if (activeTab === 'UPCOMING') loadAllData('PENDING');
+      else if (activeTab === 'UPCOMING') loadAllData('UPCOMING');
       else if (activeTab === 'OVERDUE') loadAllData('OVERDUE');
       else if (activeTab === 'COMPLETED') loadAllData('COMPLETED');
     }
